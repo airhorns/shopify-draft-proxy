@@ -3,9 +3,9 @@ title: 'Returns Endpoint Group'
 description: 'Coverage notes and fidelity boundaries for Returns Endpoint Group.'
 ---
 
-The returns group is modeled as an order-backed reverse-logistics slice. The local source of truth is the normalized
-`Order.returns` array, so supported return writes update order state and downstream reads without sending runtime
-mutations to Shopify.
+The returns group is modeled as an order-backed reverse-logistics slice. The local source of truth is staged return,
+reverse-delivery, and reverse-fulfillment-order records linked back to orders, so supported return writes update local
+state and downstream reads without sending runtime mutations to Shopify.
 
 ## Current support and limitations
 
@@ -31,15 +31,13 @@ Local staged mutations:
 
 ### Behavior notes
 
-- `return(id:)` resolves returns already present on the local order graph and returns `null` for missing IDs in snapshot
-  mode. It serializes the supported Return detail slice from the same record used by nested `Order.returns`.
-- `returnCreate` stages a local `OPEN` return for a known order and known fulfillment line items. The local return stores a
-  stable synthetic Return ID, ReturnLineItem IDs, status, name, timestamps, quantity, reason, reason note, order linkage,
-  return shipping fee, note, refund intent, location, retail attribution, top-level unprocessed flag, and reverse
-  fulfillment order work for the returned quantities. `returnDelivery` input is retained as reverse-delivery tracking /
-  label metadata for downstream `Return.reverseDeliveries` reads. Return line quantity validation subtracts quantities
-  already consumed by non-canceled returns on the same fulfillment line item before staging. The original raw mutation is
-  retained in the meta log for explicit commit replay.
+- `return(id:)` resolves staged return records and returns `null` for missing IDs in snapshot mode. Nested
+  `Order.returns` reads are derived from the same staged return records through the order-to-return index, so top-level
+  and nested reads observe the same staged status, quantity, shipping-fee, and line-item state.
+- `returnCreate` stages a local `OPEN` return for the submitted order and fulfillment line items. The local return stores
+  a stable synthetic Return ID, ReturnLineItem IDs, status, name, quantity, reason, reason note, order linkage, return
+  shipping fee, and reverse-fulfillment-order references for returned quantities. The original raw mutation is retained
+  in the meta log for explicit commit replay.
 - `returnRequest` stages the same order-backed shape with status `REQUESTED` and uses the same already-returned quantity
   cap as `returnCreate`. When `notifyCustomer: true` is supplied, the proxy validates the hidden
   `tmp_notify_customer.email_address` input with the shared basic email guard but does not send notification side
@@ -103,14 +101,14 @@ Local staged mutations:
   part of the fulfilled quantity and verifies over-cap `returnRequest` and `returnCreate` calls return a quantity userError
   instead of staging a second return, while `config/parity-specs/orders/removeFromReturn-quantity-validation.json` verifies
   zero and over-line removal quantities return `INVALID` quantity userErrors.
-- Live recorded parity covers request approval, empty reverse-delivery line expansion, `ReverseDeliveryLabelInput.fileUrl`,
-  shipping update, `NOT_RESTOCKED` reverse-fulfillment disposal, return processing, and downstream reads. Exchange
-  processing, carrier label creation, notification sends, refund transfers, duties, and inventory/location movement remain
-  explicit unsupported fidelity gaps.
-- Live recorded parity now covers `returnClose`, `returnReopen`, and `returnCancel` status preconditions, success
-  transitions, idempotent no-op branches, and processed-return cancel rejection in
+- Executable parity covers request approval, empty reverse-delivery line expansion, `ReverseDeliveryLabelInput.fileUrl`,
+  shipping update, reverse-fulfillment disposal, return processing, and downstream reads from staged return and
+  reverse-logistics records. Exchange processing, carrier label creation, notification sends, refund transfers, duties,
+  and inventory/location movement remain explicit unsupported fidelity gaps.
+- Executable parity covers `returnClose`, `returnReopen`, and `returnCancel` status preconditions, success transitions,
+  idempotent no-op branches, and processed-return cancel rejection in
   `config/parity-specs/orders/returnClose-Reopen-Cancel-state-preconditions.json`.
-- Live recorded parity covers public 2026-04 `returnCreate` with `ReturnInput.returnShippingFee` and deprecated
+- Executable parity covers public 2026-04 `returnCreate` with `ReturnInput.returnShippingFee` and deprecated
   `unprocessed`, plus read-after-write `Return.returnShippingFees` / `Order.returns.returnShippingFees`, in
   `config/parity-specs/orders/return-shipping-fee-recorded.json`. The same fixture records the current public-schema
   boundary: `returnDelivery`, `note`, `refundIntent`, `locationId`, and `retailAttribution` are rejected during GraphQL
@@ -144,7 +142,10 @@ Local staged mutations:
   `config/parity-specs/orders/returnRequest-quantity-cap.json` and
   `config/parity-specs/orders/removeFromReturn-quantity-validation.json`
 - `config/parity-specs/orders/return-reverse-logistics-local-staging.json` exercises empty
-  `reverseDeliveryLineItems` replay and `fileUrl` label input normalization. It also adds live recorded parity in
+  `reverseDeliveryLineItems` replay and `fileUrl` label input normalization.
+  `config/parity-specs/orders/return-reverse-logistics-non-recording-operation-name.json`
+  replays the same store-backed mutation/read flow with unrelated client operation names to guard against
+  document-marker dispatch. It also adds live recorded parity in
   `config/parity-specs/orders/return-reverse-logistics-recorded.json` backed by
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json`.
 - Return status precondition parity:

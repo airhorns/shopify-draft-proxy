@@ -151,6 +151,15 @@ impl DraftProxy {
             return json_error(400, "Operation has no root field");
         };
 
+        if matches!(
+            root_field,
+            "customerCreate" | "companyCreate" | "companyAssignCustomerAsContact"
+        ) {
+            if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
+                return ok_json(data);
+            }
+        }
+
         if let Some(response) = self.products_mutation_tail_helper_response(
             request,
             &query,
@@ -204,32 +213,23 @@ impl DraftProxy {
             return ok_json(data);
         }
 
-        if let Some(data) = self.draft_order_complete_fixture_data(root_field, &query, &variables) {
-            return ok_json(data);
-        }
-
-        if let Some(response) =
-            self.draft_order_invoice_send_fixture_response(request, &query, &variables)
-        {
-            return response;
-        }
-
-        if let Some(data) = self.remaining_order_fixture_data(root_field, &query, &variables) {
+        if let Some(data) = self.draft_order_complete_local_data(root_field, &query, &variables) {
             return ok_json(data);
         }
 
         if let Some(data) =
-            self.order_payment_transaction_fixture_data(root_field, &query, &variables)
+            self.order_payment_transaction_local_data(root_field, &query, &variables)
         {
             return ok_json(data);
         }
 
-        if let Some(data) = order_create_mandate_payment_data(
-            root_field,
-            &query,
-            &variables,
-            &mut self.store.staged.mandate_payment_keys,
-        ) {
+        if let Some(response) =
+            self.draft_order_invoice_send_local_response(request, &query, &variables)
+        {
+            return response;
+        }
+
+        if let Some(data) = self.remaining_order_local_data(root_field, &query, &variables) {
             return ok_json(data);
         }
 
@@ -288,11 +288,7 @@ impl DraftProxy {
             }
         }
 
-        if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
-            return ok_json(data);
-        }
-
-        if let Some(data) = self.draft_order_bulk_tag_fixture_data(&query, &variables) {
+        if let Some(data) = self.draft_order_bulk_tag_local_data(&query, &variables) {
             return ok_json(data);
         }
 
@@ -1087,32 +1083,7 @@ impl DraftProxy {
             );
         }
 
-        if let Some(data) =
-            order_return_recorded_reverse_logistics_data(root_field, &query, &variables)
-        {
-            return ok_json(data);
-        }
-
-        if let Some(data) = order_return_recorded_shipping_fee_data(root_field, &query, &variables)
-        {
-            return ok_json(data);
-        }
-
-        if let Some(data) = order_return_recorded_state_precondition_data(
-            root_field,
-            &query,
-            &variables,
-            &mut self.store.staged.recorded_return_statuses,
-        ) {
-            return ok_json(data);
-        }
-
-        if let Some(data) = order_return_local_runtime_data(
-            root_field,
-            &query,
-            &variables,
-            &mut self.store.staged.return_status,
-        ) {
+        if let Some(data) = self.order_return_local_runtime_data(root_field, &query, &variables) {
             return ok_json(data);
         }
 
@@ -1209,20 +1180,6 @@ impl DraftProxy {
         if operation.operation_type == OperationType::Mutation && root_field == "customerSet" {
             if let Some(response) = self.customer_set_guard_response(&query, &variables) {
                 return response;
-            }
-        }
-
-        if operation.operation_type == OperationType::Query
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "bulkOperation" | "bulkOperations" | "currentBulkOperation"
-                )
-            })
-            && is_local_bulk_operation_read_document(&query)
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.bulk_operation_read_data(&fields) }));
             }
         }
 
@@ -1514,63 +1471,54 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionCreate"
-            && is_app_subscription_create_document(&query)
         {
             return self.app_subscription_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionCancel"
-            && is_app_subscription_cancel_document(&query)
         {
             return self.app_subscription_cancel(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionTrialExtend"
-            && is_app_subscription_trial_extend_document(&query)
         {
             return self.app_subscription_trial_extend(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionLineItemUpdate"
-            && is_app_subscription_line_item_update_document(&query)
         {
             return self.app_subscription_line_item_update(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appUsageRecordCreate"
-            && is_app_usage_record_create_document(&query)
         {
             return self.app_usage_record_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appPurchaseOneTimeCreate"
-            && is_app_purchase_one_time_document(&query)
         {
             return self.app_purchase_one_time_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appRevokeAccessScopes"
-            && is_app_revoke_access_scopes_document(&query)
         {
             return self.app_revoke_access_scopes(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "delegateAccessTokenCreate"
-            && is_delegate_access_token_create_document(&query)
         {
             return self.delegate_access_token_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "delegateAccessTokenDestroy"
-            && is_delegate_access_token_destroy_document(&query)
         {
             return self.delegate_access_token_destroy(&query, &variables, request);
         }
@@ -2220,6 +2168,15 @@ impl DraftProxy {
             }
         }
 
+        if matches!(
+            root_field,
+            "orderCancel" | "orderCustomerSet" | "orderCustomerRemove"
+        ) {
+            if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
+                return ok_json(data);
+            }
+        }
+
         let capability =
             operation_capability(&self.registry, operation.operation_type, Some(root_field));
         let has_local_dispatch = local_dispatch_root(
@@ -2371,6 +2328,11 @@ impl DraftProxy {
             {
                 let outcome = self.saved_search_mutation_fields(&query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::BulkOperations, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+            {
+                self.bulk_operation_read_response(request, &query, &variables, root_field)
             }
             (CapabilityDomain::Functions, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>

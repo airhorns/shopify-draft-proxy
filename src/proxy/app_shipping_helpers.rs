@@ -81,7 +81,11 @@ pub(in crate::proxy) fn delegate_access_token_create_payload_json(
                 selected_json(&token, token_selection)
             }),
             "shop" => Some(selected_json(&synthetic_shop_json(), &selection.selection)),
-            "userErrors" => Some(Value::Array(user_errors.clone())),
+            "userErrors" => Some(app_user_errors_json(
+                user_errors.clone(),
+                "UserError",
+                &selection.selection,
+            )),
             _ => None,
         }
     })
@@ -96,7 +100,11 @@ pub(in crate::proxy) fn delegate_access_token_destroy_payload_json(
         match selection.name.as_str() {
             "status" => Some(Value::Bool(status)),
             "shop" => Some(selected_json(&synthetic_shop_json(), &selection.selection)),
-            "userErrors" => Some(Value::Array(user_errors.clone())),
+            "userErrors" => Some(app_user_errors_json(
+                user_errors.clone(),
+                "UserError",
+                &selection.selection,
+            )),
             _ => None,
         }
     })
@@ -137,8 +145,16 @@ pub(in crate::proxy) fn app_uninstall_payload_json(
 ) -> Value {
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
-            "app" => Some(selected_json(&app, app_selection)),
-            "userErrors" => Some(Value::Array(user_errors.clone())),
+            "app" => Some(if app.is_null() {
+                Value::Null
+            } else {
+                selected_json(&app, app_selection)
+            }),
+            "userErrors" => Some(app_user_errors_json(
+                user_errors.clone(),
+                "AppUninstallError",
+                &selection.selection,
+            )),
             _ => None,
         }
     })
@@ -157,7 +173,11 @@ pub(in crate::proxy) fn app_revoke_access_scopes_payload_json(
                     .map(|scope| selected_json(scope, &selection.selection))
                     .collect(),
             )),
-            "userErrors" => Some(Value::Array(user_errors.clone())),
+            "userErrors" => Some(app_user_errors_json(
+                user_errors.clone(),
+                "AppRevokeScopeError",
+                &selection.selection,
+            )),
             _ => None,
         }
     })
@@ -176,7 +196,11 @@ pub(in crate::proxy) fn app_usage_record_payload_json(
             } else {
                 selected_json(&usage_record, usage_record_selection)
             }),
-            "userErrors" => Some(Value::Array(user_errors.clone())),
+            "userErrors" => Some(app_user_errors_json(
+                user_errors.clone(),
+                "UserError",
+                &selection.selection,
+            )),
             _ => None,
         }
     })
@@ -202,7 +226,11 @@ pub(in crate::proxy) fn app_purchase_one_time_payload_json(
             } else {
                 Value::Null
             }),
-            "userErrors" => Some(Value::Array(user_errors.clone())),
+            "userErrors" => Some(app_user_errors_json(
+                user_errors.clone(),
+                "UserError",
+                &selection.selection,
+            )),
             _ => None,
         }
     })
@@ -227,18 +255,63 @@ pub(in crate::proxy) fn app_subscription_payload_json(
     subscription_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
+    app_subscription_payload_json_with_confirmation_url(
+        subscription,
+        payload_selection,
+        subscription_selection,
+        user_errors,
+        Some(json!("https://app.example.test/local-confirmation")),
+    )
+}
+
+pub(in crate::proxy) fn app_subscription_payload_json_with_confirmation_url(
+    subscription: Value,
+    payload_selection: &[SelectedField],
+    subscription_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+    confirmation_url: Option<Value>,
+) -> Value {
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
-            "confirmationUrl" => Some(json!("https://app.example.test/local-confirmation")),
+            "confirmationUrl" => Some(if user_errors.is_empty() {
+                confirmation_url.clone().unwrap_or(Value::Null)
+            } else {
+                Value::Null
+            }),
             "appSubscription" => Some(if subscription.is_null() {
                 Value::Null
             } else {
                 selected_json(&subscription, subscription_selection)
             }),
-            "userErrors" => Some(Value::Array(user_errors.clone())),
+            "userErrors" => Some(app_user_errors_json(
+                user_errors.clone(),
+                "UserError",
+                &selection.selection,
+            )),
             _ => None,
         }
     })
+}
+
+pub(in crate::proxy) fn app_user_errors_json(
+    user_errors: Vec<Value>,
+    typename: &str,
+    selection: &[SelectedField],
+) -> Value {
+    Value::Array(
+        user_errors
+            .into_iter()
+            .map(|error| app_user_error_json(error, typename, selection))
+            .collect(),
+    )
+}
+
+fn app_user_error_json(error: Value, typename: &str, selection: &[SelectedField]) -> Value {
+    let mut error = error;
+    if let Value::Object(fields) = &mut error {
+        fields.insert("__typename".to_string(), json!(typename));
+    }
+    selected_json(&error, selection)
 }
 
 pub(in crate::proxy) fn app_subscription_line_items_from_arguments(
@@ -252,6 +325,23 @@ pub(in crate::proxy) fn app_subscription_line_items_from_arguments(
             .collect(),
         _ => Vec::new(),
     }
+}
+
+pub(in crate::proxy) fn app_subscription_line_item_currency_codes(
+    line_items: &[Value],
+) -> BTreeSet<String> {
+    line_items
+        .iter()
+        .filter_map(|line_item| {
+            let pricing = &line_item["plan"]["pricingDetails"];
+            match pricing["__typename"].as_str() {
+                Some("AppUsagePricing") => pricing["cappedAmount"]["currencyCode"].as_str(),
+                Some("AppRecurringPricing") => pricing["price"]["currencyCode"].as_str(),
+                _ => None,
+            }
+        })
+        .map(str::to_string)
+        .collect()
 }
 
 pub(in crate::proxy) fn app_subscription_line_item_from_input(
@@ -845,32 +935,6 @@ pub(in crate::proxy) fn is_customer_segment_members_query_document(query: &str) 
     .any(|marker| query.contains(marker))
 }
 
-pub(in crate::proxy) fn is_delegate_access_token_create_document(query: &str) -> bool {
-    [
-        "DelegateAccessTokenCreateEmptyScopeValidation",
-        "DelegateAccessTokenCreateNegativeExpiresValidation",
-        "DelegateAccessTokenCreateUnknownScopeValidation",
-        "DelegateAccessTokenCreateHappyValidation",
-        "DelegateAccessTokenCreateCurrentInputLocalLifecycle",
-        "DelegateAccessTokenCreateLocalLifecycle",
-        "DelegateAccessTokenCreateExpiresAfterParent",
-        "DelegateAccessTokenCreateShopPayload",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
-pub(in crate::proxy) fn is_delegate_access_token_destroy_document(query: &str) -> bool {
-    [
-        "DelegateAccessTokenDestroyCodes",
-        "DelegateAccessTokenDestroyShopPayload",
-        "DelegateAccessTokenDestroyShopPayloadUnknown",
-        "DelegateAccessTokenDestroyLocalLifecycle",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
 pub(in crate::proxy) fn is_app_billing_local_read_document(query: &str) -> bool {
     query.contains("AppBillingLocalRead") || query.contains("AppInstallationIdLocalRead")
 }
@@ -879,93 +943,14 @@ pub(in crate::proxy) fn is_app_access_scopes_read_document(query: &str) -> bool 
     query.contains("AppAccessScopesLocalRead")
 }
 
-pub(in crate::proxy) fn is_app_usage_record_create_document(query: &str) -> bool {
-    [
-        "AppUsageRecordCreateCapSuccess",
-        "AppUsageRecordCreateCapOverLimit",
-        "AppUsageRecordCreateLongIdempotencyKey",
-        "AppUsageRecordCreateLocalLifecycle",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
 pub(in crate::proxy) fn is_app_usage_record_read_document(query: &str) -> bool {
     query.contains("AppUsageRecordCreateCapRead")
-}
-
-pub(in crate::proxy) fn is_app_revoke_access_scopes_document(query: &str) -> bool {
-    [
-        "AppRevokeAccessScopesFakeScope",
-        "AppRevokeAccessScopesMixedFakeScope",
-        "AppRevokeAccessScopesRequiredReadProducts",
-        "AppRevokeAccessScopesOptionalWriteProducts",
-        "AppRevokeAccessScopesLocalLifecycle",
-        "AppRevokeAccessScopesErrorCodes",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
-pub(in crate::proxy) fn is_app_purchase_one_time_document(query: &str) -> bool {
-    is_app_purchase_one_time_validation_document(query)
-        || query.contains("AppPurchaseOneTimeCreateLocalLifecycle")
-}
-
-pub(in crate::proxy) fn is_app_purchase_one_time_validation_document(query: &str) -> bool {
-    [
-        "AppPurchaseOneTimeCreateValidationBlankName",
-        "AppPurchaseOneTimeCreateValidationZeroPrice",
-        "AppPurchaseOneTimeCreateValidationCurrencyMismatch",
-        "AppPurchaseOneTimeCreateValidationMissingReturnUrl",
-        "AppPurchaseOneTimeCreateValidationSuccess",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
 }
 
 pub(in crate::proxy) fn is_app_subscription_activation_document(query: &str) -> bool {
     [
         "AppSubscriptionCreateActivationReadback",
         "AppSubscriptionActivationRead",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
-pub(in crate::proxy) fn is_app_subscription_create_document(query: &str) -> bool {
-    is_app_subscription_activation_document(query)
-        || [
-            "AppSubscriptionCreateLocalLifecycle",
-            "AppSubscriptionCreatePendingLocalLifecycle",
-            "AppSubscriptionCreateUninstallCascade",
-        ]
-        .iter()
-        .any(|marker| query.contains(marker))
-}
-
-pub(in crate::proxy) fn is_app_subscription_cancel_document(query: &str) -> bool {
-    [
-        "AppSubscriptionCancelLocalLifecycle",
-        "AppSubscriptionCancelUnknownLocal",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
-pub(in crate::proxy) fn is_app_subscription_trial_extend_document(query: &str) -> bool {
-    [
-        "AppSubscriptionTrialExtendValidation",
-        "AppSubscriptionTrialExtendLocalLifecycle",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
-pub(in crate::proxy) fn is_app_subscription_line_item_update_document(query: &str) -> bool {
-    [
-        "AppSubscriptionLineItemUpdateValidation",
-        "AppSubscriptionLineItemUpdateLocalLifecycle",
     ]
     .iter()
     .any(|marker| query.contains(marker))
@@ -1962,6 +1947,11 @@ fn days_from_civil(year: i32, month: u32, day: u32) -> i64 {
     let day_of_year = (153 * (month + if month > 2 { -3 } else { 9 }) + 2) / 5 + day as i32 - 1;
     let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
     i64::from(era) * 146_097 + i64::from(day_of_era) - 719_468
+}
+
+pub(in crate::proxy) fn request_api_client_id(request: &Request) -> String {
+    request_header(request, "x-shopify-draft-proxy-api-client-id")
+        .unwrap_or_else(|| "gid://shopify/App/local".to_string())
 }
 
 pub(in crate::proxy) fn set_log_status(entry: &mut Value, status: &str) {

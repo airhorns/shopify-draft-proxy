@@ -33,8 +33,30 @@
             "paymentPending": false
           }
         }
+      },
+      {
+        "name": "read-completed-order-by-id-non-recording-name",
+        "capturePath": "$.draftOrderCompleteStagesResultingOrder.expected.readById",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderComplete-non-recording-operation-read-by-id.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "complete-staged-draft-non-recording-name",
+              "path": "$.data.draftOrderComplete.draftOrder.order.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "read-completed-order-by-name-non-recording-name",
+        "capturePath": "$.draftOrderCompleteStagesResultingOrder.expected.readByName",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/draftOrderComplete-non-recording-operation-read-by-name.graphql"
+        }
       }
     ]
   },
-  "notes": "Regression parity for Orders local dispatch using client operation names that are deliberately distinct from the original DraftOrderCompleteStagesResultingOrder recording names. The response evidence is reused from the checked-in local-runtime draftOrderComplete capture; this spec changes only the replayed GraphQL document names so the proxy must route by root field and arguments."
+  "notes": "Regression parity for Orders local dispatch using client operation names that are deliberately distinct from the original DraftOrderCompleteStagesResultingOrder recording names. The response evidence is reused from the checked-in local-runtime draftOrderComplete capture; this spec changes only the replayed GraphQL document names so the proxy must route create, complete, and downstream order reads by root field and arguments."
 }

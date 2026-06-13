@@ -282,6 +282,30 @@ impl DraftProxy {
         let id = LOCAL_APP_SUBSCRIPTION_ACTIVATION_ID.to_string();
         let name =
             resolved_string_field(&arguments, "name").unwrap_or_else(|| "Local plan".to_string());
+        let mut user_errors = Vec::new();
+        if name.trim().is_empty() {
+            user_errors.push(json!({
+                "field": ["name"],
+                "message": "Name can't be blank",
+                "code": null
+            }));
+        }
+        if !arguments.contains_key("returnUrl") {
+            user_errors.push(json!({
+                "field": ["returnUrl"],
+                "message": "Return url can't be blank",
+                "code": null
+            }));
+        }
+        if !arguments.contains_key("lineItems")
+            || matches!(arguments.get("lineItems"), Some(ResolvedValue::List(items)) if items.is_empty())
+        {
+            user_errors.push(json!({
+                "field": ["lineItems"],
+                "message": "At least one plan must be selected",
+                "code": null
+            }));
+        }
         let trial_days = arguments
             .get("trialDays")
             .and_then(|value| match value {
@@ -297,6 +321,25 @@ impl DraftProxy {
             })
             .unwrap_or(false);
         let line_items = app_subscription_line_items_from_arguments(&arguments);
+        if app_subscription_line_item_currency_codes(&line_items).len() > 1 {
+            user_errors.push(json!({
+                "field": ["lineItems"],
+                "message": "All pricing plans must use the same currency.",
+                "code": null
+            }));
+        }
+        if !user_errors.is_empty() {
+            return ok_json(json!({
+                "data": {
+                    response_key: app_subscription_payload_json(
+                        Value::Null,
+                        &payload_selection,
+                        &subscription_selection,
+                        user_errors,
+                    )
+                }
+            }));
+        }
         let subscription = json!({
             "__typename": "AppSubscription",
             "id": id,
@@ -513,23 +556,35 @@ impl DraftProxy {
                 Some(ResolvedValue::String(value)) => value.clone(),
                 _ => "USD".to_string(),
             };
+            let require_approval = match root.arguments.get("requireApproval") {
+                Some(ResolvedValue::Bool(value)) => *value,
+                _ => true,
+            };
 
             let mut matched_subscription_id = None;
             let mut matched_line_item = None;
+            let mut matched_line_item_index = None;
             for (subscription_id, subscription) in &self.store.staged.app_subscriptions {
                 if let Some(line_items) = subscription["lineItems"].as_array() {
-                    if let Some(line_item) =
-                        line_items.iter().find(|line_item| line_item["id"] == id)
+                    if let Some((index, line_item)) = line_items
+                        .iter()
+                        .enumerate()
+                        .find(|(_, line_item)| line_item["id"] == id)
                     {
                         matched_subscription_id = Some(subscription_id.clone());
                         matched_line_item = Some(line_item.clone());
+                        matched_line_item_index = Some(index);
                         break;
                     }
                 }
             }
 
-            let (subscription, user_errors) = match (matched_subscription_id, matched_line_item) {
-                (Some(subscription_id), Some(line_item)) => {
+            let (subscription, user_errors) = match (
+                matched_subscription_id,
+                matched_line_item,
+                matched_line_item_index,
+            ) {
+                (Some(subscription_id), Some(line_item), Some(line_item_index)) => {
                     let pricing = &line_item["plan"]["pricingDetails"];
                     if pricing["__typename"] != "AppUsagePricing" {
                         (
@@ -553,8 +608,8 @@ impl DraftProxy {
                             (
                                 Value::Null,
                                 vec![json!({
-                                    "field": ["cappedAmount"],
-                                    "message": format!("Capped amount currency mismatch. Expected {existing_currency}")
+                                    "field": null,
+                                    "message": format!("Currency code must be {existing_currency}")
                                 })],
                             )
                         } else if requested_amount_number <= existing_amount {
@@ -562,17 +617,35 @@ impl DraftProxy {
                                 Value::Null,
                                 vec![json!({
                                     "field": ["cappedAmount"],
-                                    "message": "The capped amount must be greater than the existing capped amount"
+                                    "message": "Spending limit can only be increased. Please contact the app developer to decrease spending limit."
                                 })],
                             )
                         } else {
-                            let subscription = self
-                                .store
-                                .staged
-                                .app_subscriptions
-                                .get(&subscription_id)
-                                .cloned()
-                                .unwrap_or(Value::Null);
+                            let subscription = if require_approval {
+                                self.store
+                                    .staged
+                                    .app_subscriptions
+                                    .get(&subscription_id)
+                                    .cloned()
+                                    .unwrap_or(Value::Null)
+                            } else {
+                                let subscription = self
+                                    .store
+                                    .staged
+                                    .app_subscriptions
+                                    .get_mut(&subscription_id)
+                                    .expect("located subscription must still exist");
+                                if let Some(line_item) = subscription["lineItems"]
+                                    .as_array_mut()
+                                    .and_then(|line_items| line_items.get_mut(line_item_index))
+                                {
+                                    line_item["plan"]["pricingDetails"]["cappedAmount"] = json!({
+                                        "amount": requested_amount,
+                                        "currencyCode": requested_currency
+                                    });
+                                }
+                                subscription.clone()
+                            };
                             self.record_mutation_log_entry(
                                 request,
                                 query,
@@ -588,18 +661,19 @@ impl DraftProxy {
                     Value::Null,
                     vec![json!({
                         "field": ["id"],
-                        "message": "The app subscription line item wasn't found."
+                        "message": "Invalid id"
                     })],
                 ),
             };
 
             data.insert(
                 root.response_key,
-                app_subscription_payload_json(
+                app_subscription_payload_json_with_confirmation_url(
                     subscription,
                     &root.selection,
                     &subscription_selection,
                     user_errors,
+                    require_approval.then(|| json!("https://app.example.test/local-confirmation")),
                 ),
             );
         }
@@ -669,7 +743,19 @@ impl DraftProxy {
         if idempotency_key.len() > 255 {
             user_errors.push(json!({
                 "field": ["idempotencyKey"],
-                "message": "Idempotency key must be at most 255 characters",
+                "message": "Idempotency key exceeds the maximum length.",
+                "code": null
+            }));
+        } else if description.trim().is_empty() {
+            user_errors.push(json!({
+                "field": ["description"],
+                "message": "Description can't be blank",
+                "code": null
+            }));
+        } else if shopify_gid_resource_type(&line_item_id) != Some("AppSubscriptionLineItem") {
+            user_errors.push(json!({
+                "field": ["subscriptionLineItemId"],
+                "message": "Invalid id",
                 "code": null
             }));
         } else if let Some((subscription_id, line_item_index)) =
@@ -704,7 +790,10 @@ impl DraftProxy {
                 .and_then(|records| {
                     records
                         .iter()
-                        .find(|record| record["idempotencyKey"] == idempotency_key)
+                        .find(|record| {
+                            record["idempotencyKey"] == idempotency_key
+                                && record["apiClientId"] == request_api_client_id(request)
+                        })
                         .cloned()
                 });
             if let Some(record) = existing {
@@ -713,7 +802,7 @@ impl DraftProxy {
                 || current_balance + requested_amount > capped_amount
             {
                 user_errors.push(json!({
-                    "field": [],
+                    "field": null,
                     "message": "Total price exceeds balance remaining"
                 }));
             } else {
@@ -732,6 +821,7 @@ impl DraftProxy {
                     "description": description,
                     "price": { "amount": amount, "currencyCode": currency },
                     "idempotencyKey": idempotency_key,
+                    "apiClientId": request_api_client_id(request),
                     "subscriptionLineItem": subscription_line_item
                 });
                 if !line_item["usageRecords"].is_object() {
@@ -745,7 +835,7 @@ impl DraftProxy {
         } else {
             user_errors.push(json!({
                 "field": ["subscriptionLineItemId"],
-                "message": "The app subscription line item wasn't found.",
+                "message": "Invalid id",
                 "code": null
             }));
         }
@@ -921,11 +1011,10 @@ impl DraftProxy {
                 "ACCESS_DENIED",
             ));
         } else if self.store.staged.app_uninstalled {
-            user_errors.push(json!({
-                "field": ["accessToken"],
-                "message": "Access token not found.",
-                "code": "ACCESS_TOKEN_NOT_FOUND"
-            }));
+            user_errors.push(delegate_access_token_destroy_user_error(
+                "Access token does not exist.",
+                "ACCESS_TOKEN_NOT_FOUND",
+            ));
         } else if let Some(record) = self.store.staged.delegate_access_tokens.get(&token) {
             let token_api_client_id = record
                 .get("apiClientId")
@@ -1090,14 +1179,14 @@ impl DraftProxy {
             }));
         } else if amount.parse::<f64>().unwrap_or(0.0) < 0.50 {
             user_errors.push(json!({
-                "field": ["price"],
-                "message": "Price must be at least 0.50 USD.",
-                "code": "PRICE_TOO_LOW"
+                "field": null,
+                "message": "Validation failed: Price must be greater than or equal to 0.5",
+                "code": null
             }));
         } else if currency_code != "USD" {
             user_errors.push(json!({
                 "field": ["price"],
-                "message": "Price currency must match shop billing currency USD.",
+                "message": "Currency code must be USD",
                 "code": null
             }));
         }
@@ -1119,7 +1208,7 @@ impl DraftProxy {
             "id": LOCAL_APP_PURCHASE_ONE_TIME_ID,
             "name": name,
             "status": "ACTIVE",
-            "test": true,
+            "test": resolved_bool_field(&arguments, "test").unwrap_or(false),
             "createdAt": "2024-01-01T00:00:00.000Z",
             "price": { "amount": amount, "currencyCode": currency_code }
         });

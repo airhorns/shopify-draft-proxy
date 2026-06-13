@@ -1,6 +1,45 @@
 use super::*;
 
 impl DraftProxy {
+    pub(in crate::proxy) fn bulk_operation_read_response(
+        &self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+    ) -> Response {
+        let Some(fields) = root_fields(query, variables) else {
+            return json_error(400, "Could not parse GraphQL operation");
+        };
+        if self.should_passthrough_cold_bulk_operations_read(&fields) {
+            return (self.upstream_transport)(request.clone());
+        }
+        let operation_path = parsed_document(query, variables)
+            .map(|document| document.operation_path)
+            .unwrap_or_else(|| "query".to_string());
+        if let Some(response) =
+            self.bulk_operation_read_validation_response(&fields, root_field, &operation_path)
+        {
+            return response;
+        }
+        let data = self.bulk_operation_read_data(&fields);
+        let mut body = json!({ "data": data });
+        if let Some(search) = bulk_operation_search_extensions(&fields) {
+            body["extensions"] = json!({ "search": search });
+        }
+        ok_json(body)
+    }
+
+    fn should_passthrough_cold_bulk_operations_read(&self, fields: &[RootFieldSelection]) -> bool {
+        self.config.read_mode == ReadMode::LiveHybrid
+            && self.store.staged.bulk_operations.is_empty()
+            && fields.iter().all(|field| {
+                field.name == "bulkOperations"
+                    && field.arguments.contains_key("sortKey")
+                    && !field.arguments.contains_key("query")
+            })
+    }
+
     pub(in crate::proxy) fn bulk_operation_read_data(
         &self,
         fields: &[RootFieldSelection],
@@ -10,20 +49,105 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "bulkOperation" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.store
-                        .staged
-                        .bulk_operations
-                        .get(&id)
+                    self.bulk_operation_by_id(&id)
                         .map(|operation| selected_json(operation, &field.selection))
                         .unwrap_or(Value::Null)
                 }
-                "bulkOperations" => empty_bulk_operation_connection(&field.selection),
-                "currentBulkOperation" => Value::Null,
+                "bulkOperations" => self.bulk_operations_connection(field),
+                "currentBulkOperation" => {
+                    let operation_type = resolved_string_arg(&field.arguments, "type")
+                        .unwrap_or_else(|| "QUERY".to_string());
+                    self.current_bulk_operation(&operation_type)
+                        .map(|operation| selected_json(operation, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
                 _ => continue,
             };
             data.insert(field.response_key.clone(), value);
         }
         Value::Object(data)
+    }
+
+    fn bulk_operation_read_validation_response(
+        &self,
+        fields: &[RootFieldSelection],
+        root_field: &str,
+        operation_path: &str,
+    ) -> Option<Response> {
+        let field = fields.iter().find(|field| field.name == root_field)?;
+        match field.name.as_str() {
+            "bulkOperation" => bulk_operation_id_validation_response(field, operation_path),
+            "bulkOperations" => bulk_operations_argument_validation_response(field, operation_path),
+            _ => None,
+        }
+    }
+
+    fn bulk_operation_by_id(&self, id: &str) -> Option<&Value> {
+        self.store.staged.bulk_operations.get(id)
+    }
+
+    fn effective_bulk_operations(&self) -> Vec<&Value> {
+        let mut operations = self
+            .store
+            .staged
+            .bulk_operations
+            .values()
+            .collect::<Vec<_>>();
+        operations.sort_by(|left, right| {
+            bulk_operation_sort_value(right, "CREATED_AT")
+                .cmp(&bulk_operation_sort_value(left, "CREATED_AT"))
+                .then_with(|| {
+                    right
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .cmp(&left.get("id").and_then(Value::as_str))
+                })
+        });
+        operations
+    }
+
+    fn current_bulk_operation(&self, operation_type: &str) -> Option<&Value> {
+        self.effective_bulk_operations()
+            .into_iter()
+            .find(|operation| operation.get("type").and_then(Value::as_str) == Some(operation_type))
+    }
+
+    fn bulk_operations_connection(&self, field: &RootFieldSelection) -> Value {
+        let mut operations = self.effective_bulk_operations();
+        operations.retain(|operation| bulk_operation_matches_query(operation, &field.arguments));
+
+        let sort_key = resolved_string_arg(&field.arguments, "sortKey")
+            .unwrap_or_else(|| "CREATED_AT".to_string());
+        operations.sort_by(|left, right| {
+            bulk_operation_sort_value(right, &sort_key)
+                .cmp(&bulk_operation_sort_value(left, &sort_key))
+                .then_with(|| {
+                    right
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .cmp(&left.get("id").and_then(Value::as_str))
+                })
+        });
+        if matches!(
+            field.arguments.get("reverse"),
+            Some(ResolvedValue::Bool(true))
+        ) {
+            operations.reverse();
+        }
+
+        let records = operations.into_iter().cloned().collect::<Vec<_>>();
+        selected_connection_json_with_args(
+            records,
+            &field.arguments,
+            &field.selection,
+            |operation| {
+                operation
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
+            },
+        )
     }
 
     pub(in crate::proxy) fn bulk_operation_run_query(
@@ -3510,4 +3634,231 @@ fn dedupe_media_user_errors(values: Vec<Value>) -> Vec<Value> {
         .into_iter()
         .filter(|value| seen.insert(value.to_string()))
         .collect()
+}
+
+fn bulk_operation_id_validation_response(
+    field: &RootFieldSelection,
+    operation_path: &str,
+) -> Option<Response> {
+    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+    match shopify_gid_resource_type(&id) {
+        Some("BulkOperation") => None,
+        Some(_) => Some(ok_json(json!({
+            "errors": [{
+                "message": format!("Invalid id: {id}"),
+                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "extensions": {"code": "RESOURCE_NOT_FOUND"},
+                "path": [field.response_key]
+            }],
+            "data": { field.response_key.clone(): null }
+        }))),
+        None => Some(ok_json(json!({
+            "errors": [{
+                "message": format!("Invalid global id '{id}'"),
+                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "path": [operation_path, field.response_key.clone(), "id"],
+                "extensions": {
+                    "code": "argumentLiteralsIncompatible",
+                    "typeName": "CoercionError"
+                }
+            }]
+        }))),
+    }
+}
+
+fn bulk_operations_argument_validation_response(
+    field: &RootFieldSelection,
+    operation_path: &str,
+) -> Option<Response> {
+    if field.arguments.contains_key("first") && field.arguments.contains_key("last") {
+        return Some(ok_json(json!({
+            "errors": [{
+                "message": "providing both first and last is not supported",
+                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "extensions": {"code": "BAD_REQUEST"},
+                "path": [field.response_key]
+            }],
+            "data": null
+        })));
+    }
+    if !field.arguments.contains_key("first") && !field.arguments.contains_key("last") {
+        return Some(ok_json(json!({
+            "errors": [{
+                "message": "you must provide one of first or last",
+                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "extensions": {"code": "BAD_REQUEST"},
+                "path": [field.response_key]
+            }],
+            "data": null
+        })));
+    }
+    if matches!(
+        resolved_string_arg(&field.arguments, "sortKey").as_deref(),
+        Some("ID")
+    ) {
+        return Some(ok_json(json!({
+            "errors": [{
+                "message": "Argument 'sortKey' on Field 'bulkOperations' has an invalid value (ID). Expected type 'BulkOperationsSortKeys'.",
+                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "path": [operation_path, field.response_key.clone(), "sortKey"],
+                "extensions": {
+                    "code": "argumentLiteralsIncompatible",
+                    "typeName": "Field",
+                    "argumentName": "sortKey"
+                }
+            }]
+        })));
+    }
+    if let Some(query) = resolved_string_arg(&field.arguments, "query") {
+        if let Some(value) = bulk_operation_query_filter_value(&query, "created_at") {
+            if !bulk_operation_valid_timestamp_filter(value) {
+                return Some(ok_json(json!({
+                    "errors": [{
+                        "message": "Invalid timestamp for query filter `created_at`.",
+                        "locations": [{"line": field.location.line, "column": field.location.column}],
+                        "extensions": {"code": "BAD_REQUEST"},
+                        "path": [field.response_key]
+                    }],
+                    "data": null
+                })));
+            }
+        }
+        if let Some(value) = bulk_operation_query_filter_value(&query, "id") {
+            match shopify_gid_resource_type(value) {
+                Some("BulkOperation") => {}
+                Some(_) => {
+                    return Some(ok_json(json!({
+                        "errors": [{
+                            "message": format!("Invalid id: {value}"),
+                            "locations": [{"line": field.location.line, "column": field.location.column}],
+                            "extensions": {"code": "RESOURCE_NOT_FOUND"},
+                            "path": [field.response_key]
+                        }],
+                        "data": { field.response_key.clone(): null }
+                    })));
+                }
+                None => {
+                    return Some(ok_json(json!({
+                        "errors": [{
+                            "message": format!("Invalid global id '{value}'"),
+                            "locations": [{"line": field.location.line, "column": field.location.column}],
+                            "path": [operation_path, field.response_key.clone(), "query"],
+                            "extensions": {
+                                "code": "argumentLiteralsIncompatible",
+                                "typeName": "CoercionError"
+                            }
+                        }]
+                    })));
+                }
+            }
+        }
+    }
+    None
+}
+
+fn bulk_operation_sort_value(operation: &Value, sort_key: &str) -> String {
+    let field = match sort_key {
+        "COMPLETED_AT" => "completedAt",
+        _ => "createdAt",
+    };
+    operation
+        .get(field)
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string()
+}
+
+fn bulk_operation_matches_query(
+    operation: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    let Some(query) = resolved_string_arg(arguments, "query") else {
+        return true;
+    };
+    for token in query.split_whitespace() {
+        let Some((key, raw_value)) = token.split_once(':') else {
+            continue;
+        };
+        let value = raw_value
+            .trim_matches('"')
+            .trim_start_matches(">=")
+            .trim_start_matches("<=")
+            .trim_start_matches('>')
+            .trim_start_matches('<');
+        let matches = match key {
+            "id" => operation.get("id").and_then(Value::as_str) == Some(value),
+            "operation_type" | "type" => {
+                operation.get("type").and_then(Value::as_str) == Some(value)
+            }
+            "status" => operation.get("status").and_then(Value::as_str) == Some(value),
+            "created_at" => operation.get("createdAt").and_then(Value::as_str) == Some(value),
+            _ => true,
+        };
+        if !matches {
+            return false;
+        }
+    }
+    true
+}
+
+fn bulk_operation_search_extensions(fields: &[RootFieldSelection]) -> Option<Value> {
+    let warnings = fields
+        .iter()
+        .filter(|field| field.name == "bulkOperations")
+        .filter_map(|field| {
+            let query = resolved_string_arg(&field.arguments, "query")?;
+            let (filter, value) = bulk_operation_invalid_search_filter(&query)?;
+            Some(json!({
+                "path": [field.response_key.clone()],
+                "query": query,
+                "parsed": {
+                    "field": filter,
+                    "match_all": value
+                },
+                "warnings": [{
+                    "field": filter,
+                    "message": format!("Input `{value}` is not an accepted value."),
+                    "code": "invalid_value"
+                }]
+            }))
+        })
+        .collect::<Vec<_>>();
+    (!warnings.is_empty()).then_some(Value::Array(warnings))
+}
+
+fn bulk_operation_invalid_search_filter(query: &str) -> Option<(&'static str, String)> {
+    if let Some(value) = bulk_operation_query_filter_value(query, "status") {
+        if !matches!(
+            value,
+            "CREATED" | "RUNNING" | "COMPLETED" | "CANCELING" | "CANCELED" | "FAILED"
+        ) {
+            return Some(("status", value.to_string()));
+        }
+    }
+    if let Some(value) = bulk_operation_query_filter_value(query, "operation_type") {
+        if !matches!(value, "QUERY" | "MUTATION") {
+            return Some(("operation_type", value.to_string()));
+        }
+    }
+    None
+}
+
+fn bulk_operation_query_filter_value<'a>(query: &'a str, key: &str) -> Option<&'a str> {
+    query.split_whitespace().find_map(|token| {
+        let (candidate, value) = token.split_once(':')?;
+        (candidate == key).then_some(value.trim_matches('"'))
+    })
+}
+
+fn bulk_operation_valid_timestamp_filter(value: &str) -> bool {
+    let value = value
+        .trim_start_matches(">=")
+        .trim_start_matches("<=")
+        .trim_start_matches('>')
+        .trim_start_matches('<');
+    value.len() >= "2026-05-05T20:32:29Z".len()
+        && value.chars().nth(4) == Some('-')
+        && value.chars().nth(7) == Some('-')
+        && value.contains('T')
+        && value.ends_with('Z')
 }
