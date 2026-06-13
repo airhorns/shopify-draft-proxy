@@ -1301,14 +1301,16 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "metafieldsSet"
-            && is_owner_metafields_set_document(&query)
+            && (is_owner_metafields_set_document(&query)
+                || !self.store.staged.metafield_definitions.is_empty())
         {
             return self.owner_metafields_set(&query, &variables);
         }
 
         if operation.operation_type == OperationType::Query
             && matches!(root_field, "product" | "customer" | "order" | "company")
-            && is_owner_metafields_read_document(&query)
+            && (is_owner_metafields_read_document(&query)
+                || !self.store.staged.owner_metafields.is_empty())
         {
             return self.owner_metafields_read(&query, &variables);
         }
