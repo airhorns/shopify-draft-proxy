@@ -1515,18 +1515,6 @@ pub(in crate::proxy) fn webhook_subscription_matches_query_term(
     }
 }
 
-pub(in crate::proxy) fn is_inventory_quantity_document(query: &str) -> bool {
-    [
-        "InventoryItemsEmptyRead",
-        "InventoryPropertiesRead",
-        "InventoryQuantitySet",
-        "InventoryQuantityMove",
-        "InventoryQuantityDownstreamRead",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
 pub(in crate::proxy) fn inventory_empty_connection(selection: &[SelectedField]) -> Value {
     selected_json(
         &json!({
