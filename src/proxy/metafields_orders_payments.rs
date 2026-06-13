@@ -1355,22 +1355,6 @@ pub(in crate::proxy) fn inventory_level_read_data(
     json!({ response_key: value })
 }
 
-pub(in crate::proxy) fn product_variant_fixture(name: &str) -> Value {
-    let fixture = match name {
-        "create" => include_str!(
-            "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-bulk-create-parity.json"
-        ),
-        "update" => include_str!(
-            "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-bulk-update-parity.json"
-        ),
-        "delete" => include_str!(
-            "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-bulk-delete-parity.json"
-        ),
-        _ => unreachable!("unknown product variant fixture"),
-    };
-    serde_json::from_str(fixture).expect("product variant parity fixture must parse")
-}
-
 pub(in crate::proxy) fn customer_payment_method_local_staging_fixture() -> Value {
     serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-local-staging.json"

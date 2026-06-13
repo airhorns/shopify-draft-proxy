@@ -299,7 +299,13 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
     const variablesMatch = stableJson(parsed['variables'] ?? {}) === stableJson(call.variables ?? {});
     const query = typeof parsed['query'] === 'string' ? parsed['query'] : '';
     const canMatchSynthesizedNodeQuery = call.query?.startsWith('sha:') && /\bnode(?:s)?\s*\(/u.test(query);
-    return variablesMatch && (canMatchSynthesizedNodeQuery || parsed['query'] === call.query);
+    const operationMatches =
+      typeof call.operationName === 'string' && new RegExp(`\\b${call.operationName}\\b`, 'u').test(query);
+    const canMatchSynthesizedOperation =
+      typeof call.query === 'string' && call.query.startsWith('hand-synthesized') && operationMatches;
+    return (
+      variablesMatch && (canMatchSynthesizedNodeQuery || canMatchSynthesizedOperation || parsed['query'] === call.query)
+    );
   } catch {
     return false;
   }

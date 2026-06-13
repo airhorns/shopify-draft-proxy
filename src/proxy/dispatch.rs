@@ -2167,8 +2167,18 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query {
-            if let Some(data) = product_variant_compat_downstream_read_data(&query) {
-                return ok_json(json!({ "data": data }));
+            if operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "product" | "products" | "productsCount" | "productByIdentifier"
+                )
+            }) && self.has_product_overlay_state()
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    return ok_json(
+                        json!({ "data": self.product_variant_downstream_read_data(&fields) }),
+                    );
+                }
             }
             if query.contains("ProductHelperRoots") {
                 return ok_json(product_helper_roots_read_payload());
@@ -2187,8 +2197,17 @@ impl DraftProxy {
             if query.contains("CollectionsCatalogRead") {
                 return ok_json(json!({ "data": collections_catalog_read_data() }));
             }
-            if let Some(data) = collection_membership_downstream_read_data(&query) {
-                return ok_json(json!({ "data": data }));
+            if operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "collection" | "product"))
+                && self.has_product_overlay_state()
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    return ok_json(json!({
+                        "data": self.collection_membership_downstream_read_data(&fields)
+                    }));
+                }
             }
             if query.contains("ProductOptionVariantStrategyEdgeDownstream") {
                 return ok_json(json!({
@@ -2235,9 +2254,12 @@ impl DraftProxy {
             if let Some(data) = self.selling_plan_downstream_read_data(&query) {
                 return ok_json(json!({ "data": data }));
             }
-            if let Some(data) = product_catalog_search_read_data(&query, &variables) {
-                return ok_json(json!({ "data": data }));
-            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "productVariantsBulkDelete"
+        {
+            return self.product_variants_bulk_delete_passthrough(request, &query, &variables);
         }
 
         let capability =
@@ -2271,9 +2293,13 @@ impl DraftProxy {
                         "product" | "products" | "productsCount" | "productByIdentifier"
                     ) =>
             {
-                ok_json(json!({
-                    "data": self.product_overlay_read_fields(&query, &variables)
-                }))
+                if self.has_product_overlay_state() || self.config.read_mode == ReadMode::Snapshot {
+                    ok_json(json!({
+                        "data": self.product_overlay_read_fields(&query, &variables)
+                    }))
+                } else {
+                    (self.upstream_transport)(request.clone())
+                }
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if has_local_dispatch && root_field == "productCreate" =>
@@ -2307,12 +2333,7 @@ impl DraftProxy {
                         "productVariantCreate" | "productVariantUpdate" | "productVariantDelete"
                     ) =>
             {
-                let outcome = MutationOutcome::staged(
-                    ok_json(json!({
-                        "data": product_variant_compat_mutation_data(root_field, &variables)
-                    })),
-                    LogDraft::staged(root_field, "products", Vec::new()),
-                );
+                let outcome = self.product_variant_compat_mutation(root_field, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)

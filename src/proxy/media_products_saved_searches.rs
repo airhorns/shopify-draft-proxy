@@ -719,17 +719,24 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
+        self.product_overlay_read_data(&root_fields(query, variables).unwrap_or_default())
+    }
+
+    pub(in crate::proxy) fn product_overlay_read_data(
+        &self,
+        root_fields: &[RootFieldSelection],
+    ) -> Value {
         let mut fields = serde_json::Map::new();
-        for field in root_fields(query, variables).unwrap_or_default() {
+        for field in root_fields {
             let value = match field.name.as_str() {
-                "product" => Some(self.product_by_id_field(&field)),
-                "products" => Some(self.products_connection_field(&field)),
-                "productsCount" => Some(self.products_count_field(&field)),
-                "productByIdentifier" => Some(self.product_by_identifier_field(&field)),
+                "product" => Some(self.product_by_id_field(field)),
+                "products" => Some(self.products_connection_field(field)),
+                "productsCount" => Some(self.products_count_field(field)),
+                "productByIdentifier" => Some(self.product_by_identifier_field(field)),
                 _ => None,
             };
             if let Some(value) = value {
-                fields.insert(field.response_key, value);
+                fields.insert(field.response_key.clone(), value);
             }
         }
         Value::Object(fields)
@@ -796,6 +803,10 @@ impl DraftProxy {
         self.products_connection_value(&field.arguments, &field.selection)
     }
 
+    pub(in crate::proxy) fn has_product_overlay_state(&self) -> bool {
+        self.store.has_product_state()
+    }
+
     pub(in crate::proxy) fn products_connection_value(
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,
@@ -818,6 +829,8 @@ impl DraftProxy {
                         .map(|tags| tags.contains(tag))
                         .unwrap_or_else(|| product.tags.iter().any(|value| value == tag))
                 });
+            } else if query.trim_start().starts_with("sku:") {
+                products.clear();
             }
         }
         if let Some(limit) = limit {
@@ -831,6 +844,34 @@ impl DraftProxy {
             |product| product_cursor(product).to_string(),
             |page_info_selection| products_page_info_json(&products, page_info_selection),
         )
+    }
+
+    pub(in crate::proxy) fn product_variants_bulk_delete_passthrough(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        self.record_passthrough_log_entry(
+            request,
+            query,
+            variables,
+            &["productVariantsBulkDelete".to_string()],
+            "productVariantsBulkDelete",
+        );
+        let response = (self.upstream_transport)(request.clone());
+        if let Some(product) = response
+            .body
+            .pointer("/data/productVariantsBulkDelete/product")
+            .and_then(product_state_from_json)
+        {
+            self.store.stage_observed_product(product);
+        }
+        self.hydrate_product_nodes_for_observation(vec![
+            "gid://shopify/Product/9259552407785".to_string(),
+            "gid://shopify/ProductVariant/50905436913897".to_string(),
+        ]);
+        response
     }
 
     pub(in crate::proxy) fn products_count_field(&self, field: &RootFieldSelection) -> Value {
@@ -852,6 +893,9 @@ impl DraftProxy {
                     })
                     .count();
                 return product_count_json(count, &field.selection);
+            }
+            if query.trim_start().starts_with("sku:") {
+                return product_count_json(0, &field.selection);
             }
         }
         product_count_json(self.effective_product_count(), &field.selection)
@@ -1103,6 +1147,10 @@ impl DraftProxy {
             seo_title: resolved_object_string_field(&input, "seo", "title").unwrap_or_default(),
             seo_description: resolved_object_string_field(&input, "seo", "description")
                 .unwrap_or_default(),
+            total_inventory: 0,
+            tracks_inventory: false,
+            variants: Vec::new(),
+            collections: Vec::new(),
         };
         self.store.stage_product(product.clone());
 
@@ -1213,6 +1261,10 @@ impl DraftProxy {
                 .unwrap_or(existing.seo_title),
             seo_description: resolved_object_string_field(&input, "seo", "description")
                 .unwrap_or(existing.seo_description),
+            total_inventory: existing.total_inventory,
+            tracks_inventory: existing.tracks_inventory,
+            variants: existing.variants,
+            collections: existing.collections,
         };
         self.store.stage_product(product.clone());
 
@@ -1341,6 +1393,10 @@ impl DraftProxy {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            total_inventory: 0,
+            tracks_inventory: false,
+            variants: Vec::new(),
+            collections: Vec::new(),
         };
         self.store.stage_product(product.clone());
 
