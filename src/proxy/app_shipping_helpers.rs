@@ -1070,37 +1070,6 @@ pub(in crate::proxy) fn carrier_service_record(
     })
 }
 
-pub(in crate::proxy) fn carrier_service_connection_json_with_page_info(
-    services: &[Value],
-    selections: &[SelectedField],
-    page_info: Value,
-) -> Value {
-    let node_selection = nested_selected_fields(selections, &["nodes"]);
-    let edge_node_selection = nested_selected_fields(selections, &["edges", "node"]);
-    let page_info_selection = nested_selected_fields(selections, &["pageInfo"]);
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "nodes" => Some(Value::Array(
-            services
-                .iter()
-                .map(|service| selected_json(service, &node_selection))
-                .collect(),
-        )),
-        "edges" => Some(Value::Array(
-            services
-                .iter()
-                .map(|service| {
-                    json!({
-                        "cursor": carrier_service_cursor(service),
-                        "node": selected_json(service, &edge_node_selection)
-                    })
-                })
-                .collect(),
-        )),
-        "pageInfo" => Some(selected_json(&page_info, &page_info_selection)),
-        _ => None,
-    })
-}
-
 pub(in crate::proxy) fn carrier_service_cursor(service: &Value) -> String {
     service
         .get("id")

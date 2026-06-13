@@ -876,10 +876,7 @@ impl DraftProxy {
             .staged
             .customers
             .get(id)
-            .map(|customer| {
-                let enriched = self.customer_with_order_connection(id, customer, &field.selection);
-                selected_json(&enriched, &field.selection)
-            })
+            .map(|customer| self.customer_with_order_connection(id, customer, &field.selection))
             .unwrap_or(Value::Null)
     }
 
@@ -889,7 +886,6 @@ impl DraftProxy {
         customer: &Value,
         selection: &[SelectedField],
     ) -> Value {
-        let mut enriched = customer.clone();
         let orders = self
             .store
             .staged
@@ -897,19 +893,17 @@ impl DraftProxy {
             .get(id)
             .cloned()
             .unwrap_or_default();
-        let order_arguments = selection
-            .iter()
-            .find(|selection| selection.name == "orders")
-            .map(|selection| selection.arguments.clone())
-            .unwrap_or_default();
-        if let Some(object) = enriched.as_object_mut() {
-            let (orders, page_info) = connection_window(&orders, &order_arguments, value_id_cursor);
-            object.insert(
-                "orders".to_string(),
-                connection_json_with_cursor(orders, |_, order| value_id_cursor(order), page_info),
-            );
-        }
-        enriched
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "orders" => Some(selected_connection_json_with_args(
+                orders.clone(),
+                &field.arguments,
+                &field.selection,
+                value_id_cursor,
+            )),
+            _ => selected_json(customer, std::slice::from_ref(field))
+                .as_object()
+                .and_then(|object| object.get(&field.response_key).cloned()),
+        })
     }
 
     pub(in crate::proxy) fn customer_by_identifier_field(

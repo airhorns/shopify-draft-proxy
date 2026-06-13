@@ -2436,9 +2436,12 @@ impl DraftProxy {
                 .unwrap_or_default()
                 .to_string()
         });
-        let (services, page_info) =
-            connection_window(&services, &field.arguments, carrier_service_cursor);
-        carrier_service_connection_json_with_page_info(&services, &field.selection, page_info)
+        selected_connection_json_with_args(
+            services,
+            &field.arguments,
+            &field.selection,
+            carrier_service_cursor,
+        )
     }
 
     pub(in crate::proxy) fn carrier_service_mutation(

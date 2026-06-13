@@ -752,6 +752,7 @@ mod admin_shipping_gift_cards;
 mod app_shipping_helpers;
 mod b2b_customers;
 mod commit;
+mod connection;
 mod core;
 mod discounts;
 mod dispatch;
@@ -776,6 +777,8 @@ pub(in crate::proxy) use self::app_shipping_helpers::*;
 pub(in crate::proxy) use self::b2b_customers::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::commit::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::connection::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::core::*;
 #[allow(unused_imports)]

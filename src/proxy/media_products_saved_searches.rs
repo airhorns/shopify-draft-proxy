@@ -819,16 +819,12 @@ impl DraftProxy {
                 });
             }
         }
-        let (products, page_info) = connection_window(&products, arguments, |product| {
-            product_cursor(product).to_string()
-        });
-
-        selected_typed_connection_with_page_info(
+        selected_typed_connection_with_args(
             &products,
+            arguments,
             root_selection,
             product_json,
             |product| product_cursor(product).to_string(),
-            page_info,
         )
     }
 

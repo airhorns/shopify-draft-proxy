@@ -1848,6 +1848,8 @@ fn products_connection_paginates_edges_nodes_and_page_info_consistently() {
     let mut proxy = snapshot_proxy().with_base_products(vec![
         ProductRecord {
             id: "gid://shopify/Product/1".to_string(),
+            created_at: "2024-01-01T00:00:01Z".to_string(),
+            updated_at: "2024-01-01T00:00:01Z".to_string(),
             title: "First product".to_string(),
             handle: "first-product".to_string(),
             status: "ACTIVE".to_string(),
@@ -1861,6 +1863,8 @@ fn products_connection_paginates_edges_nodes_and_page_info_consistently() {
         },
         ProductRecord {
             id: "gid://shopify/Product/2".to_string(),
+            created_at: "2024-01-01T00:00:02Z".to_string(),
+            updated_at: "2024-01-01T00:00:02Z".to_string(),
             title: "Second product".to_string(),
             handle: "second-product".to_string(),
             status: "ACTIVE".to_string(),
@@ -1874,6 +1878,8 @@ fn products_connection_paginates_edges_nodes_and_page_info_consistently() {
         },
         ProductRecord {
             id: "gid://shopify/Product/3".to_string(),
+            created_at: "2024-01-01T00:00:03Z".to_string(),
+            updated_at: "2024-01-01T00:00:03Z".to_string(),
             title: "Third product".to_string(),
             handle: "third-product".to_string(),
             status: "ACTIVE".to_string(),
