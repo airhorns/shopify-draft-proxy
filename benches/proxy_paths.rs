@@ -35,6 +35,8 @@ fn graphql_request(query: &str, variables: Value) -> Request {
 fn product_record(index: usize) -> ProductRecord {
     ProductRecord {
         id: format!("gid://shopify/Product/{index}"),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
         title: format!("Benchmark product {index:03}"),
         handle: format!("benchmark-product-{index:03}"),
         status: if index.is_multiple_of(3) {

@@ -230,7 +230,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn localization_query_data(
-        &self,
+        &mut self,
         fields: &[RootFieldSelection],
         query: &str,
     ) -> Value {
@@ -238,12 +238,27 @@ impl DraftProxy {
             localization_collection_read_data(
                 !self.store.staged.localization_translations.is_empty(),
             )
+        } else if query.contains("LocalizationTranslationsMarketScopedRead") {
+            localization_market_scoped_read_data()
         } else {
             localization_baseline_read_data()
         };
         for field in fields {
             match field.name.as_str() {
                 "shopLocales" => {
+                    if let Some(locales) = data[field.response_key.as_str()].as_array() {
+                        for locale in locales {
+                            if locale["primary"].as_bool() == Some(false) {
+                                if let Some(code) = locale["locale"].as_str() {
+                                    self.store
+                                        .staged
+                                        .shop_locales
+                                        .entry(code.to_string())
+                                        .or_insert_with(|| locale.clone());
+                                }
+                            }
+                        }
+                    }
                     let published_filter = resolved_bool_field(&field.arguments, "published");
                     data[field.response_key.as_str()] = Value::Array(
                         self.localization_shop_locales(published_filter)
@@ -336,6 +351,18 @@ impl DraftProxy {
             json!({
                 "shopLocale": null,
                 "userErrors": [shop_locale_user_error(vec!["locale"], "Locale has already been taken", "TAKEN")]
+            })
+        } else if self.localization_shop_locales(None).len() >= 20 {
+            json!({
+                "shopLocale": null,
+                "userErrors": [{
+                    "field": null,
+                    "message": format!(
+                        "Your store has reached its 20 language limit. To add {}, delete one of your other languages.",
+                        localization_available_locale_name(&locale).unwrap_or_else(|| locale.clone())
+                    ),
+                    "code": "SHOP_LOCALE_LIMIT_REACHED"
+                }]
             })
         } else {
             let record = shop_locale_record(&locale, false);
@@ -2477,7 +2504,6 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-
         let mut staged = Vec::new();
         let mut user_errors = Vec::new();
         let mut has_null_translation_error = false;
@@ -2491,10 +2517,20 @@ impl DraftProxy {
                 }));
                 continue;
             }
-            if resolved_object_string(translation_input, "locale").as_deref() == Some("en") {
+            let locale = resolved_object_string(translation_input, "locale")
+                .unwrap_or_else(|| "fr".to_string());
+            if locale == "en" {
                 user_errors.push(json!({
                     "field": ["translations", field_index, "locale"],
                     "message": "Locale cannot be the same as the shop's primary locale",
+                    "code": "INVALID_LOCALE_FOR_SHOP"
+                }));
+                continue;
+            }
+            if !self.store.staged.shop_locales.contains_key(&locale) {
+                user_errors.push(json!({
+                    "field": ["translations", field_index, "locale"],
+                    "message": "Locale is not enabled for this shop",
                     "code": "INVALID_LOCALE_FOR_SHOP"
                 }));
                 continue;
@@ -2589,6 +2625,7 @@ impl DraftProxy {
                 &field.selection,
             );
         }
+        let keys = resolved_string_list_arg(&field.arguments, "translationKeys");
         let market_ids = resolved_string_list_arg(&field.arguments, "marketIds");
         let locales = resolved_string_list_arg(&field.arguments, "locales");
         if locales.is_empty() {
@@ -2603,24 +2640,32 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        let removed = if let Some(position) = self
-            .store
-            .staged
-            .localization_translations
-            .iter()
-            .position(|translation| {
-                market_ids.is_empty()
-                    || market_ids
-                        .iter()
-                        .any(|id| translation["market"]["id"] == json!(id))
-            }) {
-            Value::Array(vec![self
-                .store
-                .staged
-                .localization_translations
-                .remove(position)])
-        } else {
+        let mut removed = Vec::new();
+        let mut retained = Vec::new();
+        for translation in self.store.staged.localization_translations.drain(..) {
+            let key_matches =
+                keys.is_empty() || keys.iter().any(|key| translation["key"] == json!(key));
+            let locale_matches = locales
+                .iter()
+                .any(|locale| translation["locale"] == json!(locale));
+            let market_matches = if market_ids.is_empty() {
+                translation["market"].is_null()
+            } else {
+                market_ids
+                    .iter()
+                    .any(|id| translation["market"]["id"] == json!(id))
+            };
+            if key_matches && locale_matches && market_matches {
+                removed.push(translation);
+            } else {
+                retained.push(translation);
+            }
+        }
+        self.store.staged.localization_translations = retained;
+        let removed = if removed.is_empty() {
             Value::Null
+        } else {
+            Value::Array(removed)
         };
         selected_json(
             &json!({ "translations": removed, "userErrors": [] }),
