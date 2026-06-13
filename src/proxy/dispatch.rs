@@ -1215,9 +1215,14 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "bulkOperationRunQuery"
-            && is_local_bulk_operation_run_query_document(&query)
         {
             return self.bulk_operation_run_query(request, &query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "bulkOperationRunMutation"
+        {
+            return self.bulk_operation_run_mutation(request, &query, &variables);
         }
 
         if operation.operation_type == OperationType::Mutation

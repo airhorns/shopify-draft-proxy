@@ -219,6 +219,36 @@ fn bulk_operation_run_query_validates_admin_query_branches() {
 }
 
 #[test]
+fn bulk_operation_run_query_routes_ordinary_operation_names_locally() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkExport($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id status type query }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "query": "{ products { edges { node { id } } } }" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["status"],
+        json!("CREATED")
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["type"],
+        json!("QUERY")
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunQuery"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
 fn bulk_operation_run_query_throttles_when_query_operation_in_progress() {
     let mut proxy = snapshot_proxy();
     let cancel = proxy.process_request(json_graphql_request(
@@ -263,6 +293,307 @@ fn bulk_operation_run_query_throttles_when_query_operation_in_progress() {
                 "code": "OPERATION_IN_PROGRESS"
             }
         ])
+    );
+}
+
+#[test]
+fn bulk_operation_run_mutation_validates_without_dispatcher_errors() {
+    let cases = [
+        (
+            "missingUpload",
+            "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }",
+            "tmp/92891250994/bulk/missing/non-recording.jsonl",
+            Value::Null,
+            json!([{
+                "field": null,
+                "message": "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
+                "code": "NO_SUCH_FILE"
+            }]),
+        ),
+        (
+            "invalidMutationSyntax",
+            "mutation { not parseable",
+            "valid",
+            Value::Null,
+            json!([{
+                "field": null,
+                "message": "Failed to parse the mutation - syntax error, unexpected end of file",
+                "code": "INVALID_MUTATION"
+            }]),
+        ),
+        (
+            "queryInsteadOfMutation",
+            "query { products { edges { node { id } } } }",
+            "valid",
+            Value::Null,
+            json!([{
+                "field": null,
+                "message": "Invalid operation type. Only `mutation` operations are supported.",
+                "code": "INVALID_MUTATION"
+            }]),
+        ),
+        (
+            "multipleRoots",
+            "mutation BulkProducts($product: ProductCreateInput!, $update: ProductUpdateInput!) { productCreate(product: $product) { product { id } } productUpdate(product: $update) { product { id } } }",
+            "valid",
+            Value::Null,
+            json!([{
+                "field": ["mutation"],
+                "message": "You must specify a single top level mutation.",
+                "code": null
+            }]),
+        ),
+        (
+            "disallowedRoot",
+            "mutation Probe($mutation: String!, $stagedUploadPath: String!) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $stagedUploadPath) { bulkOperation { id } userErrors { field message } } }",
+            "valid",
+            Value::Null,
+            json!([{
+                "field": ["mutation"],
+                "message": "You must use an allowed mutation name.",
+                "code": null
+            }]),
+        ),
+    ];
+
+    for (name, inner_mutation, staged_upload_path, expected_operation, expected_errors) in cases {
+        let mut proxy = snapshot_proxy();
+        let response = proxy.process_request(json_graphql_request(
+            r#"
+            mutation RunBulkImport($mutation: String!, $path: String!) {
+              bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+                bulkOperation { id status type }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "mutation": inner_mutation, "path": staged_upload_path }),
+        ));
+
+        assert_eq!(response.status, 200, "{name}");
+        assert_eq!(
+            response.body["data"]["bulkOperationRunMutation"]["bulkOperation"], expected_operation,
+            "{name}"
+        );
+        assert_eq!(
+            response.body["data"]["bulkOperationRunMutation"]["userErrors"], expected_errors,
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
+    let mut proxy = snapshot_proxy();
+    let staged = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBulkUpload($input: [StagedUploadInput!]!) {
+          stagedUploadsCreate(input: $input) {
+            stagedTargets {
+              resourceUrl
+              parameters { name value }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": [{
+                "resource": "BULK_MUTATION_VARIABLES",
+                "filename": "ordinary-import.jsonl",
+                "mimeType": "text/jsonl",
+                "httpMethod": "POST",
+                "fileSize": "42"
+            }]
+        }),
+    ));
+    assert_eq!(staged.status, 200);
+    let path = staged.body["data"]["stagedUploadsCreate"]["stagedTargets"][0]["parameters"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|parameter| parameter["name"] == "key")
+        .and_then(|parameter| parameter["value"].as_str())
+        .unwrap()
+        .to_string();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation {
+              id
+              status
+              type
+              errorCode
+              createdAt
+              completedAt
+              objectCount
+              rootObjectCount
+              fileSize
+              url
+              partialDataUrl
+              query
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "mutation": "mutation CustomerCreate($input: CustomerInput!) { customerCreate(input: $input) { customer { id email } userErrors { field message } } }",
+            "path": path
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    let operation = &response.body["data"]["bulkOperationRunMutation"]["bulkOperation"];
+    assert!(operation["id"]
+        .as_str()
+        .unwrap()
+        .starts_with("gid://shopify/BulkOperation/"));
+    assert_eq!(operation["status"], json!("CREATED"));
+    assert_eq!(operation["type"], json!("MUTATION"));
+    assert_eq!(operation["completedAt"], Value::Null);
+    assert_eq!(operation["objectCount"], json!("0"));
+    assert_eq!(operation["rootObjectCount"], json!("0"));
+    assert_eq!(operation["fileSize"], Value::Null);
+    assert_eq!(operation["url"], Value::Null);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn bulk_operation_run_mutation_validates_client_identifier_and_file_size() {
+    let mut proxy = configured_proxy_with_bulk_mutation_max(ReadMode::Snapshot, None, Some(10));
+    let staged = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBulkUpload($input: [StagedUploadInput!]!) {
+          stagedUploadsCreate(input: $input) {
+            stagedTargets { parameters { name value } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": [{
+                "resource": "BULK_MUTATION_VARIABLES",
+                "filename": "oversized-import.jsonl",
+                "mimeType": "text/jsonl",
+                "httpMethod": "POST",
+                "fileSize": "11"
+            }]
+        }),
+    ));
+    let path = staged.body["data"]["stagedUploadsCreate"]["stagedTargets"][0]["parameters"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|parameter| parameter["name"] == "key")
+        .and_then(|parameter| parameter["value"].as_str())
+        .unwrap()
+        .to_string();
+    let mutation =
+        "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }";
+
+    let too_short = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!, $clientIdentifier: String) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path, clientIdentifier: $clientIdentifier) {
+            bulkOperation { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "mutation": mutation, "path": "valid", "clientIdentifier": "abc" }),
+    ));
+    assert_eq!(
+        too_short.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": ["clientIdentifier"],
+            "message": "is too short (minimum is 10 characters)",
+            "code": "INVALID_MUTATION"
+        }])
+    );
+
+    let oversized = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "mutation": mutation, "path": path }),
+    ));
+    assert_eq!(
+        oversized.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        oversized.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": ["stagedUploadPath"],
+            "message": "The JSONL file exceeds the maximum allowed size of 100 MB.",
+            "code": "INVALID_MUTATION"
+        }])
+    );
+}
+
+#[test]
+fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
+    let mut proxy = snapshot_proxy();
+    let mut cancel_request = json_graphql_request(
+        r#"
+        mutation CancelCapturedMutation($id: ID!) {
+          bulkOperationCancel(id: $id) {
+            bulkOperation { id status type }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/BulkOperation/7749099127090" }),
+    );
+    cancel_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let cancel = proxy.process_request(cancel_request);
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["type"],
+        json!("MUTATION")
+    );
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
+        json!("CANCELING")
+    );
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+            "path": "valid"
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "A bulk mutation operation for this app and shop is already in progress: gid://shopify/BulkOperation/7749099127090.",
+            "code": "OPERATION_IN_PROGRESS"
+        }])
     );
 }
 
