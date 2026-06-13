@@ -1477,6 +1477,7 @@ pub(in crate::proxy) fn inventory_levels_connection_selected_json(
     inventory_item_id: &str,
     levels: &[(String, BTreeMap<String, i64>)],
     selections: &[SelectedField],
+    locations: Option<&BTreeMap<String, Value>>,
 ) -> Value {
     let mut fields = serde_json::Map::new();
     for selection in selections {
@@ -1490,6 +1491,7 @@ pub(in crate::proxy) fn inventory_levels_connection_selected_json(
                             location_id,
                             quantities,
                             &selection.selection,
+                            locations,
                         )
                     })
                     .collect(),
@@ -1517,6 +1519,7 @@ pub(in crate::proxy) fn inventory_level_selected_json(
     location_id: &str,
     quantities: &BTreeMap<String, i64>,
     selections: &[SelectedField],
+    locations: Option<&BTreeMap<String, Value>>,
 ) -> Value {
     let mut fields = serde_json::Map::new();
     for selection in selections {
@@ -1527,13 +1530,20 @@ pub(in crate::proxy) fn inventory_level_selected_json(
                 &json!({ "id": inventory_item_id }),
                 &selection.selection,
             )),
-            "location" => Some(selected_json(
-                &json!({
-                    "id": location_id,
-                    "name": inventory_location_name(location_id)
-                }),
-                &selection.selection,
-            )),
+            "location" => Some(
+                locations
+                    .and_then(|locations| locations.get(location_id))
+                    .map(|location| selected_json(location, &selection.selection))
+                    .unwrap_or_else(|| {
+                        selected_json(
+                            &json!({
+                                "id": location_id,
+                                "name": inventory_location_name(location_id)
+                            }),
+                            &selection.selection,
+                        )
+                    }),
+            ),
             "quantities" => Some(Value::Array(
                 inventory_quantity_names(&selection.arguments)
                     .into_iter()

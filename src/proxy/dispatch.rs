@@ -753,6 +753,20 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "location" | "locationByIdentifier" | "locations"
+                )
+            })
+            && (self.config.read_mode == ReadMode::Snapshot || self.has_staged_locations())
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.location_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && operation
                 .root_fields
                 .iter()
@@ -1457,17 +1471,9 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && root_field == "locationActivate"
-            && is_location_activate_limit_relocation_document(&query)
+            && matches!(root_field, "locationAdd" | "locationActivate")
         {
-            return self.location_activate_limit_relocation(&query, &variables, request);
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && root_field == "locationAdd"
-            && is_location_add_resource_limit_document(&query)
-        {
-            return self.location_add_resource_limit(&query);
+            return self.location_mutation(root_field, &query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation && root_field == "locationDeactivate"

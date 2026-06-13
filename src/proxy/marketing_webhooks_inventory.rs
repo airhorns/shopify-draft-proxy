@@ -1483,6 +1483,7 @@ impl DraftProxy {
                             location_id,
                             quantities,
                             &selection.selection,
+                            Some(&self.store.staged.locations),
                         )
                     }))
                 }
@@ -1490,6 +1491,7 @@ impl DraftProxy {
                     inventory_item_id,
                     &item_levels,
                     &selection.selection,
+                    Some(&self.store.staged.locations),
                 )),
                 _ => None,
             };

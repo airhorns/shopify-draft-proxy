@@ -706,6 +706,290 @@ fn location_add_resource_limit_guard_matches_local_runtime_without_logging_rejec
 }
 
 #[test]
+fn generic_location_add_stages_location_and_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationAdd($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location {
+              id
+              name
+              isActive
+              fulfillsOnlineOrders
+              address { address1 city countryCode zip }
+              metafield(namespace: "custom", key: "generic_add") { namespace key value type }
+              metafields(first: 5, namespace: "custom") {
+                nodes { namespace key value type }
+                pageInfo { hasNextPage hasPreviousPage }
+              }
+            }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Generic Add Location",
+                "address": {
+                    "address1": "1 Spadina",
+                    "city": "Toronto",
+                    "countryCode": "CA",
+                    "zip": "M5T 2C2"
+                },
+                "metafields": [{
+                    "namespace": "custom",
+                    "key": "generic_add",
+                    "type": "single_line_text_field",
+                    "value": "preserved"
+                }]
+            }
+        }),
+    ));
+
+    let location = &add.body["data"]["locationAdd"]["location"];
+    let location_id = location["id"].as_str().unwrap();
+    assert_eq!(
+        add.body["data"]["locationAdd"],
+        json!({
+            "location": {
+                "id": location_id,
+                "name": "Generic Add Location",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "address": {
+                    "address1": "1 Spadina",
+                    "city": "Toronto",
+                    "countryCode": "CA",
+                    "zip": "M5T 2C2"
+                },
+                "metafield": {
+                    "namespace": "custom",
+                    "key": "generic_add",
+                    "value": "preserved",
+                    "type": "single_line_text_field"
+                },
+                "metafields": {
+                    "nodes": [{
+                        "namespace": "custom",
+                        "key": "generic_add",
+                        "value": "preserved",
+                        "type": "single_line_text_field"
+                    }],
+                    "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationAddDuplicate($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Generic Add Location",
+                "address": { "countryCode": "CA" }
+            }
+        }),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["locationAdd"],
+        json!({
+            "location": null,
+            "userErrors": [{
+                "field": ["input", "name"],
+                "code": "TAKEN",
+                "message": "You already have a location with this name"
+            }]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query GenericLocationAddRead($id: ID!) {
+          location(id: $id) { id name fulfillsOnlineOrders address { countryCode } }
+          byIdentifier: locationByIdentifier(identifier: { id: $id }) { id name }
+          locations(first: 5) { nodes { id name } pageInfo { hasNextPage hasPreviousPage } }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        read.body["data"],
+        json!({
+            "location": {
+                "id": location_id,
+                "name": "Generic Add Location",
+                "fulfillsOnlineOrders": true,
+                "address": { "countryCode": "CA" }
+            },
+            "byIdentifier": {
+                "id": location_id,
+                "name": "Generic Add Location"
+            },
+            "locations": {
+                "nodes": [{ "id": location_id, "name": "Generic Add Location" }],
+                "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+            }
+        })
+    );
+
+    let inventory_item_id = "gid://shopify/InventoryItem/generic-location-add";
+    let set_quantities = r#"
+        mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            inventoryAdjustmentGroup { changes { name delta location { id name } } }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let seed = proxy.process_request(json_graphql_request(
+        set_quantities,
+        json!({
+            "input": {
+                "name": "available",
+                "reason": "correction",
+                "ignoreCompareQuantity": true,
+                "quantities": [{
+                    "inventoryItemId": inventory_item_id,
+                    "locationId": location_id,
+                    "quantity": 7
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let inventory_read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryQuantityDownstreamRead($itemId: ID!) {
+          inventoryItem(id: $itemId) {
+            inventoryLevels(first: 5) {
+              nodes {
+                location { id name isActive fulfillsOnlineOrders }
+                quantities(names: ["available"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "itemId": inventory_item_id }),
+    ));
+    assert_eq!(
+        inventory_read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"],
+        json!([{
+            "location": {
+                "id": location_id,
+                "name": "Generic Add Location",
+                "isActive": true,
+                "fulfillsOnlineOrders": true
+            },
+            "quantities": [{ "name": "available", "quantity": 7 }]
+        }])
+    );
+}
+
+#[test]
+fn generic_location_activate_stages_state_and_scope_guards() {
+    let mut proxy = snapshot_proxy();
+    let location_id = "gid://shopify/Location/activate-control";
+    let activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationActivate($locationId: ID!) {
+          locationActivate(locationId: $locationId) @idempotent(key: "generic-location-activate") {
+            location { id isActive }
+            locationActivateUserErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(
+        activate.body["data"]["locationActivate"],
+        json!({
+            "location": { "id": location_id, "isActive": true },
+            "locationActivateUserErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query GenericLocationActivateRead($id: ID!) {
+          location(id: $id) { id isActive activatable deactivatable }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["location"],
+        json!({
+            "id": location_id,
+            "isActive": true,
+            "activatable": true,
+            "deactivatable": true
+        })
+    );
+
+    let service = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateFs($name: String!) {
+          fulfillmentServiceCreate(
+            name: $name
+            trackingSupport: true
+            inventoryManagement: true
+            requiresShippingMethod: true
+          ) {
+            fulfillmentService { location { id isActive isFulfillmentService } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "name": "Generic Activation FS" }),
+    ));
+    let fs_location_id = service.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]
+        ["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let fs_activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationActivateFs($locationId: ID!) {
+          locationActivate(locationId: $locationId) @idempotent(key: "generic-location-activate-fs") {
+            location { id isActive isFulfillmentService }
+            locationActivateUserErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "locationId": fs_location_id }),
+    ));
+    assert_eq!(
+        fs_activate.body["data"]["locationActivate"],
+        json!({
+            "location": {
+                "id": fs_location_id,
+                "isActive": true,
+                "isFulfillmentService": true
+            },
+            "locationActivateUserErrors": [{
+                "field": ["locationId"],
+                "code": "LOCATION_NOT_FOUND",
+                "message": "Location not found."
+            }]
+        })
+    );
+}
+
+#[test]
 fn location_deactivate_with_destination_relocates_and_merges_inventory_quantities() {
     let mut proxy = snapshot_proxy();
     let source_location_id = "gid://shopify/Location/1";
@@ -742,7 +1026,7 @@ fn location_deactivate_with_destination_relocates_and_merges_inventory_quantitie
     let deactivate = proxy.process_request(json_graphql_request(
         r#"
         mutation LocationDeactivateRelocation($source: ID!, $destination: ID!) {
-          locationDeactivate(locationId: $source, destinationLocationId: $destination) {
+          locationDeactivate(locationId: $source, destinationLocationId: $destination) @idempotent(key: "relocate") {
             location { isActive hasActiveInventory deletable }
             locationDeactivateUserErrors { field code message }
           }
@@ -837,7 +1121,7 @@ fn location_deactivate_user_error_does_not_relocate_inventory_quantities() {
     let deactivate = proxy.process_request(json_graphql_request(
         r#"
         mutation LocationDeactivateRelocationGuard($source: ID!, $destination: ID!) {
-          locationDeactivate(locationId: $source, destinationLocationId: $destination) {
+          locationDeactivate(locationId: $source, destinationLocationId: $destination) @idempotent(key: "no-relocate") {
             location { isActive hasActiveInventory deletable }
             locationDeactivateUserErrors { field code message }
           }
