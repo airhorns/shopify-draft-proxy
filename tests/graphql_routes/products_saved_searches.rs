@@ -1988,6 +1988,141 @@ fn products_connection_serializes_edges_and_page_info_for_selected_window() {
 }
 
 #[test]
+fn products_connection_paginates_edges_nodes_and_page_info_consistently() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![
+        ProductRecord {
+            id: "gid://shopify/Product/1".to_string(),
+            created_at: "2024-01-01T00:00:01Z".to_string(),
+            updated_at: "2024-01-01T00:00:01Z".to_string(),
+            title: "First product".to_string(),
+            handle: "first-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/2".to_string(),
+            created_at: "2024-01-01T00:00:02Z".to_string(),
+            updated_at: "2024-01-01T00:00:02Z".to_string(),
+            title: "Second product".to_string(),
+            handle: "second-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/3".to_string(),
+            created_at: "2024-01-01T00:00:03Z".to_string(),
+            updated_at: "2024-01-01T00:00:03Z".to_string(),
+            title: "Third product".to_string(),
+            handle: "third-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+        },
+    ]);
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductConnectionRelayPage($first: Int!) {
+          products(first: $first) {
+            nodes { id title }
+            edges { cursor node { id title } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 2}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["products"],
+        json!({
+            "nodes": [
+                {"id": "gid://shopify/Product/1", "title": "First product"},
+                {"id": "gid://shopify/Product/2", "title": "Second product"}
+            ],
+            "edges": [
+                {"cursor": "gid://shopify/Product/1", "node": {"id": "gid://shopify/Product/1", "title": "First product"}},
+                {"cursor": "gid://shopify/Product/2", "node": {"id": "gid://shopify/Product/2", "title": "Second product"}}
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "gid://shopify/Product/1",
+                "endCursor": "gid://shopify/Product/2"
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductConnectionRelayAfter($first: Int!, $after: String!) {
+          products(first: $first, after: $after) {
+            nodes { id title }
+            edges { cursor node { id title } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 2, "after": first_page.body["data"]["products"]["pageInfo"]["endCursor"]}),
+    ));
+    assert_eq!(
+        second_page.body["data"]["products"],
+        json!({
+            "nodes": [{"id": "gid://shopify/Product/3", "title": "Third product"}],
+            "edges": [{"cursor": "gid://shopify/Product/3", "node": {"id": "gid://shopify/Product/3", "title": "Third product"}}],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/Product/3",
+                "endCursor": "gid://shopify/Product/3"
+            }
+        })
+    );
+
+    let tail = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductConnectionRelayLast($last: Int!, $before: String!) {
+          products(last: $last, before: $before) {
+            nodes { id }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"last": 1, "before": "gid://shopify/Product/3"}),
+    ));
+    assert_eq!(
+        tail.body["data"]["products"],
+        json!({
+            "nodes": [{"id": "gid://shopify/Product/2"}],
+            "edges": [{"cursor": "gid://shopify/Product/2", "node": {"id": "gid://shopify/Product/2"}}],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/Product/2",
+                "endCursor": "gid://shopify/Product/2"
+            }
+        })
+    );
+}
+
+#[test]
 fn products_count_reflects_staged_creates_and_deletes() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/base".to_string(),
