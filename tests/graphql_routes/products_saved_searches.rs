@@ -209,8 +209,44 @@ fn collection_publishable_mutations_stage_publication_state_for_downstream_reads
 }
 
 #[test]
-fn top_level_inventory_level_read_replays_product_variant_matrix_level_shape() {
+fn top_level_inventory_level_read_observes_staged_inventory_level_state() {
     let mut proxy = snapshot_proxy();
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedInventoryLevel($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) { userErrors { field message } }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/50643009569001", "locationId": "gid://shopify/Location/68509171945", "quantity": 4}
+        ]}}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let item_response = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryItemRead($inventoryItemId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            inventoryLevels(first: 10) {
+              nodes { id }
+            }
+          }
+        }
+        "#,
+        json!({
+            "inventoryItemId": "gid://shopify/InventoryItem/50643009569001"
+        }),
+    ));
+    assert_eq!(item_response.status, 200);
+    let inventory_level_id = item_response.body["data"]["inventoryItem"]["inventoryLevels"]
+        ["nodes"][0]["id"]
+        .as_str()
+        .expect("staged inventory level should have an id")
+        .to_string();
+
     let response = proxy.process_request(json_graphql_request(
         r#"
         query InventoryLevelRead($inventoryLevelId: ID!) {
@@ -222,7 +258,7 @@ fn top_level_inventory_level_read_replays_product_variant_matrix_level_shape() {
         }
         "#,
         json!({
-            "inventoryLevelId": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=50643009569001"
+            "inventoryLevelId": inventory_level_id
         }),
     ));
 
@@ -230,11 +266,11 @@ fn top_level_inventory_level_read_replays_product_variant_matrix_level_shape() {
     assert_eq!(
         response.body["data"]["inventoryLevel"],
         json!({
-            "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=50643009569001",
-            "location": { "id": "gid://shopify/Location/68509171945", "name": "103 ossington" },
+            "id": "gid://shopify/InventoryLevel/50643009569001-68509171945?inventory_item_id=gid://shopify/InventoryItem/50643009569001",
+            "location": { "id": "gid://shopify/Location/68509171945", "name": "Shop location" },
             "quantities": [
-                { "name": "available", "quantity": 0, "updatedAt": "2025-07-01T23:57:25Z" },
-                { "name": "on_hand", "quantity": 0, "updatedAt": null },
+                { "name": "available", "quantity": 4, "updatedAt": "2024-01-01T00:00:00.000Z" },
+                { "name": "on_hand", "quantity": 4, "updatedAt": "2024-01-01T00:00:00.000Z" },
                 { "name": "incoming", "quantity": 0, "updatedAt": null }
             ]
         })

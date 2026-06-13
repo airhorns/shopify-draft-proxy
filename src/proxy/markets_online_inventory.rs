@@ -1446,18 +1446,6 @@ pub(in crate::proxy) fn selected_empty_connection_json(selections: &[SelectedFie
     selected_connection_json(Vec::new(), selections)
 }
 
-pub(in crate::proxy) fn is_inventory_quantity_document(query: &str) -> bool {
-    [
-        "InventoryItemsEmptyRead",
-        "InventoryPropertiesRead",
-        "InventoryQuantitySet",
-        "InventoryQuantityMove",
-        "InventoryQuantityDownstreamRead",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
 pub(in crate::proxy) fn inventory_empty_connection(selection: &[SelectedField]) -> Value {
     selected_json(
         &json!({
@@ -1477,14 +1465,19 @@ pub(in crate::proxy) fn inventory_levels_connection_selected_json(
     inventory_item_id: &str,
     levels: &[(String, BTreeMap<String, i64>)],
     quantity_updated_at: &BTreeMap<(String, String, String), String>,
+    arguments: &BTreeMap<String, ResolvedValue>,
     selections: &[SelectedField],
 ) -> Value {
+    let first = resolved_int_field(arguments, "first")
+        .and_then(|value| usize::try_from(value).ok())
+        .unwrap_or(levels.len());
     let mut fields = serde_json::Map::new();
     for selection in selections {
         let value = match selection.name.as_str() {
             "nodes" => Some(Value::Array(
                 levels
                     .iter()
+                    .take(first)
                     .map(|(location_id, quantities)| {
                         inventory_level_selected_json(
                             inventory_item_id,
@@ -1594,6 +1587,18 @@ fn inventory_level_id(inventory_item_id: &str, location_id: &str) -> String {
     )
 }
 
+pub(in crate::proxy) fn inventory_level_parts_from_id(id: &str) -> Option<(String, String)> {
+    let rest = id.strip_prefix("gid://shopify/InventoryLevel/")?;
+    let (level_tail, query) = rest.split_once("?inventory_item_id=")?;
+    let (item_tail, location_tail) = level_tail.rsplit_once('-')?;
+    let item_id = if query.starts_with("gid://shopify/InventoryItem/") {
+        query.to_string()
+    } else {
+        format!("gid://shopify/InventoryItem/{item_tail}")
+    };
+    Some((item_id, format!("gid://shopify/Location/{location_tail}")))
+}
+
 fn resource_id_tail(id: &str) -> &str {
     id.rsplit('/')
         .next()
@@ -1619,6 +1624,7 @@ pub(in crate::proxy) fn inventory_properties_json() -> Value {
 }
 
 pub(in crate::proxy) fn inventory_change_json(
+    item_id: &str,
     name: &str,
     delta: i64,
     quantity_after_change: i64,
@@ -1630,6 +1636,9 @@ pub(in crate::proxy) fn inventory_change_json(
         "delta": delta,
         "quantityAfterChange": quantity_after_change,
         "ledgerDocumentUri": ledger,
+        "item": {
+            "id": item_id
+        },
         "location": {
             "id": location_id,
             "name": inventory_location_name(location_id)

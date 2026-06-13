@@ -1331,30 +1331,6 @@ pub(in crate::proxy) fn product_variants_read_data() -> Value {
     })
 }
 
-pub(in crate::proxy) fn inventory_level_read_data(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Value {
-    let response_key =
-        root_field_response_key(query).unwrap_or_else(|| "inventoryLevel".to_string());
-    let selection = root_field_selection(query).unwrap_or_default();
-    let arguments = root_field_arguments(query, variables).unwrap_or_default();
-    let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-matrix.json"
-    ))
-    .expect("product variants matrix fixture must parse");
-    let level = fixture["data"]["product"]["variants"]["edges"][0]["node"]["inventoryItem"]
-        ["inventoryLevels"]["edges"][0]["node"]
-        .clone();
-    let value = if level["id"].as_str() == Some(id.as_str()) {
-        selected_json(&level, &selection)
-    } else {
-        Value::Null
-    };
-    json!({ response_key: value })
-}
-
 pub(in crate::proxy) fn product_variant_fixture(name: &str) -> Value {
     let fixture = match name {
         "create" => include_str!(

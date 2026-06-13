@@ -1241,10 +1241,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}media-file-user-error-aggregation.json`,
       'config/parity-specs/media/media-file-user-error-aggregation.json',
+      'config/parity-specs/media/media-file-user-error-root-dispatch-validation.json',
       'config/parity-requests/media/media-file-user-error-aggregation-create.graphql',
       'config/parity-requests/media/media-file-user-error-aggregation-delete.graphql',
       'config/parity-requests/media/media-file-user-error-aggregation-update.graphql',
       'config/parity-requests/media/media-file-user-error-aggregation-acknowledge.graphql',
+      'config/parity-requests/media/media-file-user-error-root-dispatch-create.graphql',
+      'config/parity-requests/media/media-file-user-error-root-dispatch-update.graphql',
+      'config/parity-requests/media/media-file-user-error-root-dispatch-acknowledge.graphql',
     ],
     cleanupBehavior:
       'Creates two disposable non-ready files for acknowledge validation and deletes them in best-effort cleanup.',
@@ -1258,7 +1262,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose:
       'fileCreate validation branches for source URLs, filename extensions, duplicate modes, and long alt input.',
     requiredAuthScopes: ['write_files'],
-    fixtureOutputs: [`${CAPTURE_ROOT}media-file-create-validation-branches.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-create-validation-branches.json`,
+      'config/parity-specs/media/media-file-create-root-dispatch-validation.json',
+      'config/parity-requests/media/media-file-create-root-dispatch-validation.graphql',
+    ],
     cleanupBehavior: 'Deletes any file successfully created by the acceptance branch.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -1383,6 +1391,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}media-staged-uploads-create-validation.json`,
       'config/parity-specs/media/media-staged-uploads-create-validation.json',
+      'config/parity-specs/media/media-staged-uploads-create-root-dispatch-validation.json',
+      'config/parity-requests/media/media-staged-uploads-create-root-dispatch-validation.graphql',
     ],
     cleanupBehavior: 'Requests signed upload metadata only; does not upload bytes and creates no Shopify files.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
