@@ -94,6 +94,77 @@ fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
 }
 
 #[test]
+fn bulk_operation_reads_are_operation_name_independent_and_store_backed() {
+    let mut proxy = snapshot_proxy();
+
+    let initial = proxy.process_request(json_graphql_request(
+        r#"
+        query ConsumerPollBeforeRun {
+          currentBulkOperation { id }
+          bulkOperations(first: 2) {
+            nodes { id status type }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(initial.status, 200);
+    assert_eq!(initial.body["data"]["currentBulkOperation"], Value::Null);
+    assert_eq!(initial.body["data"]["bulkOperations"]["nodes"], json!([]));
+
+    let run = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkOperationRunQueryParity($query: String!) {
+          bulkOperationRunQuery(query: $query, groupObjects: true) {
+            bulkOperation { id status type createdAt completedAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}" }),
+    ));
+    let id = run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ConsumerBulkOperationPoll($id: ID!) {
+          byId: bulkOperation(id: $id) { id status type objectCount }
+          currentBulkOperation(type: QUERY) { id status type objectCount }
+          bulkOperations(first: 1) {
+            edges { cursor node { id status type objectCount } }
+            nodes { id status type objectCount }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["errors"], Value::Null);
+    assert_eq!(read.body["data"]["byId"]["id"], json!(id));
+    assert_eq!(read.body["data"]["byId"]["status"], json!("COMPLETED"));
+    assert_eq!(read.body["data"]["currentBulkOperation"]["id"], json!(id));
+    assert_eq!(
+        read.body["data"]["bulkOperations"]["nodes"][0]["id"],
+        json!(id)
+    );
+    assert_eq!(
+        read.body["data"]["bulkOperations"]["edges"][0]["cursor"],
+        json!(id)
+    );
+    assert_eq!(
+        read.body["data"]["bulkOperations"]["pageInfo"]["startCursor"],
+        json!(id)
+    );
+}
+
+#[test]
 fn bulk_operation_run_query_validates_admin_query_branches() {
     let cases = [
         (
@@ -276,7 +347,7 @@ fn bulk_operation_run_query_throttles_when_query_operation_in_progress() {
           }
         }
         "#,
-        json!({ "query": "{ products { edges { node { id } } } }" }),
+        json!({ "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}" }),
     ));
 
     assert_eq!(response.status, 200);
@@ -659,6 +730,218 @@ fn bulk_operation_cancel_routes_arbitrary_bulk_operation_gids_locally() {
 }
 
 #[test]
+fn bulk_operation_list_filters_paginates_and_selects_current_by_type() {
+    let mut proxy = snapshot_proxy();
+    let older_id = "gid://shopify/BulkOperation/9999999999999";
+    let run = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkOperationRunQueryGroupObjectsTrue($query: String!) {
+          bulkOperationRunQuery(query: $query, groupObjects: true) {
+            bulkOperation { id status type createdAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}" }),
+    ));
+    let query_id = run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AnyCancelName($id: ID!) {
+          bulkOperationCancel(id: $id) {
+            bulkOperation { id status type createdAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": older_id }),
+    ));
+    assert_eq!(cancel.status, 200);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedBulkOperations($after: String!) {
+          defaultCurrent: currentBulkOperation { id type status }
+          queryOnly: bulkOperations(first: 5, query: "operation_type:QUERY") { nodes { id type } }
+          cancelingQueries: bulkOperations(first: 5, query: "status:CANCELING operation_type:QUERY") { nodes { id type status } }
+          firstPage: bulkOperations(first: 1, sortKey: CREATED_AT) {
+            nodes { id type }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          secondPage: bulkOperations(first: 1, after: $after, sortKey: CREATED_AT) {
+            nodes { id type }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          reversePage: bulkOperations(first: 1, reverse: true, sortKey: CREATED_AT) {
+            nodes { id type }
+          }
+          lastPage: bulkOperations(last: 1, sortKey: CREATED_AT) {
+            nodes { id type }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": query_id }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["defaultCurrent"]["id"], json!(query_id));
+    assert_eq!(read.body["data"]["defaultCurrent"]["type"], json!("QUERY"));
+    assert_eq!(
+        read.body["data"]["queryOnly"]["nodes"],
+        json!([
+            { "id": query_id, "type": "QUERY" },
+            { "id": older_id, "type": "QUERY" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["cancelingQueries"]["nodes"],
+        json!([{ "id": older_id, "type": "QUERY", "status": "CANCELING" }])
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["nodes"][0]["id"],
+        json!(query_id)
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": query_id,
+            "endCursor": query_id
+        })
+    );
+    assert_eq!(
+        read.body["data"]["secondPage"]["nodes"][0]["id"],
+        json!(older_id)
+    );
+    assert_eq!(
+        read.body["data"]["secondPage"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["reversePage"]["nodes"][0]["id"],
+        json!(older_id)
+    );
+    assert_eq!(
+        read.body["data"]["lastPage"]["nodes"][0]["id"],
+        json!(older_id)
+    );
+}
+
+#[test]
+fn bulk_operation_reads_validate_ids_windows_sort_keys_and_search_warnings() {
+    let mut proxy = snapshot_proxy();
+
+    let malformed = proxy.process_request(json_graphql_request(
+        r#"
+        query NotARecordedOperation {
+          bulkOperation(id: "not-a-gid") { id }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(malformed.status, 200);
+    assert_eq!(
+        malformed.body["errors"][0]["message"],
+        json!("Invalid global id 'not-a-gid'")
+    );
+    assert_eq!(
+        malformed.body["errors"][0]["extensions"]["code"],
+        json!("argumentLiteralsIncompatible")
+    );
+
+    let non_bulk_gid = proxy.process_request(json_graphql_request(
+        r#"
+        query NotARecordedOperation {
+          bulkOperation(id: "gid://shopify/Product/1") { id }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(non_bulk_gid.status, 200);
+    assert_eq!(
+        non_bulk_gid.body["errors"][0]["message"],
+        json!("Invalid id: gid://shopify/Product/1")
+    );
+    assert_eq!(non_bulk_gid.body["data"]["bulkOperation"], Value::Null);
+
+    let missing_window = proxy.process_request(json_graphql_request(
+        r#"
+        query NotARecordedOperation {
+          bulkOperations { nodes { id } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        missing_window.body["errors"][0]["message"],
+        json!("you must provide one of first or last")
+    );
+    assert_eq!(missing_window.body["data"], Value::Null);
+
+    let first_and_last = proxy.process_request(json_graphql_request(
+        r#"
+        query NotARecordedOperation {
+          bulkOperations(first: 1, last: 1) { nodes { id } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        first_and_last.body["errors"][0]["message"],
+        json!("providing both first and last is not supported")
+    );
+
+    let id_sort = proxy.process_request(json_graphql_request(
+        r#"
+        query NotARecordedOperation {
+          bulkOperations(first: 1, sortKey: ID) { nodes { id } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        id_sort.body["errors"][0]["extensions"]["argumentName"],
+        json!("sortKey")
+    );
+
+    let invalid_created_at = proxy.process_request(json_graphql_request(
+        r#"
+        query NotARecordedOperation {
+          bulkOperations(first: 1, query: "created_at:not-a-date") { nodes { id } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_created_at.body["errors"][0]["message"],
+        json!("Invalid timestamp for query filter `created_at`.")
+    );
+
+    let invalid_status = proxy.process_request(json_graphql_request(
+        r#"
+        query NotARecordedOperation {
+          bulkOperations(first: 1, query: "status:EXPIRED") { nodes { id } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_status.body["data"]["bulkOperations"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        invalid_status.body["extensions"]["search"][0]["warnings"][0]["code"],
+        json!("invalid_value")
+    );
+}
+
+#[test]
 fn bulk_operation_empty_connection_preserves_selection_aliases() {
     let mut proxy = snapshot_proxy();
 
@@ -701,7 +984,7 @@ fn bulk_operation_empty_connection_preserves_selection_aliases() {
 }
 
 #[test]
-fn bulk_operation_unported_read_shapes_fall_back_to_upstream_transport() {
+fn bulk_operation_cold_live_hybrid_sort_key_reads_fall_back_to_upstream_transport() {
     let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
     let captured = Arc::clone(&forwarded);
     let mut proxy =
@@ -711,19 +994,15 @@ fn bulk_operation_unported_read_shapes_fall_back_to_upstream_transport() {
                 status: 200,
                 headers: Default::default(),
                 body: json!({
-                    "data": null,
-                    "errors": [{
-                        "message": "you must provide one of first or last",
-                        "path": ["bulkOperations"]
-                    }]
+                    "data": { "bulkOperations": { "nodes": [{ "id": "gid://shopify/BulkOperation/upstream" }] } }
                 }),
             }
         });
 
     let response = proxy.process_request(json_graphql_request(
         r#"
-        query BulkOperationsMissingWindowValidation {
-          bulkOperations { nodes { id } }
+        query BulkOperationsSortKeyCapture {
+          bulkOperations(first: 5, sortKey: COMPLETED_AT) { nodes { id } }
         }
         "#,
         json!({}),
@@ -731,10 +1010,9 @@ fn bulk_operation_unported_read_shapes_fall_back_to_upstream_transport() {
 
     assert_eq!(response.status, 200);
     assert_eq!(
-        response.body["errors"][0]["message"],
-        json!("you must provide one of first or last")
+        response.body["data"]["bulkOperations"]["nodes"][0]["id"],
+        json!("gid://shopify/BulkOperation/upstream")
     );
-    assert_eq!(response.body["data"], Value::Null);
     assert_eq!(forwarded.lock().unwrap().len(), 1);
 }
 

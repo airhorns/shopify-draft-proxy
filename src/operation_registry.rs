@@ -217,7 +217,7 @@ fn registry_entry_json_value(entry: &OperationRegistryEntry) -> Value {
     Value::Object(object)
 }
 
-const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 51] = [
+const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 54] = [
     local_query("product", CapabilityDomain::Products),
     local_query("products", CapabilityDomain::Products),
     local_query("productsCount", CapabilityDomain::Products),
@@ -269,6 +269,9 @@ const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 51] = [
     local_query("orderSavedSearches", CapabilityDomain::SavedSearches),
     local_query("productSavedSearches", CapabilityDomain::SavedSearches),
     local_mutation("savedSearchCreate", CapabilityDomain::SavedSearches),
+    local_query("bulkOperation", CapabilityDomain::BulkOperations),
+    local_query("bulkOperations", CapabilityDomain::BulkOperations),
+    local_query("currentBulkOperation", CapabilityDomain::BulkOperations),
     local_query("files", CapabilityDomain::Media),
     local_mutation("stagedUploadsCreate", CapabilityDomain::Media),
     local_mutation("fileAcknowledgeUpdateFailed", CapabilityDomain::Media),
