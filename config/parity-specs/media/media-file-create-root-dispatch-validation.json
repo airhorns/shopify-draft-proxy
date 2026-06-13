@@ -1,0 +1,47 @@
+{
+  "scenarioId": "media-file-create-root-dispatch-validation",
+  "operationNames": ["fileCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "dispatch-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-create-validation-branches.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-create-root-dispatch-validation.graphql",
+    "variablesCapturePath": "$.scenarios[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Replays captured Shopify fileCreate validation branches through a neutral GraphQL operation name so the Rust runtime must dispatch by root field instead of operation-name substrings.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "data-url-source",
+        "capturePath": "$.scenarios[0].response.payload.data.fileCreate",
+        "proxyPath": "$.data.fileCreate"
+      },
+      {
+        "name": "filename-extension-mismatch",
+        "capturePath": "$.scenarios[1].response.payload.data.fileCreate",
+        "proxyPath": "$.data.fileCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-create-root-dispatch-validation.graphql",
+          "variablesCapturePath": "$.scenarios[1].variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "replace-mode-missing-content-type",
+        "capturePath": "$.scenarios[2].response.payload.data.fileCreate",
+        "proxyPath": "$.data.fileCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-create-root-dispatch-validation.graphql",
+          "variablesCapturePath": "$.scenarios[2].variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}
