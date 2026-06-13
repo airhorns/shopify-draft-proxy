@@ -1934,20 +1934,19 @@ impl DraftProxy {
                 .insert(id.clone(), search_tags);
         }
 
-        let tags = resolved_string_list_arg(&field.arguments, "tags");
+        let tags = normalized_product_tags_argument(field.arguments.get("tags"));
         match root_field {
             "tagsAdd" => {
-                for tag in tags {
-                    if !product.tags.iter().any(|existing| existing == &tag) {
-                        product.tags.push(tag);
-                    }
-                }
-                product.tags.sort();
+                product.tags.extend(tags);
+                product.tags = normalize_product_tags(product.tags);
             }
             "tagsRemove" => {
-                product
-                    .tags
-                    .retain(|tag| !tags.iter().any(|remove| remove == tag));
+                let remove_handles: BTreeSet<String> =
+                    tags.iter().map(|tag| tag.to_lowercase()).collect();
+                product.tags = normalize_product_tags(product.tags)
+                    .into_iter()
+                    .filter(|tag| !remove_handles.contains(&tag.to_lowercase()))
+                    .collect();
             }
             _ => {}
         }
@@ -2297,6 +2296,25 @@ impl DraftProxy {
             MutationFieldOutcome::unlogged(value)
         }
     }
+}
+
+fn normalized_product_tags_argument(value: Option<&ResolvedValue>) -> Vec<String> {
+    let raw_tags = match value {
+        Some(ResolvedValue::String(value)) => split_product_tag_argument(value),
+        Some(ResolvedValue::List(values)) => values
+            .iter()
+            .flat_map(|value| match value {
+                ResolvedValue::String(value) => split_product_tag_argument(value),
+                _ => Vec::new(),
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
+    normalize_product_tags(raw_tags)
+}
+
+fn split_product_tag_argument(value: &str) -> Vec<String> {
+    value.split(',').map(str::to_string).collect()
 }
 
 fn bulk_operation_run_query_user_errors(query_text: &str) -> Option<Vec<Value>> {

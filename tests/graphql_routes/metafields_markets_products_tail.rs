@@ -3057,6 +3057,147 @@ fn product_tags_add_remove_and_multi_resource_reads_match_captured_state() {
 }
 
 #[test]
+fn product_tags_add_remove_split_and_match_case_insensitively() {
+    fn seeded_proxy() -> DraftProxy {
+        snapshot_proxy().with_base_products(vec![ProductRecord {
+            id: "gid://shopify/Product/tag-normalization".to_string(),
+            created_at: "2024-01-01T00:00:00.000Z".to_string(),
+            updated_at: "2024-01-01T00:00:00.000Z".to_string(),
+            title: "Tag normalization product".to_string(),
+            handle: "tag-normalization-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: vec!["Red".to_string()],
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+        }])
+    }
+
+    let add_string = seeded_proxy().process_request(json_graphql_request(
+        r#"
+        mutation ProductTagsAddCommaString($id: ID!, $tags: [String!]!) {
+          tagsAdd(id: $id, tags: $tags) {
+            node { ... on Product { id tags } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/tag-normalization",
+            "tags": "blue, green"
+        }),
+    ));
+    assert_eq!(add_string.status, 200);
+    assert_eq!(
+        add_string.body["data"]["tagsAdd"]["node"]["tags"],
+        json!(["blue", "green", "Red"])
+    );
+
+    let add_list_element = seeded_proxy().process_request(json_graphql_request(
+        r#"
+        mutation ProductTagsAddCommaListElement($id: ID!, $tags: [String!]!) {
+          tagsAdd(id: $id, tags: $tags) {
+            node { ... on Product { id tags } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/tag-normalization",
+            "tags": ["blue,green"]
+        }),
+    ));
+    assert_eq!(add_list_element.status, 200);
+    assert_eq!(
+        add_list_element.body["data"]["tagsAdd"]["node"]["tags"],
+        json!(["blue", "green", "Red"])
+    );
+
+    let add_case_variant = seeded_proxy().process_request(json_graphql_request(
+        r#"
+        mutation ProductTagsAddCaseVariant($id: ID!, $tags: [String!]!) {
+          tagsAdd(id: $id, tags: $tags) {
+            node { ... on Product { id tags } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/tag-normalization",
+            "tags": ["red"]
+        }),
+    ));
+    assert_eq!(add_case_variant.status, 200);
+    assert_eq!(
+        add_case_variant.body["data"]["tagsAdd"]["node"]["tags"],
+        json!(["Red"])
+    );
+
+    let add_case_sort = seeded_proxy().process_request(json_graphql_request(
+        r#"
+        mutation ProductTagsAddCaseSort($id: ID!, $tags: [String!]!) {
+          tagsAdd(id: $id, tags: $tags) {
+            node { ... on Product { id tags } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/tag-normalization",
+            "tags": ["b", "A"]
+        }),
+    ));
+    assert_eq!(add_case_sort.status, 200);
+    assert_eq!(
+        add_case_sort.body["data"]["tagsAdd"]["node"]["tags"],
+        json!(["A", "b", "Red"])
+    );
+
+    let remove_case_variant = seeded_proxy().process_request(json_graphql_request(
+        r#"
+        mutation ProductTagsRemoveCaseVariant($id: ID!, $tags: [String!]!) {
+          tagsRemove(id: $id, tags: $tags) {
+            node { ... on Product { id tags } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/tag-normalization",
+            "tags": ["red"]
+        }),
+    ));
+    assert_eq!(remove_case_variant.status, 200);
+    assert_eq!(
+        remove_case_variant.body["data"]["tagsRemove"]["node"]["tags"],
+        json!([])
+    );
+
+    let remove_string = seeded_proxy().process_request(json_graphql_request(
+        r#"
+        mutation ProductTagsRemoveString($id: ID!, $tags: [String!]!) {
+          tagsRemove(id: $id, tags: $tags) {
+            node { ... on Product { id tags } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/tag-normalization",
+            "tags": "Red"
+        }),
+    ));
+    assert_eq!(remove_string.status, 200);
+    assert_eq!(
+        remove_string.body["data"]["tagsRemove"]["node"]["tags"],
+        json!([])
+    );
+}
+
+#[test]
 fn product_change_status_stages_archived_status_and_downstream_read_lag() {
     let mut proxy = snapshot_proxy();
 
