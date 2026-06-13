@@ -1,0 +1,134 @@
+{
+  "scenarioId": "order-payment-transaction-non-recording-operation-name",
+  "operationNames": ["orderCreate", "orderCapture", "transactionVoid", "orderCreateMandatePayment"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "downstream-read-parity",
+    "operation-name-independent-dispatch",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/order-payment-non-recording-create.graphql",
+    "variablesCapturePath": "$.paymentCaptureFlow.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "authorization-order-create-with-ordinary-name",
+        "capturePath": "$.paymentCaptureFlow.expected.create",
+        "proxyPath": "$"
+      },
+      {
+        "name": "over-capture-validation-with-ordinary-name",
+        "capturePath": "$.paymentCaptureFlow.expected.overCapture",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-payment-non-recording-capture.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              },
+              "parentTransactionId": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.transactions[0].id"
+              },
+              "amount": "30.00",
+              "currency": "CAD"
+            }
+          }
+        }
+      },
+      {
+        "name": "partial-capture-with-ordinary-name",
+        "capturePath": "$.paymentCaptureFlow.expected.firstCapture",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-payment-non-recording-capture.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              },
+              "parentTransactionId": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.transactions[0].id"
+              },
+              "amount": "10.00",
+              "currency": "CAD",
+              "finalCapture": false
+            }
+          }
+        }
+      },
+      {
+        "name": "final-capture-with-ordinary-name",
+        "capturePath": "$.paymentCaptureFlow.expected.finalCapture",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-payment-non-recording-capture.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              },
+              "parentTransactionId": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.transactions[0].id"
+              },
+              "amount": "15.00",
+              "currency": "CAD",
+              "finalCapture": true
+            }
+          }
+        }
+      },
+      {
+        "name": "capture-downstream-read-with-ordinary-name",
+        "capturePath": "$.paymentCaptureFlow.expected.readAfterFinal",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-payment-non-recording-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "void-after-capture-validation-with-ordinary-name",
+        "capturePath": "$.paymentCaptureFlow.expected.voidAfterCapture",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-payment-non-recording-void.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.transactions[0].id"
+            }
+          }
+        }
+      },
+      {
+        "name": "mandate-missing-idempotency-with-ordinary-name",
+        "capturePath": "$.paymentCaptureFlow.expected.missingMandateIdempotency",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-payment-non-recording-mandate.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "mandateId": "gid://shopify/PaymentMandate/local-mandate"
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Regression parity for the order payment transaction path using client operation names unrelated to the original OrderPayment recording markers. The same local-runtime evidence is replayed through alternate documents so orderCreate, orderCapture, transactionVoid validation, mandate-payment validation, and downstream order reads must dispatch from root fields and staged store state."
+}
