@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/apps/app-subscription-line-item-update-validation.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
   "comparisonMode": "captured-vs-proxy-request",
   "proxyRequest": {
     "documentPath": "config/parity-requests/apps/appSubscriptionCreate-local-lifecycle.graphql",
@@ -98,5 +98,5 @@
       }
     ]
   },
-  "notes": "Covers validation branches for recurring line items, cappedAmount currency mismatch, non-increasing cappedAmount, and the default approval-required success response retaining the pre-approval cappedAmount. Admin GraphQL 2026-04 public schema does not expose the internal requireApproval argument, so the requireApproval: false synchronous branch is covered by focused Gleam runtime tests rather than fabricated live parity. Live Shopify billing mutation capture is blocked for the configured conformance app by Shopify's `Custom apps cannot use the Billing API` response, so this executable local-runtime fixture is paired with runtime tests rather than claiming fresh live billing parity."
+  "notes": "Covers validation branches for recurring line items, cappedAmount currency mismatch, non-increasing cappedAmount, and the default approval-required success response retaining the pre-approval cappedAmount. Admin GraphQL 2026-04 public schema does not expose the internal requireApproval argument, so this parity spec does not fabricate live coverage for the hidden requireApproval: false branch. Live Shopify billing mutation capture is blocked for the configured conformance app by Shopify's `Custom apps cannot use the Billing API` response, so this executable local-runtime fixture is paired with runtime tests rather than claiming fresh live billing parity."
 }

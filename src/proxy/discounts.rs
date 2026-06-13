@@ -344,20 +344,87 @@ pub(in crate::proxy) fn gift_card_count_json(count: usize, selections: &[Selecte
     selected_json(&full, selections)
 }
 
-pub(in crate::proxy) fn backup_region_country(country_code: &str) -> Value {
+pub(in crate::proxy) fn backup_region_country(country_code: &str) -> Option<Value> {
     match country_code {
-        "AE" => json!({
+        "AE" => Some(json!({
             "__typename": "MarketRegionCountry",
             "id": "gid://shopify/MarketRegionCountry/4062110482738",
             "name": "United Arab Emirates",
             "code": "AE"
-        }),
-        _ => json!({
+        })),
+        "AT" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110515506",
+            "name": "Austria",
+            "code": "AT"
+        })),
+        "AU" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110548274",
+            "name": "Australia",
+            "code": "AU"
+        })),
+        "BE" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110581042",
+            "name": "Belgium",
+            "code": "BE"
+        })),
+        "CA" => Some(json!({
             "__typename": "MarketRegionCountry",
             "id": "gid://shopify/MarketRegionCountry/4062110417202",
             "name": "Canada",
             "code": "CA"
-        }),
+        })),
+        "CH" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110613810",
+            "name": "Switzerland",
+            "code": "CH"
+        })),
+        "CZ" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110646578",
+            "name": "Czechia",
+            "code": "CZ"
+        })),
+        "DE" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110679346",
+            "name": "Germany",
+            "code": "DE"
+        })),
+        "DK" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110712114",
+            "name": "Denmark",
+            "code": "DK"
+        })),
+        "ES" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110744882",
+            "name": "Spain",
+            "code": "ES"
+        })),
+        "FI" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110777650",
+            "name": "Finland",
+            "code": "FI"
+        })),
+        "MX" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062111334706",
+            "name": "Mexico",
+            "code": "MX"
+        })),
+        "US" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110449970",
+            "name": "United States",
+            "code": "US"
+        })),
+        _ => None,
     }
 }
 
@@ -487,9 +554,12 @@ pub(in crate::proxy) fn local_node_value(
     if is_safe_no_data_node_gid(id) {
         return Some(Value::Null);
     }
+    if let Some(region) = backup_region {
+        if region.get("id").and_then(Value::as_str) == Some(id) {
+            return Some(selected_json(region, selection));
+        }
+    }
     let full = match id {
-        "gid://shopify/MarketRegionCountry/4062110417202"
-        | "gid://shopify/MarketRegionCountry/4062110482738" => backup_region?.clone(),
         "gid://shopify/CompanyAddress/9348383026" => json!({
             "id": "gid://shopify/CompanyAddress/9348383026",
             "address1": "446 Assignment Way",

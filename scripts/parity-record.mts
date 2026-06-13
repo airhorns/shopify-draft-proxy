@@ -1,15 +1,14 @@
 // Parity cassette recorder.
 //
-// Boots the Rust DraftProxy in LiveHybrid mode pointed at a local recording
-// upstream server, plays the parity spec's primary + target requests through
-// it, and rewrites the capture file with an `upstreamCalls` cassette: every
-// upstream GraphQL call the proxy makes while serving the spec, in order, with
-// its (operationName, variables, response) tuple.
+// Boots the Rust DraftProxy HTTP runtime, plays the parity spec's primary +
+// target requests through it, and rewrites the capture file with an
+// `upstreamCalls` cassette. Rust-backed recording currently supports local-only
+// specs whose cassette remains empty; specs that need upstream cassette refresh
+// fail closed instead of sending unsupported proxy writes to Shopify.
 //
-// The recording transport forwards each intercepted upstream call to the real
-// Shopify Admin GraphQL endpoint using the existing OAuth flow
-// (scripts/shopify-conformance-auth.mts) and stores the response so it can
-// be replayed later by the parity runner.
+// The existing OAuth flow (scripts/shopify-conformance-auth.mts) is still
+// probed before recording so live-recording requirements fail with the same
+// credential diagnostics as capture scripts.
 //
 // Usage:
 //   pnpm parity:record <scenario-id>
@@ -22,12 +21,11 @@ import 'dotenv/config';
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
-import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 
 import { readConformanceScriptConfig } from './conformance-script-config.js';
-import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import { getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..');
@@ -355,64 +353,8 @@ function rewriteCapture(
   writeFileSync(captureFile, JSON.stringify(parsed, null, 2) + '\n', 'utf8');
 }
 
-async function startRecordingUpstream(opts: {
-  adminOrigin: string;
-  authHeaders: Record<string, string>;
-  calls: RecordedCall[];
-}): Promise<{ origin: string; close: () => Promise<void> }> {
-  const server = createServer((request, response) => {
-    let body = '';
-    request.setEncoding('utf8');
-    request.on('data', (chunk) => (body += chunk));
-    request.on('end', async () => {
-      const parsed = JSON.parse(body || '{}') as {
-        operationName?: string;
-        query?: string;
-        variables?: Record<string, unknown>;
-      };
-      try {
-        const upstreamUrl = new URL(request.url ?? '/', opts.adminOrigin);
-        const upstreamResponse = await fetch(upstreamUrl, {
-          method: request.method ?? 'POST',
-          headers: {
-            'content-type': String(request.headers['content-type'] ?? 'application/json'),
-            ...opts.authHeaders,
-          },
-          body,
-        });
-        const responseBody = await upstreamResponse.text();
-        const responsePayload = JSON.parse(responseBody || '{}') as unknown;
-        opts.calls.push({
-          operationName: parsed.operationName ?? extractOperationName(parsed.query ?? '') ?? '',
-          variables: parsed.variables ?? {},
-          query: parsed.query ?? '',
-          response: { status: upstreamResponse.status, body: responsePayload },
-        });
-        response.statusCode = upstreamResponse.status;
-        response.setHeader('content-type', 'application/json');
-        response.end(responseBody);
-      } catch (err) {
-        response.statusCode = 502;
-        response.setHeader('content-type', 'application/json');
-        response.end(JSON.stringify({ errors: [{ message: (err as Error).message }] }));
-      }
-    });
-  });
-  await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
-  const address = server.address();
-  if (address === null || typeof address === 'string') throw new Error('Failed to start recording upstream server');
-  return {
-    origin: `http://127.0.0.1:${address.port}`,
-    close: () =>
-      new Promise<void>((resolveClose, rejectClose) =>
-        server.close((err) => (err ? rejectClose(err) : resolveClose())),
-      ),
-  };
-}
-
-function extractOperationName(query: string): string | undefined {
-  const match = query.match(/\b(?:query|mutation|subscription)\s+([A-Za-z_][A-Za-z0-9_]*)/);
-  return match ? match[1] : undefined;
+function existingUpstreamCalls(capture: Record<string, unknown>): RecordedCall[] {
+  return Array.isArray(capture.upstreamCalls) ? (capture.upstreamCalls as RecordedCall[]) : [];
 }
 
 async function recordSpec(opts: RecordOptions): Promise<void> {
@@ -427,25 +369,30 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
     throw new Error(`Capture file does not exist: ${captureFile}. Run the corresponding capture script first.`);
   }
   const capture = JSON.parse(readFileSync(captureFile, 'utf8'));
+  const defaultApiVersion = typeof capture.apiVersion === 'string' ? capture.apiVersion : opts.apiVersion;
+  if (existingUpstreamCalls(capture).length > 0) {
+    throw new Error(
+      `Rust parity recorder cannot refresh non-empty upstreamCalls yet for ${spec.scenarioId}; use the dedicated capture script for this scenario.`,
+    );
+  }
 
   const calls: RecordedCall[] = [];
   let rewriteCaptureNow: (() => void) | null = null;
-  let proxy: { processGraphQLRequest: (...args: unknown[]) => Promise<RecordedResponse>; dispose?: () => void } | null =
-    null;
-  let recordingUpstream: { close: () => Promise<void>; origin: string } | null = null;
+  let proxy: { dispose?: () => void } | null = null;
   try {
     const shim = await import(shimEntrypoint);
-    recordingUpstream = await startRecordingUpstream({
-      adminOrigin: opts.adminOrigin,
-      authHeaders: buildAdminAuthHeaders(opts.accessToken),
-      calls,
-    });
     proxy = shim.createDraftProxy({
       readMode: 'live-hybrid',
       port: 4000,
-      shopifyAdminOrigin: recordingUpstream.origin,
-      unsupportedMutationMode: 'passthrough',
+      shopifyAdminOrigin: 'https://invalid.shopify-draft-proxy.local',
+      unsupportedMutationMode: 'reject',
     });
+    const runtimeProxy = proxy as {
+      processGraphQLRequest: (
+        body: unknown,
+        options: { headers?: Record<string, string>; apiVersion?: string },
+      ) => Promise<RecordedResponse>;
+    };
 
     const responsesByName = new Map<string, RecordedResponse>();
 
@@ -468,12 +415,12 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
     let previousResponse: RecordedResponse | undefined;
     if (primary) {
       const variables = substituteVariables(primary.variables, { capture, responsesByName }) as Record<string, unknown>;
-      primaryResponse = (await proxy.processGraphQLRequest(
+      primaryResponse = (await runtimeProxy.processGraphQLRequest(
         {
           query: primary.document,
           variables,
         },
-        { headers: primary.headers, apiVersion: primary.apiVersion },
+        { headers: primary.headers, apiVersion: primary.apiVersion ?? defaultApiVersion },
       )) as RecordedResponse;
       responsesByName.set('primary', primaryResponse);
       previousResponse = primaryResponse;
@@ -488,12 +435,12 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
         previousResponse,
         responsesByName,
       }) as Record<string, unknown>;
-      const response = (await proxy.processGraphQLRequest(
+      const response = (await runtimeProxy.processGraphQLRequest(
         {
           query: loaded.document,
           variables,
         },
-        { headers: loaded.headers, apiVersion: loaded.apiVersion },
+        { headers: loaded.headers, apiVersion: loaded.apiVersion ?? defaultApiVersion },
       )) as RecordedResponse;
       responsesByName.set(requestName, response);
       previousResponse = response;
@@ -522,7 +469,6 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
     rewriteCaptureNow = () => rewriteCapture(captureFile, calls, []);
   } finally {
     proxy?.dispose?.();
-    await recordingUpstream?.close();
   }
 
   if (rewriteCaptureNow) {

@@ -217,11 +217,17 @@ fn registry_entry_json_value(entry: &OperationRegistryEntry) -> Value {
     Value::Object(object)
 }
 
-const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 33] = [
+const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 54] = [
     local_query("product", CapabilityDomain::Products),
     local_query("products", CapabilityDomain::Products),
     local_query("productsCount", CapabilityDomain::Products),
     local_query("productByIdentifier", CapabilityDomain::Products),
+    local_query("inventoryItem", CapabilityDomain::Products),
+    local_query("inventoryItems", CapabilityDomain::Products),
+    local_query("inventoryLevel", CapabilityDomain::Products),
+    local_query("inventoryProperties", CapabilityDomain::Products),
+    local_query("inventoryTransfer", CapabilityDomain::Products),
+    local_query("inventoryTransfers", CapabilityDomain::Products),
     local_mutation("productCreate", CapabilityDomain::Products),
     local_mutation("productUpdate", CapabilityDomain::Products),
     local_mutation("productDelete", CapabilityDomain::Products),
@@ -231,6 +237,22 @@ const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 33] = [
     local_mutation("productVariantDelete", CapabilityDomain::Products),
     local_mutation("tagsAdd", CapabilityDomain::Products),
     local_mutation("tagsRemove", CapabilityDomain::Products),
+    local_mutation("inventoryAdjustQuantities", CapabilityDomain::Products),
+    local_mutation("inventorySetQuantities", CapabilityDomain::Products),
+    local_mutation("inventoryMoveQuantities", CapabilityDomain::Products),
+    local_mutation("inventoryTransferCreate", CapabilityDomain::Products),
+    local_mutation(
+        "inventoryTransferCreateAsReadyToShip",
+        CapabilityDomain::Products,
+    ),
+    local_mutation(
+        "inventoryTransferMarkAsReadyToShip",
+        CapabilityDomain::Products,
+    ),
+    local_mutation("inventoryTransferSetItems", CapabilityDomain::Products),
+    local_mutation("inventoryTransferRemoveItems", CapabilityDomain::Products),
+    local_mutation("inventoryTransferCancel", CapabilityDomain::Products),
+    local_mutation("inventoryTransferDelete", CapabilityDomain::Products),
     local_query(
         "automaticDiscountSavedSearches",
         CapabilityDomain::SavedSearches,
@@ -247,6 +269,9 @@ const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 33] = [
     local_query("orderSavedSearches", CapabilityDomain::SavedSearches),
     local_query("productSavedSearches", CapabilityDomain::SavedSearches),
     local_mutation("savedSearchCreate", CapabilityDomain::SavedSearches),
+    local_query("bulkOperation", CapabilityDomain::BulkOperations),
+    local_query("bulkOperations", CapabilityDomain::BulkOperations),
+    local_query("currentBulkOperation", CapabilityDomain::BulkOperations),
     local_query("files", CapabilityDomain::Media),
     local_mutation("stagedUploadsCreate", CapabilityDomain::Media),
     local_mutation("fileAcknowledgeUpdateFailed", CapabilityDomain::Media),
@@ -260,6 +285,8 @@ const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 33] = [
         "standardMetafieldDefinitionEnable",
         CapabilityDomain::Metafields,
     ),
+    local_mutation("locationAdd", CapabilityDomain::StoreProperties),
+    local_mutation("locationActivate", CapabilityDomain::StoreProperties),
 ];
 
 const fn local_query(name: &'static str, domain: CapabilityDomain) -> LocalDispatchRoot {

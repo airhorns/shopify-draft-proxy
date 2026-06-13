@@ -94,6 +94,77 @@ fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
 }
 
 #[test]
+fn bulk_operation_reads_are_operation_name_independent_and_store_backed() {
+    let mut proxy = snapshot_proxy();
+
+    let initial = proxy.process_request(json_graphql_request(
+        r#"
+        query ConsumerPollBeforeRun {
+          currentBulkOperation { id }
+          bulkOperations(first: 2) {
+            nodes { id status type }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(initial.status, 200);
+    assert_eq!(initial.body["data"]["currentBulkOperation"], Value::Null);
+    assert_eq!(initial.body["data"]["bulkOperations"]["nodes"], json!([]));
+
+    let run = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkOperationRunQueryParity($query: String!) {
+          bulkOperationRunQuery(query: $query, groupObjects: true) {
+            bulkOperation { id status type createdAt completedAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}" }),
+    ));
+    let id = run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ConsumerBulkOperationPoll($id: ID!) {
+          byId: bulkOperation(id: $id) { id status type objectCount }
+          currentBulkOperation(type: QUERY) { id status type objectCount }
+          bulkOperations(first: 1) {
+            edges { cursor node { id status type objectCount } }
+            nodes { id status type objectCount }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["errors"], Value::Null);
+    assert_eq!(read.body["data"]["byId"]["id"], json!(id));
+    assert_eq!(read.body["data"]["byId"]["status"], json!("COMPLETED"));
+    assert_eq!(read.body["data"]["currentBulkOperation"]["id"], json!(id));
+    assert_eq!(
+        read.body["data"]["bulkOperations"]["nodes"][0]["id"],
+        json!(id)
+    );
+    assert_eq!(
+        read.body["data"]["bulkOperations"]["edges"][0]["cursor"],
+        json!(id)
+    );
+    assert_eq!(
+        read.body["data"]["bulkOperations"]["pageInfo"]["startCursor"],
+        json!(id)
+    );
+}
+
+#[test]
 fn bulk_operation_run_query_validates_admin_query_branches() {
     let cases = [
         (
@@ -219,6 +290,36 @@ fn bulk_operation_run_query_validates_admin_query_branches() {
 }
 
 #[test]
+fn bulk_operation_run_query_routes_ordinary_operation_names_locally() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkExport($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id status type query }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "query": "{ products { edges { node { id } } } }" }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["status"],
+        json!("CREATED")
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["type"],
+        json!("QUERY")
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunQuery"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
 fn bulk_operation_run_query_throttles_when_query_operation_in_progress() {
     let mut proxy = snapshot_proxy();
     let cancel = proxy.process_request(json_graphql_request(
@@ -246,7 +347,7 @@ fn bulk_operation_run_query_throttles_when_query_operation_in_progress() {
           }
         }
         "#,
-        json!({ "query": "{ products { edges { node { id } } } }" }),
+        json!({ "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}" }),
     ));
 
     assert_eq!(response.status, 200);
@@ -263,6 +364,307 @@ fn bulk_operation_run_query_throttles_when_query_operation_in_progress() {
                 "code": "OPERATION_IN_PROGRESS"
             }
         ])
+    );
+}
+
+#[test]
+fn bulk_operation_run_mutation_validates_without_dispatcher_errors() {
+    let cases = [
+        (
+            "missingUpload",
+            "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }",
+            "tmp/92891250994/bulk/missing/non-recording.jsonl",
+            Value::Null,
+            json!([{
+                "field": null,
+                "message": "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
+                "code": "NO_SUCH_FILE"
+            }]),
+        ),
+        (
+            "invalidMutationSyntax",
+            "mutation { not parseable",
+            "valid",
+            Value::Null,
+            json!([{
+                "field": null,
+                "message": "Failed to parse the mutation - syntax error, unexpected end of file",
+                "code": "INVALID_MUTATION"
+            }]),
+        ),
+        (
+            "queryInsteadOfMutation",
+            "query { products { edges { node { id } } } }",
+            "valid",
+            Value::Null,
+            json!([{
+                "field": null,
+                "message": "Invalid operation type. Only `mutation` operations are supported.",
+                "code": "INVALID_MUTATION"
+            }]),
+        ),
+        (
+            "multipleRoots",
+            "mutation BulkProducts($product: ProductCreateInput!, $update: ProductUpdateInput!) { productCreate(product: $product) { product { id } } productUpdate(product: $update) { product { id } } }",
+            "valid",
+            Value::Null,
+            json!([{
+                "field": ["mutation"],
+                "message": "You must specify a single top level mutation.",
+                "code": null
+            }]),
+        ),
+        (
+            "disallowedRoot",
+            "mutation Probe($mutation: String!, $stagedUploadPath: String!) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $stagedUploadPath) { bulkOperation { id } userErrors { field message } } }",
+            "valid",
+            Value::Null,
+            json!([{
+                "field": ["mutation"],
+                "message": "You must use an allowed mutation name.",
+                "code": null
+            }]),
+        ),
+    ];
+
+    for (name, inner_mutation, staged_upload_path, expected_operation, expected_errors) in cases {
+        let mut proxy = snapshot_proxy();
+        let response = proxy.process_request(json_graphql_request(
+            r#"
+            mutation RunBulkImport($mutation: String!, $path: String!) {
+              bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+                bulkOperation { id status type }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "mutation": inner_mutation, "path": staged_upload_path }),
+        ));
+
+        assert_eq!(response.status, 200, "{name}");
+        assert_eq!(
+            response.body["data"]["bulkOperationRunMutation"]["bulkOperation"], expected_operation,
+            "{name}"
+        );
+        assert_eq!(
+            response.body["data"]["bulkOperationRunMutation"]["userErrors"], expected_errors,
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
+    let mut proxy = snapshot_proxy();
+    let staged = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBulkUpload($input: [StagedUploadInput!]!) {
+          stagedUploadsCreate(input: $input) {
+            stagedTargets {
+              resourceUrl
+              parameters { name value }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": [{
+                "resource": "BULK_MUTATION_VARIABLES",
+                "filename": "ordinary-import.jsonl",
+                "mimeType": "text/jsonl",
+                "httpMethod": "POST",
+                "fileSize": "42"
+            }]
+        }),
+    ));
+    assert_eq!(staged.status, 200);
+    let path = staged.body["data"]["stagedUploadsCreate"]["stagedTargets"][0]["parameters"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|parameter| parameter["name"] == "key")
+        .and_then(|parameter| parameter["value"].as_str())
+        .unwrap()
+        .to_string();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation {
+              id
+              status
+              type
+              errorCode
+              createdAt
+              completedAt
+              objectCount
+              rootObjectCount
+              fileSize
+              url
+              partialDataUrl
+              query
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "mutation": "mutation CustomerCreate($input: CustomerInput!) { customerCreate(input: $input) { customer { id email } userErrors { field message } } }",
+            "path": path
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    let operation = &response.body["data"]["bulkOperationRunMutation"]["bulkOperation"];
+    assert!(operation["id"]
+        .as_str()
+        .unwrap()
+        .starts_with("gid://shopify/BulkOperation/"));
+    assert_eq!(operation["status"], json!("CREATED"));
+    assert_eq!(operation["type"], json!("MUTATION"));
+    assert_eq!(operation["completedAt"], Value::Null);
+    assert_eq!(operation["objectCount"], json!("0"));
+    assert_eq!(operation["rootObjectCount"], json!("0"));
+    assert_eq!(operation["fileSize"], Value::Null);
+    assert_eq!(operation["url"], Value::Null);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn bulk_operation_run_mutation_validates_client_identifier_and_file_size() {
+    let mut proxy = configured_proxy_with_bulk_mutation_max(ReadMode::Snapshot, None, Some(10));
+    let staged = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBulkUpload($input: [StagedUploadInput!]!) {
+          stagedUploadsCreate(input: $input) {
+            stagedTargets { parameters { name value } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": [{
+                "resource": "BULK_MUTATION_VARIABLES",
+                "filename": "oversized-import.jsonl",
+                "mimeType": "text/jsonl",
+                "httpMethod": "POST",
+                "fileSize": "11"
+            }]
+        }),
+    ));
+    let path = staged.body["data"]["stagedUploadsCreate"]["stagedTargets"][0]["parameters"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|parameter| parameter["name"] == "key")
+        .and_then(|parameter| parameter["value"].as_str())
+        .unwrap()
+        .to_string();
+    let mutation =
+        "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }";
+
+    let too_short = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!, $clientIdentifier: String) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path, clientIdentifier: $clientIdentifier) {
+            bulkOperation { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "mutation": mutation, "path": "valid", "clientIdentifier": "abc" }),
+    ));
+    assert_eq!(
+        too_short.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": ["clientIdentifier"],
+            "message": "is too short (minimum is 10 characters)",
+            "code": "INVALID_MUTATION"
+        }])
+    );
+
+    let oversized = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "mutation": mutation, "path": path }),
+    ));
+    assert_eq!(
+        oversized.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        oversized.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": ["stagedUploadPath"],
+            "message": "The JSONL file exceeds the maximum allowed size of 100 MB.",
+            "code": "INVALID_MUTATION"
+        }])
+    );
+}
+
+#[test]
+fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
+    let mut proxy = snapshot_proxy();
+    let mut cancel_request = json_graphql_request(
+        r#"
+        mutation CancelCapturedMutation($id: ID!) {
+          bulkOperationCancel(id: $id) {
+            bulkOperation { id status type }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/BulkOperation/7749099127090" }),
+    );
+    cancel_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let cancel = proxy.process_request(cancel_request);
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["type"],
+        json!("MUTATION")
+    );
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
+        json!("CANCELING")
+    );
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+            "path": "valid"
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "A bulk mutation operation for this app and shop is already in progress: gid://shopify/BulkOperation/7749099127090.",
+            "code": "OPERATION_IN_PROGRESS"
+        }])
     );
 }
 
@@ -328,6 +730,218 @@ fn bulk_operation_cancel_routes_arbitrary_bulk_operation_gids_locally() {
 }
 
 #[test]
+fn bulk_operation_list_filters_paginates_and_selects_current_by_type() {
+    let mut proxy = snapshot_proxy();
+    let older_id = "gid://shopify/BulkOperation/9999999999999";
+    let run = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkOperationRunQueryGroupObjectsTrue($query: String!) {
+          bulkOperationRunQuery(query: $query, groupObjects: true) {
+            bulkOperation { id status type createdAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}" }),
+    ));
+    let query_id = run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AnyCancelName($id: ID!) {
+          bulkOperationCancel(id: $id) {
+            bulkOperation { id status type createdAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": older_id }),
+    ));
+    assert_eq!(cancel.status, 200);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MixedBulkOperations($after: String!) {
+          defaultCurrent: currentBulkOperation { id type status }
+          queryOnly: bulkOperations(first: 5, query: "operation_type:QUERY") { nodes { id type } }
+          cancelingQueries: bulkOperations(first: 5, query: "status:CANCELING operation_type:QUERY") { nodes { id type status } }
+          firstPage: bulkOperations(first: 1, sortKey: CREATED_AT) {
+            nodes { id type }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          secondPage: bulkOperations(first: 1, after: $after, sortKey: CREATED_AT) {
+            nodes { id type }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          reversePage: bulkOperations(first: 1, reverse: true, sortKey: CREATED_AT) {
+            nodes { id type }
+          }
+          lastPage: bulkOperations(last: 1, sortKey: CREATED_AT) {
+            nodes { id type }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "after": query_id }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["defaultCurrent"]["id"], json!(query_id));
+    assert_eq!(read.body["data"]["defaultCurrent"]["type"], json!("QUERY"));
+    assert_eq!(
+        read.body["data"]["queryOnly"]["nodes"],
+        json!([
+            { "id": query_id, "type": "QUERY" },
+            { "id": older_id, "type": "QUERY" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["cancelingQueries"]["nodes"],
+        json!([{ "id": older_id, "type": "QUERY", "status": "CANCELING" }])
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["nodes"][0]["id"],
+        json!(query_id)
+    );
+    assert_eq!(
+        read.body["data"]["firstPage"]["pageInfo"],
+        json!({
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": query_id,
+            "endCursor": query_id
+        })
+    );
+    assert_eq!(
+        read.body["data"]["secondPage"]["nodes"][0]["id"],
+        json!(older_id)
+    );
+    assert_eq!(
+        read.body["data"]["secondPage"]["pageInfo"]["hasPreviousPage"],
+        json!(true)
+    );
+    assert_eq!(
+        read.body["data"]["reversePage"]["nodes"][0]["id"],
+        json!(older_id)
+    );
+    assert_eq!(
+        read.body["data"]["lastPage"]["nodes"][0]["id"],
+        json!(older_id)
+    );
+}
+
+#[test]
+fn bulk_operation_reads_validate_ids_windows_sort_keys_and_search_warnings() {
+    let mut proxy = snapshot_proxy();
+
+    let malformed = proxy.process_request(json_graphql_request(
+        r#"
+        query NotARecordedOperation {
+          bulkOperation(id: "not-a-gid") { id }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(malformed.status, 200);
+    assert_eq!(
+        malformed.body["errors"][0]["message"],
+        json!("Invalid global id 'not-a-gid'")
+    );
+    assert_eq!(
+        malformed.body["errors"][0]["extensions"]["code"],
+        json!("argumentLiteralsIncompatible")
+    );
+
+    let non_bulk_gid = proxy.process_request(json_graphql_request(
+        r#"
+        query NotARecordedOperation {
+          bulkOperation(id: "gid://shopify/Product/1") { id }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(non_bulk_gid.status, 200);
+    assert_eq!(
+        non_bulk_gid.body["errors"][0]["message"],
+        json!("Invalid id: gid://shopify/Product/1")
+    );
+    assert_eq!(non_bulk_gid.body["data"]["bulkOperation"], Value::Null);
+
+    let missing_window = proxy.process_request(json_graphql_request(
+        r#"
+        query NotARecordedOperation {
+          bulkOperations { nodes { id } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        missing_window.body["errors"][0]["message"],
+        json!("you must provide one of first or last")
+    );
+    assert_eq!(missing_window.body["data"], Value::Null);
+
+    let first_and_last = proxy.process_request(json_graphql_request(
+        r#"
+        query NotARecordedOperation {
+          bulkOperations(first: 1, last: 1) { nodes { id } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        first_and_last.body["errors"][0]["message"],
+        json!("providing both first and last is not supported")
+    );
+
+    let id_sort = proxy.process_request(json_graphql_request(
+        r#"
+        query NotARecordedOperation {
+          bulkOperations(first: 1, sortKey: ID) { nodes { id } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        id_sort.body["errors"][0]["extensions"]["argumentName"],
+        json!("sortKey")
+    );
+
+    let invalid_created_at = proxy.process_request(json_graphql_request(
+        r#"
+        query NotARecordedOperation {
+          bulkOperations(first: 1, query: "created_at:not-a-date") { nodes { id } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_created_at.body["errors"][0]["message"],
+        json!("Invalid timestamp for query filter `created_at`.")
+    );
+
+    let invalid_status = proxy.process_request(json_graphql_request(
+        r#"
+        query NotARecordedOperation {
+          bulkOperations(first: 1, query: "status:EXPIRED") { nodes { id } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_status.body["data"]["bulkOperations"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        invalid_status.body["extensions"]["search"][0]["warnings"][0]["code"],
+        json!("invalid_value")
+    );
+}
+
+#[test]
 fn bulk_operation_empty_connection_preserves_selection_aliases() {
     let mut proxy = snapshot_proxy();
 
@@ -370,7 +984,7 @@ fn bulk_operation_empty_connection_preserves_selection_aliases() {
 }
 
 #[test]
-fn bulk_operation_unported_read_shapes_fall_back_to_upstream_transport() {
+fn bulk_operation_cold_live_hybrid_sort_key_reads_fall_back_to_upstream_transport() {
     let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
     let captured = Arc::clone(&forwarded);
     let mut proxy =
@@ -380,19 +994,15 @@ fn bulk_operation_unported_read_shapes_fall_back_to_upstream_transport() {
                 status: 200,
                 headers: Default::default(),
                 body: json!({
-                    "data": null,
-                    "errors": [{
-                        "message": "you must provide one of first or last",
-                        "path": ["bulkOperations"]
-                    }]
+                    "data": { "bulkOperations": { "nodes": [{ "id": "gid://shopify/BulkOperation/upstream" }] } }
                 }),
             }
         });
 
     let response = proxy.process_request(json_graphql_request(
         r#"
-        query BulkOperationsMissingWindowValidation {
-          bulkOperations { nodes { id } }
+        query BulkOperationsSortKeyCapture {
+          bulkOperations(first: 5, sortKey: COMPLETED_AT) { nodes { id } }
         }
         "#,
         json!({}),
@@ -400,10 +1010,9 @@ fn bulk_operation_unported_read_shapes_fall_back_to_upstream_transport() {
 
     assert_eq!(response.status, 200);
     assert_eq!(
-        response.body["errors"][0]["message"],
-        json!("you must provide one of first or last")
+        response.body["data"]["bulkOperations"]["nodes"][0]["id"],
+        json!("gid://shopify/BulkOperation/upstream")
     );
-    assert_eq!(response.body["data"], Value::Null);
     assert_eq!(forwarded.lock().unwrap().len(), 1);
 }
 
@@ -821,6 +1430,106 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
 }
 
 #[test]
+fn customer_orders_connection_paginates_edges_nodes_and_page_info_consistently() {
+    let mut proxy = snapshot_proxy();
+
+    let create_customer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteOrderPreconditionCustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) { customer { id email } userErrors { field message } }
+        }
+        "#,
+        json!({"input": {"email": "relay-orders@example.test"}}),
+    ));
+    let customer_id = create_customer.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    for title in ["First order", "Second order", "Third order"] {
+        let order = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CustomerDeleteOrderPreconditionOrderCreate($order: OrderCreateOrderInput!) {
+              orderCreate(order: $order) { order { id } userErrors { field message code } }
+            }
+            "#,
+            json!({"order": {
+                "email": "relay-orders@example.test",
+                "customerId": customer_id,
+                "lineItems": [{ "title": title, "quantity": 1 }]
+            }}),
+        ));
+        assert_eq!(order.body["data"]["orderCreate"]["userErrors"], json!([]));
+    }
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerOrdersRelayPage($id: ID!, $first: Int!) {
+          customer(id: $id) {
+            orders(first: $first) {
+              nodes { id }
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"id": customer_id, "first": 2}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["customer"]["orders"],
+        json!({
+            "nodes": [
+                {"id": "gid://shopify/Order/1"},
+                {"id": "gid://shopify/Order/2"}
+            ],
+            "edges": [
+                {"cursor": "gid://shopify/Order/1", "node": {"id": "gid://shopify/Order/1"}},
+                {"cursor": "gid://shopify/Order/2", "node": {"id": "gid://shopify/Order/2"}}
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "gid://shopify/Order/1",
+                "endCursor": "gid://shopify/Order/2"
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerOrdersRelayAfter($id: ID!, $first: Int!, $after: String!) {
+          customer(id: $id) {
+            orders(first: $first, after: $after) {
+              nodes { id }
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({
+            "id": customer_id,
+            "first": 2,
+            "after": first_page.body["data"]["customer"]["orders"]["pageInfo"]["endCursor"]
+        }),
+    ));
+    assert_eq!(
+        second_page.body["data"]["customer"]["orders"],
+        json!({
+            "nodes": [{"id": "gid://shopify/Order/3"}],
+            "edges": [{"cursor": "gid://shopify/Order/3", "node": {"id": "gid://shopify/Order/3"}}],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/Order/3",
+                "endCursor": "gid://shopify/Order/3"
+            }
+        })
+    );
+}
+
+#[test]
 fn customer_create_supports_consent_precondition_shapes_without_synthesizing_missing_contacts() {
     let mut proxy = snapshot_proxy();
     let phone_only = proxy.process_request(json_graphql_request(
@@ -1109,6 +1818,151 @@ fn delegate_access_token_create_validates_and_stages_synthetic_secret() {
         json!(300)
     );
     assert_eq!(happy.body["data"]["aliasCreate"]["userErrors"], json!([]));
+}
+
+#[test]
+fn apps_mutations_dispatch_by_root_field_for_ordinary_operation_names() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSub($lineItems: [AppSubscriptionLineItemInput!]!) {
+          appSubscriptionCreate(
+            name: "Ordinary"
+            returnUrl: "https://app.example.test/return"
+            test: true
+            lineItems: $lineItems
+          ) {
+            confirmationUrl
+            appSubscription { id status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "lineItems": [{
+                "plan": {
+                    "appUsagePricingDetails": {
+                        "cappedAmount": { "amount": 100, "currencyCode": "USD" },
+                        "terms": "usage"
+                    }
+                }
+            }]
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["appSubscriptionCreate"],
+        json!({
+            "confirmationUrl": "https://app.example.test/local-confirmation",
+            "appSubscription": {
+                "id": "gid://shopify/AppSubscription/expected",
+                "status": "ACTIVE"
+            },
+            "userErrors": []
+        })
+    );
+
+    let usage = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateUsage($id: ID!) {
+          appUsageRecordCreate(
+            subscriptionLineItemId: $id
+            price: { amount: "1.00", currencyCode: USD }
+            description: "ordinary usage"
+            idempotencyKey: "ordinary-usage-1"
+          ) {
+            appUsageRecord { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+    ));
+    assert_eq!(usage.status, 200);
+    assert_eq!(
+        usage.body["data"]["appUsageRecordCreate"],
+        json!({
+            "appUsageRecord": { "id": "gid://shopify/AppUsageRecord/expected" },
+            "userErrors": []
+        })
+    );
+
+    let roots = [
+        (
+            "CancelSub",
+            r#"mutation CancelSub($id: ID!) { appSubscriptionCancel(id: $id) { appSubscription { id status } userErrors { field message } } }"#,
+            json!({ "id": "gid://shopify/AppSubscription/expected" }),
+            "appSubscriptionCancel",
+        ),
+        (
+            "ExtendTrial",
+            r#"mutation ExtendTrial($id: ID!) { appSubscriptionTrialExtend(id: $id, days: 3) { appSubscription { id trialDays } userErrors { field message code } } }"#,
+            json!({ "id": "gid://shopify/AppSubscription/expected" }),
+            "appSubscriptionTrialExtend",
+        ),
+        (
+            "UpdateLineItem",
+            r#"mutation UpdateLineItem($id: ID!) { appSubscriptionLineItemUpdate(id: $id, cappedAmount: { amount: 101, currencyCode: USD }) { appSubscription { id } userErrors { field message } } }"#,
+            json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+            "appSubscriptionLineItemUpdate",
+        ),
+        (
+            "OneTime",
+            r#"mutation OneTime { appPurchaseOneTimeCreate(name: "Import", returnUrl: "https://app.example.test/return", price: { amount: 5, currencyCode: USD }, test: false) { appPurchaseOneTime { id test } confirmationUrl userErrors { field message code } } }"#,
+            json!({}),
+            "appPurchaseOneTimeCreate",
+        ),
+        (
+            "RevokeScopes",
+            r#"mutation RevokeScopes { appRevokeAccessScopes(scopes: ["fake_scope"]) { revoked { handle } userErrors { field message code } } }"#,
+            json!({}),
+            "appRevokeAccessScopes",
+        ),
+        (
+            "CreateDelegate",
+            r#"mutation CreateDelegate { delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 300 }) { delegateAccessToken { accessToken } userErrors { field message code } } }"#,
+            json!({}),
+            "delegateAccessTokenCreate",
+        ),
+    ];
+
+    let mut delegate_token = String::new();
+    for (_name, query, variables, root) in roots {
+        let response = proxy.process_request(json_graphql_request(query, variables));
+        assert_eq!(response.status, 200, "{root} should dispatch locally");
+        assert!(
+            response.body["data"][root].is_object(),
+            "{root} should return a local payload, got {}",
+            response.body
+        );
+        if root == "delegateAccessTokenCreate" {
+            delegate_token = response.body["data"][root]["delegateAccessToken"]["accessToken"]
+                .as_str()
+                .unwrap()
+                .to_string();
+        }
+    }
+
+    let destroy = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DestroyDelegate($token: String!) {
+          delegateAccessTokenDestroy(accessToken: $token) {
+            status
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "token": delegate_token }),
+    ));
+    assert_eq!(destroy.status, 200);
+    assert_eq!(
+        destroy.body["data"]["delegateAccessTokenDestroy"],
+        json!({ "status": true, "userErrors": [] })
+    );
 }
 
 #[test]
@@ -1429,7 +2283,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
         json!({
             "appPurchaseOneTime": null,
             "confirmationUrl": null,
-            "userErrors": [{ "field": ["price"], "message": "Price must be at least 0.50 USD.", "code": "PRICE_TOO_LOW" }]
+            "userErrors": [{ "field": null, "message": "Validation failed: Price must be greater than or equal to 0.5", "code": null }]
         })
     );
 
@@ -1450,7 +2304,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
         json!({
             "appPurchaseOneTime": null,
             "confirmationUrl": null,
-            "userErrors": [{ "field": ["price"], "message": "Price currency must match shop billing currency USD.", "code": null }]
+            "userErrors": [{ "field": ["price"], "message": "Currency code must be USD", "code": null }]
         })
     );
 
@@ -1501,6 +2355,83 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
             },
             "confirmationUrl": "https://app.example.test/local-confirmation",
             "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn apps_user_errors_are_typed_and_selection_projected() {
+    let mut proxy = snapshot_proxy();
+
+    let uninstall = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          appUninstall(input: { id: "gid://shopify/App/missing" }) {
+            app { id }
+            userErrors {
+              __typename
+              message
+              ... on AppUninstallError { code }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        uninstall.body["data"]["appUninstall"],
+        json!({
+            "app": null,
+            "userErrors": [{
+                "__typename": "AppUninstallError",
+                "message": "The app cannot be found.",
+                "code": "APP_NOT_FOUND"
+            }]
+        })
+    );
+
+    let revoke = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          appRevokeAccessScopes(scopes: ["fake_scope"]) {
+            userErrors {
+              __typename
+              field
+              ... on AppRevokeScopeError { code }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        revoke.body["data"]["appRevokeAccessScopes"],
+        json!({
+            "userErrors": [{
+                "__typename": "AppRevokeScopeError",
+                "field": ["scopes"],
+                "code": "UNKNOWN_SCOPES"
+            }]
+        })
+    );
+
+    let delegate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          delegateAccessTokenCreate(input: { delegateAccessScope: [] }) {
+            userErrors { __typename message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        delegate.body["data"]["delegateAccessTokenCreate"],
+        json!({
+            "userErrors": [{
+                "__typename": "UserError",
+                "message": "The access scope can't be empty."
+            }]
         })
     );
 }
@@ -1720,7 +2651,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
         over_cap.body["data"]["appUsageRecordCreate"],
         json!({
             "appUsageRecord": null,
-            "userErrors": [{ "field": [], "message": "Total price exceeds balance remaining" }]
+            "userErrors": [{ "field": null, "message": "Total price exceeds balance remaining" }]
         })
     );
 
@@ -1747,7 +2678,54 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
         long_key.body["data"]["appUsageRecordCreate"],
         json!({
             "appUsageRecord": null,
-            "userErrors": [{ "field": ["idempotencyKey"], "message": "Idempotency key must be at most 255 characters", "code": null }]
+            "userErrors": [{ "field": ["idempotencyKey"], "message": "Idempotency key exceeds the maximum length.", "code": null }]
+        })
+    );
+
+    let missing_description = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UsageMissingDescription($id: ID!) {
+          appUsageRecordCreate(
+            subscriptionLineItemId: $id
+            price: { amount: "1.00", currencyCode: USD }
+            idempotencyKey: "usage-key-missing-description"
+          ) {
+            appUsageRecord { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+    ));
+    assert_eq!(
+        missing_description.body["data"]["appUsageRecordCreate"],
+        json!({
+            "appUsageRecord": null,
+            "userErrors": [{ "field": ["description"], "message": "Description can't be blank", "code": null }]
+        })
+    );
+
+    let invalid_line_item_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UsageInvalidLineItem {
+          appUsageRecordCreate(
+            subscriptionLineItemId: "not-a-gid"
+            price: { amount: "1.00", currencyCode: USD }
+            description: "invalid"
+            idempotencyKey: "usage-key-invalid-line-item"
+          ) {
+            appUsageRecord { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_line_item_id.body["data"]["appUsageRecordCreate"],
+        json!({
+            "appUsageRecord": null,
+            "userErrors": [{ "field": ["subscriptionLineItemId"], "message": "Invalid id", "code": null }]
         })
     );
 
@@ -1831,6 +2809,29 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
                 "status": "ACTIVE",
                 "test": true,
                 "price": { "amount": "10", "currencyCode": "USD" }
+            },
+            "userErrors": []
+        })
+    );
+
+    let mut one_time_test_proxy = snapshot_proxy();
+    let one_time_test_false = one_time_test_proxy.process_request(json_graphql_request(
+        r#"
+        mutation OneTimeTestFalse {
+          appPurchaseOneTimeCreate(name: "Import package 2", returnUrl: "https://app.example.test/return", price: { amount: 10, currencyCode: USD }, test: false) {
+            appPurchaseOneTime { id test }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        one_time_test_false.body["data"]["appPurchaseOneTimeCreate"],
+        json!({
+            "appPurchaseOneTime": {
+                "id": "gid://shopify/AppPurchaseOneTime/expected",
+                "test": false
             },
             "userErrors": []
         })
@@ -2083,11 +3084,11 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
             },
             "currencyMismatch": {
                 "appSubscription": null,
-                "userErrors": [{ "field": ["cappedAmount"], "message": "Capped amount currency mismatch. Expected USD" }]
+                "userErrors": [{ "field": null, "message": "Currency code must be USD" }]
             },
             "nonIncreasing": {
                 "appSubscription": null,
-                "userErrors": [{ "field": ["cappedAmount"], "message": "The capped amount must be greater than the existing capped amount" }]
+                "userErrors": [{ "field": ["cappedAmount"], "message": "Spending limit can only be increased. Please contact the app developer to decrease spending limit." }]
             },
             "success": {
                 "confirmationUrl": "https://app.example.test/local-confirmation",
@@ -2112,6 +3113,57 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
                 },
                 "userErrors": []
             }
+        })
+    );
+
+    let synchronous_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionLineItemUpdateNoApproval($usageLineItemId: ID!) {
+          appSubscriptionLineItemUpdate(
+            id: $usageLineItemId
+            cappedAmount: { amount: 12, currencyCode: USD }
+            requireApproval: false
+          ) {
+            confirmationUrl
+            appSubscription {
+              lineItems {
+                id
+                plan {
+                  pricingDetails {
+                    __typename
+                    ... on AppUsagePricing { cappedAmount { amount currencyCode } }
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "usageLineItemId": "gid://shopify/AppSubscriptionLineItem/usage" }),
+    ));
+    assert_eq!(
+        synchronous_update.body["data"]["appSubscriptionLineItemUpdate"],
+        json!({
+            "confirmationUrl": null,
+            "appSubscription": {
+                "lineItems": [
+                    {
+                        "id": "gid://shopify/AppSubscriptionLineItem/usage",
+                        "plan": { "pricingDetails": {
+                            "__typename": "AppUsagePricing",
+                            "cappedAmount": { "amount": "12", "currencyCode": "USD" }
+                        }}
+                    },
+                    {
+                        "id": "gid://shopify/AppSubscriptionLineItem/recurring",
+                        "plan": { "pricingDetails": {
+                            "__typename": "AppRecurringPricing"
+                        }}
+                    }
+                ]
+            },
+            "userErrors": []
         })
     );
 }
@@ -2890,6 +3942,405 @@ fn carrier_service_lifecycle_stages_reads_filters_deletes_and_validates() {
     assert_eq!(
         missing.body["data"]["carrierServiceDelete"]["userErrors"][0]["message"],
         json!("The carrier or app could not be found.")
+    );
+}
+
+#[test]
+fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
+    let mut proxy = snapshot_proxy();
+    let http_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidCarrierServiceCreate($input: DeliveryCarrierServiceCreateInput!) {
+          carrierServiceCreate(input: $input) {
+            carrierService { id callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "name": "HTTP Carrier",
+            "callbackUrl": "http://example.com/rates"
+        }}),
+    ));
+    assert_eq!(
+        http_create.body["data"]["carrierServiceCreate"],
+        json!({
+            "carrierService": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Shipping rate provider callback url must use HTTPS",
+                "code": "CARRIER_SERVICE_CREATE_FAILED"
+            }]
+        })
+    );
+
+    let banned_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidCarrierServiceCreate($input: DeliveryCarrierServiceCreateInput!) {
+          carrierServiceCreate(input: $input) {
+            carrierService { id callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "name": "Banned Carrier",
+            "callbackUrl": "https://localhost/rates"
+        }}),
+    ));
+    assert_eq!(
+        banned_create.body["data"]["carrierServiceCreate"],
+        json!({
+            "carrierService": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Shipping rate provider callback url invalid host",
+                "code": "CARRIER_SERVICE_CREATE_FAILED"
+            }]
+        })
+    );
+
+    let unparseable_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidCarrierServiceCreate($input: DeliveryCarrierServiceCreateInput!) {
+          carrierServiceCreate(input: $input) {
+            carrierService { id callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "name": "Unparseable Carrier",
+            "callbackUrl": "not-a-url"
+        }}),
+    ));
+    assert_eq!(
+        unparseable_create.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        unparseable_create.body["errors"][0]["extensions"]["problems"][0]["explanation"],
+        json!("Invalid url 'not-a-url', missing scheme")
+    );
+
+    let blank_name = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidCarrierServiceCreate($input: DeliveryCarrierServiceCreateInput!) {
+          carrierServiceCreate(input: $input) {
+            carrierService { id callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "name": "",
+            "callbackUrl": "https://mock.shop/carrier-service-rates"
+        }}),
+    ));
+    assert_eq!(
+        blank_name.body["data"]["carrierServiceCreate"],
+        json!({
+            "carrierService": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Shipping rate provider name can't be blank",
+                "code": "CARRIER_SERVICE_CREATE_FAILED"
+            }]
+        })
+    );
+
+    let valid_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceCreateProbe($input: DeliveryCarrierServiceCreateInput!) {
+          carrierServiceCreate(input: $input) {
+            carrierService { id name callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "name": "Hermes Carrier Local",
+            "callbackUrl": "https://mock.shop/carrier-service-rates"
+        }}),
+    ));
+    assert_eq!(
+        valid_create.body["data"]["carrierServiceCreate"]["carrierService"]["callbackUrl"],
+        json!("https://mock.shop/carrier-service-rates")
+    );
+    assert_eq!(
+        valid_create.body["data"]["carrierServiceCreate"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn carrier_service_update_validates_changed_callback_url_and_codes_unknowns() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceCreateProbe($input: DeliveryCarrierServiceCreateInput!) {
+          carrierServiceCreate(input: $input) {
+            carrierService { id name callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "name": "Hermes Carrier Local",
+            "callbackUrl": "https://mock.shop/carrier-service-rates"
+        }}),
+    ));
+    let id = create.body["data"]["carrierServiceCreate"]["carrierService"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let unchanged_callback = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceUpdateProbe($input: DeliveryCarrierServiceUpdateInput!) {
+          carrierServiceUpdate(input: $input) {
+            carrierService { id name callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "id": id,
+            "name": "Hermes Carrier Renamed",
+            "callbackUrl": "https://mock.shop/carrier-service-rates"
+        }}),
+    ));
+    assert_eq!(
+        unchanged_callback.body["data"]["carrierServiceUpdate"]["carrierService"]["name"],
+        json!("Hermes Carrier Renamed")
+    );
+    assert_eq!(
+        unchanged_callback.body["data"]["carrierServiceUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let http_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceUpdateProbe($input: DeliveryCarrierServiceUpdateInput!) {
+          carrierServiceUpdate(input: $input) {
+            carrierService { id name callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "id": id,
+            "callbackUrl": "http://example.com/rates"
+        }}),
+    ));
+    assert_eq!(
+        http_update.body["data"]["carrierServiceUpdate"],
+        json!({
+            "carrierService": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Shipping rate provider callback url must use HTTPS",
+                "code": "CARRIER_SERVICE_UPDATE_FAILED"
+            }]
+        })
+    );
+
+    let banned_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceUpdateProbe($input: DeliveryCarrierServiceUpdateInput!) {
+          carrierServiceUpdate(input: $input) {
+            carrierService { id name callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "id": id,
+            "callbackUrl": "https://shopify.com/rates"
+        }}),
+    ));
+    assert_eq!(
+        banned_update.body["data"]["carrierServiceUpdate"],
+        json!({
+            "carrierService": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Shipping rate provider callback url invalid host",
+                "code": "CARRIER_SERVICE_UPDATE_FAILED"
+            }]
+        })
+    );
+
+    let after_rejected_update = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServiceAfterUpdate($id: ID!) {
+          carrierService(id: $id) { id name callbackUrl }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+    assert_eq!(
+        after_rejected_update.body["data"]["carrierService"]["callbackUrl"],
+        json!("https://mock.shop/carrier-service-rates")
+    );
+
+    let unknown_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownCarrierServiceUpdate($input: DeliveryCarrierServiceUpdateInput!) {
+          carrierServiceUpdate(input: $input) {
+            carrierService { id callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "id": "gid://shopify/DeliveryCarrierService/999999999999",
+            "callbackUrl": "https://mock.shop/carrier-service-rates"
+        }}),
+    ));
+    assert_eq!(
+        unknown_update.body["data"]["carrierServiceUpdate"],
+        json!({
+            "carrierService": null,
+            "userErrors": [{
+                "field": null,
+                "message": "The carrier or app could not be found.",
+                "code": "CARRIER_SERVICE_UPDATE_FAILED"
+            }]
+        })
+    );
+
+    let unknown_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownCarrierServiceDelete($id: ID!) {
+          carrierServiceDelete(id: $id) {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/DeliveryCarrierService/999999999999" }),
+    ));
+    assert_eq!(
+        unknown_delete.body["data"]["carrierServiceDelete"],
+        json!({
+            "deletedId": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "The carrier or app could not be found.",
+                "code": "CARRIER_SERVICE_DELETE_FAILED"
+            }]
+        })
+    );
+}
+
+#[test]
+fn carrier_services_connection_paginates_edges_nodes_and_active_false_filter() {
+    let mut proxy = snapshot_proxy();
+
+    for (name, active) in [
+        ("Carrier inactive one", false),
+        ("Carrier active", true),
+        ("Carrier inactive two", false),
+    ] {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CarrierServiceCreateProbe($input: DeliveryCarrierServiceCreateInput!) {
+              carrierServiceCreate(input: $input) {
+                carrierService { id name active }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "input": {
+                "name": name,
+                "callbackUrl": "https://mock.shop/rates",
+                "supportsServiceDiscovery": true,
+                "active": active
+            }}),
+        ));
+        assert_eq!(
+            create.body["data"]["carrierServiceCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServiceAfterUpdate($first: Int!, $query: String) {
+          carrierServices(first: $first, query: $query, sortKey: ID) {
+            nodes { id name active }
+            edges { cursor node { id name active } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 1, "query": "active:false"}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["carrierServices"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/DeliveryCarrierService/1?shopify-draft-proxy=synthetic",
+                "name": "Carrier inactive one",
+                "active": false
+            }],
+            "edges": [{
+                "cursor": "cursor:gid://shopify/DeliveryCarrierService/1?shopify-draft-proxy=synthetic",
+                "node": {
+                    "id": "gid://shopify/DeliveryCarrierService/1?shopify-draft-proxy=synthetic",
+                    "name": "Carrier inactive one",
+                    "active": false
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/DeliveryCarrierService/1?shopify-draft-proxy=synthetic",
+                "endCursor": "cursor:gid://shopify/DeliveryCarrierService/1?shopify-draft-proxy=synthetic"
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServiceAfterUpdate($first: Int!, $after: String!, $query: String) {
+          carrierServices(first: $first, after: $after, query: $query, sortKey: ID) {
+            nodes { id name active }
+            edges { cursor node { id name active } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({
+            "first": 1,
+            "after": first_page.body["data"]["carrierServices"]["pageInfo"]["endCursor"],
+            "query": "active:false"
+        }),
+    ));
+    assert_eq!(
+        second_page.body["data"]["carrierServices"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/DeliveryCarrierService/3?shopify-draft-proxy=synthetic",
+                "name": "Carrier inactive two",
+                "active": false
+            }],
+            "edges": [{
+                "cursor": "cursor:gid://shopify/DeliveryCarrierService/3?shopify-draft-proxy=synthetic",
+                "node": {
+                    "id": "gid://shopify/DeliveryCarrierService/3?shopify-draft-proxy=synthetic",
+                    "name": "Carrier inactive two",
+                    "active": false
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "cursor:gid://shopify/DeliveryCarrierService/3?shopify-draft-proxy=synthetic",
+                "endCursor": "cursor:gid://shopify/DeliveryCarrierService/3?shopify-draft-proxy=synthetic"
+            }
+        })
     );
 }
 

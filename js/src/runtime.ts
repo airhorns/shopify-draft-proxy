@@ -142,7 +142,7 @@ function fetchJsonSync(origin: string, request: DraftProxyRequest): DraftProxyHt
 }
 
 function waitForRustServer(child: ChildProcessWithoutNullStreams, origin: string, output: () => string): void {
-  const deadline = Date.now() + 15_000;
+  const deadline = Date.now() + 60_000;
   while (Date.now() < deadline) {
     if (output().includes('shopify-draft-proxy rust runtime listening')) return;
     if (child.exitCode !== null) {

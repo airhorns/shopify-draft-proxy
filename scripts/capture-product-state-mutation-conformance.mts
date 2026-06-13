@@ -129,6 +129,91 @@ const tagsRemoveMutation = `#graphql
   }
 `;
 
+const tagsAddCommaStringMutation = `#graphql
+  mutation TagsAddCommaString($id: ID!, $tags: [String!]!) {
+    tagsAdd(id: $id, tags: $tags) {
+      node {
+        ... on Product {
+          id
+          tags
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const tagsAddCommaListElementMutation = `#graphql
+  mutation TagsAddCommaListElement($id: ID!, $tags: [String!]!) {
+    tagsAdd(id: $id, tags: $tags) {
+      node {
+        ... on Product {
+          id
+          tags
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const tagsAddCaseVariantMutation = `#graphql
+  mutation TagsAddCaseVariant($id: ID!, $tags: [String!]!) {
+    tagsAdd(id: $id, tags: $tags) {
+      node {
+        ... on Product {
+          id
+          tags
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const tagsRemoveCaseVariantMutation = `#graphql
+  mutation TagsRemoveCaseVariant($id: ID!, $tags: [String!]!) {
+    tagsRemove(id: $id, tags: $tags) {
+      node {
+        ... on Product {
+          id
+          tags
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const tagsRemoveStringMutation = `#graphql
+  mutation TagsRemoveString($id: ID!, $tags: [String!]!) {
+    tagsRemove(id: $id, tags: $tags) {
+      node {
+        ... on Product {
+          id
+          tags
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const postStatusReadQuery = `#graphql
   query ProductChangeStatusDownstream($id: ID!, $query: String!) {
     product(id: $id) {
@@ -207,6 +292,16 @@ function buildCreateVariables(runId) {
   };
 }
 
+function buildTagNormalizationCreateVariables(runId, label) {
+  return {
+    product: {
+      title: `Hermes Product Tag Normalization ${label} ${runId}`,
+      status: 'DRAFT',
+      tags: ['Red'],
+    },
+  };
+}
+
 async function writeScopeBlocker(blocker) {
   await mkdir(pendingDir, { recursive: true });
   const note = renderWriteScopeBlockerNote({
@@ -238,7 +333,40 @@ const statusVariables = { productId: null, status: 'ARCHIVED' };
 const unknownStatusVariables = { productId: 'gid://shopify/Product/999999999999999', status: 'ARCHIVED' };
 const tagsAddVariables = { id: null, tags: ['existing', uniqueSummerTag, uniqueSaleTag] };
 const tagsRemoveVariables = { id: null, tags: [uniqueSaleTag, 'missing'] };
+const tagNormalizationCases = [
+  {
+    key: 'commaStringAdd',
+    createVariables: buildTagNormalizationCreateVariables(runId, 'Comma String'),
+    mutation: tagsAddCommaStringMutation,
+    variables: { id: null, tags: 'blue, green' },
+  },
+  {
+    key: 'commaListElementAdd',
+    createVariables: buildTagNormalizationCreateVariables(runId, 'Comma List Element'),
+    mutation: tagsAddCommaListElementMutation,
+    variables: { id: null, tags: ['blue,green'] },
+  },
+  {
+    key: 'caseVariantAdd',
+    createVariables: buildTagNormalizationCreateVariables(runId, 'Case Variant Add'),
+    mutation: tagsAddCaseVariantMutation,
+    variables: { id: null, tags: ['red'] },
+  },
+  {
+    key: 'caseVariantRemove',
+    createVariables: buildTagNormalizationCreateVariables(runId, 'Case Variant Remove'),
+    mutation: tagsRemoveCaseVariantMutation,
+    variables: { id: null, tags: ['red'] },
+  },
+  {
+    key: 'singleStringRemove',
+    createVariables: buildTagNormalizationCreateVariables(runId, 'Single String Remove'),
+    mutation: tagsRemoveStringMutation,
+    variables: { id: null, tags: 'Red' },
+  },
+];
 let createdProductId = null;
+const cleanupProductIds = [];
 let createResponse = null;
 let statusResponse = null;
 let unknownStatusResponse = null;
@@ -252,6 +380,7 @@ try {
   if (!createdProductId) {
     throw new Error('Product state mutation capture did not return a product id.');
   }
+  cleanupProductIds.push(createdProductId);
 
   statusVariables.productId = createdProductId;
   tagsAddVariables.id = createdProductId;
@@ -282,6 +411,30 @@ try {
     removedQuery: `tag:${uniqueSaleTag}`,
   };
   const postTagsRemoveRead = await runGraphql(postTagsRemoveReadQuery, tagsRemoveDownstreamReadVariables);
+
+  const tagNormalization = {};
+  for (const scenario of tagNormalizationCases) {
+    const setupResponse = await runGraphql(createMutation, scenario.createVariables);
+    const productId = setupResponse.data?.productCreate?.product?.id ?? null;
+    if (!productId) {
+      throw new Error(`Product tag normalization capture did not return a product id for ${scenario.key}.`);
+    }
+    cleanupProductIds.push(productId);
+    const mutationVariables = { ...scenario.variables, id: productId };
+    const mutationResponse = await runGraphql(scenario.mutation, mutationVariables);
+    tagNormalization[scenario.key] = {
+      seedProduct: setupResponse.data?.productCreate?.product ?? null,
+      setup: {
+        variables: scenario.createVariables,
+        response: setupResponse,
+      },
+      mutation: {
+        query: scenario.mutation,
+        variables: mutationVariables,
+        response: mutationResponse,
+      },
+    };
+  }
 
   const captures = {
     'product-change-status-parity.json': {
@@ -326,6 +479,9 @@ try {
       downstreamReadVariables: tagsRemoveDownstreamReadVariables,
       downstreamRead: postTagsRemoveRead,
     },
+    'tags-normalization-parity.json': {
+      tagNormalization,
+    },
   };
 
   for (const [filename, payload] of Object.entries(captures)) {
@@ -340,6 +496,7 @@ try {
         outputDir,
         files: Object.keys(captures),
         productId: createdProductId,
+        cleanupProductIds,
       },
       null,
       2,
@@ -367,9 +524,9 @@ try {
 
   throw error;
 } finally {
-  if (createdProductId) {
+  for (const productId of cleanupProductIds.reverse()) {
     try {
-      await runGraphql(deleteMutation, { input: { id: createdProductId } });
+      await runGraphql(deleteMutation, { input: { id: productId } });
     } catch {
       // Best-effort cleanup only. The conformance script should still surface the original failure.
     }

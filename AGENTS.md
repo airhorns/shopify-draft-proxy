@@ -68,6 +68,7 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 - For parity comparisons, prefer comparing the whole selected resource payload and carving out explicit volatile paths such as IDs, timestamps, cursors, and throttle metadata.
 - Treat `expectedDifferences` as a last resort after the proxy's operation handlers have been adjusted to compute the right response.
 - Before handing off a fidelity PR, ensure there is executable evidence for behavior claims. Integration/unit tests prove local code paths; parity/conformance evidence proves Shopify fidelity.
+- When changing Shopify-fidelity behavior, map every changed validation branch, payload shape, or read-after-write effect to an explicit captured parity comparison target in the same PR. An existing scenario file only counts when the exact target already asserts that branch and the workpad records the target name; adjacent coverage or an unchanged broad scenario is not enough.
 - Build/recording scripts must be TypeScript (`.ts` / `.mts`) executed with `tsx` or similar. Do not add `.mjs` files anywhere in this repository.
 - Relative TypeScript import specifiers must use the emitted JavaScript extension that TypeScript expects for NodeNext output (`.js` for `.ts`, `.mjs` for `.mts`, `.cjs` for `.cts`).
 - Do not add files to linter/formatter ignore lists just because formatting changes fixtures or parity requests. Format the files, then fix affected tests, captures, specs, or code.
