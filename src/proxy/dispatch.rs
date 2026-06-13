@@ -1212,20 +1212,6 @@ impl DraftProxy {
             }
         }
 
-        if operation.operation_type == OperationType::Query
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "bulkOperation" | "bulkOperations" | "currentBulkOperation"
-                )
-            })
-            && is_local_bulk_operation_read_document(&query)
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.bulk_operation_read_data(&fields) }));
-            }
-        }
-
         if operation.operation_type == OperationType::Mutation
             && root_field == "bulkOperationRunQuery"
         {
@@ -2362,6 +2348,11 @@ impl DraftProxy {
             {
                 let outcome = self.saved_search_mutation_fields(&query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::BulkOperations, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+            {
+                self.bulk_operation_read_response(request, &query, &variables, root_field)
             }
             (CapabilityDomain::Functions, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
