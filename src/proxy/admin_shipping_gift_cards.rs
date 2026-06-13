@@ -2582,30 +2582,26 @@ impl DraftProxy {
                     data.insert(field.response_key.clone(), value);
                 }
                 "location" => {
-                    handled = true;
-                    let value = field
-                        .arguments
-                        .get("id")
-                        .and_then(resolved_as_string)
-                        .and_then(|id| {
-                            if self
-                                .store
-                                .staged
-                                .deleted_fulfillment_service_location_ids
-                                .contains(&id)
-                            {
-                                None
-                            } else {
-                                self.store
-                                    .staged
-                                    .fulfillment_service_locations
-                                    .get(&id)
-                                    .cloned()
-                            }
-                        })
-                        .map(|location| selected_json(&location, &field.selection))
-                        .unwrap_or(Value::Null);
-                    data.insert(field.response_key.clone(), value);
+                    let Some(id) = field.arguments.get("id").and_then(resolved_as_string) else {
+                        continue;
+                    };
+                    if self
+                        .store
+                        .staged
+                        .deleted_fulfillment_service_location_ids
+                        .contains(&id)
+                    {
+                        handled = true;
+                        data.insert(field.response_key.clone(), Value::Null);
+                    } else if let Some(location) =
+                        self.store.staged.fulfillment_service_locations.get(&id)
+                    {
+                        handled = true;
+                        data.insert(
+                            field.response_key.clone(),
+                            selected_json(location, &field.selection),
+                        );
+                    }
                 }
                 _ => {}
             }
