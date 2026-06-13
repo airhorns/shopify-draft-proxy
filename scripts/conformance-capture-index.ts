@@ -3039,8 +3039,16 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'localization',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-conformance.mts',
-    purpose: 'Shop locale lifecycle and translation read-after-write cleanup behavior.',
-    requiredAuthScopes: ['read_products', 'read_translations', 'write_translations', 'read_locales', 'write_locales'],
+    purpose:
+      'Shop locale lifecycle, primary/missing-locale validation guards, and translation read-after-write cleanup behavior.',
+    requiredAuthScopes: [
+      'read_products',
+      'read_translations',
+      'write_translations',
+      'read_locales',
+      'write_locales',
+      'read_markets',
+    ],
     fixtureOutputs: [
       `${CAPTURE_ROOT}localization-disable-clears-translations.json`,
       `${CAPTURE_ROOT}localization-shop-locale-primary-guards.json`,
@@ -3048,7 +3056,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/localization/localization-shop-locale-primary-guards.json',
     ],
     cleanupBehavior:
-      'Enables the French shop locale, registers one product-title translation, disables the locale, and leaves the locale/translation state cleaned up.',
+      'Enables the French shop locale, registers one product-title translation, disables the locale, captures validation-only primary/missing-locale guard branches, and leaves the locale/translation state cleaned up.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
