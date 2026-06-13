@@ -757,6 +757,7 @@ mod localization_markets_catalogs;
 mod marketing_webhooks_inventory;
 mod markets_online_inventory;
 mod media_products_saved_searches;
+mod metafield_metaobject_definitions;
 mod metafields_orders_payments;
 mod online_store_orders_payments;
 mod product_helpers;
@@ -787,6 +788,8 @@ pub(in crate::proxy) use self::marketing_webhooks_inventory::*;
 pub(in crate::proxy) use self::markets_online_inventory::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::media_products_saved_searches::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::metafields_orders_payments::*;
 #[allow(unused_imports)]
