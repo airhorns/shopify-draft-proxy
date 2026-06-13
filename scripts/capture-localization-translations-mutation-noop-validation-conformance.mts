@@ -309,6 +309,30 @@ async function main(): Promise<void> {
     const disabledLocaleRemove = await runGraphql(removeMutation, disabledLocaleRemoveVariables);
     assertNoUserErrors(payloadField(disabledLocaleRemove, 'translationsRemove'), 'disabled-locale translationsRemove');
 
+    const disabledLocaleRegisterAfterDisableVariables = {
+      resourceId: createdProductId,
+      translations: [
+        {
+          locale: disabledLocale,
+          key: 'title',
+          value: `Disabled ${captureToken}`,
+          translatableContentDigest: digest,
+        },
+      ],
+    };
+    const disabledLocaleRegisterAfterDisable = await runGraphql(
+      registerMutation,
+      disabledLocaleRegisterAfterDisableVariables,
+    );
+    const disabledLocaleRegisterAfterDisableErrors = userErrors(
+      payloadField(disabledLocaleRegisterAfterDisable, 'translationsRegister'),
+    );
+    if (disabledLocaleRegisterAfterDisableErrors.length !== 1) {
+      throw new Error(
+        `Expected one disabled-locale translationsRegister userError: ${JSON.stringify(disabledLocaleRegisterAfterDisable)}`,
+      );
+    }
+
     const primaryLocaleRegisterVariables = {
       resourceId: createdProductId,
       translations: [
@@ -357,6 +381,10 @@ async function main(): Promise<void> {
             register: { variables: disabledLocaleRegisterVariables, response: disabledLocaleRegister },
             localeDisable: { variables: localeDisableVariables, response: localeDisable },
             remove: { variables: disabledLocaleRemoveVariables, response: disabledLocaleRemove },
+            registerAfterDisable: {
+              variables: disabledLocaleRegisterAfterDisableVariables,
+              response: disabledLocaleRegisterAfterDisable,
+            },
           },
           primaryLocaleRegister: {
             variables: primaryLocaleRegisterVariables,

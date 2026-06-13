@@ -914,6 +914,131 @@ fn location_deactivate_user_error_does_not_relocate_inventory_quantities() {
 }
 
 #[test]
+fn location_deactivate_state_machine_errors_match_captured_codes_fields_and_location_state() {
+    let mut proxy = snapshot_proxy();
+    let query = r#"
+        fragment LocationDeactivateStateMachineFields on Location {
+          id
+          name
+          isActive
+          activatable
+          deactivatable
+          fulfillsOnlineOrders
+          hasActiveInventory
+          hasUnfulfilledOrders
+          deletable
+          shipsInventory
+        }
+
+        mutation LocationDeactivateStateMachineWithDestination(
+          $locationId: ID!
+          $destinationLocationId: ID
+          $idempotencyKey: String!
+        ) {
+          locationDeactivate(locationId: $locationId, destinationLocationId: $destinationLocationId)
+            @idempotent(key: $idempotencyKey) {
+            location { ...LocationDeactivateStateMachineFields }
+            locationDeactivateUserErrors { field message code }
+          }
+        }
+    "#;
+
+    let same_id = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "locationId": "gid://shopify/Location/112849125682",
+            "destinationLocationId": "gid://shopify/Location/112849125682",
+            "idempotencyKey": "same"
+        }),
+    ));
+    assert_eq!(
+        same_id.body["data"]["locationDeactivate"],
+        json!({
+            "location": {
+                "id": "gid://shopify/Location/112849125682",
+                "name": "location-deactivate-state-machine source 20260506013233",
+                "isActive": true,
+                "activatable": true,
+                "deactivatable": true,
+                "fulfillsOnlineOrders": false,
+                "hasActiveInventory": false,
+                "hasUnfulfilledOrders": false,
+                "deletable": false,
+                "shipsInventory": false
+            },
+            "locationDeactivateUserErrors": [{
+                "field": ["destinationLocationId"],
+                "message": "Location could not be deactivated because the destination location cannot be set to the location to be deactivated.",
+                "code": "DESTINATION_LOCATION_IS_THE_SAME_LOCATION"
+            }]
+        })
+    );
+
+    let active_inventory = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "locationId": "gid://shopify/Location/112849191218",
+            "destinationLocationId": null,
+            "idempotencyKey": "inventory"
+        }),
+    ));
+    assert_eq!(
+        active_inventory.body["data"]["locationDeactivate"]["locationDeactivateUserErrors"],
+        json!([{
+            "field": ["locationId"],
+            "message": "Location could not be deactivated without specifying where to relocate inventory stocked at the location.",
+            "code": "HAS_ACTIVE_INVENTORY_ERROR"
+        }])
+    );
+    assert_eq!(
+        active_inventory.body["data"]["locationDeactivate"]["location"]["hasActiveInventory"],
+        json!(true)
+    );
+
+    let only_online = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "locationId": "gid://shopify/Location/112849223986",
+            "destinationLocationId": null,
+            "idempotencyKey": "online"
+        }),
+    ));
+    assert_eq!(
+        only_online.body["data"]["locationDeactivate"]["locationDeactivateUserErrors"],
+        json!([{
+            "field": ["locationId"],
+            "message": "At least one location must fulfill online orders.",
+            "code": "CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT"
+        }])
+    );
+    assert_eq!(
+        only_online.body["data"]["locationDeactivate"]["location"]["fulfillsOnlineOrders"],
+        json!(true)
+    );
+
+    let permanent = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "locationId": "gid://shopify/Location/106318430514",
+            "destinationLocationId": null,
+            "idempotencyKey": "permanent"
+        }),
+    ));
+    assert_eq!(
+        permanent.body["data"]["locationDeactivate"]["locationDeactivateUserErrors"],
+        json!([{
+            "field": ["locationId"],
+            "message": "Location could not be deactivated because it either has a fulfillment service or is the only location with a shipping address.",
+            "code": "PERMANENTLY_BLOCKED_FROM_DEACTIVATION_ERROR"
+        }])
+    );
+    assert_eq!(
+        permanent.body["data"]["locationDeactivate"]["location"]["deactivatable"],
+        json!(false)
+    );
+}
+
+#[test]
 fn location_by_identifier_custom_id_miss_returns_null_with_not_found_error() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(

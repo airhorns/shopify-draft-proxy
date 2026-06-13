@@ -822,19 +822,6 @@ pub(in crate::proxy) fn is_fulfillment_order_request_lifecycle_direct_read(
             .unwrap_or(false)
 }
 
-pub(in crate::proxy) fn is_product_publishable_parity_document(query: &str) -> bool {
-    [
-        "PublishablePublishProductParity",
-        "PublishableUnpublishProductParity",
-        "PublishablePublishToCurrentChannelProductParity",
-        "PublishableUnpublishToCurrentChannelProductParity",
-        "CollectionPublishablePublish",
-        "CollectionPublishableUnpublish",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
 pub(in crate::proxy) fn product_publication_aggregate_downstream_read(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,

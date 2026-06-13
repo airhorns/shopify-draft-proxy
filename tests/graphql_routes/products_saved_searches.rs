@@ -18,6 +18,8 @@ fn standard_proxy_construction_attaches_default_registry_for_core_roots() {
 fn product_read_serializes_seeded_base_product_by_id() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
         title: "Seeded product".to_string(),
         handle: "seeded-product".to_string(),
         status: "ACTIVE".to_string(),
@@ -55,6 +57,8 @@ fn product_read_serializes_seeded_base_product_by_id() {
 fn product_read_serializes_only_requested_scalar_fields() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
         title: "Seeded product".to_string(),
         handle: "seeded-product".to_string(),
         status: "ACTIVE".to_string(),
@@ -89,6 +93,8 @@ fn product_read_serializes_only_requested_scalar_fields() {
 fn product_read_preserves_root_alias() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
         title: "Seeded product".to_string(),
         handle: "seeded-product".to_string(),
         status: "ACTIVE".to_string(),
@@ -1303,6 +1309,108 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
 }
 
 #[test]
+fn publishable_mutations_validate_publication_input_locally() {
+    let mut proxy = snapshot_proxy();
+    let product_id = "gid://shopify/Product/10179659858226";
+    let publication_id = "gid://shopify/Publication/268039389490";
+    let publish = r#"
+        mutation PublishableInputValidation($id: ID!, $input: [PublicationInput!]!) {
+          publishablePublish(id: $id, input: $input) {
+            publishable { ... on Product { id publishedOnCurrentPublication resourcePublicationsCount { count precision } } }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let unpublish = r#"
+        mutation PublishableInputValidationUnpublish($id: ID!, $input: [PublicationInput!]!) {
+          publishableUnpublish(id: $id, input: $input) {
+            publishable { ... on Product { id publishedOnCurrentPublication resourcePublicationsCount { count precision } } }
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    for (query, root) in [
+        (publish, "publishablePublish"),
+        (unpublish, "publishableUnpublish"),
+    ] {
+        let duplicate = proxy.process_request(json_graphql_request(
+            query,
+            json!({ "id": product_id, "input": [{ "publicationId": publication_id }, { "publicationId": publication_id }] }),
+        ));
+        assert_eq!(
+            duplicate.body["data"][root]["userErrors"],
+            json!([{
+                "field": ["input", "1", "publicationId"],
+                "message": "The same publication was specified more than once"
+            }])
+        );
+
+        let past_date = proxy.process_request(json_graphql_request(
+            query,
+            json!({ "id": product_id, "input": [{ "publicationId": publication_id, "publishDate": "1900-01-01T00:00:00Z" }] }),
+        ));
+        assert_eq!(
+            past_date.body["data"][root]["userErrors"],
+            json!([{
+                "field": ["input", "0", "publishDate"],
+                "message": "Publish date must be a date after the year 1969"
+            }])
+        );
+
+        let blank = proxy.process_request(json_graphql_request(
+            query,
+            json!({ "id": product_id, "input": [{}] }),
+        ));
+        assert_eq!(
+            blank.body["data"][root]["userErrors"],
+            json!([{
+                "field": ["input", "0", "publicationId"],
+                "message": "PublicationId cannot be empty"
+            }])
+        );
+
+        let unknown = proxy.process_request(json_graphql_request(
+            query,
+            json!({ "id": product_id, "input": [{ "publicationId": "gid://shopify/Publication/999999999999" }] }),
+        ));
+        assert_eq!(
+            unknown.body["data"][root]["userErrors"],
+            json!([{
+                "field": ["input", "0", "publicationId"],
+                "message": "Publication does not exist or is not publishable"
+            }])
+        );
+
+        let empty_string = proxy.process_request(json_graphql_request(
+            query,
+            json!({ "id": product_id, "input": [{ "publicationId": "" }] }),
+        ));
+        assert_eq!(empty_string.body.get("data"), None);
+        assert_eq!(
+            empty_string.body["errors"][0]["extensions"]["code"],
+            json!("INVALID_VARIABLE")
+        );
+        assert_eq!(
+            empty_string.body["errors"][0]["extensions"]["problems"][0]["path"],
+            json!([0, "publicationId"])
+        );
+        assert_eq!(
+            empty_string.body["errors"][0]["extensions"]["problems"][0]["message"],
+            json!("Invalid global id ''")
+        );
+    }
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert_eq!(log.body["entries"], json!([]));
+}
+
+#[test]
 fn product_create_blank_title_user_errors_match_public_shape_and_selected_fields() {
     let mut proxy = snapshot_proxy();
 
@@ -1458,6 +1566,8 @@ fn product_create_stages_extended_product_scalars_visible_to_product_read() {
 fn product_update_stages_scalar_changes_visible_to_product_read() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
         title: "Original product".to_string(),
         handle: "original-product".to_string(),
         status: "ACTIVE".to_string(),
@@ -1525,6 +1635,8 @@ fn product_update_stages_scalar_changes_visible_to_product_read() {
 fn products_connection_reflects_staged_creates_and_deletes() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/base".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
         title: "Base product".to_string(),
         handle: "base-product".to_string(),
         status: "ACTIVE".to_string(),
@@ -1604,6 +1716,8 @@ fn products_connection_applies_first_limit_after_overlaying_state() {
     let mut proxy = snapshot_proxy().with_base_products(vec![
         ProductRecord {
             id: "gid://shopify/Product/1".to_string(),
+            created_at: "2024-01-01T00:00:00.000Z".to_string(),
+            updated_at: "2024-01-01T00:00:00.000Z".to_string(),
             title: "First product".to_string(),
             handle: "first-product".to_string(),
             status: "ACTIVE".to_string(),
@@ -1617,6 +1731,8 @@ fn products_connection_applies_first_limit_after_overlaying_state() {
         },
         ProductRecord {
             id: "gid://shopify/Product/2".to_string(),
+            created_at: "2024-01-01T00:00:00.000Z".to_string(),
+            updated_at: "2024-01-01T00:00:00.000Z".to_string(),
             title: "Second product".to_string(),
             handle: "second-product".to_string(),
             status: "ACTIVE".to_string(),
@@ -1658,6 +1774,8 @@ fn products_connection_serializes_edges_and_page_info_for_selected_window() {
     let mut proxy = snapshot_proxy().with_base_products(vec![
         ProductRecord {
             id: "gid://shopify/Product/1".to_string(),
+            created_at: "2024-01-01T00:00:00.000Z".to_string(),
+            updated_at: "2024-01-01T00:00:00.000Z".to_string(),
             title: "First product".to_string(),
             handle: "first-product".to_string(),
             status: "ACTIVE".to_string(),
@@ -1671,6 +1789,8 @@ fn products_connection_serializes_edges_and_page_info_for_selected_window() {
         },
         ProductRecord {
             id: "gid://shopify/Product/2".to_string(),
+            created_at: "2024-01-01T00:00:00.000Z".to_string(),
+            updated_at: "2024-01-01T00:00:00.000Z".to_string(),
             title: "Second product".to_string(),
             handle: "second-product".to_string(),
             status: "ACTIVE".to_string(),
@@ -1856,6 +1976,8 @@ fn products_connection_paginates_edges_nodes_and_page_info_consistently() {
 fn products_count_reflects_staged_creates_and_deletes() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/base".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
         title: "Base product".to_string(),
         handle: "base-product".to_string(),
         status: "ACTIVE".to_string(),
@@ -1949,6 +2071,8 @@ fn product_by_identifier_finds_staged_product_by_handle() {
 fn product_by_identifier_preserves_root_alias() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/base".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
         title: "Base product".to_string(),
         handle: "base-product".to_string(),
         status: "ACTIVE".to_string(),
@@ -1985,6 +2109,8 @@ fn product_by_identifier_preserves_root_alias() {
 fn product_by_identifier_supports_multiple_aliases_in_one_query() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/base".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
         title: "Base product".to_string(),
         handle: "base-product".to_string(),
         status: "ACTIVE".to_string(),
@@ -2032,6 +2158,8 @@ fn products_and_products_count_preserve_root_aliases() {
     let mut proxy = snapshot_proxy().with_base_products(vec![
         ProductRecord {
             id: "gid://shopify/Product/1".to_string(),
+            created_at: "2024-01-01T00:00:00.000Z".to_string(),
+            updated_at: "2024-01-01T00:00:00.000Z".to_string(),
             title: "First product".to_string(),
             handle: "first-product".to_string(),
             status: "ACTIVE".to_string(),
@@ -2045,6 +2173,8 @@ fn products_and_products_count_preserve_root_aliases() {
         },
         ProductRecord {
             id: "gid://shopify/Product/2".to_string(),
+            created_at: "2024-01-01T00:00:00.000Z".to_string(),
+            updated_at: "2024-01-01T00:00:00.000Z".to_string(),
             title: "Second product".to_string(),
             handle: "second-product".to_string(),
             status: "ACTIVE".to_string(),
@@ -2090,6 +2220,8 @@ fn product_roots_support_multiple_aliases_in_one_query() {
     let mut proxy = snapshot_proxy().with_base_products(vec![
         ProductRecord {
             id: "gid://shopify/Product/1".to_string(),
+            created_at: "2024-01-01T00:00:00.000Z".to_string(),
+            updated_at: "2024-01-01T00:00:00.000Z".to_string(),
             title: "First product".to_string(),
             handle: "first-product".to_string(),
             status: "ACTIVE".to_string(),
@@ -2103,6 +2235,8 @@ fn product_roots_support_multiple_aliases_in_one_query() {
         },
         ProductRecord {
             id: "gid://shopify/Product/2".to_string(),
+            created_at: "2024-01-01T00:00:00.000Z".to_string(),
+            updated_at: "2024-01-01T00:00:00.000Z".to_string(),
             title: "Second product".to_string(),
             handle: "second-product".to_string(),
             status: "DRAFT".to_string(),
@@ -2138,6 +2272,8 @@ fn product_roots_support_multiple_aliases_in_one_query() {
 fn product_mutations_preserve_root_alias_response_keys() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
         title: "Seeded product".to_string(),
         handle: "seeded-product".to_string(),
         status: "ACTIVE".to_string(),
@@ -3308,6 +3444,8 @@ fn product_mutation_error_payloads_preserve_root_alias_response_keys() {
 fn product_delete_stages_downstream_no_data_for_product_read() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
         title: "Deletable product".to_string(),
         handle: "deletable-product".to_string(),
         status: "ACTIVE".to_string(),
@@ -3396,9 +3534,86 @@ fn product_create_stages_product_visible_to_product_read() {
 }
 
 #[test]
+fn product_create_update_and_connection_reads_emit_product_timestamps() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productCreate(product: { title: \"Timestamped product\", handle: \"timestamped-product\", status: ACTIVE }) { product { id createdAt updatedAt } userErrors { field message code } } }"}"#,
+    ));
+
+    assert_eq!(create.status, 200);
+    let created_product = &create.body["data"]["productCreate"]["product"];
+    assert_eq!(
+        created_product["id"],
+        json!("gid://shopify/Product/1?shopify-draft-proxy=synthetic")
+    );
+    let created_at = created_product["createdAt"]
+        .as_str()
+        .expect("productCreate should return createdAt")
+        .to_string();
+    let first_updated_at = created_product["updatedAt"]
+        .as_str()
+        .expect("productCreate should return updatedAt")
+        .to_string();
+    assert_eq!(created_at, first_updated_at);
+    assert_eq!(
+        create.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+
+    let read_back = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { product(id: \"gid://shopify/Product/1?shopify-draft-proxy=synthetic\") { id createdAt updatedAt } }"}"#,
+    ));
+    assert_eq!(read_back.status, 200);
+    assert_eq!(
+        read_back.body["data"]["product"],
+        json!({
+            "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+            "createdAt": created_at,
+            "updatedAt": first_updated_at
+        })
+    );
+
+    let update = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"mutation { productUpdate(product: { id: \"gid://shopify/Product/1?shopify-draft-proxy=synthetic\", title: \"Updated timestamped product\" }) { product { id createdAt updatedAt } userErrors { field message code } } }"}"#,
+    ));
+    assert_eq!(update.status, 200);
+    let updated_product = &update.body["data"]["productUpdate"]["product"];
+    let second_updated_at = updated_product["updatedAt"]
+        .as_str()
+        .expect("productUpdate should return updatedAt")
+        .to_string();
+    assert_eq!(updated_product["createdAt"], json!(created_at));
+    assert!(second_updated_at > first_updated_at);
+    assert_eq!(
+        update.body["data"]["productUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let connection = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { products(first: 10) { nodes { id createdAt updatedAt } } }"}"#,
+    ));
+    assert_eq!(connection.status, 200);
+    assert_eq!(
+        connection.body["data"]["products"]["nodes"],
+        json!([{
+            "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+            "createdAt": created_at,
+            "updatedAt": second_updated_at
+        }])
+    );
+}
+
+#[test]
 fn product_read_resolves_id_from_request_variables() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/variable-id".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
         title: "Variable product".to_string(),
         handle: "variable-product".to_string(),
         status: "DRAFT".to_string(),
@@ -3542,6 +3757,8 @@ fn product_create_rejects_invalid_status_literals_and_variables_without_staging(
 fn product_change_status_rejects_invalid_status_without_staging() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
         title: "Seeded product".to_string(),
         handle: "seeded-product".to_string(),
         status: "ACTIVE".to_string(),
