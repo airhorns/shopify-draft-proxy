@@ -887,8 +887,9 @@ HAR-237 live probes against Admin GraphQL 2026-04 on `harry-test-heelo.myshopify
 - an empty store returns an empty `carrierServices` connection with empty `nodes`/`edges`, false page booleans, and null cursors
 - `carrierServiceCreate` accepted an inactive app service with `callbackUrl: "https://mock.shop/..."`, returned `formattedName: "<name> (Rates provided by app)"`, and did not need any associated `Location` modeling
 - `carrierServiceUpdate` can change `name`, `callbackUrl`, `active`, and `supportsServiceDiscovery`; immediate downstream detail reads and `carrierServices(query: "active:true")` / `carrierServices(query: "id:<numeric id>")` reflected the update
-- blank create name returned `userErrors[{ field: null, message: "Shipping rate provider name can't be blank" }]`
-- unknown update returned `userErrors[{ field: null, message: "The carrier or app could not be found." }]`, while unknown delete returned the same message with `field: ["id"]`
+- blank create name returned `userErrors[{ field: null, message: "Shipping rate provider name can't be blank", code: "CARRIER_SERVICE_CREATE_FAILED" }]`
+- `http://` callback URLs returned `message: "Shipping rate provider callback url must use HTTPS"`, while banned hosts such as `https://shopify.com/...` returned `message: "Shipping rate provider callback url invalid host"`; create/update use the corresponding `CARRIER_SERVICE_CREATE_FAILED` / `CARRIER_SERVICE_UPDATE_FAILED` code
+- unknown update returned `userErrors[{ field: null, message: "The carrier or app could not be found.", code: "CARRIER_SERVICE_UPDATE_FAILED" }]`, while unknown delete returned the same message with `field: ["id"]` and `code: "CARRIER_SERVICE_DELETE_FAILED"`
 - `carrierServiceDelete` is present in the 2026-04 schema and returned `deletedId` as the full `DeliveryCarrierService` GID; downstream detail and id-filtered catalog reads were empty after cleanup
 
 Practical rule:

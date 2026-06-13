@@ -3147,6 +3147,295 @@ fn carrier_service_lifecycle_stages_reads_filters_deletes_and_validates() {
 }
 
 #[test]
+fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
+    let mut proxy = snapshot_proxy();
+    let http_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidCarrierServiceCreate($input: DeliveryCarrierServiceCreateInput!) {
+          carrierServiceCreate(input: $input) {
+            carrierService { id callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "name": "HTTP Carrier",
+            "callbackUrl": "http://example.com/rates"
+        }}),
+    ));
+    assert_eq!(
+        http_create.body["data"]["carrierServiceCreate"],
+        json!({
+            "carrierService": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Shipping rate provider callback url must use HTTPS",
+                "code": "CARRIER_SERVICE_CREATE_FAILED"
+            }]
+        })
+    );
+
+    let banned_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidCarrierServiceCreate($input: DeliveryCarrierServiceCreateInput!) {
+          carrierServiceCreate(input: $input) {
+            carrierService { id callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "name": "Banned Carrier",
+            "callbackUrl": "https://localhost/rates"
+        }}),
+    ));
+    assert_eq!(
+        banned_create.body["data"]["carrierServiceCreate"],
+        json!({
+            "carrierService": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Shipping rate provider callback url invalid host",
+                "code": "CARRIER_SERVICE_CREATE_FAILED"
+            }]
+        })
+    );
+
+    let unparseable_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidCarrierServiceCreate($input: DeliveryCarrierServiceCreateInput!) {
+          carrierServiceCreate(input: $input) {
+            carrierService { id callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "name": "Unparseable Carrier",
+            "callbackUrl": "not-a-url"
+        }}),
+    ));
+    assert_eq!(
+        unparseable_create.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        unparseable_create.body["errors"][0]["extensions"]["problems"][0]["explanation"],
+        json!("Invalid url 'not-a-url', missing scheme")
+    );
+
+    let blank_name = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidCarrierServiceCreate($input: DeliveryCarrierServiceCreateInput!) {
+          carrierServiceCreate(input: $input) {
+            carrierService { id callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "name": "",
+            "callbackUrl": "https://mock.shop/carrier-service-rates"
+        }}),
+    ));
+    assert_eq!(
+        blank_name.body["data"]["carrierServiceCreate"],
+        json!({
+            "carrierService": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Shipping rate provider name can't be blank",
+                "code": "CARRIER_SERVICE_CREATE_FAILED"
+            }]
+        })
+    );
+
+    let valid_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceCreateProbe($input: DeliveryCarrierServiceCreateInput!) {
+          carrierServiceCreate(input: $input) {
+            carrierService { id name callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "name": "Hermes Carrier Local",
+            "callbackUrl": "https://mock.shop/carrier-service-rates"
+        }}),
+    ));
+    assert_eq!(
+        valid_create.body["data"]["carrierServiceCreate"]["carrierService"]["callbackUrl"],
+        json!("https://mock.shop/carrier-service-rates")
+    );
+    assert_eq!(
+        valid_create.body["data"]["carrierServiceCreate"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn carrier_service_update_validates_changed_callback_url_and_codes_unknowns() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceCreateProbe($input: DeliveryCarrierServiceCreateInput!) {
+          carrierServiceCreate(input: $input) {
+            carrierService { id name callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "name": "Hermes Carrier Local",
+            "callbackUrl": "https://mock.shop/carrier-service-rates"
+        }}),
+    ));
+    let id = create.body["data"]["carrierServiceCreate"]["carrierService"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let unchanged_callback = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceUpdateProbe($input: DeliveryCarrierServiceUpdateInput!) {
+          carrierServiceUpdate(input: $input) {
+            carrierService { id name callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "id": id,
+            "name": "Hermes Carrier Renamed",
+            "callbackUrl": "https://mock.shop/carrier-service-rates"
+        }}),
+    ));
+    assert_eq!(
+        unchanged_callback.body["data"]["carrierServiceUpdate"]["carrierService"]["name"],
+        json!("Hermes Carrier Renamed")
+    );
+    assert_eq!(
+        unchanged_callback.body["data"]["carrierServiceUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let http_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceUpdateProbe($input: DeliveryCarrierServiceUpdateInput!) {
+          carrierServiceUpdate(input: $input) {
+            carrierService { id name callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "id": id,
+            "callbackUrl": "http://example.com/rates"
+        }}),
+    ));
+    assert_eq!(
+        http_update.body["data"]["carrierServiceUpdate"],
+        json!({
+            "carrierService": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Shipping rate provider callback url must use HTTPS",
+                "code": "CARRIER_SERVICE_UPDATE_FAILED"
+            }]
+        })
+    );
+
+    let banned_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceUpdateProbe($input: DeliveryCarrierServiceUpdateInput!) {
+          carrierServiceUpdate(input: $input) {
+            carrierService { id name callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "id": id,
+            "callbackUrl": "https://shopify.com/rates"
+        }}),
+    ));
+    assert_eq!(
+        banned_update.body["data"]["carrierServiceUpdate"],
+        json!({
+            "carrierService": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Shipping rate provider callback url invalid host",
+                "code": "CARRIER_SERVICE_UPDATE_FAILED"
+            }]
+        })
+    );
+
+    let after_rejected_update = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServiceAfterUpdate($id: ID!) {
+          carrierService(id: $id) { id name callbackUrl }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+    assert_eq!(
+        after_rejected_update.body["data"]["carrierService"]["callbackUrl"],
+        json!("https://mock.shop/carrier-service-rates")
+    );
+
+    let unknown_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownCarrierServiceUpdate($input: DeliveryCarrierServiceUpdateInput!) {
+          carrierServiceUpdate(input: $input) {
+            carrierService { id callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "id": "gid://shopify/DeliveryCarrierService/999999999999",
+            "callbackUrl": "https://mock.shop/carrier-service-rates"
+        }}),
+    ));
+    assert_eq!(
+        unknown_update.body["data"]["carrierServiceUpdate"],
+        json!({
+            "carrierService": null,
+            "userErrors": [{
+                "field": null,
+                "message": "The carrier or app could not be found.",
+                "code": "CARRIER_SERVICE_UPDATE_FAILED"
+            }]
+        })
+    );
+
+    let unknown_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownCarrierServiceDelete($id: ID!) {
+          carrierServiceDelete(id: $id) {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/DeliveryCarrierService/999999999999" }),
+    ));
+    assert_eq!(
+        unknown_delete.body["data"]["carrierServiceDelete"],
+        json!({
+            "deletedId": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "The carrier or app could not be found.",
+                "code": "CARRIER_SERVICE_DELETE_FAILED"
+            }]
+        })
+    );
+}
+
+#[test]
 fn carrier_services_connection_paginates_edges_nodes_and_active_false_filter() {
     let mut proxy = snapshot_proxy();
 

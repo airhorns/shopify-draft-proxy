@@ -2444,42 +2444,74 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn carrier_service_mutation(
+    pub(in crate::proxy) fn carrier_service_mutations(
         &mut self,
-        root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        match root_field {
-            "carrierServiceCreate" => self.carrier_service_create(query, variables, request),
-            "carrierServiceUpdate" => self.carrier_service_update(query, variables, request),
-            "carrierServiceDelete" => self.carrier_service_delete(query, variables, request),
-            _ => json_error(501, "Unsupported carrier service mutation"),
+        let fields = root_fields(query, variables).unwrap_or_default();
+        for field in &fields {
+            if field.name == "carrierServiceCreate" {
+                if let Some(error) =
+                    carrier_service_create_callback_url_coercion_error(query, field)
+                {
+                    return ok_json(json!({ "errors": [error] }));
+                }
+            }
         }
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let payload = match field.name.as_str() {
+                "carrierServiceCreate" => {
+                    self.carrier_service_create_field(&field, query, variables, request)
+                }
+                "carrierServiceUpdate" => {
+                    self.carrier_service_update_field(&field, query, variables, request)
+                }
+                "carrierServiceDelete" => {
+                    self.carrier_service_delete_field(&field, query, variables, request)
+                }
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), payload);
+        }
+        ok_json(json!({ "data": Value::Object(data) }))
     }
 
-    pub(in crate::proxy) fn carrier_service_create(
+    pub(in crate::proxy) fn carrier_service_create_field(
         &mut self,
+        field: &RootFieldSelection,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
-        let input = root_field_arguments(query, variables)
-            .and_then(|arguments| resolved_object_field(&arguments, "input"))
-            .unwrap_or_default();
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "carrierServiceCreate".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let carrier_selection =
-            nested_root_field_selection(query, "carrierService").unwrap_or_default();
+    ) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let carrier_selection = nested_selected_fields(&field.selection, &["carrierService"]);
         let Some(name) =
             resolved_string_field(&input, "name").filter(|name| !name.trim().is_empty())
         else {
-            return ok_json(
-                json!({ "data": { response_key: carrier_service_payload_json(Value::Null, &payload_selection, &carrier_selection, vec![json!({ "field": null, "message": "Shipping rate provider name can't be blank" })]) } }),
+            return carrier_service_payload_json(
+                Value::Null,
+                &field.selection,
+                &carrier_selection,
+                vec![carrier_service_user_error(
+                    Value::Null,
+                    "Shipping rate provider name can't be blank",
+                    "CARRIER_SERVICE_CREATE_FAILED",
+                )],
             );
         };
+        if let Some(error) = resolved_string_field(&input, "callbackUrl").and_then(|callback_url| {
+            carrier_service_callback_url_error(&callback_url, "CARRIER_SERVICE_CREATE_FAILED")
+        }) {
+            return carrier_service_payload_json(
+                Value::Null,
+                &field.selection,
+                &carrier_selection,
+                vec![error],
+            );
+        }
         let id = self.next_proxy_synthetic_gid("DeliveryCarrierService");
         let carrier = carrier_service_record(
             &id,
@@ -2494,35 +2526,47 @@ impl DraftProxy {
             .insert(id.clone(), carrier.clone());
         self.store.staged.deleted_carrier_service_ids.remove(&id);
         self.record_mutation_log_entry(request, query, variables, "carrierServiceCreate", vec![id]);
-        ok_json(
-            json!({ "data": { response_key: carrier_service_payload_json(carrier, &payload_selection, &carrier_selection, vec![]) } }),
-        )
+        carrier_service_payload_json(carrier, &field.selection, &carrier_selection, vec![])
     }
 
-    pub(in crate::proxy) fn carrier_service_update(
+    pub(in crate::proxy) fn carrier_service_update_field(
         &mut self,
+        field: &RootFieldSelection,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
-        let input = root_field_arguments(query, variables)
-            .and_then(|arguments| resolved_object_field(&arguments, "input"))
-            .unwrap_or_default();
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "carrierServiceUpdate".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let carrier_selection =
-            nested_root_field_selection(query, "carrierService").unwrap_or_default();
+    ) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let carrier_selection = nested_selected_fields(&field.selection, &["carrierService"]);
         let Some(id) = resolved_string_field(&input, "id") else {
-            return ok_json(
-                json!({ "data": { response_key: carrier_service_not_found_payload(&payload_selection) } }),
+            return carrier_service_not_found_payload(
+                &field.selection,
+                "CARRIER_SERVICE_UPDATE_FAILED",
             );
         };
         let Some(existing) = self.store.staged.carrier_services.get(&id).cloned() else {
-            return ok_json(
-                json!({ "data": { response_key: carrier_service_not_found_payload(&payload_selection) } }),
+            return carrier_service_not_found_payload(
+                &field.selection,
+                "CARRIER_SERVICE_UPDATE_FAILED",
             );
         };
+        let existing_callback_url = existing
+            .get("callbackUrl")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let input_callback_url = resolved_string_field(&input, "callbackUrl");
+        if input_callback_url.as_deref() != existing_callback_url.as_deref() {
+            if let Some(error) = input_callback_url.as_ref().and_then(|callback_url| {
+                carrier_service_callback_url_error(callback_url, "CARRIER_SERVICE_UPDATE_FAILED")
+            }) {
+                return carrier_service_payload_json(
+                    Value::Null,
+                    &field.selection,
+                    &carrier_selection,
+                    vec![error],
+                );
+            }
+        }
         let name = resolved_string_field(&input, "name")
             .or_else(|| {
                 existing
@@ -2534,12 +2578,7 @@ impl DraftProxy {
         let carrier = carrier_service_record(
             &id,
             &name,
-            resolved_string_field(&input, "callbackUrl").or_else(|| {
-                existing
-                    .get("callbackUrl")
-                    .and_then(Value::as_str)
-                    .map(str::to_string)
-            }),
+            input_callback_url.or(existing_callback_url),
             resolved_bool_field(&input, "active").unwrap_or_else(|| {
                 existing
                     .get("active")
@@ -2558,28 +2597,30 @@ impl DraftProxy {
             .carrier_services
             .insert(id.clone(), carrier.clone());
         self.record_mutation_log_entry(request, query, variables, "carrierServiceUpdate", vec![id]);
-        ok_json(
-            json!({ "data": { response_key: carrier_service_payload_json(carrier, &payload_selection, &carrier_selection, vec![]) } }),
-        )
+        carrier_service_payload_json(carrier, &field.selection, &carrier_selection, vec![])
     }
 
-    pub(in crate::proxy) fn carrier_service_delete(
+    pub(in crate::proxy) fn carrier_service_delete_field(
         &mut self,
+        field: &RootFieldSelection,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
-    ) -> Response {
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let id = arguments
+    ) -> Value {
+        let id = field
+            .arguments
             .get("id")
             .and_then(resolved_as_string)
             .unwrap_or_default();
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "carrierServiceDelete".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
         if !self.store.staged.carrier_services.contains_key(&id) {
-            return ok_json(
-                json!({ "data": { response_key: carrier_service_delete_payload(Value::Null, &payload_selection, vec![json!({ "field": ["id"], "message": "The carrier or app could not be found." })]) } }),
+            return carrier_service_delete_payload(
+                Value::Null,
+                &field.selection,
+                vec![carrier_service_user_error(
+                    json!(["id"]),
+                    "The carrier or app could not be found.",
+                    "CARRIER_SERVICE_DELETE_FAILED",
+                )],
             );
         }
         self.store.staged.carrier_services.remove(&id);
@@ -2594,9 +2635,7 @@ impl DraftProxy {
             "carrierServiceDelete",
             vec![id.clone()],
         );
-        ok_json(
-            json!({ "data": { response_key: carrier_service_delete_payload(json!(id), &payload_selection, vec![]) } }),
-        )
+        carrier_service_delete_payload(json!(id), &field.selection, vec![])
     }
 
     pub(in crate::proxy) fn shipping_package_mutation(
