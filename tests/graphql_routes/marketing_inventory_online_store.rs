@@ -293,6 +293,129 @@ fn marketing_engagement_currency_validation_matches_shopify_error_codes() {
 }
 
 #[test]
+fn marketing_external_activity_create_validation_reaches_rust_handler() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityCreateExternalValidation(
+          $currencyMismatchInput: MarketingActivityCreateExternalInput!
+          $utmSeedInput: MarketingActivityCreateExternalInput!
+          $duplicateUtmCampaignInput: MarketingActivityCreateExternalInput!
+          $urlSeedInput: MarketingActivityCreateExternalInput!
+          $duplicateUrlParameterValueInput: MarketingActivityCreateExternalInput!
+        ) {
+          currencyMismatch: marketingActivityCreateExternal(input: $currencyMismatchInput) { marketingActivity { id } userErrors { field message code } }
+          utmSeed: marketingActivityCreateExternal(input: $utmSeedInput) { marketingActivity { id } userErrors { field message code } }
+          duplicateUtmCampaign: marketingActivityCreateExternal(input: $duplicateUtmCampaignInput) { marketingActivity { id } userErrors { field message code } }
+          urlSeed: marketingActivityCreateExternal(input: $urlSeedInput) { marketingActivity { id } userErrors { field message code } }
+          duplicateUrlParameterValue: marketingActivityCreateExternal(input: $duplicateUrlParameterValueInput) { marketingActivity { id } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "currencyMismatchInput": {"title": "Currency mismatch", "remoteId": "currency-mismatch", "status": "ACTIVE", "remoteUrl": "https://example.com/currency", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "currency-mismatch", "source": "email", "medium": "newsletter"}, "budget": {"budgetType": "DAILY", "total": {"amount": "1.00", "currencyCode": "USD"}}, "adSpend": {"amount": "1.00", "currencyCode": "EUR"}},
+            "utmSeedInput": {"title": "UTM Seed", "remoteId": "utm-seed", "status": "ACTIVE", "remoteUrl": "https://example.com/utm-seed", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "utm-seed", "source": "email", "medium": "newsletter"}, "urlParameterValue": "utm-seed"},
+            "duplicateUtmCampaignInput": {"title": "Duplicate UTM", "remoteId": "utm-duplicate", "status": "ACTIVE", "remoteUrl": "https://example.com/utm-duplicate", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "utm-seed", "source": "email", "medium": "newsletter"}, "urlParameterValue": "utm-duplicate"},
+            "urlSeedInput": {"title": "URL Seed", "remoteId": "url-seed", "status": "ACTIVE", "remoteUrl": "https://example.com/url-seed", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "url-seed", "source": "email", "medium": "newsletter"}, "urlParameterValue": "url-seed-param"},
+            "duplicateUrlParameterValueInput": {"title": "Duplicate URL", "remoteId": "url-duplicate", "status": "ACTIVE", "remoteUrl": "https://example.com/url-duplicate", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "url-duplicate", "source": "email", "medium": "newsletter"}, "urlParameterValue": "url-seed-param"}
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["currencyMismatch"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Currency code is not matching between budget and ad spend", "code": null}]})
+    );
+    assert_eq!(
+        response.body["data"]["duplicateUtmCampaign"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Validation failed: Utm campaign has already been taken", "code": null}]})
+    );
+    assert_eq!(
+        response.body["data"]["duplicateUrlParameterValue"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Validation failed: Url parameter value has already been taken", "code": null}]})
+    );
+}
+
+#[test]
+fn marketing_external_activity_upsert_create_branch_rejects_currency_and_duplicates() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle(
+          $seedInput: MarketingActivityCreateExternalInput!
+          $currencyMismatchInput: MarketingActivityUpsertExternalInput!
+          $duplicateUtmCampaignInput: MarketingActivityUpsertExternalInput!
+          $duplicateUrlParameterValueInput: MarketingActivityUpsertExternalInput!
+        ) {
+          seed: marketingActivityCreateExternal(input: $seedInput) { marketingActivity { id } userErrors { field message code } }
+          currencyMismatch: marketingActivityUpsertExternal(input: $currencyMismatchInput) { marketingActivity { id } userErrors { field message code } }
+          duplicateUtmCampaign: marketingActivityUpsertExternal(input: $duplicateUtmCampaignInput) { marketingActivity { id } userErrors { field message code } }
+          duplicateUrlParameterValue: marketingActivityUpsertExternal(input: $duplicateUrlParameterValueInput) { marketingActivity { id } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "seedInput": {"title": "Seed", "remoteId": "upsert-seed", "status": "ACTIVE", "remoteUrl": "https://example.com/upsert-seed", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "upsert-seed", "source": "email", "medium": "newsletter"}, "urlParameterValue": "upsert-seed-param"},
+            "currencyMismatchInput": {"title": "Currency mismatch", "remoteId": "upsert-currency", "status": "ACTIVE", "remoteUrl": "https://example.com/upsert-currency", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "upsert-currency", "source": "email", "medium": "newsletter"}, "budget": {"budgetType": "DAILY", "total": {"amount": "1.00", "currencyCode": "USD"}}, "adSpend": {"amount": "1.00", "currencyCode": "EUR"}},
+            "duplicateUtmCampaignInput": {"title": "Duplicate UTM", "remoteId": "upsert-utm-duplicate", "status": "ACTIVE", "remoteUrl": "https://example.com/upsert-utm-duplicate", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "upsert-seed", "source": "email", "medium": "newsletter"}, "urlParameterValue": "upsert-utm-duplicate"},
+            "duplicateUrlParameterValueInput": {"title": "Duplicate URL", "remoteId": "upsert-url-duplicate", "status": "ACTIVE", "remoteUrl": "https://example.com/upsert-url-duplicate", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "upsert-url-duplicate", "source": "email", "medium": "newsletter"}, "urlParameterValue": "upsert-seed-param"}
+        }),
+    ));
+
+    assert_eq!(response.body["data"]["seed"]["userErrors"], json!([]));
+    assert_eq!(
+        response.body["data"]["currencyMismatch"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Currency code is not matching between budget and ad spend", "code": null}]})
+    );
+    assert_eq!(
+        response.body["data"]["duplicateUtmCampaign"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Validation failed: Utm campaign has already been taken", "code": null}]})
+    );
+    assert_eq!(
+        response.body["data"]["duplicateUrlParameterValue"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Validation failed: Url parameter value has already been taken, Url parameter value has already been taken", "code": null}]})
+    );
+}
+
+#[test]
+fn marketing_engagement_create_validation_order_and_missing_event_reach_rust_handler() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingEngagementCreateValidationOrder(
+          $activityInput: MarketingActivityUpdateInput!
+          $missingActivityId: ID!
+          $missingRemoteId: String!
+          $currencyMismatchEngagement: MarketingEngagementInput!
+          $validEngagement: MarketingEngagementInput!
+        ) {
+          activityWithoutEvent: marketingActivityUpdate(input: $activityInput) { marketingActivity { id marketingEvent { id } } userErrors { field message } }
+          unknownRemoteCurrency: marketingEngagementCreate(remoteId: $missingRemoteId, marketingEngagement: $currencyMismatchEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
+          missingActivity: marketingEngagementCreate(marketingActivityId: $missingActivityId, marketingEngagement: $validEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
+          missingEvent: marketingEngagementCreate(marketingActivityId: "gid://shopify/MarketingActivity/1", marketingEngagement: $validEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "activityInput": {"id": "gid://shopify/MarketingActivity/1", "title": "Native activity without event", "status": "ACTIVE"},
+            "missingActivityId": "gid://shopify/MarketingActivity/999999999999",
+            "missingRemoteId": "missing-remote",
+            "currencyMismatchEngagement": {"occurredOn": "2026-04-01", "isCumulative": false, "utcOffset": "+00:00", "adSpend": {"amount": "1.00", "currencyCode": "USD"}, "sales": {"amount": "2.00", "currencyCode": "EUR"}},
+            "validEngagement": {"occurredOn": "2026-04-01", "isCumulative": false, "utcOffset": "+00:00", "adSpend": {"amount": "1.00", "currencyCode": "USD"}}
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["unknownRemoteCurrency"],
+        json!({"marketingEngagement": null, "userErrors": [{"field": ["marketingEngagement"], "message": "Currency codes in the marketing engagement input do not match.", "code": "CURRENCY_CODE_MISMATCH_INPUT"}]})
+    );
+    assert_eq!(
+        response.body["data"]["missingActivity"],
+        json!({"marketingEngagement": null, "userErrors": [{"field": null, "message": "Marketing activity does not exist.", "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"}]})
+    );
+    assert_eq!(
+        response.body["data"]["missingEvent"],
+        json!({"marketingEngagement": null, "userErrors": [{"field": null, "message": "Marketing event does not exist.", "code": "MARKETING_EVENT_DOES_NOT_EXIST"}]})
+    );
+}
+
+#[test]
 fn marketing_native_activity_lifecycle_stages_update_and_invalid_extension_error() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(

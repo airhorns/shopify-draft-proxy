@@ -87,6 +87,7 @@ Engagement behavior:
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-source-and-medium.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-status-label.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-create-external-validation.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-upsert-external-validation.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-update-external-multi-selector.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-upsert-immutable-fields.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-delete-external-guards.json`
@@ -101,6 +102,7 @@ Engagement behavior:
 - `config/parity-specs/marketing/marketing-activity-source-and-medium.json`
 - `config/parity-specs/marketing/marketing-activity-status-label.json`
 - `config/parity-specs/marketing/marketing-activity-create-external-validation.json`
+- `config/parity-specs/marketing/marketing-activity-upsert-external-validation.json`
 - `config/parity-specs/marketing/marketing-activity-update-external-multi-selector.json`
 - `config/parity-specs/marketing/marketing-activity-upsert-immutable-fields.json`
 - `config/parity-specs/marketing/marketing-activity-delete-external-guards.json`
@@ -116,6 +118,7 @@ Engagement behavior:
 
 - `corepack pnpm parity -- marketing-activity-lifecycle`
 - `corepack pnpm parity -- marketing-activity-create-external-validation`
+- `corepack pnpm parity -- marketing-activity-upsert-external-validation`
 - `corepack pnpm parity -- marketing-engagement-lifecycle`
 - `corepack pnpm parity -- marketing-activity-per-app-scoping`
 - `corepack pnpm conformance:check`

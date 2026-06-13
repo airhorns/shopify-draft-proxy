@@ -1651,6 +1651,9 @@ pub(in crate::proxy) fn is_ported_marketing_document(query: &str) -> bool {
         "MarketingEngagementLifecycle",
         "MarketingEngagementRead",
         "MarketingActivityRead",
+        "MarketingActivityCreateExternalValidation",
+        "MarketingActivityUpsertExternalValidation",
+        "MarketingActivityUpdateCurrencyAndTacticGuards",
         "MarketingActivitySourceAndMedium",
         "MarketingActivityDeleteExternalGuards",
         "MarketingActivityPerAppCreate",
@@ -1660,6 +1663,7 @@ pub(in crate::proxy) fn is_ported_marketing_document(query: &str) -> bool {
         "MarketingActivityPerAppDeleteAll",
         "MarketingActivityPerAppRead",
         "MarketingEngagementCurrencyValidation",
+        "MarketingEngagementCreateValidationOrder",
         "MarketingNativeActivityLifecycle",
         "MarketingNativeActivityRead",
     ]
@@ -1698,6 +1702,14 @@ pub(in crate::proxy) fn marketing_activity_missing_error() -> Value {
         "field": null,
         "message": "Marketing activity does not exist.",
         "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+    })
+}
+
+pub(in crate::proxy) fn marketing_event_missing_error() -> Value {
+    json!({
+        "field": null,
+        "message": "Marketing event does not exist.",
+        "code": "MARKETING_EVENT_DOES_NOT_EXIST"
     })
 }
 

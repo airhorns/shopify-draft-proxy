@@ -1,0 +1,286 @@
+{
+  "scenarioId": "marketing-activity-upsert-external-validation",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-06-12T21:42:59.440Z",
+  "operations": {
+    "primary": {
+      "request": {
+        "query": "mutation MarketingActivityUpsertExternalValidation(\n  $currencyMismatchInput: MarketingActivityUpsertExternalInput!\n  $utmSeedInput: MarketingActivityUpsertExternalInput!\n  $duplicateUtmCampaignInput: MarketingActivityUpsertExternalInput!\n  $urlSeedInput: MarketingActivityUpsertExternalInput!\n  $duplicateUrlParameterValueInput: MarketingActivityUpsertExternalInput!\n) {\n  currencyMismatch: marketingActivityUpsertExternal(input: $currencyMismatchInput) {\n    marketingActivity {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  utmSeed: marketingActivityUpsertExternal(input: $utmSeedInput) {\n    marketingActivity {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  duplicateUtmCampaign: marketingActivityUpsertExternal(input: $duplicateUtmCampaignInput) {\n    marketingActivity {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  urlSeed: marketingActivityUpsertExternal(input: $urlSeedInput) {\n    marketingActivity {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  duplicateUrlParameterValue: marketingActivityUpsertExternal(input: $duplicateUrlParameterValueInput) {\n    marketingActivity {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "currencyMismatchInput": {
+            "title": "Marketing upsert validation currency-mismatch 1781300578618-zwdnaj",
+            "remoteId": "marketing-upsert-validation-currency-1781300578618-zwdnaj",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/marketing-upsert-validation/currency-mismatch/1781300578618-zwdnaj",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {
+              "campaign": "marketing-upsert-validation-currency-mismatch-1781300578618-zwdnaj",
+              "source": "email",
+              "medium": "newsletter"
+            },
+            "budget": {
+              "budgetType": "DAILY",
+              "total": {
+                "amount": "1.00",
+                "currencyCode": "USD"
+              }
+            },
+            "adSpend": {
+              "amount": "1.00",
+              "currencyCode": "EUR"
+            }
+          },
+          "utmSeedInput": {
+            "title": "Marketing upsert validation utm-seed 1781300578618-zwdnaj",
+            "remoteId": "marketing-upsert-validation-utm-seed-1781300578618-zwdnaj",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/marketing-upsert-validation/utm-seed/1781300578618-zwdnaj",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {
+              "campaign": "marketing-upsert-validation-utm-seed-1781300578618-zwdnaj",
+              "source": "email",
+              "medium": "newsletter"
+            },
+            "urlParameterValue": "marketing-upsert-validation-utm-seed-1781300578618-zwdnaj"
+          },
+          "duplicateUtmCampaignInput": {
+            "title": "Marketing upsert validation duplicate-utm 1781300578618-zwdnaj",
+            "remoteId": "marketing-upsert-validation-duplicate-utm-1781300578618-zwdnaj",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/marketing-upsert-validation/duplicate-utm/1781300578618-zwdnaj",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {
+              "campaign": "marketing-upsert-validation-utm-seed-1781300578618-zwdnaj",
+              "source": "email",
+              "medium": "newsletter"
+            },
+            "urlParameterValue": "marketing-upsert-validation-duplicate-utm-1781300578618-zwdnaj"
+          },
+          "urlSeedInput": {
+            "title": "Marketing upsert validation url-seed 1781300578618-zwdnaj",
+            "remoteId": "marketing-upsert-validation-url-seed-1781300578618-zwdnaj",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/marketing-upsert-validation/url-seed/1781300578618-zwdnaj",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {
+              "campaign": "marketing-upsert-validation-url-seed-1781300578618-zwdnaj",
+              "source": "email",
+              "medium": "newsletter"
+            },
+            "urlParameterValue": "marketing-upsert-validation-url-1781300578618-zwdnaj"
+          },
+          "duplicateUrlParameterValueInput": {
+            "title": "Marketing upsert validation duplicate-url 1781300578618-zwdnaj",
+            "remoteId": "marketing-upsert-validation-duplicate-url-1781300578618-zwdnaj",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/marketing-upsert-validation/duplicate-url/1781300578618-zwdnaj",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "utm": {
+              "campaign": "marketing-upsert-validation-duplicate-url-1781300578618-zwdnaj",
+              "source": "email",
+              "medium": "newsletter"
+            },
+            "urlParameterValue": "marketing-upsert-validation-url-1781300578618-zwdnaj"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "currencyMismatch": {
+              "marketingActivity": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "Currency code is not matching between budget and ad spend",
+                  "code": null
+                }
+              ]
+            },
+            "utmSeed": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197835063602"
+              },
+              "userErrors": []
+            },
+            "duplicateUtmCampaign": {
+              "marketingActivity": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "Validation failed: Utm campaign has already been taken",
+                  "code": null
+                }
+              ]
+            },
+            "urlSeed": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197835096370"
+              },
+              "userErrors": []
+            },
+            "duplicateUrlParameterValue": {
+              "marketingActivity": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "Validation failed: Url parameter value has already been taken, Url parameter value has already been taken",
+                  "code": null
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 50,
+              "actualQueryCost": 50,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1950,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "marketing-upsert-validation-utm-seed-1781300578618-zwdnaj": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197835063602",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1965,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "marketing-upsert-validation-url-seed-1781300578618-zwdnaj": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197835096370",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1969,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "marketing-upsert-validation-currency-1781300578618-zwdnaj": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1972,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "marketing-upsert-validation-duplicate-utm-1781300578618-zwdnaj": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1972,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "marketing-upsert-validation-duplicate-url-1781300578618-zwdnaj": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1972,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

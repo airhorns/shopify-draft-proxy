@@ -1,0 +1,46 @@
+{
+  "scenarioId": "marketing-activity-upsert-external-validation",
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "local-staging", "marketing-activity-validation"],
+  "operationNames": ["marketingActivityUpsertExternal"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-upsert-external-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-activity-upsert-external-validation.graphql",
+    "variablesCapturePath": "$.operations.primary.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "currency-mismatch",
+        "capturePath": "$.operations.primary.response.payload.data.currencyMismatch",
+        "proxyPath": "$.data.currencyMismatch"
+      },
+      {
+        "name": "utm-seed-user-errors",
+        "capturePath": "$.operations.primary.response.payload.data.utmSeed.userErrors",
+        "proxyPath": "$.data.utmSeed.userErrors"
+      },
+      {
+        "name": "duplicate-utm-campaign",
+        "capturePath": "$.operations.primary.response.payload.data.duplicateUtmCampaign",
+        "proxyPath": "$.data.duplicateUtmCampaign"
+      },
+      {
+        "name": "url-seed-user-errors",
+        "capturePath": "$.operations.primary.response.payload.data.urlSeed.userErrors",
+        "proxyPath": "$.data.urlSeed.userErrors"
+      },
+      {
+        "name": "duplicate-url-parameter-value",
+        "capturePath": "$.operations.primary.response.payload.data.duplicateUrlParameterValue",
+        "proxyPath": "$.data.duplicateUrlParameterValue"
+      }
+    ]
+  },
+  "notes": "Captures Shopify validation for the marketingActivityUpsertExternal create branch: budget/adSpend currency mismatch plus duplicate UTM triplets and duplicate URL parameter values. Seed aliases in the same mutation establish Shopify uniqueness constraints through serial top-level mutation execution; parity replays the same captured request locally without runtime Shopify writes."
+}
