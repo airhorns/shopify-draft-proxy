@@ -1065,6 +1065,92 @@ fn online_store_mobile_platform_application_lifecycle_and_validation_are_local()
 }
 
 #[test]
+fn mobile_platform_applications_connection_paginates_edges_nodes_and_page_info_consistently() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MobilePlatformApplicationUpdateCreate {
+          appleOne: mobilePlatformApplicationCreate(input: { apple: { appId: "com.example.apple.one", universalLinksEnabled: false, sharedWebCredentialsEnabled: false, appClipsEnabled: false } }) {
+            mobilePlatformApplication { __typename ... on AppleApplication { id appId } }
+            userErrors { code field message }
+          }
+          android: mobilePlatformApplicationCreate(input: { android: { applicationId: "com.example.android", appLinksEnabled: true, sha256CertFingerprints: ["AA:BB"] } }) {
+            mobilePlatformApplication { __typename ... on AndroidApplication { id applicationId } }
+            userErrors { code field message }
+          }
+          appleTwo: mobilePlatformApplicationCreate(input: { apple: { appId: "com.example.apple.two", universalLinksEnabled: true, sharedWebCredentialsEnabled: true, appClipsEnabled: false } }) {
+            mobilePlatformApplication { __typename ... on AppleApplication { id appId } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.body["data"]["appleOne"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["android"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["appleTwo"]["userErrors"], json!([]));
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query MobilePlatformApplicationUpdateReadAfterValidation($first: Int!) {
+          mobilePlatformApplications(first: $first) {
+            nodes { __typename ... on AppleApplication { id appId } ... on AndroidApplication { id applicationId } }
+            edges { cursor node { __typename ... on AppleApplication { id appId } ... on AndroidApplication { id applicationId } } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 2}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["mobilePlatformApplications"],
+        json!({
+            "nodes": [
+                {"__typename": "AppleApplication", "id": "gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic", "appId": "com.example.apple.one"},
+                {"__typename": "AndroidApplication", "id": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic", "applicationId": "com.example.android"}
+            ],
+            "edges": [
+                {"cursor": "gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic", "node": {"__typename": "AppleApplication", "id": "gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic", "appId": "com.example.apple.one"}},
+                {"cursor": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic", "node": {"__typename": "AndroidApplication", "id": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic", "applicationId": "com.example.android"}}
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "gid://shopify/MobilePlatformApplication/1?shopify-draft-proxy=synthetic",
+                "endCursor": "gid://shopify/MobilePlatformApplication/2?shopify-draft-proxy=synthetic"
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query MobilePlatformApplicationUpdateReadAfterValidation($first: Int!, $after: String!) {
+          mobilePlatformApplications(first: $first, after: $after) {
+            nodes { __typename ... on AppleApplication { id appId } ... on AndroidApplication { id applicationId } }
+            edges { cursor node { __typename ... on AppleApplication { id appId } ... on AndroidApplication { id applicationId } } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 2, "after": first_page.body["data"]["mobilePlatformApplications"]["pageInfo"]["endCursor"]}),
+    ));
+    assert_eq!(
+        second_page.body["data"]["mobilePlatformApplications"],
+        json!({
+            "nodes": [{"__typename": "AppleApplication", "id": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic", "appId": "com.example.apple.two"}],
+            "edges": [{"cursor": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic", "node": {"__typename": "AppleApplication", "id": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic", "appId": "com.example.apple.two"}}],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic",
+                "endCursor": "gid://shopify/MobilePlatformApplication/3?shopify-draft-proxy=synthetic"
+            }
+        })
+    );
+}
+
+#[test]
 fn online_store_mobile_platform_application_create_model_validations_do_not_stage() {
     let mut proxy = snapshot_proxy();
     let long_application_id = "a".repeat(101);
@@ -1895,6 +1981,83 @@ fn online_store_theme_lifecycle_tail_helpers_ported_from_gleam() {
 }
 
 #[test]
+fn online_store_theme_connection_paginates_edges_nodes_and_page_info_consistently() {
+    let mut proxy = snapshot_proxy();
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeLocalRuntimeCreate {
+          first: themeCreate(source: "https://example.com/first.zip", name: "First theme", role: UNPUBLISHED) { theme { id } userErrors { field message code } }
+          second: themeCreate(source: "https://example.com/second.zip", name: "Second theme", role: UNPUBLISHED) { theme { id } userErrors { field message code } }
+          third: themeCreate(source: "https://example.com/third.zip", name: "Third theme", role: UNPUBLISHED) { theme { id } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(created.body["data"]["first"]["userErrors"], json!([]));
+    assert_eq!(created.body["data"]["second"]["userErrors"], json!([]));
+    assert_eq!(created.body["data"]["third"]["userErrors"], json!([]));
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query RustOnlineStoreThemeLocalRuntimeReadAfterPublish($first: Int!) {
+          themes(first: $first) {
+            nodes { id name }
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 2}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["themes"],
+        json!({
+            "nodes": [
+                {"id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "name": "First theme"},
+                {"id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic", "name": "Second theme"}
+            ],
+            "edges": [
+                {"cursor": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "name": "First theme"}},
+                {"cursor": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic", "name": "Second theme"}}
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic",
+                "endCursor": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic"
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query RustOnlineStoreThemeLocalRuntimeReadAfterPublish($first: Int!, $after: String!) {
+          themes(first: $first, after: $after) {
+            nodes { id name }
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 2, "after": first_page.body["data"]["themes"]["pageInfo"]["endCursor"]}),
+    ));
+    assert_eq!(
+        second_page.body["data"]["themes"],
+        json!({
+            "nodes": [{"id": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic", "name": "Third theme"}],
+            "edges": [{"cursor": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic", "name": "Third theme"}}],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic",
+                "endCursor": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic"
+            }
+        })
+    );
+}
+
+#[test]
 fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
     let mut proxy = snapshot_proxy();
 
@@ -2242,6 +2405,112 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
     assert_eq!(
         post_delete.body["data"]["product"],
         json!({"id": "gid://shopify/Product/9264121479401", "media": {"nodes": []}})
+    );
+}
+
+#[test]
+fn media_files_connection_paginates_edges_nodes_and_page_info_consistently() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileReferenceCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [
+            {"alt": "First", "contentType": "IMAGE", "filename": "first.jpg", "originalSource": "https://cdn.example.com/first.jpg"},
+            {"alt": "Second", "contentType": "IMAGE", "filename": "second.jpg", "originalSource": "https://cdn.example.com/second.jpg"},
+            {"alt": "Third", "contentType": "IMAGE", "filename": "third.jpg", "originalSource": "https://cdn.example.com/third.jpg"}
+        ]}),
+    ));
+    assert_eq!(create.body["data"]["fileCreate"]["userErrors"], json!([]));
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query FileReferenceFilesRead($first: Int!) {
+          files(first: $first) {
+            nodes { id alt }
+            edges { cursor node { id alt } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 2}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["files"],
+        json!({
+            "nodes": [
+                {"id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "alt": "First"},
+                {"id": "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "alt": "Second"}
+            ],
+            "edges": [
+                {"cursor": "cursor:gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "alt": "First"}},
+                {"cursor": "cursor:gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "alt": "Second"}}
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic",
+                "endCursor": "cursor:gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic"
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query FileReferenceFilesRead($first: Int!, $after: String!) {
+          files(first: $first, after: $after) {
+            nodes { id alt }
+            edges { cursor node { id alt } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 2, "after": first_page.body["data"]["files"]["pageInfo"]["endCursor"]}),
+    ));
+    assert_eq!(
+        second_page.body["data"]["files"],
+        json!({
+            "nodes": [{"id": "gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic", "alt": "Third"}],
+            "edges": [{"cursor": "cursor:gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic", "alt": "Third"}}],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "cursor:gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic",
+                "endCursor": "cursor:gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic"
+            }
+        })
+    );
+
+    let before_tail = proxy.process_request(json_graphql_request(
+        r#"
+        query FileReferenceFilesRead($last: Int!, $before: String!) {
+          files(last: $last, before: $before) {
+            nodes { id alt }
+            edges { cursor node { id alt } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"last": 1, "before": "cursor:gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic"}),
+    ));
+    assert_eq!(
+        before_tail.body["data"]["files"],
+        json!({
+            "nodes": [{"id": "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "alt": "Second"}],
+            "edges": [{"cursor": "cursor:gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "alt": "Second"}}],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "cursor:gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic",
+                "endCursor": "cursor:gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic"
+            }
+        })
     );
 }
 

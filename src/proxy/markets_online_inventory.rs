@@ -1329,14 +1329,6 @@ pub(in crate::proxy) fn validate_script_src(
     None
 }
 
-pub(in crate::proxy) fn nested_node_selection(selection: &[SelectedField]) -> Vec<SelectedField> {
-    selection
-        .iter()
-        .find(|field| field.name == "nodes")
-        .map(|field| field.selection.clone())
-        .unwrap_or_default()
-}
-
 pub(in crate::proxy) fn webhook_endpoint(uri: &str) -> Value {
     if uri.starts_with("arn:aws:events:") {
         json!({ "__typename": "WebhookEventBridgeEndpoint", "arn": uri })
@@ -1556,79 +1548,6 @@ pub(in crate::proxy) fn webhook_subscription_matches_query_term(
         }
         _ => false,
     }
-}
-
-pub(in crate::proxy) fn connection_page_info(
-    has_next_page: bool,
-    has_previous_page: bool,
-    start_cursor: Option<String>,
-    end_cursor: Option<String>,
-) -> Value {
-    json!({
-        "hasNextPage": has_next_page,
-        "hasPreviousPage": has_previous_page,
-        "startCursor": start_cursor,
-        "endCursor": end_cursor
-    })
-}
-
-pub(in crate::proxy) fn connection_edges_with_cursor<F>(
-    nodes: &[Value],
-    cursor_for: F,
-) -> Vec<Value>
-where
-    F: Fn(usize, &Value) -> String,
-{
-    nodes
-        .iter()
-        .enumerate()
-        .map(|(index, node)| {
-            json!({
-                "cursor": cursor_for(index, node),
-                "node": node
-            })
-        })
-        .collect()
-}
-
-pub(in crate::proxy) fn connection_json_with_cursor<F>(
-    nodes: Vec<Value>,
-    cursor_for: F,
-    page_info: Value,
-) -> Value
-where
-    F: Fn(usize, &Value) -> String,
-{
-    let edges = connection_edges_with_cursor(&nodes, cursor_for);
-    json!({ "nodes": nodes, "edges": edges, "pageInfo": page_info })
-}
-
-pub(in crate::proxy) fn connection_json_with_empty_edges(nodes: Vec<Value>) -> Value {
-    json!({ "nodes": nodes, "edges": [], "pageInfo": empty_page_info() })
-}
-
-pub(in crate::proxy) fn connection_json(nodes: Vec<Value>) -> Value {
-    connection_json_with_cursor(
-        nodes,
-        |_, node| {
-            node.get("id")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string()
-        },
-        empty_page_info(),
-    )
-}
-
-pub(in crate::proxy) fn selected_connection_json(
-    nodes: Vec<Value>,
-    selections: &[SelectedField],
-) -> Value {
-    selected_json(&connection_json(nodes), selections)
-}
-
-pub(in crate::proxy) fn selected_empty_connection_json(selections: &[SelectedField]) -> Value {
-    selected_connection_json(Vec::new(), selections)
 }
 
 pub(in crate::proxy) fn inventory_empty_connection(selection: &[SelectedField]) -> Value {
