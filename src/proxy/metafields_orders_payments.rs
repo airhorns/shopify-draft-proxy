@@ -1360,27 +1360,6 @@ pub(in crate::proxy) fn customer_payment_method_remote_create_validation_fixture
     .expect("customer payment method remote-create validation fixture must parse")
 }
 
-pub(in crate::proxy) fn order_payment_transaction_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/orders/order-payment-transaction-local-staging.json"
-    ))
-    .expect("order payment transaction fixture must parse")
-}
-
-pub(in crate::proxy) fn draft_order_complete_stages_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/orders/draft-order-complete-stages-resulting-order.json"
-    ))
-    .expect("draft order complete stages fixture must parse")
-}
-
-pub(in crate::proxy) fn draft_order_complete_payment_gateway_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/orders/draft-order-complete-payment-gateway-paths.json"
-    ))
-    .expect("draft order complete payment gateway fixture must parse")
-}
-
 pub(in crate::proxy) fn abandonment_delivery_status_fixture() -> Value {
     serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-04/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.json"
@@ -1418,70 +1397,6 @@ pub(in crate::proxy) fn abandonment_delivery_status_fixture_data(
         }));
     }
     None
-}
-
-pub(in crate::proxy) fn fulfillment_state_preconditions_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2025-01/orders/fulfillment-state-preconditions.json"
-    ))
-    .expect("fulfillment state preconditions fixture must parse")
-}
-
-pub(in crate::proxy) fn order_edit_residual_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/orders/order-edit-residual-local-staging.json"
-    ))
-    .expect("order edit residual fixture must parse")
-}
-
-pub(in crate::proxy) fn order_delete_cascade_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/orders/orderDelete-cascade-and-deletability.json"
-    ))
-    .expect("order delete cascade fixture must parse")
-}
-
-pub(in crate::proxy) fn order_update_localization_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderUpdate-localization-and-staff.json"
-    ))
-    .expect("order update localization fixture must parse")
-}
-
-pub(in crate::proxy) fn order_edit_existing_happy_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-happy-path.json"
-    ))
-    .expect("order edit existing happy fixture must parse")
-}
-
-pub(in crate::proxy) fn order_edit_existing_zero_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-zero-removal.json"
-    ))
-    .expect("order edit existing zero fixture must parse")
-}
-
-pub(in crate::proxy) fn order_edit_existing_validation_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-validation.json"
-    ))
-    .expect("order edit existing validation fixture must parse")
-}
-
-pub(in crate::proxy) fn order_edit_existing_zero_downstream_order_for_comparison() -> Value {
-    let mut order = order_edit_existing_happy_fixture()["commitAdd"]["response"]["data"]
-        ["orderEditCommit"]["order"]
-        .clone();
-    if let Some(nodes) = order
-        .pointer_mut("/lineItems/nodes")
-        .and_then(Value::as_array_mut)
-    {
-        if let Some(node) = nodes.get_mut(2) {
-            node["currentQuantity"] = json!(0);
-        }
-    }
-    order
 }
 
 pub(in crate::proxy) fn money_bag_presentment_fixture() -> Value {
@@ -2340,41 +2255,6 @@ pub(in crate::proxy) fn payment_reminder_error_payload(message: &str) -> Value {
     })
 }
 
-pub(in crate::proxy) fn order_create_mandate_payment_data(
-    root_field: &str,
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-    staged_mandate_payment_keys: &mut BTreeSet<String>,
-) -> Option<Value> {
-    if root_field != "orderCreateMandatePayment" {
-        return None;
-    }
-    let fixture = order_payment_transaction_fixture();
-    let expected = &fixture["mandateFlow"]["expected"];
-    if query.contains("OrderCreateMandatePaymentMissingMandate") {
-        return Some(expected["missingMandate"].clone());
-    }
-    if !query.contains("OrderPaymentMandate") {
-        return None;
-    }
-
-    let order_id = resolved_string_field(variables, "id")
-        .unwrap_or_else(|| "gid://shopify/Order/1".to_string());
-    let idempotency_key = resolved_string_field(variables, "idempotencyKey")?;
-    let key = format!("{order_id}:{idempotency_key}");
-    if idempotency_key == "har-848-auth-only"
-        && resolved_bool_field(variables, "autoCapture") == Some(false)
-    {
-        staged_mandate_payment_keys.insert(key);
-        return Some(expected["autoCaptureFalse"].clone());
-    }
-    if staged_mandate_payment_keys.contains(&key) {
-        return Some(expected["repeatMandate"].clone());
-    }
-    staged_mandate_payment_keys.insert(key);
-    Some(expected["mandate"].clone())
-}
-
 pub(in crate::proxy) fn customer_payment_method_credit_card_validation_fixture() -> Value {
     serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-credit-card-create-validation.json"
@@ -2572,510 +2452,652 @@ pub(in crate::proxy) fn customer_payment_method_fixture_data(
     }
 }
 
-pub(in crate::proxy) fn order_return_lifecycle_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/orders/return-lifecycle-local-staging.json"
-    ))
-    .expect("return lifecycle local-runtime fixture must parse")
+fn orders_payments_data_response(response_key: &str, value: Value) -> Value {
+    let mut data = serde_json::Map::new();
+    data.insert(response_key.to_string(), value);
+    json!({ "data": Value::Object(data) })
 }
 
-pub(in crate::proxy) fn order_return_quantity_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/orders/return-quantity-validation.json"
-    ))
-    .expect("return quantity validation fixture must parse")
-}
-
-pub(in crate::proxy) fn order_return_recorded_reverse_logistics_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json"
-    ))
-    .expect("recorded return reverse logistics fixture must parse")
-}
-
-pub(in crate::proxy) fn order_return_recorded_shipping_fee_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-shipping-fee-recorded.json"
-    ))
-    .expect("recorded return shipping fee fixture must parse")
-}
-
-pub(in crate::proxy) fn order_return_recorded_reverse_logistics_data(
-    root_field: &str,
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Option<Value> {
-    let fixture = order_return_recorded_reverse_logistics_fixture();
-    match root_field {
-        "returnRequest" if query.contains("ReturnRequestRecorded") => {
-            let input = resolved_object_field(variables, "input").unwrap_or_default();
-            let order_id = resolved_string_field(&input, "orderId")?;
-            if fixture["returnRequest"]["variables"]["input"]["orderId"].as_str() != Some(&order_id)
-            {
-                return None;
-            }
-            Some(json!({ "data": fixture["returnRequest"]["response"]["payload"]["data"].clone() }))
+fn return_connection(nodes: Vec<Value>) -> Value {
+    json!({
+        "nodes": nodes,
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": Value::Null,
+            "endCursor": Value::Null
         }
-        "returnApproveRequest" if query.contains("ReturnApproveRequestRecorded") => {
-            let id = resolved_object_field(variables, "input")
-                .and_then(|input| resolved_string_field(&input, "id"))?;
-            if fixture["returnApproveRequest"]["variables"]["input"]["id"].as_str() != Some(&id) {
-                return None;
-            }
-            Some(
-                json!({ "data": fixture["returnApproveRequest"]["response"]["payload"]["data"].clone() }),
-            )
-        }
-        "reverseDeliveryCreateWithShipping"
-            if query.contains("ReverseDeliveryCreateWithShippingRecorded") =>
-        {
-            Some(
-                json!({ "data": fixture["reverseDeliveryCreate"]["response"]["payload"]["data"].clone() }),
-            )
-        }
-        "reverseDeliveryShippingUpdate"
-            if query.contains("ReverseDeliveryShippingUpdateRecorded") =>
-        {
-            Some(
-                json!({ "data": fixture["reverseDeliveryUpdate"]["response"]["payload"]["data"].clone() }),
-            )
-        }
-        "reverseFulfillmentOrderDispose"
-            if query.contains("ReverseFulfillmentOrderDisposeRecorded") =>
-        {
-            Some(
-                json!({ "data": fixture["reverseFulfillmentDispose"]["response"]["payload"]["data"].clone() }),
-            )
-        }
-        "returnProcess" if query.contains("ReturnProcessRecorded") => {
-            let return_id = resolved_object_field(variables, "input")
-                .and_then(|input| resolved_string_field(&input, "returnId"))?;
-            if fixture["returnProcess"]["variables"]["input"]["returnId"].as_str()
-                != Some(&return_id)
-            {
-                return None;
-            }
-            Some(json!({ "data": fixture["returnProcess"]["response"]["payload"]["data"].clone() }))
-        }
-        "return" | "order" | "reverseDelivery" | "reverseFulfillmentOrder"
-            if query.contains("ReturnReverseLogisticsReadRecorded") =>
-        {
-            Some(
-                json!({ "data": fixture["downstreamRead"]["response"]["payload"]["data"].clone() }),
-            )
-        }
-        _ => None,
-    }
-}
-
-pub(in crate::proxy) fn order_return_recorded_shipping_fee_data(
-    root_field: &str,
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Option<Value> {
-    let fixture = order_return_recorded_shipping_fee_fixture();
-    match root_field {
-        "returnCreate" if query.contains("ReturnCreateShippingFeeRecorded") => {
-            let input = resolved_object_field(variables, "returnInput").unwrap_or_default();
-            let order_id = resolved_string_field(&input, "orderId")?;
-            if fixture["returnCreate"]["variables"]["returnInput"]["orderId"].as_str()
-                != Some(&order_id)
-            {
-                return None;
-            }
-            Some(json!({ "data": fixture["returnCreate"]["response"]["payload"]["data"].clone() }))
-        }
-        "return" | "order" if query.contains("ReturnShippingFeeReadRecorded") => Some(
-            json!({ "data": fixture["downstreamRead"]["response"]["payload"]["data"].clone() }),
-        ),
-        _ => None,
-    }
-}
-
-pub(in crate::proxy) fn order_return_recorded_state_precondition_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/returnClose-Reopen-Cancel-state-preconditions.json"
-    ))
-    .expect("recorded return state-precondition fixture must parse")
-}
-
-pub(in crate::proxy) fn order_return_recorded_state_precondition_data(
-    root_field: &str,
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-    statuses: &mut BTreeMap<String, String>,
-) -> Option<Value> {
-    if !query.contains("Recorded")
-        && !query.contains("StatePrecondition")
-        && root_field != "returnDeclineRequest"
-    {
-        return None;
-    }
-    let fixture = order_return_recorded_state_precondition_fixture();
-    match root_field {
-        "returnRequest" if query.contains("ReturnRequestRecorded") => {
-            let input = resolved_object_field(variables, "input").unwrap_or_default();
-            let order_id = resolved_string_field(&input, "orderId")?;
-            let case = recorded_return_case_for_order_id(&fixture, &order_id)?;
-            let data = fixture[case]["returnRequest"]["response"]["payload"]["data"].clone();
-            if let Some(return_id) = data["returnRequest"]["return"]["id"].as_str() {
-                statuses.insert(return_id.to_string(), "REQUESTED".to_string());
-            }
-            Some(json!({ "data": data }))
-        }
-        "returnApproveRequest" if query.contains("ReturnApproveRequestRecorded") => {
-            let id = resolved_object_field(variables, "input")
-                .and_then(|input| resolved_string_field(&input, "id"))?;
-            let case = recorded_return_case_for_id(&fixture, &id)?;
-            if statuses.get(&id).map(String::as_str) != Some("REQUESTED") {
-                return None;
-            }
-            let data = fixture[case]["returnApproveRequest"]["response"]["payload"]["data"].clone();
-            if let Some(return_id) = data["returnApproveRequest"]["return"]["id"].as_str() {
-                statuses.insert(return_id.to_string(), "OPEN".to_string());
-            }
-            Some(json!({ "data": data }))
-        }
-        "returnDeclineRequest" if query.contains("ReturnDeclineRequest") => {
-            let id = resolved_object_field(variables, "input")
-                .and_then(|input| resolved_string_field(&input, "id"))?;
-            let case = recorded_return_case_for_id(&fixture, &id)?;
-            if case != "declinedCase" || statuses.get(&id).map(String::as_str) != Some("REQUESTED")
-            {
-                return None;
-            }
-            let data = fixture[case]["returnDeclineRequest"]["response"]["payload"]["data"].clone();
-            if let Some(return_id) = data["returnDeclineRequest"]["return"]["id"].as_str() {
-                statuses.insert(return_id.to_string(), "DECLINED".to_string());
-            }
-            Some(json!({ "data": data }))
-        }
-        "returnClose" if query.contains("ReturnCloseStatePrecondition") => {
-            let id = resolved_string_arg(variables, "id")?;
-            let case = recorded_return_case_for_id(&fixture, &id)?;
-            let status = statuses.get(&id).map(String::as_str).unwrap_or("REQUESTED");
-            let key = match (case, status) {
-                (_, "REQUESTED") => "returnCloseInvalid",
-                ("declinedCase", "DECLINED") => "returnCloseInvalid",
-                ("openCloseReopenCase", "OPEN") => "returnClose",
-                ("openCloseReopenCase", "CLOSED") => "returnCloseIdempotent",
-                _ => return None,
-            };
-            let data = fixture[case][key]["response"]["payload"]["data"].clone();
-            if let Some(return_id) = data["returnClose"]["return"]["id"].as_str() {
-                if key == "returnClose" || key == "returnCloseIdempotent" {
-                    statuses.insert(return_id.to_string(), "CLOSED".to_string());
-                }
-            }
-            Some(json!({ "data": data }))
-        }
-        "returnReopen" if query.contains("ReturnReopenStatePrecondition") => {
-            let id = resolved_string_arg(variables, "id")?;
-            let case = recorded_return_case_for_id(&fixture, &id)?;
-            let status = statuses.get(&id).map(String::as_str).unwrap_or("REQUESTED");
-            let key = match (case, status) {
-                (_, "REQUESTED") => "returnReopenInvalid",
-                ("openCloseReopenCase", "CLOSED") => "returnReopen",
-                ("openCloseReopenCase", "OPEN") => "returnReopenIdempotent",
-                _ => return None,
-            };
-            let data = fixture[case][key]["response"]["payload"]["data"].clone();
-            if let Some(return_id) = data["returnReopen"]["return"]["id"].as_str() {
-                if key == "returnReopen" || key == "returnReopenIdempotent" {
-                    statuses.insert(return_id.to_string(), "OPEN".to_string());
-                }
-            }
-            Some(json!({ "data": data }))
-        }
-        "returnCancel" if query.contains("ReturnCancelStatePrecondition") => {
-            let id = resolved_string_arg(variables, "id")?;
-            let case = recorded_return_case_for_id(&fixture, &id)?;
-            let status = statuses.get(&id).map(String::as_str).unwrap_or("OPEN");
-            let key = match (case, status) {
-                ("cancelableCase", "OPEN") => "returnCancel",
-                ("cancelableCase", "CANCELED") => "returnCancelIdempotent",
-                ("processedCase", "PROCESSED") => "returnCancelInvalid",
-                _ => return None,
-            };
-            let data = fixture[case][key]["response"]["payload"]["data"].clone();
-            if let Some(return_id) = data["returnCancel"]["return"]["id"].as_str() {
-                if key == "returnCancel" || key == "returnCancelIdempotent" {
-                    statuses.insert(return_id.to_string(), "CANCELED".to_string());
-                }
-            }
-            Some(json!({ "data": data }))
-        }
-        "returnProcess" if query.contains("ReturnProcessRecorded") => {
-            let return_id = resolved_object_field(variables, "input")
-                .and_then(|input| resolved_string_field(&input, "returnId"))?;
-            let case = recorded_return_case_for_id(&fixture, &return_id)?;
-            if case != "processedCase"
-                || statuses.get(&return_id).map(String::as_str) != Some("OPEN")
-            {
-                return None;
-            }
-            let data = fixture[case]["returnProcess"]["response"]["payload"]["data"].clone();
-            if let Some(id) = data["returnProcess"]["return"]["id"].as_str() {
-                statuses.insert(id.to_string(), "PROCESSED".to_string());
-            }
-            Some(json!({ "data": data }))
-        }
-        _ => None,
-    }
-}
-
-pub(in crate::proxy) fn recorded_return_case_for_order_id<'a>(
-    fixture: &'a Value,
-    order_id: &str,
-) -> Option<&'a str> {
-    [
-        "requestedCase",
-        "cancelableCase",
-        "openCloseReopenCase",
-        "declinedCase",
-        "processedCase",
-    ]
-    .into_iter()
-    .find(|case| {
-        fixture[*case]["returnRequest"]["variables"]["input"]["orderId"].as_str() == Some(order_id)
     })
 }
 
-pub(in crate::proxy) fn recorded_return_case_for_id<'a>(
-    fixture: &'a Value,
-    return_id: &str,
-) -> Option<&'a str> {
-    [
-        "requestedCase",
-        "cancelableCase",
-        "openCloseReopenCase",
-        "declinedCase",
-        "processedCase",
-    ]
-    .into_iter()
-    .find(|case| {
-        fixture[*case]["returnRequest"]["response"]["payload"]["data"]["returnRequest"]["return"]
-            ["id"]
-            .as_str()
-            == Some(return_id)
+fn return_money_set(amount: &str, currency_code: &str) -> Value {
+    json!({
+        "shopMoney": { "amount": amount, "currencyCode": currency_code },
+        "presentmentMoney": { "amount": amount, "currencyCode": currency_code }
     })
 }
 
-pub(in crate::proxy) fn expected_from_fixture(fixture: &Value, path: &[&str]) -> Value {
-    let mut value = &fixture["expected"];
-    for key in path {
-        value = &value[*key];
-    }
-    value.clone()
+fn return_user_error(field: &[&str], message: &str, code: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
 }
 
-pub(in crate::proxy) fn order_return_local_runtime_data(
-    root_field: &str,
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-    staged_return_status: &mut Option<String>,
-) -> Option<Value> {
-    let lifecycle = order_return_lifecycle_fixture();
-    match root_field {
-        "returnCreate" => {
-            let input = resolved_object_field(variables, "returnInput").unwrap_or_default();
-            let items = resolved_object_list_field(&input, "returnLineItems");
-            let first_item = items.first().cloned().unwrap_or_default();
-            let fulfillment_line_item_id =
-                resolved_string_field(&first_item, "fulfillmentLineItemId");
-            let quantity = resolved_i64_field(&first_item, "quantity");
-            if fulfillment_line_item_id.as_deref()
-                == Some("gid://shopify/FulfillmentLineItem/missing")
-            {
-                return Some(expected_from_fixture(&lifecycle, &["invalidCreate"]));
+fn return_status_invalid_error() -> Value {
+    return_user_error(&["id"], "return_request_status_invalid", "INVALID")
+}
+
+impl DraftProxy {
+    pub(in crate::proxy) fn order_return_local_runtime_data(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let fields = root_fields(query, variables)?;
+        if matches!(
+            root_field,
+            "return" | "order" | "reverseDelivery" | "reverseFulfillmentOrder"
+        ) {
+            if !self.should_handle_order_return_read(&fields) {
+                return None;
             }
-            if fulfillment_line_item_id.as_deref()
-                == Some("gid://shopify/FulfillmentLineItem/return-removal-validation")
-            {
-                return Some(json!({
-                    "data": {
-                        "returnCreate": {
-                            "return": {
-                                "id": "gid://shopify/Return/2",
-                                "returnLineItems": { "nodes": [{ "id": "gid://shopify/ReturnLineItem/1" }] }
-                            },
-                            "userErrors": []
-                        }
-                    }
-                }));
-            }
-            if fulfillment_line_item_id.as_deref()
-                == Some("gid://shopify/FulfillmentLineItem/return-quantity-cap")
-                && quantity.unwrap_or_default() > 3
-            {
-                let fixture = order_return_quantity_fixture();
-                return Some(expected_from_fixture(
-                    &fixture,
-                    &["returnCreateQuantityCap"],
-                ));
-            }
-            *staged_return_status = Some("OPEN".to_string());
-            Some(expected_from_fixture(&lifecycle, &["create"]))
+            return self.order_return_read_data(&fields);
         }
-        "returnRequest" => {
-            if query.contains("unprocessedQuantity") || query.contains("Reverse") {
-                *staged_return_status = Some("REQUESTED".to_string());
-                Some(expected_from_fixture(&lifecycle, &["reverseRequest"]))
-            } else if has_invalid_tmp_notify_email(variables) {
-                Some(json!({
-                    "data": {
-                        "returnRequest": {
-                            "return": null,
-                            "userErrors": [{
-                                "field": ["input", "tmp_notify_customer", "email_address"],
-                                "message": "Email address is invalid",
-                                "code": "INVALID"
-                            }]
+
+        let field = fields.iter().find(|field| field.name == root_field)?;
+        match root_field {
+            "returnCreate" => {
+                let return_record = self.stage_return_from_input(field, "returnInput", "OPEN");
+                Some(orders_payments_data_response(
+                    &field.response_key,
+                    selected_json(
+                        &json!({ "return": return_record, "userErrors": [] }),
+                        &field.selection,
+                    ),
+                ))
+            }
+            "returnRequest" => {
+                let return_record = self.stage_return_from_input(field, "input", "REQUESTED");
+                Some(orders_payments_data_response(
+                    &field.response_key,
+                    selected_json(
+                        &json!({ "return": return_record, "userErrors": [] }),
+                        &field.selection,
+                    ),
+                ))
+            }
+            "returnApproveRequest" => {
+                let id = resolved_object_field(&field.arguments, "input")
+                    .and_then(|input| resolved_string_field(&input, "id"))?;
+                let value = self.transition_return_request(&id, "OPEN", field);
+                Some(orders_payments_data_response(&field.response_key, value))
+            }
+            "returnDeclineRequest" => {
+                let id = resolved_object_field(&field.arguments, "input")
+                    .and_then(|input| resolved_string_field(&input, "id"))?;
+                let value = self.transition_return_request(&id, "DECLINED", field);
+                Some(orders_payments_data_response(&field.response_key, value))
+            }
+            "returnClose" => {
+                let id = resolved_string_arg(&field.arguments, "id")?;
+                let value = self.transition_open_return(&id, "CLOSED", field);
+                Some(orders_payments_data_response(&field.response_key, value))
+            }
+            "returnReopen" => {
+                let id = resolved_string_arg(&field.arguments, "id")?;
+                let value = self.transition_closed_return(&id, "OPEN", field);
+                Some(orders_payments_data_response(&field.response_key, value))
+            }
+            "returnCancel" => {
+                let id = resolved_string_arg(&field.arguments, "id")?;
+                let value = self.transition_open_return(&id, "CANCELED", field);
+                Some(orders_payments_data_response(&field.response_key, value))
+            }
+            "removeFromReturn" => Some(orders_payments_data_response(
+                &field.response_key,
+                selected_json(
+                    &json!({
+                        "return": self.first_staged_return().unwrap_or(Value::Null),
+                        "userErrors": []
+                    }),
+                    &field.selection,
+                ),
+            )),
+            "reverseDeliveryCreateWithShipping" => {
+                let value = self.stage_reverse_delivery(field);
+                Some(orders_payments_data_response(&field.response_key, value))
+            }
+            "reverseDeliveryShippingUpdate" => {
+                let id = resolved_string_arg(&field.arguments, "reverseDeliveryId")?;
+                let value = self.update_reverse_delivery(&id, field);
+                Some(orders_payments_data_response(&field.response_key, value))
+            }
+            "reverseFulfillmentOrderDispose" => {
+                let value = self.dispose_reverse_fulfillment_order(field);
+                Some(orders_payments_data_response(&field.response_key, value))
+            }
+            "returnProcess" => {
+                let id = resolved_object_field(&field.arguments, "input")
+                    .and_then(|input| resolved_string_field(&input, "returnId"))?;
+                let value = self.process_return(&id, field);
+                Some(orders_payments_data_response(&field.response_key, value))
+            }
+            _ => None,
+        }
+    }
+
+    fn order_return_read_data(&self, fields: &[RootFieldSelection]) -> Option<Value> {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "return" => {
+                    let id = resolved_string_arg(&field.arguments, "id")?;
+                    self.store
+                        .staged
+                        .returns
+                        .get(&id)
+                        .map(|record| selected_json(record, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "order" => {
+                    let id = resolved_string_arg(&field.arguments, "id")?;
+                    self.selected_return_order(&id, &field.selection)
+                }
+                "reverseDelivery" => {
+                    let id = resolved_string_arg(&field.arguments, "id")?;
+                    self.store
+                        .staged
+                        .reverse_deliveries
+                        .get(&id)
+                        .map(|record| selected_json(record, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "reverseFulfillmentOrder" => {
+                    let id = resolved_string_arg(&field.arguments, "id")?;
+                    self.store
+                        .staged
+                        .reverse_fulfillment_orders
+                        .get(&id)
+                        .map(|record| selected_json(record, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Some(json!({ "data": Value::Object(data) }))
+    }
+
+    fn should_handle_order_return_read(&self, fields: &[RootFieldSelection]) -> bool {
+        fields.iter().any(|field| match field.name.as_str() {
+            "return" => resolved_string_arg(&field.arguments, "id")
+                .is_some_and(|id| self.store.staged.returns.contains_key(&id)),
+            "order" => resolved_string_arg(&field.arguments, "id")
+                .is_some_and(|id| self.store.staged.returns_by_order.contains_key(&id)),
+            "reverseDelivery" => resolved_string_arg(&field.arguments, "id")
+                .is_some_and(|id| self.store.staged.reverse_deliveries.contains_key(&id)),
+            "reverseFulfillmentOrder" => {
+                resolved_string_arg(&field.arguments, "id").is_some_and(|id| {
+                    self.store
+                        .staged
+                        .reverse_fulfillment_orders
+                        .contains_key(&id)
+                })
+            }
+            _ => false,
+        })
+    }
+
+    fn stage_return_from_input(
+        &mut self,
+        field: &RootFieldSelection,
+        input_name: &str,
+        status: &str,
+    ) -> Value {
+        let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
+        let order_id = resolved_string_field(&input, "orderId")
+            .unwrap_or_else(|| "gid://shopify/Order/return-flow".to_string());
+        let items = resolved_object_list_field(&input, "returnLineItems");
+        let first_item = items.first().cloned().unwrap_or_default();
+        let quantity = resolved_i64_field(&first_item, "quantity").unwrap_or(1);
+        let return_id = format!("gid://shopify/Return/{}", self.store.staged.next_return_id);
+        self.store.staged.next_return_id += 1;
+        let line_item_id = format!(
+            "gid://shopify/ReturnLineItem/{}",
+            self.store.staged.next_return_line_item_id
+        );
+        self.store.staged.next_return_line_item_id += 1;
+        let fulfillment_line_item_id = resolved_string_field(&first_item, "fulfillmentLineItemId")
+            .unwrap_or_else(|| "gid://shopify/FulfillmentLineItem/return-flow".to_string());
+        let reason = resolved_string_field(&first_item, "returnReason")
+            .unwrap_or_else(|| "OTHER".to_string());
+        let reason_note =
+            resolved_string_field(&first_item, "returnReasonNote").unwrap_or_default();
+        let mut return_record = json!({
+            "id": return_id,
+            "name": format!("#R{}", self.store.staged.returns.len() + 1),
+            "status": status,
+            "closedAt": Value::Null,
+            "totalQuantity": quantity,
+            "order": {
+                "id": order_id,
+                "updatedAt": "2024-01-01T00:00:03.000Z"
+            },
+            "returnLineItems": {
+                "nodes": [{
+                    "id": line_item_id,
+                    "quantity": quantity,
+                    "processedQuantity": 0,
+                    "unprocessedQuantity": quantity,
+                    "returnReason": reason,
+                    "returnReasonNote": reason_note,
+                    "fulfillmentLineItem": {
+                        "id": fulfillment_line_item_id,
+                        "lineItem": {
+                            "id": "gid://shopify/LineItem/return-flow",
+                            "title": "Return flow item"
                         }
                     }
-                }))
-            } else {
-                let input = resolved_object_field(variables, "input").unwrap_or_default();
-                let items = resolved_object_list_field(&input, "returnLineItems");
-                let first_item = items.first().cloned().unwrap_or_default();
-                let fulfillment_line_item_id =
-                    resolved_string_field(&first_item, "fulfillmentLineItemId");
-                if fulfillment_line_item_id.as_deref()
-                    == Some("gid://shopify/FulfillmentLineItem/return-quantity-cap")
-                {
-                    let fixture = order_return_quantity_fixture();
-                    Some(expected_from_fixture(
-                        &fixture,
-                        &["returnRequestQuantityCap"],
-                    ))
-                } else {
-                    *staged_return_status = Some("REQUESTED".to_string());
-                    Some(expected_from_fixture(&lifecycle, &["request"]))
+                }]
+            },
+            "returnShippingFees": [],
+            "reverseFulfillmentOrders": { "nodes": [] }
+        });
+        if let Some(fee_input) = resolved_object_field(&input, "returnShippingFee") {
+            let amount = resolved_object_field(&fee_input, "amount").unwrap_or_default();
+            let amount_value =
+                resolved_string_field(&amount, "amount").unwrap_or_else(|| "0.00".to_string());
+            let currency =
+                resolved_string_field(&amount, "currencyCode").unwrap_or_else(|| "USD".to_string());
+            return_record["returnShippingFees"] = json!([{
+                "id": format!("gid://shopify/ReturnShippingFee/{}", self.store.staged.next_return_id),
+                "amountSet": return_money_set(&amount_value, &currency)
+            }]);
+        }
+        self.store
+            .staged
+            .returns
+            .insert(return_id.clone(), return_record.clone());
+        self.store
+            .staged
+            .returns_by_order
+            .entry(order_id)
+            .or_default()
+            .push(return_id);
+        return_record
+    }
+
+    fn first_staged_return(&self) -> Option<Value> {
+        self.store.staged.returns.values().next().cloned()
+    }
+
+    fn selected_return_order(&self, order_id: &str, selection: &[SelectedField]) -> Value {
+        let returns = self
+            .store
+            .staged
+            .returns_by_order
+            .get(order_id)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|id| self.store.staged.returns.get(&id).cloned())
+            .collect::<Vec<_>>();
+        selected_json(
+            &json!({
+                "id": order_id,
+                "name": "#1",
+                "updatedAt": "2024-01-01T00:00:03.000Z",
+                "returns": return_connection(returns)
+            }),
+            selection,
+        )
+    }
+
+    fn transition_return_request(
+        &mut self,
+        id: &str,
+        target_status: &str,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let Some(current_status) = self
+            .store
+            .staged
+            .returns
+            .get(id)
+            .and_then(|record| record["status"].as_str())
+            .map(str::to_string)
+        else {
+            return selected_json(
+                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["id"], "Return does not exist", "NOT_FOUND")] }),
+                &field.selection,
+            );
+        };
+        if current_status != "REQUESTED" {
+            return selected_json(
+                &json!({ "return": Value::Null, "userErrors": [return_status_invalid_error()] }),
+                &field.selection,
+            );
+        }
+        if target_status == "OPEN" {
+            self.ensure_reverse_fulfillment_order(id);
+        }
+        let mut record = self
+            .store
+            .staged
+            .returns
+            .get(id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        record["status"] = json!(target_status);
+        self.store
+            .staged
+            .returns
+            .insert(id.to_string(), record.clone());
+        selected_json(
+            &json!({ "return": record, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn transition_open_return(
+        &mut self,
+        id: &str,
+        target_status: &str,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
+            return selected_json(
+                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["id"], "Return does not exist", "NOT_FOUND")] }),
+                &field.selection,
+            );
+        };
+        let status = record["status"].as_str().unwrap_or_default();
+        let transition_allowed = status == "OPEN"
+            || (status == target_status && matches!(status, "CLOSED" | "CANCELED"));
+        if !transition_allowed {
+            return selected_json(
+                &json!({ "return": Value::Null, "userErrors": [return_status_invalid_error()] }),
+                &field.selection,
+            );
+        }
+        record["status"] = json!(target_status);
+        if target_status == "CLOSED" {
+            record["closedAt"] = json!("2024-01-01T00:00:03.000Z");
+        }
+        self.store
+            .staged
+            .returns
+            .insert(id.to_string(), record.clone());
+        selected_json(
+            &json!({ "return": record, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn transition_closed_return(
+        &mut self,
+        id: &str,
+        target_status: &str,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
+            return selected_json(
+                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["id"], "Return does not exist", "NOT_FOUND")] }),
+                &field.selection,
+            );
+        };
+        let status = record["status"].as_str().unwrap_or_default();
+        if !matches!(status, "CLOSED" | "OPEN") {
+            return selected_json(
+                &json!({ "return": Value::Null, "userErrors": [return_status_invalid_error()] }),
+                &field.selection,
+            );
+        }
+        record["status"] = json!(target_status);
+        if target_status == "OPEN" {
+            record["closedAt"] = Value::Null;
+        }
+        self.store
+            .staged
+            .returns
+            .insert(id.to_string(), record.clone());
+        selected_json(
+            &json!({ "return": record, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn ensure_reverse_fulfillment_order(&mut self, return_id: &str) -> Option<Value> {
+        let mut return_record = self.store.staged.returns.get(return_id).cloned()?;
+        if let Some(existing) = return_record["reverseFulfillmentOrders"]["nodes"]
+            .as_array()
+            .and_then(|nodes| nodes.first())
+            .and_then(|node| node["id"].as_str())
+            .and_then(|id| self.store.staged.reverse_fulfillment_orders.get(id))
+        {
+            return Some(existing.clone());
+        }
+        let id = format!(
+            "gid://shopify/ReverseFulfillmentOrder/{}",
+            self.store.staged.next_reverse_fulfillment_order_id
+        );
+        self.store.staged.next_reverse_fulfillment_order_id += 1;
+        let line_id = format!(
+            "gid://shopify/ReverseFulfillmentOrderLineItem/{}",
+            self.store
+                .staged
+                .next_reverse_fulfillment_order_line_item_id
+        );
+        self.store
+            .staged
+            .next_reverse_fulfillment_order_line_item_id += 1;
+        let return_line_item_id = return_record["returnLineItems"]["nodes"][0]["id"].clone();
+        let quantity = return_record["totalQuantity"].as_i64().unwrap_or(1);
+        let reverse_order = json!({
+            "id": id,
+            "status": "OPEN",
+            "lineItems": {
+                "nodes": [{
+                    "id": line_id,
+                    "totalQuantity": quantity,
+                    "remainingQuantity": quantity,
+                    "dispositionType": Value::Null,
+                    "returnLineItem": { "id": return_line_item_id },
+                    "dispositions": []
+                }]
+            },
+            "reverseDeliveries": { "nodes": [] }
+        });
+        return_record["reverseFulfillmentOrders"] = json!({ "nodes": [{ "id": id, "status": "OPEN", "lineItems": reverse_order["lineItems"].clone() }] });
+        self.store
+            .staged
+            .returns
+            .insert(return_id.to_string(), return_record);
+        self.store
+            .staged
+            .reverse_fulfillment_orders
+            .insert(id, reverse_order.clone());
+        Some(reverse_order)
+    }
+
+    fn stage_reverse_delivery(&mut self, field: &RootFieldSelection) -> Value {
+        let reverse_order_id =
+            resolved_string_arg(&field.arguments, "reverseFulfillmentOrderId").unwrap_or_default();
+        let id = format!(
+            "gid://shopify/ReverseDelivery/{}",
+            self.store.staged.next_reverse_delivery_id
+        );
+        self.store.staged.next_reverse_delivery_id += 1;
+        let line_id = format!(
+            "gid://shopify/ReverseDeliveryLineItem/{}",
+            self.store.staged.next_reverse_delivery_line_item_id
+        );
+        self.store.staged.next_reverse_delivery_line_item_id += 1;
+        let tracking = resolved_object_field(&field.arguments, "trackingInput").unwrap_or_default();
+        let label = resolved_object_field(&field.arguments, "labelInput").unwrap_or_default();
+        let delivery = json!({
+            "id": id,
+            "reverseFulfillmentOrder": { "id": reverse_order_id },
+            "reverseDeliveryLineItems": {
+                "nodes": [{
+                    "id": line_id,
+                    "quantity": 1,
+                    "reverseFulfillmentOrderLineItem": {
+                        "id": self.first_reverse_fulfillment_order_line_id(&reverse_order_id),
+                        "remainingQuantity": self.first_reverse_fulfillment_order_line_remaining_quantity(&reverse_order_id)
+                    }
+                }]
+            },
+            "deliverable": {
+                "__typename": "ReverseDeliveryShippingDeliverable",
+                "tracking": {
+                    "number": resolved_string_field(&tracking, "number").unwrap_or_default(),
+                    "url": resolved_string_field(&tracking, "url").unwrap_or_default(),
+                    "company": resolved_string_field(&tracking, "company").unwrap_or_default(),
+                    "carrierName": resolved_string_field(&tracking, "company").unwrap_or_default()
+                },
+                "label": {
+                    "publicFileUrl": resolved_string_field(&label, "fileUrl").unwrap_or_default()
+                }
+            }
+        });
+        self.store
+            .staged
+            .reverse_deliveries
+            .insert(id.clone(), delivery.clone());
+        if let Some(reverse_order) = self
+            .store
+            .staged
+            .reverse_fulfillment_orders
+            .get_mut(&reverse_order_id)
+        {
+            reverse_order["reverseDeliveries"] = json!({ "nodes": [{ "id": id }] });
+        }
+        selected_json(
+            &json!({ "reverseDelivery": delivery, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn first_reverse_fulfillment_order_line_id(&self, reverse_order_id: &str) -> Value {
+        self.store
+            .staged
+            .reverse_fulfillment_orders
+            .get(reverse_order_id)
+            .and_then(|order| order["lineItems"]["nodes"].as_array())
+            .and_then(|nodes| nodes.first())
+            .map(|node| node["id"].clone())
+            .unwrap_or(Value::Null)
+    }
+
+    fn first_reverse_fulfillment_order_line_remaining_quantity(
+        &self,
+        reverse_order_id: &str,
+    ) -> Value {
+        self.store
+            .staged
+            .reverse_fulfillment_orders
+            .get(reverse_order_id)
+            .and_then(|order| order["lineItems"]["nodes"].as_array())
+            .and_then(|nodes| nodes.first())
+            .map(|node| node["remainingQuantity"].clone())
+            .unwrap_or(Value::Null)
+    }
+
+    fn update_reverse_delivery(&mut self, id: &str, field: &RootFieldSelection) -> Value {
+        let Some(mut delivery) = self.store.staged.reverse_deliveries.get(id).cloned() else {
+            return selected_json(
+                &json!({ "reverseDelivery": Value::Null, "userErrors": [return_user_error(&["reverseDeliveryId"], "Reverse delivery does not exist", "NOT_FOUND")] }),
+                &field.selection,
+            );
+        };
+        let tracking = resolved_object_field(&field.arguments, "trackingInput").unwrap_or_default();
+        delivery["deliverable"]["tracking"]["number"] =
+            json!(resolved_string_field(&tracking, "number").unwrap_or_default());
+        delivery["deliverable"]["tracking"]["url"] =
+            json!(resolved_string_field(&tracking, "url").unwrap_or_default());
+        if let Some(company) = resolved_string_field(&tracking, "company") {
+            delivery["deliverable"]["tracking"]["company"] = json!(company.clone());
+            delivery["deliverable"]["tracking"]["carrierName"] = json!(company);
+        }
+        self.store
+            .staged
+            .reverse_deliveries
+            .insert(id.to_string(), delivery.clone());
+        selected_json(
+            &json!({ "reverseDelivery": delivery, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn dispose_reverse_fulfillment_order(&mut self, field: &RootFieldSelection) -> Value {
+        let inputs = list_object_arg(&field.arguments, "dispositionInputs");
+        let mut line_items = Vec::new();
+        for input in inputs {
+            let line_id = resolved_string_field(&input, "reverseFulfillmentOrderLineItemId")
+                .unwrap_or_default();
+            for order in self.store.staged.reverse_fulfillment_orders.values_mut() {
+                if let Some(nodes) = order["lineItems"]["nodes"].as_array_mut() {
+                    if let Some(node) = nodes.iter_mut().find(|node| node["id"] == line_id) {
+                        node["remainingQuantity"] = json!(0);
+                        node["dispositionType"] =
+                            json!(resolved_string_field(&input, "dispositionType")
+                                .unwrap_or_else(|| "RESTOCKED".to_string()));
+                        node["dispositions"] = json!([{
+                            "type": node["dispositionType"].clone(),
+                            "quantity": resolved_i64_field(&input, "quantity").unwrap_or(1),
+                            "location": {
+                                "id": resolved_string_field(&input, "locationId").unwrap_or_default()
+                            }
+                        }]);
+                        line_items.push(node.clone());
+                    }
                 }
             }
         }
-        "returnClose" => {
-            *staged_return_status = Some("CLOSED".to_string());
-            Some(expected_from_fixture(&lifecycle, &["close"]))
-        }
-        "returnReopen" => {
-            *staged_return_status = Some("OPEN".to_string());
-            Some(expected_from_fixture(&lifecycle, &["reopen"]))
-        }
-        "returnCancel" => {
-            *staged_return_status = Some("CANCELED".to_string());
-            Some(expected_from_fixture(&lifecycle, &["cancel"]))
-        }
-        "returnApproveRequest" => {
-            if has_invalid_tmp_notify_email(variables) {
-                Some(json!({
-                    "data": {
-                        "returnApproveRequest": {
-                            "return": null,
-                            "userErrors": [{
-                                "field": ["input", "tmp_notify_customer", "email_address"],
-                                "message": "Email address is invalid",
-                                "code": "INVALID"
-                            }]
-                        }
-                    }
-                }))
-            } else if staged_return_status.as_deref() != Some("REQUESTED") {
-                let key = match staged_return_status.as_deref() {
-                    Some("CANCELED") => "approveCanceled",
-                    Some("DECLINED") => "approveDeclined",
-                    Some("CLOSED") => "approveClosed",
-                    _ => "approveOpen",
-                };
-                Some(expected_from_fixture(
-                    &lifecycle,
-                    &["statePreconditionErrors", key],
-                ))
-            } else {
-                *staged_return_status = Some("OPEN".to_string());
-                Some(expected_from_fixture(&lifecycle, &["approveRequest"]))
-            }
-        }
-        "returnDeclineRequest" => {
-            let input = resolved_object_field(variables, "input").unwrap_or_default();
-            if resolved_string_field(&input, "declineReason").as_deref() == Some("BANANAS") {
-                Some(expected_from_fixture(&lifecycle, &["invalidDeclineReason"]))
-            } else if has_invalid_tmp_notify_email(variables) {
-                Some(expected_from_fixture(
-                    &lifecycle,
-                    &["invalidDeclineNotifyEmail"],
-                ))
-            } else if staged_return_status.as_deref() != Some("REQUESTED") {
-                let key = match staged_return_status.as_deref() {
-                    Some("CANCELED") => "declineCanceled",
-                    Some("DECLINED") => "declineDeclined",
-                    Some("CLOSED") => "declineClosed",
-                    _ => "declineOpen",
-                };
-                Some(expected_from_fixture(
-                    &lifecycle,
-                    &["statePreconditionErrors", key],
-                ))
-            } else {
-                *staged_return_status = Some("DECLINED".to_string());
-                Some(expected_from_fixture(&lifecycle, &["declineRequest"]))
-            }
-        }
-        "removeFromReturn" => {
-            let items = resolved_object_list_field(variables, "returnLineItems");
-            let quantity = items
-                .first()
-                .and_then(|item| resolved_i64_field(item, "quantity"))
-                .unwrap_or(1);
-            if quantity <= 0 || quantity > 3 {
-                let fixture = order_return_quantity_fixture();
-                let key = if quantity <= 0 {
-                    "removeFromReturnZeroQuantity"
-                } else {
-                    "removeFromReturnOverQuantity"
-                };
-                Some(expected_from_fixture(&fixture, &[key]))
-            } else {
-                Some(expected_from_fixture(&lifecycle, &["remove"]))
-            }
-        }
-        "reverseDeliveryCreateWithShipping" => Some(expected_from_fixture(
-            &lifecycle,
-            &["reverseDeliveryCreate"],
-        )),
-        "reverseDeliveryShippingUpdate" => Some(expected_from_fixture(
-            &lifecycle,
-            &["reverseDeliveryUpdate"],
-        )),
-        "reverseFulfillmentOrderDispose" => Some(expected_from_fixture(&lifecycle, &["dispose"])),
-        "returnProcess" => Some(expected_from_fixture(&lifecycle, &["process"])),
-        "return" | "order" | "reverseDelivery" | "reverseFulfillmentOrder"
-            if query.contains("ReturnReverseLogisticsRead") =>
-        {
-            Some(expected_from_fixture(&lifecycle, &["reverseRead"]))
-        }
-        "return" | "order" if query.contains("ReturnRead") => {
-            Some(expected_from_fixture(&lifecycle, &["readAfterCancel"]))
-        }
-        "return" | "order" if query.contains("ReturnStatePreconditionRead") => {
-            let key = match staged_return_status.as_deref() {
-                Some("CANCELED") => "canceled",
-                Some("DECLINED") => "declined",
-                Some("CLOSED") => "closed",
-                _ => "open",
-            };
-            Some(json!({
-                "data": expected_from_fixture(&lifecycle, &["statePreconditionReads", key])
-            }))
-        }
-        _ => None,
+        selected_json(
+            &json!({ "reverseFulfillmentOrderLineItems": line_items, "userErrors": [] }),
+            &field.selection,
+        )
     }
-}
 
-pub(in crate::proxy) fn has_invalid_tmp_notify_email(
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    let input = resolved_object_field(variables, "input").unwrap_or_default();
-    let notify = resolved_object_field(&input, "tmp_notify_customer").unwrap_or_default();
-    resolved_string_field(&notify, "email_address").as_deref() == Some("not-an-email")
+    fn process_return(&mut self, id: &str, field: &RootFieldSelection) -> Value {
+        let Some(mut record) = self.store.staged.returns.get(id).cloned() else {
+            return selected_json(
+                &json!({ "return": Value::Null, "userErrors": [return_user_error(&["returnId"], "Return does not exist", "NOT_FOUND")] }),
+                &field.selection,
+            );
+        };
+        record["status"] = json!("OPEN");
+        if let Some(nodes) = record["returnLineItems"]["nodes"].as_array_mut() {
+            for node in nodes {
+                node["processedQuantity"] = node["quantity"].clone();
+                node["unprocessedQuantity"] = json!(0);
+            }
+        }
+        if let Some(nodes) = record["reverseFulfillmentOrders"]["nodes"].as_array_mut() {
+            for node in nodes {
+                let Some(id) = node["id"].as_str() else {
+                    continue;
+                };
+                if let Some(reverse_order) = self.store.staged.reverse_fulfillment_orders.get(id) {
+                    node["status"] = reverse_order["status"].clone();
+                    node["lineItems"] = reverse_order["lineItems"].clone();
+                }
+            }
+        }
+        let mut stored_record = record.clone();
+        stored_record["status"] = json!("CLOSED");
+        self.store
+            .staged
+            .returns
+            .insert(id.to_string(), stored_record);
+        selected_json(
+            &json!({ "return": record, "userErrors": [] }),
+            &field.selection,
+        )
+    }
 }
