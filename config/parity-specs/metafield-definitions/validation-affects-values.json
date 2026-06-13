@@ -1,0 +1,115 @@
+{
+  "scenarioId": "metafield-definition-validation-affects-values",
+  "operationNames": ["metafieldDefinitionCreate", "metafieldDefinitionUpdate", "metafieldsSet", "product"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "definition-validation-effects", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-validation-affects-values.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafield-definitions/validation-affects-values-create.graphql",
+    "variablesCapturePath": "$.create.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 evidence that product-owned metafieldDefinitionUpdate(validations) changes gate later metafieldsSet writes. The scenario creates an initially unvalidated text definition, accepts a long value before update, applies max:5, rejects a later too-long value without changing the product metafield, then accepts and reads back a short replacement value.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.metafieldDefinitionCreate.createdDefinition.id",
+        "matcher": "shopify-gid:MetafieldDefinition",
+        "reason": "Shopify and the local parity harness allocate definition identifiers independently."
+      },
+      {
+        "path": "$.metafieldDefinitionUpdate.updatedDefinition.id",
+        "matcher": "shopify-gid:MetafieldDefinition",
+        "reason": "The proxy updates its staged synthetic definition while Shopify returned the live-store definition ID."
+      },
+      {
+        "path": "$.metafieldDefinitionUpdate.validationJob.id",
+        "matcher": "shopify-gid:Job",
+        "reason": "Shopify and the local parity harness allocate async job identifiers independently."
+      },
+      {
+        "path": "$.metafieldsSet.metafields[0].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "Shopify and the local parity harness allocate metafield identifiers independently."
+      },
+      {
+        "path": "$.product.metafield.id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "The downstream read returns the current run's staged metafield ID."
+      },
+      {
+        "path": "$.product.metafields.nodes[0].id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "The downstream connection returns the current run's staged metafield ID."
+      }
+    ],
+    "targets": [
+      {
+        "name": "create-definition",
+        "capturePath": "$.create.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "set-before-validation-update",
+        "capturePath": "$.setBeforeUpdate.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/validation-affects-values-set.graphql",
+          "variablesCapturePath": "$.setBeforeUpdate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "update-validation",
+        "capturePath": "$.validationUpdate.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/validation-affects-values-update.graphql",
+          "variablesCapturePath": "$.validationUpdate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "reject-too-long-after-validation-update",
+        "capturePath": "$.setTooLongAfterUpdate.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/validation-affects-values-set.graphql",
+          "variablesCapturePath": "$.setTooLongAfterUpdate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.metafieldsSet.userErrors[0].message",
+            "matcher": "any-string",
+            "reason": "Shopify includes validator-specific wording; parity is on the invalid value field/code and no-metafield payload."
+          }
+        ]
+      },
+      {
+        "name": "set-short-after-validation-update",
+        "capturePath": "$.setShortAfterUpdate.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/validation-affects-values-set.graphql",
+          "variablesCapturePath": "$.setShortAfterUpdate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "read-after-short-set",
+        "capturePath": "$.readAfterShortSet.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafield-definitions/validation-affects-values-read.graphql",
+          "variablesCapturePath": "$.readAfterShortSet.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

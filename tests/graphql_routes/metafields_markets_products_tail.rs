@@ -873,6 +873,45 @@ fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tes
         currency_read.body["data"]["market"]["currencySettings"],
         currency_create.body["data"]["marketCreate"]["market"]["currencySettings"]
     );
+    let eur_create = currency_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Euro Currency", "currencySettings": {"baseCurrency": "EUR"}}}),
+    ));
+    assert_eq!(
+        eur_create.body["data"]["marketCreate"]["market"]["currencySettings"],
+        json!({"baseCurrency": {"currencyCode": "EUR", "currencyName": "Euro"}, "localCurrencies": false, "roundingEnabled": false})
+    );
+    let eur_read = currency_proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"id": "gid://shopify/Market/2"}),
+    ));
+    assert_eq!(
+        eur_read.body["data"]["market"]["currencySettings"],
+        eur_create.body["data"]["marketCreate"]["market"]["currencySettings"]
+    );
+    for (code, name) in [
+        ("GBP", "British Pound"),
+        ("CAD", "Canadian Dollar"),
+        ("DKK", "Danish Krone"),
+        ("MXN", "Mexican Peso"),
+    ] {
+        let response = currency_proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"input": {"name": format!("{code} Currency"), "currencySettings": {"baseCurrency": code}}}),
+        ));
+        assert_eq!(
+            response.body["data"]["marketCreate"]["market"]["currencySettings"],
+            json!({"baseCurrency": {"currencyCode": code, "currencyName": name}, "localCurrencies": false, "roundingEnabled": false})
+        );
+    }
+    let unknown_currency = currency_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Unknown Currency", "currencySettings": {"baseCurrency": "ZZZ"}}}),
+    ));
+    assert_eq!(
+        unknown_currency.body["data"]["marketCreate"]["market"]["currencySettings"],
+        json!({"baseCurrency": {"currencyCode": "ZZZ", "currencyName": "Unknown Currency"}, "localCurrencies": false, "roundingEnabled": false})
+    );
 
     for input in [
         json!({"name": "Currency", "currencySettings": {"baseCurrency": "XXX"}}),
