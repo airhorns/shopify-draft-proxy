@@ -1380,14 +1380,49 @@ pub(in crate::proxy) fn valid_gcp_pubsub_topic_id(topic: &str) -> bool {
             .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '~'))
 }
 
-pub(in crate::proxy) fn valid_eventbridge_arn(uri: &str) -> bool {
+pub(in crate::proxy) fn eventbridge_arn_api_client_id(uri: &str) -> Option<&str> {
     let parts: Vec<&str> = uri.splitn(6, ':').collect();
-    parts.len() == 6
-        && parts[0] == "arn"
-        && parts[1] == "aws"
-        && parts[2] == "events"
-        && !parts[3].is_empty()
-        && !parts[5].is_empty()
+    if parts.len() != 6
+        || parts[0] != "arn"
+        || parts[1] != "aws"
+        || parts[2] != "events"
+        || !valid_eventbridge_region(parts[3])
+        || !parts[4].is_empty()
+    {
+        return None;
+    }
+    let resource = parts[5];
+    let tail = resource
+        .strip_prefix("event-source/aws.partner/shopify.com/")
+        .or_else(|| resource.strip_prefix("event-source/aws.partner/shopify.com.test/"))?;
+    let (api_client_id, event_source_name) = tail.split_once('/')?;
+    if api_client_id.is_empty()
+        || !api_client_id.chars().all(|ch| ch.is_ascii_digit())
+        || event_source_name.is_empty()
+    {
+        return None;
+    }
+    Some(api_client_id)
+}
+
+fn valid_eventbridge_region(region: &str) -> bool {
+    let mut parts = region.split('-');
+    let Some(prefix) = parts.next() else {
+        return false;
+    };
+    let Some(name) = parts.next() else {
+        return false;
+    };
+    let Some(number) = parts.next() else {
+        return false;
+    };
+    parts.next().is_none()
+        && prefix.len() == 2
+        && prefix.chars().all(|ch| ch.is_ascii_lowercase())
+        && !name.is_empty()
+        && name.chars().all(|ch| ch.is_ascii_lowercase())
+        && !number.is_empty()
+        && number.chars().all(|ch| ch.is_ascii_digit())
 }
 
 pub(in crate::proxy) fn webhook_uri_uses_disallowed_host(uri: &str) -> bool {
