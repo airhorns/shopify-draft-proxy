@@ -1038,21 +1038,6 @@ pub(in crate::proxy) fn is_fulfillment_service_lifecycle_document(query: &str) -
     .any(|marker| query.contains(marker))
 }
 
-pub(in crate::proxy) fn is_carrier_service_lifecycle_document(query: &str) -> bool {
-    [
-        "CarrierServiceCreateProbe",
-        "CarrierServiceUpdateProbe",
-        "CarrierServiceDeleteProbe",
-        "CarrierServiceAfterUpdate",
-        "CarrierAfterDelete",
-        "InvalidCarrierServiceCreate",
-        "UnknownCarrierServiceUpdate",
-        "UnknownCarrierServiceDelete",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
 pub(in crate::proxy) fn carrier_service_record(
     id: &str,
     name: &str,
@@ -1119,6 +1104,7 @@ pub(in crate::proxy) fn carrier_service_payload_json(
     carrier_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
+    let user_error_selection = nested_selected_fields(payload_selection, &["userErrors"]);
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "carrierService" => Some(if carrier.is_null() {
@@ -1126,7 +1112,12 @@ pub(in crate::proxy) fn carrier_service_payload_json(
             } else {
                 selected_json(&carrier, carrier_selection)
             }),
-            "userErrors" => Some(Value::Array(user_errors.clone())),
+            "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &user_error_selection))
+                    .collect(),
+            )),
             _ => None,
         }
     })
@@ -1134,12 +1125,17 @@ pub(in crate::proxy) fn carrier_service_payload_json(
 
 pub(in crate::proxy) fn carrier_service_not_found_payload(
     payload_selection: &[SelectedField],
+    code: &str,
 ) -> Value {
     carrier_service_payload_json(
         Value::Null,
         payload_selection,
         &[],
-        vec![json!({ "field": null, "message": "The carrier or app could not be found." })],
+        vec![carrier_service_user_error(
+            Value::Null,
+            "The carrier or app could not be found.",
+            code,
+        )],
     )
 }
 
@@ -1148,13 +1144,183 @@ pub(in crate::proxy) fn carrier_service_delete_payload(
     payload_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
+    let user_error_selection = nested_selected_fields(payload_selection, &["userErrors"]);
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "deletedId" => Some(deleted_id.clone()),
-            "userErrors" => Some(Value::Array(user_errors.clone())),
+            "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &user_error_selection))
+                    .collect(),
+            )),
             _ => None,
         }
     })
+}
+
+pub(in crate::proxy) fn carrier_service_user_error(
+    field: Value,
+    message: &str,
+    code: &str,
+) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+pub(in crate::proxy) fn carrier_service_callback_url_error(
+    callback_url: &str,
+    code: &str,
+) -> Option<Value> {
+    let trimmed = callback_url.trim();
+    if trimmed.starts_with("http://") {
+        return Some(carrier_service_user_error(
+            Value::Null,
+            "Shipping rate provider callback url must use HTTPS",
+            code,
+        ));
+    }
+    let Some(host) = carrier_service_https_callback_host(trimmed) else {
+        return Some(carrier_service_user_error(
+            Value::Null,
+            "Shipping rate provider callback url invalid host",
+            code,
+        ));
+    };
+    if carrier_service_callback_host_is_disallowed(&host) {
+        return Some(carrier_service_user_error(
+            Value::Null,
+            "Shipping rate provider callback url invalid host",
+            code,
+        ));
+    }
+    None
+}
+
+pub(in crate::proxy) fn carrier_service_create_callback_url_coercion_error(
+    query: &str,
+    field: &RootFieldSelection,
+) -> Option<Value> {
+    let RawArgumentValue::Variable {
+        name: variable_name,
+        value: Some(ResolvedValue::Object(input)),
+    } = field.raw_arguments.get("input")?
+    else {
+        return None;
+    };
+    let problem = match input.get("callbackUrl") {
+        None | Some(ResolvedValue::Null) => CarrierServiceCallbackUrlCoercionProblem::Missing,
+        Some(ResolvedValue::String(value)) if value.is_empty() || !value.contains("://") => {
+            CarrierServiceCallbackUrlCoercionProblem::MissingScheme(value.clone())
+        }
+        _ => return None,
+    };
+    let definition = variable_definition_info(query, variable_name);
+    let type_display = definition
+        .as_ref()
+        .map(|definition| definition.type_display.clone())
+        .unwrap_or_else(|| "DeliveryCarrierServiceCreateInput!".to_string());
+    let location = definition
+        .map(|definition| json!({ "line": definition.location.line, "column": definition.location.column }))
+        .unwrap_or_else(|| json!({ "line": 1, "column": 1 }));
+    let value = resolved_value_json(&ResolvedValue::Object(input.clone()));
+    Some(problem.error(variable_name, &type_display, location, value))
+}
+
+enum CarrierServiceCallbackUrlCoercionProblem {
+    Missing,
+    MissingScheme(String),
+}
+
+impl CarrierServiceCallbackUrlCoercionProblem {
+    fn error(
+        &self,
+        variable_name: &str,
+        type_display: &str,
+        location: Value,
+        value: Value,
+    ) -> Value {
+        match self {
+            Self::Missing => json!({
+                "message": format!(
+                    "Variable ${variable_name} of type {type_display} was provided invalid value for callbackUrl (Expected value to not be null)"
+                ),
+                "locations": [location],
+                "extensions": {
+                    "code": "INVALID_VARIABLE",
+                    "value": value,
+                    "problems": [{
+                        "path": ["callbackUrl"],
+                        "explanation": "Expected value to not be null"
+                    }]
+                }
+            }),
+            Self::MissingScheme(callback_url) => {
+                let message = format!("Invalid url '{callback_url}', missing scheme");
+                json!({
+                    "message": format!(
+                        "Variable ${variable_name} of type {type_display} was provided invalid value for callbackUrl ({message})"
+                    ),
+                    "locations": [location],
+                    "extensions": {
+                        "code": "INVALID_VARIABLE",
+                        "value": value,
+                        "problems": [{
+                            "path": ["callbackUrl"],
+                            "explanation": message,
+                            "message": message
+                        }]
+                    }
+                })
+            }
+        }
+    }
+}
+
+pub(in crate::proxy) fn carrier_service_https_callback_host(callback_url: &str) -> Option<String> {
+    let rest = callback_url.strip_prefix("https://")?;
+    let host_with_port = rest.split(['/', '?', '#']).next().unwrap_or_default();
+    let host = host_with_port
+        .split('@')
+        .next_back()
+        .unwrap_or_default()
+        .split(':')
+        .next()
+        .unwrap_or_default()
+        .trim_matches('.')
+        .to_ascii_lowercase();
+    if host.is_empty()
+        || host
+            .chars()
+            .any(|ch| ch.is_ascii_whitespace() || ch == '/' || ch == '\\')
+    {
+        return None;
+    }
+    Some(host)
+}
+
+pub(in crate::proxy) fn carrier_service_callback_host_is_disallowed(host: &str) -> bool {
+    if host == "shopify.com"
+        || host.ends_with(".shopify.com")
+        || host.ends_with(".myshopify.com")
+        || host.ends_with(".shopifypreview.com")
+        || host.ends_with(".myshopify.dev")
+        || host == "localhost"
+    {
+        return true;
+    }
+    if let Ok(std::net::IpAddr::V4(address)) = host.parse::<std::net::IpAddr>() {
+        let octets = address.octets();
+        return octets[0] == 0
+            || octets[0] == 10
+            || octets[0] == 127
+            || (octets[0] == 172 && (16..=31).contains(&octets[1]))
+            || (octets[0] == 192 && octets[1] == 168);
+    }
+    false
 }
 
 pub(in crate::proxy) fn resolved_as_string(value: &ResolvedValue) -> Option<String> {
