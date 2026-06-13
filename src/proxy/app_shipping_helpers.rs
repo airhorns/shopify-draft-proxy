@@ -1316,7 +1316,7 @@ pub(in crate::proxy) fn resolved_string_list_field(
     values
 }
 
-pub(in crate::proxy) fn normalize_product_tags(tags: Vec<String>) -> Vec<String> {
+pub(in crate::proxy) fn normalize_taggable_tags(tags: Vec<String>) -> Vec<String> {
     let mut seen = BTreeSet::new();
     let mut normalized = Vec::new();
     for tag in tags {
@@ -1330,6 +1330,49 @@ pub(in crate::proxy) fn normalize_product_tags(tags: Vec<String>) -> Vec<String>
     }
     normalized.sort_by_key(|tag| tag.to_lowercase());
     normalized
+}
+
+pub(in crate::proxy) fn normalize_product_tags(tags: Vec<String>) -> Vec<String> {
+    normalize_taggable_tags(tags)
+}
+
+pub(in crate::proxy) fn normalized_taggable_tags_argument(
+    value: Option<&ResolvedValue>,
+) -> Vec<String> {
+    let raw_tags = match value {
+        Some(ResolvedValue::String(value)) => split_taggable_tag_argument(value),
+        Some(ResolvedValue::List(values)) => values
+            .iter()
+            .flat_map(|value| match value {
+                ResolvedValue::String(value) => split_taggable_tag_argument(value),
+                _ => Vec::new(),
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
+    normalize_taggable_tags(raw_tags)
+}
+
+pub(in crate::proxy) fn add_taggable_tags(
+    existing: Vec<String>,
+    incoming: Vec<String>,
+) -> Vec<String> {
+    normalize_taggable_tags(existing.into_iter().chain(incoming).collect())
+}
+
+pub(in crate::proxy) fn remove_taggable_tags(
+    existing: Vec<String>,
+    removals: Vec<String>,
+) -> Vec<String> {
+    let remove_handles: BTreeSet<String> = removals.iter().map(|tag| tag.to_lowercase()).collect();
+    normalize_taggable_tags(existing)
+        .into_iter()
+        .filter(|tag| !remove_handles.contains(&tag.to_lowercase()))
+        .collect()
+}
+
+fn split_taggable_tag_argument(value: &str) -> Vec<String> {
+    value.split(',').map(str::to_string).collect()
 }
 
 pub(in crate::proxy) fn resolved_string_list_field_unsorted(

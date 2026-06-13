@@ -2716,10 +2716,6 @@ pub(in crate::proxy) fn resolved_object_field_bool(
     }
 }
 
-pub(in crate::proxy) fn is_local_bulk_operation_read_document(query: &str) -> bool {
-    query.contains("BulkOperationStatusParityRead") || query.contains("BulkOperationByIdParity")
-}
-
 pub(in crate::proxy) fn is_rust_webhook_local_runtime_document(query: &str) -> bool {
     query.contains("RustWebhookLocalRuntime")
 }
@@ -2768,10 +2764,6 @@ pub(in crate::proxy) fn bulk_operation_record_with_type(
         "partialDataUrl": null,
         "query": query
     })
-}
-
-pub(in crate::proxy) fn empty_bulk_operation_connection(selection: &[SelectedField]) -> Value {
-    selected_empty_connection_json(selection)
 }
 
 pub(in crate::proxy) fn b2b_company_customer_since_read_data(

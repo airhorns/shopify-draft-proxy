@@ -1,0 +1,14 @@
+mutation TagsAddCommaListElement($id: ID!, $tags: [String!]!) {
+  tagsAdd(id: $id, tags: $tags) {
+    node {
+      ... on Product {
+        id
+        tags
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

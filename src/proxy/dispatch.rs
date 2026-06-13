@@ -151,6 +151,15 @@ impl DraftProxy {
             return json_error(400, "Operation has no root field");
         };
 
+        if matches!(
+            root_field,
+            "customerCreate" | "companyCreate" | "companyAssignCustomerAsContact"
+        ) {
+            if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
+                return ok_json(data);
+            }
+        }
+
         if let Some(response) = self.products_mutation_tail_helper_response(
             request,
             &query,
@@ -204,32 +213,23 @@ impl DraftProxy {
             return ok_json(data);
         }
 
-        if let Some(data) = self.draft_order_complete_fixture_data(root_field, &query, &variables) {
-            return ok_json(data);
-        }
-
-        if let Some(response) =
-            self.draft_order_invoice_send_fixture_response(request, &query, &variables)
-        {
-            return response;
-        }
-
-        if let Some(data) = self.remaining_order_fixture_data(root_field, &query, &variables) {
+        if let Some(data) = self.draft_order_complete_local_data(root_field, &query, &variables) {
             return ok_json(data);
         }
 
         if let Some(data) =
-            self.order_payment_transaction_fixture_data(root_field, &query, &variables)
+            self.order_payment_transaction_local_data(root_field, &query, &variables)
         {
             return ok_json(data);
         }
 
-        if let Some(data) = order_create_mandate_payment_data(
-            root_field,
-            &query,
-            &variables,
-            &mut self.store.staged.mandate_payment_keys,
-        ) {
+        if let Some(response) =
+            self.draft_order_invoice_send_local_response(request, &query, &variables)
+        {
+            return response;
+        }
+
+        if let Some(data) = self.remaining_order_local_data(root_field, &query, &variables) {
             return ok_json(data);
         }
 
@@ -288,11 +288,7 @@ impl DraftProxy {
             }
         }
 
-        if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
-            return ok_json(data);
-        }
-
-        if let Some(data) = self.draft_order_bulk_tag_fixture_data(&query, &variables) {
+        if let Some(data) = self.draft_order_bulk_tag_local_data(&query, &variables) {
             return ok_json(data);
         }
 
@@ -1061,32 +1057,7 @@ impl DraftProxy {
             );
         }
 
-        if let Some(data) =
-            order_return_recorded_reverse_logistics_data(root_field, &query, &variables)
-        {
-            return ok_json(data);
-        }
-
-        if let Some(data) = order_return_recorded_shipping_fee_data(root_field, &query, &variables)
-        {
-            return ok_json(data);
-        }
-
-        if let Some(data) = order_return_recorded_state_precondition_data(
-            root_field,
-            &query,
-            &variables,
-            &mut self.store.staged.recorded_return_statuses,
-        ) {
-            return ok_json(data);
-        }
-
-        if let Some(data) = order_return_local_runtime_data(
-            root_field,
-            &query,
-            &variables,
-            &mut self.store.staged.return_status,
-        ) {
+        if let Some(data) = self.order_return_local_runtime_data(root_field, &query, &variables) {
             return ok_json(data);
         }
 
@@ -1141,6 +1112,23 @@ impl DraftProxy {
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
+                    "order" | "customer" | "article" | "draftOrder"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                if self.should_handle_taggable_resource_overlay_read(&fields) {
+                    return ok_json(
+                        json!({ "data": self.taggable_resource_overlay_read_fields(&fields) }),
+                    );
+                }
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
                     "customer" | "customers" | "customersCount" | "customerByIdentifier"
                 )
             })
@@ -1183,20 +1171,6 @@ impl DraftProxy {
         if operation.operation_type == OperationType::Mutation && root_field == "customerSet" {
             if let Some(response) = self.customer_set_guard_response(&query, &variables) {
                 return response;
-            }
-        }
-
-        if operation.operation_type == OperationType::Query
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "bulkOperation" | "bulkOperations" | "currentBulkOperation"
-                )
-            })
-            && is_local_bulk_operation_read_document(&query)
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.bulk_operation_read_data(&fields) }));
             }
         }
 
@@ -2185,6 +2159,15 @@ impl DraftProxy {
             }
         }
 
+        if matches!(
+            root_field,
+            "orderCancel" | "orderCustomerSet" | "orderCustomerRemove"
+        ) {
+            if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
+                return ok_json(data);
+            }
+        }
+
         let capability =
             operation_capability(&self.registry, operation.operation_type, Some(root_field));
         let has_local_dispatch = local_dispatch_root(
@@ -2354,6 +2337,11 @@ impl DraftProxy {
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
                 }
+            }
+            (CapabilityDomain::BulkOperations, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+            {
+                self.bulk_operation_read_response(request, &query, &variables, root_field)
             }
             (CapabilityDomain::Functions, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>

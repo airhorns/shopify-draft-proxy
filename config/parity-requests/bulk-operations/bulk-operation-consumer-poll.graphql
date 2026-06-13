@@ -1,0 +1,52 @@
+query ConsumerBulkOperationPoll($id: ID!, $first: Int) {
+  byId: bulkOperation(id: $id) {
+    id
+    status
+    type
+    errorCode
+    createdAt
+    completedAt
+    objectCount
+    rootObjectCount
+    fileSize
+    url
+    partialDataUrl
+    query
+  }
+  current: currentBulkOperation(type: QUERY) {
+    id
+    status
+    type
+    errorCode
+    createdAt
+    completedAt
+    objectCount
+    rootObjectCount
+    fileSize
+    url
+    partialDataUrl
+    query
+  }
+  recent: bulkOperations(first: $first) {
+    nodes {
+      id
+      status
+      type
+      errorCode
+      createdAt
+      completedAt
+      objectCount
+      rootObjectCount
+      fileSize
+      url
+      partialDataUrl
+      query
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

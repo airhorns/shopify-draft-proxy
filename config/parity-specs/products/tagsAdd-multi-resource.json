@@ -58,6 +58,246 @@
         "proxyPath": "$.data.tagsRemove"
       },
       {
+        "name": "order-comma-string-add",
+        "capturePath": "$.normalizationCases.order.commaStringAdd.response.data.tagsAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.order.commaStringAdd.variables"
+        },
+        "proxyPath": "$.data.tagsAdd",
+        "isolatedProxy": true
+      },
+      {
+        "name": "order-comma-list-element-add",
+        "capturePath": "$.normalizationCases.order.commaListElementAdd.response.data.tagsAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.order.commaListElementAdd.variables"
+        },
+        "proxyPath": "$.data.tagsAdd",
+        "isolatedProxy": true
+      },
+      {
+        "name": "order-case-variant-add",
+        "capturePath": "$.normalizationCases.order.caseVariantAdd.response.data.tagsAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.order.caseVariantAdd.variables"
+        },
+        "proxyPath": "$.data.tagsAdd",
+        "isolatedProxy": true
+      },
+      {
+        "name": "order-case-sort-add",
+        "capturePath": "$.normalizationCases.order.caseSortAdd.response.data.tagsAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.order.caseSortAdd.variables"
+        },
+        "proxyPath": "$.data.tagsAdd",
+        "isolatedProxy": true
+      },
+      {
+        "name": "order-case-variant-remove",
+        "capturePath": "$.normalizationCases.order.caseVariantRemove.response.data.tagsRemove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsRemove-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.order.caseVariantRemove.variables"
+        },
+        "proxyPath": "$.data.tagsRemove",
+        "isolatedProxy": true
+      },
+      {
+        "name": "order-string-remove",
+        "capturePath": "$.normalizationCases.order.stringRemove.response.data.tagsRemove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsRemove-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.order.stringRemove.variables"
+        },
+        "proxyPath": "$.data.tagsRemove",
+        "isolatedProxy": true
+      },
+      {
+        "name": "customer-comma-string-add",
+        "capturePath": "$.normalizationCases.customer.commaStringAdd.response.data.tagsAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.customer.commaStringAdd.variables"
+        },
+        "proxyPath": "$.data.tagsAdd",
+        "isolatedProxy": true
+      },
+      {
+        "name": "customer-comma-list-element-add",
+        "capturePath": "$.normalizationCases.customer.commaListElementAdd.response.data.tagsAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.customer.commaListElementAdd.variables"
+        },
+        "proxyPath": "$.data.tagsAdd",
+        "isolatedProxy": true
+      },
+      {
+        "name": "customer-case-variant-add",
+        "capturePath": "$.normalizationCases.customer.caseVariantAdd.response.data.tagsAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.customer.caseVariantAdd.variables"
+        },
+        "proxyPath": "$.data.tagsAdd",
+        "isolatedProxy": true
+      },
+      {
+        "name": "customer-case-sort-add",
+        "capturePath": "$.normalizationCases.customer.caseSortAdd.response.data.tagsAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.customer.caseSortAdd.variables"
+        },
+        "proxyPath": "$.data.tagsAdd",
+        "isolatedProxy": true
+      },
+      {
+        "name": "customer-case-variant-remove",
+        "capturePath": "$.normalizationCases.customer.caseVariantRemove.response.data.tagsRemove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsRemove-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.customer.caseVariantRemove.variables"
+        },
+        "proxyPath": "$.data.tagsRemove",
+        "isolatedProxy": true
+      },
+      {
+        "name": "customer-string-remove",
+        "capturePath": "$.normalizationCases.customer.stringRemove.response.data.tagsRemove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsRemove-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.customer.stringRemove.variables"
+        },
+        "proxyPath": "$.data.tagsRemove",
+        "isolatedProxy": true
+      },
+      {
+        "name": "article-comma-string-add",
+        "capturePath": "$.normalizationCases.article.commaStringAdd.response.data.tagsAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.article.commaStringAdd.variables"
+        },
+        "proxyPath": "$.data.tagsAdd",
+        "isolatedProxy": true
+      },
+      {
+        "name": "article-comma-list-element-add",
+        "capturePath": "$.normalizationCases.article.commaListElementAdd.response.data.tagsAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.article.commaListElementAdd.variables"
+        },
+        "proxyPath": "$.data.tagsAdd",
+        "isolatedProxy": true
+      },
+      {
+        "name": "article-case-variant-add",
+        "capturePath": "$.normalizationCases.article.caseVariantAdd.response.data.tagsAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.article.caseVariantAdd.variables"
+        },
+        "proxyPath": "$.data.tagsAdd",
+        "isolatedProxy": true
+      },
+      {
+        "name": "article-case-sort-add",
+        "capturePath": "$.normalizationCases.article.caseSortAdd.response.data.tagsAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.article.caseSortAdd.variables"
+        },
+        "proxyPath": "$.data.tagsAdd",
+        "isolatedProxy": true
+      },
+      {
+        "name": "article-case-variant-remove",
+        "capturePath": "$.normalizationCases.article.caseVariantRemove.response.data.tagsRemove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsRemove-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.article.caseVariantRemove.variables"
+        },
+        "proxyPath": "$.data.tagsRemove",
+        "isolatedProxy": true
+      },
+      {
+        "name": "article-string-remove",
+        "capturePath": "$.normalizationCases.article.stringRemove.response.data.tagsRemove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsRemove-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.article.stringRemove.variables"
+        },
+        "proxyPath": "$.data.tagsRemove",
+        "isolatedProxy": true
+      },
+      {
+        "name": "draft-order-comma-string-add",
+        "capturePath": "$.normalizationCases.draftOrder.commaStringAdd.response.data.tagsAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.draftOrder.commaStringAdd.variables"
+        },
+        "proxyPath": "$.data.tagsAdd",
+        "isolatedProxy": true
+      },
+      {
+        "name": "draft-order-comma-list-element-add",
+        "capturePath": "$.normalizationCases.draftOrder.commaListElementAdd.response.data.tagsAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.draftOrder.commaListElementAdd.variables"
+        },
+        "proxyPath": "$.data.tagsAdd",
+        "isolatedProxy": true
+      },
+      {
+        "name": "draft-order-case-variant-add",
+        "capturePath": "$.normalizationCases.draftOrder.caseVariantAdd.response.data.tagsAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.draftOrder.caseVariantAdd.variables"
+        },
+        "proxyPath": "$.data.tagsAdd",
+        "isolatedProxy": true
+      },
+      {
+        "name": "draft-order-case-sort-add",
+        "capturePath": "$.normalizationCases.draftOrder.caseSortAdd.response.data.tagsAdd",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.draftOrder.caseSortAdd.variables"
+        },
+        "proxyPath": "$.data.tagsAdd",
+        "isolatedProxy": true
+      },
+      {
+        "name": "draft-order-case-variant-remove",
+        "capturePath": "$.normalizationCases.draftOrder.caseVariantRemove.response.data.tagsRemove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsRemove-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.draftOrder.caseVariantRemove.variables"
+        },
+        "proxyPath": "$.data.tagsRemove",
+        "isolatedProxy": true
+      },
+      {
+        "name": "draft-order-string-remove",
+        "capturePath": "$.normalizationCases.draftOrder.stringRemove.response.data.tagsRemove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsRemove-multi-resource.graphql",
+          "variablesCapturePath": "$.normalizationCases.draftOrder.stringRemove.variables"
+        },
+        "proxyPath": "$.data.tagsRemove",
+        "isolatedProxy": true
+      },
+      {
         "name": "downstream-product-read",
         "capturePath": "$.downstreamRead.response.data.product",
         "proxyRequest": {

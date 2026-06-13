@@ -1,6 +1,53 @@
 use super::*;
 
+const TAGGABLE_ORDER_HYDRATE_QUERY: &str =
+    "query OrdersOrderHydrate($id: ID!) {\n  order(id: $id) { id name tags }\n}";
+const TAGGABLE_DRAFT_ORDER_HYDRATE_QUERY: &str =
+    "query OrdersDraftOrderHydrate($id: ID!) {\n  draftOrder(id: $id) { id name tags }\n}";
+const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str = "query CustomerHydrate($id: ID!) {\n  customer(id: $id) {\n    id firstName lastName displayName email legacyResourceId locale note\n    canDelete verifiedEmail dataSaleOptOut taxExempt taxExemptions state tags\n    numberOfOrders createdAt updatedAt\n    amountSpent { amount currencyCode }\n    defaultEmailAddress { emailAddress marketingState marketingOptInLevel marketingUpdatedAt }\n    defaultPhoneNumber { phoneNumber marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom }\n    emailMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt }\n    smsMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt consentCollectedFrom }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n    metafields(first: 250) { nodes { id namespace key type value compareDigest createdAt updatedAt } }\n    orders(first: 10, sortKey: CREATED_AT, reverse: true) { nodes { id name email createdAt currentTotalPriceSet { shopMoney { amount currencyCode } } } pageInfo { startCursor endCursor } }\n    storeCreditAccounts(first: 50) { nodes { id balance { amount currencyCode } } }\n  }\n}";
+const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
+const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n    }\n  }\n}";
+
 impl DraftProxy {
+    pub(in crate::proxy) fn bulk_operation_read_response(
+        &self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+    ) -> Response {
+        let Some(fields) = root_fields(query, variables) else {
+            return json_error(400, "Could not parse GraphQL operation");
+        };
+        if self.should_passthrough_cold_bulk_operations_read(&fields) {
+            return (self.upstream_transport)(request.clone());
+        }
+        let operation_path = parsed_document(query, variables)
+            .map(|document| document.operation_path)
+            .unwrap_or_else(|| "query".to_string());
+        if let Some(response) =
+            self.bulk_operation_read_validation_response(&fields, root_field, &operation_path)
+        {
+            return response;
+        }
+        let data = self.bulk_operation_read_data(&fields);
+        let mut body = json!({ "data": data });
+        if let Some(search) = bulk_operation_search_extensions(&fields) {
+            body["extensions"] = json!({ "search": search });
+        }
+        ok_json(body)
+    }
+
+    fn should_passthrough_cold_bulk_operations_read(&self, fields: &[RootFieldSelection]) -> bool {
+        self.config.read_mode == ReadMode::LiveHybrid
+            && self.store.staged.bulk_operations.is_empty()
+            && fields.iter().all(|field| {
+                field.name == "bulkOperations"
+                    && field.arguments.contains_key("sortKey")
+                    && !field.arguments.contains_key("query")
+            })
+    }
+
     pub(in crate::proxy) fn bulk_operation_read_data(
         &self,
         fields: &[RootFieldSelection],
@@ -10,20 +57,105 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "bulkOperation" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.store
-                        .staged
-                        .bulk_operations
-                        .get(&id)
+                    self.bulk_operation_by_id(&id)
                         .map(|operation| selected_json(operation, &field.selection))
                         .unwrap_or(Value::Null)
                 }
-                "bulkOperations" => empty_bulk_operation_connection(&field.selection),
-                "currentBulkOperation" => Value::Null,
+                "bulkOperations" => self.bulk_operations_connection(field),
+                "currentBulkOperation" => {
+                    let operation_type = resolved_string_arg(&field.arguments, "type")
+                        .unwrap_or_else(|| "QUERY".to_string());
+                    self.current_bulk_operation(&operation_type)
+                        .map(|operation| selected_json(operation, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
                 _ => continue,
             };
             data.insert(field.response_key.clone(), value);
         }
         Value::Object(data)
+    }
+
+    fn bulk_operation_read_validation_response(
+        &self,
+        fields: &[RootFieldSelection],
+        root_field: &str,
+        operation_path: &str,
+    ) -> Option<Response> {
+        let field = fields.iter().find(|field| field.name == root_field)?;
+        match field.name.as_str() {
+            "bulkOperation" => bulk_operation_id_validation_response(field, operation_path),
+            "bulkOperations" => bulk_operations_argument_validation_response(field, operation_path),
+            _ => None,
+        }
+    }
+
+    fn bulk_operation_by_id(&self, id: &str) -> Option<&Value> {
+        self.store.staged.bulk_operations.get(id)
+    }
+
+    fn effective_bulk_operations(&self) -> Vec<&Value> {
+        let mut operations = self
+            .store
+            .staged
+            .bulk_operations
+            .values()
+            .collect::<Vec<_>>();
+        operations.sort_by(|left, right| {
+            bulk_operation_sort_value(right, "CREATED_AT")
+                .cmp(&bulk_operation_sort_value(left, "CREATED_AT"))
+                .then_with(|| {
+                    right
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .cmp(&left.get("id").and_then(Value::as_str))
+                })
+        });
+        operations
+    }
+
+    fn current_bulk_operation(&self, operation_type: &str) -> Option<&Value> {
+        self.effective_bulk_operations()
+            .into_iter()
+            .find(|operation| operation.get("type").and_then(Value::as_str) == Some(operation_type))
+    }
+
+    fn bulk_operations_connection(&self, field: &RootFieldSelection) -> Value {
+        let mut operations = self.effective_bulk_operations();
+        operations.retain(|operation| bulk_operation_matches_query(operation, &field.arguments));
+
+        let sort_key = resolved_string_arg(&field.arguments, "sortKey")
+            .unwrap_or_else(|| "CREATED_AT".to_string());
+        operations.sort_by(|left, right| {
+            bulk_operation_sort_value(right, &sort_key)
+                .cmp(&bulk_operation_sort_value(left, &sort_key))
+                .then_with(|| {
+                    right
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .cmp(&left.get("id").and_then(Value::as_str))
+                })
+        });
+        if matches!(
+            field.arguments.get("reverse"),
+            Some(ResolvedValue::Bool(true))
+        ) {
+            operations.reverse();
+        }
+
+        let records = operations.into_iter().cloned().collect::<Vec<_>>();
+        selected_connection_json_with_args(
+            records,
+            &field.arguments,
+            &field.selection,
+            |operation| {
+                operation
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
+            },
+        )
     }
 
     pub(in crate::proxy) fn bulk_operation_run_query(
@@ -2148,7 +2280,29 @@ impl DraftProxy {
         let Some(ResolvedValue::String(id)) = field.arguments.get("id") else {
             return MutationOutcome::response(json_error(400, "tags mutation requires id"));
         };
-        if !id.contains("/Product/") {
+        let Some(resource_type) = shopify_gid_resource_type(id) else {
+            return MutationOutcome::response(self.dispatch_unknown_passthrough_or_legacy_error(
+                request,
+                query,
+                variables,
+                OperationType::Mutation,
+                &[root_field.to_string()],
+                root_field,
+            ));
+        };
+        if resource_type != "Product" {
+            if matches!(
+                resource_type,
+                "Order" | "Customer" | "Article" | "DraftOrder"
+            ) {
+                return self.taggable_resource_tags_mutation(
+                    resource_type,
+                    id,
+                    root_field,
+                    field,
+                    request,
+                );
+            }
             return MutationOutcome::response(self.dispatch_unknown_passthrough_or_legacy_error(
                 request,
                 query,
@@ -2163,6 +2317,7 @@ impl DraftProxy {
             .store
             .product_staged_or_base(id)
             .or_else(|| known_tags_product_seed(id, root_field))
+            .or_else(|| self.hydrate_product_for_tags(id, request))
         else {
             return MutationOutcome::response(json_error(
                 400,
@@ -2179,20 +2334,13 @@ impl DraftProxy {
                 .insert(id.clone(), search_tags);
         }
 
-        let tags = resolved_string_list_arg(&field.arguments, "tags");
+        let tags = normalized_taggable_tags_argument(field.arguments.get("tags"));
         match root_field {
             "tagsAdd" => {
-                for tag in tags {
-                    if !product.tags.iter().any(|existing| existing == &tag) {
-                        product.tags.push(tag);
-                    }
-                }
-                product.tags.sort();
+                product.tags = add_taggable_tags(product.tags, tags);
             }
             "tagsRemove" => {
-                product
-                    .tags
-                    .retain(|tag| !tags.iter().any(|remove| remove == tag));
+                product.tags = remove_taggable_tags(product.tags, tags);
             }
             _ => {}
         }
@@ -2214,6 +2362,199 @@ impl DraftProxy {
             })),
             LogDraft::staged(root_field, "products", vec![id.clone()]),
         )
+    }
+
+    fn hydrate_product_for_tags(&self, id: &str, request: &Request) -> Option<ProductRecord> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": TAGGABLE_PRODUCT_HYDRATE_QUERY,
+                "variables": { "ids": [id] }
+            })
+            .to_string(),
+        });
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        let record = response.body["data"]["nodes"]
+            .as_array()
+            .and_then(|nodes| nodes.first())
+            .cloned()
+            .unwrap_or(Value::Null);
+        if record.is_null() {
+            return None;
+        }
+        Some(product_record_from_hydrated_json(&record))
+    }
+
+    fn taggable_resource_tags_mutation(
+        &mut self,
+        resource_type: &str,
+        id: &str,
+        root_field: &str,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> MutationOutcome {
+        let Some(mut record) =
+            self.taggable_resource_staged_or_hydrated(resource_type, id, request)
+        else {
+            return MutationOutcome::response(json_error(
+                400,
+                "No mutation dispatcher implemented for taggable resource id",
+            ));
+        };
+
+        let existing_tags = taggable_record_tags(&record);
+        let incoming_tags = normalized_taggable_tags_argument(field.arguments.get("tags"));
+        let tags = match root_field {
+            "tagsAdd" if resource_type == "Customer" => {
+                add_taggable_tags(existing_tags, lowercase_tags(incoming_tags))
+            }
+            "tagsAdd" => add_taggable_tags(existing_tags, incoming_tags),
+            "tagsRemove" if resource_type == "Customer" => {
+                remove_taggable_tags(existing_tags, incoming_tags)
+            }
+            "tagsRemove" => remove_exact_taggable_tags(existing_tags, incoming_tags),
+            _ => existing_tags,
+        };
+        if let Some(object) = record.as_object_mut() {
+            object.insert("id".to_string(), json!(id));
+            object.insert("__typename".to_string(), json!(resource_type));
+            object.insert("tags".to_string(), json!(tags));
+        }
+        self.stage_taggable_resource(resource_type, id, record.clone());
+
+        let node_selection = selected_child_selection(&field.selection, "node").unwrap_or_default();
+        let payload_selection = &field.selection;
+        let payload = json!({
+            "node": selected_json(&record, &node_selection),
+            "userErrors": []
+        });
+        MutationOutcome::staged(
+            ok_json(json!({
+                "data": {
+                    field.response_key.clone(): selected_json(&payload, payload_selection)
+                }
+            })),
+            LogDraft::staged(root_field, "products", vec![id.to_string()]),
+        )
+    }
+
+    fn taggable_resource_staged_or_hydrated(
+        &mut self,
+        resource_type: &str,
+        id: &str,
+        request: &Request,
+    ) -> Option<Value> {
+        if resource_type == "Customer" {
+            if let Some(customer) = self.store.staged.customers.get(id) {
+                return Some(customer.clone());
+            }
+        } else if let Some(record) = self.store.staged.taggable_resources.get(id) {
+            return Some(record.clone());
+        }
+
+        let hydrated = self.hydrate_taggable_resource(resource_type, id, request)?;
+        self.stage_taggable_resource(resource_type, id, hydrated.clone());
+        Some(hydrated)
+    }
+
+    fn hydrate_taggable_resource(
+        &self,
+        resource_type: &str,
+        id: &str,
+        request: &Request,
+    ) -> Option<Value> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let (query, response_key) = match resource_type {
+            "Order" => (TAGGABLE_ORDER_HYDRATE_QUERY, "order"),
+            "Customer" => (TAGGABLE_CUSTOMER_HYDRATE_QUERY, "customer"),
+            "Article" => (TAGGABLE_ARTICLE_HYDRATE_QUERY, "article"),
+            "DraftOrder" => (TAGGABLE_DRAFT_ORDER_HYDRATE_QUERY, "draftOrder"),
+            _ => return None,
+        };
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": query,
+                "variables": { "id": id }
+            })
+            .to_string(),
+        });
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        let mut record = response.body["data"][response_key].clone();
+        if record.is_null() {
+            return None;
+        }
+        if let Some(object) = record.as_object_mut() {
+            object.insert("__typename".to_string(), json!(resource_type));
+        }
+        Some(record)
+    }
+
+    fn stage_taggable_resource(&mut self, resource_type: &str, id: &str, record: Value) {
+        if resource_type == "Customer" {
+            self.store
+                .staged
+                .customers
+                .insert(id.to_string(), record.clone());
+        } else {
+            self.store
+                .staged
+                .taggable_resources
+                .insert(id.to_string(), record.clone());
+        }
+        if resource_type == "DraftOrder" {
+            self.store
+                .staged
+                .draft_order_tags
+                .insert(id.to_string(), taggable_record_tags(&record));
+        }
+    }
+
+    pub(in crate::proxy) fn should_handle_taggable_resource_overlay_read(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        fields.iter().any(|field| {
+            matches!(
+                field.name.as_str(),
+                "order" | "customer" | "article" | "draftOrder"
+            ) && resolved_string_arg(&field.arguments, "id").is_some_and(|id| {
+                self.store.staged.taggable_resources.contains_key(&id)
+                    || self.store.staged.customers.contains_key(&id)
+            })
+        })
+    }
+
+    pub(in crate::proxy) fn taggable_resource_overlay_read_fields(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "customer" => self.customer_read_field(field),
+                "order" | "article" | "draftOrder" => resolved_string_arg(&field.arguments, "id")
+                    .and_then(|id| self.store.staged.taggable_resources.get(&id).cloned())
+                    .map(|record| selected_json(&record, &field.selection))
+                    .unwrap_or(Value::Null),
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
     }
 
     pub(in crate::proxy) fn record_mutation_log_entry(
@@ -2541,6 +2882,64 @@ impl DraftProxy {
         } else {
             MutationFieldOutcome::unlogged(value)
         }
+    }
+}
+
+fn taggable_record_tags(record: &Value) -> Vec<String> {
+    record
+        .get("tags")
+        .and_then(Value::as_array)
+        .map(|tags| {
+            tags.iter()
+                .filter_map(|tag| tag.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn lowercase_tags(tags: Vec<String>) -> Vec<String> {
+    tags.into_iter().map(|tag| tag.to_lowercase()).collect()
+}
+
+fn remove_exact_taggable_tags(existing: Vec<String>, removals: Vec<String>) -> Vec<String> {
+    let remove_tags: BTreeSet<String> = removals.into_iter().collect();
+    normalize_taggable_tags(existing)
+        .into_iter()
+        .filter(|tag| !remove_tags.contains(tag))
+        .collect()
+}
+
+fn product_record_from_hydrated_json(record: &Value) -> ProductRecord {
+    let seo = record.get("seo").unwrap_or(&Value::Null);
+    ProductRecord {
+        id: record["id"].as_str().unwrap_or_default().to_string(),
+        created_at: record["createdAt"]
+            .as_str()
+            .unwrap_or("2024-01-01T00:00:00.000Z")
+            .to_string(),
+        updated_at: record["updatedAt"]
+            .as_str()
+            .unwrap_or("2024-01-01T00:00:00.000Z")
+            .to_string(),
+        title: record["title"].as_str().unwrap_or_default().to_string(),
+        handle: record["handle"].as_str().unwrap_or_default().to_string(),
+        status: record["status"].as_str().unwrap_or("ACTIVE").to_string(),
+        description_html: record["descriptionHtml"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
+        vendor: record["vendor"].as_str().unwrap_or_default().to_string(),
+        product_type: record["productType"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
+        tags: taggable_record_tags(record),
+        template_suffix: record["templateSuffix"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
+        seo_title: seo["title"].as_str().unwrap_or_default().to_string(),
+        seo_description: seo["description"].as_str().unwrap_or_default().to_string(),
     }
 }
 
@@ -3517,4 +3916,231 @@ fn dedupe_media_user_errors(values: Vec<Value>) -> Vec<Value> {
         .into_iter()
         .filter(|value| seen.insert(value.to_string()))
         .collect()
+}
+
+fn bulk_operation_id_validation_response(
+    field: &RootFieldSelection,
+    operation_path: &str,
+) -> Option<Response> {
+    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+    match shopify_gid_resource_type(&id) {
+        Some("BulkOperation") => None,
+        Some(_) => Some(ok_json(json!({
+            "errors": [{
+                "message": format!("Invalid id: {id}"),
+                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "extensions": {"code": "RESOURCE_NOT_FOUND"},
+                "path": [field.response_key]
+            }],
+            "data": { field.response_key.clone(): null }
+        }))),
+        None => Some(ok_json(json!({
+            "errors": [{
+                "message": format!("Invalid global id '{id}'"),
+                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "path": [operation_path, field.response_key.clone(), "id"],
+                "extensions": {
+                    "code": "argumentLiteralsIncompatible",
+                    "typeName": "CoercionError"
+                }
+            }]
+        }))),
+    }
+}
+
+fn bulk_operations_argument_validation_response(
+    field: &RootFieldSelection,
+    operation_path: &str,
+) -> Option<Response> {
+    if field.arguments.contains_key("first") && field.arguments.contains_key("last") {
+        return Some(ok_json(json!({
+            "errors": [{
+                "message": "providing both first and last is not supported",
+                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "extensions": {"code": "BAD_REQUEST"},
+                "path": [field.response_key]
+            }],
+            "data": null
+        })));
+    }
+    if !field.arguments.contains_key("first") && !field.arguments.contains_key("last") {
+        return Some(ok_json(json!({
+            "errors": [{
+                "message": "you must provide one of first or last",
+                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "extensions": {"code": "BAD_REQUEST"},
+                "path": [field.response_key]
+            }],
+            "data": null
+        })));
+    }
+    if matches!(
+        resolved_string_arg(&field.arguments, "sortKey").as_deref(),
+        Some("ID")
+    ) {
+        return Some(ok_json(json!({
+            "errors": [{
+                "message": "Argument 'sortKey' on Field 'bulkOperations' has an invalid value (ID). Expected type 'BulkOperationsSortKeys'.",
+                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "path": [operation_path, field.response_key.clone(), "sortKey"],
+                "extensions": {
+                    "code": "argumentLiteralsIncompatible",
+                    "typeName": "Field",
+                    "argumentName": "sortKey"
+                }
+            }]
+        })));
+    }
+    if let Some(query) = resolved_string_arg(&field.arguments, "query") {
+        if let Some(value) = bulk_operation_query_filter_value(&query, "created_at") {
+            if !bulk_operation_valid_timestamp_filter(value) {
+                return Some(ok_json(json!({
+                    "errors": [{
+                        "message": "Invalid timestamp for query filter `created_at`.",
+                        "locations": [{"line": field.location.line, "column": field.location.column}],
+                        "extensions": {"code": "BAD_REQUEST"},
+                        "path": [field.response_key]
+                    }],
+                    "data": null
+                })));
+            }
+        }
+        if let Some(value) = bulk_operation_query_filter_value(&query, "id") {
+            match shopify_gid_resource_type(value) {
+                Some("BulkOperation") => {}
+                Some(_) => {
+                    return Some(ok_json(json!({
+                        "errors": [{
+                            "message": format!("Invalid id: {value}"),
+                            "locations": [{"line": field.location.line, "column": field.location.column}],
+                            "extensions": {"code": "RESOURCE_NOT_FOUND"},
+                            "path": [field.response_key]
+                        }],
+                        "data": { field.response_key.clone(): null }
+                    })));
+                }
+                None => {
+                    return Some(ok_json(json!({
+                        "errors": [{
+                            "message": format!("Invalid global id '{value}'"),
+                            "locations": [{"line": field.location.line, "column": field.location.column}],
+                            "path": [operation_path, field.response_key.clone(), "query"],
+                            "extensions": {
+                                "code": "argumentLiteralsIncompatible",
+                                "typeName": "CoercionError"
+                            }
+                        }]
+                    })));
+                }
+            }
+        }
+    }
+    None
+}
+
+fn bulk_operation_sort_value(operation: &Value, sort_key: &str) -> String {
+    let field = match sort_key {
+        "COMPLETED_AT" => "completedAt",
+        _ => "createdAt",
+    };
+    operation
+        .get(field)
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string()
+}
+
+fn bulk_operation_matches_query(
+    operation: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    let Some(query) = resolved_string_arg(arguments, "query") else {
+        return true;
+    };
+    for token in query.split_whitespace() {
+        let Some((key, raw_value)) = token.split_once(':') else {
+            continue;
+        };
+        let value = raw_value
+            .trim_matches('"')
+            .trim_start_matches(">=")
+            .trim_start_matches("<=")
+            .trim_start_matches('>')
+            .trim_start_matches('<');
+        let matches = match key {
+            "id" => operation.get("id").and_then(Value::as_str) == Some(value),
+            "operation_type" | "type" => {
+                operation.get("type").and_then(Value::as_str) == Some(value)
+            }
+            "status" => operation.get("status").and_then(Value::as_str) == Some(value),
+            "created_at" => operation.get("createdAt").and_then(Value::as_str) == Some(value),
+            _ => true,
+        };
+        if !matches {
+            return false;
+        }
+    }
+    true
+}
+
+fn bulk_operation_search_extensions(fields: &[RootFieldSelection]) -> Option<Value> {
+    let warnings = fields
+        .iter()
+        .filter(|field| field.name == "bulkOperations")
+        .filter_map(|field| {
+            let query = resolved_string_arg(&field.arguments, "query")?;
+            let (filter, value) = bulk_operation_invalid_search_filter(&query)?;
+            Some(json!({
+                "path": [field.response_key.clone()],
+                "query": query,
+                "parsed": {
+                    "field": filter,
+                    "match_all": value
+                },
+                "warnings": [{
+                    "field": filter,
+                    "message": format!("Input `{value}` is not an accepted value."),
+                    "code": "invalid_value"
+                }]
+            }))
+        })
+        .collect::<Vec<_>>();
+    (!warnings.is_empty()).then_some(Value::Array(warnings))
+}
+
+fn bulk_operation_invalid_search_filter(query: &str) -> Option<(&'static str, String)> {
+    if let Some(value) = bulk_operation_query_filter_value(query, "status") {
+        if !matches!(
+            value,
+            "CREATED" | "RUNNING" | "COMPLETED" | "CANCELING" | "CANCELED" | "FAILED"
+        ) {
+            return Some(("status", value.to_string()));
+        }
+    }
+    if let Some(value) = bulk_operation_query_filter_value(query, "operation_type") {
+        if !matches!(value, "QUERY" | "MUTATION") {
+            return Some(("operation_type", value.to_string()));
+        }
+    }
+    None
+}
+
+fn bulk_operation_query_filter_value<'a>(query: &'a str, key: &str) -> Option<&'a str> {
+    query.split_whitespace().find_map(|token| {
+        let (candidate, value) = token.split_once(':')?;
+        (candidate == key).then_some(value.trim_matches('"'))
+    })
+}
+
+fn bulk_operation_valid_timestamp_filter(value: &str) -> bool {
+    let value = value
+        .trim_start_matches(">=")
+        .trim_start_matches("<=")
+        .trim_start_matches('>')
+        .trim_start_matches('<');
+    value.len() >= "2026-05-05T20:32:29Z".len()
+        && value.chars().nth(4) == Some('-')
+        && value.chars().nth(7) == Some('-')
+        && value.contains('T')
+        && value.ends_with('Z')
 }
