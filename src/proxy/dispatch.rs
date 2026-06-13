@@ -303,8 +303,15 @@ impl DraftProxy {
                     "metaobject" | "metaobjectByHandle" | "metaobjects"
                 )
             })
-            && is_ported_metaobject_document(&query)
         {
+            if self.config.read_mode != ReadMode::Snapshot
+                && !self.has_local_metaobject_entry_state()
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    return self.metaobject_live_hybrid_read(request, &fields);
+                }
+                return (self.upstream_transport)(request.clone());
+            }
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({"data": self.metaobject_query_data(&fields)}));
             }
@@ -315,7 +322,6 @@ impl DraftProxy {
                 .root_fields
                 .iter()
                 .all(|field| matches!(field.as_str(), "metaobjectCreate" | "metaobjectDelete"))
-            && is_ported_metaobject_document(&query)
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return self.metaobject_mutation(&fields, request, &query, &variables);
