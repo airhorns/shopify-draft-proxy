@@ -7721,6 +7721,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'bulk-operations',
+    captureId: 'bulk-operation-name-independent-run-roots',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-name-independence-conformance.ts',
+    purpose:
+      'bulkOperationRunQuery and bulkOperationRunMutation validation behavior is independent of client GraphQL operation names.',
+    requiredAuthScopes: ['bulk operation access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operation-name-independent-run-roots.json`,
+      'config/parity-specs/bulk-operations/bulk-operation-name-independent-run-roots.json',
+      'config/parity-requests/bulk-operations/bulk-operation-name-independent-run-query.graphql',
+      'config/parity-requests/bulk-operations/bulk-operation-name-independent-run-mutation.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no Shopify data is created or mutated.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
     captureId: 'bulk-operation-run-mutation-created-status',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bulk-operation-run-mutation-created-status-conformance.ts',
