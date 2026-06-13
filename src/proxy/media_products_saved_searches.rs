@@ -1087,8 +1087,11 @@ impl DraftProxy {
             resolved_string_field(&input, "handle").unwrap_or_else(|| slugify_handle(&title));
         let status =
             resolved_string_field(&input, "status").unwrap_or_else(|| "ACTIVE".to_string());
+        let timestamp = self.next_product_timestamp();
         let product = ProductRecord {
             id: id.clone(),
+            created_at: timestamp.clone(),
+            updated_at: timestamp,
             title,
             handle,
             status,
@@ -1189,6 +1192,8 @@ impl DraftProxy {
 
         let product = ProductRecord {
             id: existing.id,
+            created_at: existing.created_at,
+            updated_at: self.next_product_updated_at(&existing.updated_at),
             title: resolved_string_field(&input, "title").unwrap_or(existing.title),
             handle: resolved_string_field(&input, "handle").unwrap_or(existing.handle),
             status: resolved_string_field(&input, "status").unwrap_or(existing.status),
@@ -1320,8 +1325,11 @@ impl DraftProxy {
         };
         let title = resolved_string_field(&input, "title").unwrap_or_default();
         let id = self.next_proxy_synthetic_gid("Product");
+        let timestamp = self.next_product_timestamp();
         let product = ProductRecord {
             id: id.clone(),
+            created_at: timestamp.clone(),
+            updated_at: timestamp,
             title,
             handle: resolved_string_field(&input, "handle")
                 .unwrap_or_else(|| "async-delete-source-1778096279651".to_string()),
@@ -1442,6 +1450,7 @@ impl DraftProxy {
             })));
         };
         product.status = status;
+        product.updated_at = self.next_product_updated_at(&product.updated_at);
         self.store.stage_product(product.clone());
 
         let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
@@ -1522,6 +1531,7 @@ impl DraftProxy {
             _ => {}
         }
 
+        product.updated_at = self.next_product_updated_at(&product.updated_at);
         self.store.stage_product(product.clone());
 
         let node_selection = nested_root_field_selection(query, "node").unwrap_or_default();

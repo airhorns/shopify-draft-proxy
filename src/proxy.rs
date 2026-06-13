@@ -98,6 +98,8 @@ pub struct Response {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProductRecord {
     pub id: String,
+    pub created_at: String,
+    pub updated_at: String,
     pub title: String,
     pub handle: String,
     pub status: String,
@@ -812,6 +814,8 @@ mod store_tests {
     fn product(id: &str, title: &str, handle: &str) -> ProductRecord {
         ProductRecord {
             id: id.to_string(),
+            created_at: default_product_timestamp(id),
+            updated_at: default_product_timestamp(id),
             title: title.to_string(),
             handle: handle.to_string(),
             status: "ACTIVE".to_string(),
