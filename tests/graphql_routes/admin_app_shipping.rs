@@ -2443,6 +2443,184 @@ fn fulfillment_service_lifecycle_stages_location_reads_deletes_and_validates() {
 }
 
 #[test]
+fn fulfillment_service_callback_url_validation_matches_captured_shopify_behavior() {
+    let mut proxy = DraftProxy::new(Config {
+        read_mode: ReadMode::Snapshot,
+        unsupported_mutation_mode: None,
+        bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        port: 0,
+        shopify_admin_origin: "https://harry-test-heelo.myshopify.com".to_string(),
+        snapshot_path: None,
+    });
+
+    let primary = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentServiceCallbackUrlValidation(
+          $validHttpsName: String!
+          $validHttpsCallbackUrl: URL!
+          $validHttpName: String!
+          $validHttpCallbackUrl: URL!
+          $originName: String!
+          $originCallbackUrl: URL!
+          $ftpName: String!
+          $ftpCallbackUrl: URL!
+          $exampleName: String!
+          $exampleCallbackUrl: URL!
+          $shopifyName: String!
+          $shopifyCallbackUrl: URL!
+        ) {
+          validHttpsCreate: fulfillmentServiceCreate(name: $validHttpsName, callbackUrl: $validHttpsCallbackUrl, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) {
+            fulfillmentService { id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory } }
+            userErrors { field message }
+          }
+          validHttpCreate: fulfillmentServiceCreate(name: $validHttpName, callbackUrl: $validHttpCallbackUrl, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) {
+            fulfillmentService { id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory } }
+            userErrors { field message }
+          }
+          originCreate: fulfillmentServiceCreate(name: $originName, callbackUrl: $originCallbackUrl, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) {
+            fulfillmentService { id handle serviceName callbackUrl trackingSupport inventoryManagement requiresShippingMethod type location { id name isFulfillmentService fulfillsOnlineOrders shipsInventory } }
+            userErrors { field message }
+          }
+          ftpCreate: fulfillmentServiceCreate(name: $ftpName, callbackUrl: $ftpCallbackUrl, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) {
+            fulfillmentService { id callbackUrl }
+            userErrors { field message }
+          }
+          exampleCreate: fulfillmentServiceCreate(name: $exampleName, callbackUrl: $exampleCallbackUrl, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) {
+            fulfillmentService { id callbackUrl }
+            userErrors { field message }
+          }
+          shopifyCreate: fulfillmentServiceCreate(name: $shopifyName, callbackUrl: $shopifyCallbackUrl, trackingSupport: false, inventoryManagement: false, requiresShippingMethod: false) {
+            fulfillmentService { id callbackUrl }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "validHttpsName": "Hermes Callback HTTPS 1778113515444",
+            "validHttpsCallbackUrl": "https://mock.shop/fulfillment-service-callback",
+            "validHttpName": "Hermes Callback HTTP 1778113515444",
+            "validHttpCallbackUrl": "http://mock.shop/fulfillment-service-callback",
+            "originName": "Hermes Callback Origin 1778113515444",
+            "originCallbackUrl": "https://harry-test-heelo.myshopify.com/fulfillment-service-callback",
+            "ftpName": "Hermes Callback FTP 1778113515444",
+            "ftpCallbackUrl": "ftp://mock.shop/fulfillment-service-callback",
+            "exampleName": "Hermes Callback Example 1778113515444",
+            "exampleCallbackUrl": "https://example.com/fulfillment-service-callback",
+            "shopifyName": "Hermes Callback Shopify 1778113515444",
+            "shopifyCallbackUrl": "https://shopify.com/fulfillment-service-callback"
+        }),
+    ));
+
+    for (key, callback_url) in [
+        (
+            "validHttpsCreate",
+            "https://mock.shop/fulfillment-service-callback",
+        ),
+        (
+            "validHttpCreate",
+            "http://mock.shop/fulfillment-service-callback",
+        ),
+        (
+            "originCreate",
+            "https://harry-test-heelo.myshopify.com/fulfillment-service-callback",
+        ),
+    ] {
+        assert_eq!(
+            primary.body["data"][key]["userErrors"],
+            json!([]),
+            "{key} should be accepted"
+        );
+        assert_eq!(
+            primary.body["data"][key]["fulfillmentService"]["callbackUrl"],
+            json!(callback_url)
+        );
+    }
+    assert_eq!(
+        primary.body["data"]["ftpCreate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [{
+                "field": ["callbackUrl"],
+                "message": "Callback url protocol ftp:// is not supported"
+            }]
+        })
+    );
+    assert_eq!(
+        primary.body["data"]["exampleCreate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [{
+                "field": ["callbackUrl"],
+                "message": "Callback url is not allowed"
+            }]
+        })
+    );
+    assert_eq!(
+        primary.body["data"]["shopifyCreate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [{
+                "field": ["callbackUrl"],
+                "message": "Callback url is not allowed"
+            }]
+        })
+    );
+
+    let service_id = primary.body["data"]["validHttpsCreate"]["fulfillmentService"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let update_allowed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentServiceCallbackUrlValidationUpdateAllowed($id: ID!, $callbackUrl: URL!) {
+          fulfillmentServiceUpdate(id: $id, callbackUrl: $callbackUrl) {
+            fulfillmentService { id callbackUrl }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": service_id,
+            "callbackUrl": "http://mock.shop/fulfillment-service-callback-updated"
+        }),
+    ));
+    assert_eq!(
+        update_allowed.body["data"]["fulfillmentServiceUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update_allowed.body["data"]["fulfillmentServiceUpdate"]["fulfillmentService"]
+            ["callbackUrl"],
+        json!("http://mock.shop/fulfillment-service-callback-updated")
+    );
+
+    let update_disallowed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentServiceCallbackUrlValidationUpdateDisallowed($id: ID!, $callbackUrl: URL!) {
+          fulfillmentServiceUpdate(id: $id, callbackUrl: $callbackUrl) {
+            fulfillmentService { id callbackUrl }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": primary.body["data"]["validHttpCreate"]["fulfillmentService"]["id"],
+            "callbackUrl": "https://example.com/fulfillment-service-callback-updated"
+        }),
+    ));
+    assert_eq!(
+        update_disallowed.body["data"]["fulfillmentServiceUpdate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [{
+                "field": ["callbackUrl"],
+                "message": "Callback url is not allowed"
+            }]
+        })
+    );
+}
+
+#[test]
 fn fulfillment_service_uniqueness_rejects_name_handle_and_reserved_collisions() {
     let mut proxy = snapshot_proxy();
 
