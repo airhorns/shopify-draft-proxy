@@ -24,6 +24,14 @@
         }
       },
       {
+        "name": "ordinary-operation-name-empty-scope-user-error",
+        "capturePath": "$.evidence.parity.expected.ordinaryOperationName.data.delegateAccessTokenCreate",
+        "proxyPath": "$.data.delegateAccessTokenCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenCreate-ordinary-operation-name.graphql"
+        }
+      },
+      {
         "name": "negative-expires-user-error",
         "capturePath": "$.evidence.parity.expected.negativeExpires.data.delegateAccessTokenCreate",
         "proxyPath": "$.data.delegateAccessTokenCreate",
@@ -66,5 +74,5 @@
       }
     ]
   },
-  "notes": "Captured 2026-04 delegateAccessTokenCreate validation for empty scope, negative expiresIn, unknown scope, and happy-path accessScopes. Parent-is-delegate rejection is executable local-runtime evidence until the parity harness can swap the active caller token between requests."
+  "notes": "Captured 2026-04 delegateAccessTokenCreate validation for empty scope, ordinary operation-name empty scope, negative expiresIn, unknown scope, and happy-path accessScopes. Parent-is-delegate rejection is executable local-runtime evidence until the parity harness can swap the active caller token between requests."
 }
