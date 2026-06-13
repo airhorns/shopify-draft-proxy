@@ -42,7 +42,7 @@ Subscription lifecycle mutations stage locally and retain the original raw mutat
 - `webhookSubscriptionUpdate` updates an existing staged or hydrated subscription in place, preserving `topic` and `createdAt` while replacing supported mutable fields.
 - `webhookSubscriptionDelete` records local deletion state. Downstream detail reads return `null`, and list/count reads omit deleted subscriptions.
 - `$app:<suffix>` `metafieldNamespaces` entries resolve through request-owned `x-shopify-draft-proxy-api-client-id` when available. Without a caller API client ID, the proxy preserves `$app:` input unchanged rather than fabricating an identity.
-- Unified `uri` input derives deprecated endpoint projections: HTTPS URIs become `WebhookHttpEndpoint.callbackUrl`, valid `pubsub://project:topic` URIs become `WebhookPubSubEndpoint`, and valid EventBridge ARNs become `WebhookEventBridgeEndpoint`.
+- Unified `uri` input derives deprecated endpoint projections: HTTPS URIs become `WebhookHttpEndpoint.callbackUrl`, valid `pubsub://project:topic` URIs become `WebhookPubSubEndpoint`, and Shopify partner EventBridge ARNs become `WebhookEventBridgeEndpoint`.
 - Dedicated Pub/Sub create/update roots normalize `pubSubProject` plus `pubSubTopic` into the stored `pubsub://project:topic` URI while preserving dedicated validation field paths.
 - Dedicated EventBridge create/update roots normalize `arn` into the stored URI/address while preserving dedicated validation field paths.
 - Commit replay replaces synthetic IDs with upstream IDs from prior successful replay attempts before replaying subsequent raw request bodies.
@@ -51,6 +51,7 @@ Validation and no-side-effect behavior:
 
 - Missing or null required arguments return Shopify-like GraphQL validation errors and do not append mutation-log entries.
 - Create/update reject blank addresses, non-HTTPS HTTP callback URLs, malformed Pub/Sub/project/topic values, malformed EventBridge ARNs, wrong EventBridge API client IDs when known, public Kafka URIs, Shopify/internal callback hosts, invalid topic/format combinations, invalid names, duplicate webhook names, and duplicate active `(topic, uri, format, filter, apiPermissionId)` registrations without staging.
+- EventBridge ARN validation requires the captured Shopify partner event-source shape `arn:aws:events:<region>::event-source/aws.partner/shopify.com(.test)?/<api_client_id>/<event_source_name>`. The embedded `api_client_id` is compared only when the request includes `x-shopify-draft-proxy-api-client-id`; without that caller identity, the proxy still rejects malformed or non-partner ARNs but cannot prove wrong-app ownership.
 - Unknown update/delete IDs return captured userErrors and leave local state unchanged.
 - Whitespace-only `uri` is treated as blank; leading/trailing whitespace around a valid HTTPS URI is trimmed before storage.
 - Callback address byte-size validation uses Shopify's MySQL text-column maximum of 65,535 bytes.

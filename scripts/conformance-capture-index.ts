@@ -4761,6 +4761,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}location-activate-deactivate-with-idempotency-directive.json`,
       'config/parity-specs/store-properties/location-activate-deactivate-with-idempotency-directive.json',
+      'config/parity-specs/store-properties/location-activate-generic-staging-readback.json',
     ],
     cleanupBehavior:
       'Creates one disposable non-online-fulfilling location, deactivates/reactivates it, then deactivates and deletes it.',
@@ -4776,6 +4777,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}location-add-validation-and-defaults.json`,
       'config/parity-specs/store-properties/location-add-validation-and-defaults.json',
+      'config/parity-specs/store-properties/location-add-generic-staging-readback.json',
       'config/parity-requests/store-properties/location-add-blank-name-code.graphql',
       'config/parity-requests/store-properties/location-add-capabilities-variable.graphql',
       'config/parity-requests/store-properties/location-add-inline-capabilities.graphql',
@@ -6207,6 +6209,37 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'apps',
+    captureId: 'apps-billing-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-apps-billing-local-runtime.ts',
+    purpose:
+      'Executable local-runtime Apps billing mutation fixtures for billing validation branches that cannot be live-recorded with the conformance custom app.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      'fixtures/conformance/local-runtime/2026-04/apps/app-purchase-one-time-create-validation.json',
+      'fixtures/conformance/local-runtime/2026-04/apps/app-usage-record-create-cap-and-idempotency.json',
+      'fixtures/conformance/local-runtime/2026-04/apps/app-subscription-line-item-update-validation.json',
+      'config/parity-specs/apps/app-purchase-one-time-create-validation.json',
+      'config/parity-specs/apps/app-usage-record-create-cap-and-idempotency.json',
+      'config/parity-specs/apps/app-subscription-line-item-update-validation.json',
+      'config/parity-requests/apps/appPurchaseOneTimeCreate-validation-blank-name.graphql',
+      'config/parity-requests/apps/appPurchaseOneTimeCreate-validation-zero-price.graphql',
+      'config/parity-requests/apps/appPurchaseOneTimeCreate-validation-currency-mismatch.graphql',
+      'config/parity-requests/apps/appPurchaseOneTimeCreate-validation-missing-return-url.graphql',
+      'config/parity-requests/apps/appPurchaseOneTimeCreate-validation-success.graphql',
+      'config/parity-requests/apps/appSubscriptionCreate-local-lifecycle.graphql',
+      'config/parity-requests/apps/appUsageRecordCreate-cap-success.graphql',
+      'config/parity-requests/apps/appUsageRecordCreate-cap-over-limit.graphql',
+      'config/parity-requests/apps/appUsageRecordCreate-long-idempotency-key.graphql',
+      'config/parity-requests/apps/app-usage-record-create-cap-read.graphql',
+      'config/parity-requests/apps/appSubscriptionLineItemUpdate-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Local-runtime only; the script executes supported mutations against a local proxy with no Shopify upstream writes.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'apps',
     captureId: 'delegate-access-token-shop-payload',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-delegate-access-token-shop-payload-conformance.ts',
@@ -6259,6 +6292,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/apps/delegateAccessTokenCreate-expires-after-parent.graphql',
       'config/parity-requests/apps/delegateAccessTokenCreate-happy-validation.graphql',
       'config/parity-requests/apps/delegateAccessTokenCreate-negative-expires-validation.graphql',
+      'config/parity-requests/apps/delegateAccessTokenCreate-ordinary-operation-name.graphql',
       'config/parity-requests/apps/delegateAccessTokenCreate-unknown-scope-validation.graphql',
       'config/parity-requests/apps/delegateAccessTokenDestroy-codes.graphql',
     ],
@@ -6883,13 +6917,15 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-admin-platform-backup-region-update-extended.mts',
     purpose:
-      'backupRegionUpdate omitted/null current-state semantics, harry-test-heelo non-CA success, read-after-write, and REGION_NOT_FOUND validation.',
+      'backupRegionUpdate omitted/null current-state semantics, harry-test-heelo non-CA and US success, read-after-write, and REGION_NOT_FOUND validation.',
     requiredAuthScopes: ['active Admin API token with Markets/admin platform access'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}admin-platform-backup-region-update-extended.json`,
       'config/parity-specs/admin-platform/admin-platform-backup-region-update-extended.json',
+      'config/parity-requests/admin-platform/admin-platform-backup-region-update-us.graphql',
     ],
-    cleanupBehavior: 'Temporarily stages AE as the backup region, then restores the store backup region to CA.',
+    cleanupBehavior:
+      'Temporarily stages CA, AE, and US as the backup region; creates/deletes temporary CA/US region markets if needed; then restores the store backup region to its original country.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -7713,6 +7749,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}bulk-operation-run-mutation-user-errors.json`,
       'config/parity-specs/bulk-operations/bulk-operation-run-mutation-user-errors.json',
       'config/parity-requests/bulk-operations/bulk-operation-run-mutation-user-errors.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no Shopify data is created or mutated.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
+    captureId: 'bulk-operation-name-independent-run-roots',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-name-independence-conformance.ts',
+    purpose:
+      'bulkOperationRunQuery and bulkOperationRunMutation validation behavior is independent of client GraphQL operation names.',
+    requiredAuthScopes: ['bulk operation access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operation-name-independent-run-roots.json`,
+      'config/parity-specs/bulk-operations/bulk-operation-name-independent-run-roots.json',
+      'config/parity-requests/bulk-operations/bulk-operation-name-independent-run-query.graphql',
+      'config/parity-requests/bulk-operations/bulk-operation-name-independent-run-mutation.graphql',
     ],
     cleanupBehavior: 'Validation-only capture; no Shopify data is created or mutated.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,

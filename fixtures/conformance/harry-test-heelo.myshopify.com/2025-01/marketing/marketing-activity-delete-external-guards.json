@@ -2,26 +2,27 @@
   "scenarioId": "marketing-activity-delete-external-guards",
   "apiVersion": "2025-01",
   "storeDomain": "harry-test-heelo.myshopify.com",
-  "capturedAt": "2026-05-05T18:59:03.724Z",
+  "capturedAt": "2026-06-13T21:05:27.482Z",
   "operations": {
     "primary": {
       "request": {
-        "query": "mutation MarketingActivityDeleteExternalGuards(\n  $createAfterDeleteAllInput: MarketingActivityCreateExternalInput!\n) {\n  noArgsDelete: marketingActivityDeleteExternal {\n    deletedMarketingActivityId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  deleteAllExternal: marketingActivitiesDeleteAllExternal {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  createAfterDeleteAll: marketingActivityCreateExternal(\n    input: $createAfterDeleteAllInput\n  ) {\n    marketingActivity {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "query": "mutation MarketingActivityDeleteExternalGuards(\n  $createAfterDeleteAllInput: MarketingActivityCreateExternalInput!\n  $missingMarketingActivityId: ID!\n) {\n  noArgsDelete: marketingActivityDeleteExternal {\n    deletedMarketingActivityId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  missingIdDelete: marketingActivityDeleteExternal(marketingActivityId: $missingMarketingActivityId) {\n    deletedMarketingActivityId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  deleteAllExternal: marketingActivitiesDeleteAllExternal {\n    job {\n      id\n      done\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  createAfterDeleteAll: marketingActivityCreateExternal(input: $createAfterDeleteAllInput) {\n    marketingActivity {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
         "variables": {
           "createAfterDeleteAllInput": {
-            "title": "HAR-687 after-delete-all-1778007542630-1b27gp",
-            "remoteId": "har-687-after-delete-all-1778007542630-1b27gp",
+            "title": "HAR-687 after-delete-all-1781384726473-ftuu5f",
+            "remoteId": "har-687-after-delete-all-1781384726473-ftuu5f",
             "status": "ACTIVE",
-            "remoteUrl": "https://example.com/har-687/after-delete-all-1778007542630-1b27gp",
+            "remoteUrl": "https://example.com/har-687/after-delete-all-1781384726473-ftuu5f",
             "tactic": "NEWSLETTER",
             "marketingChannelType": "EMAIL",
-            "urlParameterValue": "har687-after-delete-all-1778007542630-1b27gp",
+            "urlParameterValue": "har687-after-delete-all-1781384726473-ftuu5f",
             "utm": {
-              "campaign": "har-687-after-delete-all-1778007542630-1b27gp",
+              "campaign": "har-687-after-delete-all-1781384726473-ftuu5f",
               "source": "email",
               "medium": "newsletter"
             }
-          }
+          },
+          "missingMarketingActivityId": "gid://shopify/MarketingActivity/999999999999"
         }
       },
       "response": {
@@ -38,9 +39,19 @@
                 }
               ]
             },
+            "missingIdDelete": {
+              "deletedMarketingActivityId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Marketing activity does not exist.",
+                  "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+                }
+              ]
+            },
             "deleteAllExternal": {
               "job": {
-                "id": "gid://shopify/Job/293dd354-cf07-4565-9a33-0793e7495a80",
+                "id": "gid://shopify/Job/9074e105-7d25-4f75-b637-aaeac2cc48a7",
                 "done": false
               },
               "userErrors": []
@@ -58,11 +69,11 @@
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 30,
-              "actualQueryCost": 30,
+              "requestedQueryCost": 40,
+              "actualQueryCost": 40,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1970,
+                "currentlyAvailable": 1960,
                 "restoreRate": 100
               }
             }
@@ -79,15 +90,15 @@
           "name": "campaign-no-channel",
           "variables": {
             "input": {
-              "title": "HAR-687 parent-1778007542630-1b27gp",
-              "remoteId": "har-687-parent-1778007542630-1b27gp",
+              "title": "HAR-687 parent-1781384726473-ftuu5f",
+              "remoteId": "har-687-parent-1781384726473-ftuu5f",
               "status": "ACTIVE",
-              "remoteUrl": "https://example.com/har-687/parent-1778007542630-1b27gp",
+              "remoteUrl": "https://example.com/har-687/parent-1781384726473-ftuu5f",
               "tactic": "NEWSLETTER",
               "marketingChannelType": "EMAIL",
-              "urlParameterValue": "har687-parent-1778007542630-1b27gp",
+              "urlParameterValue": "har687-parent-1781384726473-ftuu5f",
               "utm": {
-                "campaign": "har-687-parent-1778007542630-1b27gp",
+                "campaign": "har-687-parent-1781384726473-ftuu5f",
                 "source": "email",
                 "medium": "newsletter"
               },
@@ -115,7 +126,7 @@
                   "actualQueryCost": 10,
                   "throttleStatus": {
                     "maximumAvailable": 2000,
-                    "currentlyAvailable": 1989,
+                    "currentlyAvailable": 1990,
                     "restoreRate": 100
                   }
                 }
@@ -127,15 +138,15 @@
           "name": "campaign-with-email",
           "variables": {
             "input": {
-              "title": "HAR-687 parent-email-1778007542630-1b27gp",
-              "remoteId": "har-687-parent-email-1778007542630-1b27gp",
+              "title": "HAR-687 parent-email-1781384726473-ftuu5f",
+              "remoteId": "har-687-parent-email-1781384726473-ftuu5f",
               "status": "ACTIVE",
-              "remoteUrl": "https://example.com/har-687/parent-email-1778007542630-1b27gp",
+              "remoteUrl": "https://example.com/har-687/parent-email-1781384726473-ftuu5f",
               "tactic": "NEWSLETTER",
               "marketingChannelType": "EMAIL",
-              "urlParameterValue": "har687-parent-email-1778007542630-1b27gp",
+              "urlParameterValue": "har687-parent-email-1781384726473-ftuu5f",
               "utm": {
-                "campaign": "har-687-parent-email-1778007542630-1b27gp",
+                "campaign": "har-687-parent-email-1781384726473-ftuu5f",
                 "source": "email",
                 "medium": "newsletter"
               },
@@ -176,15 +187,15 @@
           "name": "campaign-with-app",
           "variables": {
             "input": {
-              "title": "HAR-687 parent-app-1778007542630-1b27gp",
-              "remoteId": "har-687-parent-app-1778007542630-1b27gp",
+              "title": "HAR-687 parent-app-1781384726473-ftuu5f",
+              "remoteId": "har-687-parent-app-1781384726473-ftuu5f",
               "status": "ACTIVE",
-              "remoteUrl": "https://example.com/har-687/parent-app-1778007542630-1b27gp",
+              "remoteUrl": "https://example.com/har-687/parent-app-1781384726473-ftuu5f",
               "tactic": "NEWSLETTER",
               "marketingChannelType": "EMAIL",
-              "urlParameterValue": "har687-parent-app-1778007542630-1b27gp",
+              "urlParameterValue": "har687-parent-app-1781384726473-ftuu5f",
               "utm": {
-                "campaign": "har-687-parent-app-1778007542630-1b27gp",
+                "campaign": "har-687-parent-app-1781384726473-ftuu5f",
                 "source": "email",
                 "medium": "newsletter"
               },
@@ -252,15 +263,15 @@
     "deleteAllIdleAttempts": [
       {
         "input": {
-          "title": "HAR-687 preflight-0-har-687-preflight-1778007542630-1b27gp",
-          "remoteId": "har-687-preflight-1778007542630-1b27gp-0",
+          "title": "HAR-687 preflight-0-har-687-preflight-1781384726473-ftuu5f",
+          "remoteId": "har-687-preflight-1781384726473-ftuu5f-0",
           "status": "ACTIVE",
-          "remoteUrl": "https://example.com/har-687/preflight-0-har-687-preflight-1778007542630-1b27gp",
+          "remoteUrl": "https://example.com/har-687/preflight-0-har-687-preflight-1781384726473-ftuu5f",
           "tactic": "NEWSLETTER",
           "marketingChannelType": "EMAIL",
-          "urlParameterValue": "har687-preflight-0-har-687-preflight-1778007542630-1b27gp",
+          "urlParameterValue": "har687-preflight-0-har-687-preflight-1781384726473-ftuu5f",
           "utm": {
-            "campaign": "har-687-preflight-0-har-687-preflight-1778007542630-1b27gp",
+            "campaign": "har-687-preflight-0-har-687-preflight-1781384726473-ftuu5f",
             "source": "email",
             "medium": "newsletter"
           }
@@ -271,13 +282,13 @@
             "data": {
               "marketingActivityCreateExternal": {
                 "marketingActivity": {
-                  "id": "gid://shopify/MarketingActivity/197032870194",
-                  "title": "HAR-687 preflight-0-har-687-preflight-1778007542630-1b27gp",
+                  "id": "gid://shopify/MarketingActivity/197851283762",
+                  "title": "HAR-687 preflight-0-har-687-preflight-1781384726473-ftuu5f",
                   "parentRemoteId": null,
                   "hierarchyLevel": null,
                   "marketingEvent": {
-                    "id": "gid://shopify/MarketingEvent/242389516594",
-                    "remoteId": "har-687-preflight-1778007542630-1b27gp-0",
+                    "id": "gid://shopify/MarketingEvent/243207504178",
+                    "remoteId": "har-687-preflight-1781384726473-ftuu5f-0",
                     "channelHandle": null
                   }
                 },
@@ -322,7 +333,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1972,
+              "currentlyAvailable": 1961,
               "restoreRate": 100
             }
           }

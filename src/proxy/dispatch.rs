@@ -724,7 +724,6 @@ impl DraftProxy {
                 .root_fields
                 .iter()
                 .all(|field| matches!(field.as_str(), "carrierService" | "carrierServices"))
-            && is_carrier_service_lifecycle_document(&query)
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({ "data": self.carrier_service_read_data(&fields) }));
@@ -750,6 +749,20 @@ impl DraftProxy {
             && is_location_custom_id_miss_document(&query)
         {
             return ok_json(location_custom_id_miss_response());
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "location" | "locationByIdentifier" | "locations"
+                )
+            })
+            && (self.config.read_mode == ReadMode::Snapshot || self.has_staged_locations())
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.location_read_data(&fields) }));
+            }
         }
 
         if operation.operation_type == OperationType::Query
@@ -1208,9 +1221,14 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "bulkOperationRunQuery"
-            && is_local_bulk_operation_run_query_document(&query)
         {
             return self.bulk_operation_run_query(request, &query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "bulkOperationRunMutation"
+        {
+            return self.bulk_operation_run_mutation(request, &query, &variables);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -1381,13 +1399,14 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && matches!(
-                root_field,
-                "carrierServiceCreate" | "carrierServiceUpdate" | "carrierServiceDelete"
-            )
-            && is_carrier_service_lifecycle_document(&query)
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "carrierServiceCreate" | "carrierServiceUpdate" | "carrierServiceDelete"
+                )
+            })
         {
-            return self.carrier_service_mutation(root_field, &query, &variables, request);
+            return self.carrier_service_mutations(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -1428,17 +1447,9 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && root_field == "locationActivate"
-            && is_location_activate_limit_relocation_document(&query)
+            && matches!(root_field, "locationAdd" | "locationActivate")
         {
-            return self.location_activate_limit_relocation(&query, &variables, request);
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && root_field == "locationAdd"
-            && is_location_add_resource_limit_document(&query)
-        {
-            return self.location_add_resource_limit(&query);
+            return self.location_mutation(root_field, &query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation && root_field == "locationDeactivate"
@@ -1472,63 +1483,54 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionCreate"
-            && is_app_subscription_create_document(&query)
         {
             return self.app_subscription_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionCancel"
-            && is_app_subscription_cancel_document(&query)
         {
             return self.app_subscription_cancel(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionTrialExtend"
-            && is_app_subscription_trial_extend_document(&query)
         {
             return self.app_subscription_trial_extend(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionLineItemUpdate"
-            && is_app_subscription_line_item_update_document(&query)
         {
             return self.app_subscription_line_item_update(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appUsageRecordCreate"
-            && is_app_usage_record_create_document(&query)
         {
             return self.app_usage_record_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appPurchaseOneTimeCreate"
-            && is_app_purchase_one_time_document(&query)
         {
             return self.app_purchase_one_time_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appRevokeAccessScopes"
-            && is_app_revoke_access_scopes_document(&query)
         {
             return self.app_revoke_access_scopes(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "delegateAccessTokenCreate"
-            && is_delegate_access_token_create_document(&query)
         {
             return self.delegate_access_token_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "delegateAccessTokenDestroy"
-            && is_delegate_access_token_destroy_document(&query)
         {
             return self.delegate_access_token_destroy(&query, &variables, request);
         }

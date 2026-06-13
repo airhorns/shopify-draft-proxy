@@ -169,6 +169,9 @@ describe('Rust HTTP adapter route surface', () => {
             customers: {},
             deletedCustomerIds: [],
             customerOrders: {},
+            locations: {},
+            locationOrder: [],
+            locationLimitReached: false,
           },
         },
       });
@@ -244,8 +247,7 @@ describe('Rust HTTP adapter route surface', () => {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
-              query:
-                'mutation { delegateAccessTokenCreate(input: { expiresIn: 60, delegateAccessScope: ["read_products"] }) { userErrors { message } } }',
+              query: '{ currentAppInstallation { id } }',
             }),
           });
           expect(response).toEqual({

@@ -154,10 +154,14 @@ struct StagedState {
     fulfillment_service_locations: BTreeMap<String, Value>,
     deleted_fulfillment_service_ids: BTreeSet<String>,
     deleted_fulfillment_service_location_ids: BTreeSet<String>,
+    locations: BTreeMap<String, Value>,
+    location_order: Vec<String>,
+    location_limit_reached: bool,
     segments: BTreeMap<String, Value>,
     collections: BTreeMap<String, Value>,
     fulfillment_order_deadlines: BTreeMap<String, String>,
     bulk_operations: BTreeMap<String, Value>,
+    bulk_operation_staged_uploads: BTreeMap<String, Option<u64>>,
     timestamp_discounts: BTreeMap<String, Value>,
     gift_cards: BTreeMap<String, Value>,
     markets: BTreeMap<String, Value>,
@@ -365,10 +369,14 @@ impl Default for StagedState {
             fulfillment_service_locations: BTreeMap::new(),
             deleted_fulfillment_service_ids: BTreeSet::new(),
             deleted_fulfillment_service_location_ids: BTreeSet::new(),
+            locations: BTreeMap::new(),
+            location_order: Vec::new(),
+            location_limit_reached: false,
             segments: BTreeMap::new(),
             collections: BTreeMap::new(),
             fulfillment_order_deadlines: BTreeMap::new(),
             bulk_operations: BTreeMap::new(),
+            bulk_operation_staged_uploads: BTreeMap::new(),
             timestamp_discounts: BTreeMap::new(),
             gift_cards: BTreeMap::new(),
             markets: BTreeMap::new(),
@@ -427,7 +435,8 @@ impl Default for StagedState {
             free_shipping_automatic_status: None,
             redeem_code_bulk_live_added: false,
             redeem_code_bulk_live_deleted_seed: false,
-            backup_region: backup_region_country("CA"),
+            backup_region: backup_region_country("CA")
+                .expect("default backup region country must be captured"),
             flow_signatures: Vec::new(),
             flow_trigger_receipts: Vec::new(),
         }
@@ -769,6 +778,7 @@ mod admin_shipping_gift_cards;
 mod app_shipping_helpers;
 mod b2b_customers;
 mod commit;
+mod connection;
 mod core;
 mod discounts;
 mod dispatch;
@@ -793,6 +803,8 @@ pub(in crate::proxy) use self::app_shipping_helpers::*;
 pub(in crate::proxy) use self::b2b_customers::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::commit::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::connection::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::core::*;
 #[allow(unused_imports)]

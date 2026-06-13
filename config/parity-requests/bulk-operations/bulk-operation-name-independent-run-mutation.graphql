@@ -1,0 +1,14 @@
+mutation RunBulkImport($mutation: String!, $path: String!) {
+  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+    bulkOperation {
+      id
+      status
+      type
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
