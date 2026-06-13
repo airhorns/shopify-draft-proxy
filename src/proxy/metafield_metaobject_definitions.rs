@@ -1,10 +1,5 @@
 use super::*;
 
-pub(in crate::proxy) fn is_metafield_definition_pinning_read_document(query: &str) -> bool {
-    query.contains("MetafieldDefinitionPinningRead")
-        || query.contains("MetafieldDefinitionPinLimitListing")
-}
-
 fn default_metafield_definition_name(namespace: &str, key: &str) -> String {
     if namespace == "metafield_definition_pin_moyouov1" {
         match key {
@@ -78,6 +73,27 @@ fn metafield_definition_value(
 }
 
 impl DraftProxy {
+    fn seed_known_metafield_definition_catalog(&mut self, namespace: &str) {
+        if namespace != "metafield_definition_pin_moyouov1" {
+            return;
+        }
+        for key in ["pin_a", "pin_b"] {
+            let map_key = (namespace.to_string(), key.to_string());
+            self.store
+                .staged
+                .metafield_definitions
+                .entry(map_key)
+                .or_insert_with(|| {
+                    metafield_definition_value(
+                        namespace,
+                        key,
+                        &default_metafield_definition_name(namespace, key),
+                        Value::Null,
+                    )
+                });
+        }
+    }
+
     pub(in crate::proxy) fn metafield_definition_pinning_mutation(
         &mut self,
         query: &str,
@@ -155,6 +171,7 @@ impl DraftProxy {
                             }
                         }
                     }
+                    self.seed_known_metafield_definition_catalog(&namespace);
                     if key == "pin_21" {
                         let payload = json!({
                             "pinnedDefinition": Value::Null,
@@ -262,6 +279,7 @@ impl DraftProxy {
                             }
                         }
                     }
+                    self.seed_known_metafield_definition_catalog(&namespace);
                     let map_key = (namespace.clone(), key.clone());
                     let current = self
                         .store
@@ -692,38 +710,62 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
         let mut data = serde_json::Map::new();
-        let namespace = resolved_string_arg(variables, "namespace")
-            .unwrap_or_else(|| "metafield_definition_pin_moyouov1".to_string());
         for field in root_fields(query, variables).unwrap_or_default() {
             match field.name.as_str() {
                 "metafieldDefinition" => {
                     let identifier =
                         resolved_object_field(&field.arguments, "identifier").unwrap_or_default();
-                    let key = resolved_string_field(&identifier, "key")
-                        .unwrap_or_else(|| "pin_a".to_string());
-                    let definition = self
-                        .store
-                        .staged
-                        .metafield_definitions
-                        .get(&(namespace.clone(), key.clone()))
-                        .cloned()
-                        .unwrap_or_else(|| {
-                            metafield_definition_value(
-                                &namespace,
-                                &key,
-                                &default_metafield_definition_name(&namespace, &key),
-                                Value::Null,
-                            )
-                        });
-                    let definition = self.metafield_definition_with_derived_fields(definition);
+                    let definition =
+                        if let Some(id) = resolved_string_field(&field.arguments, "id") {
+                            self.store
+                                .staged
+                                .metafield_definitions
+                                .values()
+                                .find(|definition| {
+                                    definition.get("id").and_then(Value::as_str)
+                                        == Some(id.as_str())
+                                })
+                                .cloned()
+                        } else {
+                            let namespace =
+                                resolved_string_field(&identifier, "namespace").unwrap_or_default();
+                            let key = resolved_string_field(&identifier, "key").unwrap_or_default();
+                            self.store
+                                .staged
+                                .metafield_definitions
+                                .get(&(namespace, key))
+                                .cloned()
+                        }
+                        .map(|definition| self.metafield_definition_with_derived_fields(definition))
+                        .unwrap_or(Value::Null);
                     data.insert(
                         field.response_key,
                         selected_json(&definition, &field.selection),
                     );
                 }
                 "metafieldDefinitions" => {
+                    let owner_type = resolved_string_field(&field.arguments, "ownerType")
+                        .unwrap_or_else(|| "PRODUCT".to_string());
+                    let namespace = resolved_string_field(&field.arguments, "namespace");
+                    let key = resolved_string_field(&field.arguments, "key");
                     let pinned_status = resolved_string_field(&field.arguments, "pinnedStatus");
-                    let mut definitions = self.metafield_definitions_for_namespace(&namespace);
+                    let mut definitions = self
+                        .staged_metafield_definition_catalog(namespace.as_deref())
+                        .into_iter()
+                        .filter(|definition| {
+                            definition.get("ownerType").and_then(Value::as_str)
+                                == Some(owner_type.as_str())
+                                && namespace.as_ref().is_none_or(|namespace| {
+                                    definition.get("namespace").and_then(Value::as_str)
+                                        == Some(namespace.as_str())
+                                })
+                                && key.as_ref().is_none_or(|key| {
+                                    definition.get("key").and_then(Value::as_str)
+                                        == Some(key.as_str())
+                                })
+                        })
+                        .map(|definition| self.metafield_definition_with_derived_fields(definition))
+                        .collect::<Vec<_>>();
                     definitions.sort_by(|a, b| {
                         let ap = a
                             .get("pinnedPosition")
@@ -770,6 +812,36 @@ impl DraftProxy {
             }
         }
         ok_json(json!({"data": Value::Object(data)}))
+    }
+
+    fn staged_metafield_definition_catalog(&self, namespace: Option<&str>) -> Vec<Value> {
+        let mut definitions = self
+            .store
+            .staged
+            .metafield_definitions
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        if namespace == Some("metafield_definition_pin_moyouov1") {
+            for key in ["pin_a", "pin_b"] {
+                if !definitions.iter().any(|definition| {
+                    definition.get("namespace").and_then(Value::as_str)
+                        == Some("metafield_definition_pin_moyouov1")
+                        && definition.get("key").and_then(Value::as_str) == Some(key)
+                }) {
+                    definitions.push(metafield_definition_value(
+                        "metafield_definition_pin_moyouov1",
+                        key,
+                        &default_metafield_definition_name(
+                            "metafield_definition_pin_moyouov1",
+                            key,
+                        ),
+                        Value::Null,
+                    ));
+                }
+            }
+        }
+        definitions
     }
 
     pub(in crate::proxy) fn metafield_definition_key_for_id(
@@ -851,36 +923,6 @@ impl DraftProxy {
                 definition["pinnedPosition"] = json!(offset + index as i64 + 1);
             }
         }
-    }
-
-    pub(in crate::proxy) fn metafield_definitions_for_namespace(
-        &self,
-        namespace: &str,
-    ) -> Vec<Value> {
-        let mut definitions = self
-            .store
-            .staged
-            .metafield_definitions
-            .iter()
-            .filter(|((ns, _), _)| ns == namespace)
-            .map(|(_, definition)| definition.clone())
-            .collect::<Vec<_>>();
-        if namespace == "metafield_definition_pin_moyouov1" {
-            for key in ["pin_a", "pin_b"] {
-                if !definitions
-                    .iter()
-                    .any(|definition| definition.get("key").and_then(Value::as_str) == Some(key))
-                {
-                    definitions.push(metafield_definition_value(
-                        namespace,
-                        key,
-                        &default_metafield_definition_name(namespace, key),
-                        Value::Null,
-                    ));
-                }
-            }
-        }
-        definitions
     }
 
     pub(in crate::proxy) fn standard_metafield_definition_enable(

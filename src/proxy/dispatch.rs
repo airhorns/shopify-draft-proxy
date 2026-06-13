@@ -1144,13 +1144,6 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
-            && matches!(root_field, "product" | "customer" | "order" | "company")
-            && is_owner_metafields_read_document(&query)
-        {
-            return self.owner_metafields_read(&query, &variables);
-        }
-
-        if operation.operation_type == OperationType::Query
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
@@ -1295,51 +1288,9 @@ impl DraftProxy {
                     "metafieldDefinition" | "metafieldDefinitions"
                 )
             })
-            && (is_metafield_definition_pinning_read_document(&query)
-                || !self.store.staged.metafield_definitions.is_empty())
+            && !self.store.staged.metafield_definitions.is_empty()
         {
             return self.metafield_definition_pinning_read(&query, &variables);
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && root_field == "metafieldsSet"
-            && is_product_metafields_set_document(&query)
-        {
-            if let Some(response) = self.product_metafields_set_fixture_response(&query, &variables)
-            {
-                return response;
-            }
-        }
-
-        if operation.operation_type == OperationType::Query
-            && is_product_metafields_downstream_read_document(&query)
-        {
-            if let Some(response) = self.product_metafields_downstream_fixture_response(&query) {
-                return response;
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && root_field == "metafieldsDelete"
-            && is_product_metafields_delete_document(&query)
-        {
-            if let Some(response) = self.product_metafields_delete_fixture_response(&variables) {
-                return response;
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && root_field == "metafieldsSet"
-            && is_owner_metafields_set_document(&query)
-        {
-            return self.owner_metafields_set(&query, &variables);
-        }
-
-        if operation.operation_type == OperationType::Query
-            && matches!(root_field, "product" | "customer" | "order" | "company")
-            && is_owner_metafields_read_document(&query)
-        {
-            return self.owner_metafields_read(&query, &variables);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -1360,6 +1311,26 @@ impl DraftProxy {
             && query.contains("MetafieldsAppNamespaceProductRead")
         {
             return self.metafields_app_namespace_product_read(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation && root_field == "metafieldsSet" {
+            return self.owner_metafields_set(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation && root_field == "metafieldsDelete" {
+            return self.owner_metafields_delete(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().any(|field| {
+                matches!(
+                    field.as_str(),
+                    "product" | "productVariant" | "collection" | "customer" | "order" | "company"
+                )
+            })
+            && self.owner_metafield_read_has_staged_data(&query, &variables)
+        {
+            return self.owner_metafields_read(&query, &variables);
         }
 
         if operation.operation_type == OperationType::Mutation

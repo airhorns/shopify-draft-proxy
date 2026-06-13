@@ -9,123 +9,6 @@ pub(in crate::proxy) fn empty_page_info() -> Value {
     connection_page_info(false, false, None, None)
 }
 
-pub(in crate::proxy) fn is_product_metafields_set_document(query: &str) -> bool {
-    query.contains("MetafieldsSetParityPlan") || query.contains("MetafieldsSetOwnerExpansion")
-}
-
-pub(in crate::proxy) fn is_product_metafields_downstream_read_document(query: &str) -> bool {
-    query.contains("MetafieldsSetDownstreamRead")
-        || query.contains("MetafieldsSetOwnerExpansionDownstreamRead")
-}
-
-pub(in crate::proxy) fn is_product_metafields_delete_document(query: &str) -> bool {
-    query.contains("MetafieldsDeleteParityPlan")
-}
-
-pub(in crate::proxy) fn is_owner_metafields_set_document(query: &str) -> bool {
-    query.contains("CustomDataMetafieldTypeMatrixSet")
-        || query.contains("MetafieldDefinitionLifecycleMetafieldsSet")
-        || query.contains("MetafieldDefinitionNonProductMetafieldsSet")
-}
-
-pub(in crate::proxy) fn product_metafields_fixture_key_from_variables(
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Option<&'static str> {
-    let metafields = list_object_arg(variables, "metafields");
-    let first = metafields.first()?;
-    let owner_id = resolved_string_field(first, "ownerId").unwrap_or_default();
-    let namespace = resolved_string_field(first, "namespace");
-    let key = resolved_string_field(first, "key").unwrap_or_default();
-    let value = resolved_string_field(first, "value").unwrap_or_default();
-    let metafield_type = resolved_string_field(first, "type");
-
-    if metafields.len() > 25 {
-        return Some("metafields-set-over-limit-parity.json");
-    }
-
-    if owner_id == "gid://shopify/ProductVariant/51098325156146" && key == "variant_care" {
-        return Some("metafields-set-owner-expansion-parity.json");
-    }
-
-    if owner_id != "gid://shopify/Product/10170511687986" {
-        return None;
-    }
-
-    if metafields.len() == 2
-        && key == "material"
-        && resolved_string_field(&metafields[1], "key").as_deref() == Some("origin")
-    {
-        return Some("metafields-set-parity.json");
-    }
-
-    if metafields.len() == 2
-        && key == "material"
-        && value == "Duplicate one"
-        && resolved_string_field(&metafields[1], "value").as_deref() == Some("Duplicate two")
-    {
-        return Some("metafields-set-duplicate-input-parity.json");
-    }
-
-    match (
-        namespace.as_deref(),
-        key.as_str(),
-        value.as_str(),
-        metafield_type.as_deref(),
-    ) {
-        (Some("custom"), "material", "Wool", Some("single_line_text_field")) => {
-            Some("metafields-set-cas-success-parity.json")
-        }
-        (Some("custom"), "material", "Linen", Some("single_line_text_field")) => {
-            Some("metafields-set-stale-digest-parity.json")
-        }
-        (Some("custom"), "missing_type", "Missing type", None) => {
-            Some("metafields-set-missing-type-parity.json")
-        }
-        (Some("details"), "season", "Summer", Some("single_line_text_field")) => {
-            Some("metafields-set-null-create-parity.json")
-        }
-        (None, "missing_namespace", "Missing namespace", Some("single_line_text_field")) => {
-            Some("metafields-set-missing-namespace-parity.json")
-        }
-        _ => None,
-    }
-}
-
-pub(in crate::proxy) fn product_metafields_delete_fixture_key_from_variables(
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Option<&'static str> {
-    let metafields = list_object_arg(variables, "metafields");
-    let first = metafields.first()?;
-    if metafields.len() == 2
-        && resolved_string_field(first, "ownerId").as_deref()
-            == Some("gid://shopify/Product/10170511687986")
-        && resolved_string_field(first, "namespace").as_deref() == Some("custom")
-        && resolved_string_field(first, "key").as_deref() == Some("material")
-        && resolved_string_field(&metafields[1], "key").as_deref() == Some("missing")
-    {
-        Some("metafields-delete-parity.json")
-    } else {
-        None
-    }
-}
-
-pub(in crate::proxy) fn product_metafields_fixture(key: &str) -> Value {
-    serde_json::from_str(match key {
-        "metafields-set-parity.json" => include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-parity.json"),
-        "metafields-set-cas-success-parity.json" => include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-cas-success-parity.json"),
-        "metafields-set-stale-digest-parity.json" => include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-stale-digest-parity.json"),
-        "metafields-set-duplicate-input-parity.json" => include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-duplicate-input-parity.json"),
-        "metafields-set-missing-type-parity.json" => include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-missing-type-parity.json"),
-        "metafields-set-null-create-parity.json" => include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-null-create-parity.json"),
-        "metafields-set-missing-namespace-parity.json" => include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-missing-namespace-parity.json"),
-        "metafields-set-over-limit-parity.json" => include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-over-limit-parity.json"),
-        "metafields-set-owner-expansion-parity.json" => include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-owner-expansion-parity.json"),
-        "metafields-delete-parity.json" => include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-delete-parity.json"),
-        _ => panic!("unknown product metafields fixture: {key}"),
-    })
-    .expect("product metafields fixture must parse")
-}
-
 pub(in crate::proxy) fn custom_data_metafield_type_matrix_record(
     namespace: &str,
     key: &str,
@@ -149,14 +32,6 @@ pub(in crate::proxy) fn custom_data_metafield_type_matrix_record(
         })
 }
 
-pub(in crate::proxy) fn is_owner_metafields_read_document(query: &str) -> bool {
-    query.contains("CustomDataMetafieldTypeMatrixRead")
-        || query.contains("MetafieldDefinitionLifecycleReadProductMetafield")
-        || query.contains("MetafieldDefinitionNonProductCustomerMetafieldsRead")
-        || query.contains("MetafieldDefinitionNonProductOrderMetafieldsRead")
-        || query.contains("MetafieldDefinitionNonProductCompanyMetafieldsRead")
-}
-
 pub(in crate::proxy) fn resolved_value_string(value: &ResolvedValue) -> Option<String> {
     match value {
         ResolvedValue::String(value) => Some(value.clone()),
@@ -166,6 +41,8 @@ pub(in crate::proxy) fn resolved_value_string(value: &ResolvedValue) -> Option<S
 
 pub(in crate::proxy) fn owner_type_from_gid(id: &str) -> &'static str {
     match shopify_gid_resource_type(id) {
+        Some("ProductVariant") => "PRODUCTVARIANT",
+        Some("Collection") => "COLLECTION",
         Some("Customer") => "CUSTOMER",
         Some("Order") => "ORDER",
         Some("Company") => "COMPANY",

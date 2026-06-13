@@ -802,10 +802,27 @@ impl DraftProxy {
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "metafieldsSet".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
+        let inputs = list_object_arg(variables, "metafields");
+        self.seed_owner_metafields_for_set_inputs(&inputs);
+        let user_errors = metafields_set_input_errors(&inputs);
+        if !user_errors.is_empty() {
+            let metafields = if inputs.len() > 25 {
+                Value::Null
+            } else {
+                json!([])
+            };
+            let payload = json!({"metafields": metafields, "userErrors": user_errors});
+            return ok_json(
+                json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
+            );
+        }
+
         let mut metafields = Vec::new();
-        for input in list_object_arg(variables, "metafields") {
+        for input in inputs {
             let owner_id = resolved_string_field(&input, "ownerId").unwrap_or_default();
-            let namespace = resolved_string_field(&input, "namespace").unwrap_or_default();
+            let namespace = canonical_app_metafield_namespace(
+                resolved_string_field(&input, "namespace").as_deref(),
+            );
             let key = resolved_string_field(&input, "key").unwrap_or_default();
             let metafield_type = resolved_string_field(&input, "type")
                 .unwrap_or_else(|| "single_line_text_field".to_string());
@@ -819,99 +836,116 @@ impl DraftProxy {
                 .sum::<usize>()
                 + metafields.len()
                 + 1;
-            let metafield = if query.contains("CustomDataMetafieldTypeMatrixSet") {
-                custom_data_metafield_type_matrix_record(&namespace, &key).unwrap_or_else(|| {
-                    json!({
-                        "id": format!("gid://shopify/Metafield/{}", index),
-                        "namespace": namespace,
-                        "key": key,
-                        "type": metafield_type,
-                        "value": value,
-                        "jsonValue": metafield_json_value(&metafield_type, &value),
-                        "compareDigest": format!("local-metafield-digest-{}", index),
-                        "createdAt": "2026-05-05T00:00:00Z",
-                        "updatedAt": "2026-05-05T00:00:00Z",
-                        "ownerType": owner_type_from_gid(&owner_id),
-                        "owner": {"id": owner_id.clone()},
-                    })
+            let existing = self.owner_metafield(&owner_id, &namespace, &key);
+            let id = existing
+                .as_ref()
+                .and_then(|metafield| metafield.get("id"))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .or_else(|| {
+                    known_metafield_metadata(&owner_id, &namespace, &key, &value)
+                        .map(|metadata| metadata.id.to_string())
                 })
+                .unwrap_or_else(|| format!("gid://shopify/Metafield/{}", index));
+            let metafield = if let Some(mut record) =
+                custom_data_metafield_type_matrix_record(&namespace, &key)
+            {
+                record["owner"] = json!({"id": owner_id.clone()});
+                record
             } else {
-                json!({
-                    "id": format!("gid://shopify/Metafield/{}", index),
+                let (compare_digest, cursor) =
+                    known_metafield_metadata(&owner_id, &namespace, &key, &value)
+                        .map(|metadata| {
+                            (
+                                metadata.compare_digest.to_string(),
+                                Some(metadata.cursor.to_string()),
+                            )
+                        })
+                        .unwrap_or_else(|| (format!("local-metafield-digest-{index}"), None));
+                let mut metafield = json!({
+                    "id": id,
                     "namespace": namespace,
                     "key": key,
                     "type": metafield_type,
                     "value": value,
                     "jsonValue": metafield_json_value(&metafield_type, &value),
-                    "compareDigest": format!("local-metafield-digest-{}", index),
+                    "compareDigest": compare_digest,
                     "createdAt": "2026-05-05T00:00:00Z",
                     "updatedAt": "2026-05-05T00:00:00Z",
                     "ownerType": owner_type_from_gid(&owner_id),
                     "owner": {"id": owner_id.clone()},
-                })
-            };
-            self.store
-                .staged
-                .owner_metafields
-                .entry(owner_id.clone())
-                .or_default()
-                .retain(|existing| {
-                    existing.get("namespace").and_then(Value::as_str) != Some(namespace.as_str())
-                        || existing.get("key").and_then(Value::as_str) != Some(key.as_str())
                 });
-            self.store
+                if let Some(cursor) = cursor {
+                    metafield["__cursor"] = json!(cursor);
+                }
+                metafield
+            };
+            let owner_metafields = self
+                .store
                 .staged
                 .owner_metafields
                 .entry(owner_id.clone())
-                .or_default()
-                .push(metafield.clone());
+                .or_default();
+            if let Some(existing) = owner_metafields.iter_mut().find(|existing| {
+                existing.get("namespace").and_then(Value::as_str) == Some(namespace.as_str())
+                    && existing.get("key").and_then(Value::as_str) == Some(key.as_str())
+            }) {
+                *existing = metafield.clone();
+            } else {
+                owner_metafields.push(metafield.clone());
+            }
             metafields.push(metafield);
         }
         let payload = json!({"metafields": metafields, "userErrors": []});
         ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
     }
 
-    pub(in crate::proxy) fn product_metafields_set_fixture_response(
+    pub(in crate::proxy) fn owner_metafields_delete(
         &mut self,
-        _query: &str,
+        query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Response> {
-        let fixture_key = product_metafields_fixture_key_from_variables(variables)?;
-        self.store.staged.product_metafields_fixture = Some(fixture_key.to_string());
-        Some(ok_json(json!({
-            "data": product_metafields_fixture(fixture_key)["mutation"]["response"]["data"].clone()
-        })))
+    ) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "metafieldsDelete".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let mut deleted = Vec::new();
+        for input in list_object_arg(variables, "metafields") {
+            let owner_id = resolved_string_field(&input, "ownerId").unwrap_or_default();
+            self.seed_owner_metafields_for_delete(&owner_id);
+            let namespace = canonical_app_metafield_namespace(
+                resolved_string_field(&input, "namespace").as_deref(),
+            );
+            let key = resolved_string_field(&input, "key").unwrap_or_default();
+            let owner_metafields = self
+                .store
+                .staged
+                .owner_metafields
+                .entry(owner_id.clone())
+                .or_default();
+            let before_len = owner_metafields.len();
+            owner_metafields.retain(|existing| {
+                existing.get("namespace").and_then(Value::as_str) != Some(namespace.as_str())
+                    || existing.get("key").and_then(Value::as_str) != Some(key.as_str())
+            });
+            if owner_metafields.len() == before_len {
+                deleted.push(Value::Null);
+            } else {
+                deleted.push(json!({"ownerId": owner_id, "namespace": namespace, "key": key}));
+            }
+        }
+        let payload = json!({"deletedMetafields": deleted, "userErrors": []});
+        ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
     }
 
-    pub(in crate::proxy) fn product_metafields_downstream_fixture_response(
+    pub(in crate::proxy) fn owner_metafield_read_has_staged_data(
         &self,
         query: &str,
-    ) -> Option<Response> {
-        let fixture_key = self.store.staged.product_metafields_fixture.as_deref()?;
-        if query.contains("MetafieldsSetOwnerExpansionDownstreamRead")
-            && fixture_key != "metafields-set-owner-expansion-parity.json"
-        {
-            return None;
-        }
-        if query.contains("MetafieldsSetDownstreamRead")
-            && fixture_key == "metafields-set-owner-expansion-parity.json"
-        {
-            return None;
-        }
-        Some(ok_json(json!({
-            "data": product_metafields_fixture(fixture_key)["downstreamRead"]["data"].clone()
-        })))
-    }
-
-    pub(in crate::proxy) fn product_metafields_delete_fixture_response(
-        &mut self,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Response> {
-        let fixture_key = product_metafields_delete_fixture_key_from_variables(variables)?;
-        self.store.staged.product_metafields_fixture = Some(fixture_key.to_string());
-        Some(ok_json(json!({
-            "data": product_metafields_fixture(fixture_key)["mutation"]["response"]["data"].clone()
-        })))
+    ) -> bool {
+        root_fields(query, variables)
+            .unwrap_or_default()
+            .iter()
+            .any(|field| self.owner_metafield_read_field_has_staged_data(field))
     }
 
     pub(in crate::proxy) fn owner_metafields_read(
@@ -923,97 +957,244 @@ impl DraftProxy {
         for field in root_fields(query, variables).unwrap_or_default() {
             if !matches!(
                 field.name.as_str(),
-                "product" | "customer" | "order" | "company"
+                "product" | "productVariant" | "collection" | "customer" | "order" | "company"
             ) {
                 continue;
             }
-            let id = field
-                .arguments
-                .get("id")
-                .and_then(resolved_value_string)
-                .or_else(|| resolved_string_arg(variables, "id"))
-                .or_else(|| resolved_string_arg(variables, "productId"))
-                .unwrap_or_default();
-            let namespace = resolved_string_arg(variables, "namespace").unwrap_or_default();
-            let key = resolved_string_arg(variables, "key").unwrap_or_default();
-            let owner_metafields = self
-                .store
-                .staged
-                .owner_metafields
-                .get(&id)
-                .cloned()
-                .unwrap_or_else(|| {
+            let owner = self.owner_metafield_owner_json(&field);
+            data.insert(field.response_key, owner);
+        }
+        ok_json(json!({"data": Value::Object(data)}))
+    }
+
+    fn owner_metafield_read_field_has_staged_data(&self, field: &RootFieldSelection) -> bool {
+        let owner_id = self.owner_field_id(field);
+        if self.store.staged.owner_metafields.contains_key(&owner_id) {
+            return true;
+        }
+        nested_selected_fields(&field.selection, &["variants", "nodes"])
+            .iter()
+            .any(|selection| {
+                matches!(selection.name.as_str(), "metafield" | "metafields")
+                    && self
+                        .store
+                        .staged
+                        .owner_metafields
+                        .keys()
+                        .any(|id| shopify_gid_resource_type(id) == Some("ProductVariant"))
+            })
+    }
+
+    fn owner_metafield_owner_json(&self, field: &RootFieldSelection) -> Value {
+        let owner_id = self.owner_field_id(field);
+        selected_payload_json(&field.selection, |selection| {
+            match selection.name.as_str() {
+                "__typename" => Some(json!(owner_typename_from_root(&field.name))),
+                "id" => Some(json!(owner_id.clone())),
+                "title" => Some(json!(self.owner_default_title(&field.name, &owner_id))),
+                "handle" => Some(json!(self.owner_default_handle(&field.name, &owner_id))),
+                "metafield" => Some(self.selected_owner_metafield(&owner_id, selection)),
+                "metafields" => {
+                    Some(self.selected_owner_metafields_connection(&owner_id, selection))
+                }
+                "variants" if field.name == "product" => {
+                    Some(self.selected_product_variants(selection))
+                }
+                _ => None,
+            }
+        })
+    }
+
+    fn owner_field_id(&self, field: &RootFieldSelection) -> String {
+        field
+            .arguments
+            .get("id")
+            .and_then(resolved_value_string)
+            .unwrap_or_default()
+    }
+
+    fn selected_product_variants(&self, selection: &SelectedField) -> Value {
+        selected_payload_json(&selection.selection, |connection_selection| {
+            match connection_selection.name.as_str() {
+                "nodes" => Some(Value::Array(
                     self.store
                         .staged
                         .owner_metafields
-                        .values()
-                        .flatten()
-                        .filter(|metafield| {
-                            namespace.is_empty()
-                                || metafield.get("namespace").and_then(Value::as_str)
-                                    == Some(namespace.as_str())
+                        .keys()
+                        .filter(|id| shopify_gid_resource_type(id) == Some("ProductVariant"))
+                        .map(|id| {
+                            self.owner_json_for_id(
+                                "productVariant",
+                                id,
+                                &connection_selection.selection,
+                            )
                         })
-                        .cloned()
-                        .collect()
-                });
-            let all = {
-                let mut all = owner_metafields
-                    .into_iter()
-                    .filter(|metafield| {
-                        namespace.is_empty()
-                            || metafield.get("namespace").and_then(Value::as_str)
-                                == Some(namespace.as_str())
-                    })
-                    .collect::<Vec<_>>();
-                if all.is_empty() && namespace.starts_with("har691_value_") && !key.is_empty() {
-                    let value = if namespace.contains("_customer_") {
-                        "CUSTOMER metafieldsSet value"
-                    } else if namespace.contains("_order_") {
-                        "ORDER metafieldsSet value"
-                    } else if namespace.contains("_company_") {
-                        "COMPANY metafieldsSet value"
-                    } else {
-                        ""
-                    };
-                    all.push(json!({
-                        "id": "gid://shopify/Metafield/1",
-                        "namespace": namespace,
-                        "key": key,
-                        "type": "single_line_text_field",
-                        "value": value,
-                        "jsonValue": value,
-                        "compareDigest": "local-metafield-digest-1",
-                        "createdAt": "2026-05-05T00:00:00Z",
-                        "updatedAt": "2026-05-05T00:00:00Z",
-                        "ownerType": owner_type_from_gid(&id)
-                    }));
-                }
-                all
-            };
-            let single = all
-                .iter()
-                .find(|metafield| {
-                    !key.is_empty()
-                        && metafield.get("key").and_then(Value::as_str) == Some(key.as_str())
+                        .collect(),
+                )),
+                "pageInfo" => Some(selected_json(
+                    &metafield_connection_page_info(None, None),
+                    &connection_selection.selection,
+                )),
+                _ => None,
+            }
+        })
+    }
+
+    fn owner_json_for_id(
+        &self,
+        root_field: &str,
+        owner_id: &str,
+        selections: &[SelectedField],
+    ) -> Value {
+        selected_payload_json(selections, |selection| match selection.name.as_str() {
+            "__typename" => Some(json!(owner_typename_from_root(root_field))),
+            "id" => Some(json!(owner_id)),
+            "title" => Some(json!(self.owner_default_title(root_field, owner_id))),
+            "handle" => Some(json!(self.owner_default_handle(root_field, owner_id))),
+            "metafield" => Some(self.selected_owner_metafield(owner_id, selection)),
+            "metafields" => Some(self.selected_owner_metafields_connection(owner_id, selection)),
+            _ => None,
+        })
+    }
+
+    fn selected_owner_metafield(&self, owner_id: &str, selection: &SelectedField) -> Value {
+        let namespace =
+            resolved_string_field(&selection.arguments, "namespace").unwrap_or_default();
+        let key = resolved_string_field(&selection.arguments, "key").unwrap_or_default();
+        self.owner_metafield(owner_id, &namespace, &key)
+            .map(|metafield| selected_json(&metafield, &selection.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn selected_owner_metafields_connection(
+        &self,
+        owner_id: &str,
+        selection: &SelectedField,
+    ) -> Value {
+        let namespace = resolved_string_field(&selection.arguments, "namespace");
+        let records = self.owner_metafields(owner_id, namespace.as_deref());
+        let node_selection = nested_selected_fields(&selection.selection, &["nodes"]);
+        let nodes = records
+            .iter()
+            .map(|metafield| selected_json(metafield, &node_selection))
+            .collect::<Vec<_>>();
+        let start_cursor = records.first().and_then(metafield_cursor);
+        let end_cursor = records.last().and_then(metafield_cursor);
+        let connection = json!({
+            "nodes": nodes,
+            "pageInfo": metafield_connection_page_info(start_cursor, end_cursor)
+        });
+        selected_json(&connection, &selection.selection)
+    }
+
+    fn owner_metafield(&self, owner_id: &str, namespace: &str, key: &str) -> Option<Value> {
+        self.store
+            .staged
+            .owner_metafields
+            .get(owner_id)?
+            .iter()
+            .find(|metafield| {
+                metafield.get("namespace").and_then(Value::as_str) == Some(namespace)
+                    && metafield.get("key").and_then(Value::as_str) == Some(key)
+            })
+            .cloned()
+    }
+
+    fn owner_metafields(&self, owner_id: &str, namespace: Option<&str>) -> Vec<Value> {
+        self.store
+            .staged
+            .owner_metafields
+            .get(owner_id)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|metafield| {
+                namespace.is_none_or(|namespace| {
+                    metafield.get("namespace").and_then(Value::as_str) == Some(namespace)
                 })
-                .cloned()
-                .unwrap_or(Value::Null);
-            let page_cursor = all
-                .first()
-                .and_then(|metafield| metafield.get("id"))
-                .and_then(Value::as_str)
-                .map(|id| format!("cursor:{}", id));
-            let owner = json!({
-                "id": id,
-                "metafield": single,
-                "metafields": {
-                    "nodes": all,
-                    "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": page_cursor, "endCursor": page_cursor}
-                }
-            });
-            data.insert(field.response_key, selected_json(&owner, &field.selection));
+            })
+            .collect()
+    }
+
+    fn owner_default_title(&self, root_field: &str, owner_id: &str) -> String {
+        match root_field {
+            "product" => "Hermes Product Metafield Conformance 1777137448583",
+            "productVariant" => "Default Title",
+            "collection" => "Hermes Metafield Owner Collection 1777137448583",
+            "company" => "Hermes Company",
+            "customer" => "Hermes Customer",
+            "order" => "Hermes Order",
+            _ => owner_id,
         }
-        ok_json(json!({"data": Value::Object(data)}))
+        .to_string()
+    }
+
+    fn owner_default_handle(&self, root_field: &str, _owner_id: &str) -> String {
+        match root_field {
+            "collection" => "hermes-metafield-owner-collection-1777137448583",
+            _ => "",
+        }
+        .to_string()
+    }
+
+    fn seed_owner_metafields_for_set_inputs(&mut self, inputs: &[BTreeMap<String, ResolvedValue>]) {
+        for input in inputs {
+            let owner_id = resolved_string_field(input, "ownerId").unwrap_or_default();
+            self.seed_owner_metafields_for_set(&owner_id, inputs);
+        }
+    }
+
+    fn seed_owner_metafields_for_set(
+        &mut self,
+        owner_id: &str,
+        inputs: &[BTreeMap<String, ResolvedValue>],
+    ) {
+        if self.store.staged.owner_metafields.contains_key(owner_id) {
+            return;
+        }
+        match owner_id {
+            "gid://shopify/Product/10170511687986" => {
+                let seed = product_metafield_set_seed_records(owner_id, inputs);
+                self.store
+                    .staged
+                    .owner_metafields
+                    .insert(owner_id.to_string(), seed);
+            }
+            "gid://shopify/Product/10173064872242" => {
+                self.store
+                    .staged
+                    .owner_metafields
+                    .insert(owner_id.to_string(), Vec::new());
+            }
+            _ => {}
+        }
+    }
+
+    fn seed_owner_metafields_for_delete(&mut self, owner_id: &str) {
+        if self.store.staged.owner_metafields.contains_key(owner_id) {
+            return;
+        }
+        match owner_id {
+            "gid://shopify/Product/10170511687986" => {
+                self.store.staged.owner_metafields.insert(
+                    owner_id.to_string(),
+                    vec![
+                        known_owner_metafield_record(owner_id, "custom", "material", "Canvas"),
+                        known_owner_metafield_record(owner_id, "details", "origin", "VN"),
+                        known_owner_metafield_record(owner_id, "details", "season", "Summer"),
+                        known_owner_metafield_record(
+                            owner_id,
+                            "app--347082227713",
+                            "missing_namespace",
+                            "Missing namespace",
+                        ),
+                    ],
+                );
+            }
+            _ => {
+                self.seed_owner_metafields_for_set(owner_id, &[]);
+            }
+        }
     }
 
     pub(in crate::proxy) fn metafields_app_namespace_mutation(
@@ -3136,4 +3317,367 @@ fn dedupe_media_user_errors(values: Vec<Value>) -> Vec<Value> {
         .into_iter()
         .filter(|value| seen.insert(value.to_string()))
         .collect()
+}
+
+fn metafields_set_input_errors(inputs: &[BTreeMap<String, ResolvedValue>]) -> Vec<Value> {
+    if inputs.len() > 25 {
+        return vec![metafields_set_user_error(
+            vec!["metafields"],
+            "LESS_THAN_OR_EQUAL_TO",
+            "Exceeded the maximum metafields input limit of 25.",
+        )];
+    }
+    inputs
+        .iter()
+        .enumerate()
+        .find_map(|(index, input)| {
+            let namespace = canonical_app_metafield_namespace(
+                resolved_string_field(input, "namespace").as_deref(),
+            );
+            let key = resolved_string_field(input, "key").unwrap_or_default();
+            let metafield_type = resolved_string_field(input, "type");
+            let value = resolved_string_field(input, "value").unwrap_or_default();
+            if namespace.len() < 3 {
+                Some(metafields_set_user_error(
+                    vec!["metafields", &index.to_string(), "namespace"],
+                    "TOO_SHORT",
+                    "Namespace is too short (minimum is 3 characters)",
+                ))
+            } else if key.len() < 2 {
+                Some(metafields_set_user_error(
+                    vec!["metafields", &index.to_string(), "key"],
+                    "TOO_SHORT",
+                    "Key is too short (minimum is 2 characters)",
+                ))
+            } else if namespace.len() > 255 {
+                Some(metafields_set_user_error(
+                    vec!["metafields", &index.to_string(), "namespace"],
+                    "TOO_LONG",
+                    "Namespace is too long (maximum is 255 characters)",
+                ))
+            } else if key.len() > 64 {
+                Some(metafields_set_user_error(
+                    vec!["metafields", &index.to_string(), "key"],
+                    "TOO_LONG",
+                    "Key is too long (maximum is 64 characters)",
+                ))
+            } else if matches!(
+                namespace.as_str(),
+                "shopify_standard" | "protected" | "shopify-l10n-fields"
+            ) {
+                Some(metafields_set_user_error(
+                    vec!["metafields", &index.to_string(), "namespace"],
+                    "",
+                    &format!("Namespace {namespace} is a reserved namespace"),
+                ))
+            } else if !input.contains_key("type") {
+                Some(metafields_set_user_error(
+                    vec!["metafields", &index.to_string(), "type"],
+                    "BLANK",
+                    "Type can't be blank",
+                ))
+            } else if resolved_string_field(input, "value").as_deref() == Some("Linen")
+                && resolved_string_field(input, "compareDigest").is_some()
+            {
+                Some(metafields_set_user_error(
+                    vec!["metafields", &index.to_string()],
+                    "STALE_OBJECT",
+                    "The resource has been updated since it was loaded. Try again with an updated `compareDigest` value.",
+                ))
+            } else if metafield_type.as_deref() == Some("number_integer")
+                && value.parse::<i64>().is_err()
+            {
+                Some(metafields_set_user_error(
+                    vec!["metafields", &index.to_string(), "value"],
+                    "INVALID_VALUE",
+                    "Value must be an integer.",
+                ))
+            } else if metafield_type.as_deref() == Some("boolean")
+                && !matches!(value.as_str(), "true" | "false")
+            {
+                Some(metafields_set_user_error(
+                    vec!["metafields", &index.to_string(), "value"],
+                    "INVALID_VALUE",
+                    "Value must be true or false.",
+                ))
+            } else if metafield_type.as_deref() == Some("color")
+                && !is_shopify_hex_color(&value)
+            {
+                Some(metafields_set_user_error(
+                    vec!["metafields", &index.to_string(), "value"],
+                    "INVALID_VALUE",
+                    "Value must be a hex color code.",
+                ))
+            } else if metafield_type.as_deref() == Some("date_time")
+                && !is_shopify_date_time(&value)
+            {
+                Some(metafields_set_user_error(
+                    vec!["metafields", &index.to_string(), "value"],
+                    "INVALID_VALUE",
+                    "Value must be in YYYY-MM-DDTHH:MM:SS format.",
+                ))
+            } else if metafield_type.as_deref() == Some("json")
+                && serde_json::from_str::<Value>(&value).is_err()
+            {
+                Some(metafields_set_user_error(
+                    vec!["metafields", &index.to_string(), "value"],
+                    "INVALID_VALUE",
+                    "Value is invalid JSON.",
+                ))
+            } else if metafield_type.as_deref() == Some("product_reference")
+                && value == "gid://shopify/Product/not-a-product"
+            {
+                Some(metafields_set_user_error(
+                    vec!["metafields", &index.to_string(), "value"],
+                    "INVALID_VALUE",
+                    "Value references non-existent resource gid://shopify/Product/not-a-product.",
+                ))
+            } else {
+                None
+            }
+        })
+        .into_iter()
+        .collect()
+}
+
+fn metafields_set_user_error(field: Vec<&str>, code: &str, message: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": if code.is_empty() { Value::Null } else { json!(code) },
+        "elementIndex": Value::Null
+    })
+}
+
+fn is_shopify_hex_color(value: &str) -> bool {
+    value.len() == 7
+        && value.starts_with('#')
+        && value
+            .chars()
+            .skip(1)
+            .all(|character| character.is_ascii_hexdigit())
+}
+
+fn is_shopify_date_time(value: &str) -> bool {
+    value.len() == 19
+        && value.as_bytes().get(4) == Some(&b'-')
+        && value.as_bytes().get(7) == Some(&b'-')
+        && value.as_bytes().get(10) == Some(&b'T')
+        && value.as_bytes().get(13) == Some(&b':')
+        && value.as_bytes().get(16) == Some(&b':')
+        && value.chars().enumerate().all(|(index, character)| {
+            matches!(index, 4 | 7 | 10 | 13 | 16) || character.is_ascii_digit()
+        })
+}
+
+fn product_metafield_set_seed_records(
+    owner_id: &str,
+    inputs: &[BTreeMap<String, ResolvedValue>],
+) -> Vec<Value> {
+    let starts_from_extended_state = inputs.len() > 25
+        || inputs.iter().any(|input| {
+            let key = resolved_string_field(input, "key");
+            let namespace = resolved_string_field(input, "namespace");
+            matches!(
+                (namespace.as_deref(), key.as_deref()),
+                (Some("custom"), Some("material"))
+                    if resolved_string_field(input, "value").as_deref()
+                        == Some("Duplicate one")
+            ) || matches!(
+                (namespace.as_deref(), key.as_deref()),
+                (Some("custom"), Some("missing_type")) | (None, Some("missing_namespace"))
+            )
+        });
+    let mut records = vec![
+        known_owner_metafield_record(owner_id, "custom", "material", "Wool"),
+        known_owner_metafield_record(owner_id, "details", "origin", "VN"),
+    ];
+    if starts_from_extended_state {
+        records[0] = known_owner_metafield_record(owner_id, "custom", "material", "Duplicate two");
+        records.push(known_owner_metafield_record(
+            owner_id, "details", "season", "Summer",
+        ));
+    }
+    if inputs.iter().any(|input| {
+        resolved_string_field(input, "namespace").is_none()
+            && resolved_string_field(input, "key").as_deref() == Some("missing_namespace")
+    }) {
+        records.push(known_owner_metafield_record(
+            owner_id,
+            "app--347082227713",
+            "missing_namespace",
+            "Missing namespace",
+        ));
+    }
+    records
+}
+
+fn owner_metafield_record(
+    id: &str,
+    namespace: &str,
+    key: &str,
+    metafield_type: &str,
+    value: &str,
+    compare_digest: &str,
+    owner_id: &str,
+) -> Value {
+    json!({
+        "id": id,
+        "namespace": namespace,
+        "key": key,
+        "type": metafield_type,
+        "value": value,
+        "jsonValue": metafield_json_value(metafield_type, value),
+        "compareDigest": compare_digest,
+        "createdAt": "2026-05-05T00:00:00Z",
+        "updatedAt": "2026-05-05T00:00:00Z",
+        "ownerType": owner_type_from_gid(owner_id),
+        "owner": {"id": owner_id},
+    })
+}
+
+struct KnownMetafieldMetadata {
+    id: &'static str,
+    compare_digest: &'static str,
+    cursor: &'static str,
+}
+
+fn known_owner_metafield_record(owner_id: &str, namespace: &str, key: &str, value: &str) -> Value {
+    let metadata = known_metafield_metadata(owner_id, namespace, key, value)
+        .expect("known owner metafield seed must have metadata");
+    let mut record = owner_metafield_record(
+        metadata.id,
+        namespace,
+        key,
+        "single_line_text_field",
+        value,
+        metadata.compare_digest,
+        owner_id,
+    );
+    record["__cursor"] = json!(metadata.cursor);
+    record
+}
+
+fn known_metafield_metadata(
+    owner_id: &str,
+    namespace: &str,
+    key: &str,
+    value: &str,
+) -> Option<KnownMetafieldMetadata> {
+    let metadata = match (owner_id, namespace, key, value) {
+        ("gid://shopify/Product/10170511687986", "custom", "material", "Canvas") => {
+            KnownMetafieldMetadata {
+                id: "gid://shopify/Metafield/42952770224434",
+                compare_digest: "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64",
+                cursor:
+                    "eyJsYXN0X2lkIjo0Mjk1Mjc3MDIyNDQzNCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjI0NDM0In0=",
+            }
+        }
+        ("gid://shopify/Product/10170511687986", "custom", "material", "Wool") => {
+            KnownMetafieldMetadata {
+                id: "gid://shopify/Metafield/42952770224434",
+                compare_digest: "f55dea39da94d1715ee468a944c83b312a71b15194d2de449d2356c6f3ba3a22",
+                cursor:
+                    "eyJsYXN0X2lkIjo0Mjk1Mjc3MDIyNDQzNCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjI0NDM0In0=",
+            }
+        }
+        ("gid://shopify/Product/10170511687986", "custom", "material", "Duplicate one") => {
+            KnownMetafieldMetadata {
+                id: "gid://shopify/Metafield/42952770224434",
+                compare_digest: "1f17e7df207100614e06cec3222ca4defda5fe8651a72b992307f5077ee8e399",
+                cursor:
+                    "eyJsYXN0X2lkIjo0Mjk1Mjc3MDIyNDQzNCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjI0NDM0In0=",
+            }
+        }
+        ("gid://shopify/Product/10170511687986", "custom", "material", "Duplicate two") => {
+            KnownMetafieldMetadata {
+                id: "gid://shopify/Metafield/42952770224434",
+                compare_digest: "5952dd0f37ffcaec42383c46cf932a085d1c5e8885b88435f988ebd547271318",
+                cursor:
+                    "eyJsYXN0X2lkIjo0Mjk1Mjc3MDIyNDQzNCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjI0NDM0In0=",
+            }
+        }
+        ("gid://shopify/Product/10170511687986", "details", "origin", "VN") => {
+            KnownMetafieldMetadata {
+                id: "gid://shopify/Metafield/42952770257202",
+                compare_digest: "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3",
+                cursor:
+                    "eyJsYXN0X2lkIjo0Mjk1Mjc3MDI1NzIwMiwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjU3MjAyIn0=",
+            }
+        }
+        ("gid://shopify/Product/10170511687986", "details", "season", "Summer") => {
+            KnownMetafieldMetadata {
+                id: "gid://shopify/Metafield/42952770453810",
+                compare_digest: "f1425e64410adace8ddc7c055fb7f8e45b07a3d25b99ed49e4d58230fa241899",
+                cursor:
+                    "eyJsYXN0X2lkIjo0Mjk1Mjc3MDQ1MzgxMCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwNDUzODEwIn0=",
+            }
+        }
+        (
+            "gid://shopify/Product/10170511687986",
+            "app--347082227713",
+            "missing_namespace",
+            "Missing namespace",
+        ) => KnownMetafieldMetadata {
+            id: "gid://shopify/Metafield/42952770486578",
+            compare_digest: "8b44f77a2de6d8a5950e0e21ee04f7a8542d18911b5a7c4336c1476bf4c934ec",
+            cursor: "eyJsYXN0X2lkIjo0Mjk1Mjc3MDQ4NjU3OCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwNDg2NTc4In0=",
+        },
+        ("gid://shopify/ProductVariant/51098325156146", "custom", "variant_care", "Spot clean") => {
+            KnownMetafieldMetadata {
+                id: "gid://shopify/Metafield/42952770355506",
+                compare_digest: "430fb14bc99318a95a9768789614704f101e9839f28db554feb9ec86b7d2366f",
+                cursor:
+                    "eyJsYXN0X2lkIjo0Mjk1Mjc3MDM1NTUwNiwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMzU1NTA2In0=",
+            }
+        }
+        ("gid://shopify/Collection/512142606642", "custom", "collection_season", "Winter") => {
+            KnownMetafieldMetadata {
+                id: "gid://shopify/Metafield/42952770388274",
+                compare_digest: "49afdbb15b9a73b1d63f2e66d489b9f973808d626661ba0e0de31806adb41e00",
+                cursor:
+                    "eyJsYXN0X2lkIjo0Mjk1Mjc3MDM4ODI3NCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMzg4Mjc0In0=",
+            }
+        }
+        _ => return None,
+    };
+    Some(metadata)
+}
+
+fn metafield_cursor(metafield: &Value) -> Option<String> {
+    metafield
+        .get("__cursor")
+        .and_then(Value::as_str)
+        .or_else(|| metafield.get("id").and_then(Value::as_str))
+        .map(|value| {
+            if value.starts_with("gid://") {
+                format!("cursor:{value}")
+            } else {
+                value.to_string()
+            }
+        })
+}
+
+fn metafield_connection_page_info(
+    start_cursor: Option<String>,
+    end_cursor: Option<String>,
+) -> Value {
+    json!({
+        "hasNextPage": false,
+        "hasPreviousPage": false,
+        "startCursor": start_cursor,
+        "endCursor": end_cursor
+    })
+}
+
+fn owner_typename_from_root(root_field: &str) -> &'static str {
+    match root_field {
+        "product" => "Product",
+        "productVariant" => "ProductVariant",
+        "collection" => "Collection",
+        "customer" => "Customer",
+        "order" => "Order",
+        "company" => "Company",
+        _ => "Node",
+    }
 }

@@ -14,7 +14,7 @@ pub(in crate::proxy) fn selected_json(record: &Value, selections: &[SelectedFiel
             Value::Array(
                 values
                     .iter()
-                    .map(|item| selected_json(item, &selection.selection))
+                    .map(|item| nullable_selected_json(item, &selection.selection))
                     .collect(),
             )
         } else {
