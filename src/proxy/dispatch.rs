@@ -256,6 +256,17 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "availableLocales" | "shopLocales"))
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.localization_catalog_query_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
