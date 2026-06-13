@@ -30,6 +30,7 @@ fn product_read_serializes_seeded_base_product_by_id() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let product = proxy.process_request(graphql_request(
@@ -69,6 +70,7 @@ fn product_read_serializes_only_requested_scalar_fields() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let product = proxy.process_request(graphql_request(
@@ -105,6 +107,7 @@ fn product_read_preserves_root_alias() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let product = proxy.process_request(graphql_request(
@@ -1722,6 +1725,7 @@ fn product_update_stages_scalar_changes_visible_to_product_read() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let update = proxy.process_request(graphql_request(
@@ -1791,6 +1795,7 @@ fn products_connection_reflects_staged_creates_and_deletes() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let create = proxy.process_request(graphql_request(
@@ -1872,6 +1877,7 @@ fn products_connection_applies_first_limit_after_overlaying_state() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
         ProductRecord {
             id: "gid://shopify/Product/2".to_string(),
@@ -1887,6 +1893,7 @@ fn products_connection_applies_first_limit_after_overlaying_state() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
     ]);
 
@@ -1930,6 +1937,7 @@ fn products_connection_serializes_edges_and_page_info_for_selected_window() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
         ProductRecord {
             id: "gid://shopify/Product/2".to_string(),
@@ -1945,6 +1953,7 @@ fn products_connection_serializes_edges_and_page_info_for_selected_window() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
     ]);
 
@@ -2004,6 +2013,7 @@ fn products_connection_paginates_edges_nodes_and_page_info_consistently() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
         ProductRecord {
             id: "gid://shopify/Product/2".to_string(),
@@ -2019,6 +2029,7 @@ fn products_connection_paginates_edges_nodes_and_page_info_consistently() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
         ProductRecord {
             id: "gid://shopify/Product/3".to_string(),
@@ -2034,6 +2045,7 @@ fn products_connection_paginates_edges_nodes_and_page_info_consistently() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
     ]);
 
@@ -2138,6 +2150,7 @@ fn products_count_reflects_staged_creates_and_deletes() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let create = proxy.process_request(graphql_request(
@@ -2233,6 +2246,7 @@ fn product_by_identifier_preserves_root_alias() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let by_handle = proxy.process_request(graphql_request(
@@ -2271,6 +2285,7 @@ fn product_by_identifier_supports_multiple_aliases_in_one_query() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let create = proxy.process_request(graphql_request(
@@ -2320,6 +2335,7 @@ fn products_and_products_count_preserve_root_aliases() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
         ProductRecord {
             id: "gid://shopify/Product/2".to_string(),
@@ -2335,6 +2351,7 @@ fn products_and_products_count_preserve_root_aliases() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
     ]);
 
@@ -2382,6 +2399,7 @@ fn product_roots_support_multiple_aliases_in_one_query() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
         ProductRecord {
             id: "gid://shopify/Product/2".to_string(),
@@ -2397,6 +2415,7 @@ fn product_roots_support_multiple_aliases_in_one_query() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
     ]);
 
@@ -2434,6 +2453,7 @@ fn product_mutations_preserve_root_alias_response_keys() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let create = proxy.process_request(graphql_request(
@@ -3606,6 +3626,7 @@ fn product_delete_stages_downstream_no_data_for_product_read() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let delete = proxy.process_request(graphql_request(
@@ -3774,6 +3795,7 @@ fn product_read_resolves_id_from_request_variables() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let product = proxy.process_request(graphql_request(
@@ -3919,6 +3941,7 @@ fn product_change_status_rejects_invalid_status_without_staging() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let mut literal_request = graphql_request(

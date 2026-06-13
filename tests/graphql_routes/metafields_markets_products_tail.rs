@@ -3112,6 +3112,7 @@ fn product_tags_add_remove_split_and_match_case_insensitively() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         }])
     }
 

@@ -95,7 +95,7 @@ pub struct Response {
     pub body: Value,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProductRecord {
     pub id: String,
     pub created_at: String,
