@@ -966,7 +966,7 @@ pub(in crate::proxy) fn gift_card_entitlement_disabled_payload(
     let user_errors = [json!({
         "field": ["base"],
         "code": null,
-        "message": "Gift cards are not available on this plan."
+        "message": "Gift cards are unavailable on your plan."
     })];
     selected_payload_json(selections, |selection| {
         Some(if selection.name == "userErrors" {
@@ -1052,8 +1052,11 @@ pub(in crate::proxy) fn known_product_change_status_seed(id: &str) -> Option<Pro
     if id != "gid://shopify/Product/10173064872242" {
         return None;
     }
+    let timestamp = default_product_timestamp(id);
     Some(ProductRecord {
         id: id.to_string(),
+        created_at: timestamp.clone(),
+        updated_at: timestamp,
         title: "Hermes Product State Conformance 1777416213315".to_string(),
         handle: "hermes-product-state-conformance-1777416213315".to_string(),
         status: "DRAFT".to_string(),
@@ -1070,10 +1073,33 @@ pub(in crate::proxy) fn known_product_change_status_seed(id: &str) -> Option<Pro
     })
 }
 
-pub(in crate::proxy) fn product_updated_at(id: &str) -> Option<&'static str> {
+pub(in crate::proxy) fn default_product_timestamp(id: &str) -> String {
     match id {
-        "gid://shopify/Product/10173064872242" => Some("2026-04-28T22:43:34Z"),
-        _ => None,
+        "gid://shopify/Product/10173064872242" => "2026-04-28T22:43:34Z".to_string(),
+        _ => "2024-01-01T00:00:00.000Z".to_string(),
+    }
+}
+
+pub(in crate::proxy) fn product_mutation_timestamp(ordinal: u64) -> String {
+    format!("2024-01-01T00:00:{:02}.000Z", (ordinal + 1) % 60)
+}
+
+pub(in crate::proxy) fn product_next_updated_at(current: &str, ordinal: u64) -> String {
+    let candidate = product_mutation_timestamp(ordinal);
+    if candidate.as_str() > current {
+        candidate
+    } else {
+        current.to_string()
+    }
+}
+
+impl DraftProxy {
+    pub(in crate::proxy) fn next_product_timestamp(&self) -> String {
+        product_mutation_timestamp(self.log_entries.len() as u64)
+    }
+
+    pub(in crate::proxy) fn next_product_updated_at(&self, current: &str) -> String {
+        product_next_updated_at(current, self.log_entries.len() as u64)
     }
 }
 
@@ -1104,8 +1130,11 @@ pub(in crate::proxy) fn known_tags_product_seed(
         ),
         _ => return None,
     };
+    let timestamp = default_product_timestamp(id);
     Some(ProductRecord {
         id: id.to_string(),
+        created_at: timestamp.clone(),
+        updated_at: timestamp,
         title: title.to_string(),
         handle: handle.to_string(),
         status: "DRAFT".to_string(),
@@ -1151,7 +1180,8 @@ pub(in crate::proxy) fn product_json(
         "title" => Some(json!(product.title)),
         "handle" => Some(json!(product.handle)),
         "status" => Some(json!(product.status)),
-        "updatedAt" => product_updated_at(&product.id).map(|value| json!(value)),
+        "createdAt" => Some(json!(product.created_at)),
+        "updatedAt" => Some(json!(product.updated_at)),
         "descriptionHtml" => Some(json!(product.description_html)),
         "vendor" => Some(json!(product.vendor)),
         "productType" => Some(json!(product.product_type)),
@@ -1292,8 +1322,21 @@ pub(in crate::proxy) fn product_state_map_from_json(
 }
 
 pub(in crate::proxy) fn product_state_from_json(value: &Value) -> Option<ProductRecord> {
+    let id = value.get("id")?.as_str()?.to_string();
+    let created_at = value
+        .get("createdAt")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| default_product_timestamp(&id));
+    let updated_at = value
+        .get("updatedAt")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| created_at.clone());
     Some(ProductRecord {
-        id: value.get("id")?.as_str()?.to_string(),
+        id,
+        created_at,
+        updated_at,
         title: value.get("title")?.as_str()?.to_string(),
         handle: value.get("handle")?.as_str()?.to_string(),
         status: value.get("status")?.as_str()?.to_string(),
@@ -1342,6 +1385,8 @@ pub(in crate::proxy) fn product_state_from_json(value: &Value) -> Option<Product
 pub(in crate::proxy) fn product_state_json(product: &ProductRecord) -> Value {
     json!({
         "id": product.id,
+        "createdAt": product.created_at,
+        "updatedAt": product.updated_at,
         "title": product.title,
         "handle": product.handle,
         "status": product.status,

@@ -1278,11 +1278,12 @@ impl DraftProxy {
                 matches!(
                     field.as_str(),
                     "metafieldDefinitionCreate"
+                        | "metafieldDefinitionUpdate"
+                        | "metafieldDefinitionDelete"
                         | "metafieldDefinitionPin"
                         | "metafieldDefinitionUnpin"
                 )
             })
-            && is_metafield_definition_pinning_document(&query)
         {
             return self.metafield_definition_pinning_mutation(&query, &variables);
         }
@@ -1294,7 +1295,8 @@ impl DraftProxy {
                     "metafieldDefinition" | "metafieldDefinitions"
                 )
             })
-            && is_metafield_definition_pinning_read_document(&query)
+            && (is_metafield_definition_pinning_read_document(&query)
+                || !self.store.staged.metafield_definitions.is_empty())
         {
             return self.metafield_definition_pinning_read(&query, &variables);
         }
@@ -1342,16 +1344,8 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "standardMetafieldDefinitionEnable"
-            && is_log_draft_enforcement_document(&query)
         {
             return self.standard_metafield_definition_enable(request, &query, &variables);
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && root_field == "metafieldDefinitionDelete"
-            && query.contains("MetafieldDefinitionLifecycleDelete")
-        {
-            return self.metafield_definition_lifecycle_delete(&query, &variables);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -1458,7 +1452,6 @@ impl DraftProxy {
                     | "publishablePublishToCurrentChannel"
                     | "publishableUnpublishToCurrentChannel"
             )
-            && is_product_publishable_parity_document(&query)
         {
             return self.product_publishable_mutation(root_field, &query, &variables, request);
         }

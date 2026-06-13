@@ -293,6 +293,129 @@ fn marketing_engagement_currency_validation_matches_shopify_error_codes() {
 }
 
 #[test]
+fn marketing_external_activity_create_validation_reaches_rust_handler() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityCreateExternalValidation(
+          $currencyMismatchInput: MarketingActivityCreateExternalInput!
+          $utmSeedInput: MarketingActivityCreateExternalInput!
+          $duplicateUtmCampaignInput: MarketingActivityCreateExternalInput!
+          $urlSeedInput: MarketingActivityCreateExternalInput!
+          $duplicateUrlParameterValueInput: MarketingActivityCreateExternalInput!
+        ) {
+          currencyMismatch: marketingActivityCreateExternal(input: $currencyMismatchInput) { marketingActivity { id } userErrors { field message code } }
+          utmSeed: marketingActivityCreateExternal(input: $utmSeedInput) { marketingActivity { id } userErrors { field message code } }
+          duplicateUtmCampaign: marketingActivityCreateExternal(input: $duplicateUtmCampaignInput) { marketingActivity { id } userErrors { field message code } }
+          urlSeed: marketingActivityCreateExternal(input: $urlSeedInput) { marketingActivity { id } userErrors { field message code } }
+          duplicateUrlParameterValue: marketingActivityCreateExternal(input: $duplicateUrlParameterValueInput) { marketingActivity { id } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "currencyMismatchInput": {"title": "Currency mismatch", "remoteId": "currency-mismatch", "status": "ACTIVE", "remoteUrl": "https://example.com/currency", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "currency-mismatch", "source": "email", "medium": "newsletter"}, "budget": {"budgetType": "DAILY", "total": {"amount": "1.00", "currencyCode": "USD"}}, "adSpend": {"amount": "1.00", "currencyCode": "EUR"}},
+            "utmSeedInput": {"title": "UTM Seed", "remoteId": "utm-seed", "status": "ACTIVE", "remoteUrl": "https://example.com/utm-seed", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "utm-seed", "source": "email", "medium": "newsletter"}, "urlParameterValue": "utm-seed"},
+            "duplicateUtmCampaignInput": {"title": "Duplicate UTM", "remoteId": "utm-duplicate", "status": "ACTIVE", "remoteUrl": "https://example.com/utm-duplicate", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "utm-seed", "source": "email", "medium": "newsletter"}, "urlParameterValue": "utm-duplicate"},
+            "urlSeedInput": {"title": "URL Seed", "remoteId": "url-seed", "status": "ACTIVE", "remoteUrl": "https://example.com/url-seed", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "url-seed", "source": "email", "medium": "newsletter"}, "urlParameterValue": "url-seed-param"},
+            "duplicateUrlParameterValueInput": {"title": "Duplicate URL", "remoteId": "url-duplicate", "status": "ACTIVE", "remoteUrl": "https://example.com/url-duplicate", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "url-duplicate", "source": "email", "medium": "newsletter"}, "urlParameterValue": "url-seed-param"}
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["currencyMismatch"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Currency code is not matching between budget and ad spend", "code": null}]})
+    );
+    assert_eq!(
+        response.body["data"]["duplicateUtmCampaign"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Validation failed: Utm campaign has already been taken", "code": null}]})
+    );
+    assert_eq!(
+        response.body["data"]["duplicateUrlParameterValue"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Validation failed: Url parameter value has already been taken", "code": null}]})
+    );
+}
+
+#[test]
+fn marketing_external_activity_upsert_create_branch_rejects_currency_and_duplicates() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle(
+          $seedInput: MarketingActivityCreateExternalInput!
+          $currencyMismatchInput: MarketingActivityUpsertExternalInput!
+          $duplicateUtmCampaignInput: MarketingActivityUpsertExternalInput!
+          $duplicateUrlParameterValueInput: MarketingActivityUpsertExternalInput!
+        ) {
+          seed: marketingActivityCreateExternal(input: $seedInput) { marketingActivity { id } userErrors { field message code } }
+          currencyMismatch: marketingActivityUpsertExternal(input: $currencyMismatchInput) { marketingActivity { id } userErrors { field message code } }
+          duplicateUtmCampaign: marketingActivityUpsertExternal(input: $duplicateUtmCampaignInput) { marketingActivity { id } userErrors { field message code } }
+          duplicateUrlParameterValue: marketingActivityUpsertExternal(input: $duplicateUrlParameterValueInput) { marketingActivity { id } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "seedInput": {"title": "Seed", "remoteId": "upsert-seed", "status": "ACTIVE", "remoteUrl": "https://example.com/upsert-seed", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "upsert-seed", "source": "email", "medium": "newsletter"}, "urlParameterValue": "upsert-seed-param"},
+            "currencyMismatchInput": {"title": "Currency mismatch", "remoteId": "upsert-currency", "status": "ACTIVE", "remoteUrl": "https://example.com/upsert-currency", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "upsert-currency", "source": "email", "medium": "newsletter"}, "budget": {"budgetType": "DAILY", "total": {"amount": "1.00", "currencyCode": "USD"}}, "adSpend": {"amount": "1.00", "currencyCode": "EUR"}},
+            "duplicateUtmCampaignInput": {"title": "Duplicate UTM", "remoteId": "upsert-utm-duplicate", "status": "ACTIVE", "remoteUrl": "https://example.com/upsert-utm-duplicate", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "upsert-seed", "source": "email", "medium": "newsletter"}, "urlParameterValue": "upsert-utm-duplicate"},
+            "duplicateUrlParameterValueInput": {"title": "Duplicate URL", "remoteId": "upsert-url-duplicate", "status": "ACTIVE", "remoteUrl": "https://example.com/upsert-url-duplicate", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "upsert-url-duplicate", "source": "email", "medium": "newsletter"}, "urlParameterValue": "upsert-seed-param"}
+        }),
+    ));
+
+    assert_eq!(response.body["data"]["seed"]["userErrors"], json!([]));
+    assert_eq!(
+        response.body["data"]["currencyMismatch"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Currency code is not matching between budget and ad spend", "code": null}]})
+    );
+    assert_eq!(
+        response.body["data"]["duplicateUtmCampaign"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Validation failed: Utm campaign has already been taken", "code": null}]})
+    );
+    assert_eq!(
+        response.body["data"]["duplicateUrlParameterValue"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Validation failed: Url parameter value has already been taken, Url parameter value has already been taken", "code": null}]})
+    );
+}
+
+#[test]
+fn marketing_engagement_create_validation_order_and_missing_event_reach_rust_handler() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingEngagementCreateValidationOrder(
+          $activityInput: MarketingActivityUpdateInput!
+          $missingActivityId: ID!
+          $missingRemoteId: String!
+          $currencyMismatchEngagement: MarketingEngagementInput!
+          $validEngagement: MarketingEngagementInput!
+        ) {
+          activityWithoutEvent: marketingActivityUpdate(input: $activityInput) { marketingActivity { id marketingEvent { id } } userErrors { field message } }
+          unknownRemoteCurrency: marketingEngagementCreate(remoteId: $missingRemoteId, marketingEngagement: $currencyMismatchEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
+          missingActivity: marketingEngagementCreate(marketingActivityId: $missingActivityId, marketingEngagement: $validEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
+          missingEvent: marketingEngagementCreate(marketingActivityId: "gid://shopify/MarketingActivity/1", marketingEngagement: $validEngagement) { marketingEngagement { occurredOn } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "activityInput": {"id": "gid://shopify/MarketingActivity/1", "title": "Native activity without event", "status": "ACTIVE"},
+            "missingActivityId": "gid://shopify/MarketingActivity/999999999999",
+            "missingRemoteId": "missing-remote",
+            "currencyMismatchEngagement": {"occurredOn": "2026-04-01", "isCumulative": false, "utcOffset": "+00:00", "adSpend": {"amount": "1.00", "currencyCode": "USD"}, "sales": {"amount": "2.00", "currencyCode": "EUR"}},
+            "validEngagement": {"occurredOn": "2026-04-01", "isCumulative": false, "utcOffset": "+00:00", "adSpend": {"amount": "1.00", "currencyCode": "USD"}}
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["unknownRemoteCurrency"],
+        json!({"marketingEngagement": null, "userErrors": [{"field": ["marketingEngagement"], "message": "Currency codes in the marketing engagement input do not match.", "code": "CURRENCY_CODE_MISMATCH_INPUT"}]})
+    );
+    assert_eq!(
+        response.body["data"]["missingActivity"],
+        json!({"marketingEngagement": null, "userErrors": [{"field": null, "message": "Marketing activity does not exist.", "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"}]})
+    );
+    assert_eq!(
+        response.body["data"]["missingEvent"],
+        json!({"marketingEngagement": null, "userErrors": [{"field": null, "message": "Marketing event does not exist.", "code": "MARKETING_EVENT_DOES_NOT_EXIST"}]})
+    );
+}
+
+#[test]
 fn marketing_native_activity_lifecycle_stages_update_and_invalid_extension_error() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
@@ -1729,7 +1852,7 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
     assert_eq!(
         create.body["data"]["fileCreate"],
         json!({
-            "files": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}],
+            "files": [{"id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}],
             "userErrors": []
         })
     );
@@ -1740,7 +1863,7 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
           fileUpdate(files: $files) { files { id alt fileStatus ... on MediaImage { image { url } } } userErrors { field message code } }
         }
         "#,
-        json!({"files": [{"id": "gid://shopify/MediaImage/2", "alt": "Attached file media", "originalSource": "https://cdn.example.com/file-reference-ready.jpg", "referencesToAdd": ["gid://shopify/Product/429001"]}]}),
+        json!({"files": [{"id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "alt": "Attached file media", "originalSource": "https://cdn.example.com/file-reference-ready.jpg", "referencesToAdd": ["gid://shopify/Product/429001"]}]}),
     ));
     assert_eq!(
         attach.body["data"]["fileUpdate"],
@@ -1770,7 +1893,7 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
     ));
     assert_eq!(
         files_read.body["data"]["files"],
-        json!({"nodes": [{"id": "gid://shopify/MediaImage/2", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:gid://shopify/MediaImage/2", "endCursor": "cursor:gid://shopify/MediaImage/2"}})
+        json!({"nodes": [{"id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "endCursor": "cursor:gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic"}})
     );
 
     let delete = proxy.process_request(json_graphql_request(
@@ -1801,6 +1924,69 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
 }
 
 #[test]
+fn media_file_create_allocates_unique_ids_across_separate_calls() {
+    let mut proxy = snapshot_proxy();
+
+    let create_query = r#"
+        mutation FileReferenceCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id alt createdAt fileStatus filename }
+            userErrors { field message code }
+          }
+        }
+        "#;
+
+    let first = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"files": [{"alt": "First batch", "contentType": "IMAGE", "filename": "first.jpg", "originalSource": "https://cdn.example.com/first.jpg"}]}),
+    ));
+    let second = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"files": [{"alt": "Second batch", "contentType": "IMAGE", "filename": "second.jpg", "originalSource": "https://cdn.example.com/second.jpg"}]}),
+    ));
+
+    let first_id = first.body["data"]["fileCreate"]["files"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_id = second.body["data"]["fileCreate"]["files"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(first_id, second_id);
+    assert_eq!(
+        first_id,
+        "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic"
+    );
+    assert_eq!(
+        second_id,
+        "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic"
+    );
+    assert_eq!(first.body["data"]["fileCreate"]["userErrors"], json!([]));
+    assert_eq!(second.body["data"]["fileCreate"]["userErrors"], json!([]));
+
+    let files_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FileReferenceFilesRead {
+          files(first: 10) {
+            nodes { id alt createdAt fileStatus filename }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        files_read.body["data"]["files"]["nodes"],
+        json!([
+            {"id": first_id, "alt": "First batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "first.jpg"},
+            {"id": second_id, "alt": "Second batch", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "second.jpg"}
+        ])
+    );
+}
+
+#[test]
 fn media_file_delete_re_resolves_wrong_typed_gid_to_staged_media_image() {
     let mut proxy = snapshot_proxy();
 
@@ -1815,11 +2001,19 @@ fn media_file_delete_re_resolves_wrong_typed_gid_to_staged_media_image() {
             {"contentType": "IMAGE", "originalSource": "https://placehold.co/600x400/png", "alt": "Hermes typed delete wrong type 1777945543894"}
         ]}),
     ));
+    let actual_id = create.body["data"]["fileCreate"]["files"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let wrong_type_media_id = create.body["data"]["fileCreate"]["files"][1]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
     assert_eq!(
         create.body["data"]["fileCreate"],
         json!({"files": [
-            {"id": "gid://shopify/MediaImage/2", "alt": "Hermes typed delete actual 1777945543894", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED"},
-            {"id": "gid://shopify/MediaImage/3", "alt": "Hermes typed delete wrong type 1777945543894", "createdAt": "2024-01-01T00:00:02.000Z", "fileStatus": "UPLOADED"}
+            {"id": actual_id, "alt": "Hermes typed delete actual 1777945543894", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED"},
+            {"id": wrong_type_media_id, "alt": "Hermes typed delete wrong type 1777945543894", "createdAt": "2024-01-01T00:00:02.000Z", "fileStatus": "UPLOADED"}
         ], "userErrors": []})
     );
 
@@ -1829,11 +2023,11 @@ fn media_file_delete_re_resolves_wrong_typed_gid_to_staged_media_image() {
           fileDelete(fileIds: $fileIds) { deletedFileIds userErrors { field message code } }
         }
         "#,
-        json!({"fileIds": ["gid://shopify/MediaImage/2"]}),
+        json!({"fileIds": [actual_id]}),
     ));
     assert_eq!(
         delete_actual.body["data"]["fileDelete"],
-        json!({"deletedFileIds": ["gid://shopify/MediaImage/2"], "userErrors": []})
+        json!({"deletedFileIds": [actual_id], "userErrors": []})
     );
 
     let delete_wrong_type = proxy.process_request(json_graphql_request(
@@ -1842,11 +2036,11 @@ fn media_file_delete_re_resolves_wrong_typed_gid_to_staged_media_image() {
           fileDelete(fileIds: $fileIds) { deletedFileIds userErrors { field message code } }
         }
         "#,
-        json!({"fileIds": ["gid://shopify/Video/3"]}),
+        json!({"fileIds": [wrong_type_media_id.replace("/MediaImage/", "/Video/")]}),
     ));
     assert_eq!(
         delete_wrong_type.body["data"]["fileDelete"],
-        json!({"deletedFileIds": ["gid://shopify/MediaImage/3"], "userErrors": []})
+        json!({"deletedFileIds": [wrong_type_media_id], "userErrors": []})
     );
 }
 
@@ -1907,7 +2101,7 @@ fn media_file_create_validates_inputs_without_operation_name_guards() {
     ));
     assert_eq!(
         success.body["data"]["fileCreate"],
-        json!({"files": [{"id": "gid://shopify/MediaImage/2", "fileStatus": "UPLOADED"}], "userErrors": []})
+        json!({"files": [{"id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "fileStatus": "UPLOADED"}], "userErrors": []})
     );
 }
 
@@ -2061,7 +2255,7 @@ fn media_file_acknowledge_update_failed_validates_missing_and_non_ready_ids() {
     ));
     assert_eq!(
         create.body["data"]["fileCreate"]["files"][0]["id"],
-        json!("gid://shopify/MediaImage/2")
+        json!("gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic")
     );
 
     let acknowledge_non_ready = proxy.process_request(json_graphql_request(
@@ -2073,13 +2267,13 @@ fn media_file_acknowledge_update_failed_validates_missing_and_non_ready_ids() {
           }
         }
         "#,
-        json!({"fileIds": ["gid://shopify/MediaImage/2"]}),
+        json!({"fileIds": ["gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic"]}),
     ));
     assert_eq!(
         acknowledge_non_ready.body["data"]["fileAcknowledgeUpdateFailed"],
         json!({"files": null, "userErrors": [{
             "field": ["fileIds"],
-            "message": "File with id gid://shopify/MediaImage/2 is not in the READY state.",
+            "message": "File with id gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic is not in the READY state.",
             "code": "NON_READY_STATE"
         }]})
     );
@@ -2093,7 +2287,7 @@ fn media_file_acknowledge_update_failed_validates_missing_and_non_ready_ids() {
           }
         }
         "#,
-        json!({"fileIds": ["gid://shopify/MediaImage/999", "gid://shopify/MediaImage/2"]}),
+        json!({"fileIds": ["gid://shopify/MediaImage/999", "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic"]}),
     ));
     assert_eq!(
         acknowledge_missing.body["data"]["fileAcknowledgeUpdateFailed"],

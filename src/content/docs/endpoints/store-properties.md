@@ -64,10 +64,17 @@ checked-in scenario. Successful `locationDeactivate` calls with a
 destination in the modeled slice, merge same-name quantity rows when a
 destination level already exists, remove the source level from downstream
 inventory reads, and leave guard/userError branches without relocation.
+Captured guard slices include same-destination rejection, inactive-destination
+rejection, active-inventory relocation requirements, only-online-fulfillment
+protection, and permanent deactivation blocks with Shopify field paths and
+codes.
 
 Generic publishable mutation slices cover Product and Collection publish/unpublish
-behavior where backed by parity specs. Product current-channel helpers update
-publication aggregates such as `shop.publicationCount` for the modeled
+behavior where backed by parity specs. Product-scoped `PublicationInput`
+validation locally rejects duplicate publication IDs, blank or empty
+`publicationId`, unknown publication IDs, and pre-1970 `publishDate` values with
+the captured Shopify field paths/messages. Product current-channel helpers
+update publication aggregates such as `shop.publicationCount` for the modeled
 publication catalog. Unsupported publishable target types return local
 userErrors in the documented scenarios instead of being treated as full support
 for every publishable object.

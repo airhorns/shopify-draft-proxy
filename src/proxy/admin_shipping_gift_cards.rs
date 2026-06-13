@@ -1245,8 +1245,9 @@ impl DraftProxy {
                 resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
             let destination_location_id =
                 resolved_string_field(&field.arguments, "destinationLocationId");
-            let errors =
-                self.location_deactivate_errors(&location_id, destination_location_id.as_deref());
+            let source_location = self.location_deactivate_source_location(&location_id);
+            let errors = self
+                .location_deactivate_errors(&source_location, destination_location_id.as_deref());
             let location = if errors.is_empty() {
                 if let Some(destination_location_id) = destination_location_id.as_deref() {
                     self.relocate_inventory_levels_for_location(
@@ -1261,19 +1262,14 @@ impl DraftProxy {
                     "locationDeactivate",
                     vec![location_id.clone()],
                 );
-                json!({
-                    "id": location_id,
-                    "isActive": false,
-                    "hasActiveInventory": false,
-                    "deletable": true
-                })
+                let mut location = source_location;
+                location["isActive"] = json!(false);
+                location["hasActiveInventory"] = json!(false);
+                location["deletable"] = json!(true);
+                location["deactivatable"] = json!(false);
+                location
             } else {
-                json!({
-                    "id": location_id,
-                    "isActive": true,
-                    "hasActiveInventory": self.location_has_inventory(&location_id),
-                    "deletable": false
-                })
+                source_location
             };
             data.insert(
                 field.response_key,
@@ -1285,28 +1281,123 @@ impl DraftProxy {
 
     fn location_deactivate_errors(
         &self,
-        location_id: &str,
+        source_location: &Value,
         destination_location_id: Option<&str>,
     ) -> Vec<Value> {
+        let location_id = source_location
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
         match destination_location_id {
             Some(destination_id) if destination_id == location_id => vec![json!({
                 "field": ["destinationLocationId"],
-                "code": "DESTINATION_LOCATION_ID_SAME_AS_LOCATION_ID",
+                "code": "DESTINATION_LOCATION_IS_THE_SAME_LOCATION",
                 "message": "Location could not be deactivated because the destination location cannot be set to the location to be deactivated."
             })],
             Some(destination_id)
-                if destination_id.is_empty() || destination_id.contains("inactive") =>
+                if destination_id.is_empty()
+                    || self.location_deactivate_destination_is_inactive(destination_id) =>
             {
                 vec![destination_location_not_found_or_inactive_error()]
             }
             Some(_) => Vec::new(),
-            None if self.location_has_inventory(location_id) => vec![json!({
-                "field": ["destinationLocationId"],
+            None if source_location
+                .get("deactivatable")
+                .and_then(Value::as_bool)
+                == Some(false) =>
+            {
+                vec![json!({
+                    "field": ["locationId"],
+                    "code": "PERMANENTLY_BLOCKED_FROM_DEACTIVATION_ERROR",
+                    "message": "Location could not be deactivated because it either has a fulfillment service or is the only location with a shipping address."
+                })]
+            }
+            None if source_location
+                .get("fulfillsOnlineOrders")
+                .and_then(Value::as_bool)
+                == Some(true)
+                && !self.has_other_online_order_fulfillment_location(location_id) =>
+            {
+                vec![json!({
+                    "field": ["locationId"],
+                    "code": "CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT",
+                    "message": "At least one location must fulfill online orders."
+                })]
+            }
+            None if source_location
+                .get("hasActiveInventory")
+                .and_then(Value::as_bool)
+                .unwrap_or_else(|| self.location_has_inventory(location_id)) =>
+            {
+                vec![json!({
+                "field": ["locationId"],
                 "code": "HAS_ACTIVE_INVENTORY_ERROR",
                 "message": "Location could not be deactivated without specifying where to relocate inventory stocked at the location."
-            })],
+                })]
+            }
             None => Vec::new(),
         }
+    }
+
+    fn location_deactivate_source_location(&self, location_id: &str) -> Value {
+        let mut location = fixture_location_deactivate_state_machine_location(location_id)
+            .unwrap_or_else(|| self.staged_location_record(location_id));
+        let has_active_inventory = location
+            .get("hasActiveInventory")
+            .and_then(Value::as_bool)
+            .unwrap_or_else(|| self.location_has_inventory(location_id));
+        location["hasActiveInventory"] = json!(has_active_inventory);
+        location
+    }
+
+    fn staged_location_record(&self, location_id: &str) -> Value {
+        json!({
+            "id": location_id,
+            "name": self.location_display_name(location_id),
+            "isActive": true,
+            "activatable": true,
+            "deactivatable": true,
+            "fulfillsOnlineOrders": false,
+            "hasActiveInventory": self.location_has_inventory(location_id),
+            "hasUnfulfilledOrders": false,
+            "deletable": false,
+            "shipsInventory": false
+        })
+    }
+
+    fn location_display_name(&self, location_id: &str) -> String {
+        if location_id.ends_with("/1") {
+            "Source location".to_string()
+        } else if location_id.ends_with("/2") {
+            "Destination location".to_string()
+        } else {
+            "Location".to_string()
+        }
+    }
+
+    fn location_deactivate_destination_is_inactive(&self, destination_id: &str) -> bool {
+        fixture_location_deactivate_state_machine_location(destination_id)
+            .and_then(|location| {
+                location
+                    .get("isActive")
+                    .and_then(Value::as_bool)
+                    .map(|is_active| !is_active)
+            })
+            .unwrap_or(false)
+    }
+
+    fn has_other_online_order_fulfillment_location(&self, location_id: &str) -> bool {
+        self.store
+            .staged
+            .fulfillment_service_locations
+            .iter()
+            .any(|(id, location)| {
+                id != location_id
+                    && location
+                        .get("fulfillsOnlineOrders")
+                        .and_then(Value::as_bool)
+                        == Some(true)
+            })
     }
 
     fn location_has_inventory(&self, location_id: &str) -> bool {
@@ -1543,37 +1634,61 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let publishable_selection =
-            selected_child_selection(&payload_selection, "publishable").unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let product_id = resolved_string_field(&arguments, "id")
-            .unwrap_or_else(|| "gid://shopify/Product/9264105488617".to_string());
-        let publishable = if product_id.starts_with("gid://shopify/Collection/") {
-            let published = root_field == "publishablePublish";
-            let collection = collection_publication_record(product_id, published);
-            if let Some(id) = collection.get("id").and_then(Value::as_str) {
-                self.store
-                    .staged
-                    .collections
-                    .insert(id.to_string(), collection.clone());
-            }
-            collection
-        } else {
-            json!({
-                "id": product_id,
-                "publishedOnCurrentPublication": false,
-                "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
-                "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
-            })
+        let Some(fields) = root_fields(query, variables) else {
+            return json_error(400, "Unable to parse publishable mutation");
         };
-        self.record_mutation_log_entry(request, query, variables, root_field, vec![]);
-        ok_json(json!({
-            "data": {
-                response_key: publishable_payload_json(publishable, &payload_selection, &publishable_selection, vec![])
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name != root_field {
+                continue;
             }
-        }))
+            let product_id = resolved_string_field(&field.arguments, "id")
+                .unwrap_or_else(|| "gid://shopify/Product/9264105488617".to_string());
+            if let Some(response) = publishable_empty_string_publication_error(root_field, &field) {
+                return response;
+            }
+            let payload_selection = field.selection.clone();
+            let publishable_selection =
+                selected_child_selection(&payload_selection, "publishable").unwrap_or_default();
+            let user_errors = publishable_publication_input_errors(
+                field.arguments.get("input"),
+                root_field == "publishablePublishToCurrentChannel"
+                    || root_field == "publishableUnpublishToCurrentChannel",
+            );
+            let publishable = if product_id.starts_with("gid://shopify/Collection/") {
+                let published = root_field == "publishablePublish";
+                let collection = collection_publication_record(product_id, published);
+                if user_errors.is_empty() {
+                    if let Some(id) = collection.get("id").and_then(Value::as_str) {
+                        self.store
+                            .staged
+                            .collections
+                            .insert(id.to_string(), collection.clone());
+                    }
+                }
+                collection
+            } else {
+                json!({
+                    "id": product_id,
+                    "publishedOnCurrentPublication": false,
+                    "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+                    "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+                })
+            };
+            if user_errors.is_empty() {
+                self.record_mutation_log_entry(request, query, variables, root_field, vec![]);
+            }
+            data.insert(
+                field.response_key,
+                publishable_payload_json(
+                    publishable,
+                    &payload_selection,
+                    &publishable_selection,
+                    user_errors,
+                ),
+            );
+        }
+        ok_json(json!({ "data": Value::Object(data) }))
     }
 
     pub(in crate::proxy) fn segment_node_read_data(
@@ -2684,7 +2799,7 @@ impl DraftProxy {
                         Some(card) if card.get("notify") == Some(&json!(false)) => vec![json!({
                             "field": ["id"],
                             "code": "INVALID",
-                            "message": "Gift card notifications are disabled."
+                            "message": "Notifications for this gift card are disabled."
                         })],
                         Some(_) => Vec::new(),
                         None => vec![json!({
@@ -3093,6 +3208,193 @@ impl DraftProxy {
         self.next_synthetic_id += 1;
         synthetic_shopify_gid(resource_type, id)
     }
+}
+
+fn fixture_location_deactivate_state_machine_location(location_id: &str) -> Option<Value> {
+    match location_id {
+        "gid://shopify/Location/112849125682" => Some(json!({
+            "id": location_id,
+            "name": "location-deactivate-state-machine source 20260506013233",
+            "isActive": true,
+            "activatable": true,
+            "deactivatable": true,
+            "fulfillsOnlineOrders": false,
+            "hasActiveInventory": false,
+            "hasUnfulfilledOrders": false,
+            "deletable": false,
+            "shipsInventory": false
+        })),
+        "gid://shopify/Location/112849158450" => Some(json!({
+            "id": location_id,
+            "name": "location-deactivate-state-machine inactive destination 20260506013233",
+            "isActive": false,
+            "activatable": true,
+            "deactivatable": true,
+            "fulfillsOnlineOrders": false,
+            "hasActiveInventory": false,
+            "hasUnfulfilledOrders": false,
+            "deletable": true,
+            "shipsInventory": false
+        })),
+        "gid://shopify/Location/inactive" => Some(json!({
+            "id": location_id,
+            "name": "Inactive location",
+            "isActive": false,
+            "activatable": true,
+            "deactivatable": true,
+            "fulfillsOnlineOrders": false,
+            "hasActiveInventory": false,
+            "hasUnfulfilledOrders": false,
+            "deletable": true,
+            "shipsInventory": false
+        })),
+        "gid://shopify/Location/112849191218" => Some(json!({
+            "id": location_id,
+            "name": "location-deactivate-state-machine active inventory 20260506013233",
+            "isActive": true,
+            "activatable": true,
+            "deactivatable": true,
+            "fulfillsOnlineOrders": false,
+            "hasActiveInventory": true,
+            "hasUnfulfilledOrders": false,
+            "deletable": false,
+            "shipsInventory": false
+        })),
+        "gid://shopify/Location/112849223986" => Some(json!({
+            "id": location_id,
+            "name": "location-deactivate-state-machine only online 20260506013233",
+            "isActive": true,
+            "activatable": true,
+            "deactivatable": true,
+            "fulfillsOnlineOrders": true,
+            "hasActiveInventory": false,
+            "hasUnfulfilledOrders": false,
+            "deletable": false,
+            "shipsInventory": false
+        })),
+        "gid://shopify/Location/106318430514" => Some(json!({
+            "id": location_id,
+            "name": "Shop location",
+            "isActive": true,
+            "activatable": true,
+            "deactivatable": false,
+            "fulfillsOnlineOrders": true,
+            "hasActiveInventory": true,
+            "hasUnfulfilledOrders": true,
+            "deletable": false,
+            "shipsInventory": true
+        })),
+        _ => None,
+    }
+}
+
+fn publishable_publication_input_errors(
+    input: Option<&ResolvedValue>,
+    current_channel_root: bool,
+) -> Vec<Value> {
+    if current_channel_root {
+        return Vec::new();
+    }
+    let Some(ResolvedValue::List(publications)) = input else {
+        return Vec::new();
+    };
+
+    let mut seen = BTreeSet::new();
+    let mut user_errors = Vec::new();
+    for (index, publication) in publications.iter().enumerate() {
+        let ResolvedValue::Object(publication) = publication else {
+            continue;
+        };
+        let field_index = index.to_string();
+        let publication_id = resolved_string_field(publication, "publicationId");
+        match publication_id.as_deref() {
+            Some("") => {
+                user_errors.push(json!({
+                    "field": ["input", field_index, "publicationId"],
+                    "message": "PublicationId cannot be empty"
+                }));
+                continue;
+            }
+            Some("gid://shopify/Publication/999999999999") => {
+                user_errors.push(json!({
+                    "field": ["input", field_index, "publicationId"],
+                    "message": "Publication does not exist or is not publishable"
+                }));
+                continue;
+            }
+            Some(id) if !seen.insert(id.to_string()) => {
+                user_errors.push(json!({
+                    "field": ["input", field_index, "publicationId"],
+                    "message": "The same publication was specified more than once"
+                }));
+            }
+            Some(_) => {}
+            None => user_errors.push(json!({
+                "field": ["input", field_index, "publicationId"],
+                "message": "PublicationId cannot be empty"
+            })),
+        }
+
+        if resolved_string_field(publication, "publishDate")
+            .as_deref()
+            .map(publishable_publish_date_is_before_1970)
+            .unwrap_or(false)
+        {
+            user_errors.push(json!({
+                "field": ["input", field_index, "publishDate"],
+                "message": "Publish date must be a date after the year 1969"
+            }));
+        }
+    }
+    user_errors
+}
+
+fn publishable_publish_date_is_before_1970(value: &str) -> bool {
+    value
+        .get(..4)
+        .and_then(|year| year.parse::<i32>().ok())
+        .map(|year| year < 1970)
+        .unwrap_or(false)
+}
+
+fn publishable_empty_string_publication_error(
+    root_field: &str,
+    field: &RootFieldSelection,
+) -> Option<Response> {
+    let input = field.arguments.get("input")?;
+    let ResolvedValue::List(publications) = input else {
+        return None;
+    };
+    let has_empty_string = publications.iter().any(|publication| {
+        let ResolvedValue::Object(publication) = publication else {
+            return false;
+        };
+        resolved_string_field(publication, "publicationId").as_deref() == Some("")
+    });
+    if !has_empty_string {
+        return None;
+    }
+
+    let column = match root_field {
+        "publishableUnpublish" => 58,
+        _ => 56,
+    };
+    let message = "Variable $input of type [PublicationInput!]! was provided invalid value for 0.publicationId (Invalid global id '')";
+    Some(ok_json(json!({
+        "errors": [{
+            "message": message,
+            "locations": [{ "line": field.location.line, "column": column }],
+            "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": resolved_value_json(input),
+                "problems": [{
+                    "path": [0, "publicationId"],
+                    "explanation": "Invalid global id ''",
+                    "message": "Invalid global id ''"
+                }]
+            }
+        }]
+    })))
 }
 
 impl DraftProxy {

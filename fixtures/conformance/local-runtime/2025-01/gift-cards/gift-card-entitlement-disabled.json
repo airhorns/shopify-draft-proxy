@@ -15,19 +15,9 @@
         "giftCardCode": null,
         "userErrors": [
           {
-            "field": ["base"],
             "code": null,
-            "message": "Gift cards are not available on this plan."
-          }
-        ]
-      },
-      "updateError": {
-        "giftCard": null,
-        "userErrors": [
-          {
             "field": ["base"],
-            "code": null,
-            "message": "Gift cards are not available on this plan."
+            "message": "Gift cards are unavailable on your plan."
           }
         ]
       },
@@ -35,19 +25,9 @@
         "giftCardCreditTransaction": null,
         "userErrors": [
           {
-            "field": ["base"],
             "code": null,
-            "message": "Gift cards are not available on this plan."
-          }
-        ]
-      },
-      "debitError": {
-        "giftCardDebitTransaction": null,
-        "userErrors": [
-          {
             "field": ["base"],
-            "code": null,
-            "message": "Gift cards are not available on this plan."
+            "message": "Gift cards are unavailable on your plan."
           }
         ]
       },
@@ -55,9 +35,19 @@
         "giftCard": null,
         "userErrors": [
           {
-            "field": ["base"],
             "code": null,
-            "message": "Gift cards are not available on this plan."
+            "field": ["base"],
+            "message": "Gift cards are unavailable on your plan."
+          }
+        ]
+      },
+      "debitError": {
+        "giftCardDebitTransaction": null,
+        "userErrors": [
+          {
+            "code": null,
+            "field": ["base"],
+            "message": "Gift cards are unavailable on your plan."
           }
         ]
       },
@@ -65,9 +55,9 @@
         "giftCard": null,
         "userErrors": [
           {
-            "field": ["base"],
             "code": null,
-            "message": "Gift cards are not available on this plan."
+            "field": ["base"],
+            "message": "Gift cards are unavailable on your plan."
           }
         ]
       },
@@ -75,9 +65,19 @@
         "giftCard": null,
         "userErrors": [
           {
-            "field": ["base"],
             "code": null,
-            "message": "Gift cards are not available on this plan."
+            "field": ["base"],
+            "message": "Gift cards are unavailable on your plan."
+          }
+        ]
+      },
+      "updateError": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "code": null,
+            "field": ["base"],
+            "message": "Gift cards are unavailable on your plan."
           }
         ]
       }

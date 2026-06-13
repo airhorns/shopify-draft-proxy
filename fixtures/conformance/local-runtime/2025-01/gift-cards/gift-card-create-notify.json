@@ -16,9 +16,9 @@
         "giftCard": null,
         "userErrors": [
           {
-            "field": ["id"],
             "code": "INVALID",
-            "message": "Gift card notifications are disabled."
+            "field": ["id"],
+            "message": "Notifications for this gift card are disabled."
           }
         ]
       }
