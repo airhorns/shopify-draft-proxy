@@ -1218,85 +1218,6 @@ pub(in crate::proxy) fn product_media_validation_downstream_data() -> Value {
     fixture["scenarios"][9]["downstreamReadAfterScenario"]["data"].clone()
 }
 
-pub(in crate::proxy) fn inventory_transfer_lifecycle_data(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Option<Value> {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-transfer-lifecycle-local-staging.json"
-    ))
-    .expect("inventory transfer lifecycle fixture must parse");
-    if query.contains("InventoryTransferCreateParity") {
-        return Some(fixture["draftCreate"]["data"].clone());
-    }
-    if query.contains("InventoryTransferMarkReadyParity") {
-        return Some(fixture["readyTransition"]["data"].clone());
-    }
-    if query.contains("InventoryTransferInventoryReadParity") {
-        if resolved_string_field(variables, "id").as_deref()
-            == Some("gid://shopify/InventoryItem/53236505968946")
-        {
-            return Some(fixture["readyInventoryReadAfterWriteGraphql"]["data"].clone());
-        }
-        return None;
-    }
-    if query.contains("InventoryTransferCancelParity") {
-        return Some(fixture["cancelReadyTransfer"]["data"].clone());
-    }
-    if query.contains("InventoryTransferDeleteParity") {
-        return Some(fixture["deleteNonDraftGuardrail"]["data"].clone());
-    }
-    None
-}
-
-pub(in crate::proxy) fn inventory_fixture_backed_downstream_read_data(
-    query: &str,
-) -> Option<Value> {
-    if query.contains("InventoryQuantityContractDownstreamRead") {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-quantity-contracts-2026-04.json"
-        ))
-        .expect("inventory quantity contracts fixture must parse");
-        return Some(fixture["downstreamRead"]["data"].clone());
-    }
-    if query.contains("InventoryReasonValidationDownstream") {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-reason-validation.json"
-        ))
-        .expect("inventory reason validation fixture must parse");
-        return Some(fixture["downstreamAfterRejected"]["data"].clone());
-    }
-    if query.contains("InventoryAdjustDerivedFieldsDownstream") {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-adjust-then-has-out-of-stock-variants-parity.json"
-        ))
-        .expect("inventory adjust derived fields fixture must parse");
-        return Some(fixture["downstreamRead"]["data"].clone());
-    }
-    if query.contains("InventoryAdjustQuantitiesDownstreamParity") {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/inventory-adjust-quantities-parity.json"
-        ))
-        .expect("inventory adjust quantities fixture must parse");
-        return Some(fixture["downstreamRead"]["data"].clone());
-    }
-    if query.contains("InventoryAdjustQuantitiesNonAvailableDownstreamParity") {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/inventory-adjust-quantities-parity.json"
-        ))
-        .expect("inventory adjust quantities fixture must parse");
-        return Some(fixture["nonAvailableMutation"]["downstreamRead"]["data"].clone());
-    }
-    if query.contains("InventoryItemUpdateDownstreamRead") {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/inventory-item-update-parity.json"
-        ))
-        .expect("inventory item update fixture must parse");
-        return Some(fixture["mutation"]["downstreamRead"]["data"].clone());
-    }
-    None
-}
-
 pub(in crate::proxy) fn product_state_map_json(
     products: &BTreeMap<String, ProductRecord>,
 ) -> Value {
@@ -2535,7 +2456,11 @@ fn product_status_allows_unlisted(request: &Request) -> bool {
     admin_graphql_version(&request.path).is_some_and(|version| version_at_least(version, 2025, 10))
 }
 
-fn version_at_least(version: &str, minimum_year: u16, minimum_month: u8) -> bool {
+pub(in crate::proxy) fn version_at_least(
+    version: &str,
+    minimum_year: u16,
+    minimum_month: u8,
+) -> bool {
     let Some((year, month)) = parse_year_month_version(version) else {
         return false;
     };
