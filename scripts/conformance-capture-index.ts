@@ -7587,6 +7587,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}bulk-operation-status-catalog-cancel.json`,
       'config/parity-specs/bulk-operations/bulk-operation-status-catalog-cancel.json',
+      'config/parity-specs/bulk-operations/bulk-operation-read-after-write-consumer-poll.json',
+      'config/parity-requests/bulk-operations/bulk-operation-consumer-poll.graphql',
     ],
     cleanupBehavior: 'Starts/cancels safe bulk operations where the harness allows it.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
