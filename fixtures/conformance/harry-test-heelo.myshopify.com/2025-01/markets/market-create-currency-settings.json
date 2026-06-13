@@ -201,11 +201,7 @@
               "market": null,
               "userErrors": [
                 {
-                  "field": [
-                    "input",
-                    "currencySettings",
-                    "baseCurrencyManualRate"
-                  ],
+                  "field": ["input", "currencySettings", "baseCurrencyManualRate"],
                   "message": "Enter a rate above 0.",
                   "code": null
                 }
