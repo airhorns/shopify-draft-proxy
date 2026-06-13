@@ -59,12 +59,11 @@ impl DraftProxy {
             _ => None,
         };
 
-        match country_code {
-            None => ok_json(json!({
+        match country_code.and_then(backup_region_country) {
+            None if country_code.is_none() => ok_json(json!({
                 "data": { response_key: { "backupRegion": self.store.staged.backup_region.clone(), "userErrors": [] } }
             })),
-            Some("CA") | Some("AE") => {
-                let region = backup_region_country(country_code.unwrap());
+            Some(region) => {
                 self.store.staged.backup_region = region.clone();
                 let staged_id = region
                     .get("id")
@@ -82,7 +81,7 @@ impl DraftProxy {
                     "data": { response_key: { "backupRegion": region, "userErrors": [] } }
                 }))
             }
-            Some(_) => {
+            None => {
                 let mut user_error = serde_json::Map::from_iter([
                     ("field".to_string(), json!(["region"])),
                     ("message".to_string(), json!("Region not found.")),

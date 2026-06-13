@@ -2,7 +2,7 @@
 /* oxlint-disable no-console -- CLI scripts intentionally write capture status to stdio. */
 import 'dotenv/config';
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { createAdminGraphqlClient } from './conformance-graphql-client.js';
@@ -10,7 +10,8 @@ import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 const supportedNonCaCountryCode = 'AE';
-const restoreCountryCode = 'CA';
+const supportedUsCountryCode = 'US';
+const baselineCountryCode = 'CA';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   defaultApiVersion: '2026-04',
@@ -19,6 +20,10 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'admin-platform');
 const outputPath = path.join(outputDir, 'admin-platform-backup-region-update-extended.json');
+const backupRegionUpdateUsMutation = await readFile(
+  'config/parity-requests/admin-platform/admin-platform-backup-region-update-us.graphql',
+  'utf8',
+);
 
 const { runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
@@ -65,7 +70,7 @@ const backupRegionQuery = `#graphql
 
 const backupRegionUpdateRestoreMutation = `#graphql
   mutation BackupRegionUpdateRestore {
-    backupRegionUpdate(region: { countryCode: ${restoreCountryCode} }) {
+    backupRegionUpdate(region: { countryCode: ${baselineCountryCode} }) {
       ${backupRegionSelection}
     }
   }
@@ -99,6 +104,37 @@ const backupRegionUpdateInvalidMutation = `#graphql
   mutation BackupRegionUpdateInvalid {
     backupRegionUpdate(region: { countryCode: ZZ }) {
       ${backupRegionSelection}
+    }
+  }
+`;
+
+const marketCreateMutation = `#graphql
+  mutation BackupRegionUpdateTemporaryMarketCreate($input: MarketCreateInput!) {
+    marketCreate(input: $input) {
+      market {
+        id
+        name
+        status
+        enabled
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const marketDeleteMutation = `#graphql
+  mutation BackupRegionUpdateTemporaryMarketDelete($id: ID!) {
+    marketDelete(id: $id) {
+      deletedId
+      userErrors {
+        field
+        message
+        code
+      }
     }
   }
 `;
@@ -139,15 +175,99 @@ function assertInvalidRegion(name, capture) {
   }
 }
 
+function isInvalidRegion(capture) {
+  assertNoTopLevelErrors('backupRegionUpdate probe', capture);
+  const update = captureData(capture).backupRegionUpdate;
+  const error = update?.userErrors?.[0];
+  return update?.backupRegion === null && error?.code === 'REGION_NOT_FOUND' && error?.message === 'Region not found.';
+}
+
+function assertNoUserErrors(name, capture, root) {
+  assertNoTopLevelErrors(name, capture);
+  const errors = captureData(capture)[root]?.userErrors ?? [];
+  if (errors.length > 0) {
+    throw new Error(`${name} returned ${root} userErrors: ${JSON.stringify(errors)}`);
+  }
+}
+
+function createdMarketId(capture) {
+  return captureData(capture).marketCreate?.market?.id ?? null;
+}
+
 const captures = {};
 let captureError = null;
+let cleanupCountryCode = supportedNonCaCountryCode;
+const temporaryMarketIds = [];
+
+function backupRegionUpdateMutationForCountry(countryCode, operationName) {
+  return `#graphql
+    mutation ${operationName} {
+      backupRegionUpdate(region: { countryCode: ${countryCode} }) {
+        ${backupRegionSelection}
+      }
+    }
+  `;
+}
+
+async function createTemporaryMarketForCountry(captureName, countryCode) {
+  const variables = {
+    input: {
+      name: `Backup Region ${countryCode} ${Date.now()}`,
+      status: 'ACTIVE',
+      enabled: true,
+      conditions: {
+        regionsCondition: {
+          regions: [{ countryCode }],
+        },
+      },
+    },
+  };
+  captures[captureName] = {
+    query: marketCreateMutation,
+    variables,
+    result: await runGraphqlCapture(marketCreateMutation, variables),
+  };
+  assertNoUserErrors(captureName, captures[captureName].result, 'marketCreate');
+  const marketId = createdMarketId(captures[captureName].result);
+  if (!marketId) {
+    throw new Error(`${captureName} did not return a market id: ${JSON.stringify(captures[captureName].result)}`);
+  }
+  temporaryMarketIds.push(marketId);
+  return marketId;
+}
+
+async function captureSuccessfulCountryUpdate(captureName, countryCode, mutation, temporaryMarketCaptureName) {
+  const initial = {
+    query: mutation,
+    result: await runGraphqlCapture(mutation),
+  };
+  if (isInvalidRegion(initial.result)) {
+    captures[`${captureName}BeforeTemporaryMarket`] = initial;
+    await createTemporaryMarketForCountry(temporaryMarketCaptureName, countryCode);
+    captures[captureName] = {
+      query: mutation,
+      result: await runGraphqlCapture(mutation),
+    };
+  } else {
+    captures[captureName] = initial;
+  }
+  assertSuccessfulUpdateCode(captureName, captures[captureName].result, countryCode);
+}
 
 try {
-  captures.setupCurrentBackupRegion = {
-    query: backupRegionUpdateRestoreMutation,
-    result: await runGraphqlCapture(backupRegionUpdateRestoreMutation),
+  captures.originalBackupRegion = {
+    query: backupRegionQuery,
+    result: await runGraphqlCapture(backupRegionQuery),
   };
-  assertSuccessfulUpdateCode('setupCurrentBackupRegion', captures.setupCurrentBackupRegion.result, restoreCountryCode);
+  assertNoTopLevelErrors('originalBackupRegion', captures.originalBackupRegion.result);
+  cleanupCountryCode = captureData(captures.originalBackupRegion.result).backupRegion?.code ?? cleanupCountryCode;
+
+  await captureSuccessfulCountryUpdate(
+    'setupCurrentBackupRegion',
+    baselineCountryCode,
+    backupRegionUpdateRestoreMutation,
+    'createTemporaryBaselineMarket',
+  );
 
   captures.backupRegionAfterIdempotentUpdate = {
     query: backupRegionQuery,
@@ -156,7 +276,7 @@ try {
   assertBackupRegionReadCode(
     'backupRegionAfterIdempotentUpdate',
     captures.backupRegionAfterIdempotentUpdate.result,
-    restoreCountryCode,
+    baselineCountryCode,
   );
 
   captures.backupRegionUpdateOmittedLive = {
@@ -189,6 +309,23 @@ try {
     supportedNonCaCountryCode,
   );
 
+  await captureSuccessfulCountryUpdate(
+    'backupRegionUpdateUs',
+    supportedUsCountryCode,
+    backupRegionUpdateUsMutation,
+    'createTemporaryUsMarket',
+  );
+
+  captures.backupRegionAfterUsUpdate = {
+    query: backupRegionQuery,
+    result: await runGraphqlCapture(backupRegionQuery),
+  };
+  assertBackupRegionReadCode(
+    'backupRegionAfterUsUpdate',
+    captures.backupRegionAfterUsUpdate.result,
+    supportedUsCountryCode,
+  );
+
   captures.backupRegionUpdateInvalid = {
     query: backupRegionUpdateInvalidMutation,
     result: await runGraphqlCapture(backupRegionUpdateInvalidMutation),
@@ -197,13 +334,34 @@ try {
 } catch (err) {
   captureError = err;
 } finally {
+  const cleanupBackupRegionMutation = backupRegionUpdateMutationForCountry(
+    cleanupCountryCode,
+    'BackupRegionUpdateRestoreOriginal',
+  );
   captures.cleanupBackupRegion = {
-    query: backupRegionUpdateRestoreMutation,
-    result: await runGraphqlCapture(backupRegionUpdateRestoreMutation),
+    query: cleanupBackupRegionMutation,
+    result: await runGraphqlCapture(cleanupBackupRegionMutation),
   };
+  for (const [index, marketId] of temporaryMarketIds.entries()) {
+    const variables = { id: marketId };
+    captures[`cleanupTemporaryMarket${index + 1}`] = {
+      query: marketDeleteMutation,
+      variables,
+      result: await runGraphqlCapture(marketDeleteMutation, variables),
+    };
+    try {
+      assertNoUserErrors(
+        `cleanupTemporaryMarket${index + 1}`,
+        captures[`cleanupTemporaryMarket${index + 1}`].result,
+        'marketDelete',
+      );
+    } catch (err) {
+      captureError ??= err;
+    }
+  }
 }
 
-assertSuccessfulUpdateCode('cleanupBackupRegion', captures.cleanupBackupRegion.result, restoreCountryCode);
+assertSuccessfulUpdateCode('cleanupBackupRegion', captures.cleanupBackupRegion.result, cleanupCountryCode);
 if (captureError) {
   throw captureError;
 }
@@ -215,9 +373,12 @@ const captureOutput = {
   storeDomain,
   apiVersion,
   supportedNonCaCountryCode,
-  restoredCountryCode: restoreCountryCode,
+  supportedUsCountryCode,
+  baselineCountryCode,
+  restoredCountryCode: cleanupCountryCode,
+  temporaryMarketIds,
   notes:
-    'HAR-737 captures backupRegionUpdate current-region baseline, harry-test-heelo non-CA success, read-after-write, unknown-region validation, and cleanup back to CA. Live omitted/null invocations currently return Shopify INTERNAL_SERVER_ERROR on this store/API, so expected omitted/null current-state parity is derived from the captured current backupRegion and empty successful-update userErrors, matching the source resolver contract cited by HAR-737.',
+    'HAR-737 captures backupRegionUpdate current-region baseline, harry-test-heelo non-CA success, read-after-write, unknown-region validation, and cleanup back to the original live backup region. HAR-1436 extends the capture to prove countryCode US succeeds by creating a temporary US region market when the live store does not already cover US; the recorder also creates a temporary CA baseline market when the live store no longer covers CA. Temporary markets are deleted after restoring the original backup region. Live omitted/null invocations currently return Shopify INTERNAL_SERVER_ERROR on this store/API, so expected omitted/null current-state parity is derived from the captured current backupRegion and empty successful-update userErrors, matching the source resolver contract cited by HAR-737.',
   captures,
   expected: {
     backupRegionUpdateOmitted: {

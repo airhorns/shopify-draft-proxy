@@ -42,29 +42,101 @@ fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locall
     ));
     assert_eq!(null_region.body, omitted.body);
 
-    let update_ae = proxy.process_request(json_graphql_request(
-        r#"
-        mutation BackupRegionUpdateAe {
-          backupRegionUpdate(region: { countryCode: AE }) {
-            backupRegion { __typename id name ... on MarketRegionCountry { code } }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({}),
-    ));
-    assert_eq!(
-        update_ae.body["data"]["backupRegionUpdate"],
-        json!({
-            "backupRegion": {
-                "__typename": "MarketRegionCountry",
-                "id": "gid://shopify/MarketRegionCountry/4062110482738",
-                "name": "United Arab Emirates",
-                "code": "AE"
-            },
-            "userErrors": []
-        })
-    );
+    let captured_countries = [
+        (
+            "AE",
+            "gid://shopify/MarketRegionCountry/4062110482738",
+            "United Arab Emirates",
+        ),
+        (
+            "AT",
+            "gid://shopify/MarketRegionCountry/4062110515506",
+            "Austria",
+        ),
+        (
+            "AU",
+            "gid://shopify/MarketRegionCountry/4062110548274",
+            "Australia",
+        ),
+        (
+            "BE",
+            "gid://shopify/MarketRegionCountry/4062110581042",
+            "Belgium",
+        ),
+        (
+            "CA",
+            "gid://shopify/MarketRegionCountry/4062110417202",
+            "Canada",
+        ),
+        (
+            "CH",
+            "gid://shopify/MarketRegionCountry/4062110613810",
+            "Switzerland",
+        ),
+        (
+            "CZ",
+            "gid://shopify/MarketRegionCountry/4062110646578",
+            "Czechia",
+        ),
+        (
+            "DE",
+            "gid://shopify/MarketRegionCountry/4062110679346",
+            "Germany",
+        ),
+        (
+            "DK",
+            "gid://shopify/MarketRegionCountry/4062110712114",
+            "Denmark",
+        ),
+        (
+            "ES",
+            "gid://shopify/MarketRegionCountry/4062110744882",
+            "Spain",
+        ),
+        (
+            "FI",
+            "gid://shopify/MarketRegionCountry/4062110777650",
+            "Finland",
+        ),
+        (
+            "MX",
+            "gid://shopify/MarketRegionCountry/4062111334706",
+            "Mexico",
+        ),
+        (
+            "US",
+            "gid://shopify/MarketRegionCountry/4062110449970",
+            "United States",
+        ),
+    ];
+
+    for (code, id, name) in captured_countries {
+        let update = proxy.process_request(json_graphql_request(
+            &format!(
+                r#"
+                mutation BackupRegionUpdateCaptured {{
+                  backupRegionUpdate(region: {{ countryCode: {code} }}) {{
+                    backupRegion {{ __typename id name ... on MarketRegionCountry {{ code }} }}
+                    userErrors {{ field message code }}
+                  }}
+                }}
+                "#
+            ),
+            json!({}),
+        ));
+        assert_eq!(
+            update.body["data"]["backupRegionUpdate"],
+            json!({
+                "backupRegion": {
+                    "__typename": "MarketRegionCountry",
+                    "id": id,
+                    "name": name,
+                    "code": code
+                },
+                "userErrors": []
+            })
+        );
+    }
 
     let read = proxy.process_request(json_graphql_request(
         r#"
@@ -78,9 +150,9 @@ fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locall
         read.body["data"]["backupRegion"],
         json!({
             "__typename": "MarketRegionCountry",
-            "id": "gid://shopify/MarketRegionCountry/4062110482738",
-            "name": "United Arab Emirates",
-            "code": "AE"
+            "id": "gid://shopify/MarketRegionCountry/4062110449970",
+            "name": "United States",
+            "code": "US"
         })
     );
 
@@ -92,13 +164,23 @@ fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locall
         "#,
         json!({ "ids": ["gid://shopify/MarketRegionCountry/4062110482738"] }),
     ));
+    assert_eq!(node.body["data"]["nodes"][0], json!(null));
+
+    let staged_node = proxy.process_request(json_graphql_request(
+        r#"
+        query BackupRegionNode($ids: [ID!]!) {
+          nodes(ids: $ids) { __typename ... on MarketRegionCountry { id name code } }
+        }
+        "#,
+        json!({ "ids": ["gid://shopify/MarketRegionCountry/4062110449970"] }),
+    ));
     assert_eq!(
-        node.body["data"]["nodes"][0],
+        staged_node.body["data"]["nodes"][0],
         json!({
             "__typename": "MarketRegionCountry",
-            "id": "gid://shopify/MarketRegionCountry/4062110482738",
-            "name": "United Arab Emirates",
-            "code": "AE"
+            "id": "gid://shopify/MarketRegionCountry/4062110449970",
+            "name": "United States",
+            "code": "US"
         })
     );
 
