@@ -1,0 +1,378 @@
+{
+  "capturedAt": "2026-06-13T20:22:08.660Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "namespace": "validation_affects_mqcsx9li",
+  "key": "headline",
+  "productCreate": {
+    "request": {
+      "query": "#graphql\nmutation ValidationAffectsValuesProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product { id title }\n    userErrors { field message }\n  }\n}\n",
+      "variables": {
+        "product": {
+          "title": "validation affects values mqcsx9li"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10213046681906",
+            "title": "validation affects values mqcsx9li"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "create": {
+    "request": {
+      "documentPath": "config/parity-requests/metafield-definitions/validation-affects-values-create.graphql",
+      "variables": {
+        "definition": {
+          "name": "Validation Affects Values",
+          "namespace": "validation_affects_mqcsx9li",
+          "key": "headline",
+          "ownerType": "PRODUCT",
+          "type": "single_line_text_field"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinitionCreate": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/217251184946",
+            "namespace": "validation_affects_mqcsx9li",
+            "key": "headline",
+            "ownerType": "PRODUCT",
+            "validations": [],
+            "validationStatus": "ALL_VALID"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "setBeforeUpdate": {
+    "request": {
+      "documentPath": "config/parity-requests/metafield-definitions/validation-affects-values-set.graphql",
+      "variables": {
+        "metafields": [
+          {
+            "ownerId": "gid://shopify/Product/10213046681906",
+            "namespace": "validation_affects_mqcsx9li",
+            "key": "headline",
+            "type": "single_line_text_field",
+            "value": "unbounded headline"
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [
+            {
+              "id": "gid://shopify/Metafield/43730869354802",
+              "ownerType": "PRODUCT",
+              "namespace": "validation_affects_mqcsx9li",
+              "key": "headline",
+              "type": "single_line_text_field",
+              "value": "unbounded headline"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validationUpdate": {
+    "request": {
+      "documentPath": "config/parity-requests/metafield-definitions/validation-affects-values-update.graphql",
+      "variables": {
+        "definition": {
+          "namespace": "validation_affects_mqcsx9li",
+          "key": "headline",
+          "ownerType": "PRODUCT",
+          "validations": [
+            {
+              "name": "max",
+              "value": "5"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldDefinitionUpdate": {
+          "updatedDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/217251184946",
+            "namespace": "validation_affects_mqcsx9li",
+            "key": "headline",
+            "ownerType": "PRODUCT",
+            "validations": [
+              {
+                "name": "max",
+                "value": "5"
+              }
+            ],
+            "validationStatus": "ALL_VALID"
+          },
+          "validationJob": {
+            "__typename": "Job",
+            "id": "gid://shopify/Job/c88182ba-faa5-42d5-8e52-c7fae475dfa8",
+            "done": false,
+            "query": null
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "setTooLongAfterUpdate": {
+    "request": {
+      "documentPath": "config/parity-requests/metafield-definitions/validation-affects-values-set.graphql",
+      "variables": {
+        "metafields": [
+          {
+            "ownerId": "gid://shopify/Product/10213046681906",
+            "namespace": "validation_affects_mqcsx9li",
+            "key": "headline",
+            "type": "single_line_text_field",
+            "value": "too long"
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [],
+          "userErrors": [
+            {
+              "field": ["metafields", "0", "value"],
+              "message": "Value has a maximum length of 5.",
+              "code": "INVALID_VALUE",
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "setShortAfterUpdate": {
+    "request": {
+      "documentPath": "config/parity-requests/metafield-definitions/validation-affects-values-set.graphql",
+      "variables": {
+        "metafields": [
+          {
+            "ownerId": "gid://shopify/Product/10213046681906",
+            "namespace": "validation_affects_mqcsx9li",
+            "key": "headline",
+            "type": "single_line_text_field",
+            "value": "short"
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [
+            {
+              "id": "gid://shopify/Metafield/43730869354802",
+              "ownerType": "PRODUCT",
+              "namespace": "validation_affects_mqcsx9li",
+              "key": "headline",
+              "type": "single_line_text_field",
+              "value": "short"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterShortSet": {
+    "request": {
+      "documentPath": "config/parity-requests/metafield-definitions/validation-affects-values-read.graphql",
+      "variables": {
+        "id": "gid://shopify/Product/10213046681906",
+        "namespace": "validation_affects_mqcsx9li",
+        "key": "headline"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10213046681906",
+          "metafield": {
+            "id": "gid://shopify/Metafield/43730869354802",
+            "namespace": "validation_affects_mqcsx9li",
+            "key": "headline",
+            "type": "single_line_text_field",
+            "value": "short"
+          },
+          "metafields": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Metafield/43730869354802",
+                "namespace": "validation_affects_mqcsx9li",
+                "key": "headline",
+                "type": "single_line_text_field",
+                "value": "short"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 8,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1995,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "request": {
+        "query": "#graphql\nmutation ValidationAffectsValuesDefinitionDelete($id: ID!) {\n  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n    deletedDefinitionId\n    userErrors { field message code }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/217251184946"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/217251184946",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\nmutation ValidationAffectsValuesProductDelete($input: ProductDeleteInput!) {\n  productDelete(input: $input) {\n    deletedProductId\n    userErrors { field message }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10213046681906"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10213046681906",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

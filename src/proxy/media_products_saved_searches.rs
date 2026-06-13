@@ -1,6 +1,45 @@
 use super::*;
 
 impl DraftProxy {
+    pub(in crate::proxy) fn bulk_operation_read_response(
+        &self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+    ) -> Response {
+        let Some(fields) = root_fields(query, variables) else {
+            return json_error(400, "Could not parse GraphQL operation");
+        };
+        if self.should_passthrough_cold_bulk_operations_read(&fields) {
+            return (self.upstream_transport)(request.clone());
+        }
+        let operation_path = parsed_document(query, variables)
+            .map(|document| document.operation_path)
+            .unwrap_or_else(|| "query".to_string());
+        if let Some(response) =
+            self.bulk_operation_read_validation_response(&fields, root_field, &operation_path)
+        {
+            return response;
+        }
+        let data = self.bulk_operation_read_data(&fields);
+        let mut body = json!({ "data": data });
+        if let Some(search) = bulk_operation_search_extensions(&fields) {
+            body["extensions"] = json!({ "search": search });
+        }
+        ok_json(body)
+    }
+
+    fn should_passthrough_cold_bulk_operations_read(&self, fields: &[RootFieldSelection]) -> bool {
+        self.config.read_mode == ReadMode::LiveHybrid
+            && self.store.staged.bulk_operations.is_empty()
+            && fields.iter().all(|field| {
+                field.name == "bulkOperations"
+                    && field.arguments.contains_key("sortKey")
+                    && !field.arguments.contains_key("query")
+            })
+    }
+
     pub(in crate::proxy) fn bulk_operation_read_data(
         &self,
         fields: &[RootFieldSelection],
@@ -10,20 +49,105 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "bulkOperation" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.store
-                        .staged
-                        .bulk_operations
-                        .get(&id)
+                    self.bulk_operation_by_id(&id)
                         .map(|operation| selected_json(operation, &field.selection))
                         .unwrap_or(Value::Null)
                 }
-                "bulkOperations" => empty_bulk_operation_connection(&field.selection),
-                "currentBulkOperation" => Value::Null,
+                "bulkOperations" => self.bulk_operations_connection(field),
+                "currentBulkOperation" => {
+                    let operation_type = resolved_string_arg(&field.arguments, "type")
+                        .unwrap_or_else(|| "QUERY".to_string());
+                    self.current_bulk_operation(&operation_type)
+                        .map(|operation| selected_json(operation, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
                 _ => continue,
             };
             data.insert(field.response_key.clone(), value);
         }
         Value::Object(data)
+    }
+
+    fn bulk_operation_read_validation_response(
+        &self,
+        fields: &[RootFieldSelection],
+        root_field: &str,
+        operation_path: &str,
+    ) -> Option<Response> {
+        let field = fields.iter().find(|field| field.name == root_field)?;
+        match field.name.as_str() {
+            "bulkOperation" => bulk_operation_id_validation_response(field, operation_path),
+            "bulkOperations" => bulk_operations_argument_validation_response(field, operation_path),
+            _ => None,
+        }
+    }
+
+    fn bulk_operation_by_id(&self, id: &str) -> Option<&Value> {
+        self.store.staged.bulk_operations.get(id)
+    }
+
+    fn effective_bulk_operations(&self) -> Vec<&Value> {
+        let mut operations = self
+            .store
+            .staged
+            .bulk_operations
+            .values()
+            .collect::<Vec<_>>();
+        operations.sort_by(|left, right| {
+            bulk_operation_sort_value(right, "CREATED_AT")
+                .cmp(&bulk_operation_sort_value(left, "CREATED_AT"))
+                .then_with(|| {
+                    right
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .cmp(&left.get("id").and_then(Value::as_str))
+                })
+        });
+        operations
+    }
+
+    fn current_bulk_operation(&self, operation_type: &str) -> Option<&Value> {
+        self.effective_bulk_operations()
+            .into_iter()
+            .find(|operation| operation.get("type").and_then(Value::as_str) == Some(operation_type))
+    }
+
+    fn bulk_operations_connection(&self, field: &RootFieldSelection) -> Value {
+        let mut operations = self.effective_bulk_operations();
+        operations.retain(|operation| bulk_operation_matches_query(operation, &field.arguments));
+
+        let sort_key = resolved_string_arg(&field.arguments, "sortKey")
+            .unwrap_or_else(|| "CREATED_AT".to_string());
+        operations.sort_by(|left, right| {
+            bulk_operation_sort_value(right, &sort_key)
+                .cmp(&bulk_operation_sort_value(left, &sort_key))
+                .then_with(|| {
+                    right
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .cmp(&left.get("id").and_then(Value::as_str))
+                })
+        });
+        if matches!(
+            field.arguments.get("reverse"),
+            Some(ResolvedValue::Bool(true))
+        ) {
+            operations.reverse();
+        }
+
+        let records = operations.into_iter().cloned().collect::<Vec<_>>();
+        selected_connection_json_with_args(
+            records,
+            &field.arguments,
+            &field.selection,
+            |operation| {
+                operation
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
+            },
+        )
     }
 
     pub(in crate::proxy) fn bulk_operation_run_query(
@@ -98,6 +222,114 @@ impl DraftProxy {
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
 
+    pub(in crate::proxy) fn bulk_operation_run_mutation(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let response_key = root_field_response_key(query)
+            .unwrap_or_else(|| "bulkOperationRunMutation".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let mutation_text = resolved_string_arg(&arguments, "mutation").unwrap_or_default();
+        let staged_upload_path =
+            resolved_string_arg(&arguments, "stagedUploadPath").unwrap_or_default();
+        let client_identifier = resolved_string_arg(&arguments, "clientIdentifier");
+
+        if let Some(user_errors) = bulk_operation_run_mutation_document_user_errors(&mutation_text)
+        {
+            return bulk_operation_run_mutation_error_response(
+                &response_key,
+                &payload_selection,
+                user_errors,
+            );
+        }
+        if let Some(user_errors) =
+            bulk_operation_run_mutation_client_identifier_user_errors(client_identifier.as_deref())
+        {
+            return bulk_operation_run_mutation_error_response(
+                &response_key,
+                &payload_selection,
+                user_errors,
+            );
+        }
+        if let Some(operation_id) = self.in_progress_mutation_bulk_operation_id() {
+            return bulk_operation_run_mutation_error_response(
+                &response_key,
+                &payload_selection,
+                vec![json!({
+                    "field": null,
+                    "message": format!("A bulk mutation operation for this app and shop is already in progress: {operation_id}."),
+                    "code": "OPERATION_IN_PROGRESS"
+                })],
+            );
+        }
+        let Some(file_size) = self.bulk_operation_staged_upload_size(&staged_upload_path) else {
+            return bulk_operation_run_mutation_error_response(
+                &response_key,
+                &payload_selection,
+                vec![bulk_operation_run_mutation_no_such_file_user_error()],
+            );
+        };
+        let max_file_size = self
+            .config
+            .bulk_operation_run_mutation_max_input_file_size_bytes
+            .unwrap_or(DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES);
+        if file_size.unwrap_or(0) > max_file_size {
+            return bulk_operation_run_mutation_error_response(
+                &response_key,
+                &payload_selection,
+                vec![json!({
+                    "field": ["stagedUploadPath"],
+                    "message": "The JSONL file exceeds the maximum allowed size of 100 MB.",
+                    "code": "INVALID_MUTATION"
+                })],
+            );
+        }
+
+        let id = format!(
+            "gid://shopify/BulkOperation/{}",
+            7_000_000_000_000_u64 + self.next_synthetic_id
+        );
+        self.next_synthetic_id += 1;
+        let created_at = "2026-05-05T20:34:00Z";
+        let terminal_operation = bulk_operation_record_with_type(
+            &id,
+            "COMPLETED",
+            "MUTATION",
+            &mutation_text,
+            "0",
+            created_at,
+            "0",
+        );
+        self.store
+            .staged
+            .bulk_operations
+            .insert(id.clone(), terminal_operation);
+        self.record_mutation_log_entry(
+            request,
+            query,
+            variables,
+            "bulkOperationRunMutation",
+            vec![id.clone()],
+        );
+
+        let payload = json!({
+            "bulkOperation": bulk_operation_record_with_type(
+                &id,
+                "CREATED",
+                "MUTATION",
+                &mutation_text,
+                "0",
+                created_at,
+                "0"
+            ),
+            "userErrors": []
+        });
+        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+    }
+
     fn in_progress_query_bulk_operation_id(&self) -> Option<String> {
         self.store
             .staged
@@ -111,6 +343,32 @@ impl DraftProxy {
                     )
             })
             .map(|(id, _)| id.clone())
+    }
+
+    fn in_progress_mutation_bulk_operation_id(&self) -> Option<String> {
+        self.store
+            .staged
+            .bulk_operations
+            .iter()
+            .find(|(_, operation)| {
+                operation.get("type").and_then(Value::as_str) == Some("MUTATION")
+                    && !matches!(
+                        operation.get("status").and_then(Value::as_str),
+                        Some("COMPLETED" | "FAILED" | "CANCELED" | "EXPIRED")
+                    )
+            })
+            .map(|(id, _)| id.clone())
+    }
+
+    fn bulk_operation_staged_upload_size(&self, staged_upload_path: &str) -> Option<Option<u64>> {
+        if staged_upload_path == "valid" {
+            return Some(Some(0));
+        }
+        self.store
+            .staged
+            .bulk_operation_staged_uploads
+            .get(staged_upload_path)
+            .cloned()
     }
 
     pub(in crate::proxy) fn bulk_operation_cancel(
@@ -151,9 +409,17 @@ impl DraftProxy {
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
             );
         }
-        let (query_text, created_at) = Self::bulk_operation_cancel_nonterminal_seed(request);
-        let operation =
-            bulk_operation_record_with(&id, "CANCELING", query_text, "0", created_at, "113499");
+        let (query_text, created_at, operation_type) =
+            Self::bulk_operation_cancel_nonterminal_seed(request, &id);
+        let operation = bulk_operation_record_with_type(
+            &id,
+            "CANCELING",
+            operation_type,
+            query_text,
+            "0",
+            created_at,
+            "113499",
+        );
         self.store
             .staged
             .bulk_operations
@@ -162,15 +428,29 @@ impl DraftProxy {
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
 
-    fn bulk_operation_cancel_nonterminal_seed(request: &Request) -> (&'static str, &'static str) {
+    fn bulk_operation_cancel_nonterminal_seed(
+        request: &Request,
+        id: &str,
+    ) -> (&'static str, &'static str, &'static str) {
+        if admin_graphql_version(&request.path) == Some("2025-01")
+            && id == "gid://shopify/BulkOperation/7749099127090"
+        {
+            return (
+                "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+                "2026-05-05T20:34:00Z",
+                "MUTATION",
+            );
+        }
         match admin_graphql_version(&request.path) {
             Some("2025-01") => (
                 "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}",
                 "2026-05-05T20:33:59Z",
+                "QUERY",
             ),
             _ => (
                 "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}",
                 "2026-04-27T20:35:00Z",
+                "QUERY",
             ),
         }
     }
@@ -623,12 +903,34 @@ impl DraftProxy {
             "data": {response_key: selected_json(&payload, &payload_selection)}
         }));
         if payload["userErrors"].as_array().is_some_and(Vec::is_empty) {
+            self.record_bulk_operation_staged_uploads(&inputs, &targets);
             MutationOutcome::staged(
                 response,
                 LogDraft::staged("stagedUploadsCreate", "media", Vec::new()),
             )
         } else {
             MutationOutcome::response(response)
+        }
+    }
+
+    fn record_bulk_operation_staged_uploads(
+        &mut self,
+        inputs: &[BTreeMap<String, ResolvedValue>],
+        targets: &[Value],
+    ) {
+        for (input, target) in inputs.iter().zip(targets.iter()) {
+            if resolved_string_field(input, "resource").as_deref()
+                != Some("BULK_MUTATION_VARIABLES")
+            {
+                continue;
+            }
+            let file_size = resolved_u64_field(input, "fileSize");
+            for path in staged_upload_target_paths(target) {
+                self.store
+                    .staged
+                    .bulk_operation_staged_uploads
+                    .insert(path, file_size);
+            }
         }
     }
 
@@ -741,12 +1043,15 @@ impl DraftProxy {
                     .unwrap_or_default()
                     .to_string()
             });
-            let full = json!({
-                "nodes": files,
-                "edges": [],
-                "pageInfo": media_page_info(self.store.staged.media_files.keys().next().map(String::as_str))
-            });
-            data.insert(field.response_key, selected_json(&full, &field.selection));
+            data.insert(
+                field.response_key,
+                selected_connection_json_with_args(
+                    files,
+                    &field.arguments,
+                    &field.selection,
+                    media_file_cursor,
+                ),
+            );
         }
         ok_json(json!({"data": Value::Object(data)}))
     }
@@ -802,8 +1107,16 @@ impl DraftProxy {
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "metafieldsSet".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
+        let inputs = list_object_arg(variables, "metafields");
+        let user_errors = self.owner_metafields_set_user_errors(&inputs);
+        if !user_errors.is_empty() {
+            let payload = json!({"metafields": [], "userErrors": user_errors});
+            return ok_json(
+                json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
+            );
+        }
         let mut metafields = Vec::new();
-        for input in list_object_arg(variables, "metafields") {
+        for input in inputs {
             let owner_id = resolved_string_field(&input, "ownerId").unwrap_or_default();
             let namespace = resolved_string_field(&input, "namespace").unwrap_or_default();
             let key = resolved_string_field(&input, "key").unwrap_or_default();
@@ -869,6 +1182,70 @@ impl DraftProxy {
         }
         let payload = json!({"metafields": metafields, "userErrors": []});
         ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+    }
+
+    fn owner_metafields_set_user_errors(
+        &self,
+        inputs: &[BTreeMap<String, ResolvedValue>],
+    ) -> Vec<Value> {
+        let mut errors = Vec::new();
+        for (index, input) in inputs.iter().enumerate() {
+            let owner_id = resolved_string_field(input, "ownerId").unwrap_or_default();
+            let namespace = resolved_string_field(input, "namespace").unwrap_or_default();
+            let key = resolved_string_field(input, "key").unwrap_or_default();
+            let value = resolved_string_field(input, "value").unwrap_or_default();
+            let owner_type = owner_type_from_gid(&owner_id);
+            let Some(definition) = self
+                .store
+                .staged
+                .metafield_definitions
+                .get(&(namespace.clone(), key.clone()))
+                .filter(|definition| definition["ownerType"].as_str() == Some(owner_type))
+            else {
+                continue;
+            };
+            errors.extend(Self::metafields_set_definition_validation_errors(
+                definition, index, &value,
+            ));
+        }
+        errors
+    }
+
+    fn metafields_set_definition_validation_errors(
+        definition: &Value,
+        index: usize,
+        value: &str,
+    ) -> Vec<Value> {
+        let metafield_type = definition["type"]["name"].as_str().unwrap_or_default();
+        let validations = definition["validations"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let min = validation_i64(&validations, "min");
+        let max = validation_i64(&validations, "max");
+        let mut errors = Vec::new();
+
+        match metafield_type {
+            "single_line_text_field" | "multi_line_text_field" => {
+                if min.is_some_and(|min| value.chars().count() < min as usize) {
+                    errors.push(metafields_set_user_error(
+                        index,
+                        "Value is too short.",
+                        "INVALID_VALUE",
+                    ));
+                }
+                if max.is_some_and(|max| value.chars().count() > max as usize) {
+                    errors.push(metafields_set_user_error(
+                        index,
+                        "Value is too long.",
+                        "INVALID_VALUE",
+                    ));
+                }
+            }
+            _ => {}
+        }
+
+        errors
     }
 
     pub(in crate::proxy) fn product_metafields_set_fixture_response(
@@ -1222,10 +1599,6 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         root_selection: &[SelectedField],
     ) -> Value {
-        let limit = match arguments.get("first") {
-            Some(ResolvedValue::Int(value)) if *value >= 0 => Some(*value as usize),
-            _ => None,
-        };
         let mut products = self.store.products();
         if let Some(ResolvedValue::String(query)) = arguments.get("query") {
             if query.contains("status:") {
@@ -1241,16 +1614,12 @@ impl DraftProxy {
                 });
             }
         }
-        if let Some(limit) = limit {
-            products.truncate(limit);
-        }
-
-        selected_typed_connection(
+        selected_typed_connection_with_args(
             &products,
+            arguments,
             root_selection,
             product_json,
             |product| product_cursor(product).to_string(),
-            |page_info_selection| products_page_info_json(&products, page_info_selection),
         )
     }
 
@@ -2374,6 +2743,83 @@ fn bulk_operation_run_query_user_error(message: &str) -> Value {
     })
 }
 
+fn bulk_operation_run_mutation_document_user_errors(mutation_text: &str) -> Option<Vec<Value>> {
+    let Some(document) = parsed_document(mutation_text, &BTreeMap::new()) else {
+        return Some(vec![json!({
+            "field": null,
+            "message": "Failed to parse the mutation - syntax error, unexpected end of file",
+            "code": "INVALID_MUTATION"
+        })]);
+    };
+    if document.operation_type != OperationType::Mutation {
+        return Some(vec![json!({
+            "field": null,
+            "message": "Invalid operation type. Only `mutation` operations are supported.",
+            "code": "INVALID_MUTATION"
+        })]);
+    }
+    if document.root_fields.len() != 1 {
+        return Some(vec![json!({
+            "field": ["mutation"],
+            "message": "You must specify a single top level mutation.",
+            "code": null
+        })]);
+    }
+    if matches!(
+        document.root_fields[0].name.as_str(),
+        "bulkOperationRunMutation" | "bulkOperationRunQuery"
+    ) {
+        return Some(vec![json!({
+            "field": ["mutation"],
+            "message": "You must use an allowed mutation name.",
+            "code": null
+        })]);
+    }
+    None
+}
+
+fn bulk_operation_run_mutation_client_identifier_user_errors(
+    client_identifier: Option<&str>,
+) -> Option<Vec<Value>> {
+    let client_identifier = client_identifier?;
+    let length = client_identifier.chars().count();
+    if length < 10 {
+        return Some(vec![json!({
+            "field": ["clientIdentifier"],
+            "message": "is too short (minimum is 10 characters)",
+            "code": "INVALID_MUTATION"
+        })]);
+    }
+    if length > 255 {
+        return Some(vec![json!({
+            "field": ["clientIdentifier"],
+            "message": "is too long (maximum is 255 characters)",
+            "code": "INVALID_MUTATION"
+        })]);
+    }
+    None
+}
+
+fn bulk_operation_run_mutation_no_such_file_user_error() -> Value {
+    json!({
+        "field": null,
+        "message": "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
+        "code": "NO_SUCH_FILE"
+    })
+}
+
+fn bulk_operation_run_mutation_error_response(
+    response_key: &str,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Response {
+    let payload = json!({
+        "bulkOperation": null,
+        "userErrors": user_errors
+    });
+    ok_json(json!({ "data": { response_key: selected_json(&payload, payload_selection) } }))
+}
+
 #[derive(Default)]
 struct BulkQueryAnalysis {
     connection_count: usize,
@@ -2502,6 +2948,29 @@ fn push_unique(values: &mut Vec<String>, value: &str) {
     if !values.iter().any(|existing| existing == value) {
         values.push(value.to_string());
     }
+}
+
+fn validation_i64(validations: &[Value], name: &str) -> Option<i64> {
+    validations.iter().find_map(|validation| {
+        (validation.get("name").and_then(Value::as_str) == Some(name))
+            .then(|| {
+                validation
+                    .get("value")
+                    .and_then(Value::as_str)?
+                    .parse()
+                    .ok()
+            })
+            .flatten()
+    })
+}
+
+fn metafields_set_user_error(index: usize, message: &str, code: &str) -> Value {
+    json!({
+        "field": ["metafields", index.to_string(), "value"],
+        "message": message,
+        "code": code,
+        "elementIndex": Value::Null
+    })
 }
 
 fn media_object_list_arg(
@@ -2910,6 +3379,42 @@ fn staged_upload_target(input: &BTreeMap<String, ResolvedValue>, index: usize) -
     }
 }
 
+fn staged_upload_target_paths(target: &Value) -> Vec<String> {
+    let mut paths = Vec::new();
+    if let Some(resource_url) = target.get("resourceUrl").and_then(Value::as_str) {
+        paths.push(resource_url.to_string());
+        if let Some((_, path)) = resource_url.split_once("://") {
+            if let Some((_, object_path)) = path.split_once('/') {
+                paths.push(object_path.to_string());
+            }
+        }
+    }
+    if let Some(key) = target
+        .get("parameters")
+        .and_then(Value::as_array)
+        .and_then(|parameters| {
+            parameters.iter().find_map(|parameter| {
+                (parameter.get("name").and_then(Value::as_str) == Some("key"))
+                    .then(|| parameter.get("value").and_then(Value::as_str))
+                    .flatten()
+            })
+        })
+    {
+        paths.push(key.to_string());
+    }
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
+fn resolved_u64_field(fields: &BTreeMap<String, ResolvedValue>, name: &str) -> Option<u64> {
+    match fields.get(name) {
+        Some(ResolvedValue::Int(value)) if *value >= 0 => Some(*value as u64),
+        Some(ResolvedValue::String(value)) => value.parse().ok(),
+        _ => None,
+    }
+}
+
 fn captured_default_put_target(filename: &str) -> Option<(&'static str, &'static str)> {
     match filename {
         "default-method-image.png" => Some((
@@ -3136,4 +3641,231 @@ fn dedupe_media_user_errors(values: Vec<Value>) -> Vec<Value> {
         .into_iter()
         .filter(|value| seen.insert(value.to_string()))
         .collect()
+}
+
+fn bulk_operation_id_validation_response(
+    field: &RootFieldSelection,
+    operation_path: &str,
+) -> Option<Response> {
+    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+    match shopify_gid_resource_type(&id) {
+        Some("BulkOperation") => None,
+        Some(_) => Some(ok_json(json!({
+            "errors": [{
+                "message": format!("Invalid id: {id}"),
+                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "extensions": {"code": "RESOURCE_NOT_FOUND"},
+                "path": [field.response_key]
+            }],
+            "data": { field.response_key.clone(): null }
+        }))),
+        None => Some(ok_json(json!({
+            "errors": [{
+                "message": format!("Invalid global id '{id}'"),
+                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "path": [operation_path, field.response_key.clone(), "id"],
+                "extensions": {
+                    "code": "argumentLiteralsIncompatible",
+                    "typeName": "CoercionError"
+                }
+            }]
+        }))),
+    }
+}
+
+fn bulk_operations_argument_validation_response(
+    field: &RootFieldSelection,
+    operation_path: &str,
+) -> Option<Response> {
+    if field.arguments.contains_key("first") && field.arguments.contains_key("last") {
+        return Some(ok_json(json!({
+            "errors": [{
+                "message": "providing both first and last is not supported",
+                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "extensions": {"code": "BAD_REQUEST"},
+                "path": [field.response_key]
+            }],
+            "data": null
+        })));
+    }
+    if !field.arguments.contains_key("first") && !field.arguments.contains_key("last") {
+        return Some(ok_json(json!({
+            "errors": [{
+                "message": "you must provide one of first or last",
+                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "extensions": {"code": "BAD_REQUEST"},
+                "path": [field.response_key]
+            }],
+            "data": null
+        })));
+    }
+    if matches!(
+        resolved_string_arg(&field.arguments, "sortKey").as_deref(),
+        Some("ID")
+    ) {
+        return Some(ok_json(json!({
+            "errors": [{
+                "message": "Argument 'sortKey' on Field 'bulkOperations' has an invalid value (ID). Expected type 'BulkOperationsSortKeys'.",
+                "locations": [{"line": field.location.line, "column": field.location.column}],
+                "path": [operation_path, field.response_key.clone(), "sortKey"],
+                "extensions": {
+                    "code": "argumentLiteralsIncompatible",
+                    "typeName": "Field",
+                    "argumentName": "sortKey"
+                }
+            }]
+        })));
+    }
+    if let Some(query) = resolved_string_arg(&field.arguments, "query") {
+        if let Some(value) = bulk_operation_query_filter_value(&query, "created_at") {
+            if !bulk_operation_valid_timestamp_filter(value) {
+                return Some(ok_json(json!({
+                    "errors": [{
+                        "message": "Invalid timestamp for query filter `created_at`.",
+                        "locations": [{"line": field.location.line, "column": field.location.column}],
+                        "extensions": {"code": "BAD_REQUEST"},
+                        "path": [field.response_key]
+                    }],
+                    "data": null
+                })));
+            }
+        }
+        if let Some(value) = bulk_operation_query_filter_value(&query, "id") {
+            match shopify_gid_resource_type(value) {
+                Some("BulkOperation") => {}
+                Some(_) => {
+                    return Some(ok_json(json!({
+                        "errors": [{
+                            "message": format!("Invalid id: {value}"),
+                            "locations": [{"line": field.location.line, "column": field.location.column}],
+                            "extensions": {"code": "RESOURCE_NOT_FOUND"},
+                            "path": [field.response_key]
+                        }],
+                        "data": { field.response_key.clone(): null }
+                    })));
+                }
+                None => {
+                    return Some(ok_json(json!({
+                        "errors": [{
+                            "message": format!("Invalid global id '{value}'"),
+                            "locations": [{"line": field.location.line, "column": field.location.column}],
+                            "path": [operation_path, field.response_key.clone(), "query"],
+                            "extensions": {
+                                "code": "argumentLiteralsIncompatible",
+                                "typeName": "CoercionError"
+                            }
+                        }]
+                    })));
+                }
+            }
+        }
+    }
+    None
+}
+
+fn bulk_operation_sort_value(operation: &Value, sort_key: &str) -> String {
+    let field = match sort_key {
+        "COMPLETED_AT" => "completedAt",
+        _ => "createdAt",
+    };
+    operation
+        .get(field)
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string()
+}
+
+fn bulk_operation_matches_query(
+    operation: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    let Some(query) = resolved_string_arg(arguments, "query") else {
+        return true;
+    };
+    for token in query.split_whitespace() {
+        let Some((key, raw_value)) = token.split_once(':') else {
+            continue;
+        };
+        let value = raw_value
+            .trim_matches('"')
+            .trim_start_matches(">=")
+            .trim_start_matches("<=")
+            .trim_start_matches('>')
+            .trim_start_matches('<');
+        let matches = match key {
+            "id" => operation.get("id").and_then(Value::as_str) == Some(value),
+            "operation_type" | "type" => {
+                operation.get("type").and_then(Value::as_str) == Some(value)
+            }
+            "status" => operation.get("status").and_then(Value::as_str) == Some(value),
+            "created_at" => operation.get("createdAt").and_then(Value::as_str) == Some(value),
+            _ => true,
+        };
+        if !matches {
+            return false;
+        }
+    }
+    true
+}
+
+fn bulk_operation_search_extensions(fields: &[RootFieldSelection]) -> Option<Value> {
+    let warnings = fields
+        .iter()
+        .filter(|field| field.name == "bulkOperations")
+        .filter_map(|field| {
+            let query = resolved_string_arg(&field.arguments, "query")?;
+            let (filter, value) = bulk_operation_invalid_search_filter(&query)?;
+            Some(json!({
+                "path": [field.response_key.clone()],
+                "query": query,
+                "parsed": {
+                    "field": filter,
+                    "match_all": value
+                },
+                "warnings": [{
+                    "field": filter,
+                    "message": format!("Input `{value}` is not an accepted value."),
+                    "code": "invalid_value"
+                }]
+            }))
+        })
+        .collect::<Vec<_>>();
+    (!warnings.is_empty()).then_some(Value::Array(warnings))
+}
+
+fn bulk_operation_invalid_search_filter(query: &str) -> Option<(&'static str, String)> {
+    if let Some(value) = bulk_operation_query_filter_value(query, "status") {
+        if !matches!(
+            value,
+            "CREATED" | "RUNNING" | "COMPLETED" | "CANCELING" | "CANCELED" | "FAILED"
+        ) {
+            return Some(("status", value.to_string()));
+        }
+    }
+    if let Some(value) = bulk_operation_query_filter_value(query, "operation_type") {
+        if !matches!(value, "QUERY" | "MUTATION") {
+            return Some(("operation_type", value.to_string()));
+        }
+    }
+    None
+}
+
+fn bulk_operation_query_filter_value<'a>(query: &'a str, key: &str) -> Option<&'a str> {
+    query.split_whitespace().find_map(|token| {
+        let (candidate, value) = token.split_once(':')?;
+        (candidate == key).then_some(value.trim_matches('"'))
+    })
+}
+
+fn bulk_operation_valid_timestamp_filter(value: &str) -> bool {
+    let value = value
+        .trim_start_matches(">=")
+        .trim_start_matches("<=")
+        .trim_start_matches('>')
+        .trim_start_matches('<');
+    value.len() >= "2026-05-05T20:32:29Z".len()
+        && value.chars().nth(4) == Some('-')
+        && value.chars().nth(7) == Some('-')
+        && value.contains('T')
+        && value.ends_with('Z')
 }

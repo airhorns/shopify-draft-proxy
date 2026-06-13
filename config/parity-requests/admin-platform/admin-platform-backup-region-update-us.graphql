@@ -1,0 +1,17 @@
+mutation BackupRegionUpdateUs {
+  backupRegionUpdate(region: { countryCode: US }) {
+    backupRegion {
+      __typename
+      id
+      name
+      ... on MarketRegionCountry {
+        code
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

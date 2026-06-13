@@ -211,10 +211,14 @@ for (const attempt of [
   parentAttempts.push({ name: attempt.name, variables: { input: attempt.input }, response });
 }
 
-const primaryVariables = { createAfterDeleteAllInput };
+const primaryVariables = {
+  createAfterDeleteAllInput,
+  missingMarketingActivityId: 'gid://shopify/MarketingActivity/999999999999',
+};
 const primary = await runGraphqlRequest(primaryDocument, primaryVariables);
 await assertGraphqlOk('primary-delete-external-guards', primary);
 assertUserErrorCode('no-args-delete', primary.payload, 'noArgsDelete', 'INVALID_DELETE_ACTIVITY_EXTERNAL_ARGUMENTS');
+assertUserErrorCode('missing-id-delete', primary.payload, 'missingIdDelete', 'MARKETING_ACTIVITY_DOES_NOT_EXIST');
 assertNoUserErrors('delete-all-external', primary.payload, 'deleteAllExternal');
 assertUserErrorCode('create-after-delete-all', primary.payload, 'createAfterDeleteAll', 'DELETE_JOB_ENQUEUED');
 
