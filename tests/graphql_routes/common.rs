@@ -16,10 +16,18 @@ pub(super) fn configured_proxy(
     read_mode: ReadMode,
     unsupported_mutation_mode: Option<shopify_draft_proxy::proxy::UnsupportedMutationMode>,
 ) -> DraftProxy {
+    configured_proxy_with_bulk_mutation_max(read_mode, unsupported_mutation_mode, None)
+}
+
+pub(super) fn configured_proxy_with_bulk_mutation_max(
+    read_mode: ReadMode,
+    unsupported_mutation_mode: Option<shopify_draft_proxy::proxy::UnsupportedMutationMode>,
+    bulk_operation_run_mutation_max_input_file_size_bytes: Option<u64>,
+) -> DraftProxy {
     DraftProxy::new(Config {
         read_mode,
         unsupported_mutation_mode,
-        bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        bulk_operation_run_mutation_max_input_file_size_bytes,
         port: 0,
         shopify_admin_origin: "https://shopify.com".to_string(),
         snapshot_path: None,

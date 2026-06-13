@@ -123,7 +123,16 @@ impl DraftProxy {
                 "delegatedAccessTokens": self.store.staged.delegate_access_tokens.clone(),
                 "customers": self.store.staged.customers.clone(),
                 "deletedCustomerIds": self.store.staged.deleted_customer_ids.iter().cloned().collect::<Vec<_>>(),
-                "customerOrders": self.store.staged.customer_orders.clone()
+                "customerOrders": self.store.staged.customer_orders.clone(),
+                "taggableResources": self.store.staged.taggable_resources.clone(),
+                "orders": self.store.staged.orders.clone(),
+                "returns": self.store.staged.returns.clone(),
+                "returnsByOrder": self.store.staged.returns_by_order.clone(),
+               "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
+                "reverseFulfillmentOrders": self.store.staged.reverse_fulfillment_orders.clone(),
+                "locations": self.store.staged.locations.clone(),
+                "locationOrder": self.store.staged.location_order.clone(),
+                "locationLimitReached": self.store.staged.location_limit_reached
             }
         });
         if !self.store.staged.flow_signatures.is_empty() {
@@ -287,6 +296,89 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.taggable_resources = state["stagedState"]["taggableResources"]
+            .as_object()
+            .map(|resources| {
+                resources
+                    .iter()
+                    .map(|(id, resource)| (id.clone(), resource.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.orders = state["stagedState"]["orders"]
+            .as_object()
+            .map(|orders| {
+                orders
+                    .iter()
+                    .map(|(id, order)| (id.clone(), order.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.returns = state["stagedState"]["returns"]
+            .as_object()
+            .map(|returns| {
+                returns
+                    .iter()
+                    .map(|(id, return_record)| (id.clone(), return_record.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.returns_by_order = state["stagedState"]["returnsByOrder"]
+            .as_object()
+            .map(|returns_by_order| {
+                returns_by_order
+                    .iter()
+                    .map(|(id, returns)| {
+                        (
+                            id.clone(),
+                            returns
+                                .as_array()
+                                .into_iter()
+                                .flatten()
+                                .filter_map(|value| value.as_str().map(str::to_string))
+                                .collect(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.reverse_deliveries = state["stagedState"]["reverseDeliveries"]
+            .as_object()
+            .map(|deliveries| {
+                deliveries
+                    .iter()
+                    .map(|(id, delivery)| (id.clone(), delivery.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.reverse_fulfillment_orders = state["stagedState"]
+            ["reverseFulfillmentOrders"]
+            .as_object()
+            .map(|orders| {
+                orders
+                    .iter()
+                    .map(|(id, order)| (id.clone(), order.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.locations = state["stagedState"]
+            .get("locations")
+            .and_then(Value::as_object)
+            .map(|locations| {
+                locations
+                    .iter()
+                    .map(|(id, location)| (id.clone(), location.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.location_order = state["stagedState"]
+            .get("locationOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| self.store.staged.locations.keys().cloned().collect());
+        self.store.staged.location_limit_reached = state["stagedState"]
+            .get("locationLimitReached")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         self.store.staged.flow_signatures = state["stagedState"]["flowSignatures"]
             .as_array()
             .cloned()
