@@ -1003,51 +1003,6 @@ pub(in crate::proxy) fn gift_card_payload_json_nullable(
     })
 }
 
-pub(in crate::proxy) fn selected_typed_connection<T, NodeJson, Cursor, PageInfo>(
-    records: &[T],
-    root_selection: &[SelectedField],
-    node_json: NodeJson,
-    cursor: Cursor,
-    page_info: PageInfo,
-) -> Value
-where
-    NodeJson: Fn(&T, &[SelectedField]) -> Value,
-    Cursor: Fn(&T) -> String,
-    PageInfo: Fn(&[SelectedField]) -> Value,
-{
-    let node_selection = nested_selected_fields(root_selection, &["nodes"]);
-    let edge_node_selection = nested_selected_fields(root_selection, &["edges", "node"]);
-    let page_info_selection = nested_selected_fields(root_selection, &["pageInfo"]);
-    let mut connection = serde_json::Map::new();
-    for selection in root_selection {
-        let value = match selection.name.as_str() {
-            "nodes" => Some(Value::Array(
-                records
-                    .iter()
-                    .map(|record| node_json(record, &node_selection))
-                    .collect(),
-            )),
-            "edges" => Some(Value::Array(
-                records
-                    .iter()
-                    .map(|record| {
-                        json!({
-                            "cursor": cursor(record),
-                            "node": node_json(record, &edge_node_selection)
-                        })
-                    })
-                    .collect(),
-            )),
-            "pageInfo" => Some(page_info(&page_info_selection)),
-            _ => None,
-        };
-        if let Some(value) = value {
-            connection.insert(selection.response_key.clone(), value);
-        }
-    }
-    Value::Object(connection)
-}
-
 pub(in crate::proxy) fn known_product_change_status_seed(id: &str) -> Option<ProductRecord> {
     if id != "gid://shopify/Product/10173064872242" {
         return None;
@@ -1325,21 +1280,6 @@ pub(in crate::proxy) fn product_state_json(product: &ProductRecord) -> Value {
 
 pub(in crate::proxy) fn product_cursor(product: &ProductRecord) -> &str {
     &product.id
-}
-
-pub(in crate::proxy) fn products_page_info_json(
-    products: &[ProductRecord],
-    selections: &[SelectedField],
-) -> Value {
-    selected_json(
-        &connection_page_info(
-            false,
-            false,
-            products.first().map(product_cursor).map(str::to_string),
-            products.last().map(product_cursor).map(str::to_string),
-        ),
-        selections,
-    )
 }
 
 pub(in crate::proxy) fn product_count_json(count: usize, selections: &[SelectedField]) -> Value {

@@ -386,7 +386,7 @@ impl DraftProxy {
                 }
                 "themes" => {
                     let roles = resolved_string_list_arg(&field.arguments, "roles");
-                    let mut nodes: Vec<Value> =
+                    let mut records: Vec<Value> =
                         self.store
                             .staged
                             .online_store_integrations
@@ -398,19 +398,18 @@ impl DraftProxy {
                                         |role| roles.iter().any(|expected| expected == role),
                                     )
                             })
-                            .map(|record| {
-                                selected_json(record, &nested_node_selection(&field.selection))
-                            })
+                            .cloned()
                             .collect();
-                    if let Some(ResolvedValue::Int(first)) = field.arguments.get("first") {
-                        if *first >= 0 {
-                            nodes.truncate(*first as usize);
-                        }
-                    }
-                    selected_connection_json(nodes, &field.selection)
+                    records.sort_by_key(value_id_cursor);
+                    selected_connection_json_with_args(
+                        records,
+                        &field.arguments,
+                        &field.selection,
+                        value_id_cursor,
+                    )
                 }
                 "mobilePlatformApplications" => {
-                    let nodes: Vec<Value> = self
+                    let mut records: Vec<Value> = self
                         .store
                         .staged
                         .online_store_integrations
@@ -421,11 +420,15 @@ impl DraftProxy {
                                 Some("AppleApplication" | "AndroidApplication")
                             )
                         })
-                        .map(|record| {
-                            selected_json(record, &nested_node_selection(&field.selection))
-                        })
+                        .cloned()
                         .collect();
-                    selected_connection_json(nodes, &field.selection)
+                    records.sort_by_key(value_id_cursor);
+                    selected_connection_json_with_args(
+                        records,
+                        &field.arguments,
+                        &field.selection,
+                        value_id_cursor,
+                    )
                 }
                 _ => Value::Null,
             };

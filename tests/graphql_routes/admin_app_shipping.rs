@@ -1152,6 +1152,106 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
 }
 
 #[test]
+fn customer_orders_connection_paginates_edges_nodes_and_page_info_consistently() {
+    let mut proxy = snapshot_proxy();
+
+    let create_customer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteOrderPreconditionCustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) { customer { id email } userErrors { field message } }
+        }
+        "#,
+        json!({"input": {"email": "relay-orders@example.test"}}),
+    ));
+    let customer_id = create_customer.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    for title in ["First order", "Second order", "Third order"] {
+        let order = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CustomerDeleteOrderPreconditionOrderCreate($order: OrderCreateOrderInput!) {
+              orderCreate(order: $order) { order { id } userErrors { field message code } }
+            }
+            "#,
+            json!({"order": {
+                "email": "relay-orders@example.test",
+                "customerId": customer_id,
+                "lineItems": [{ "title": title, "quantity": 1 }]
+            }}),
+        ));
+        assert_eq!(order.body["data"]["orderCreate"]["userErrors"], json!([]));
+    }
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerOrdersRelayPage($id: ID!, $first: Int!) {
+          customer(id: $id) {
+            orders(first: $first) {
+              nodes { id }
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"id": customer_id, "first": 2}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["customer"]["orders"],
+        json!({
+            "nodes": [
+                {"id": "gid://shopify/Order/1"},
+                {"id": "gid://shopify/Order/2"}
+            ],
+            "edges": [
+                {"cursor": "gid://shopify/Order/1", "node": {"id": "gid://shopify/Order/1"}},
+                {"cursor": "gid://shopify/Order/2", "node": {"id": "gid://shopify/Order/2"}}
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "gid://shopify/Order/1",
+                "endCursor": "gid://shopify/Order/2"
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CustomerOrdersRelayAfter($id: ID!, $first: Int!, $after: String!) {
+          customer(id: $id) {
+            orders(first: $first, after: $after) {
+              nodes { id }
+              edges { cursor node { id } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({
+            "id": customer_id,
+            "first": 2,
+            "after": first_page.body["data"]["customer"]["orders"]["pageInfo"]["endCursor"]
+        }),
+    ));
+    assert_eq!(
+        second_page.body["data"]["customer"]["orders"],
+        json!({
+            "nodes": [{"id": "gid://shopify/Order/3"}],
+            "edges": [{"cursor": "gid://shopify/Order/3", "node": {"id": "gid://shopify/Order/3"}}],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/Order/3",
+                "endCursor": "gid://shopify/Order/3"
+            }
+        })
+    );
+}
+
+#[test]
 fn customer_create_supports_consent_precondition_shapes_without_synthesizing_missing_contacts() {
     let mut proxy = snapshot_proxy();
     let phone_only = proxy.process_request(json_graphql_request(
@@ -3043,6 +3143,116 @@ fn carrier_service_lifecycle_stages_reads_filters_deletes_and_validates() {
     assert_eq!(
         missing.body["data"]["carrierServiceDelete"]["userErrors"][0]["message"],
         json!("The carrier or app could not be found.")
+    );
+}
+
+#[test]
+fn carrier_services_connection_paginates_edges_nodes_and_active_false_filter() {
+    let mut proxy = snapshot_proxy();
+
+    for (name, active) in [
+        ("Carrier inactive one", false),
+        ("Carrier active", true),
+        ("Carrier inactive two", false),
+    ] {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CarrierServiceCreateProbe($input: DeliveryCarrierServiceCreateInput!) {
+              carrierServiceCreate(input: $input) {
+                carrierService { id name active }
+                userErrors { field message }
+              }
+            }
+            "#,
+            json!({ "input": {
+                "name": name,
+                "callbackUrl": "https://mock.shop/rates",
+                "supportsServiceDiscovery": true,
+                "active": active
+            }}),
+        ));
+        assert_eq!(
+            create.body["data"]["carrierServiceCreate"]["userErrors"],
+            json!([])
+        );
+    }
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServiceAfterUpdate($first: Int!, $query: String) {
+          carrierServices(first: $first, query: $query, sortKey: ID) {
+            nodes { id name active }
+            edges { cursor node { id name active } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 1, "query": "active:false"}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["carrierServices"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/DeliveryCarrierService/1?shopify-draft-proxy=synthetic",
+                "name": "Carrier inactive one",
+                "active": false
+            }],
+            "edges": [{
+                "cursor": "cursor:gid://shopify/DeliveryCarrierService/1?shopify-draft-proxy=synthetic",
+                "node": {
+                    "id": "gid://shopify/DeliveryCarrierService/1?shopify-draft-proxy=synthetic",
+                    "name": "Carrier inactive one",
+                    "active": false
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "cursor:gid://shopify/DeliveryCarrierService/1?shopify-draft-proxy=synthetic",
+                "endCursor": "cursor:gid://shopify/DeliveryCarrierService/1?shopify-draft-proxy=synthetic"
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServiceAfterUpdate($first: Int!, $after: String!, $query: String) {
+          carrierServices(first: $first, after: $after, query: $query, sortKey: ID) {
+            nodes { id name active }
+            edges { cursor node { id name active } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({
+            "first": 1,
+            "after": first_page.body["data"]["carrierServices"]["pageInfo"]["endCursor"],
+            "query": "active:false"
+        }),
+    ));
+    assert_eq!(
+        second_page.body["data"]["carrierServices"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/DeliveryCarrierService/3?shopify-draft-proxy=synthetic",
+                "name": "Carrier inactive two",
+                "active": false
+            }],
+            "edges": [{
+                "cursor": "cursor:gid://shopify/DeliveryCarrierService/3?shopify-draft-proxy=synthetic",
+                "node": {
+                    "id": "gid://shopify/DeliveryCarrierService/3?shopify-draft-proxy=synthetic",
+                    "name": "Carrier inactive two",
+                    "active": false
+                }
+            }],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "cursor:gid://shopify/DeliveryCarrierService/3?shopify-draft-proxy=synthetic",
+                "endCursor": "cursor:gid://shopify/DeliveryCarrierService/3?shopify-draft-proxy=synthetic"
+            }
+        })
     );
 }
 
