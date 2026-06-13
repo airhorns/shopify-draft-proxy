@@ -123,7 +123,10 @@ impl DraftProxy {
                 "delegatedAccessTokens": self.store.staged.delegate_access_tokens.clone(),
                 "customers": self.store.staged.customers.clone(),
                 "deletedCustomerIds": self.store.staged.deleted_customer_ids.iter().cloned().collect::<Vec<_>>(),
-                "customerOrders": self.store.staged.customer_orders.clone()
+                "customerOrders": self.store.staged.customer_orders.clone(),
+                "locations": self.store.staged.locations.clone(),
+                "locationOrder": self.store.staged.location_order.clone(),
+                "locationLimitReached": self.store.staged.location_limit_reached
             }
         });
         if !self.store.staged.flow_signatures.is_empty() {
@@ -287,6 +290,24 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.locations = state["stagedState"]
+            .get("locations")
+            .and_then(Value::as_object)
+            .map(|locations| {
+                locations
+                    .iter()
+                    .map(|(id, location)| (id.clone(), location.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.location_order = state["stagedState"]
+            .get("locationOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| self.store.staged.locations.keys().cloned().collect());
+        self.store.staged.location_limit_reached = state["stagedState"]
+            .get("locationLimitReached")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         self.store.staged.flow_signatures = state["stagedState"]["flowSignatures"]
             .as_array()
             .cloned()

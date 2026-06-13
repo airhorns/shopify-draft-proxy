@@ -1372,14 +1372,49 @@ pub(in crate::proxy) fn valid_gcp_pubsub_topic_id(topic: &str) -> bool {
             .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '~'))
 }
 
-pub(in crate::proxy) fn valid_eventbridge_arn(uri: &str) -> bool {
+pub(in crate::proxy) fn eventbridge_arn_api_client_id(uri: &str) -> Option<&str> {
     let parts: Vec<&str> = uri.splitn(6, ':').collect();
-    parts.len() == 6
-        && parts[0] == "arn"
-        && parts[1] == "aws"
-        && parts[2] == "events"
-        && !parts[3].is_empty()
-        && !parts[5].is_empty()
+    if parts.len() != 6
+        || parts[0] != "arn"
+        || parts[1] != "aws"
+        || parts[2] != "events"
+        || !valid_eventbridge_region(parts[3])
+        || !parts[4].is_empty()
+    {
+        return None;
+    }
+    let resource = parts[5];
+    let tail = resource
+        .strip_prefix("event-source/aws.partner/shopify.com/")
+        .or_else(|| resource.strip_prefix("event-source/aws.partner/shopify.com.test/"))?;
+    let (api_client_id, event_source_name) = tail.split_once('/')?;
+    if api_client_id.is_empty()
+        || !api_client_id.chars().all(|ch| ch.is_ascii_digit())
+        || event_source_name.is_empty()
+    {
+        return None;
+    }
+    Some(api_client_id)
+}
+
+fn valid_eventbridge_region(region: &str) -> bool {
+    let mut parts = region.split('-');
+    let Some(prefix) = parts.next() else {
+        return false;
+    };
+    let Some(name) = parts.next() else {
+        return false;
+    };
+    let Some(number) = parts.next() else {
+        return false;
+    };
+    parts.next().is_none()
+        && prefix.len() == 2
+        && prefix.chars().all(|ch| ch.is_ascii_lowercase())
+        && !name.is_empty()
+        && name.chars().all(|ch| ch.is_ascii_lowercase())
+        && !number.is_empty()
+        && number.chars().all(|ch| ch.is_ascii_digit())
 }
 
 pub(in crate::proxy) fn webhook_uri_uses_disallowed_host(uri: &str) -> bool {
@@ -1535,6 +1570,7 @@ pub(in crate::proxy) fn inventory_levels_connection_selected_json(
     levels: &[(String, BTreeMap<String, i64>)],
     arguments: &BTreeMap<String, ResolvedValue>,
     selections: &[SelectedField],
+    locations: Option<&BTreeMap<String, Value>>,
 ) -> Value {
     let first = resolved_int_field(arguments, "first")
         .and_then(|value| usize::try_from(value).ok())
@@ -1552,6 +1588,7 @@ pub(in crate::proxy) fn inventory_levels_connection_selected_json(
                             location_id,
                             quantities,
                             &selection.selection,
+                            locations,
                         )
                     })
                     .collect(),
@@ -1579,6 +1616,7 @@ pub(in crate::proxy) fn inventory_level_selected_json(
     location_id: &str,
     quantities: &BTreeMap<String, i64>,
     selections: &[SelectedField],
+    locations: Option<&BTreeMap<String, Value>>,
 ) -> Value {
     let mut fields = serde_json::Map::new();
     for selection in selections {
@@ -1589,13 +1627,20 @@ pub(in crate::proxy) fn inventory_level_selected_json(
                 &json!({ "id": inventory_item_id }),
                 &selection.selection,
             )),
-            "location" => Some(selected_json(
-                &json!({
-                    "id": location_id,
-                    "name": inventory_location_name(location_id)
-                }),
-                &selection.selection,
-            )),
+            "location" => Some(
+                locations
+                    .and_then(|locations| locations.get(location_id))
+                    .map(|location| selected_json(location, &selection.selection))
+                    .unwrap_or_else(|| {
+                        selected_json(
+                            &json!({
+                                "id": location_id,
+                                "name": inventory_location_name(location_id)
+                            }),
+                            &selection.selection,
+                        )
+                    }),
+            ),
             "quantities" => Some(Value::Array(
                 inventory_quantity_names(&selection.arguments)
                     .into_iter()
@@ -1780,6 +1825,22 @@ pub(in crate::proxy) fn marketing_activity_missing_error() -> Value {
         "field": null,
         "message": "Marketing activity does not exist.",
         "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+    })
+}
+
+pub(in crate::proxy) fn marketing_activity_not_external_error() -> Value {
+    json!({
+        "field": null,
+        "message": "The marketing activity must be an external activity.",
+        "code": "ACTIVITY_NOT_EXTERNAL"
+    })
+}
+
+pub(in crate::proxy) fn marketing_activity_child_events_error() -> Value {
+    json!({
+        "field": null,
+        "message": "This activity has child activities and thus cannot be deleted. Child activities must be deleted before a parent activity.",
+        "code": "CANNOT_DELETE_ACTIVITY_WITH_CHILD_EVENTS"
     })
 }
 

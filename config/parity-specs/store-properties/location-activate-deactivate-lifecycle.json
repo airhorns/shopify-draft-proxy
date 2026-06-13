@@ -13,7 +13,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-activate-deactivate-lifecycle.json"
   ],
-  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/store_properties_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes.rs"],
   "proxyRequest": {
     "apiVersion": "2025-10",
     "documentPath": "config/parity-requests/store-properties/location-deactivate-missing-idempotency-validation.graphql",
