@@ -724,7 +724,6 @@ impl DraftProxy {
                 .root_fields
                 .iter()
                 .all(|field| matches!(field.as_str(), "carrierService" | "carrierServices"))
-            && is_carrier_service_lifecycle_document(&query)
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({ "data": self.carrier_service_read_data(&fields) }));
@@ -1201,9 +1200,14 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "bulkOperationRunQuery"
-            && is_local_bulk_operation_run_query_document(&query)
         {
             return self.bulk_operation_run_query(request, &query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "bulkOperationRunMutation"
+        {
+            return self.bulk_operation_run_mutation(request, &query, &variables);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -1398,13 +1402,14 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && matches!(
-                root_field,
-                "carrierServiceCreate" | "carrierServiceUpdate" | "carrierServiceDelete"
-            )
-            && is_carrier_service_lifecycle_document(&query)
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "carrierServiceCreate" | "carrierServiceUpdate" | "carrierServiceDelete"
+                )
+            })
         {
-            return self.carrier_service_mutation(root_field, &query, &variables, request);
+            return self.carrier_service_mutations(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation

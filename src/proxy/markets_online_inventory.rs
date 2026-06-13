@@ -2212,13 +2212,6 @@ pub(in crate::proxy) fn resolved_object_field_bool(
     }
 }
 
-pub(in crate::proxy) fn is_local_bulk_operation_run_query_document(query: &str) -> bool {
-    query.contains("BulkOperationRunQueryGroupObjectsTrue")
-        || query.contains("BulkOperationRunQueryParity")
-        || query.contains("BulkOperationRunQueryValidatorParity")
-        || query.contains("BulkOperationRunQueryUserErrorCodes")
-}
-
 pub(in crate::proxy) fn is_rust_webhook_local_runtime_document(query: &str) -> bool {
     query.contains("RustWebhookLocalRuntime")
 }
@@ -2235,6 +2228,18 @@ pub(in crate::proxy) fn bulk_operation_record_with(
     created_at: &str,
     file_size: &str,
 ) -> Value {
+    bulk_operation_record_with_type(id, status, "QUERY", query, count, created_at, file_size)
+}
+
+pub(in crate::proxy) fn bulk_operation_record_with_type(
+    id: &str,
+    status: &str,
+    operation_type: &str,
+    query: &str,
+    count: &str,
+    created_at: &str,
+    file_size: &str,
+) -> Value {
     let completed = status == "COMPLETED";
     let file_size_value = if completed {
         json!(file_size)
@@ -2244,7 +2249,7 @@ pub(in crate::proxy) fn bulk_operation_record_with(
     json!({
         "id": id,
         "status": status,
-        "type": "QUERY",
+        "type": operation_type,
         "errorCode": null,
         "createdAt": created_at,
         "completedAt": if completed { json!(created_at) } else { Value::Null },
