@@ -728,6 +728,14 @@ pub(in crate::proxy) fn localization_collection_read_data(with_translation: bool
     }
 }
 
+pub(in crate::proxy) fn localization_market_scoped_read_data() -> Value {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translations-market-scoped.json"
+    ))
+    .expect("localization market-scoped fixture must parse");
+    fixture["marketScopedTranslationLifecycle"]["readBeforeRegister"]["data"].clone()
+}
+
 pub(in crate::proxy) fn shop_locale_record(locale: &str, published: bool) -> Value {
     let name = localization_available_locale_name(locale).unwrap_or_else(|| locale.to_string());
     json!({
@@ -1654,6 +1662,9 @@ pub(in crate::proxy) fn is_ported_marketing_document(query: &str) -> bool {
         "MarketingEngagementLifecycle",
         "MarketingEngagementRead",
         "MarketingActivityRead",
+        "MarketingActivityCreateExternalValidation",
+        "MarketingActivityUpsertExternalValidation",
+        "MarketingActivityUpdateCurrencyAndTacticGuards",
         "MarketingActivitySourceAndMedium",
         "MarketingActivityDeleteExternalGuards",
         "MarketingActivityPerAppCreate",
@@ -1663,6 +1674,7 @@ pub(in crate::proxy) fn is_ported_marketing_document(query: &str) -> bool {
         "MarketingActivityPerAppDeleteAll",
         "MarketingActivityPerAppRead",
         "MarketingEngagementCurrencyValidation",
+        "MarketingEngagementCreateValidationOrder",
         "MarketingNativeActivityLifecycle",
         "MarketingNativeActivityRead",
     ]
@@ -1701,6 +1713,14 @@ pub(in crate::proxy) fn marketing_activity_missing_error() -> Value {
         "field": null,
         "message": "Marketing activity does not exist.",
         "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+    })
+}
+
+pub(in crate::proxy) fn marketing_event_missing_error() -> Value {
+    json!({
+        "field": null,
+        "message": "Marketing event does not exist.",
+        "code": "MARKETING_EVENT_DOES_NOT_EXIST"
     })
 }
 

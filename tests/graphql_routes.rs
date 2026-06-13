@@ -10,6 +10,8 @@ mod common;
 mod discounts_gift_cards_functions_localization;
 #[path = "graphql_routes/marketing_inventory_online_store.rs"]
 mod marketing_inventory_online_store;
+#[path = "graphql_routes/metafield_definitions.rs"]
+mod metafield_definitions;
 #[path = "graphql_routes/metafields_markets_products_tail.rs"]
 mod metafields_markets_products_tail;
 #[path = "graphql_routes/orders.rs"]

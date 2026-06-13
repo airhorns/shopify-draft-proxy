@@ -217,7 +217,7 @@ fn registry_entry_json_value(entry: &OperationRegistryEntry) -> Value {
     Value::Object(object)
 }
 
-const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 23] = [
+const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 27] = [
     local_query("product", CapabilityDomain::Products),
     local_query("products", CapabilityDomain::Products),
     local_query("productsCount", CapabilityDomain::Products),
@@ -247,6 +247,13 @@ const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 23] = [
     local_query("orderSavedSearches", CapabilityDomain::SavedSearches),
     local_query("productSavedSearches", CapabilityDomain::SavedSearches),
     local_mutation("savedSearchCreate", CapabilityDomain::SavedSearches),
+    local_mutation("metafieldDefinitionCreate", CapabilityDomain::Metafields),
+    local_mutation("metafieldDefinitionUpdate", CapabilityDomain::Metafields),
+    local_mutation("metafieldDefinitionDelete", CapabilityDomain::Metafields),
+    local_mutation(
+        "standardMetafieldDefinitionEnable",
+        CapabilityDomain::Metafields,
+    ),
 ];
 
 const fn local_query(name: &'static str, domain: CapabilityDomain) -> LocalDispatchRoot {

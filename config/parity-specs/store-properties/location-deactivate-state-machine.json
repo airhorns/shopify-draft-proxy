@@ -12,7 +12,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-deactivate-state-machine.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/store_properties_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/platform.rs"],
   "proxyRequest": {
     "apiVersion": "2026-04",
     "documentPath": "config/parity-requests/store-properties/location-deactivate-state-machine-with-destination.graphql",
@@ -70,5 +70,5 @@
       }
     ]
   },
-  "notes": "Records Shopify Admin API 2026-04 locationDeactivate guard behavior for destination same-id, inactive destination as the not-found-or-inactive branch, active inventory without destination, only-online-fulfiller rejection, and primary-location permanent deactivation block. The capture creates disposable merchant-managed locations, uses a disposable stocked product for active-inventory state, temporarily disables and restores online fulfillment on pre-existing locations for the only-online branch, and hydrates each compared source/destination through the cassette before local proxy replay."
+  "notes": "Records Shopify Admin API 2026-04 locationDeactivate guard behavior for destination same-id, inactive destination as the not-found-or-inactive branch, active inventory without destination, only-online-fulfiller rejection, and primary-location permanent deactivation block. The capture creates disposable merchant-managed locations, uses a disposable stocked product for active-inventory state, temporarily disables and restores online fulfillment on pre-existing locations for the only-online branch, and hydrates each compared source/destination through captured local-state fixtures before local proxy replay. Rust runtime tests cover the local handler path for these captured cases."
 }

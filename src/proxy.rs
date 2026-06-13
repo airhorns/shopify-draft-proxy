@@ -98,6 +98,8 @@ pub struct Response {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProductRecord {
     pub id: String,
+    pub created_at: String,
+    pub updated_at: String,
     pub title: String,
     pub handle: String,
     pub status: String,
@@ -761,6 +763,7 @@ mod localization_markets_catalogs;
 mod marketing_webhooks_inventory;
 mod markets_online_inventory;
 mod media_products_saved_searches;
+mod metafield_metaobject_definitions;
 mod metafields_orders_payments;
 mod online_store_orders_payments;
 mod product_helpers;
@@ -792,6 +795,8 @@ pub(in crate::proxy) use self::markets_online_inventory::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::media_products_saved_searches::*;
 #[allow(unused_imports)]
+pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
+#[allow(unused_imports)]
 pub(in crate::proxy) use self::metafields_orders_payments::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::online_store_orders_payments::*;
@@ -813,6 +818,8 @@ mod store_tests {
     fn product(id: &str, title: &str, handle: &str) -> ProductRecord {
         ProductRecord {
             id: id.to_string(),
+            created_at: default_product_timestamp(id),
+            updated_at: default_product_timestamp(id),
             title: title.to_string(),
             handle: handle.to_string(),
             status: "ACTIVE".to_string(),
