@@ -175,6 +175,7 @@ struct StagedState {
     b2b_locations: BTreeMap<String, Value>,
     next_b2b_company_id: u64,
     inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
+    inventory_transfers: BTreeMap<String, InventoryTransferRecord>,
     metaobjects: BTreeMap<String, Value>,
     deleted_metaobject_ids: BTreeSet<String>,
     app_metafields: BTreeMap<(String, String, String), Value>,
@@ -220,6 +221,23 @@ struct StagedState {
     backup_region: Value,
     flow_signatures: Vec<Value>,
     flow_trigger_receipts: Vec<Value>,
+}
+
+#[derive(Clone)]
+struct InventoryTransferRecord {
+    id: String,
+    name: String,
+    status: String,
+    origin_location_id: String,
+    destination_location_id: String,
+    line_items: Vec<InventoryTransferLineItemRecord>,
+}
+
+#[derive(Clone)]
+struct InventoryTransferLineItemRecord {
+    id: String,
+    inventory_item_id: String,
+    quantity: i64,
 }
 
 #[derive(Clone)]
@@ -370,6 +388,7 @@ impl Default for StagedState {
             b2b_locations: BTreeMap::new(),
             next_b2b_company_id: 1,
             inventory_levels: BTreeMap::new(),
+            inventory_transfers: BTreeMap::new(),
             metaobjects: BTreeMap::new(),
             deleted_metaobject_ids: BTreeSet::new(),
             app_metafields: BTreeMap::new(),
@@ -754,6 +773,7 @@ mod admin_shipping_gift_cards;
 mod app_shipping_helpers;
 mod b2b_customers;
 mod commit;
+mod connection;
 mod core;
 mod discounts;
 mod dispatch;
@@ -778,6 +798,8 @@ pub(in crate::proxy) use self::app_shipping_helpers::*;
 pub(in crate::proxy) use self::b2b_customers::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::commit::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::connection::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::core::*;
 #[allow(unused_imports)]

@@ -749,12 +749,15 @@ impl DraftProxy {
                     .unwrap_or_default()
                     .to_string()
             });
-            let full = json!({
-                "nodes": files,
-                "edges": [],
-                "pageInfo": media_page_info(self.store.staged.media_files.keys().next().map(String::as_str))
-            });
-            data.insert(field.response_key, selected_json(&full, &field.selection));
+            data.insert(
+                field.response_key,
+                selected_connection_json_with_args(
+                    files,
+                    &field.arguments,
+                    &field.selection,
+                    media_file_cursor,
+                ),
+            );
         }
         ok_json(json!({"data": Value::Object(data)}))
     }
@@ -810,8 +813,16 @@ impl DraftProxy {
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "metafieldsSet".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
+        let inputs = list_object_arg(variables, "metafields");
+        let user_errors = self.owner_metafields_set_user_errors(&inputs);
+        if !user_errors.is_empty() {
+            let payload = json!({"metafields": [], "userErrors": user_errors});
+            return ok_json(
+                json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
+            );
+        }
         let mut metafields = Vec::new();
-        for input in list_object_arg(variables, "metafields") {
+        for input in inputs {
             let owner_id = resolved_string_field(&input, "ownerId").unwrap_or_default();
             let namespace = resolved_string_field(&input, "namespace").unwrap_or_default();
             let key = resolved_string_field(&input, "key").unwrap_or_default();
@@ -877,6 +888,70 @@ impl DraftProxy {
         }
         let payload = json!({"metafields": metafields, "userErrors": []});
         ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+    }
+
+    fn owner_metafields_set_user_errors(
+        &self,
+        inputs: &[BTreeMap<String, ResolvedValue>],
+    ) -> Vec<Value> {
+        let mut errors = Vec::new();
+        for (index, input) in inputs.iter().enumerate() {
+            let owner_id = resolved_string_field(input, "ownerId").unwrap_or_default();
+            let namespace = resolved_string_field(input, "namespace").unwrap_or_default();
+            let key = resolved_string_field(input, "key").unwrap_or_default();
+            let value = resolved_string_field(input, "value").unwrap_or_default();
+            let owner_type = owner_type_from_gid(&owner_id);
+            let Some(definition) = self
+                .store
+                .staged
+                .metafield_definitions
+                .get(&(namespace.clone(), key.clone()))
+                .filter(|definition| definition["ownerType"].as_str() == Some(owner_type))
+            else {
+                continue;
+            };
+            errors.extend(Self::metafields_set_definition_validation_errors(
+                definition, index, &value,
+            ));
+        }
+        errors
+    }
+
+    fn metafields_set_definition_validation_errors(
+        definition: &Value,
+        index: usize,
+        value: &str,
+    ) -> Vec<Value> {
+        let metafield_type = definition["type"]["name"].as_str().unwrap_or_default();
+        let validations = definition["validations"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let min = validation_i64(&validations, "min");
+        let max = validation_i64(&validations, "max");
+        let mut errors = Vec::new();
+
+        match metafield_type {
+            "single_line_text_field" | "multi_line_text_field" => {
+                if min.is_some_and(|min| value.chars().count() < min as usize) {
+                    errors.push(metafields_set_user_error(
+                        index,
+                        "Value is too short.",
+                        "INVALID_VALUE",
+                    ));
+                }
+                if max.is_some_and(|max| value.chars().count() > max as usize) {
+                    errors.push(metafields_set_user_error(
+                        index,
+                        "Value is too long.",
+                        "INVALID_VALUE",
+                    ));
+                }
+            }
+            _ => {}
+        }
+
+        errors
     }
 
     pub(in crate::proxy) fn product_metafields_set_fixture_response(
@@ -1230,10 +1305,6 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         root_selection: &[SelectedField],
     ) -> Value {
-        let limit = match arguments.get("first") {
-            Some(ResolvedValue::Int(value)) if *value >= 0 => Some(*value as usize),
-            _ => None,
-        };
         let mut products = self.store.products();
         if let Some(ResolvedValue::String(query)) = arguments.get("query") {
             if query.contains("status:") {
@@ -1249,16 +1320,12 @@ impl DraftProxy {
                 });
             }
         }
-        if let Some(limit) = limit {
-            products.truncate(limit);
-        }
-
-        selected_typed_connection(
+        selected_typed_connection_with_args(
             &products,
+            arguments,
             root_selection,
             product_json,
             |product| product_cursor(product).to_string(),
-            |page_info_selection| products_page_info_json(&products, page_info_selection),
         )
     }
 
@@ -2777,6 +2844,29 @@ fn push_unique(values: &mut Vec<String>, value: &str) {
     if !values.iter().any(|existing| existing == value) {
         values.push(value.to_string());
     }
+}
+
+fn validation_i64(validations: &[Value], name: &str) -> Option<i64> {
+    validations.iter().find_map(|validation| {
+        (validation.get("name").and_then(Value::as_str) == Some(name))
+            .then(|| {
+                validation
+                    .get("value")
+                    .and_then(Value::as_str)?
+                    .parse()
+                    .ok()
+            })
+            .flatten()
+    })
+}
+
+fn metafields_set_user_error(index: usize, message: &str, code: &str) -> Value {
+    json!({
+        "field": ["metafields", index.to_string(), "value"],
+        "message": message,
+        "code": code,
+        "elementIndex": Value::Null
+    })
 }
 
 fn media_object_list_arg(

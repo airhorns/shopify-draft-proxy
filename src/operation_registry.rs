@@ -217,11 +217,17 @@ fn registry_entry_json_value(entry: &OperationRegistryEntry) -> Value {
     Value::Object(object)
 }
 
-const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 33] = [
+const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 49] = [
     local_query("product", CapabilityDomain::Products),
     local_query("products", CapabilityDomain::Products),
     local_query("productsCount", CapabilityDomain::Products),
     local_query("productByIdentifier", CapabilityDomain::Products),
+    local_query("inventoryItem", CapabilityDomain::Products),
+    local_query("inventoryItems", CapabilityDomain::Products),
+    local_query("inventoryLevel", CapabilityDomain::Products),
+    local_query("inventoryProperties", CapabilityDomain::Products),
+    local_query("inventoryTransfer", CapabilityDomain::Products),
+    local_query("inventoryTransfers", CapabilityDomain::Products),
     local_mutation("productCreate", CapabilityDomain::Products),
     local_mutation("productUpdate", CapabilityDomain::Products),
     local_mutation("productDelete", CapabilityDomain::Products),
@@ -231,6 +237,22 @@ const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 33] = [
     local_mutation("productVariantDelete", CapabilityDomain::Products),
     local_mutation("tagsAdd", CapabilityDomain::Products),
     local_mutation("tagsRemove", CapabilityDomain::Products),
+    local_mutation("inventoryAdjustQuantities", CapabilityDomain::Products),
+    local_mutation("inventorySetQuantities", CapabilityDomain::Products),
+    local_mutation("inventoryMoveQuantities", CapabilityDomain::Products),
+    local_mutation("inventoryTransferCreate", CapabilityDomain::Products),
+    local_mutation(
+        "inventoryTransferCreateAsReadyToShip",
+        CapabilityDomain::Products,
+    ),
+    local_mutation(
+        "inventoryTransferMarkAsReadyToShip",
+        CapabilityDomain::Products,
+    ),
+    local_mutation("inventoryTransferSetItems", CapabilityDomain::Products),
+    local_mutation("inventoryTransferRemoveItems", CapabilityDomain::Products),
+    local_mutation("inventoryTransferCancel", CapabilityDomain::Products),
+    local_mutation("inventoryTransferDelete", CapabilityDomain::Products),
     local_query(
         "automaticDiscountSavedSearches",
         CapabilityDomain::SavedSearches,
