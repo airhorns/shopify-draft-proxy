@@ -1,0 +1,58 @@
+mutation MarketingActivityUpsertExternalValidation(
+  $currencyMismatchInput: MarketingActivityUpsertExternalInput!
+  $utmSeedInput: MarketingActivityUpsertExternalInput!
+  $duplicateUtmCampaignInput: MarketingActivityUpsertExternalInput!
+  $urlSeedInput: MarketingActivityUpsertExternalInput!
+  $duplicateUrlParameterValueInput: MarketingActivityUpsertExternalInput!
+) {
+  currencyMismatch: marketingActivityUpsertExternal(input: $currencyMismatchInput) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  utmSeed: marketingActivityUpsertExternal(input: $utmSeedInput) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  duplicateUtmCampaign: marketingActivityUpsertExternal(input: $duplicateUtmCampaignInput) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  urlSeed: marketingActivityUpsertExternal(input: $urlSeedInput) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  duplicateUrlParameterValue: marketingActivityUpsertExternal(input: $duplicateUrlParameterValueInput) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

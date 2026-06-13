@@ -1,13 +1,13 @@
 {
   "scenarioId": "localization-translations-market-scoped",
-  "capturedAt": "2026-05-08T14:23:41.090Z",
+  "capturedAt": "2026-06-12T21:41:24.719Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "setup": {
     "disposableProduct": {
-      "id": "gid://shopify/Product/10180636508466",
-      "handle": "market-translation-fixture-9u1q540y",
-      "title": "Market translation fixture 9u1q540y",
+      "id": "gid://shopify/Product/10212147626290",
+      "handle": "market-translation-fixture-e8rfgjvd",
+      "title": "Market translation fixture e8rfgjvd",
       "status": "DRAFT"
     },
     "market": {
@@ -33,37 +33,39 @@
     "localeWasInitiallyEnabled": true
   },
   "marketScopedTranslationLifecycle": {
-    "resourceId": "gid://shopify/Product/10180636508466",
+    "resourceId": "gid://shopify/Product/10212147626290",
     "locale": "es",
     "marketId": "gid://shopify/Market/97997685042",
-    "titleDigest": "f84f8d68debc2655a55f30fb91ba0fc52405e3216a013d3743ef6209b9ffb62c",
-    "translationValue": "Titulo de mercado 9u1q540y",
+    "titleDigest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834",
+    "productTypeDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "translationValue": "Titulo de mercado e8rfgjvd",
+    "productTypeTranslationValue": "Tipo de mercado e8rfgjvd",
     "readRequest": {
       "variables": {
-        "resourceId": "gid://shopify/Product/10180636508466",
+        "resourceId": "gid://shopify/Product/10212147626290",
         "marketId": "gid://shopify/Market/97997685042",
-        "resourceIds": ["gid://shopify/Product/10180636508466", "gid://shopify/PackingSlipTemplate/4834722098"],
+        "resourceIds": ["gid://shopify/Product/10212147626290", "gid://shopify/PackingSlipTemplate/4834722098"],
         "marketsFirst": 10
       }
     },
     "fabricatedMarketId": "gid://shopify/Market/999999999999",
     "unknownMarketRegisterRequest": {
       "variables": {
-        "resourceId": "gid://shopify/Product/10180636508466",
+        "resourceId": "gid://shopify/Product/10212147626290",
         "translations": [
           {
             "locale": "es",
             "key": "title",
-            "value": "Mercado faltante 9u1q540y",
+            "value": "Mercado faltante e8rfgjvd",
             "marketId": "gid://shopify/Market/999999999999",
-            "translatableContentDigest": "f84f8d68debc2655a55f30fb91ba0fc52405e3216a013d3743ef6209b9ffb62c"
+            "translatableContentDigest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834"
           }
         ]
       }
     },
     "unknownMarketRemoveRequest": {
       "variables": {
-        "resourceId": "gid://shopify/Product/10180636508466",
+        "resourceId": "gid://shopify/Product/10212147626290",
         "keys": ["title"],
         "locales": ["es"],
         "marketIds": ["gid://shopify/Market/999999999999"]
@@ -78,7 +80,7 @@
           {
             "locale": "es",
             "key": "body",
-            "value": "Packing slip market fixture 9u1q540y",
+            "value": "Packing slip market fixture e8rfgjvd",
             "marketId": "gid://shopify/Market/97997685042",
             "translatableContentDigest": "ea2ab2ccee50af5121e81f41cfdbe5eb177b657acd1a49cc2f39503624ea5238"
           }
@@ -87,22 +89,29 @@
     },
     "registerRequest": {
       "variables": {
-        "resourceId": "gid://shopify/Product/10180636508466",
+        "resourceId": "gid://shopify/Product/10212147626290",
         "translations": [
           {
             "locale": "es",
             "key": "title",
-            "value": "Titulo de mercado 9u1q540y",
+            "value": "Titulo de mercado e8rfgjvd",
             "marketId": "gid://shopify/Market/97997685042",
-            "translatableContentDigest": "f84f8d68debc2655a55f30fb91ba0fc52405e3216a013d3743ef6209b9ffb62c"
+            "translatableContentDigest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834"
+          },
+          {
+            "locale": "es",
+            "key": "product_type",
+            "value": "Tipo de mercado e8rfgjvd",
+            "marketId": "gid://shopify/Market/97997685042",
+            "translatableContentDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           }
         ]
       }
     },
     "removeRequest": {
       "variables": {
-        "resourceId": "gid://shopify/Product/10180636508466",
-        "keys": ["title"],
+        "resourceId": "gid://shopify/Product/10212147626290",
+        "keys": ["title", "product_type"],
         "locales": ["es"],
         "marketIds": ["gid://shopify/Market/97997685042"]
       }
@@ -110,19 +119,19 @@
     "readBeforeRegister": {
       "data": {
         "translatableResource": {
-          "resourceId": "gid://shopify/Product/10180636508466",
+          "resourceId": "gid://shopify/Product/10212147626290",
           "translatableContent": [
             {
               "key": "title",
-              "value": "Market translation fixture 9u1q540y",
-              "digest": "f84f8d68debc2655a55f30fb91ba0fc52405e3216a013d3743ef6209b9ffb62c",
+              "value": "Market translation fixture e8rfgjvd",
+              "digest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834",
               "locale": "en",
               "type": "SINGLE_LINE_TEXT_FIELD"
             },
             {
               "key": "handle",
-              "value": "market-translation-fixture-9u1q540y",
-              "digest": "4435b5ef635d81da9153ea837ac8aff40036bb38e789fe5e9cf6135c4df79405",
+              "value": "market-translation-fixture-e8rfgjvd",
+              "digest": "b5998904b65a71221e6d21e9f8525070fc1a1df4035cb76cc030c21a1f45697a",
               "locale": "en",
               "type": "URI"
             },
@@ -151,19 +160,19 @@
               ]
             },
             {
-              "resourceId": "gid://shopify/Product/10180636508466",
+              "resourceId": "gid://shopify/Product/10212147626290",
               "translatableContent": [
                 {
                   "key": "title",
-                  "value": "Market translation fixture 9u1q540y",
-                  "digest": "f84f8d68debc2655a55f30fb91ba0fc52405e3216a013d3743ef6209b9ffb62c",
+                  "value": "Market translation fixture e8rfgjvd",
+                  "digest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834",
                   "locale": "en",
                   "type": "SINGLE_LINE_TEXT_FIELD"
                 },
                 {
                   "key": "handle",
-                  "value": "market-translation-fixture-9u1q540y",
-                  "digest": "4435b5ef635d81da9153ea837ac8aff40036bb38e789fe5e9cf6135c4df79405",
+                  "value": "market-translation-fixture-e8rfgjvd",
+                  "digest": "b5998904b65a71221e6d21e9f8525070fc1a1df4035cb76cc030c21a1f45697a",
                   "locale": "en",
                   "type": "URI"
                 },
@@ -278,7 +287,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1980,
+            "currentlyAvailable": 1989,
             "restoreRate": 100
           }
         }
@@ -297,7 +306,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1982,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }
@@ -322,7 +331,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1972,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }
@@ -334,7 +343,16 @@
           "translations": [
             {
               "key": "title",
-              "value": "Titulo de mercado 9u1q540y",
+              "value": "Titulo de mercado e8rfgjvd",
+              "locale": "es",
+              "outdated": false,
+              "market": {
+                "id": "gid://shopify/Market/97997685042"
+              }
+            },
+            {
+              "key": "product_type",
+              "value": "Tipo de mercado e8rfgjvd",
               "locale": "es",
               "outdated": false,
               "market": {
@@ -351,7 +369,7 @@
           "actualQueryCost": 11,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1975,
+            "currentlyAvailable": 1989,
             "restoreRate": 100
           }
         }
@@ -360,19 +378,19 @@
     "readAfterRegister": {
       "data": {
         "translatableResource": {
-          "resourceId": "gid://shopify/Product/10180636508466",
+          "resourceId": "gid://shopify/Product/10212147626290",
           "translatableContent": [
             {
               "key": "title",
-              "value": "Market translation fixture 9u1q540y",
-              "digest": "f84f8d68debc2655a55f30fb91ba0fc52405e3216a013d3743ef6209b9ffb62c",
+              "value": "Market translation fixture e8rfgjvd",
+              "digest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834",
               "locale": "en",
               "type": "SINGLE_LINE_TEXT_FIELD"
             },
             {
               "key": "handle",
-              "value": "market-translation-fixture-9u1q540y",
-              "digest": "4435b5ef635d81da9153ea837ac8aff40036bb38e789fe5e9cf6135c4df79405",
+              "value": "market-translation-fixture-e8rfgjvd",
+              "digest": "b5998904b65a71221e6d21e9f8525070fc1a1df4035cb76cc030c21a1f45697a",
               "locale": "en",
               "type": "URI"
             },
@@ -387,10 +405,20 @@
           "translations": [
             {
               "key": "title",
-              "value": "Titulo de mercado 9u1q540y",
+              "value": "Titulo de mercado e8rfgjvd",
               "locale": "es",
               "outdated": false,
-              "updatedAt": "2026-05-08T14:23:40Z",
+              "updatedAt": "2026-06-12T21:41:23Z",
+              "market": {
+                "id": "gid://shopify/Market/97997685042"
+              }
+            },
+            {
+              "key": "product_type",
+              "value": "Tipo de mercado e8rfgjvd",
+              "locale": "es",
+              "outdated": false,
+              "updatedAt": "2026-06-12T21:41:23Z",
               "market": {
                 "id": "gid://shopify/Market/97997685042"
               }
@@ -412,19 +440,19 @@
               ]
             },
             {
-              "resourceId": "gid://shopify/Product/10180636508466",
+              "resourceId": "gid://shopify/Product/10212147626290",
               "translatableContent": [
                 {
                   "key": "title",
-                  "value": "Market translation fixture 9u1q540y",
-                  "digest": "f84f8d68debc2655a55f30fb91ba0fc52405e3216a013d3743ef6209b9ffb62c",
+                  "value": "Market translation fixture e8rfgjvd",
+                  "digest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834",
                   "locale": "en",
                   "type": "SINGLE_LINE_TEXT_FIELD"
                 },
                 {
                   "key": "handle",
-                  "value": "market-translation-fixture-9u1q540y",
-                  "digest": "4435b5ef635d81da9153ea837ac8aff40036bb38e789fe5e9cf6135c4df79405",
+                  "value": "market-translation-fixture-e8rfgjvd",
+                  "digest": "b5998904b65a71221e6d21e9f8525070fc1a1df4035cb76cc030c21a1f45697a",
                   "locale": "en",
                   "type": "URI"
                 },
@@ -514,7 +542,7 @@
           "actualQueryCost": 14,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1977,
+            "currentlyAvailable": 1986,
             "restoreRate": 100
           }
         }
@@ -526,7 +554,16 @@
           "translations": [
             {
               "key": "title",
-              "value": "Titulo de mercado 9u1q540y",
+              "value": "Titulo de mercado e8rfgjvd",
+              "locale": "es",
+              "outdated": false,
+              "market": {
+                "id": "gid://shopify/Market/97997685042"
+              }
+            },
+            {
+              "key": "product_type",
+              "value": "Tipo de mercado e8rfgjvd",
               "locale": "es",
               "outdated": false,
               "market": {
@@ -543,7 +580,7 @@
           "actualQueryCost": 11,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1979,
+            "currentlyAvailable": 1988,
             "restoreRate": 100
           }
         }
@@ -552,19 +589,19 @@
     "readAfterRemove": {
       "data": {
         "translatableResource": {
-          "resourceId": "gid://shopify/Product/10180636508466",
+          "resourceId": "gid://shopify/Product/10212147626290",
           "translatableContent": [
             {
               "key": "title",
-              "value": "Market translation fixture 9u1q540y",
-              "digest": "f84f8d68debc2655a55f30fb91ba0fc52405e3216a013d3743ef6209b9ffb62c",
+              "value": "Market translation fixture e8rfgjvd",
+              "digest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834",
               "locale": "en",
               "type": "SINGLE_LINE_TEXT_FIELD"
             },
             {
               "key": "handle",
-              "value": "market-translation-fixture-9u1q540y",
-              "digest": "4435b5ef635d81da9153ea837ac8aff40036bb38e789fe5e9cf6135c4df79405",
+              "value": "market-translation-fixture-e8rfgjvd",
+              "digest": "b5998904b65a71221e6d21e9f8525070fc1a1df4035cb76cc030c21a1f45697a",
               "locale": "en",
               "type": "URI"
             },
@@ -593,19 +630,19 @@
               ]
             },
             {
-              "resourceId": "gid://shopify/Product/10180636508466",
+              "resourceId": "gid://shopify/Product/10212147626290",
               "translatableContent": [
                 {
                   "key": "title",
-                  "value": "Market translation fixture 9u1q540y",
-                  "digest": "f84f8d68debc2655a55f30fb91ba0fc52405e3216a013d3743ef6209b9ffb62c",
+                  "value": "Market translation fixture e8rfgjvd",
+                  "digest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834",
                   "locale": "en",
                   "type": "SINGLE_LINE_TEXT_FIELD"
                 },
                 {
                   "key": "handle",
-                  "value": "market-translation-fixture-9u1q540y",
-                  "digest": "4435b5ef635d81da9153ea837ac8aff40036bb38e789fe5e9cf6135c4df79405",
+                  "value": "market-translation-fixture-e8rfgjvd",
+                  "digest": "b5998904b65a71221e6d21e9f8525070fc1a1df4035cb76cc030c21a1f45697a",
                   "locale": "en",
                   "type": "URI"
                 },
@@ -695,7 +732,7 @@
           "actualQueryCost": 13,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1971,
+            "currentlyAvailable": 1987,
             "restoreRate": 100
           }
         }
@@ -716,7 +753,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1965,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }
@@ -725,7 +762,7 @@
     "productDelete": {
       "data": {
         "productDelete": {
-          "deletedProductId": "gid://shopify/Product/10180636508466",
+          "deletedProductId": "gid://shopify/Product/10212147626290",
           "userErrors": []
         }
       },
@@ -735,7 +772,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1966,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }
@@ -746,9 +783,9 @@
     {
       "operationName": "LocalizationTranslationsMarketScopedRead",
       "variables": {
-        "resourceId": "gid://shopify/Product/10180636508466",
+        "resourceId": "gid://shopify/Product/10212147626290",
         "marketId": "gid://shopify/Market/97997685042",
-        "resourceIds": ["gid://shopify/Product/10180636508466", "gid://shopify/PackingSlipTemplate/4834722098"],
+        "resourceIds": ["gid://shopify/Product/10212147626290", "gid://shopify/PackingSlipTemplate/4834722098"],
         "marketsFirst": 10
       },
       "query": "sha:hand-synthesized-from-readBeforeRegister-response",
@@ -757,19 +794,19 @@
         "body": {
           "data": {
             "translatableResource": {
-              "resourceId": "gid://shopify/Product/10180636508466",
+              "resourceId": "gid://shopify/Product/10212147626290",
               "translatableContent": [
                 {
                   "key": "title",
-                  "value": "Market translation fixture 9u1q540y",
-                  "digest": "f84f8d68debc2655a55f30fb91ba0fc52405e3216a013d3743ef6209b9ffb62c",
+                  "value": "Market translation fixture e8rfgjvd",
+                  "digest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834",
                   "locale": "en",
                   "type": "SINGLE_LINE_TEXT_FIELD"
                 },
                 {
                   "key": "handle",
-                  "value": "market-translation-fixture-9u1q540y",
-                  "digest": "4435b5ef635d81da9153ea837ac8aff40036bb38e789fe5e9cf6135c4df79405",
+                  "value": "market-translation-fixture-e8rfgjvd",
+                  "digest": "b5998904b65a71221e6d21e9f8525070fc1a1df4035cb76cc030c21a1f45697a",
                   "locale": "en",
                   "type": "URI"
                 },
@@ -798,19 +835,19 @@
                   ]
                 },
                 {
-                  "resourceId": "gid://shopify/Product/10180636508466",
+                  "resourceId": "gid://shopify/Product/10212147626290",
                   "translatableContent": [
                     {
                       "key": "title",
-                      "value": "Market translation fixture 9u1q540y",
-                      "digest": "f84f8d68debc2655a55f30fb91ba0fc52405e3216a013d3743ef6209b9ffb62c",
+                      "value": "Market translation fixture e8rfgjvd",
+                      "digest": "eab2207e3dc26b0aa44e10ad13143e272da1fafc190a0ca6ef0da5f225605834",
                       "locale": "en",
                       "type": "SINGLE_LINE_TEXT_FIELD"
                     },
                     {
                       "key": "handle",
-                      "value": "market-translation-fixture-9u1q540y",
-                      "digest": "4435b5ef635d81da9153ea837ac8aff40036bb38e789fe5e9cf6135c4df79405",
+                      "value": "market-translation-fixture-e8rfgjvd",
+                      "digest": "b5998904b65a71221e6d21e9f8525070fc1a1df4035cb76cc030c21a1f45697a",
                       "locale": "en",
                       "type": "URI"
                     },
