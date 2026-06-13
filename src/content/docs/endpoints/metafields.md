@@ -56,7 +56,7 @@ Shopify Admin 2026-04 does not reject product-owned definition deletion when ass
 
 Reference-type and `id` product-owned definitions are stricter when associated metafields exist. Shopify Admin 2025-01 returns a resolver `userErrors` payload instead of deleting when `deleteAllAssociatedMetafields` is omitted or false, with `REFERENCE_TYPE_DELETION_ERROR` for reference types and `ID_TYPE_DELETION_ERROR` for `id`; the local handler follows that guard and emits the per-mutation `MetafieldDefinitionDeleteUserError` typename when selected.
 
-Definition-backed `metafieldsSet` support now consults effective staged definitions for product, product variant, collection, customer, order, and company owners. When the input omits `type`, the matching definition supplies it. When the input supplies a mismatched type, local validation rejects the write. Fixture-backed basic validations currently cover `max` string length and `regex` for product-owned values; CUSTOMER, ORDER, and COMPANY value success paths are covered for definition create, `metafieldsSet`, and owner read-after-set.
+Definition-backed `metafieldsSet` support now consults effective staged definitions for product, product variant, collection, customer, order, and company owners. When a staged definition validation changes through `metafieldDefinitionUpdate(validations:)`, later local value writes are checked against the effective definition before mutating owner metafield state. Captured 2026-04 evidence proves a product-owned text definition accepts an initially long value, then rejects a later too-long `metafieldsSet` value after `max: 5`, leaves the existing value untouched, accepts a short replacement, and exposes that replacement through downstream product metafield reads. When the input omits `type`, the matching definition supplies it. When the input supplies a mismatched type, local validation rejects the write. Fixture-backed basic validations currently cover `max` string length for product-owned values; CUSTOMER, ORDER, and COMPANY value success paths are covered for definition create, `metafieldsSet`, and owner read-after-set.
 
 Live evidence in `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-lifecycle-mutations.json`, captured with `corepack pnpm conformance:capture-metafield-definition-lifecycle`, covers product-owner create, downstream definition/metafield reads, update, delete with `deleteAllAssociatedMetafields: true`, and immediate downstream no-data reads after delete. `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-update-delete-preconditions.json` covers the 2026-04 delete flag and update identifier preconditions. The Rust runtime preserves a minimal product shell when deleting associated product metafields through a definition delete, so a downstream `product(id:) { metafield(...) }` read returns the product object with `metafield: null` rather than collapsing the product root to `null`.
 
@@ -132,6 +132,7 @@ The local implementation intentionally covers pin/unpin for definitions already 
 - `config/parity-specs/metafields/metafield-definition-non-product-owner-types.json`
 - `config/parity-specs/metafields/metafield-definition-non-product-metafields.json`
 - `config/parity-specs/metafield-definitions/access-validation.json`
+- `config/parity-specs/metafield-definitions/validation-affects-values.json`
 - `config/parity-specs/metafield-definitions/metafields-set-delete-app-namespace-resolution.json`
 - `config/parity-specs/metafield-definitions/metafield-delete-not-found.json`
 - `config/parity-specs/products/metafieldsSet-*.json`
@@ -141,6 +142,7 @@ The local implementation intentionally covers pin/unpin for definitions already 
 - `corepack pnpm conformance:capture -- --run metafield-definition-lifecycle`
 - `corepack pnpm conformance:capture -- --run metafield-definition-non-product-owner-types`
 - `corepack pnpm conformance:capture -- --run metafield-definition-non-product-metafields`
+- `corepack pnpm conformance:capture -- --run metafield-definition-validation-affects-values`
 - `corepack pnpm conformance:capture -- --run metafields-set-delete-app-namespace-resolution`
 
 ### Validation
