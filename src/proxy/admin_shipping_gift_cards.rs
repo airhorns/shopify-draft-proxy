@@ -2500,7 +2500,11 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let query = field.arguments.get("query").and_then(resolved_as_string);
-        let active_filter = query.as_deref() == Some("active:true");
+        let active_filter = match query.as_deref() {
+            Some("active:true") => Some(true),
+            Some("active:false") => Some(false),
+            _ => None,
+        };
         let mut services: Vec<Value> = self
             .store
             .staged
@@ -2508,7 +2512,11 @@ impl DraftProxy {
             .iter()
             .filter(|(id, _)| !self.store.staged.deleted_carrier_service_ids.contains(*id))
             .map(|(_, carrier)| carrier.clone())
-            .filter(|carrier| !active_filter || carrier.get("active") == Some(&json!(true)))
+            .filter(|carrier| {
+                active_filter
+                    .map(|expected| carrier.get("active") == Some(&json!(expected)))
+                    .unwrap_or(true)
+            })
             .collect();
         services.sort_by_key(|carrier| {
             carrier
@@ -2517,13 +2525,12 @@ impl DraftProxy {
                 .unwrap_or_default()
                 .to_string()
         });
-        let first = field
-            .arguments
-            .get("first")
-            .and_then(resolved_as_usize)
-            .unwrap_or(services.len());
-        services.truncate(first);
-        carrier_service_connection_json(&services, &field.selection)
+        selected_connection_json_with_args(
+            services,
+            &field.arguments,
+            &field.selection,
+            carrier_service_cursor,
+        )
     }
 
     pub(in crate::proxy) fn carrier_service_mutation(

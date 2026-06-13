@@ -416,19 +416,6 @@ impl DraftProxy {
             })));
         }
 
-        let is_tail_document = query.contains("RustProductPublicationTargetValidation")
-            || query.contains("RustProductPublicationCreateSeed")
-            || query.contains("RustProductPublicationUpdateDeleteValidation")
-            || query.contains("RustProductFullSyncUnknown")
-            || query.contains("RustProductFeedCreateForFullSync")
-            || query.contains("RustProductFullSyncJob")
-            || query.contains("RustProductFullSyncJobPoll")
-            || query.contains("RustProductFeedbackValidationTailHelpers")
-            || query.contains("RustShopFeedbackValidationTailHelpers");
-        if !is_tail_document {
-            return None;
-        }
-
         let fields = root_fields(query, variables)?;
         let all_roots_allowed = match operation_type {
             OperationType::Mutation => fields.iter().all(|field| {
@@ -876,10 +863,7 @@ impl DraftProxy {
             .staged
             .customers
             .get(id)
-            .map(|customer| {
-                let enriched = self.customer_with_order_connection(id, customer);
-                selected_json(&enriched, &field.selection)
-            })
+            .map(|customer| self.customer_with_order_connection(id, customer, &field.selection))
             .unwrap_or(Value::Null)
     }
 
@@ -887,8 +871,8 @@ impl DraftProxy {
         &self,
         id: &str,
         customer: &Value,
+        selection: &[SelectedField],
     ) -> Value {
-        let mut enriched = customer.clone();
         let orders = self
             .store
             .staged
@@ -896,23 +880,17 @@ impl DraftProxy {
             .get(id)
             .cloned()
             .unwrap_or_default();
-        let page_info = if let (Some(first), Some(last)) = (orders.first(), orders.last()) {
-            json!({
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": first.get("id").cloned().unwrap_or(Value::Null),
-                "endCursor": last.get("id").cloned().unwrap_or(Value::Null)
-            })
-        } else {
-            json!({ "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null })
-        };
-        if let Some(object) = enriched.as_object_mut() {
-            object.insert(
-                "orders".to_string(),
-                json!({ "nodes": orders, "edges": [], "pageInfo": page_info }),
-            );
-        }
-        enriched
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "orders" => Some(selected_connection_json_with_args(
+                orders.clone(),
+                &field.arguments,
+                &field.selection,
+                value_id_cursor,
+            )),
+            _ => selected_json(customer, std::slice::from_ref(field))
+                .as_object()
+                .and_then(|object| object.get(&field.response_key).cloned()),
+        })
     }
 
     pub(in crate::proxy) fn customer_by_identifier_field(

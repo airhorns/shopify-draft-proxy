@@ -1,0 +1,56 @@
+{
+  "scenarioId": "market-create-currency-settings-euro-name",
+  "operationNames": ["marketCreate", "market"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/markets/market-create-currency-settings.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/market-create-currency-settings.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.cases[5].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2025-01 capture creates a disposable market with currencySettings.baseCurrency: EUR and verifies Shopify returns baseCurrency.currencyName: \"Euro\" on marketCreate and downstream market(id:) read. This scenario would have failed when the proxy echoed unknown ISO codes as currencyName.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "euro-currency-name-market-create",
+        "capturePath": "$.cases[5].response.payload.data.marketCreate",
+        "proxyPath": "$.data.marketCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.market.id",
+            "matcher": "shopify-gid:Market",
+            "reason": "The local proxy generates a deterministic synthetic Market id while the capture stores a disposable live Shopify Market id."
+          }
+        ]
+      },
+      {
+        "name": "euro-currency-name-market-read",
+        "capturePath": "$.cases[6].response.payload.data.market",
+        "proxyPath": "$.data.market",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-create-currency-settings-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.marketCreate.market.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Market",
+            "reason": "The local proxy reads the deterministic synthetic Market id created earlier in the parity replay."
+          }
+        ]
+      }
+    ]
+  }
+}

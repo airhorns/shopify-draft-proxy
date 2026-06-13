@@ -191,6 +191,17 @@ function assertManualRateRejected(capture: CapturedCase<MarketCreateData>): void
   }
 }
 
+function assertBaseCurrencyName(capture: CapturedCase<MarketCreateData>, code: string, expected: string): void {
+  const baseCurrency = marketCreate(capture)?.market?.currencySettings?.baseCurrency;
+  if (baseCurrency?.currencyCode !== code || baseCurrency.currencyName !== expected) {
+    throw new Error(
+      `Expected base currency ${code} / ${expected}, got ${JSON.stringify(baseCurrency)} in ${JSON.stringify(
+        capture.response.payload,
+      )}`,
+    );
+  }
+}
+
 const stamp = new Date()
   .toISOString()
   .replace(/[^0-9]/g, '')
@@ -257,6 +268,24 @@ try {
   });
   assertManualRateRejected(manualRateInvalid);
   cases.push(manualRateInvalid);
+
+  const euroCurrencyCreate = await captureCase<MarketCreateData>('marketCreateEuroCurrencyName', marketCreateMutation, {
+    input: {
+      name: `Draft Proxy Currency Settings ${stamp} Euro`,
+      currencySettings: {
+        baseCurrency: 'EUR',
+      },
+    },
+  });
+  const euroCurrencyId = assertCreatedWithoutErrors(euroCurrencyCreate, 'EUR currencyName marketCreate');
+  assertBaseCurrencyName(euroCurrencyCreate, 'EUR', 'Euro');
+  createdIds.push(euroCurrencyId);
+  cases.push(euroCurrencyCreate);
+  cases.push(
+    await captureCase<MarketReadData>('marketReadEuroCurrencyName', marketReadQuery, {
+      id: euroCurrencyId,
+    }),
+  );
 } finally {
   for (const id of createdIds.toReversed()) {
     cleanupCases.push(
@@ -286,6 +315,8 @@ await writeFile(
 );
 
 const manualRateErrors = userErrors(cases[4] as CapturedCase<MarketCreateData>);
+const euroBaseCurrency = marketCreate(cases[5] as CapturedCase<MarketCreateData>)?.market?.currencySettings
+  ?.baseCurrency;
 console.log(
   JSON.stringify(
     {
@@ -296,6 +327,7 @@ console.log(
       createdMarkets: createdIds.length,
       cleanedUpMarkets: cleanupCases.length,
       manualRateErrors,
+      euroBaseCurrency,
     },
     null,
     2,
