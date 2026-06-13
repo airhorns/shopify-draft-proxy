@@ -1005,6 +1005,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-feedback-validation-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-product-feedback-validation-local-runtime.ts',
+    purpose:
+      'Local-runtime resource-feedback validation parity for invalid enum literals, message validation, future timestamps, mixed product batches, batch caps, and shop feedback guardrails.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}product-feedback-validation-local-runtime.json`,
+      'config/parity-specs/products/bulk_product_resource_feedback_create_validation.json',
+      'config/parity-requests/products/product-feedback-create-local-runtime.graphql',
+      'config/parity-requests/products/product-feedback-invalid-state.graphql',
+      'config/parity-requests/products/shop-feedback-create-local-runtime.graphql',
+      'config/parity-requests/products/shop-feedback-invalid-state.graphql',
+    ],
+    cleanupBehavior: 'Local-runtime validation-only capture; no Shopify or local cleanup is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Live resolver capture is blocked by the conformance app resource-feedback access and sales-channel configuration, so this fixture records executable local-runtime evidence for the supported no-upstream mutation contract.',
+  },
+  {
+    domain: 'products',
     captureId: 'tags-add-multi-resource',
     scriptPath: 'scripts/capture-tags-add-multi-resource-conformance.ts',
     purpose:
@@ -3575,13 +3596,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_markets', 'write_markets'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}market-create-currency-settings.json`,
+      'config/parity-specs/markets/market-create-currency-settings-euro-name.json',
       'config/parity-specs/markets/market-create-currency-settings-flags.json',
       'config/parity-specs/markets/market-create-currency-settings-manual-rate-validation.json',
       'config/parity-requests/markets/market-create-currency-settings.graphql',
       'config/parity-requests/markets/market-create-currency-settings-read.graphql',
     ],
     cleanupBehavior:
-      'Creates two disposable Markets Home markets with currencySettings flags, reads them back, captures a validation-only manual-rate branch, then deletes created markets in reverse order.',
+      'Creates disposable Markets Home markets with currencySettings flags and a non-USD base currency, reads them back, captures a validation-only manual-rate branch, then deletes created markets in reverse order.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

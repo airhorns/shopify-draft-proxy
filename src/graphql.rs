@@ -67,6 +67,7 @@ pub struct RootFieldSelection {
     pub name: String,
     pub response_key: String,
     pub location: SourceLocation,
+    pub directives: Vec<String>,
     pub raw_arguments: BTreeMap<String, RawArgumentValue>,
     pub arguments: BTreeMap<String, ResolvedValue>,
     pub selection: Vec<SelectedField>,
@@ -397,6 +398,11 @@ fn collect_root_field_selections<'a>(
                 name: field.name.to_string(),
                 response_key: field.alias.unwrap_or(field.name).to_string(),
                 location: source_location(field.position),
+                directives: field
+                    .directives
+                    .iter()
+                    .map(|directive| directive.name.to_string())
+                    .collect(),
                 raw_arguments: raw_field_arguments(field, variables),
                 arguments: field_arguments(field, variables),
                 selection: selected_fields(&field.selection_set.items, variables, fragments),
