@@ -1005,6 +1005,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-feedback-validation-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-product-feedback-validation-local-runtime.ts',
+    purpose:
+      'Local-runtime resource-feedback validation parity for invalid enum literals, message validation, future timestamps, mixed product batches, batch caps, and shop feedback guardrails.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}product-feedback-validation-local-runtime.json`,
+      'config/parity-specs/products/bulk_product_resource_feedback_create_validation.json',
+      'config/parity-requests/products/product-feedback-create-local-runtime.graphql',
+      'config/parity-requests/products/product-feedback-invalid-state.graphql',
+      'config/parity-requests/products/shop-feedback-create-local-runtime.graphql',
+      'config/parity-requests/products/shop-feedback-invalid-state.graphql',
+    ],
+    cleanupBehavior: 'Local-runtime validation-only capture; no Shopify or local cleanup is required.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Live resolver capture is blocked by the conformance app resource-feedback access and sales-channel configuration, so this fixture records executable local-runtime evidence for the supported no-upstream mutation contract.',
+  },
+  {
+    domain: 'products',
     captureId: 'tags-add-multi-resource',
     scriptPath: 'scripts/capture-tags-add-multi-resource-conformance.ts',
     purpose:
@@ -1241,10 +1262,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}media-file-user-error-aggregation.json`,
       'config/parity-specs/media/media-file-user-error-aggregation.json',
+      'config/parity-specs/media/media-file-user-error-root-dispatch-validation.json',
       'config/parity-requests/media/media-file-user-error-aggregation-create.graphql',
       'config/parity-requests/media/media-file-user-error-aggregation-delete.graphql',
       'config/parity-requests/media/media-file-user-error-aggregation-update.graphql',
       'config/parity-requests/media/media-file-user-error-aggregation-acknowledge.graphql',
+      'config/parity-requests/media/media-file-user-error-root-dispatch-create.graphql',
+      'config/parity-requests/media/media-file-user-error-root-dispatch-update.graphql',
+      'config/parity-requests/media/media-file-user-error-root-dispatch-acknowledge.graphql',
     ],
     cleanupBehavior:
       'Creates two disposable non-ready files for acknowledge validation and deletes them in best-effort cleanup.',
@@ -1258,7 +1283,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose:
       'fileCreate validation branches for source URLs, filename extensions, duplicate modes, and long alt input.',
     requiredAuthScopes: ['write_files'],
-    fixtureOutputs: [`${CAPTURE_ROOT}media-file-create-validation-branches.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-create-validation-branches.json`,
+      'config/parity-specs/media/media-file-create-root-dispatch-validation.json',
+      'config/parity-requests/media/media-file-create-root-dispatch-validation.graphql',
+    ],
     cleanupBehavior: 'Deletes any file successfully created by the acceptance branch.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
@@ -1383,6 +1412,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}media-staged-uploads-create-validation.json`,
       'config/parity-specs/media/media-staged-uploads-create-validation.json',
+      'config/parity-specs/media/media-staged-uploads-create-root-dispatch-validation.json',
+      'config/parity-requests/media/media-staged-uploads-create-root-dispatch-validation.graphql',
     ],
     cleanupBehavior: 'Requests signed upload metadata only; does not upload bytes and creates no Shopify files.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -1734,6 +1765,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable product and product-owned metafield definition, stages a matching metafield, captures validation update/readback/rename behavior, then deletes the definition and product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
+    captureId: 'metafield-definition-validation-affects-values',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-validation-affects-values-conformance.mts',
+    purpose:
+      'metafieldDefinitionUpdate validations changing later metafieldsSet value acceptance/rejection and downstream product metafield readback.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-validation-affects-values.json`,
+      'config/parity-specs/metafield-definitions/validation-affects-values.json',
+      'config/parity-requests/metafield-definitions/validation-affects-values-create.graphql',
+      'config/parity-requests/metafield-definitions/validation-affects-values-update.graphql',
+      'config/parity-requests/metafield-definitions/validation-affects-values-set.graphql',
+      'config/parity-requests/metafield-definitions/validation-affects-values-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product and product-owned metafield definition, writes before and after a validation update, then deletes the definition and product.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -3565,13 +3616,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_markets', 'write_markets'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}market-create-currency-settings.json`,
+      'config/parity-specs/markets/market-create-currency-settings-euro-name.json',
       'config/parity-specs/markets/market-create-currency-settings-flags.json',
       'config/parity-specs/markets/market-create-currency-settings-manual-rate-validation.json',
       'config/parity-requests/markets/market-create-currency-settings.graphql',
       'config/parity-requests/markets/market-create-currency-settings-read.graphql',
     ],
     cleanupBehavior:
-      'Creates two disposable Markets Home markets with currencySettings flags, reads them back, captures a validation-only manual-rate branch, then deletes created markets in reverse order.',
+      'Creates disposable Markets Home markets with currencySettings flags and a non-USD base currency, reads them back, captures a validation-only manual-rate branch, then deletes created markets in reverse order.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

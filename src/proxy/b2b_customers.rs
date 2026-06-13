@@ -416,19 +416,6 @@ impl DraftProxy {
             })));
         }
 
-        let is_tail_document = query.contains("RustProductPublicationTargetValidation")
-            || query.contains("RustProductPublicationCreateSeed")
-            || query.contains("RustProductPublicationUpdateDeleteValidation")
-            || query.contains("RustProductFullSyncUnknown")
-            || query.contains("RustProductFeedCreateForFullSync")
-            || query.contains("RustProductFullSyncJob")
-            || query.contains("RustProductFullSyncJobPoll")
-            || query.contains("RustProductFeedbackValidationTailHelpers")
-            || query.contains("RustShopFeedbackValidationTailHelpers");
-        if !is_tail_document {
-            return None;
-        }
-
         let fields = root_fields(query, variables)?;
         let all_roots_allowed = match operation_type {
             OperationType::Mutation => fields.iter().all(|field| {

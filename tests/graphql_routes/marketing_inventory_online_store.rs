@@ -595,13 +595,21 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
 
     let blocked_set = proxy.process_request(json_graphql_request(
         r#"
-        mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) { inventorySetQuantities(input: $input) { userErrors { field message } } }
+        mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            userErrors { field message }
+          }
+        }
         "#,
-        json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://har-305/set/blocked", "quantities": [{"inventoryItemId": "gid://shopify/InventoryItem/53204673823026", "locationId": "gid://shopify/Location/106318430514", "quantity": 7}]}}),
+        json!({"idempotencyKey": "inventory-set-missing-change-from", "input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://har-305/set/blocked", "quantities": [{"inventoryItemId": "gid://shopify/InventoryItem/53204673823026", "locationId": "gid://shopify/Location/106318430514", "quantity": 7}]}}),
     ));
     assert_eq!(
-        blocked_set.body["data"]["inventorySetQuantities"]["userErrors"],
-        json!([{"field": ["input", "ignoreCompareQuantity"], "message": "The compareQuantity argument must be given to each quantity or ignored using ignoreCompareQuantity."}])
+        blocked_set.body["errors"][0]["message"],
+        json!("InventoryQuantityInput must include the following argument: changeFromQuantity.")
+    );
+    assert_eq!(
+        blocked_set.body["data"]["inventorySetQuantities"],
+        Value::Null
     );
 
     let blocked_move = proxy.process_request(json_graphql_request(
@@ -617,133 +625,202 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
 }
 
 #[test]
-fn inventory_fixture_backed_downstream_reads_replay_captured_shapes() {
-    let quantity_contract: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-quantity-contracts-2026-04.json"
-    ))
-    .unwrap();
-    let reason_validation: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-reason-validation.json"
-    ))
-    .unwrap();
-    let adjust_derived: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-adjust-then-has-out-of-stock-variants-parity.json"
-    ))
-    .unwrap();
-    let adjust_quantities: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/inventory-adjust-quantities-parity.json"
-    ))
-    .unwrap();
-    let item_update: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/inventory-item-update-parity.json"
-    ))
-    .unwrap();
+fn inventory_adjust_quantities_stages_levels_logs_and_reads_back_by_root_field() {
     let mut proxy = snapshot_proxy();
 
-    let contract_read = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/products/inventory-quantity-contracts-2026-downstream-read.graphql"
-        ),
-        json!({
-            "inventoryItemId": quantity_contract["setup"]["product"]["inventoryItemId"],
-            "productId": quantity_contract["setup"]["product"]["productId"]
-        }),
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AnyOperationName($input: InventoryAdjustQuantitiesInput!) {
+          adjust: inventoryAdjustQuantities(input: $input) {
+            inventoryAdjustmentGroup {
+              reason
+              referenceDocumentUri
+              changes {
+                name
+                delta
+                item { id }
+                location { id name }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/adjust", "changes": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/store-backed", "locationId": "gid://shopify/Location/1", "delta": 5, "changeFromQuantity": 0}
+        ]}}),
     ));
     assert_eq!(
-        contract_read.body["data"],
-        quantity_contract["downstreamRead"]["data"]
+        adjust.body["data"]["adjust"]["inventoryAdjustmentGroup"]["changes"][0],
+        json!({"name": "available", "delta": 5, "item": {"id": "gid://shopify/InventoryItem/store-backed"}, "location": {"id": "gid://shopify/Location/1", "name": "Source location"}})
+    );
+    assert_eq!(adjust.body["data"]["adjust"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query StoreBackedInventoryRead($id: ID!) {
+          inventoryItem(id: $id) {
+            id
+            tracked
+            variant { inventoryQuantity }
+            inventoryLevels(first: 5) {
+              nodes {
+                id
+                item { id }
+                location { id name }
+                quantities(names: ["available", "on_hand", "damaged"]) { name quantity updatedAt }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/InventoryItem/store-backed"}),
+    ));
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["variant"]["inventoryQuantity"],
+        json!(5)
+    );
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"],
+        json!([
+            {"name": "available", "quantity": 5, "updatedAt": null},
+            {"name": "on_hand", "quantity": 5, "updatedAt": null},
+            {"name": "damaged", "quantity": 0, "updatedAt": null}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["item"],
+        json!({"id": "gid://shopify/InventoryItem/store-backed"})
     );
 
-    let reason_read = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/products/inventory-reason-validation-downstream.graphql"
-        ),
-        json!({"inventoryItemId": reason_validation["setup"]["inventoryItemId"]}),
+    let level_id = read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let level_read = proxy.process_request(json_graphql_request(
+        r#"
+        query StoreBackedInventoryLevelRead($id: ID!) {
+          inventoryLevel(id: $id) {
+            location { id }
+            quantities(names: ["available", "on_hand"]) { name quantity }
+          }
+        }
+        "#,
+        json!({"id": level_id}),
     ));
     assert_eq!(
-        reason_read.body["data"],
-        reason_validation["downstreamAfterRejected"]["data"]
+        level_read.body["data"]["inventoryLevel"]["quantities"],
+        json!([
+            {"name": "available", "quantity": 5},
+            {"name": "on_hand", "quantity": 5}
+        ])
     );
 
-    let derived_read = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/products/inventoryAdjust-then-hasOutOfStockVariants-downstream.graphql"),
-        adjust_derived["setup"]["variables"].clone(),
+    let invalid_reason = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StoreBackedInventoryInvalidReason($input: InventoryAdjustQuantitiesInput!) {
+          inventoryAdjustQuantities(input: $input) {
+            inventoryAdjustmentGroup { reason }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "not_a_reason", "changes": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/store-backed", "locationId": "gid://shopify/Location/1", "delta": 1, "changeFromQuantity": 5}
+        ]}}),
     ));
     assert_eq!(
-        derived_read.body["data"],
-        adjust_derived["downstreamRead"]["data"]
+        invalid_reason.body["data"]["inventoryAdjustQuantities"]["userErrors"][0]["code"],
+        json!("INVALID_REASON")
     );
 
-    let adjust_read = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/products/inventoryAdjustQuantities-downstream-read.graphql"
-        ),
-        adjust_quantities["downstreamRead"]["variables"].clone(),
-    ));
+    let log = proxy.get_log_snapshot();
     assert_eq!(
-        adjust_read.body["data"],
-        adjust_quantities["downstreamRead"]["data"]
+        log["entries"][0]["interpreted"]["operationName"],
+        json!("inventoryAdjustQuantities")
     );
-
-    let non_available_read = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/products/inventoryAdjustQuantities-non-available-downstream-read.graphql"
-        ),
-        adjust_quantities["nonAvailableMutation"]["downstreamRead"]["variables"].clone(),
-    ));
-    assert_eq!(
-        non_available_read.body["data"],
-        adjust_quantities["nonAvailableMutation"]["downstreamRead"]["data"]
-    );
-
-    let item_update_read = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/products/inventoryItemUpdate-downstream-read.graphql"
-        ),
-        item_update["mutation"]["downstreamRead"]["variables"].clone(),
-    ));
-    assert_eq!(
-        item_update_read.body["data"],
-        item_update["mutation"]["downstreamRead"]["data"]
-    );
+    assert_eq!(log["entries"][0]["status"], json!("staged"));
 }
 
 #[test]
-fn inventory_transfer_lifecycle_local_staging_replays_captured_shapes() {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-transfer-lifecycle-local-staging.json"
-    ))
-    .unwrap();
+fn inventory_quantity_2026_missing_change_from_returns_graphql_error_without_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingChangeFrom($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+          inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { reason }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "inventory-adjust-missing-change-from", "input": {"name": "available", "reason": "correction", "changes": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/missing-change", "locationId": "gid://shopify/Location/1", "delta": 1}
+        ]}}),
+    ));
+
+    assert_eq!(
+        response.body["data"]["inventoryAdjustQuantities"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        json!("InventoryChangeInput must include the following argument: changeFromQuantity.")
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
+#[test]
+fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store() {
     let mut proxy = snapshot_proxy();
 
     let create_response = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/products/inventory-transfer-create.graphql"),
-        fixture["workflow"]["createDraft"]["variables"].clone(),
+        json!({"input": {
+            "originLocationId": "gid://shopify/Location/1",
+            "destinationLocationId": "gid://shopify/Location/2",
+            "lineItems": [{"inventoryItemId": "gid://shopify/InventoryItem/transfer-item", "quantity": 2}]
+        }}),
     ));
-    assert_eq!(create_response.body["data"], fixture["draftCreate"]["data"]);
+    assert_eq!(
+        create_response.body["data"]["inventoryTransferCreate"]["inventoryTransfer"]["status"],
+        json!("DRAFT")
+    );
     let transfer_id = create_response.body["data"]["inventoryTransferCreate"]["inventoryTransfer"]
         ["id"]
         .as_str()
-        .unwrap();
+        .unwrap()
+        .to_string();
 
     let ready_response = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/products/inventory-transfer-mark-ready.graphql"),
         json!({"id": transfer_id}),
     ));
     assert_eq!(
-        ready_response.body["data"],
-        fixture["readyTransition"]["data"]
+        ready_response.body["data"]["inventoryTransferMarkAsReadyToShip"]["inventoryTransfer"]
+            ["status"],
+        json!("READY_TO_SHIP")
+    );
+    assert_eq!(
+        ready_response.body["data"]["inventoryTransferMarkAsReadyToShip"]["inventoryTransfer"]
+            ["lineItems"]["nodes"][0]["shippableQuantity"],
+        json!(2)
     );
 
     let inventory_read = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/products/inventory-transfer-inventory-read-all-levels.graphql"
         ),
-        fixture["workflow"]["afterReadyInventoryRead"]["variables"].clone(),
+        json!({"id": "gid://shopify/InventoryItem/transfer-item"}),
     ));
     assert_eq!(
-        inventory_read.body["data"],
-        fixture["readyInventoryReadAfterWriteGraphql"]["data"]
+        inventory_read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"],
+        json!([
+            {"name": "available", "quantity": 3},
+            {"name": "reserved", "quantity": 2},
+            {"name": "on_hand", "quantity": 5}
+        ])
     );
 
     let cancel_response = proxy.process_request(json_graphql_request(
@@ -751,8 +828,23 @@ fn inventory_transfer_lifecycle_local_staging_replays_captured_shapes() {
         json!({"id": transfer_id}),
     ));
     assert_eq!(
-        cancel_response.body["data"],
-        fixture["cancelReadyTransfer"]["data"]
+        cancel_response.body["data"]["inventoryTransferCancel"]["inventoryTransfer"]["status"],
+        json!("CANCELED")
+    );
+    let inventory_after_cancel = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-transfer-inventory-read.graphql"
+        ),
+        json!({"id": "gid://shopify/InventoryItem/transfer-item"}),
+    ));
+    assert_eq!(
+        inventory_after_cancel.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]
+            ["quantities"],
+        json!([
+            {"name": "available", "quantity": 5},
+            {"name": "reserved", "quantity": 0},
+            {"name": "on_hand", "quantity": 5}
+        ])
     );
 
     let delete_response = proxy.process_request(json_graphql_request(
@@ -760,8 +852,28 @@ fn inventory_transfer_lifecycle_local_staging_replays_captured_shapes() {
         json!({"id": transfer_id}),
     ));
     assert_eq!(
-        delete_response.body["data"],
-        fixture["deleteNonDraftGuardrail"]["data"]
+        delete_response.body["data"]["inventoryTransferDelete"]["deletedId"],
+        Value::Null
+    );
+    assert_eq!(
+        delete_response.body["data"]["inventoryTransferDelete"]["userErrors"][0]["message"],
+        json!("Can't delete the transfer if it's not in the draft status.")
+    );
+
+    let log = proxy.get_log_snapshot();
+    let roots: Vec<Value> = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["interpreted"]["operationName"].clone())
+        .collect();
+    assert_eq!(
+        roots,
+        vec![
+            json!("inventoryTransferCreate"),
+            json!("inventoryTransferMarkAsReadyToShip"),
+            json!("inventoryTransferCancel")
+        ]
     );
 }
 
@@ -2310,5 +2422,365 @@ fn media_file_delete_re_resolves_wrong_typed_gid_to_staged_media_image() {
     assert_eq!(
         delete_wrong_type.body["data"]["fileDelete"],
         json!({"deletedFileIds": [wrong_type_media_id], "userErrors": []})
+    );
+}
+
+#[test]
+fn media_file_create_validates_inputs_without_operation_name_guards() {
+    let mut proxy = snapshot_proxy();
+    let mutation = r#"
+        mutation MediaFileCreateValidation($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id fileStatus }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let data_url = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"originalSource": "data:image/png;base64,iVBORw0KGgo="}]}),
+    ));
+    assert_eq!(
+        data_url.body["data"]["fileCreate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files", "0", "originalSource"],
+            "message": "File URL is invalid",
+            "code": "INVALID_IMAGE_SOURCE_URL"
+        }]})
+    );
+
+    let extension_mismatch = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"originalSource": "https://cdn.example.com/source.png", "filename": "source.jpg"}]}),
+    ));
+    assert_eq!(
+        extension_mismatch.body["data"]["fileCreate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files", "0", "filename"],
+            "message": "Provided filename extension must match original source.",
+            "code": "MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE"
+        }]})
+    );
+
+    let duplicate_mode = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"originalSource": "https://cdn.example.com/source.png", "contentType": "IMAGE", "duplicateResolutionMode": "REPLACE"}]}),
+    ));
+    assert_eq!(
+        duplicate_mode.body["data"]["fileCreate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files", "0", "filename"],
+            "message": "Missing filename argument when attempting to use REPLACE duplicate mode.",
+            "code": "MISSING_FILENAME_FOR_DUPLICATE_MODE_REPLACE"
+        }]})
+    );
+
+    let success = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"originalSource": "https://cdn.example.com/source.png", "filename": "source.png", "contentType": "IMAGE"}]}),
+    ));
+    assert_eq!(
+        success.body["data"]["fileCreate"],
+        json!({"files": [{"id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "fileStatus": "UPLOADED"}], "userErrors": []})
+    );
+}
+
+#[test]
+fn media_file_create_top_level_input_errors_do_not_stage_or_log() {
+    let mut proxy = snapshot_proxy();
+    let mutation = r#"
+        mutation MediaFileCreateInputValidation($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let empty_source = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"originalSource": ""}]}),
+    ));
+    assert_eq!(empty_source.body["data"]["fileCreate"], Value::Null);
+    assert_eq!(
+        empty_source.body["errors"][0]["message"],
+        json!("originalSource is too short (minimum is 1)")
+    );
+    assert_eq!(
+        empty_source.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_FIELD_ARGUMENTS")
+    );
+
+    let too_many_files = (0..251)
+        .map(|index| json!({"originalSource": format!("https://cdn.example.com/file-{index}.png")}))
+        .collect::<Vec<_>>();
+    let batch_size = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": too_many_files}),
+    ));
+    assert!(batch_size.body.get("data").is_none());
+    assert_eq!(
+        batch_size.body["errors"][0]["extensions"]["code"],
+        json!("MAX_INPUT_SIZE_EXCEEDED")
+    );
+    assert_eq!(
+        batch_size.body["errors"][0]["path"],
+        json!(["fileCreate", "files"])
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        ..Default::default()
+    });
+    assert_eq!(log.body, json!({"entries": []}));
+}
+
+#[test]
+fn media_file_update_validates_field_precedence_and_aggregates_missing_ids() {
+    let mut proxy = snapshot_proxy();
+    let mutation = r#"
+        mutation MediaFileUpdateValidation($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) {
+            files { id fileStatus alt }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let source_conflict = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"id": "gid://shopify/MediaImage/404", "originalSource": "https://cdn.example.com/source.png", "previewImageSource": "https://cdn.example.com/preview.png"}]}),
+    ));
+    assert_eq!(
+        source_conflict.body["data"]["fileUpdate"],
+        json!({"files": [], "userErrors": [
+            {
+                "field": ["files", "0", "previewImageSource"],
+                "message": "Cannot update the preview image and image at the same time because they are one and the same.",
+                "code": "INVALID"
+            },
+            {
+                "field": ["files", "0", "originalSource"],
+                "message": "Cannot update the preview image and image at the same time because they are one and the same.",
+                "code": "INVALID"
+            }
+        ]})
+    );
+
+    let missing = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [
+            {"id": "gid://shopify/MediaImage/404", "alt": "Missing one"},
+            {"id": "gid://shopify/MediaImage/405", "alt": "Missing two"}
+        ]}),
+    ));
+    assert_eq!(
+        missing.body["data"]["fileUpdate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files"],
+            "message": "File ids [\"gid://shopify/MediaImage/404\", \"gid://shopify/MediaImage/405\"] do not exist.",
+            "code": "FILE_DOES_NOT_EXIST"
+        }]})
+    );
+}
+
+#[test]
+fn media_staged_uploads_create_validates_file_size_mime_and_omits_user_error_code() {
+    let mut proxy = snapshot_proxy();
+    let mutation = r#"
+        mutation MediaStagedUploadsCreateValidation($input: [StagedUploadInput!]!) {
+          stagedUploadsCreate(input: $input) {
+            stagedTargets { url resourceUrl parameters { name value } }
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    let missing_video_size = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"input": [{"resource": "VIDEO", "filename": "clip.mp4", "mimeType": "video/mp4"}]}),
+    ));
+    assert_eq!(
+        missing_video_size.body["data"]["stagedUploadsCreate"],
+        json!({"stagedTargets": [{"url": null, "resourceUrl": null, "parameters": []}], "userErrors": [{
+            "field": ["input", "0", "fileSize"],
+            "message": "file size is required for video resources"
+        }]})
+    );
+
+    let bad_image_mime = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"input": [{"resource": "IMAGE", "filename": "image.exe", "mimeType": "application/x-msdownload"}]}),
+    ));
+    assert_eq!(
+        bad_image_mime.body["data"]["stagedUploadsCreate"],
+        json!({"stagedTargets": [{"url": null, "resourceUrl": null, "parameters": []}], "userErrors": [{
+            "field": ["input", "0", "mimeType"],
+            "message": "image.exe: (application/x-msdownload) is not a recognized format"
+        }]})
+    );
+}
+
+#[test]
+fn media_file_acknowledge_update_failed_validates_missing_and_non_ready_ids() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileCreateForAck($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) { files { id fileStatus } userErrors { code } }
+        }
+        "#,
+        json!({"files": [{"originalSource": "https://cdn.example.com/non-ready.png", "contentType": "IMAGE"}]}),
+    ));
+    assert_eq!(
+        create.body["data"]["fileCreate"]["files"][0]["id"],
+        json!("gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic")
+    );
+
+    let acknowledge_non_ready = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileAcknowledgeValidation($fileIds: [ID!]!) {
+          fileAcknowledgeUpdateFailed(fileIds: $fileIds) {
+            files { id fileStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"fileIds": ["gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic"]}),
+    ));
+    assert_eq!(
+        acknowledge_non_ready.body["data"]["fileAcknowledgeUpdateFailed"],
+        json!({"files": null, "userErrors": [{
+            "field": ["fileIds"],
+            "message": "File with id gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic is not in the READY state.",
+            "code": "NON_READY_STATE"
+        }]})
+    );
+
+    let acknowledge_missing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileAcknowledgeValidation($fileIds: [ID!]!) {
+          fileAcknowledgeUpdateFailed(fileIds: $fileIds) {
+            files { id fileStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"fileIds": ["gid://shopify/MediaImage/999", "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic"]}),
+    ));
+    assert_eq!(
+        acknowledge_missing.body["data"]["fileAcknowledgeUpdateFailed"],
+        json!({"files": null, "userErrors": [{
+            "field": ["fileIds"],
+            "message": "File id gid://shopify/MediaImage/999 does not exist.",
+            "code": "FILE_DOES_NOT_EXIST"
+        }]})
+    );
+}
+
+#[test]
+fn media_file_create_and_update_reference_authorization_is_top_level_access_denied() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation MediaReferenceAuthCreate($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) { files { id } userErrors { field message code } }
+        }
+    "#;
+    let mut create_request = json_graphql_request(
+        create_query,
+        json!({"files": [{
+            "originalSource": "https://cdn.example.com/reference.png",
+            "referencesToAdd": ["gid://shopify/Product/1"]
+        }]}),
+    );
+    create_request.headers.insert(
+        "x-shopify-draft-proxy-manage-products".to_string(),
+        "false".to_string(),
+    );
+    let create = proxy.process_request(create_request);
+    assert_eq!(create.body["data"]["fileCreate"], Value::Null);
+    assert_eq!(
+        create.body["errors"][0],
+        json!({
+            "message": "Access denied: Missing permission to manage products.",
+            "locations": [{"line": 2, "column": 3}],
+            "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes"
+            },
+            "path": ["fileCreate"]
+        })
+    );
+
+    let update_query = r#"
+        mutation MediaReferenceAuthUpdate($files: [FileUpdateInput!]!) {
+          fileUpdate(files: $files) { files { id } userErrors { field message code } }
+        }
+    "#;
+    let mut update_request = json_graphql_request(
+        update_query,
+        json!({"files": [{
+            "id": "gid://shopify/MediaImage/43693628424498",
+            "referencesToAdd": ["gid://shopify/Product/1"]
+        }]}),
+    );
+    update_request.headers.insert(
+        "x-shopify-draft-proxy-manage-products".to_string(),
+        "no".to_string(),
+    );
+    let update = proxy.process_request(update_request);
+    assert_eq!(update.body["data"]["fileUpdate"], Value::Null);
+    assert_eq!(
+        update.body["errors"][0]["extensions"]["code"],
+        json!("ACCESS_DENIED")
+    );
+    assert_eq!(update.body["errors"][0]["path"], json!(["fileUpdate"]));
+}
+
+#[test]
+fn media_file_create_quota_affordance_rejects_matching_non_image_inputs() {
+    let mut proxy = snapshot_proxy();
+    let mut request = json_graphql_request(
+        r#"
+        mutation MediaQuota($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [
+            {"originalSource": "https://cdn.example.com/video.mp4", "contentType": "VIDEO"},
+            {"originalSource": "https://cdn.example.com/model.glb", "contentType": "MODEL_3D"},
+            {"originalSource": "https://cdn.example.com/file.txt", "contentType": "FILE"}
+        ]}),
+    );
+    request.headers.insert(
+        "x-shopify-draft-proxy-media-quota-errors".to_string(),
+        "VIDEO_THROTTLE_EXCEEDED,MODEL3D_THROTTLE_EXCEEDED,NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED"
+            .to_string(),
+    );
+    let response = proxy.process_request(request);
+    assert_eq!(
+        response.body["data"]["fileCreate"],
+        json!({"files": [], "userErrors": [
+            {
+                "field": ["files", "0", "contentType"],
+                "message": "Video upload throttle exceeded.",
+                "code": "VIDEO_THROTTLE_EXCEEDED"
+            },
+            {
+                "field": ["files", "1", "contentType"],
+                "message": "Model 3D upload throttle exceeded.",
+                "code": "MODEL3D_THROTTLE_EXCEEDED"
+            },
+            {
+                "field": ["files", "2", "contentType"],
+                "message": "Non-image media per shop limit exceeded.",
+                "code": "NON_IMAGE_MEDIA_PER_SHOP_LIMIT_EXCEEDED"
+            }
+        ]})
     );
 }
