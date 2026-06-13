@@ -1,0 +1,44 @@
+{
+  "scenarioId": "location-activate-generic-staging-readback",
+  "operationNames": ["locationActivate", "location"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "payload-shape",
+    "downstream-read-parity",
+    "idempotency-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-activate-deactivate-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes.rs"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-lifecycle-activate-with-idempotency-directive.graphql",
+    "variablesCapturePath": "$.workflow.activateWithDirective202604.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "generic-location-activate-payload",
+        "capturePath": "$.workflow.activateWithDirective202604.response.payload.data.locationActivate",
+        "proxyPath": "$.data.locationActivate"
+      },
+      {
+        "name": "generic-location-read-after-activate",
+        "capturePath": "$.workflow.readAfterKeyedActivate.response.payload.data.location",
+        "proxyPath": "$.data.location",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-lifecycle-read.graphql",
+          "variablesCapturePath": "$.workflow.readAfterKeyedActivate.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Rework coverage for the generic locationActivate staging path. This spec reuses the existing live Shopify location-activate-deactivate-lifecycle capture and proves an ordinary keyed locationActivate document stages locally and is immediately visible through location(id:) without runtime upstream mutation passthrough."
+}

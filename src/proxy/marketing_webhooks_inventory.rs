@@ -1626,6 +1626,7 @@ impl DraftProxy {
                             location_id,
                             quantities,
                             &selection.selection,
+                            Some(&self.store.staged.locations),
                         )
                     }))
                 }
@@ -1634,6 +1635,7 @@ impl DraftProxy {
                     &item_levels,
                     &selection.arguments,
                     &selection.selection,
+                    Some(&self.store.staged.locations),
                 )),
                 _ => None,
             };
@@ -1656,7 +1658,13 @@ impl DraftProxy {
         else {
             return Value::Null;
         };
-        inventory_level_selected_json(&inventory_item_id, &location_id, quantities, selections)
+        inventory_level_selected_json(
+            &inventory_item_id,
+            &location_id,
+            quantities,
+            selections,
+            Some(&self.store.staged.locations),
+        )
     }
 
     fn inventory_levels_for_item(
