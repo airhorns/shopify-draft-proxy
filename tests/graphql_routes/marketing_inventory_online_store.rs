@@ -73,14 +73,14 @@ fn marketing_external_activity_lifecycle_stages_updates_engagements_and_reads_ba
 
     let update = proxy.process_request(json_graphql_request(
         r#"
-        mutation MarketingActivityLifecycleUpdate($remoteId: String!, $input: MarketingActivityUpdateExternalInput!) {
-          updateExternalByRemoteId: marketingActivityUpdateExternal(remoteId: $remoteId, input: $input) {
+        mutation MarketingActivityLifecycleUpdate($remoteId: String!, $utm: UTMInput, $input: MarketingActivityUpdateExternalInput!) {
+          updateExternalByRemoteId: marketingActivityUpdateExternal(remoteId: $remoteId, utm: $utm, input: $input) {
             marketingActivity { id title status statusLabel marketingEvent { remoteId manageUrl description } }
             userErrors { field message code }
           }
         }
         "#,
-        json!({"remoteId": "remote-1", "input": {"title": "Launch updated", "status": "PAUSED", "remoteUrl": "https://example.com/manage-2"}}),
+        json!({"remoteId": "remote-1", "utm": {"campaign": "launch", "source": "email", "medium": "newsletter"}, "input": {"title": "Launch updated", "status": "PAUSED", "remoteUrl": "https://example.com/manage-2"}}),
     ));
     assert_eq!(
         update.body["data"]["updateExternalByRemoteId"]["marketingActivity"]["title"],
@@ -372,6 +372,206 @@ fn marketing_external_activity_upsert_create_branch_rejects_currency_and_duplica
         response.body["data"]["duplicateUrlParameterValue"],
         json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Validation failed: Url parameter value has already been taken, Url parameter value has already been taken", "code": null}]})
     );
+}
+
+#[test]
+fn marketing_external_activity_update_and_upsert_reject_immutable_field_changes() {
+    let mut proxy = snapshot_proxy();
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle(
+          $parentInput: MarketingActivityCreateExternalInput!
+          $otherParentInput: MarketingActivityCreateExternalInput!
+          $childInput: MarketingActivityCreateExternalInput!
+          $utmOnlyInput: MarketingActivityCreateExternalInput!
+        ) {
+          parent: marketingActivityCreateExternal(input: $parentInput) { marketingActivity { id } userErrors { field message code } }
+          otherParent: marketingActivityCreateExternal(input: $otherParentInput) { marketingActivity { id } userErrors { field message code } }
+          child: marketingActivityCreateExternal(input: $childInput) { marketingActivity { id title parentRemoteId hierarchyLevel urlParameterValue utmParameters { campaign source medium } marketingEvent { channelHandle } } userErrors { field message code } }
+          utmOnly: marketingActivityCreateExternal(input: $utmOnlyInput) { marketingActivity { id } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "parentInput": {"title": "Parent", "remoteId": "guard-parent", "status": "ACTIVE", "remoteUrl": "https://example.com/parent", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "guard-parent", "source": "email", "medium": "newsletter"}, "hierarchyLevel": "CAMPAIGN"},
+            "otherParentInput": {"title": "Other parent", "remoteId": "guard-other-parent", "status": "ACTIVE", "remoteUrl": "https://example.com/other-parent", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "guard-other-parent", "source": "email", "medium": "newsletter"}, "hierarchyLevel": "CAMPAIGN"},
+            "childInput": {"title": "Child", "remoteId": "guard-child", "status": "ACTIVE", "remoteUrl": "https://example.com/child", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "urlParameterValue": "guard-child-url", "utm": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}, "parentRemoteId": "guard-parent", "hierarchyLevel": "AD"},
+            "utmOnlyInput": {"title": "UTM only", "remoteId": "guard-utm-only", "status": "ACTIVE", "remoteUrl": "https://example.com/utm-only", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "guard-utm-only", "source": "email", "medium": "newsletter"}}
+        }),
+    ));
+    assert_eq!(seed.body["data"]["parent"]["userErrors"], json!([]));
+    assert_eq!(seed.body["data"]["otherParent"]["userErrors"], json!([]));
+    assert_eq!(seed.body["data"]["child"]["userErrors"], json!([]));
+    assert_eq!(seed.body["data"]["utmOnly"]["userErrors"], json!([]));
+
+    let order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($input: MarketingActivityUpsertExternalInput!) {
+          changed: marketingActivityUpsertExternal(input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Should not stage", "remoteId": "guard-child", "status": "ACTIVE", "remoteUrl": "https://example.com/child", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "urlParameterValue": "changed-url", "utm": {"campaign": "changed-campaign", "source": "email", "medium": "newsletter"}, "channelHandle": "changed-channel"}}),
+    ));
+    assert_eq!(
+        order.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Channel handle cannot be modified.", "code": "IMMUTABLE_CHANNEL_HANDLE"}]})
+    );
+
+    let update_parent = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($remoteId: String!, $input: MarketingActivityUpdateExternalInput!) {
+          changed: marketingActivityUpdateExternal(remoteId: $remoteId, input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"remoteId": "guard-child", "input": {"title": "Should not stage parent", "urlParameterValue": "guard-child-url", "utm": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}, "parentRemoteId": "guard-other-parent", "hierarchyLevel": "AD"}}),
+    ));
+    assert_eq!(
+        update_parent.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Parent ID cannot be modified.", "code": "IMMUTABLE_PARENT_ID"}]})
+    );
+
+    let invalid_parent = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($input: MarketingActivityUpsertExternalInput!) {
+          changed: marketingActivityUpsertExternal(input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Should not stage invalid parent", "remoteId": "guard-child", "status": "ACTIVE", "remoteUrl": "https://example.com/child", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "urlParameterValue": "guard-child-url", "utm": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}, "parentRemoteId": "missing-parent", "hierarchyLevel": "AD"}}),
+    ));
+    assert_eq!(
+        invalid_parent.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Remote ID does not correspond to an activity.", "code": "INVALID_REMOTE_ID"}]})
+    );
+
+    let hierarchy = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($input: MarketingActivityUpsertExternalInput!) {
+          changed: marketingActivityUpsertExternal(input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Should not stage hierarchy", "remoteId": "guard-child", "status": "ACTIVE", "remoteUrl": "https://example.com/child", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "urlParameterValue": "guard-child-url", "utm": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}, "parentRemoteId": "guard-parent", "hierarchyLevel": "AD_GROUP"}}),
+    ));
+    assert_eq!(
+        hierarchy.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Hierarchy level cannot be modified.", "code": "IMMUTABLE_HIERARCHY_LEVEL"}]})
+    );
+
+    let omitted_url = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($input: MarketingActivityUpsertExternalInput!) {
+          changed: marketingActivityUpsertExternal(input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Should not stage omitted URL", "remoteId": "guard-child", "status": "ACTIVE", "remoteUrl": "https://example.com/child", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}, "parentRemoteId": "guard-parent", "hierarchyLevel": "AD"}}),
+    ));
+    assert_eq!(
+        omitted_url.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "URL parameter value cannot be modified.", "code": "IMMUTABLE_URL_PARAMETER"}]})
+    );
+
+    let omitted_utm = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($remoteId: String!, $input: MarketingActivityUpdateExternalInput!) {
+          changed: marketingActivityUpdateExternal(remoteId: $remoteId, input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"remoteId": "guard-utm-only", "input": {"title": "Should not stage omitted UTM"}}),
+    ));
+    assert_eq!(
+        omitted_utm.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "UTM parameters cannot be modified.", "code": "IMMUTABLE_UTM_PARAMETERS"}]})
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingActivityLifecycleRead($remoteIds: [String!]) {
+          marketingActivities(first: 10, remoteIds: $remoteIds) { nodes { title remoteId parentRemoteId hierarchyLevel urlParameterValue utmParameters { campaign source medium } } }
+        }
+        "#,
+        json!({"remoteIds": ["guard-child", "guard-utm-only"]}),
+    ));
+    assert_eq!(
+        read.body["data"]["marketingActivities"]["nodes"][0],
+        json!({"title": "Child", "remoteId": "guard-child", "parentRemoteId": "guard-parent", "hierarchyLevel": "AD", "urlParameterValue": "guard-child-url", "utmParameters": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}})
+    );
+    assert_eq!(
+        read.body["data"]["marketingActivities"]["nodes"][1]["title"],
+        json!("UTM only")
+    );
+}
+
+#[test]
+fn marketing_external_activity_update_and_upsert_reject_not_external_and_missing_event_records() {
+    let mut proxy = snapshot_proxy();
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingEngagementCreateValidationOrder($activityInput: MarketingActivityUpdateInput!, $externalInput: MarketingActivityCreateExternalInput!) {
+          native: marketingActivityUpdate(input: $activityInput) { marketingActivity { id title isExternal marketingEvent { id } } userErrors { field message } }
+          external: marketingActivityCreateExternal(input: $externalInput) { marketingActivity { id title remoteId } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "activityInput": {"id": "gid://shopify/MarketingActivity/native-no-event", "title": "Native no event", "status": "ACTIVE"},
+            "externalInput": {"title": "External", "remoteId": "eventless-remote", "status": "ACTIVE", "remoteUrl": "https://example.com/eventless", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "eventless-remote", "source": "email", "medium": "newsletter"}}
+        }),
+    ));
+    assert_eq!(seed.body["data"]["native"]["userErrors"], json!([]));
+    assert_eq!(seed.body["data"]["external"]["userErrors"], json!([]));
+    let external_id = seed.body["data"]["external"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let not_external_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($marketingActivityId: ID!, $input: MarketingActivityUpdateExternalInput!) {
+          changed: marketingActivityUpdateExternal(marketingActivityId: $marketingActivityId, input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"marketingActivityId": "gid://shopify/MarketingActivity/native-no-event", "input": {"title": "Should not stage native"}}),
+    ));
+    assert_eq!(
+        not_external_update.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": null, "message": "Marketing activity is not external.", "code": "ACTIVITY_NOT_EXTERNAL"}]})
+    );
+
+    let not_external_upsert = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($input: MarketingActivityUpsertExternalInput!) {
+          changed: marketingActivityUpsertExternal(input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Should not stage native upsert", "remoteId": "native-local", "status": "ACTIVE", "remoteUrl": "https://example.com/native", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "native-local", "source": "email", "medium": "newsletter"}}}),
+    ));
+    assert_eq!(
+        not_external_upsert.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": null, "message": "Marketing activity is not external.", "code": "ACTIVITY_NOT_EXTERNAL"}]})
+    );
+
+    assert!(external_id.starts_with("gid://shopify/MarketingActivity/"));
 }
 
 #[test]

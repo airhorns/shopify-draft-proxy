@@ -2112,23 +2112,6 @@ pub(in crate::proxy) fn invalid_marketing_url_error(
     None
 }
 
-pub(in crate::proxy) fn input_utm_differs(
-    existing: &Value,
-    input: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    let Some(utm) = resolved_object_field(input, "utm") else {
-        return false;
-    };
-    for key in ["campaign", "source", "medium"] {
-        if resolved_string_field(&utm, key)
-            .is_some_and(|value| existing["utmParameters"][key].as_str() != Some(value.as_str()))
-        {
-            return true;
-        }
-    }
-    false
-}
-
 pub(in crate::proxy) fn marketing_status_label(
     status: &str,
     tactic: &str,
