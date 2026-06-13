@@ -6339,25 +6339,25 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::OverlayRead,
             true,
             &["files", "Files"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "stagedUploadsCreate",
             OperationType::Mutation,
             CapabilityDomain::Media,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &["stagedUploadsCreate", "StagedUploadsCreate"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "fileAcknowledgeUpdateFailed",
             OperationType::Mutation,
             CapabilityDomain::Media,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &["fileAcknowledgeUpdateFailed", "FileAcknowledgeUpdateFailed"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "fileCreate",
@@ -6366,7 +6366,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["fileCreate", "FileCreate"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "fileUpdate",
@@ -6375,7 +6375,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["fileUpdate", "FileUpdate"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "fileDelete",
@@ -6384,7 +6384,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["fileDelete", "FileDelete"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
     ]
 }
