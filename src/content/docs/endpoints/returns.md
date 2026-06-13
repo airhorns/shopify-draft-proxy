@@ -142,7 +142,10 @@ Local staged mutations:
   `config/parity-specs/orders/returnRequest-quantity-cap.json` and
   `config/parity-specs/orders/removeFromReturn-quantity-validation.json`
 - `config/parity-specs/orders/return-reverse-logistics-local-staging.json` exercises empty
-  `reverseDeliveryLineItems` replay and `fileUrl` label input normalization. It also adds live recorded parity in
+  `reverseDeliveryLineItems` replay and `fileUrl` label input normalization.
+  `config/parity-specs/orders/return-reverse-logistics-non-recording-operation-name.json`
+  replays the same store-backed mutation/read flow with unrelated client operation names to guard against
+  document-marker dispatch. It also adds live recorded parity in
   `config/parity-specs/orders/return-reverse-logistics-recorded.json` backed by
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/return-reverse-logistics-recorded.json`.
 - Return status precondition parity:
