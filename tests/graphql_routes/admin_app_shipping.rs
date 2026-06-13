@@ -3335,7 +3335,11 @@ fn fulfillment_service_uniqueness_rejects_name_handle_and_reserved_collisions() 
         json!("fs-unique-cafe__3pl-fsuniq-mowo6bal")
     );
 
-    for reserved_name in ["Manual", "Gift_Card"] {
+    for reserved_name in ["Manual", "Gift_Card", "Shopify", "Amazon"] {
+        let log_len_before = proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len();
         let reserved = proxy.process_request(json_graphql_request(
             create_query,
             json!({ "name": reserved_name }),
@@ -3346,6 +3350,13 @@ fn fulfillment_service_uniqueness_rejects_name_handle_and_reserved_collisions() 
                 "fulfillmentService": null,
                 "userErrors": [{ "field": ["name"], "message": "Name is reserved" }]
             })
+        );
+        assert_eq!(
+            proxy.get_log_snapshot()["entries"]
+                .as_array()
+                .unwrap()
+                .len(),
+            log_len_before
         );
     }
 
@@ -3374,17 +3385,30 @@ fn fulfillment_service_uniqueness_rejects_name_handle_and_reserved_collisions() 
         })
     );
 
-    let update_reserved = proxy.process_request(json_graphql_request(
-        update_query,
-        json!({ "id": target_id, "name": "Manual" }),
-    ));
-    assert_eq!(
-        update_reserved.body["data"]["fulfillmentServiceUpdate"],
-        json!({
-            "fulfillmentService": null,
-            "userErrors": [{ "field": ["name"], "message": "Name is reserved" }]
-        })
-    );
+    for reserved_name in ["Manual", "Gift_Card", "Shopify", "Amazon"] {
+        let log_len_before = proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len();
+        let update_reserved = proxy.process_request(json_graphql_request(
+            update_query,
+            json!({ "id": target_id, "name": reserved_name }),
+        ));
+        assert_eq!(
+            update_reserved.body["data"]["fulfillmentServiceUpdate"],
+            json!({
+                "fulfillmentService": null,
+                "userErrors": [{ "field": ["name"], "message": "Name is reserved" }]
+            })
+        );
+        assert_eq!(
+            proxy.get_log_snapshot()["entries"]
+                .as_array()
+                .unwrap()
+                .len(),
+            log_len_before
+        );
+    }
 }
 
 #[test]
