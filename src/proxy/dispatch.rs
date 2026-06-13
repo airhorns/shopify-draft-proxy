@@ -1241,31 +1241,20 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && root_field == "fileCreate"
-            && (query.contains("FileReferenceCreate")
-                || query.contains("MediaFileDeleteTypedGidRoundtripCreate"))
+            && matches!(
+                root_field,
+                "fileCreate"
+                    | "fileUpdate"
+                    | "fileDelete"
+                    | "fileAcknowledgeUpdateFailed"
+                    | "stagedUploadsCreate"
+            )
         {
-            return self.media_file_create(&query, &variables);
+            let outcome = self.media_mutation(root_field, request, &query, &variables);
+            return self.finalize_mutation_outcome(request, &query, &variables, outcome);
         }
 
-        if operation.operation_type == OperationType::Mutation
-            && root_field == "fileUpdate"
-            && query.contains("FileReferenceAttach")
-        {
-            return self.media_file_update(&query);
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && root_field == "fileDelete"
-            && query.contains("FileDeleteParity")
-        {
-            return self.media_file_delete(&query, &variables);
-        }
-
-        if operation.operation_type == OperationType::Query
-            && root_field == "files"
-            && query.contains("FileReferenceFilesRead")
-        {
+        if operation.operation_type == OperationType::Query && root_field == "files" {
             return self.media_files_read(&query, &variables);
         }
 
