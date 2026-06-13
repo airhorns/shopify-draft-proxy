@@ -11,7 +11,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/products/product-feedback-validation-local-runtime.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/product-feedback-invalid-state.graphql",
     "apiVersion": "2026-04"
@@ -44,6 +44,16 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/product-feedback-create-local-runtime.graphql",
           "variablesCapturePath": "$.productFutureGeneratedAt.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "product feedback mixed batch validates every entry",
+        "capturePath": "$.productMixedBatchPerEntryValidation.response.data.bulkProductResourceFeedbackCreate",
+        "proxyPath": "$.data.bulkProductResourceFeedbackCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-feedback-create-local-runtime.graphql",
+          "variablesCapturePath": "$.productMixedBatchPerEntryValidation.variables",
           "apiVersion": "2026-04"
         }
       },
@@ -89,5 +99,5 @@
       }
     ]
   },
-  "notes": "Executable local-runtime validation parity for product and shop resource feedback guardrails. Live success and resolver-level validation capture remains blocked by the conformance app's resource-feedback access and sales-channel configuration, so these cases pin the local supported-mutation contract while enum coercion remains schema-driven and no request proxies upstream."
+  "notes": "Executable local-runtime validation parity for product and shop resource feedback guardrails, including mixed product feedback batches where valid entries are accepted while later invalid entries emit indexed userErrors. Live success and resolver-level validation capture remains blocked by the conformance app's resource-feedback access and sales-channel configuration, so these cases pin the local supported-mutation contract while enum coercion remains schema-driven and no request proxies upstream."
 }

@@ -73,6 +73,13 @@ Captured `marketCreate` name validation rejects blank names with `BLANK` then
 `TOO_SHORT`, rejects one-character names with `TOO_SHORT`, and treats name
 uniqueness as case-insensitive before handle generation.
 
+Staged `currencySettings.baseCurrency.currencyCode` preserves the requested
+enum value unchanged. `currencyName` is projected from a local ISO-4217
+display-name table for known codes, including the currencies observed in
+checked-in Markets conformance fixtures. If a future Shopify enum value is not
+yet mapped, the runtime returns `Unknown Currency` instead of echoing the ISO
+code as a misleading display name.
+
 Catalog slices cover `catalogCreate`, `catalogUpdate`, `catalogContextUpdate`,
 `catalogDelete`, and downstream `catalog` / `catalogs` reads for market-backed
 catalog records. They validate missing contexts, unknown catalog/market/price
