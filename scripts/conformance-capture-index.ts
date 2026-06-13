@@ -8585,7 +8585,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-customer-set-conformance.mts',
     purpose: 'customerSet upsert/identifier semantics.',
     requiredAuthScopes: ['read_customers', 'write_customers'],
-    fixtureOutputs: ['fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-set-parity.json'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-set-parity.json',
+      'fixtures/conformance/local-runtime/2026-04/customers/customer-set-unknown-id-errors.json',
+      'config/parity-specs/customers/customer-set-unknown-id-code.json',
+      'config/parity-specs/customers/customer_set_unknown_id_errors.json',
+    ],
     cleanupBehavior: 'Tracks all created/upserted customer IDs and deletes remaining records.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
