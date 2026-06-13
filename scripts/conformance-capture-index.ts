@@ -3089,7 +3089,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-translations-mutation-noop-validation-conformance.mts',
     purpose:
-      'translationsRemove unknown-key and disabled-locale no-op success behavior plus translationsRegister primary-locale validation.',
+      'translationsRemove unknown-key and disabled-locale no-op success behavior plus translationsRegister disabled-locale and primary-locale validation.',
     requiredAuthScopes: [
       'read_products',
       'write_products',
@@ -3104,7 +3104,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/localization/localization-translations-mutation-noop-validation-read.graphql',
     ],
     cleanupBehavior:
-      'Creates one disposable product, temporarily enables and disables Italian for the disabled-locale removal branch, deletes the product, and restores Italian only if it was enabled before capture.',
+      'Creates one disposable product, temporarily enables and disables Italian for the disabled-locale removal/register branches, deletes the product, and restores Italian only if it was enabled before capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -3112,7 +3112,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'localization-market-translations',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-market-translations-conformance.mts',
-    purpose: 'Market-scoped translationsRegister/translationsRemove product-title lifecycle.',
+    purpose: 'Market-scoped translationsRegister/translationsRemove product-title/product_type lifecycle.',
     requiredAuthScopes: [
       'read_markets',
       'read_products',
@@ -3127,7 +3127,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/localization/localization-translations-market-scoped.json',
     ],
     cleanupBehavior:
-      'Creates one disposable product, enables Spanish only when needed, registers/removes one market-scoped title translation, deletes the product, and restores the locale when the script enabled it.',
+      'Creates one disposable product, enables Spanish only when needed, registers/removes two market-scoped translations in one remove call, deletes the product, and restores the locale when the script enabled it.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -3952,6 +3952,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable external marketing activities needed for uniqueness probes, captures rejected validation branches, then deletes every disposable remote ID.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'marketing',
+    captureId: 'marketing-activity-upsert-external-validation',
+    scriptPath: 'scripts/capture-marketing-activity-upsert-external-validation-conformance.mts',
+    purpose:
+      'External marketing activity upsert-create validation for budget/adSpend currency mismatch and uniqueness userErrors.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}marketing-activity-upsert-external-validation.json`,
+      'config/parity-specs/marketing/marketing-activity-upsert-external-validation.json',
+      'config/parity-requests/marketing/marketing-activity-upsert-external-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable external marketing activities needed for upsert-create uniqueness probes, captures rejected validation branches, then deletes every disposable remote ID.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

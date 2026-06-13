@@ -3295,16 +3295,16 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["metafieldDefinitionCreate", "MetafieldDefinitionCreate"],
-            &[],
+            &["tests/graphql_routes/metafields_markets_products_tail.rs"],
         ),
         registry_entry(
             "metafieldDefinitionUpdate",
             OperationType::Mutation,
             CapabilityDomain::Metafields,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &["metafieldDefinitionUpdate", "MetafieldDefinitionUpdate"],
-            &[],
+            &["tests/graphql_routes/metafields_markets_products_tail.rs"],
         ),
         registry_entry(
             "metafieldDefinitionDelete",
@@ -3313,7 +3313,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["metafieldDefinitionDelete", "MetafieldDefinitionDelete"],
-            &[],
+            &["tests/graphql_routes/metafields_markets_products_tail.rs"],
         ),
         registry_entry(
             "metafieldDefinitionPin",
@@ -3343,7 +3343,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
                 "standardMetafieldDefinitionEnable",
                 "StandardMetafieldDefinitionEnable",
             ],
-            &[],
+            &["tests/graphql_routes/metafields_markets_products_tail.rs"],
         ),
         registry_entry(
             "metaobject",

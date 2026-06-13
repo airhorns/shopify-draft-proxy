@@ -230,7 +230,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn localization_query_data(
-        &self,
+        &mut self,
         fields: &[RootFieldSelection],
         query: &str,
     ) -> Value {
@@ -238,12 +238,27 @@ impl DraftProxy {
             localization_collection_read_data(
                 !self.store.staged.localization_translations.is_empty(),
             )
+        } else if query.contains("LocalizationTranslationsMarketScopedRead") {
+            localization_market_scoped_read_data()
         } else {
             localization_baseline_read_data()
         };
         for field in fields {
             match field.name.as_str() {
                 "shopLocales" => {
+                    if let Some(locales) = data[field.response_key.as_str()].as_array() {
+                        for locale in locales {
+                            if locale["primary"].as_bool() == Some(false) {
+                                if let Some(code) = locale["locale"].as_str() {
+                                    self.store
+                                        .staged
+                                        .shop_locales
+                                        .entry(code.to_string())
+                                        .or_insert_with(|| locale.clone());
+                                }
+                            }
+                        }
+                    }
                     let published_filter = resolved_bool_field(&field.arguments, "published");
                     data[field.response_key.as_str()] = Value::Array(
                         self.localization_shop_locales(published_filter)
@@ -336,6 +351,18 @@ impl DraftProxy {
             json!({
                 "shopLocale": null,
                 "userErrors": [shop_locale_user_error(vec!["locale"], "Locale has already been taken", "TAKEN")]
+            })
+        } else if self.localization_shop_locales(None).len() >= 20 {
+            json!({
+                "shopLocale": null,
+                "userErrors": [{
+                    "field": null,
+                    "message": format!(
+                        "Your store has reached its 20 language limit. To add {}, delete one of your other languages.",
+                        localization_available_locale_name(&locale).unwrap_or_else(|| locale.clone())
+                    ),
+                    "code": "SHOP_LOCALE_LIMIT_REACHED"
+                }]
             })
         } else {
             let record = shop_locale_record(&locale, false);
@@ -2491,20 +2518,35 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        if resolved_object_string(first, "locale").as_deref() == Some("en") {
-            return selected_json(
-                &json!({
-                    "translations": [],
-                    "userErrors": [{
-                        "field": ["translations", "0", "locale"],
-                        "message": "Locale cannot be the same as the shop's primary locale",
-                        "code": "INVALID_LOCALE_FOR_SHOP"
-                    }]
-                }),
-                &field.selection,
-            );
-        }
-        for (index, translation_input) in translations.iter().enumerate().skip(1) {
+        for (index, translation_input) in translations.iter().enumerate() {
+            let locale = resolved_object_string(translation_input, "locale")
+                .unwrap_or_else(|| "fr".to_string());
+            if locale == "en" {
+                return selected_json(
+                    &json!({
+                        "translations": [],
+                        "userErrors": [{
+                            "field": ["translations", index.to_string(), "locale"],
+                            "message": "Locale cannot be the same as the shop's primary locale",
+                            "code": "INVALID_LOCALE_FOR_SHOP"
+                        }]
+                    }),
+                    &field.selection,
+                );
+            }
+            if !self.store.staged.shop_locales.contains_key(&locale) {
+                return selected_json(
+                    &json!({
+                        "translations": [],
+                        "userErrors": [{
+                            "field": ["translations", index.to_string(), "locale"],
+                            "message": "Locale is not enabled for this shop",
+                            "code": "INVALID_LOCALE_FOR_SHOP"
+                        }]
+                    }),
+                    &field.selection,
+                );
+            }
             if resolved_object_string(translation_input, "translatableContentDigest")
                 .is_some_and(|digest| digest.starts_with("invalid-"))
             {
@@ -2543,38 +2585,42 @@ impl DraftProxy {
             );
         }
 
-        let mut translation = translation_from_input(first);
-        if translation["key"] == json!("handle") {
-            let original_value = translation["value"].as_str().unwrap_or_default();
-            if original_value.chars().count() > 255 {
-                return selected_json(
-                    &json!({
-                        "translations": [],
-                        "userErrors": [{
-                            "field": ["translations", "0", "value"],
-                            "message": "Value fails validation on resource: [\"Handle is too long (maximum is 255 characters)\"]",
-                            "code": "FAILS_RESOURCE_VALIDATION"
-                        }]
-                    }),
-                    &field.selection,
-                );
+        let mut staged = Vec::new();
+        for (index, translation_input) in translations.iter().enumerate() {
+            let mut translation = translation_from_input(translation_input);
+            if translation["key"] == json!("handle") {
+                let original_value = translation["value"].as_str().unwrap_or_default();
+                if original_value.chars().count() > 255 {
+                    return selected_json(
+                        &json!({
+                            "translations": [],
+                            "userErrors": [{
+                                "field": ["translations", index.to_string(), "value"],
+                                "message": "Value fails validation on resource: [\"Handle is too long (maximum is 255 characters)\"]",
+                                "code": "FAILS_RESOURCE_VALIDATION"
+                            }]
+                        }),
+                        &field.selection,
+                    );
+                }
+                translation["value"] = json!(normalize_localized_handle(original_value));
             }
-            translation["value"] = json!(normalize_localized_handle(original_value));
+            self.store
+                .staged
+                .localization_translations
+                .retain(|existing| {
+                    existing["key"] != translation["key"]
+                        || existing["locale"] != translation["locale"]
+                        || existing["market"] != translation["market"]
+                });
+            self.store
+                .staged
+                .localization_translations
+                .push(translation.clone());
+            staged.push(translation);
         }
-        self.store
-            .staged
-            .localization_translations
-            .retain(|existing| {
-                existing["key"] != translation["key"]
-                    || existing["locale"] != translation["locale"]
-                    || existing["market"] != translation["market"]
-            });
-        self.store
-            .staged
-            .localization_translations
-            .push(translation.clone());
         selected_json(
-            &json!({ "translations": [translation], "userErrors": user_errors }),
+            &json!({ "translations": staged, "userErrors": user_errors }),
             &field.selection,
         )
     }
@@ -2597,6 +2643,7 @@ impl DraftProxy {
                 &field.selection,
             );
         }
+        let keys = resolved_string_list_arg(&field.arguments, "translationKeys");
         let market_ids = resolved_string_list_arg(&field.arguments, "marketIds");
         let locales = resolved_string_list_arg(&field.arguments, "locales");
         if locales.is_empty() {
@@ -2611,24 +2658,32 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        let removed = if let Some(position) = self
-            .store
-            .staged
-            .localization_translations
-            .iter()
-            .position(|translation| {
-                market_ids.is_empty()
-                    || market_ids
-                        .iter()
-                        .any(|id| translation["market"]["id"] == json!(id))
-            }) {
-            Value::Array(vec![self
-                .store
-                .staged
-                .localization_translations
-                .remove(position)])
-        } else {
+        let mut removed = Vec::new();
+        let mut retained = Vec::new();
+        for translation in self.store.staged.localization_translations.drain(..) {
+            let key_matches =
+                keys.is_empty() || keys.iter().any(|key| translation["key"] == json!(key));
+            let locale_matches = locales
+                .iter()
+                .any(|locale| translation["locale"] == json!(locale));
+            let market_matches = if market_ids.is_empty() {
+                translation["market"].is_null()
+            } else {
+                market_ids
+                    .iter()
+                    .any(|id| translation["market"]["id"] == json!(id))
+            };
+            if key_matches && locale_matches && market_matches {
+                removed.push(translation);
+            } else {
+                retained.push(translation);
+            }
+        }
+        self.store.staged.localization_translations = retained;
+        let removed = if removed.is_empty() {
             Value::Null
+        } else {
+            Value::Array(removed)
         };
         selected_json(
             &json!({ "translations": removed, "userErrors": [] }),
