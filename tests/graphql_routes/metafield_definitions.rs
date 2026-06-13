@@ -595,6 +595,114 @@ fn metafield_definition_validation_update_gates_later_metafields_set() {
 }
 
 #[test]
+fn metafield_definition_validations_gate_metafields_set_for_non_product_owners() {
+    let mut proxy = snapshot_proxy();
+    let cases = [
+        ("CUSTOMER", "gid://shopify/Customer/1", "customer"),
+        ("ORDER", "gid://shopify/Order/1", "order"),
+        ("COMPANY", "gid://shopify/Company/1", "company"),
+        ("COLLECTION", "gid://shopify/Collection/1", "collection"),
+        (
+            "PRODUCTVARIANT",
+            "gid://shopify/ProductVariant/1",
+            "variant",
+        ),
+    ];
+
+    for (owner_type, owner_id, suffix) in cases {
+        let namespace = format!("validation_non_product_{suffix}");
+        let key = "headline";
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation NonProductMetafieldDefinitionValidationCreate($definition: MetafieldDefinitionInput!) {
+              metafieldDefinitionCreate(definition: $definition) {
+                createdDefinition { namespace key ownerType validations { name value } }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "definition": {
+                    "namespace": namespace,
+                    "key": key,
+                    "ownerType": owner_type,
+                    "name": format!("{owner_type} Headline"),
+                    "type": "single_line_text_field",
+                    "validations": [{ "name": "max", "value": "5" }]
+                }
+            }),
+        ));
+        assert_eq!(
+            create.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+            json!([]),
+            "{owner_type} definition should be created"
+        );
+
+        let rejected = proxy.process_request(json_graphql_request(
+            r#"
+            mutation NonProductMetafieldDefinitionValidationSet($metafields: [MetafieldsSetInput!]!) {
+              metafieldsSet(metafields: $metafields) {
+                metafields { namespace key value }
+                userErrors { field message code elementIndex }
+              }
+            }
+            "#,
+            json!({
+                "metafields": [{
+                    "ownerId": owner_id,
+                    "namespace": namespace,
+                    "key": key,
+                    "type": "single_line_text_field",
+                    "value": "too long"
+                }]
+            }),
+        ));
+        assert_eq!(
+            rejected.body["data"]["metafieldsSet"],
+            json!({
+                "metafields": [],
+                "userErrors": [{
+                    "field": ["metafields", "0", "value"],
+                    "message": "Value is too long.",
+                    "code": "INVALID_VALUE",
+                    "elementIndex": null
+                }]
+            }),
+            "{owner_type} definition validation should reject over-limit values"
+        );
+
+        let accepted = proxy.process_request(json_graphql_request(
+            r#"
+            mutation NonProductMetafieldDefinitionValidationSet($metafields: [MetafieldsSetInput!]!) {
+              metafieldsSet(metafields: $metafields) {
+                metafields { namespace key value }
+                userErrors { field message code elementIndex }
+              }
+            }
+            "#,
+            json!({
+                "metafields": [{
+                    "ownerId": owner_id,
+                    "namespace": namespace,
+                    "key": key,
+                    "type": "single_line_text_field",
+                    "value": "short"
+                }]
+            }),
+        ));
+        assert_eq!(
+            accepted.body["data"]["metafieldsSet"]["userErrors"],
+            json!([]),
+            "{owner_type} definition validation should allow valid values"
+        );
+        assert_eq!(
+            accepted.body["data"]["metafieldsSet"]["metafields"][0]["value"],
+            json!("short")
+        );
+    }
+}
+
+#[test]
 fn standard_metafield_definition_enable_uses_template_registry_and_errors() {
     let mut proxy = snapshot_proxy();
 

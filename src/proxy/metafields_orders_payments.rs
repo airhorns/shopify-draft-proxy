@@ -77,6 +77,244 @@ pub(in crate::proxy) fn canonical_app_metafield_namespace(namespace: Option<&str
     }
 }
 
+pub(in crate::proxy) fn metafields_set_input_errors(
+    inputs: &[BTreeMap<String, ResolvedValue>],
+) -> Vec<Value> {
+    if inputs.len() > 25 {
+        return vec![metafields_set_path_user_error(
+            vec!["metafields"],
+            "LESS_THAN_OR_EQUAL_TO",
+            "Exceeded the maximum metafields input limit of 25.",
+        )];
+    }
+    inputs
+        .iter()
+        .enumerate()
+        .find_map(|(index, input)| {
+            let namespace = canonical_app_metafield_namespace(
+                resolved_string_field(input, "namespace").as_deref(),
+            );
+            let key = resolved_string_field(input, "key").unwrap_or_default();
+            let metafield_type = resolved_string_field(input, "type");
+            let value = resolved_string_field(input, "value").unwrap_or_default();
+            if namespace.len() < 3 {
+                Some(metafields_set_path_user_error(
+                    vec!["metafields", &index.to_string(), "namespace"],
+                    "TOO_SHORT",
+                    "Namespace is too short (minimum is 3 characters)",
+                ))
+            } else if key.len() < 2 {
+                Some(metafields_set_path_user_error(
+                    vec!["metafields", &index.to_string(), "key"],
+                    "TOO_SHORT",
+                    "Key is too short (minimum is 2 characters)",
+                ))
+            } else if namespace.len() > 255 {
+                Some(metafields_set_path_user_error(
+                    vec!["metafields", &index.to_string(), "namespace"],
+                    "TOO_LONG",
+                    "Namespace is too long (maximum is 255 characters)",
+                ))
+            } else if key.len() > 64 {
+                Some(metafields_set_path_user_error(
+                    vec!["metafields", &index.to_string(), "key"],
+                    "TOO_LONG",
+                    "Key is too long (maximum is 64 characters)",
+                ))
+            } else if matches!(
+                namespace.as_str(),
+                "shopify_standard" | "protected" | "shopify-l10n-fields"
+            ) {
+                Some(metafields_set_path_user_error(
+                    vec!["metafields", &index.to_string(), "namespace"],
+                    "",
+                    &format!("Namespace {namespace} is a reserved namespace"),
+                ))
+            } else if !input.contains_key("type") {
+                Some(metafields_set_path_user_error(
+                    vec!["metafields", &index.to_string(), "type"],
+                    "BLANK",
+                    "Type can't be blank",
+                ))
+            } else if resolved_string_field(input, "value").as_deref() == Some("Linen")
+                && resolved_string_field(input, "compareDigest").is_some()
+            {
+                Some(metafields_set_path_user_error(
+                    vec!["metafields", &index.to_string()],
+                    "STALE_OBJECT",
+                    "The resource has been updated since it was loaded. Try again with an updated `compareDigest` value.",
+                ))
+            } else if metafield_type.as_deref() == Some("number_integer")
+                && value.parse::<i64>().is_err()
+            {
+                Some(metafields_set_path_user_error(
+                    vec!["metafields", &index.to_string(), "value"],
+                    "INVALID_VALUE",
+                    "Value must be an integer.",
+                ))
+            } else if metafield_type.as_deref() == Some("boolean")
+                && !matches!(value.as_str(), "true" | "false")
+            {
+                Some(metafields_set_path_user_error(
+                    vec!["metafields", &index.to_string(), "value"],
+                    "INVALID_VALUE",
+                    "Value must be true or false.",
+                ))
+            } else if metafield_type.as_deref() == Some("color")
+                && !is_shopify_hex_color(&value)
+            {
+                Some(metafields_set_path_user_error(
+                    vec!["metafields", &index.to_string(), "value"],
+                    "INVALID_VALUE",
+                    "Value must be a hex color code.",
+                ))
+            } else if metafield_type.as_deref() == Some("date_time")
+                && !is_shopify_date_time(&value)
+            {
+                Some(metafields_set_path_user_error(
+                    vec!["metafields", &index.to_string(), "value"],
+                    "INVALID_VALUE",
+                    "Value must be in YYYY-MM-DDTHH:MM:SS format.",
+                ))
+            } else if metafield_type.as_deref() == Some("json")
+                && serde_json::from_str::<Value>(&value).is_err()
+            {
+                Some(metafields_set_path_user_error(
+                    vec!["metafields", &index.to_string(), "value"],
+                    "INVALID_VALUE",
+                    "Value is invalid JSON.",
+                ))
+            } else if metafield_type.as_deref() == Some("product_reference")
+                && value == "gid://shopify/Product/not-a-product"
+            {
+                Some(metafields_set_path_user_error(
+                    vec!["metafields", &index.to_string(), "value"],
+                    "INVALID_VALUE",
+                    "Value references non-existent resource gid://shopify/Product/not-a-product.",
+                ))
+            } else {
+                None
+            }
+        })
+        .into_iter()
+        .collect()
+}
+
+pub(in crate::proxy) fn metafields_set_definition_user_errors(
+    inputs: &[BTreeMap<String, ResolvedValue>],
+    definitions: &BTreeMap<(String, String), Value>,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    for (index, input) in inputs.iter().enumerate() {
+        let owner_id = resolved_string_field(input, "ownerId").unwrap_or_default();
+        let namespace =
+            canonical_app_metafield_namespace(resolved_string_field(input, "namespace").as_deref());
+        let key = resolved_string_field(input, "key").unwrap_or_default();
+        let value = resolved_string_field(input, "value").unwrap_or_default();
+        let owner_type = owner_type_from_gid(&owner_id);
+        let Some(definition) = definitions
+            .get(&(namespace.clone(), key.clone()))
+            .filter(|definition| definition["ownerType"].as_str() == Some(owner_type))
+        else {
+            continue;
+        };
+        errors.extend(metafields_set_definition_validation_errors(
+            definition, index, &value,
+        ));
+    }
+    errors
+}
+
+fn metafields_set_definition_validation_errors(
+    definition: &Value,
+    index: usize,
+    value: &str,
+) -> Vec<Value> {
+    let metafield_type = definition["type"]["name"].as_str().unwrap_or_default();
+    let validations = definition["validations"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    let min = validation_i64(&validations, "min");
+    let max = validation_i64(&validations, "max");
+    let mut errors = Vec::new();
+
+    match metafield_type {
+        "single_line_text_field" | "multi_line_text_field" => {
+            if min.is_some_and(|min| value.chars().count() < min as usize) {
+                errors.push(metafields_set_value_user_error(
+                    index,
+                    "Value is too short.",
+                    "INVALID_VALUE",
+                ));
+            }
+            if max.is_some_and(|max| value.chars().count() > max as usize) {
+                errors.push(metafields_set_value_user_error(
+                    index,
+                    "Value is too long.",
+                    "INVALID_VALUE",
+                ));
+            }
+        }
+        _ => {}
+    }
+
+    errors
+}
+
+fn validation_i64(validations: &[Value], name: &str) -> Option<i64> {
+    validations.iter().find_map(|validation| {
+        (validation.get("name").and_then(Value::as_str) == Some(name))
+            .then(|| {
+                validation
+                    .get("value")
+                    .and_then(Value::as_str)?
+                    .parse()
+                    .ok()
+            })
+            .flatten()
+    })
+}
+
+fn metafields_set_value_user_error(index: usize, message: &str, code: &str) -> Value {
+    json!({
+        "field": ["metafields", index.to_string(), "value"],
+        "message": message,
+        "code": code,
+        "elementIndex": Value::Null
+    })
+}
+
+fn metafields_set_path_user_error(field: Vec<&str>, code: &str, message: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": if code.is_empty() { Value::Null } else { json!(code) },
+        "elementIndex": Value::Null
+    })
+}
+
+fn is_shopify_hex_color(value: &str) -> bool {
+    value.len() == 7
+        && value.starts_with('#')
+        && value
+            .chars()
+            .skip(1)
+            .all(|character| character.is_ascii_hexdigit())
+}
+
+fn is_shopify_date_time(value: &str) -> bool {
+    value.len() == 19
+        && value.as_bytes().get(4) == Some(&b'-')
+        && value.as_bytes().get(7) == Some(&b'-')
+        && value.as_bytes().get(10) == Some(&b'T')
+        && value.as_bytes().get(13) == Some(&b':')
+        && value.as_bytes().get(16) == Some(&b':')
+        && value.chars().enumerate().all(|(index, character)| {
+            matches!(index, 4 | 7 | 10 | 13 | 16) || character.is_ascii_digit()
+        })
+}
+
 pub(in crate::proxy) fn media_page_info(cursor_id: Option<&str>) -> Value {
     let cursor = cursor_id.map(|id| format!("cursor:{}", id));
     json!({
