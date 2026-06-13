@@ -105,33 +105,34 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn state_snapshot(&self) -> Value {
         let mut snapshot = json!({
-           "baseState": {
-               "products": product_state_map_json(&self.store.base.products.records),
-               "productOrder": self.store.base.products.order,
-               "savedSearches": saved_search_state_map_json(&self.store.base.saved_searches.records),
-               "savedSearchOrder": self.store.base.saved_searches.order
-           },
-           "stagedState": {
-               "products": product_state_map_json(&self.store.staged.products.records),
-               "productOrder": self.store.staged.products.order,
-               "deletedProductIds": self.store.staged.products.tombstones.iter().cloned().collect::<Vec<_>>(),
-               "savedSearches": saved_search_state_map_json(&self.store.staged.saved_searches.records),
-               "savedSearchOrder": self.store.staged.saved_searches.order,
-               "deletedSavedSearchIds": self.store.staged.saved_searches.tombstones.iter().cloned().collect::<Vec<_>>(),
-               "shippingPackages": self.store.staged.shipping_packages.clone(),
-               "deletedShippingPackageIds": self.store.staged.deleted_shipping_package_ids.iter().map(|id| (id.clone(), json!(true))).collect::<serde_json::Map<_, _>>(),
-               "delegatedAccessTokens": self.store.staged.delegate_access_tokens.clone(),
-               "customers": self.store.staged.customers.clone(),
-               "deletedCustomerIds": self.store.staged.deleted_customer_ids.iter().cloned().collect::<Vec<_>>(),
-               "customerOrders": self.store.staged.customer_orders.clone(),
-               "orders": self.store.staged.orders.clone(),
-               "returns": self.store.staged.returns.clone(),
-               "returnsByOrder": self.store.staged.returns_by_order.clone(),
+            "baseState": {
+                "products": product_state_map_json(&self.store.base.products.records),
+                "productOrder": self.store.base.products.order,
+                "savedSearches": saved_search_state_map_json(&self.store.base.saved_searches.records),
+                "savedSearchOrder": self.store.base.saved_searches.order
+            },
+            "stagedState": {
+                "products": product_state_map_json(&self.store.staged.products.records),
+                "productOrder": self.store.staged.products.order,
+                "deletedProductIds": self.store.staged.products.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "savedSearches": saved_search_state_map_json(&self.store.staged.saved_searches.records),
+                "savedSearchOrder": self.store.staged.saved_searches.order,
+                "deletedSavedSearchIds": self.store.staged.saved_searches.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "shippingPackages": self.store.staged.shipping_packages.clone(),
+                "deletedShippingPackageIds": self.store.staged.deleted_shipping_package_ids.iter().map(|id| (id.clone(), json!(true))).collect::<serde_json::Map<_, _>>(),
+                "delegatedAccessTokens": self.store.staged.delegate_access_tokens.clone(),
+                "customers": self.store.staged.customers.clone(),
+                "deletedCustomerIds": self.store.staged.deleted_customer_ids.iter().cloned().collect::<Vec<_>>(),
+                "customerOrders": self.store.staged.customer_orders.clone(),
+                "taggableResources": self.store.staged.taggable_resources.clone(),
+                "orders": self.store.staged.orders.clone(),
+                "returns": self.store.staged.returns.clone(),
+                "returnsByOrder": self.store.staged.returns_by_order.clone(),
                "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
-               "reverseFulfillmentOrders": self.store.staged.reverse_fulfillment_orders.clone(),
-               "locations": self.store.staged.locations.clone(),
-               "locationOrder": self.store.staged.location_order.clone(),
-               "locationLimitReached": self.store.staged.location_limit_reached
+                "reverseFulfillmentOrders": self.store.staged.reverse_fulfillment_orders.clone(),
+                "locations": self.store.staged.locations.clone(),
+                "locationOrder": self.store.staged.location_order.clone(),
+                "locationLimitReached": self.store.staged.location_limit_reached
             }
         });
         if !self.store.staged.flow_signatures.is_empty() {
@@ -292,6 +293,15 @@ impl DraftProxy {
                     .map(|(id, orders)| {
                         (id.clone(), orders.as_array().cloned().unwrap_or_default())
                     })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.taggable_resources = state["stagedState"]["taggableResources"]
+            .as_object()
+            .map(|resources| {
+                resources
+                    .iter()
+                    .map(|(id, resource)| (id.clone(), resource.clone()))
                     .collect()
             })
             .unwrap_or_default();
