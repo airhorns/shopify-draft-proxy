@@ -1,0 +1,75 @@
+fragment MetaobjectNameIndependenceReadFields on Metaobject {
+  id
+  handle
+  type
+  displayName
+  updatedAt
+  capabilities {
+    publishable {
+      status
+    }
+    onlineStore {
+      templateSuffix
+    }
+  }
+  fields {
+    key
+    type
+    value
+    jsonValue
+    definition {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+  }
+  titleField: field(key: "title") {
+    key
+    type
+    value
+    jsonValue
+    definition {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+  }
+}
+
+query MetaobjectNameIndependenceRead($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+  detail: metaobject(id: $id) {
+    ...MetaobjectNameIndependenceReadFields
+  }
+  byHandle: metaobjectByHandle(handle: $handle) {
+    ...MetaobjectNameIndependenceReadFields
+  }
+  catalog: metaobjects(type: $type, first: 10) {
+    nodes {
+      ...MetaobjectNameIndependenceReadFields
+    }
+    edges {
+      cursor
+      node {
+        ...MetaobjectNameIndependenceReadFields
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+  definition: metaobjectDefinitionByType(type: $type) {
+    type
+    metaobjectsCount
+  }
+}

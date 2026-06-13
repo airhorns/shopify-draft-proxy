@@ -2409,6 +2409,250 @@ fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
 }
 
 #[test]
+fn metaobject_entry_lifecycle_dispatches_by_root_field_and_definition_state() {
+    let mut proxy = snapshot_proxy();
+
+    let definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id type displayNameKey metaobjectsCount fieldDefinitions { key name required type { name category } } capabilities { publishable { enabled } } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "ticket_metaobject_type",
+            "name": "Ticket Metaobject",
+            "displayNameKey": "heading",
+            "capabilities": {"publishable": {"enabled": true}},
+            "fieldDefinitions": [
+                {"key": "heading", "name": "Heading", "type": "single_line_text_field", "required": true},
+                {"key": "rank", "name": "Rank", "type": "number_integer", "required": false},
+                {"key": "body", "name": "Body", "type": "multi_line_text_field", "required": false}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetaobject($metaobject: MetaobjectCreateInput!) {
+          created: metaobjectCreate(metaobject: $metaobject) {
+            metaobject {
+              id
+              handle
+              type
+              displayName
+              capabilities { publishable { status } }
+              fields { key type value jsonValue definition { key name required type { name category } } }
+              headingField: field(key: "heading") { key value jsonValue }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"metaobject": {
+            "type": "ticket_metaobject_type",
+            "values": {"heading": "Normal Operation", "rank": "7", "body": "Projected body"}
+        }}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["created"]["userErrors"], json!([]));
+    let created = &create.body["data"]["created"]["metaobject"];
+    let created_id = created["id"].as_str().unwrap().to_string();
+    assert_eq!(created["handle"], json!("normal-operation"));
+    assert_eq!(created["displayName"], json!("Normal Operation"));
+    assert_eq!(
+        created["capabilities"]["publishable"]["status"],
+        json!("DRAFT")
+    );
+    assert_eq!(created["fields"][1]["jsonValue"], json!(7));
+    assert_eq!(
+        created["headingField"],
+        json!({"key": "heading", "value": "Normal Operation", "jsonValue": "Normal Operation"})
+    );
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateAnotherMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle displayName }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"metaobject": {
+            "type": "ticket_metaobject_type",
+            "fields": [{"key": "heading", "value": "Normal Operation"}]
+        }}),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["metaobjectCreate"]["metaobject"]["handle"],
+        json!("normal-operation-1")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadMetaobject($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+          detailAlias: metaobject(id: $id) { id handle displayName definition { type metaobjectsCount } }
+          handleAlias: metaobjectByHandle(handle: $handle) { id handle displayName }
+          catalogAlias: metaobjects(type: $type, first: 10) {
+            nodes { id handle displayName }
+            edges { cursor node { id handle } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          definitionAlias: metaobjectDefinitionByType(type: $type) { type metaobjectsCount }
+        }
+        "#,
+        json!({
+            "id": created_id,
+            "handle": {"type": "ticket_metaobject_type", "handle": "normal-operation"},
+            "type": "ticket_metaobject_type"
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["detailAlias"]["displayName"],
+        json!("Normal Operation")
+    );
+    assert_eq!(read.body["data"]["handleAlias"]["id"], created["id"]);
+    assert_eq!(
+        read.body["data"]["catalogAlias"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(
+        read.body["data"]["definitionAlias"]["metaobjectsCount"],
+        json!(2)
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteMetaobject($id: ID!) {
+          removed: metaobjectDelete(id: $id) {
+            deletedId
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"id": created_id}),
+    ));
+    assert_eq!(delete.body["data"]["removed"]["deletedId"], created["id"]);
+    assert_eq!(delete.body["data"]["removed"]["userErrors"], json!([]));
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAfterDelete($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+          detail: metaobject(id: $id) { id }
+          byHandle: metaobjectByHandle(handle: $handle) { id }
+          catalog: metaobjects(type: $type, first: 10) { nodes { id } }
+          definition: metaobjectDefinitionByType(type: $type) { metaobjectsCount }
+        }
+        "#,
+        json!({
+            "id": created["id"],
+            "handle": {"type": "ticket_metaobject_type", "handle": "normal-operation"},
+            "type": "ticket_metaobject_type"
+        }),
+    ));
+    assert_eq!(after_delete.body["data"]["detail"], Value::Null);
+    assert_eq!(after_delete.body["data"]["byHandle"], Value::Null);
+    assert_eq!(
+        after_delete.body["data"]["catalog"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        after_delete.body["data"]["definition"]["metaobjectsCount"],
+        json!(1)
+    );
+}
+
+#[test]
+fn metaobject_create_validates_definition_fields_and_capabilities() {
+    let mut proxy = snapshot_proxy();
+
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateValidationDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "validation_metaobject_type",
+            "name": "Validation Metaobject",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true},
+                {"key": "quantity", "name": "Quantity", "type": "number_integer", "required": false}
+            ]
+        }}),
+    ));
+
+    let unknown_type = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMissingType($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"metaobject": {"type": "missing_metaobject_type", "fields": [{"key": "title", "value": "Missing"}]}}),
+    ));
+    assert_eq!(
+        unknown_type.body["data"]["metaobjectCreate"]["userErrors"][0]["code"],
+        json!("UNDEFINED_OBJECT_TYPE")
+    );
+
+    let invalid = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateInvalidMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"metaobject": {
+            "type": "validation_metaobject_type",
+            "capabilities": {"publishable": {"status": "ACTIVE"}},
+            "fields": [
+                {"key": "quantity", "value": "not-an-int"},
+                {"key": "quantity", "value": "2"},
+                {"key": "unknown", "value": "ignored"}
+            ]
+        }}),
+    ));
+    let codes = invalid.body["data"]["metaobjectCreate"]["userErrors"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|error| error["code"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert!(codes.contains(&"OBJECT_FIELD_REQUIRED"));
+    assert!(codes.contains(&"DUPLICATE_FIELD_INPUT"));
+    assert!(codes.contains(&"UNDEFINED_OBJECT_FIELD"));
+    assert!(codes.contains(&"INVALID_VALUE"));
+    assert!(codes.contains(&"CAPABILITY_NOT_ENABLED"));
+    assert_eq!(
+        invalid.body["data"]["metaobjectCreate"]["metaobject"],
+        Value::Null
+    );
+}
+
+#[test]
 fn metaobject_delete_returns_record_not_found_without_logging_noop_deletes() {
     let mut proxy = snapshot_proxy();
 

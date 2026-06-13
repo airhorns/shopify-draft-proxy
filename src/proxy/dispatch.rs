@@ -300,32 +300,6 @@ impl DraftProxy {
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
-                    "metaobject" | "metaobjectByHandle" | "metaobjects"
-                )
-            })
-            && is_ported_metaobject_document(&query)
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({"data": self.metaobject_query_data(&fields)}));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| matches!(field.as_str(), "metaobjectCreate" | "metaobjectDelete"))
-            && is_ported_metaobject_document(&query)
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return self.metaobject_mutation(&fields, request, &query, &variables);
-            }
-        }
-
-        if operation.operation_type == OperationType::Query
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
                     "mobilePlatformApplication"
                         | "mobilePlatformApplications"
                         | "scriptTag"
@@ -2362,6 +2336,24 @@ impl DraftProxy {
             {
                 let outcome = self.saved_search_mutation_fields(&query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Metaobjects, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    ok_json(json!({ "data": self.metaobject_query_data(&fields) }))
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
+            }
+            (CapabilityDomain::Metaobjects, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    self.metaobject_mutation(&fields, request, &query, &variables)
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
             }
             (CapabilityDomain::Functions, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
