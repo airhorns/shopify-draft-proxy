@@ -1112,6 +1112,151 @@ fn delegate_access_token_create_validates_and_stages_synthetic_secret() {
 }
 
 #[test]
+fn apps_mutations_dispatch_by_root_field_for_ordinary_operation_names() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSub($lineItems: [AppSubscriptionLineItemInput!]!) {
+          appSubscriptionCreate(
+            name: "Ordinary"
+            returnUrl: "https://app.example.test/return"
+            test: true
+            lineItems: $lineItems
+          ) {
+            confirmationUrl
+            appSubscription { id status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "lineItems": [{
+                "plan": {
+                    "appUsagePricingDetails": {
+                        "cappedAmount": { "amount": 100, "currencyCode": "USD" },
+                        "terms": "usage"
+                    }
+                }
+            }]
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["appSubscriptionCreate"],
+        json!({
+            "confirmationUrl": "https://app.example.test/local-confirmation",
+            "appSubscription": {
+                "id": "gid://shopify/AppSubscription/expected",
+                "status": "ACTIVE"
+            },
+            "userErrors": []
+        })
+    );
+
+    let usage = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateUsage($id: ID!) {
+          appUsageRecordCreate(
+            subscriptionLineItemId: $id
+            price: { amount: "1.00", currencyCode: USD }
+            description: "ordinary usage"
+            idempotencyKey: "ordinary-usage-1"
+          ) {
+            appUsageRecord { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+    ));
+    assert_eq!(usage.status, 200);
+    assert_eq!(
+        usage.body["data"]["appUsageRecordCreate"],
+        json!({
+            "appUsageRecord": { "id": "gid://shopify/AppUsageRecord/expected" },
+            "userErrors": []
+        })
+    );
+
+    let roots = [
+        (
+            "CancelSub",
+            r#"mutation CancelSub($id: ID!) { appSubscriptionCancel(id: $id) { appSubscription { id status } userErrors { field message } } }"#,
+            json!({ "id": "gid://shopify/AppSubscription/expected" }),
+            "appSubscriptionCancel",
+        ),
+        (
+            "ExtendTrial",
+            r#"mutation ExtendTrial($id: ID!) { appSubscriptionTrialExtend(id: $id, days: 3) { appSubscription { id trialDays } userErrors { field message code } } }"#,
+            json!({ "id": "gid://shopify/AppSubscription/expected" }),
+            "appSubscriptionTrialExtend",
+        ),
+        (
+            "UpdateLineItem",
+            r#"mutation UpdateLineItem($id: ID!) { appSubscriptionLineItemUpdate(id: $id, cappedAmount: { amount: 101, currencyCode: USD }) { appSubscription { id } userErrors { field message } } }"#,
+            json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+            "appSubscriptionLineItemUpdate",
+        ),
+        (
+            "OneTime",
+            r#"mutation OneTime { appPurchaseOneTimeCreate(name: "Import", returnUrl: "https://app.example.test/return", price: { amount: 5, currencyCode: USD }, test: false) { appPurchaseOneTime { id test } confirmationUrl userErrors { field message code } } }"#,
+            json!({}),
+            "appPurchaseOneTimeCreate",
+        ),
+        (
+            "RevokeScopes",
+            r#"mutation RevokeScopes { appRevokeAccessScopes(scopes: ["fake_scope"]) { revoked { handle } userErrors { field message code } } }"#,
+            json!({}),
+            "appRevokeAccessScopes",
+        ),
+        (
+            "CreateDelegate",
+            r#"mutation CreateDelegate { delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 300 }) { delegateAccessToken { accessToken } userErrors { field message code } } }"#,
+            json!({}),
+            "delegateAccessTokenCreate",
+        ),
+    ];
+
+    let mut delegate_token = String::new();
+    for (_name, query, variables, root) in roots {
+        let response = proxy.process_request(json_graphql_request(query, variables));
+        assert_eq!(response.status, 200, "{root} should dispatch locally");
+        assert!(
+            response.body["data"][root].is_object(),
+            "{root} should return a local payload, got {}",
+            response.body
+        );
+        if root == "delegateAccessTokenCreate" {
+            delegate_token = response.body["data"][root]["delegateAccessToken"]["accessToken"]
+                .as_str()
+                .unwrap()
+                .to_string();
+        }
+    }
+
+    let destroy = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DestroyDelegate($token: String!) {
+          delegateAccessTokenDestroy(accessToken: $token) {
+            status
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "token": delegate_token }),
+    ));
+    assert_eq!(destroy.status, 200);
+    assert_eq!(
+        destroy.body["data"]["delegateAccessTokenDestroy"],
+        json!({ "status": true, "userErrors": [] })
+    );
+}
+
+#[test]
 fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycle() {
     let mut proxy = snapshot_proxy();
 
@@ -1429,7 +1574,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
         json!({
             "appPurchaseOneTime": null,
             "confirmationUrl": null,
-            "userErrors": [{ "field": ["price"], "message": "Price must be at least 0.50 USD.", "code": "PRICE_TOO_LOW" }]
+            "userErrors": [{ "field": null, "message": "Validation failed: Price must be greater than or equal to 0.5", "code": null }]
         })
     );
 
@@ -1450,7 +1595,7 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
         json!({
             "appPurchaseOneTime": null,
             "confirmationUrl": null,
-            "userErrors": [{ "field": ["price"], "message": "Price currency must match shop billing currency USD.", "code": null }]
+            "userErrors": [{ "field": ["price"], "message": "Currency code must be USD", "code": null }]
         })
     );
 
@@ -1501,6 +1646,83 @@ fn app_purchase_one_time_create_validates_and_stages_selected_fields() {
             },
             "confirmationUrl": "https://app.example.test/local-confirmation",
             "userErrors": []
+        })
+    );
+}
+
+#[test]
+fn apps_user_errors_are_typed_and_selection_projected() {
+    let mut proxy = snapshot_proxy();
+
+    let uninstall = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          appUninstall(input: { id: "gid://shopify/App/missing" }) {
+            app { id }
+            userErrors {
+              __typename
+              message
+              ... on AppUninstallError { code }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        uninstall.body["data"]["appUninstall"],
+        json!({
+            "app": null,
+            "userErrors": [{
+                "__typename": "AppUninstallError",
+                "message": "The app cannot be found.",
+                "code": "APP_NOT_FOUND"
+            }]
+        })
+    );
+
+    let revoke = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          appRevokeAccessScopes(scopes: ["fake_scope"]) {
+            userErrors {
+              __typename
+              field
+              ... on AppRevokeScopeError { code }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        revoke.body["data"]["appRevokeAccessScopes"],
+        json!({
+            "userErrors": [{
+                "__typename": "AppRevokeScopeError",
+                "field": ["scopes"],
+                "code": "UNKNOWN_SCOPES"
+            }]
+        })
+    );
+
+    let delegate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation {
+          delegateAccessTokenCreate(input: { delegateAccessScope: [] }) {
+            userErrors { __typename message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        delegate.body["data"]["delegateAccessTokenCreate"],
+        json!({
+            "userErrors": [{
+                "__typename": "UserError",
+                "message": "The access scope can't be empty."
+            }]
         })
     );
 }
@@ -1720,7 +1942,7 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
         over_cap.body["data"]["appUsageRecordCreate"],
         json!({
             "appUsageRecord": null,
-            "userErrors": [{ "field": [], "message": "Total price exceeds balance remaining" }]
+            "userErrors": [{ "field": null, "message": "Total price exceeds balance remaining" }]
         })
     );
 
@@ -1747,7 +1969,54 @@ fn app_usage_record_create_caps_idempotency_and_readback_balance() {
         long_key.body["data"]["appUsageRecordCreate"],
         json!({
             "appUsageRecord": null,
-            "userErrors": [{ "field": ["idempotencyKey"], "message": "Idempotency key must be at most 255 characters", "code": null }]
+            "userErrors": [{ "field": ["idempotencyKey"], "message": "Idempotency key exceeds the maximum length.", "code": null }]
+        })
+    );
+
+    let missing_description = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UsageMissingDescription($id: ID!) {
+          appUsageRecordCreate(
+            subscriptionLineItemId: $id
+            price: { amount: "1.00", currencyCode: USD }
+            idempotencyKey: "usage-key-missing-description"
+          ) {
+            appUsageRecord { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/AppSubscriptionLineItem/expected" }),
+    ));
+    assert_eq!(
+        missing_description.body["data"]["appUsageRecordCreate"],
+        json!({
+            "appUsageRecord": null,
+            "userErrors": [{ "field": ["description"], "message": "Description can't be blank", "code": null }]
+        })
+    );
+
+    let invalid_line_item_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UsageInvalidLineItem {
+          appUsageRecordCreate(
+            subscriptionLineItemId: "not-a-gid"
+            price: { amount: "1.00", currencyCode: USD }
+            description: "invalid"
+            idempotencyKey: "usage-key-invalid-line-item"
+          ) {
+            appUsageRecord { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        invalid_line_item_id.body["data"]["appUsageRecordCreate"],
+        json!({
+            "appUsageRecord": null,
+            "userErrors": [{ "field": ["subscriptionLineItemId"], "message": "Invalid id", "code": null }]
         })
     );
 
@@ -1831,6 +2100,29 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
                 "status": "ACTIVE",
                 "test": true,
                 "price": { "amount": "10", "currencyCode": "USD" }
+            },
+            "userErrors": []
+        })
+    );
+
+    let mut one_time_test_proxy = snapshot_proxy();
+    let one_time_test_false = one_time_test_proxy.process_request(json_graphql_request(
+        r#"
+        mutation OneTimeTestFalse {
+          appPurchaseOneTimeCreate(name: "Import package 2", returnUrl: "https://app.example.test/return", price: { amount: 10, currencyCode: USD }, test: false) {
+            appPurchaseOneTime { id test }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        one_time_test_false.body["data"]["appPurchaseOneTimeCreate"],
+        json!({
+            "appPurchaseOneTime": {
+                "id": "gid://shopify/AppPurchaseOneTime/expected",
+                "test": false
             },
             "userErrors": []
         })
@@ -2083,11 +2375,11 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
             },
             "currencyMismatch": {
                 "appSubscription": null,
-                "userErrors": [{ "field": ["cappedAmount"], "message": "Capped amount currency mismatch. Expected USD" }]
+                "userErrors": [{ "field": null, "message": "Currency code must be USD" }]
             },
             "nonIncreasing": {
                 "appSubscription": null,
-                "userErrors": [{ "field": ["cappedAmount"], "message": "The capped amount must be greater than the existing capped amount" }]
+                "userErrors": [{ "field": ["cappedAmount"], "message": "Spending limit can only be increased. Please contact the app developer to decrease spending limit." }]
             },
             "success": {
                 "confirmationUrl": "https://app.example.test/local-confirmation",
@@ -2112,6 +2404,57 @@ fn app_subscription_line_item_update_validates_recurring_currency_and_amount() {
                 },
                 "userErrors": []
             }
+        })
+    );
+
+    let synchronous_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppSubscriptionLineItemUpdateNoApproval($usageLineItemId: ID!) {
+          appSubscriptionLineItemUpdate(
+            id: $usageLineItemId
+            cappedAmount: { amount: 12, currencyCode: USD }
+            requireApproval: false
+          ) {
+            confirmationUrl
+            appSubscription {
+              lineItems {
+                id
+                plan {
+                  pricingDetails {
+                    __typename
+                    ... on AppUsagePricing { cappedAmount { amount currencyCode } }
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "usageLineItemId": "gid://shopify/AppSubscriptionLineItem/usage" }),
+    ));
+    assert_eq!(
+        synchronous_update.body["data"]["appSubscriptionLineItemUpdate"],
+        json!({
+            "confirmationUrl": null,
+            "appSubscription": {
+                "lineItems": [
+                    {
+                        "id": "gid://shopify/AppSubscriptionLineItem/usage",
+                        "plan": { "pricingDetails": {
+                            "__typename": "AppUsagePricing",
+                            "cappedAmount": { "amount": "12", "currencyCode": "USD" }
+                        }}
+                    },
+                    {
+                        "id": "gid://shopify/AppSubscriptionLineItem/recurring",
+                        "plan": { "pricingDetails": {
+                            "__typename": "AppRecurringPricing"
+                        }}
+                    }
+                ]
+            },
+            "userErrors": []
         })
     );
 }

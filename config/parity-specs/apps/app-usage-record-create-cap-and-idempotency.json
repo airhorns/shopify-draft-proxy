@@ -12,7 +12,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/apps/app-usage-record-create-cap-and-idempotency.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
   "comparisonMode": "captured-vs-proxy-request",
   "proxyRequest": {
     "documentPath": "config/parity-requests/apps/appSubscriptionCreate-local-lifecycle.graphql",

@@ -1501,63 +1501,54 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionCreate"
-            && is_app_subscription_create_document(&query)
         {
             return self.app_subscription_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionCancel"
-            && is_app_subscription_cancel_document(&query)
         {
             return self.app_subscription_cancel(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionTrialExtend"
-            && is_app_subscription_trial_extend_document(&query)
         {
             return self.app_subscription_trial_extend(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionLineItemUpdate"
-            && is_app_subscription_line_item_update_document(&query)
         {
             return self.app_subscription_line_item_update(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appUsageRecordCreate"
-            && is_app_usage_record_create_document(&query)
         {
             return self.app_usage_record_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appPurchaseOneTimeCreate"
-            && is_app_purchase_one_time_document(&query)
         {
             return self.app_purchase_one_time_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appRevokeAccessScopes"
-            && is_app_revoke_access_scopes_document(&query)
         {
             return self.app_revoke_access_scopes(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "delegateAccessTokenCreate"
-            && is_delegate_access_token_create_document(&query)
         {
             return self.delegate_access_token_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "delegateAccessTokenDestroy"
-            && is_delegate_access_token_destroy_document(&query)
         {
             return self.delegate_access_token_destroy(&query, &variables, request);
         }

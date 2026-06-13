@@ -1,8 +1,8 @@
 // Parity cassette recorder.
 //
-// Boots the Gleam-port DraftProxy in LiveHybrid mode pointed at a local
-// recording SyncTransport, plays the parity spec's primary + target requests
-// through it, and rewrites the capture file with an `upstreamCalls`
+// Boots the Rust DraftProxy in LiveHybrid mode pointed at a local recording
+// upstream server, plays the parity spec's primary + target requests through
+// it, and rewrites the capture file with an `upstreamCalls`
 // cassette: every upstream GraphQL call the proxy makes while serving the
 // spec, in order, with its (operationName, variables, response) tuple.
 //
@@ -20,19 +20,18 @@
 
 import 'dotenv/config';
 
-import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { fileURLToPath } from 'node:url';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import { createDraftProxy } from '../js/src/index.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..');
-const compiledEntrypoint = resolve(repoRoot, 'build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy.mjs');
-const shimEntrypoint = resolve(repoRoot, 'js/src/index.ts');
 
 type RecordedCall = {
   operationName: string;
@@ -72,6 +71,11 @@ type RecordOptions = {
   apiVersion: string;
   adminOrigin: string;
   accessToken: string;
+};
+
+type RecordingServer = {
+  origin: string;
+  close: () => Promise<void>;
 };
 
 function log(message: string): void {
@@ -356,82 +360,64 @@ function rewriteCapture(
   writeFileSync(captureFile, JSON.stringify(parsed, null, 2) + '\n', 'utf8');
 }
 
-async function ensureGleamBuild(): Promise<void> {
-  // Always rebuild — Gleam is incremental and fast (~250ms when nothing
-  // changed). Skipping when the artifact exists is a footgun: the
-  // dispatcher's passthrough decisions live in `.gleam` source, and a
-  // stale shim records 0 upstreamCalls without warning.
-  log('[parity-record] gleam JS build...');
-  execFileSync('gleam', ['build', '--target', 'javascript'], {
-    cwd: repoRoot,
-    stdio: 'inherit',
-  });
-  if (!existsSync(compiledEntrypoint)) {
-    throw new Error(`gleam build did not produce ${compiledEntrypoint}`);
-  }
-}
-
-async function installRecordingSyncTransport(
-  proxy: {
-    installSyncTransport: (send: (request: Record<string, unknown>) => unknown) => void;
-  },
-  opts: {
-    adminOrigin: string;
-    apiVersion: string;
-    authHeaders: Record<string, string>;
-    calls: RecordedCall[];
-  },
-): Promise<void> {
-  const [{ Ok, Error, toList }, { HttpOutcome, CommitTransportError }] = await Promise.all([
-    import(pathToFileURL(resolve(repoRoot, 'build/dev/javascript/prelude.mjs')).href),
-    import(
-      pathToFileURL(resolve(repoRoot, 'build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy/proxy/commit.mjs'))
-        .href
-    ),
-  ]);
-
-  proxy.installSyncTransport((request: Record<string, unknown>) => {
-    try {
-      const body = String(request.body ?? '');
-      const parsed = JSON.parse(body || '{}') as {
-        operationName?: string;
-        query?: string;
-        variables?: Record<string, unknown>;
-      };
-      const url = `${opts.adminOrigin}/admin/api/${opts.apiVersion}/graphql.json`;
-      const args = ['-sS', '-X', 'POST'];
-      for (const [key, value] of Object.entries(opts.authHeaders)) {
-        args.push('-H', `${key}: ${value}`);
+async function startRecordingServer(opts: {
+  adminOrigin: string;
+  apiVersion: string;
+  authHeaders: Record<string, string>;
+  calls: RecordedCall[];
+}): Promise<RecordingServer> {
+  const server = createServer((request: IncomingMessage, response: ServerResponse) => {
+    let body = '';
+    request.setEncoding('utf8');
+    request.on('data', (chunk) => (body += chunk));
+    request.on('end', async () => {
+      try {
+        const parsed = JSON.parse(body || '{}') as {
+          operationName?: string;
+          query?: string;
+          variables?: Record<string, unknown>;
+        };
+        const url = `${opts.adminOrigin}/admin/api/${opts.apiVersion}/graphql.json`;
+        const headers: Record<string, string> = {
+          'content-type': 'application/json',
+          ...opts.authHeaders,
+        };
+        for (const [key, value] of Object.entries(request.headers)) {
+          if (typeof value === 'string' && key.toLowerCase() !== 'host') headers[key] = value;
+        }
+        const liveResponse = await fetch(url, {
+          method: 'POST',
+          headers,
+          body,
+        });
+        const responseBody = await liveResponse.text();
+        const responsePayload = JSON.parse(responseBody || '{}') as unknown;
+        opts.calls.push({
+          operationName: parsed.operationName ?? extractOperationName(parsed.query ?? '') ?? '',
+          variables: parsed.variables ?? {},
+          query: parsed.query ?? '',
+          response: { status: liveResponse.status, body: responsePayload },
+        });
+        response.statusCode = liveResponse.status;
+        response.setHeader('content-type', liveResponse.headers.get('content-type') ?? 'application/json');
+        response.end(responseBody);
+      } catch (err) {
+        response.statusCode = 500;
+        response.setHeader('content-type', 'application/json');
+        response.end(JSON.stringify({ errors: [{ message: (err as Error).message }] }));
       }
-      for (const [key, value] of gleamHeaderEntries(request.headers)) {
-        args.push('-H', `${key}: ${value}`);
-      }
-      args.push('--data-binary', body, '-w', '\n%{http_code}', url);
-      const output = execFileSync('curl', args, { encoding: 'utf8' });
-      const split = output.lastIndexOf('\n');
-      const responseBody = split >= 0 ? output.slice(0, split) : output;
-      const statusRaw = split >= 0 ? output.slice(split + 1).trim() : '200';
-      const status = Number.parseInt(statusRaw, 10);
-      const statusCode = Number.isFinite(status) ? status : 200;
-      const responsePayload = JSON.parse(responseBody || '{}') as unknown;
-      opts.calls.push({
-        operationName: parsed.operationName ?? extractOperationName(parsed.query ?? '') ?? '',
-        variables: parsed.variables ?? {},
-        query: parsed.query ?? '',
-        response: { status: statusCode, body: responsePayload },
-      });
-      return new Ok(new HttpOutcome(statusCode, responseBody, toList([])));
-    } catch (err) {
-      return new Error(new CommitTransportError((err as Error).message));
-    }
+    });
   });
-}
-
-function gleamHeaderEntries(value: unknown): [string, string][] {
-  if (!value || typeof (value as { toArray?: unknown }).toArray !== 'function') return [];
-  return ((value as { toArray: () => unknown[] }).toArray() as unknown[])
-    .filter(Array.isArray)
-    .map((entry) => [String(entry[0]), String(entry[1])]);
+  await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
+  const address = server.address();
+  if (address === null || typeof address === 'string') throw new Error('Failed to start recording server');
+  return {
+    origin: `http://127.0.0.1:${address.port}`,
+    close: async () =>
+      await new Promise<void>((resolveClose, reject) =>
+        server.close((error) => (error ? reject(error) : resolveClose())),
+      ),
+  };
 }
 
 function extractOperationName(query: string): string | undefined {
@@ -452,25 +438,23 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
   }
   const capture = JSON.parse(readFileSync(captureFile, 'utf8'));
 
-  await ensureGleamBuild();
-
   const calls: RecordedCall[] = [];
   let rewriteCaptureNow: (() => void) | null = null;
+  const recordingServer = await startRecordingServer({
+    adminOrigin: opts.adminOrigin,
+    apiVersion: opts.apiVersion,
+    authHeaders: buildAdminAuthHeaders(opts.accessToken),
+    calls,
+  });
+  let proxy: ReturnType<typeof createDraftProxy> | null = null;
   try {
-    const shim = await import(shimEntrypoint);
-    const proxy = shim.createDraftProxy({
+    proxy = createDraftProxy({
       readMode: 'live-hybrid',
       port: 4000,
-      shopifyAdminOrigin: opts.adminOrigin,
+      shopifyAdminOrigin: recordingServer.origin,
     });
 
     const responsesByName = new Map<string, RecordedResponse>();
-    await installRecordingSyncTransport(proxy, {
-      adminOrigin: opts.adminOrigin,
-      apiVersion: opts.apiVersion,
-      authHeaders: buildAdminAuthHeaders(opts.accessToken),
-      calls,
-    });
 
     const primary = loadDocumentVariablesAndHeaders(spec.proxyRequest, capture);
     const targetsWithOwnRequest: { target: SpecTarget; requestName: string }[] = [];
@@ -544,6 +528,8 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
 
     rewriteCaptureNow = () => rewriteCapture(captureFile, calls, []);
   } finally {
+    proxy?.dispose();
+    await recordingServer.close();
   }
 
   if (rewriteCaptureNow) {
