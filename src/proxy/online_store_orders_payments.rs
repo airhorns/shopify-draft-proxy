@@ -2425,7 +2425,7 @@ impl DraftProxy {
                 None,
                 &field.selection,
                 vec![payment_customization_user_error(
-                    vec!["paymentCustomization", "base"],
+                    vec!["paymentCustomization"],
                     "MULTIPLE_FUNCTION_IDENTIFIERS",
                     "Only one of function_id or function_handle can be provided, not both.",
                 )],
