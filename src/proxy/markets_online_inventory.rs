@@ -1535,6 +1535,7 @@ pub(in crate::proxy) fn inventory_levels_connection_selected_json(
     levels: &[(String, BTreeMap<String, i64>)],
     arguments: &BTreeMap<String, ResolvedValue>,
     selections: &[SelectedField],
+    locations: Option<&BTreeMap<String, Value>>,
 ) -> Value {
     let first = resolved_int_field(arguments, "first")
         .and_then(|value| usize::try_from(value).ok())
@@ -1552,6 +1553,7 @@ pub(in crate::proxy) fn inventory_levels_connection_selected_json(
                             location_id,
                             quantities,
                             &selection.selection,
+                            locations,
                         )
                     })
                     .collect(),
@@ -1579,6 +1581,7 @@ pub(in crate::proxy) fn inventory_level_selected_json(
     location_id: &str,
     quantities: &BTreeMap<String, i64>,
     selections: &[SelectedField],
+    locations: Option<&BTreeMap<String, Value>>,
 ) -> Value {
     let mut fields = serde_json::Map::new();
     for selection in selections {
@@ -1589,13 +1592,20 @@ pub(in crate::proxy) fn inventory_level_selected_json(
                 &json!({ "id": inventory_item_id }),
                 &selection.selection,
             )),
-            "location" => Some(selected_json(
-                &json!({
-                    "id": location_id,
-                    "name": inventory_location_name(location_id)
-                }),
-                &selection.selection,
-            )),
+            "location" => Some(
+                locations
+                    .and_then(|locations| locations.get(location_id))
+                    .map(|location| selected_json(location, &selection.selection))
+                    .unwrap_or_else(|| {
+                        selected_json(
+                            &json!({
+                                "id": location_id,
+                                "name": inventory_location_name(location_id)
+                            }),
+                            &selection.selection,
+                        )
+                    }),
+            ),
             "quantities" => Some(Value::Array(
                 inventory_quantity_names(&selection.arguments)
                     .into_iter()
@@ -1780,6 +1790,22 @@ pub(in crate::proxy) fn marketing_activity_missing_error() -> Value {
         "field": null,
         "message": "Marketing activity does not exist.",
         "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+    })
+}
+
+pub(in crate::proxy) fn marketing_activity_not_external_error() -> Value {
+    json!({
+        "field": null,
+        "message": "The marketing activity must be an external activity.",
+        "code": "ACTIVITY_NOT_EXTERNAL"
+    })
+}
+
+pub(in crate::proxy) fn marketing_activity_child_events_error() -> Value {
+    json!({
+        "field": null,
+        "message": "This activity has child activities and thus cannot be deleted. Child activities must be deleted before a parent activity.",
+        "code": "CANNOT_DELETE_ACTIVITY_WITH_CHILD_EVENTS"
     })
 }
 

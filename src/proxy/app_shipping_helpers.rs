@@ -21,6 +21,7 @@ pub(in crate::proxy) fn fulfillment_service_record(
             "id": location_id,
             "name": name,
             "isFulfillmentService": true,
+            "isActive": true,
             "fulfillsOnlineOrders": true,
             "shipsInventory": false
         }
@@ -390,25 +391,6 @@ pub(in crate::proxy) fn current_app_installation_json(
     Value::Object(fields)
 }
 
-pub(in crate::proxy) fn location_activate_payload_json(
-    location: Value,
-    payload_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "location" => Some(selected_json(&location, &selection.selection)),
-            "locationActivateUserErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
-            )),
-            _ => None,
-        }
-    })
-}
-
 pub(in crate::proxy) fn location_deactivate_payload_json(
     location: Value,
     payload_selection: &[SelectedField],
@@ -418,29 +400,6 @@ pub(in crate::proxy) fn location_deactivate_payload_json(
         match selection.name.as_str() {
             "location" => Some(selected_json(&location, &selection.selection)),
             "locationDeactivateUserErrors" | "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
-            )),
-            _ => None,
-        }
-    })
-}
-
-pub(in crate::proxy) fn location_add_payload_json(
-    location: Value,
-    payload_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "location" => Some(if location.is_null() {
-                Value::Null
-            } else {
-                selected_json(&location, &selection.selection)
-            }),
-            "userErrors" => Some(Value::Array(
                 user_errors
                     .iter()
                     .map(|error| selected_json(error, &selection.selection))
@@ -753,14 +712,6 @@ pub(in crate::proxy) fn fulfillment_service_delete_payload(
             _ => None,
         }
     })
-}
-
-pub(in crate::proxy) fn is_location_activate_limit_relocation_document(query: &str) -> bool {
-    query.contains("LocationActivateLimitAndRelocation")
-}
-
-pub(in crate::proxy) fn is_location_add_resource_limit_document(query: &str) -> bool {
-    query.contains("LocationAddResourceLimitReached")
 }
 
 pub(in crate::proxy) fn destination_location_not_found_or_inactive_error() -> Value {

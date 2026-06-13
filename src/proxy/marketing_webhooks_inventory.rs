@@ -1121,6 +1121,24 @@ impl DraftProxy {
                 &field.selection,
             );
         };
+        let Some(activity) = self.marketing_activity_for_delete(&id, request) else {
+            return selected_json(
+                &json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_missing_error()] }),
+                &field.selection,
+            );
+        };
+        if activity["isExternal"] == json!(false) {
+            return selected_json(
+                &json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_not_external_error()] }),
+                &field.selection,
+            );
+        }
+        if self.marketing_activity_has_child_events(activity) {
+            return selected_json(
+                &json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_child_events_error()] }),
+                &field.selection,
+            );
+        }
         self.store
             .staged
             .deleted_marketing_activity_ids
@@ -1129,6 +1147,51 @@ impl DraftProxy {
             &json!({ "deletedMarketingActivityId": id, "userErrors": [] }),
             &field.selection,
         )
+    }
+
+    fn marketing_activity_for_delete(&self, id: &str, request: &Request) -> Option<&Value> {
+        if self
+            .store
+            .staged
+            .deleted_marketing_activity_ids
+            .contains(id)
+        {
+            return None;
+        }
+        let activity = self.store.staged.marketing_activities.get(id)?;
+        let request_app = request.headers.get("x-shopify-draft-proxy-api-client-id");
+        if activity["apiClientId"].as_str() == request_app.map(String::as_str) {
+            Some(activity)
+        } else {
+            None
+        }
+    }
+
+    fn marketing_activity_has_child_events(&self, activity: &Value) -> bool {
+        let parent_remote = activity["remoteId"]
+            .as_str()
+            .or_else(|| activity["marketingEvent"]["remoteId"].as_str());
+        let Some(parent_remote) = parent_remote else {
+            return false;
+        };
+        let parent_app = activity["apiClientId"].as_str();
+        self.store
+            .staged
+            .marketing_activities
+            .iter()
+            .any(|(id, candidate)| {
+                if self
+                    .store
+                    .staged
+                    .deleted_marketing_activity_ids
+                    .contains(id)
+                {
+                    return false;
+                }
+                candidate["id"].as_str() != activity["id"].as_str()
+                    && candidate["apiClientId"].as_str() == parent_app
+                    && candidate["parentRemoteId"].as_str() == Some(parent_remote)
+            })
     }
 
     pub(in crate::proxy) fn marketing_engagement_create(
@@ -1563,6 +1626,7 @@ impl DraftProxy {
                             location_id,
                             quantities,
                             &selection.selection,
+                            Some(&self.store.staged.locations),
                         )
                     }))
                 }
@@ -1571,6 +1635,7 @@ impl DraftProxy {
                     &item_levels,
                     &selection.arguments,
                     &selection.selection,
+                    Some(&self.store.staged.locations),
                 )),
                 _ => None,
             };
@@ -1593,7 +1658,13 @@ impl DraftProxy {
         else {
             return Value::Null;
         };
-        inventory_level_selected_json(&inventory_item_id, &location_id, quantities, selections)
+        inventory_level_selected_json(
+            &inventory_item_id,
+            &location_id,
+            quantities,
+            selections,
+            Some(&self.store.staged.locations),
+        )
     }
 
     fn inventory_levels_for_item(

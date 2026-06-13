@@ -10,7 +10,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-delete-external-guards.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/marketing_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/marketing/marketing-activity-delete-external-guards.graphql",
     "variablesCapturePath": "$.operations.primary.request.variables"
@@ -24,6 +24,11 @@
         "name": "no-args-delete-guard",
         "capturePath": "$.operations.primary.response.payload.data.noArgsDelete",
         "proxyPath": "$.data.noArgsDelete"
+      },
+      {
+        "name": "missing-id-delete-guard",
+        "capturePath": "$.operations.primary.response.payload.data.missingIdDelete",
+        "proxyPath": "$.data.missingIdDelete"
       },
       {
         "name": "delete-all-job",
@@ -44,5 +49,5 @@
       }
     ]
   },
-  "notes": "HAR-687 captures live Shopify guards for marketingActivityDeleteExternal with neither selector and marketingActivityCreateExternal immediately after marketingActivitiesDeleteAllExternal enqueues a delete-all job. The disposable conformance shop cannot currently create the campaign-level parent needed for the child-events delete guard because every tested channelHandle is rejected, and it has no discoverable non-external MarketingActivity for the native delete guard; focused Gleam runtime tests cover those local no-state-change branches while the fixture records the live setup blockers."
+  "notes": "Captures live Shopify guards for marketingActivityDeleteExternal with neither selector, a missing marketingActivityId, and marketingActivityCreateExternal immediately after marketingActivitiesDeleteAllExternal enqueues a delete-all job. The disposable conformance shop cannot currently create the campaign-level parent needed for the child-events delete guard because every tested channelHandle is rejected, and it has no discoverable non-external MarketingActivity for the native delete guard; focused Rust runtime tests cover those local no-state-change branches while the fixture records the live setup blockers."
 }
