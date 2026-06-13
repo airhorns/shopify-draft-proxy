@@ -1469,7 +1469,6 @@ impl DraftProxy {
                     | "publishablePublishToCurrentChannel"
                     | "publishableUnpublishToCurrentChannel"
             )
-            && is_product_publishable_parity_document(&query)
         {
             return self.product_publishable_mutation(root_field, &query, &variables, request);
         }

@@ -1303,6 +1303,108 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
 }
 
 #[test]
+fn publishable_mutations_validate_publication_input_locally() {
+    let mut proxy = snapshot_proxy();
+    let product_id = "gid://shopify/Product/10179659858226";
+    let publication_id = "gid://shopify/Publication/268039389490";
+    let publish = r#"
+        mutation PublishableInputValidation($id: ID!, $input: [PublicationInput!]!) {
+          publishablePublish(id: $id, input: $input) {
+            publishable { ... on Product { id publishedOnCurrentPublication resourcePublicationsCount { count precision } } }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let unpublish = r#"
+        mutation PublishableInputValidationUnpublish($id: ID!, $input: [PublicationInput!]!) {
+          publishableUnpublish(id: $id, input: $input) {
+            publishable { ... on Product { id publishedOnCurrentPublication resourcePublicationsCount { count precision } } }
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    for (query, root) in [
+        (publish, "publishablePublish"),
+        (unpublish, "publishableUnpublish"),
+    ] {
+        let duplicate = proxy.process_request(json_graphql_request(
+            query,
+            json!({ "id": product_id, "input": [{ "publicationId": publication_id }, { "publicationId": publication_id }] }),
+        ));
+        assert_eq!(
+            duplicate.body["data"][root]["userErrors"],
+            json!([{
+                "field": ["input", "1", "publicationId"],
+                "message": "The same publication was specified more than once"
+            }])
+        );
+
+        let past_date = proxy.process_request(json_graphql_request(
+            query,
+            json!({ "id": product_id, "input": [{ "publicationId": publication_id, "publishDate": "1900-01-01T00:00:00Z" }] }),
+        ));
+        assert_eq!(
+            past_date.body["data"][root]["userErrors"],
+            json!([{
+                "field": ["input", "0", "publishDate"],
+                "message": "Publish date must be a date after the year 1969"
+            }])
+        );
+
+        let blank = proxy.process_request(json_graphql_request(
+            query,
+            json!({ "id": product_id, "input": [{}] }),
+        ));
+        assert_eq!(
+            blank.body["data"][root]["userErrors"],
+            json!([{
+                "field": ["input", "0", "publicationId"],
+                "message": "PublicationId cannot be empty"
+            }])
+        );
+
+        let unknown = proxy.process_request(json_graphql_request(
+            query,
+            json!({ "id": product_id, "input": [{ "publicationId": "gid://shopify/Publication/999999999999" }] }),
+        ));
+        assert_eq!(
+            unknown.body["data"][root]["userErrors"],
+            json!([{
+                "field": ["input", "0", "publicationId"],
+                "message": "Publication does not exist or is not publishable"
+            }])
+        );
+
+        let empty_string = proxy.process_request(json_graphql_request(
+            query,
+            json!({ "id": product_id, "input": [{ "publicationId": "" }] }),
+        ));
+        assert_eq!(empty_string.body.get("data"), None);
+        assert_eq!(
+            empty_string.body["errors"][0]["extensions"]["code"],
+            json!("INVALID_VARIABLE")
+        );
+        assert_eq!(
+            empty_string.body["errors"][0]["extensions"]["problems"][0]["path"],
+            json!([0, "publicationId"])
+        );
+        assert_eq!(
+            empty_string.body["errors"][0]["extensions"]["problems"][0]["message"],
+            json!("Invalid global id ''")
+        );
+    }
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert_eq!(log.body["entries"], json!([]));
+}
+
+#[test]
 fn product_create_blank_title_user_errors_match_public_shape_and_selected_fields() {
     let mut proxy = snapshot_proxy();
 
