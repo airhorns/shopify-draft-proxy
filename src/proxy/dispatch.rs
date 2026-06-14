@@ -1078,6 +1078,9 @@ impl DraftProxy {
                 if let Some(data) = self.app_node_read_data(&fields) {
                     return ok_json(json!({ "data": data }));
                 }
+                if let Some(data) = self.gift_card_node_read_data(&fields) {
+                    return ok_json(json!({ "data": data }));
+                }
             }
             if let Some(data) =
                 local_node_read_fields(&query, &variables, Some(&self.store.staged.backup_region))
@@ -1110,32 +1113,6 @@ impl DraftProxy {
             && is_fulfillment_order_request_lifecycle_direct_read(&query, &variables)
         {
             return self.fulfillment_order_request_lifecycle_direct_read(&query, &variables);
-        }
-
-        if operation.operation_type == OperationType::Query
-            && (query.contains("GiftCardReadEvidence")
-                || query.contains("GiftCardReadAfterLifecycle"))
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "giftCard" | "giftCards" | "giftCardsCount" | "giftCardConfiguration"
-                )
-            })
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.gift_card_lifecycle_read_data(&fields) }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Query
-            && query.contains("GiftCardNodeReadAfterLifecycle")
-            && operation.root_fields.iter().all(|field| field == "node")
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(
-                    json!({ "data": self.gift_card_lifecycle_node_read_data(&fields) }),
-                );
-            }
         }
 
         if operation.operation_type == OperationType::Query
@@ -1788,186 +1765,6 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && query.contains("mutation GiftCardUpdateValidation(")
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| field == "giftCardUpdate")
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({
-                    "data": gift_card_update_validation_data(&fields, &variables)
-                }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("mutation GiftCardUpdateNoop(")
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| field == "giftCardUpdate")
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({
-                    "data": gift_card_update_noop_data(&fields, &variables)
-                }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("mutation GiftCardUpdateDeactivatedMultiField(")
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| field == "giftCardUpdate")
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({
-                    "data": gift_card_update_deactivated_multi_field_data(&fields)
-                }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("mutation GiftCardTrialShopAssignment(")
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| matches!(field.as_str(), "giftCardCreate" | "giftCardUpdate"))
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({
-                    "data": gift_card_trial_shop_assignment_data(&fields)
-                }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("mutation GiftCardTransactionValidation(")
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| matches!(field.as_str(), "giftCardCredit" | "giftCardDebit"))
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({
-                    "data": gift_card_transaction_validation_data(&fields)
-                }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("mutation GiftCardRecipientValidation(")
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| matches!(field.as_str(), "giftCardCreate" | "giftCardUpdate"))
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({
-                    "data": gift_card_recipient_validation_data(&fields)
-                }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("GiftCardMutationUserErrorCodes")
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "giftCardCreate" | "giftCardUpdate" | "giftCardCredit" | "giftCardDebit"
-                )
-            })
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return self.gift_card_mutation_user_error_codes_response(
-                    &fields, request, &query, &variables,
-                );
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("GiftCardLifecycle")
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "giftCardUpdate" | "giftCardCredit" | "giftCardDebit" | "giftCardDeactivate"
-                )
-            })
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return self
-                    .gift_card_lifecycle_mutation_response(&fields, request, &query, &variables);
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("GiftCardExpiryShopTimezone")
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "giftCardCredit"
-                        | "giftCardDebit"
-                        | "giftCardSendNotificationToCustomer"
-                        | "giftCardSendNotificationToRecipient"
-                )
-            })
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": gift_card_expiry_shop_timezone_data(&fields) }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("GiftCardCreditLimitExceeded")
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| matches!(field.as_str(), "giftCardCredit" | "giftCardDebit"))
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": gift_card_credit_limit_exceeded_data(&fields) }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("GiftCardEntitlementDisabled")
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "giftCardCreate"
-                        | "giftCardUpdate"
-                        | "giftCardCredit"
-                        | "giftCardDebit"
-                        | "giftCardDeactivate"
-                        | "giftCardSendNotificationToCustomer"
-                        | "giftCardSendNotificationToRecipient"
-                )
-            })
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": gift_card_entitlement_disabled_data(&fields) }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("GiftCardCreateNotify")
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "giftCardCreate" | "giftCardSendNotificationToCustomer"
-                )
-            })
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return self.gift_card_create_notify_mutation_response(
-                    &fields, request, &query, &variables,
-                );
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
             && query.contains("validationUpdate")
             && (query.contains("validation: { functionId:")
                 || query.contains("validation: { functionHandle:"))
@@ -2361,6 +2158,24 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
             {
                 self.bulk_operation_read_response(request, &query, &variables, root_field)
+            }
+            (CapabilityDomain::GiftCards, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    ok_json(json!({ "data": self.gift_card_read_data(&fields) }))
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
+            }
+            (CapabilityDomain::GiftCards, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    self.gift_card_mutation_response(&fields, request, &query, &variables)
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
             }
             (CapabilityDomain::Functions, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
