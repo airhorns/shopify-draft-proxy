@@ -136,6 +136,100 @@ fn marketing_external_activity_lifecycle_stages_updates_engagements_and_reads_ba
 }
 
 #[test]
+fn marketing_external_activity_update_and_upsert_reject_tactic_change_from_storefront_app() {
+    let mut proxy = snapshot_proxy();
+    let setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityUpdateCurrencyAndTacticGuardsSetup(
+          $updateInput: MarketingActivityCreateExternalInput!
+          $upsertInput: MarketingActivityCreateExternalInput!
+        ) {
+          updateSeed: marketingActivityCreateExternal(input: $updateInput) {
+            marketingActivity { id title tactic remoteId }
+            userErrors { field message code }
+          }
+          upsertSeed: marketingActivityCreateExternal(input: $upsertInput) {
+            marketingActivity { id title tactic remoteId }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "updateInput": {"title": "Storefront update seed", "remoteId": "storefront-update-seed", "status": "ACTIVE", "remoteUrl": "https://example.com/storefront-update-seed", "tactic": "STOREFRONT_APP", "marketingChannelType": "EMAIL", "utm": {"campaign": "storefront-update-seed", "source": "email", "medium": "newsletter"}},
+            "upsertInput": {"title": "Storefront upsert seed", "remoteId": "storefront-upsert-seed", "status": "ACTIVE", "remoteUrl": "https://example.com/storefront-upsert-seed", "tactic": "STOREFRONT_APP", "marketingChannelType": "EMAIL", "utm": {"campaign": "storefront-upsert-seed", "source": "email", "medium": "newsletter"}}
+        }),
+    ));
+    assert_eq!(setup.body["data"]["updateSeed"]["userErrors"], json!([]));
+    assert_eq!(setup.body["data"]["upsertSeed"]["userErrors"], json!([]));
+    let update_activity_id = setup.body["data"]["updateSeed"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let upsert_activity_id = setup.body["data"]["upsertSeed"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let guards = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityUpdateCurrencyAndTacticGuardsFromStorefront(
+          $updateActivityId: ID!
+          $updateInput: MarketingActivityUpdateExternalInput!
+          $upsertInput: MarketingActivityUpsertExternalInput!
+        ) {
+          updateFromStorefront: marketingActivityUpdateExternal(marketingActivityId: $updateActivityId, input: $updateInput) {
+            marketingActivity { id title tactic }
+            userErrors { field message code }
+          }
+          upsertFromStorefront: marketingActivityUpsertExternal(input: $upsertInput) {
+            marketingActivity { id title tactic }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "updateActivityId": update_activity_id,
+            "updateInput": {"title": "Should not stage update", "tactic": "NEWSLETTER"},
+            "upsertInput": {"remoteId": "storefront-upsert-seed", "title": "Should not stage upsert", "tactic": "NEWSLETTER"}
+        }),
+    ));
+    let expected_error = json!([{
+        "field": ["input"],
+        "message": "You can not update an activity tactic from STOREFRONT_APP.",
+        "code": "CANNOT_UPDATE_TACTIC_IF_ORIGINALLY_STOREFRONT_APP"
+    }]);
+    assert_eq!(
+        guards.body["data"]["updateFromStorefront"],
+        json!({"marketingActivity": null, "userErrors": expected_error})
+    );
+    assert_eq!(
+        guards.body["data"]["upsertFromStorefront"],
+        json!({"marketingActivity": null, "userErrors": expected_error})
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingActivityRead($updateActivityId: ID!, $upsertActivityId: ID!) {
+          updateSeed: marketingActivity(id: $updateActivityId) { title tactic }
+          upsertSeed: marketingActivity(id: $upsertActivityId) { title tactic }
+        }
+        "#,
+        json!({
+            "updateActivityId": update_activity_id,
+            "upsertActivityId": upsert_activity_id
+        }),
+    ));
+    assert_eq!(
+        read.body["data"]["updateSeed"],
+        json!({"title": "Storefront update seed", "tactic": "STOREFRONT_APP"})
+    );
+    assert_eq!(
+        read.body["data"]["upsertSeed"],
+        json!({"title": "Storefront upsert seed", "tactic": "STOREFRONT_APP"})
+    );
+}
+
+#[test]
 fn marketing_per_app_scoping_keeps_external_activity_owned_by_request_app() {
     let mut proxy = snapshot_proxy();
     let mut create = json_graphql_request(

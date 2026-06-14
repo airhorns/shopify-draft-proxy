@@ -883,16 +883,22 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        if input
-            .get("tactic")
-            .is_some_and(|value| matches!(value, ResolvedValue::String(t) if t == "STOREFRONT" || t == "STOREFRONT_APP"))
+        if marketing_input_tactic_is_storefront_app(&input) {
+            return selected_json(
+                &marketing_activity_payload(
+                    None,
+                    vec![marketing_activity_cannot_update_tactic_to_storefront_error()],
+                ),
+                &field.selection,
+            );
+        }
+        if marketing_input_has_tactic(&input)
+            && marketing_activity_tactic_is_storefront_app(&existing)
         {
             return selected_json(
                 &marketing_activity_payload(
                     None,
-                    vec![json!({
-                        "field": ["input", "tactic"], "message": "You can not update an activity tactic to STOREFRONT_APP. This type of tactic can only be specified when creating a new activity.", "code": "CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP"
-                    })],
+                    vec![marketing_activity_cannot_update_tactic_from_storefront_error()],
                 ),
                 &field.selection,
             );
@@ -919,16 +925,11 @@ impl DraftProxy {
         request: &Request,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        if input
-            .get("tactic")
-            .is_some_and(|value| matches!(value, ResolvedValue::String(t) if t == "STOREFRONT" || t == "STOREFRONT_APP"))
-        {
+        if marketing_input_tactic_is_storefront_app(&input) {
             return selected_json(
                 &marketing_activity_payload(
                     None,
-                    vec![json!({
-                        "field": ["input", "tactic"], "message": "You can not update an activity tactic to STOREFRONT_APP. This type of tactic can only be specified when creating a new activity.", "code": "CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP"
-                    })],
+                    vec![marketing_activity_cannot_update_tactic_to_storefront_error()],
                 ),
                 &field.selection,
             );
@@ -937,6 +938,17 @@ impl DraftProxy {
         let existing_id = self.find_marketing_activity_by_remote(&remote, request);
         if let Some(id) = &existing_id {
             if let Some(existing) = self.store.staged.marketing_activities.get(id) {
+                if marketing_input_has_tactic(&input)
+                    && marketing_activity_tactic_is_storefront_app(existing)
+                {
+                    return selected_json(
+                        &marketing_activity_payload(
+                            None,
+                            vec![marketing_activity_cannot_update_tactic_from_storefront_error()],
+                        ),
+                        &field.selection,
+                    );
+                }
                 if input_utm_differs(existing, &input) {
                     return selected_json(
                         &marketing_activity_payload(
