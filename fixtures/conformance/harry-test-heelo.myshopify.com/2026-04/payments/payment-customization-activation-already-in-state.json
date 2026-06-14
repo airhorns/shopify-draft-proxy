@@ -1,0 +1,140 @@
+{
+  "scenarioId": "payment-customization-activation-already-in-state",
+  "capturedAt": "2026-06-14T00:00:13.523Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "functionCatalog": {
+    "data": {
+      "shopifyFunctions": {
+        "nodes": [
+          {
+            "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+            "title": "conformance-payment-customization",
+            "handle": "conformance-payment-customization",
+            "apiType": "payment_customization"
+          },
+          {
+            "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+            "title": "conformance-validation",
+            "handle": "conformance-validation",
+            "apiType": "cart_checkout_validation"
+          },
+          {
+            "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+            "title": "conformance-cart-transform",
+            "handle": "conformance-cart-transform",
+            "apiType": "cart_transform"
+          },
+          {
+            "id": "019e00a2-c8b0-7cbf-a6bf-35119ec10505",
+            "title": "conformance-discount",
+            "handle": "conformance-discount",
+            "apiType": "discount"
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 7,
+        "actualQueryCost": 3,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1997,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "selectedFunction": {
+    "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+    "title": "conformance-payment-customization",
+    "handle": "conformance-payment-customization",
+    "apiType": "payment_customization"
+  },
+  "operations": {
+    "paymentCustomizationCreate": {
+      "query": "mutation RustPaymentCustomizationLocalRuntimeAlreadyStateCreate($input: PaymentCustomizationInput!) {\n  paymentCustomizationCreate(paymentCustomization: $input) {\n    paymentCustomization {\n      id\n      title\n      functionId\n    }\n    userErrors {\n      field\n      code\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Draft proxy payment customization already-state 1781395212912",
+          "enabled": true,
+          "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+          "metafields": []
+        }
+      },
+      "response": {
+        "data": {
+          "paymentCustomizationCreate": {
+            "paymentCustomization": {
+              "id": "gid://shopify/PaymentCustomization/171114802",
+              "title": "Draft proxy payment customization already-state 1781395212912",
+              "functionId": "019dc65a-306d-784c-a67e-269f27b6613f"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "paymentCustomizationActivationAlreadyEnabled": {
+      "query": "mutation RustPaymentCustomizationLocalRuntimeAlreadyState($ids: [ID!]!, $enabled: Boolean!) {\n  paymentCustomizationActivation(ids: $ids, enabled: $enabled) {\n    ids\n    userErrors {\n      field\n      code\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "ids": ["gid://shopify/PaymentCustomization/171114802"],
+        "enabled": true
+      },
+      "response": {
+        "data": {
+          "paymentCustomizationActivation": {
+            "ids": ["gid://shopify/PaymentCustomization/171114802"],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "paymentCustomizationDelete": {
+      "data": {
+        "paymentCustomizationDelete": {
+          "deletedId": "gid://shopify/PaymentCustomization/171114802",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [],
+  "notes": "Captured against a disposable already-enabled PaymentCustomization. The activation request submits that valid id with enabled:true, proving Shopify returns the id even when the requested state is already set."
+}
