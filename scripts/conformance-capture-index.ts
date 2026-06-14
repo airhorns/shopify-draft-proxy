@@ -977,8 +977,16 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/tags-add-multi-resource.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/tags-add-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/tags-remove-parity.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/tags-normalization-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/tags-add-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/tags-remove-parity.json',
+      'config/parity-specs/products/tags-normalization-parity.json',
+      'config/parity-requests/products/tags-normalization-setup.graphql',
+      'config/parity-requests/products/tagsAdd-case-variant.graphql',
+      'config/parity-requests/products/tagsAdd-comma-list-element.graphql',
+      'config/parity-requests/products/tagsAdd-comma-string.graphql',
+      'config/parity-requests/products/tagsRemove-case-variant.graphql',
+      'config/parity-requests/products/tagsRemove-string.graphql',
     ],
     cleanupBehavior: 'Creates temporary products and resets/deletes them in best-effort cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -2947,6 +2955,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Uses disposable products/inventory levels where possible; review store topology before success captures.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
+    domain: 'inventory',
+    captureId: 'inventory-quantity-updated-at-and-after-change-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-inventory-quantity-updated-at-and-after-change-local-runtime.ts',
+    purpose:
+      'Executable local-runtime parity for staged inventory quantity updatedAt and quantityAfterChange read-after-write behavior.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}inventory-quantity-updated-at-and-after-change-local-runtime.json`,
+      'config/parity-specs/products/inventory-quantity-updated-at-and-after-change-local-runtime.json',
+      'config/parity-requests/products/inventory-quantity-updated-at-and-after-change-local-runtime.graphql',
+    ],
+    cleanupBehavior:
+      'Local-runtime set and move scenario only; proxy reset during parity replay clears staged inventory and no Shopify cleanup is required.',
+    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
+    notes:
+      'This complements older live inventory captures that recorded null quantityAfterChange by guarding the supported draft-proxy staging contract without runtime Shopify writes.',
   },
   {
     domain: 'inventory',

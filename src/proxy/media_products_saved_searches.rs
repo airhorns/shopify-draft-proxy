@@ -1,5 +1,13 @@
 use super::*;
 
+const TAGGABLE_ORDER_HYDRATE_QUERY: &str =
+    "query OrdersOrderHydrate($id: ID!) {\n  order(id: $id) { id name tags }\n}";
+const TAGGABLE_DRAFT_ORDER_HYDRATE_QUERY: &str =
+    "query OrdersDraftOrderHydrate($id: ID!) {\n  draftOrder(id: $id) { id name tags }\n}";
+const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str = "query CustomerHydrate($id: ID!) {\n  customer(id: $id) {\n    id firstName lastName displayName email legacyResourceId locale note\n    canDelete verifiedEmail dataSaleOptOut taxExempt taxExemptions state tags\n    numberOfOrders createdAt updatedAt\n    amountSpent { amount currencyCode }\n    defaultEmailAddress { emailAddress marketingState marketingOptInLevel marketingUpdatedAt }\n    defaultPhoneNumber { phoneNumber marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom }\n    emailMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt }\n    smsMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt consentCollectedFrom }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n    metafields(first: 250) { nodes { id namespace key type value compareDigest createdAt updatedAt } }\n    orders(first: 10, sortKey: CREATED_AT, reverse: true) { nodes { id name email createdAt currentTotalPriceSet { shopMoney { amount currencyCode } } } pageInfo { startCursor endCursor } }\n    storeCreditAccounts(first: 50) { nodes { id balance { amount currencyCode } } }\n  }\n}";
+const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
+const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n    }\n  }\n}";
+
 impl DraftProxy {
     pub(in crate::proxy) fn bulk_operation_read_response(
         &self,
@@ -2384,7 +2392,29 @@ impl DraftProxy {
         let Some(ResolvedValue::String(id)) = field.arguments.get("id") else {
             return MutationOutcome::response(json_error(400, "tags mutation requires id"));
         };
-        if !id.contains("/Product/") {
+        let Some(resource_type) = shopify_gid_resource_type(id) else {
+            return MutationOutcome::response(self.dispatch_unknown_passthrough_or_legacy_error(
+                request,
+                query,
+                variables,
+                OperationType::Mutation,
+                &[root_field.to_string()],
+                root_field,
+            ));
+        };
+        if resource_type != "Product" {
+            if matches!(
+                resource_type,
+                "Order" | "Customer" | "Article" | "DraftOrder"
+            ) {
+                return self.taggable_resource_tags_mutation(
+                    resource_type,
+                    id,
+                    root_field,
+                    field,
+                    request,
+                );
+            }
             return MutationOutcome::response(self.dispatch_unknown_passthrough_or_legacy_error(
                 request,
                 query,
@@ -2399,6 +2429,7 @@ impl DraftProxy {
             .store
             .product_staged_or_base(id)
             .or_else(|| known_tags_product_seed(id, root_field))
+            .or_else(|| self.hydrate_product_for_tags(id, request))
         else {
             return MutationOutcome::response(json_error(
                 400,
@@ -2415,20 +2446,13 @@ impl DraftProxy {
                 .insert(id.clone(), search_tags);
         }
 
-        let tags = resolved_string_list_arg(&field.arguments, "tags");
+        let tags = normalized_taggable_tags_argument(field.arguments.get("tags"));
         match root_field {
             "tagsAdd" => {
-                for tag in tags {
-                    if !product.tags.iter().any(|existing| existing == &tag) {
-                        product.tags.push(tag);
-                    }
-                }
-                product.tags.sort();
+                product.tags = add_taggable_tags(product.tags, tags);
             }
             "tagsRemove" => {
-                product
-                    .tags
-                    .retain(|tag| !tags.iter().any(|remove| remove == tag));
+                product.tags = remove_taggable_tags(product.tags, tags);
             }
             _ => {}
         }
@@ -2450,6 +2474,199 @@ impl DraftProxy {
             })),
             LogDraft::staged(root_field, "products", vec![id.clone()]),
         )
+    }
+
+    fn hydrate_product_for_tags(&self, id: &str, request: &Request) -> Option<ProductRecord> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": TAGGABLE_PRODUCT_HYDRATE_QUERY,
+                "variables": { "ids": [id] }
+            })
+            .to_string(),
+        });
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        let record = response.body["data"]["nodes"]
+            .as_array()
+            .and_then(|nodes| nodes.first())
+            .cloned()
+            .unwrap_or(Value::Null);
+        if record.is_null() {
+            return None;
+        }
+        Some(product_record_from_hydrated_json(&record))
+    }
+
+    fn taggable_resource_tags_mutation(
+        &mut self,
+        resource_type: &str,
+        id: &str,
+        root_field: &str,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> MutationOutcome {
+        let Some(mut record) =
+            self.taggable_resource_staged_or_hydrated(resource_type, id, request)
+        else {
+            return MutationOutcome::response(json_error(
+                400,
+                "No mutation dispatcher implemented for taggable resource id",
+            ));
+        };
+
+        let existing_tags = taggable_record_tags(&record);
+        let incoming_tags = normalized_taggable_tags_argument(field.arguments.get("tags"));
+        let tags = match root_field {
+            "tagsAdd" if resource_type == "Customer" => {
+                add_taggable_tags(existing_tags, lowercase_tags(incoming_tags))
+            }
+            "tagsAdd" => add_taggable_tags(existing_tags, incoming_tags),
+            "tagsRemove" if resource_type == "Customer" => {
+                remove_taggable_tags(existing_tags, incoming_tags)
+            }
+            "tagsRemove" => remove_exact_taggable_tags(existing_tags, incoming_tags),
+            _ => existing_tags,
+        };
+        if let Some(object) = record.as_object_mut() {
+            object.insert("id".to_string(), json!(id));
+            object.insert("__typename".to_string(), json!(resource_type));
+            object.insert("tags".to_string(), json!(tags));
+        }
+        self.stage_taggable_resource(resource_type, id, record.clone());
+
+        let node_selection = selected_child_selection(&field.selection, "node").unwrap_or_default();
+        let payload_selection = &field.selection;
+        let payload = json!({
+            "node": selected_json(&record, &node_selection),
+            "userErrors": []
+        });
+        MutationOutcome::staged(
+            ok_json(json!({
+                "data": {
+                    field.response_key.clone(): selected_json(&payload, payload_selection)
+                }
+            })),
+            LogDraft::staged(root_field, "products", vec![id.to_string()]),
+        )
+    }
+
+    fn taggable_resource_staged_or_hydrated(
+        &mut self,
+        resource_type: &str,
+        id: &str,
+        request: &Request,
+    ) -> Option<Value> {
+        if resource_type == "Customer" {
+            if let Some(customer) = self.store.staged.customers.get(id) {
+                return Some(customer.clone());
+            }
+        } else if let Some(record) = self.store.staged.taggable_resources.get(id) {
+            return Some(record.clone());
+        }
+
+        let hydrated = self.hydrate_taggable_resource(resource_type, id, request)?;
+        self.stage_taggable_resource(resource_type, id, hydrated.clone());
+        Some(hydrated)
+    }
+
+    fn hydrate_taggable_resource(
+        &self,
+        resource_type: &str,
+        id: &str,
+        request: &Request,
+    ) -> Option<Value> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let (query, response_key) = match resource_type {
+            "Order" => (TAGGABLE_ORDER_HYDRATE_QUERY, "order"),
+            "Customer" => (TAGGABLE_CUSTOMER_HYDRATE_QUERY, "customer"),
+            "Article" => (TAGGABLE_ARTICLE_HYDRATE_QUERY, "article"),
+            "DraftOrder" => (TAGGABLE_DRAFT_ORDER_HYDRATE_QUERY, "draftOrder"),
+            _ => return None,
+        };
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": query,
+                "variables": { "id": id }
+            })
+            .to_string(),
+        });
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        let mut record = response.body["data"][response_key].clone();
+        if record.is_null() {
+            return None;
+        }
+        if let Some(object) = record.as_object_mut() {
+            object.insert("__typename".to_string(), json!(resource_type));
+        }
+        Some(record)
+    }
+
+    fn stage_taggable_resource(&mut self, resource_type: &str, id: &str, record: Value) {
+        if resource_type == "Customer" {
+            self.store
+                .staged
+                .customers
+                .insert(id.to_string(), record.clone());
+        } else {
+            self.store
+                .staged
+                .taggable_resources
+                .insert(id.to_string(), record.clone());
+        }
+        if resource_type == "DraftOrder" {
+            self.store
+                .staged
+                .draft_order_tags
+                .insert(id.to_string(), taggable_record_tags(&record));
+        }
+    }
+
+    pub(in crate::proxy) fn should_handle_taggable_resource_overlay_read(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        fields.iter().any(|field| {
+            matches!(
+                field.name.as_str(),
+                "order" | "customer" | "article" | "draftOrder"
+            ) && resolved_string_arg(&field.arguments, "id").is_some_and(|id| {
+                self.store.staged.taggable_resources.contains_key(&id)
+                    || self.store.staged.customers.contains_key(&id)
+            })
+        })
+    }
+
+    pub(in crate::proxy) fn taggable_resource_overlay_read_fields(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "customer" => self.customer_read_field(field),
+                "order" | "article" | "draftOrder" => resolved_string_arg(&field.arguments, "id")
+                    .and_then(|id| self.store.staged.taggable_resources.get(&id).cloned())
+                    .map(|record| selected_json(&record, &field.selection))
+                    .unwrap_or(Value::Null),
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
     }
 
     pub(in crate::proxy) fn record_mutation_log_entry(
@@ -2777,6 +2994,64 @@ impl DraftProxy {
         } else {
             MutationFieldOutcome::unlogged(value)
         }
+    }
+}
+
+fn taggable_record_tags(record: &Value) -> Vec<String> {
+    record
+        .get("tags")
+        .and_then(Value::as_array)
+        .map(|tags| {
+            tags.iter()
+                .filter_map(|tag| tag.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn lowercase_tags(tags: Vec<String>) -> Vec<String> {
+    tags.into_iter().map(|tag| tag.to_lowercase()).collect()
+}
+
+fn remove_exact_taggable_tags(existing: Vec<String>, removals: Vec<String>) -> Vec<String> {
+    let remove_tags: BTreeSet<String> = removals.into_iter().collect();
+    normalize_taggable_tags(existing)
+        .into_iter()
+        .filter(|tag| !remove_tags.contains(tag))
+        .collect()
+}
+
+fn product_record_from_hydrated_json(record: &Value) -> ProductRecord {
+    let seo = record.get("seo").unwrap_or(&Value::Null);
+    ProductRecord {
+        id: record["id"].as_str().unwrap_or_default().to_string(),
+        created_at: record["createdAt"]
+            .as_str()
+            .unwrap_or("2024-01-01T00:00:00.000Z")
+            .to_string(),
+        updated_at: record["updatedAt"]
+            .as_str()
+            .unwrap_or("2024-01-01T00:00:00.000Z")
+            .to_string(),
+        title: record["title"].as_str().unwrap_or_default().to_string(),
+        handle: record["handle"].as_str().unwrap_or_default().to_string(),
+        status: record["status"].as_str().unwrap_or("ACTIVE").to_string(),
+        description_html: record["descriptionHtml"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
+        vendor: record["vendor"].as_str().unwrap_or_default().to_string(),
+        product_type: record["productType"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
+        tags: taggable_record_tags(record),
+        template_suffix: record["templateSuffix"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
+        seo_title: seo["title"].as_str().unwrap_or_default().to_string(),
+        seo_description: seo["description"].as_str().unwrap_or_default().to_string(),
     }
 }
 

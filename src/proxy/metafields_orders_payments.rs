@@ -1256,15 +1256,7 @@ pub(in crate::proxy) fn is_local_customer_update_document(
 }
 
 pub(in crate::proxy) fn normalize_customer_tags(tags: Vec<String>) -> Vec<String> {
-    let mut normalized = tags
-        .into_iter()
-        .map(|tag| tag.trim().to_string())
-        .filter(|tag| !tag.is_empty())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect::<Vec<_>>();
-    normalized.sort_by_key(|tag| tag.to_lowercase());
-    normalized
+    normalize_taggable_tags(tags)
 }
 
 pub(in crate::proxy) fn customer_connection_empty(selection: &[SelectedField]) -> Value {

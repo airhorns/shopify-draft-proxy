@@ -760,6 +760,11 @@ fn localization_locale_and_translation_lifecycle_stages_reads_and_clears_locale_
         initial.body["data"]["allShopLocales"][0]["locale"],
         json!("en")
     );
+    assert!(initial.body["data"]["availableLocalesExcerpt"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|locale| locale["isoCode"] == json!("fr") && locale["name"] == json!("French")));
     assert_eq!(initial.body["data"]["missing"], Value::Null);
 
     let enable = proxy.process_request(json_graphql_request(
@@ -809,6 +814,100 @@ fn localization_locale_and_translation_lifecycle_stages_reads_and_clears_locale_
     assert_eq!(
         after_disable.body["data"]["translatableResource"]["translations"],
         json!([])
+    );
+}
+
+#[test]
+fn localization_catalog_reads_are_store_backed_without_ported_document_marker() {
+    let mut proxy = snapshot_proxy();
+
+    let baseline = proxy.process_request(json_graphql_request(
+        r#"query ArbitraryLocaleCatalogRead {
+          locales: availableLocales { isoCode name }
+          all: shopLocales { locale name primary published marketWebPresences { id subfolderSuffix } }
+          published: shopLocales(published: true) { locale published }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(baseline.status, 200);
+    assert_eq!(
+        baseline.body["data"]["all"],
+        json!([{
+            "locale": "en",
+            "name": "English",
+            "primary": true,
+            "published": true,
+            "marketWebPresences": [{
+                "id": "gid://shopify/MarketWebPresence/62842765618",
+                "subfolderSuffix": null
+            }]
+        }])
+    );
+    assert!(baseline.body["data"]["locales"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|locale| locale["isoCode"] == json!("tr") && locale["name"] == json!("Turkish")));
+    assert_eq!(
+        baseline.body["data"]["published"],
+        json!([{ "locale": "en", "published": true }])
+    );
+
+    let lifecycle = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleEnable($known: ID!) {
+          enable: shopLocaleEnable(locale: "fr") { shopLocale { locale published } userErrors { field message code } }
+          update: shopLocaleUpdate(locale: "fr", shopLocale: { published: true, marketWebPresenceIds: [$known] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } }
+        }"#,
+        json!({ "known": "gid://shopify/MarketWebPresence/known" }),
+    ));
+    assert_eq!(lifecycle.status, 200);
+    assert_eq!(
+        lifecycle.body["data"]["update"]["shopLocale"],
+        json!({
+            "locale": "fr",
+            "name": "French",
+            "published": true,
+            "marketWebPresences": [{
+                "id": "gid://shopify/MarketWebPresence/known",
+                "__typename": "MarketWebPresence",
+                "defaultLocale": { "locale": "en" }
+            }]
+        })
+    );
+
+    let after_update = proxy.process_request(json_graphql_request(
+        r#"query AnyNameCanReadStagedLocales {
+          all: shopLocales { locale name published marketWebPresences { id __typename defaultLocale { locale } } }
+          published: shopLocales(published: true) { locale published }
+        }"#,
+        json!({}),
+    ));
+    let all = after_update.body["data"]["all"].as_array().unwrap();
+    assert!(all
+        .iter()
+        .any(|locale| locale["locale"] == json!("fr") && locale["published"] == json!(true)));
+    assert!(after_update.body["data"]["published"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|locale| locale["locale"] == json!("fr")));
+
+    let disabled = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleDisable($locale: String!) { shopLocaleDisable(locale: $locale) { locale userErrors { field message code } } }"#,
+        json!({ "locale": "fr" }),
+    ));
+    assert_eq!(
+        disabled.body["data"]["shopLocaleDisable"],
+        json!({ "locale": "fr", "userErrors": [] })
+    );
+
+    let after_disable = proxy.process_request(json_graphql_request(
+        r#"query NoMarkerShopLocaleAfterDisable { shopLocales { locale published } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        after_disable.body["data"]["shopLocales"],
+        json!([{ "locale": "en", "published": true }])
     );
 }
 

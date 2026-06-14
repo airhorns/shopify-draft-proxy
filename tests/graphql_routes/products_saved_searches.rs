@@ -269,8 +269,8 @@ fn top_level_inventory_level_read_observes_staged_inventory_level_state() {
             "id": "gid://shopify/InventoryLevel/50643009569001-68509171945?inventory_item_id=gid://shopify/InventoryItem/50643009569001",
             "location": { "id": "gid://shopify/Location/68509171945", "name": "Shop location" },
             "quantities": [
-                { "name": "available", "quantity": 4, "updatedAt": null },
-                { "name": "on_hand", "quantity": 4, "updatedAt": null },
+                { "name": "available", "quantity": 4, "updatedAt": "2024-01-01T00:00:00.000Z" },
+                { "name": "on_hand", "quantity": 4, "updatedAt": "2024-01-01T00:00:00.000Z" },
                 { "name": "incoming", "quantity": 0, "updatedAt": null }
             ]
         })

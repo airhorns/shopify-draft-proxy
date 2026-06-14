@@ -256,6 +256,17 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "availableLocales" | "shopLocales"))
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.localization_catalog_query_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
@@ -1124,6 +1135,23 @@ impl DraftProxy {
                 return ok_json(
                     json!({ "data": self.gift_card_lifecycle_node_read_data(&fields) }),
                 );
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "order" | "customer" | "article" | "draftOrder"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                if self.should_handle_taggable_resource_overlay_read(&fields) {
+                    return ok_json(
+                        json!({ "data": self.taggable_resource_overlay_read_fields(&fields) }),
+                    );
+                }
             }
         }
 
