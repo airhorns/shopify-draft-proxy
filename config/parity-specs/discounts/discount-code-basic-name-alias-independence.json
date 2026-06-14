@@ -1,0 +1,39 @@
+{
+  "scenarioId": "discount-code-basic-name-alias-independence",
+  "operationNames": ["discountCodeBasicCreate", "discountCodeDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "mutation-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-code-basic-name-alias-independence.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-code-basic-name-alias-independence-create.graphql",
+    "variablesCapturePath": "$.requests.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "code-basic-create-ordinary-operation-and-alias",
+        "capturePath": "$.create.payload.data.madeDiscount",
+        "proxyPath": "$.data.madeDiscount",
+        "selectedPaths": [
+          "$.codeDiscountNode.codeDiscount.__typename",
+          "$.codeDiscountNode.codeDiscount.title",
+          "$.codeDiscountNode.codeDiscount.status",
+          "$.codeDiscountNode.codeDiscount.asyncUsageCount",
+          "$.codeDiscountNode.codeDiscount.discountClasses",
+          "$.codeDiscountNode.codeDiscount.combinesWith",
+          "$.codeDiscountNode.codeDiscount.codes.nodes[0].code",
+          "$.codeDiscountNode.codeDiscount.codes.nodes[0].asyncUsageCount",
+          "$.codeDiscountNode.codeDiscount.context",
+          "$.userErrors"
+        ]
+      }
+    ]
+  },
+  "notes": "Live 2026-04 evidence that discountCodeBasicCreate resolves by root field and arguments under an ordinary client operation name with an aliased response key. The capture creates one disposable code basic discount and deletes it during cleanup."
+}

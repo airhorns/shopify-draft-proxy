@@ -2666,30 +2666,26 @@ impl DraftProxy {
                     data.insert(field.response_key.clone(), value);
                 }
                 "location" => {
-                    handled = true;
-                    let value = field
-                        .arguments
-                        .get("id")
-                        .and_then(resolved_as_string)
-                        .and_then(|id| {
-                            if self
-                                .store
-                                .staged
-                                .deleted_fulfillment_service_location_ids
-                                .contains(&id)
-                            {
-                                None
-                            } else {
-                                self.store
-                                    .staged
-                                    .fulfillment_service_locations
-                                    .get(&id)
-                                    .cloned()
-                            }
-                        })
-                        .map(|location| selected_json(&location, &field.selection))
-                        .unwrap_or(Value::Null);
-                    data.insert(field.response_key.clone(), value);
+                    let Some(id) = field.arguments.get("id").and_then(resolved_as_string) else {
+                        continue;
+                    };
+                    if self
+                        .store
+                        .staged
+                        .deleted_fulfillment_service_location_ids
+                        .contains(&id)
+                    {
+                        handled = true;
+                        data.insert(field.response_key.clone(), Value::Null);
+                    } else if let Some(location) =
+                        self.store.staged.fulfillment_service_locations.get(&id)
+                    {
+                        handled = true;
+                        data.insert(
+                            field.response_key.clone(),
+                            selected_json(location, &field.selection),
+                        );
+                    }
                 }
                 _ => {}
             }
@@ -2721,6 +2717,40 @@ impl DraftProxy {
             })
     }
 
+    pub(in crate::proxy) fn fulfillment_service_callback_url_error(
+        &self,
+        callback_url: Option<&str>,
+    ) -> Option<Value> {
+        let callback_url = callback_url?;
+        let parsed = match url::Url::parse(callback_url) {
+            Ok(parsed) => parsed,
+            Err(_) => {
+                return Some(
+                    json!({ "field": ["callbackUrl"], "message": "Callback url is not allowed" }),
+                )
+            }
+        };
+        if !matches!(parsed.scheme(), "http" | "https") {
+            return Some(json!({
+                "field": ["callbackUrl"],
+                "message": format!("Callback url protocol {}:// is not supported", parsed.scheme())
+            }));
+        }
+        let Some(host) = parsed.host_str().map(str::to_ascii_lowercase) else {
+            return Some(
+                json!({ "field": ["callbackUrl"], "message": "Callback url is not allowed" }),
+            );
+        };
+        if fulfillment_service_callback_url_host_is_allowed(
+            &host,
+            &self.config.shopify_admin_origin,
+        ) {
+            None
+        } else {
+            Some(json!({ "field": ["callbackUrl"], "message": "Callback url is not allowed" }))
+        }
+    }
+
     pub(in crate::proxy) fn fulfillment_service_mutation(
         &mut self,
         root_field: &str,
@@ -2728,47 +2758,53 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        match root_field {
-            "fulfillmentServiceCreate" => {
-                self.fulfillment_service_create(query, variables, request)
+        let Some(fields) = root_fields(query, variables) else {
+            return json_error(400, "Invalid fulfillment service mutation");
+        };
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let (payload, ids) = match field.name.as_str() {
+                "fulfillmentServiceCreate" => self.fulfillment_service_create_payload(&field),
+                "fulfillmentServiceUpdate" => self.fulfillment_service_update_payload(&field),
+                "fulfillmentServiceDelete" => self.fulfillment_service_delete_payload(&field),
+                _ => continue,
+            };
+            if !ids.is_empty() {
+                self.record_mutation_log_entry(request, query, variables, &field.name, ids);
             }
-            "fulfillmentServiceUpdate" => {
-                self.fulfillment_service_update(query, variables, request)
-            }
-            "fulfillmentServiceDelete" => {
-                self.fulfillment_service_delete(query, variables, request)
-            }
-            _ => json_error(501, "Unsupported fulfillment service mutation"),
+            data.insert(field.response_key.clone(), payload);
+        }
+        if data.is_empty() {
+            json_error(
+                501,
+                &format!("Unsupported fulfillment service mutation {root_field}"),
+            )
+        } else {
+            ok_json(json!({ "data": Value::Object(data) }))
         }
     }
 
-    pub(in crate::proxy) fn fulfillment_service_create(
+    pub(in crate::proxy) fn fulfillment_service_create_payload(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let response_key = root_field_response_key(query)
-            .unwrap_or_else(|| "fulfillmentServiceCreate".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        field: &RootFieldSelection,
+    ) -> (Value, Vec<String>) {
         let service_selection =
-            nested_root_field_selection(query, "fulfillmentService").unwrap_or_default();
-        let name = arguments
+            selected_child_selection(&field.selection, "fulfillmentService").unwrap_or_default();
+        let name = field
+            .arguments
             .get("name")
             .and_then(resolved_as_string)
             .unwrap_or_default();
-        let callback_url_present = arguments
+        let callback_url = field
+            .arguments
             .get("callbackUrl")
-            .is_some_and(|value| !matches!(value, ResolvedValue::Null));
+            .and_then(resolved_as_string);
         let mut user_errors = Vec::new();
         if name.trim().is_empty() {
             user_errors.push(json!({ "field": ["name"], "message": "Name can't be blank" }));
         }
-        if callback_url_present {
-            user_errors.push(
-                json!({ "field": ["callbackUrl"], "message": "Callback url is not allowed" }),
-            );
+        if let Some(error) = self.fulfillment_service_callback_url_error(callback_url.as_deref()) {
+            user_errors.push(error);
         }
         if fulfillment_service_name_is_reserved(&name) {
             user_errors.push(json!({ "field": ["name"], "message": "Name is reserved" }));
@@ -2777,8 +2813,14 @@ impl DraftProxy {
                 .push(json!({ "field": ["name"], "message": "Name has already been taken" }));
         }
         if !user_errors.is_empty() {
-            return ok_json(
-                json!({ "data": { response_key: fulfillment_service_payload_json(Value::Null, &payload_selection, &service_selection, user_errors) } }),
+            return (
+                fulfillment_service_payload_json(
+                    Value::Null,
+                    &field.selection,
+                    &service_selection,
+                    user_errors,
+                ),
+                vec![],
             );
         }
 
@@ -2788,9 +2830,10 @@ impl DraftProxy {
             &service_id,
             &location_id,
             &name,
-            resolved_bool_field(&arguments, "trackingSupport").unwrap_or(false),
-            resolved_bool_field(&arguments, "inventoryManagement").unwrap_or(false),
-            resolved_bool_field(&arguments, "requiresShippingMethod").unwrap_or(false),
+            callback_url,
+            resolved_bool_field(&field.arguments, "trackingSupport").unwrap_or(false),
+            resolved_bool_field(&field.arguments, "inventoryManagement").unwrap_or(false),
+            resolved_bool_field(&field.arguments, "requiresShippingMethod").unwrap_or(false),
         );
         let location = service["location"].clone();
         self.store
@@ -2809,53 +2852,78 @@ impl DraftProxy {
             .staged
             .deleted_fulfillment_service_location_ids
             .remove(&location_id);
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "fulfillmentServiceCreate",
+        (
+            fulfillment_service_payload_json(service, &field.selection, &service_selection, vec![]),
             vec![service_id],
-        );
-        ok_json(
-            json!({ "data": { response_key: fulfillment_service_payload_json(service, &payload_selection, &service_selection, vec![]) } }),
         )
     }
 
-    pub(in crate::proxy) fn fulfillment_service_update(
+    pub(in crate::proxy) fn fulfillment_service_update_payload(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let response_key = root_field_response_key(query)
-            .unwrap_or_else(|| "fulfillmentServiceUpdate".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
+        field: &RootFieldSelection,
+    ) -> (Value, Vec<String>) {
         let service_selection =
-            nested_root_field_selection(query, "fulfillmentService").unwrap_or_default();
-        let Some(id) = arguments.get("id").and_then(resolved_as_string) else {
-            return ok_json(
-                json!({ "data": { response_key: fulfillment_service_not_found_payload(&payload_selection) } }),
+            selected_child_selection(&field.selection, "fulfillmentService").unwrap_or_default();
+        let Some(id) = field.arguments.get("id").and_then(resolved_as_string) else {
+            return (
+                fulfillment_service_not_found_payload(&field.selection),
+                vec![],
             );
         };
         let Some(existing) = self.store.staged.fulfillment_services.get(&id).cloned() else {
-            return ok_json(
-                json!({ "data": { response_key: fulfillment_service_not_found_payload(&payload_selection) } }),
+            return (
+                fulfillment_service_not_found_payload(&field.selection),
+                vec![],
             );
         };
-        let name = arguments
+        let name = field
+            .arguments
             .get("name")
             .and_then(resolved_as_string)
             .or_else(|| existing["serviceName"].as_str().map(str::to_string))
             .unwrap_or_default();
+        let callback_url = if field.arguments.contains_key("callbackUrl") {
+            field
+                .arguments
+                .get("callbackUrl")
+                .and_then(resolved_as_string)
+        } else {
+            existing
+                .get("callbackUrl")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        };
         if fulfillment_service_name_is_reserved(&name) {
-            return ok_json(
-                json!({ "data": { response_key: fulfillment_service_payload_json(Value::Null, &payload_selection, &service_selection, vec![json!({ "field": ["name"], "message": "Name is reserved" })]) } }),
+            return (
+                fulfillment_service_payload_json(
+                    Value::Null,
+                    &field.selection,
+                    &service_selection,
+                    vec![json!({ "field": ["name"], "message": "Name is reserved" })],
+                ),
+                vec![],
+            );
+        }
+        if let Some(error) = self.fulfillment_service_callback_url_error(callback_url.as_deref()) {
+            return (
+                fulfillment_service_payload_json(
+                    Value::Null,
+                    &field.selection,
+                    &service_selection,
+                    vec![error],
+                ),
+                vec![],
             );
         }
         if self.fulfillment_service_name_or_handle_exists(&name, Some(&id)) {
-            return ok_json(
-                json!({ "data": { response_key: fulfillment_service_payload_json(Value::Null, &payload_selection, &service_selection, vec![json!({ "field": ["name"], "message": "Name has already been taken" })]) } }),
+            return (
+                fulfillment_service_payload_json(
+                    Value::Null,
+                    &field.selection,
+                    &service_selection,
+                    vec![json!({ "field": ["name"], "message": "Name has already been taken" })],
+                ),
+                vec![],
             );
         }
         let location_id = existing["location"]["id"]
@@ -2866,11 +2934,12 @@ impl DraftProxy {
             &id,
             &location_id,
             &name,
-            resolved_bool_field(&arguments, "trackingSupport")
+            callback_url,
+            resolved_bool_field(&field.arguments, "trackingSupport")
                 .unwrap_or_else(|| existing["trackingSupport"].as_bool().unwrap_or(false)),
-            resolved_bool_field(&arguments, "inventoryManagement")
+            resolved_bool_field(&field.arguments, "inventoryManagement")
                 .unwrap_or_else(|| existing["inventoryManagement"].as_bool().unwrap_or(false)),
-            resolved_bool_field(&arguments, "requiresShippingMethod").unwrap_or_else(|| {
+            resolved_bool_field(&field.arguments, "requiresShippingMethod").unwrap_or_else(|| {
                 existing["requiresShippingMethod"]
                     .as_bool()
                     .unwrap_or(false)
@@ -2887,35 +2956,31 @@ impl DraftProxy {
             .staged
             .fulfillment_service_locations
             .insert(location_id, service["location"].clone());
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "fulfillmentServiceUpdate",
+        (
+            fulfillment_service_payload_json(service, &field.selection, &service_selection, vec![]),
             vec![id],
-        );
-        ok_json(
-            json!({ "data": { response_key: fulfillment_service_payload_json(service, &payload_selection, &service_selection, vec![]) } }),
         )
     }
 
-    pub(in crate::proxy) fn fulfillment_service_delete(
+    pub(in crate::proxy) fn fulfillment_service_delete_payload(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let id = arguments
+        field: &RootFieldSelection,
+    ) -> (Value, Vec<String>) {
+        let id = field
+            .arguments
             .get("id")
             .and_then(resolved_as_string)
             .unwrap_or_default();
-        let response_key = root_field_response_key(query)
-            .unwrap_or_else(|| "fulfillmentServiceDelete".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
         let Some(service) = self.store.staged.fulfillment_services.remove(&id) else {
-            return ok_json(
-                json!({ "data": { response_key: fulfillment_service_delete_payload(Value::Null, &payload_selection, vec![json!({ "field": ["id"], "message": "Fulfillment service could not be found." })]) } }),
+            return (
+                fulfillment_service_delete_payload(
+                    Value::Null,
+                    &field.selection,
+                    vec![
+                        json!({ "field": ["id"], "message": "Fulfillment service could not be found." }),
+                    ],
+                ),
+                vec![],
             );
         };
         let location_id = service["location"]["id"]
@@ -2934,15 +2999,13 @@ impl DraftProxy {
             .staged
             .deleted_fulfillment_service_location_ids
             .insert(location_id);
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "fulfillmentServiceDelete",
-            vec![id.clone()],
-        );
-        ok_json(
-            json!({ "data": { response_key: fulfillment_service_delete_payload(json!(id.replace("?id=true", "")), &payload_selection, vec![]) } }),
+        (
+            fulfillment_service_delete_payload(
+                json!(id.replace("?id=true", "")),
+                &field.selection,
+                vec![],
+            ),
+            vec![id],
         )
     }
 

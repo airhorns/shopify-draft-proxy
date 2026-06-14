@@ -5790,6 +5790,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-code-basic-name-alias-independence',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-name-alias-independence-conformance.ts',
+    purpose: 'Code discount basic create under an ordinary client operation name and aliased response key.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-code-basic-name-alias-independence.json`,
+      'config/parity-specs/discounts/discount-code-basic-name-alias-independence.json',
+      'config/parity-requests/discounts/discount-code-basic-name-alias-independence-create.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable code discount and deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-activate-deactivate-noop-idempotence',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-activate-deactivate-noop-idempotence-conformance.ts',
@@ -7716,6 +7731,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable fulfillment services with allowed callback URLs, records invalid create/update attempts, then deletes the created fulfillment services in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-service-callback-url-update-protocol-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-service-callback-url-update-protocol-conformance.ts',
+    purpose: 'FulfillmentService callbackUrl protocol validation for update.',
+    requiredAuthScopes: ['read_assigned_fulfillment_orders', 'write_assigned_fulfillment_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-service-callback-url-update-protocol-validation.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-service-callback-url-update-protocol-validation.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-callback-url-update-protocol-create.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-callback-url-validation-update-protocol.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable fulfillment service with an allowed callback URL, records an invalid ftp:// callbackUrl update attempt, then deletes the fulfillment service in cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
