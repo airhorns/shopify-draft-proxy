@@ -2226,6 +2226,63 @@ impl DraftProxy {
         handled.then_some(Value::Object(data))
     }
 
+    pub(in crate::proxy) fn segment_read_data_handles_fields(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        let Some(fields) = root_fields(query, variables) else {
+            return false;
+        };
+        fields.iter().any(|field| match field.name.as_str() {
+            "segment" => field
+                .arguments
+                .get("id")
+                .and_then(resolved_as_string)
+                .is_some_and(|id| self.store.staged.segments.contains_key(&id)),
+            "segments" | "segmentsCount" => !self.store.staged.segments.is_empty(),
+            _ => false,
+        })
+    }
+
+    pub(in crate::proxy) fn segment_read_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "segment" => {
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                    self.store
+                        .staged
+                        .segments
+                        .get(&id)
+                        .map(|segment| selected_json(segment, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "segments" => {
+                    let records = self
+                        .store
+                        .staged
+                        .segments
+                        .values()
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    selected_connection_json_with_args(
+                        records,
+                        &field.arguments,
+                        &field.selection,
+                        value_id_cursor,
+                    )
+                }
+                "segmentsCount" => {
+                    segment_count_json(self.store.staged.segments.len(), &field.selection)
+                }
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
     pub(in crate::proxy) fn segment_mutation(
         &mut self,
         root_field: &str,
@@ -2253,9 +2310,11 @@ impl DraftProxy {
         let payload_selection = field.selection.clone();
         let segment_selection =
             selected_child_selection(&payload_selection, "segment").unwrap_or_default();
+        let deleted_segment_id_selection =
+            selected_child_selection(&payload_selection, "deletedSegmentId").unwrap_or_default();
         let arguments = field.arguments.clone();
         let now = "2026-01-01T00:00:00Z";
-        let (segment, user_errors, staged_ids) = match root_field {
+        let (segment, deleted_segment_id, user_errors, staged_ids) = match root_field {
             "segmentCreate" => {
                 let name_input = resolved_string_field(&arguments, "name").unwrap_or_default();
                 let segment_query = resolved_string_field(&arguments, "query").unwrap_or_default();
@@ -2299,9 +2358,9 @@ impl DraftProxy {
                         .staged
                         .segments
                         .insert(id.clone(), segment.clone());
-                    (segment, vec![], vec![id])
+                    (segment, Value::Null, vec![], vec![id])
                 } else {
-                    (Value::Null, user_errors, Vec::new())
+                    (Value::Null, Value::Null, user_errors, Vec::new())
                 }
             }
             "segmentUpdate" => {
@@ -2312,11 +2371,13 @@ impl DraftProxy {
                 if !self.store.staged.segments.contains_key(&id) {
                     (
                         Value::Null,
+                        Value::Null,
                         vec![segment_user_error(json!(["id"]), "Segment does not exist")],
                         Vec::new(),
                     )
                 } else if !arguments.contains_key("name") && !arguments.contains_key("query") {
                     (
+                        Value::Null,
                         Value::Null,
                         vec![segment_user_error(
                             Value::Null,
@@ -2356,20 +2417,43 @@ impl DraftProxy {
                             .staged
                             .segments
                             .insert(id.clone(), segment.clone());
-                        (segment, vec![], vec![id])
+                        (segment, Value::Null, vec![], vec![id])
                     } else {
-                        (Value::Null, user_errors, Vec::new())
+                        (Value::Null, Value::Null, user_errors, Vec::new())
                     }
                 }
             }
-            _ => (Value::Null, vec![], Vec::new()),
+            "segmentDelete" => {
+                let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+                if let Some(response) = segment_id_top_level_error(&id, &response_key, field) {
+                    return response;
+                }
+                if self.store.staged.segments.remove(&id).is_some() {
+                    (Value::Null, json!(id.clone()), vec![], vec![id])
+                } else {
+                    (
+                        Value::Null,
+                        Value::Null,
+                        vec![segment_user_error(json!(["id"]), "Segment does not exist")],
+                        Vec::new(),
+                    )
+                }
+            }
+            _ => (Value::Null, Value::Null, vec![], Vec::new()),
         };
         if !staged_ids.is_empty() {
             self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
         }
         ok_json(json!({
             "data": {
-                response_key: segment_payload_json(segment, &payload_selection, &segment_selection, user_errors)
+                response_key: segment_payload_json(
+                    segment,
+                    deleted_segment_id,
+                    &payload_selection,
+                    &segment_selection,
+                    &deleted_segment_id_selection,
+                    user_errors
+                )
             }
         }))
     }
@@ -4878,7 +4962,7 @@ fn segment_required_argument_error(
 ) -> Option<Value> {
     let required: &[(&str, &str)] = match root_field {
         "segmentCreate" => &[("name", "String!"), ("query", "String!")],
-        "segmentUpdate" => &[("id", "ID!")],
+        "segmentUpdate" | "segmentDelete" => &[("id", "ID!")],
         _ => &[],
     };
     let missing: Vec<&str> = required

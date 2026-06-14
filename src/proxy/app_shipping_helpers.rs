@@ -714,8 +714,10 @@ pub(in crate::proxy) fn publishable_payload_json(
 
 pub(in crate::proxy) fn segment_payload_json(
     segment: Value,
+    deleted_segment_id: Value,
     payload_selection: &[SelectedField],
     segment_selection: &[SelectedField],
+    deleted_segment_id_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
     selected_payload_json(payload_selection, |selection| {
@@ -725,6 +727,11 @@ pub(in crate::proxy) fn segment_payload_json(
             } else {
                 selected_json(&segment, segment_selection)
             }),
+            "deletedSegmentId" => Some(if deleted_segment_id_selection.is_empty() {
+                deleted_segment_id.clone()
+            } else {
+                selected_json(&deleted_segment_id, deleted_segment_id_selection)
+            }),
             "userErrors" => Some(Value::Array(
                 user_errors
                     .iter()
@@ -733,6 +740,14 @@ pub(in crate::proxy) fn segment_payload_json(
             )),
             _ => None,
         }
+    })
+}
+
+pub(in crate::proxy) fn segment_count_json(count: usize, selections: &[SelectedField]) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "count" => Some(json!(count)),
+        "precision" => Some(json!("EXACT")),
+        _ => None,
     })
 }
 

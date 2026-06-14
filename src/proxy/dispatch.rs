@@ -1047,6 +1047,16 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && matches!(root_field, "segment" | "segments" | "segmentsCount")
+            && self.segment_read_data_handles_fields(&query, &variables)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.segment_read_data(&fields) }));
+            }
+            return json_error(400, "Could not parse GraphQL operation");
+        }
+
+        if operation.operation_type == OperationType::Query
             && matches!(root_field, "node" | "nodes")
         {
             if query.contains("ProductVariantNodeRead") {
@@ -1434,7 +1444,10 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && matches!(root_field, "segmentCreate" | "segmentUpdate")
+            && matches!(
+                root_field,
+                "segmentCreate" | "segmentUpdate" | "segmentDelete"
+            )
         {
             return self.segment_mutation(root_field, &query, &variables, request);
         }
