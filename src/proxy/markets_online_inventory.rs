@@ -2390,19 +2390,6 @@ pub(in crate::proxy) fn draft_order_invoice_line_item() -> Value {
     })
 }
 
-pub(in crate::proxy) fn resolved_object_field_bool(
-    value: &ResolvedValue,
-    name: &str,
-) -> Option<bool> {
-    match value {
-        ResolvedValue::Object(fields) => match fields.get(name) {
-            Some(ResolvedValue::Bool(value)) => Some(*value),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
 pub(in crate::proxy) fn is_rust_webhook_local_runtime_document(query: &str) -> bool {
     query.contains("RustWebhookLocalRuntime")
 }

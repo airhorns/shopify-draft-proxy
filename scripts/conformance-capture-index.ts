@@ -8129,6 +8129,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}gift-card-create-validation.json`,
       'config/parity-specs/gift-cards/gift-card-create-validation.json',
+      'config/parity-specs/gift-cards/gift-card-ordinary-operation-names.json',
+      'config/parity-requests/gift-cards/gift-card-ordinary-operation-names.graphql',
     ],
     cleanupBehavior:
       'Creates two disposable gift cards for success/generated-code validation and deactivates them during cleanup.',
