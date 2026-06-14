@@ -19,64 +19,6 @@ struct ProductStatusLiteralError<'a> {
     location: Option<SourceLocation>,
 }
 
-pub(in crate::proxy) fn product_variant_compat_mutation_data(
-    root_field: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Value {
-    match root_field {
-        "productVariantCreate" => {
-            let fixture = product_variant_fixture("create");
-            let bulk = &fixture["mutation"]["response"]["data"]["productVariantsBulkCreate"];
-            let product = &bulk["product"];
-            json!({
-                "productVariantCreate": {
-                    "product": {
-                        "id": product["id"].clone(),
-                        "totalInventory": product["totalInventory"].clone(),
-                        "tracksInventory": product["tracksInventory"].clone()
-                    },
-                    "productVariant": bulk["productVariants"][0].clone(),
-                    "userErrors": bulk["userErrors"].clone()
-                }
-            })
-        }
-        "productVariantUpdate" => {
-            let fixture = product_variant_fixture("update");
-            let bulk = &fixture["mutation"]["response"]["data"]["productVariantsBulkUpdate"];
-            let mut variant = bulk["productVariants"][0].clone();
-            if let Some(map) = variant.as_object_mut() {
-                map.insert(
-                    "selectedOptions".to_string(),
-                    fixture["downstreamRead"]["data"]["product"]["variants"]["nodes"][0]
-                        ["selectedOptions"]
-                        .clone(),
-                );
-            }
-            json!({
-                "productVariantUpdate": {
-                    "product": bulk["product"].clone(),
-                    "productVariant": variant,
-                    "userErrors": bulk["userErrors"].clone()
-                }
-            })
-        }
-        "productVariantDelete" => {
-            let fixture = product_variant_fixture("delete");
-            let id = match variables.get("id") {
-                Some(ResolvedValue::String(id)) => json!(id),
-                _ => json!("gid://shopify/ProductVariant/50905436913897"),
-            };
-            json!({
-                "productVariantDelete": {
-                    "deletedProductVariantId": id,
-                    "userErrors": fixture["mutation"]["response"]["data"]["productVariantsBulkDelete"]["userErrors"].clone()
-                }
-            })
-        }
-        _ => Value::Null,
-    }
-}
-
 pub(in crate::proxy) fn product_variant_compat_downstream_read_data(query: &str) -> Option<Value> {
     if query.contains("ProductVariantCreateDownstreamRead") {
         let fixture = product_variant_fixture("create");
@@ -1148,6 +1090,147 @@ pub(in crate::proxy) fn product_json(
     })
 }
 
+pub(in crate::proxy) fn product_json_with_variants(
+    product: &ProductRecord,
+    variants: &[ProductVariantRecord],
+    selections: &[SelectedField],
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("Product")),
+        "id" => Some(json!(product.id)),
+        "title" => Some(json!(product.title)),
+        "handle" => Some(json!(product.handle)),
+        "status" => Some(json!(product.status)),
+        "createdAt" => Some(json!(product.created_at)),
+        "updatedAt" => Some(json!(product.updated_at)),
+        "descriptionHtml" => Some(json!(product.description_html)),
+        "vendor" => Some(json!(product.vendor)),
+        "productType" => Some(json!(product.product_type)),
+        "tags" => Some(json!(product.tags)),
+        "totalInventory" => Some(json!(variants
+            .iter()
+            .map(|variant| variant.inventory_quantity)
+            .sum::<i64>())),
+        "tracksInventory" => Some(json!(variants
+            .iter()
+            .any(|variant| variant.inventory_item.tracked))),
+        "templateSuffix" => Some(json!(product.template_suffix)),
+        "seo" => Some(product_seo_json(product, &selection.selection)),
+        "variants" => Some(product_variant_connection_json(
+            variants,
+            &selection.arguments,
+            &selection.selection,
+        )),
+        _ => None,
+    })
+}
+
+pub(in crate::proxy) fn product_variant_connection_json(
+    variants: &[ProductVariantRecord],
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selections: &[SelectedField],
+) -> Value {
+    selected_typed_connection_with_args(
+        variants,
+        arguments,
+        selections,
+        product_variant_json_without_parent,
+        |variant| variant.id.clone(),
+    )
+}
+
+pub(in crate::proxy) fn product_variant_json_without_parent(
+    variant: &ProductVariantRecord,
+    selections: &[SelectedField],
+) -> Value {
+    product_variant_json(variant, None, selections)
+}
+
+pub(in crate::proxy) fn product_variant_json(
+    variant: &ProductVariantRecord,
+    product: Option<&ProductRecord>,
+    selections: &[SelectedField],
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("ProductVariant")),
+        "id" => Some(json!(variant.id)),
+        "title" => Some(json!(variant.title)),
+        "sku" => Some(json!(variant.sku)),
+        "barcode" => Some(match &variant.barcode {
+            Some(value) => json!(value),
+            None => Value::Null,
+        }),
+        "price" => Some(json!(variant.price)),
+        "compareAtPrice" => Some(match &variant.compare_at_price {
+            Some(value) => json!(value),
+            None => Value::Null,
+        }),
+        "taxable" => Some(json!(variant.taxable)),
+        "inventoryPolicy" => Some(json!(variant.inventory_policy)),
+        "inventoryQuantity" => Some(json!(variant.inventory_quantity)),
+        "selectedOptions" => Some(Value::Array(
+            variant
+                .selected_options
+                .iter()
+                .map(|option| {
+                    selected_json(
+                        &json!({ "name": option.name, "value": option.value }),
+                        &selection.selection,
+                    )
+                })
+                .collect(),
+        )),
+        "inventoryItem" => Some(product_variant_inventory_item_json(
+            variant,
+            &selection.selection,
+        )),
+        "product" => Some(match product {
+            Some(product) => product_json_with_variants(product, &[], &selection.selection),
+            None => Value::Null,
+        }),
+        _ => variant
+            .extra_fields
+            .get(&selection.name)
+            .map(|value| product_variant_extra_field_json(value, &selection.selection)),
+    })
+}
+
+pub(in crate::proxy) fn product_variant_inventory_item_json(
+    variant: &ProductVariantRecord,
+    selections: &[SelectedField],
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("InventoryItem")),
+        "id" => Some(json!(variant.inventory_item.id)),
+        "tracked" => Some(json!(variant.inventory_item.tracked)),
+        "requiresShipping" => Some(json!(variant.inventory_item.requires_shipping)),
+        "variant" => Some(product_variant_json_without_parent(
+            variant,
+            &selection.selection,
+        )),
+        _ => variant
+            .inventory_item
+            .extra_fields
+            .get(&selection.name)
+            .map(|value| product_variant_extra_field_json(value, &selection.selection)),
+    })
+}
+
+fn product_variant_extra_field_json(value: &Value, selections: &[SelectedField]) -> Value {
+    if selections.is_empty() || value.is_null() {
+        value.clone()
+    } else if let Some(values) = value.as_array() {
+        Value::Array(
+            values
+                .iter()
+                .map(|item| selected_json(item, selections))
+                .collect(),
+        )
+    } else {
+        selected_json(value, selections)
+    }
+}
+
 pub(in crate::proxy) fn product_seo_json(
     product: &ProductRecord,
     selections: &[SelectedField],
@@ -1276,6 +1359,167 @@ pub(in crate::proxy) fn product_state_json(product: &ProductRecord) -> Value {
             "description": product.seo_description
         }
     })
+}
+
+pub(in crate::proxy) fn product_variant_state_map_json(
+    variants: &BTreeMap<String, ProductVariantRecord>,
+) -> Value {
+    Value::Object(
+        variants
+            .iter()
+            .map(|(id, variant)| (id.clone(), product_variant_state_json(variant)))
+            .collect(),
+    )
+}
+
+pub(in crate::proxy) fn product_variant_state_map_from_json(
+    value: &Value,
+) -> BTreeMap<String, ProductVariantRecord> {
+    value
+        .as_object()
+        .into_iter()
+        .flatten()
+        .filter_map(|(id, value)| {
+            product_variant_state_from_json(value).map(|variant| (id.clone(), variant))
+        })
+        .collect()
+}
+
+pub(in crate::proxy) fn product_variant_state_from_json(
+    value: &Value,
+) -> Option<ProductVariantRecord> {
+    let inventory_item = value.get("inventoryItem")?;
+    Some(ProductVariantRecord {
+        id: value.get("id")?.as_str()?.to_string(),
+        product_id: value.get("productId")?.as_str()?.to_string(),
+        title: value
+            .get("title")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        sku: value
+            .get("sku")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        barcode: value
+            .get("barcode")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        price: value
+            .get("price")
+            .and_then(Value::as_str)
+            .unwrap_or("0.00")
+            .to_string(),
+        compare_at_price: value
+            .get("compareAtPrice")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        taxable: value
+            .get("taxable")
+            .and_then(Value::as_bool)
+            .unwrap_or(true),
+        inventory_policy: value
+            .get("inventoryPolicy")
+            .and_then(Value::as_str)
+            .unwrap_or("DENY")
+            .to_string(),
+        inventory_quantity: value
+            .get("inventoryQuantity")
+            .and_then(Value::as_i64)
+            .unwrap_or_default(),
+        selected_options: value
+            .get("selectedOptions")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|option| {
+                Some(ProductVariantSelectedOption {
+                    name: option.get("name")?.as_str()?.to_string(),
+                    value: option.get("value")?.as_str()?.to_string(),
+                })
+            })
+            .collect(),
+        inventory_item: ProductVariantInventoryItem {
+            id: inventory_item.get("id")?.as_str()?.to_string(),
+            tracked: inventory_item
+                .get("tracked")
+                .and_then(Value::as_bool)
+                .unwrap_or(true),
+            requires_shipping: inventory_item
+                .get("requiresShipping")
+                .and_then(Value::as_bool)
+                .unwrap_or(true),
+            extra_fields: product_variant_state_extra_fields(
+                inventory_item,
+                &["id", "tracked", "requiresShipping"],
+            ),
+        },
+        extra_fields: product_variant_state_extra_fields(
+            value,
+            &[
+                "id",
+                "productId",
+                "title",
+                "sku",
+                "barcode",
+                "price",
+                "compareAtPrice",
+                "taxable",
+                "inventoryPolicy",
+                "inventoryQuantity",
+                "selectedOptions",
+                "inventoryItem",
+            ],
+        ),
+    })
+}
+
+pub(in crate::proxy) fn product_variant_state_json(variant: &ProductVariantRecord) -> Value {
+    let mut value = json!({
+        "id": variant.id,
+        "productId": variant.product_id,
+        "title": variant.title,
+        "sku": variant.sku,
+        "barcode": variant.barcode,
+        "price": variant.price,
+        "compareAtPrice": variant.compare_at_price,
+        "taxable": variant.taxable,
+        "inventoryPolicy": variant.inventory_policy,
+        "inventoryQuantity": variant.inventory_quantity,
+        "selectedOptions": variant.selected_options.iter().map(|option| {
+            json!({ "name": option.name, "value": option.value })
+        }).collect::<Vec<_>>(),
+        "inventoryItem": {
+            "id": variant.inventory_item.id,
+            "tracked": variant.inventory_item.tracked,
+            "requiresShipping": variant.inventory_item.requires_shipping
+        }
+    });
+    if let Some(map) = value.as_object_mut() {
+        for (key, field_value) in &variant.extra_fields {
+            map.insert(key.clone(), field_value.clone());
+        }
+        if let Some(inventory_item) = map.get_mut("inventoryItem").and_then(Value::as_object_mut) {
+            for (key, field_value) in &variant.inventory_item.extra_fields {
+                inventory_item.insert(key.clone(), field_value.clone());
+            }
+        }
+    }
+    value
+}
+
+fn product_variant_state_extra_fields(
+    value: &Value,
+    known_fields: &[&str],
+) -> BTreeMap<String, Value> {
+    value
+        .as_object()
+        .into_iter()
+        .flat_map(|fields| fields.iter())
+        .filter(|(key, _)| !known_fields.contains(&key.as_str()))
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect()
 }
 
 pub(in crate::proxy) fn product_cursor(product: &ProductRecord) -> &str {
@@ -1815,6 +2059,278 @@ pub(in crate::proxy) fn product_mutation_payload_json(
         }
     })
 }
+
+pub(in crate::proxy) fn product_variant_record_from_create_input(
+    input: &BTreeMap<String, ResolvedValue>,
+    id: String,
+    product_id: String,
+    inventory_item_id: String,
+) -> ProductVariantRecord {
+    let mut variant = ProductVariantRecord {
+        id,
+        product_id,
+        title: "Default Title".to_string(),
+        sku: String::new(),
+        barcode: None,
+        price: "0.00".to_string(),
+        compare_at_price: None,
+        taxable: true,
+        inventory_policy: "DENY".to_string(),
+        inventory_quantity: 0,
+        selected_options: Vec::new(),
+        inventory_item: ProductVariantInventoryItem {
+            id: inventory_item_id,
+            tracked: true,
+            requires_shipping: true,
+            extra_fields: BTreeMap::new(),
+        },
+        extra_fields: BTreeMap::new(),
+    };
+    apply_product_variant_input(&mut variant, input);
+    variant
+}
+
+pub(in crate::proxy) fn apply_product_variant_input(
+    variant: &mut ProductVariantRecord,
+    input: &BTreeMap<String, ResolvedValue>,
+) {
+    if let Some(title) = resolved_string_field(input, "title") {
+        variant.title = title;
+    }
+    if let Some(sku) = resolved_string_field(input, "sku") {
+        variant.sku = sku;
+    }
+    if input.contains_key("barcode") {
+        variant.barcode = resolved_string_field(input, "barcode");
+    }
+    if let Some(price) = resolved_string_field(input, "price") {
+        variant.price = price;
+    }
+    if input.contains_key("compareAtPrice") {
+        variant.compare_at_price = resolved_string_field(input, "compareAtPrice");
+    }
+    if let Some(taxable) = resolved_bool_field(input, "taxable") {
+        variant.taxable = taxable;
+    }
+    if let Some(inventory_policy) = resolved_string_field(input, "inventoryPolicy") {
+        variant.inventory_policy = inventory_policy;
+    }
+    if let Some(inventory_quantity) = resolved_int_field(input, "inventoryQuantity") {
+        variant.inventory_quantity = inventory_quantity;
+    }
+    for field in [
+        "taxCode",
+        "position",
+        "requiresComponents",
+        "showUnitPrice",
+        "unitPriceMeasurement",
+    ] {
+        if let Some(value) = input.get(field) {
+            variant
+                .extra_fields
+                .insert(field.to_string(), resolved_value_json(value));
+        }
+    }
+    let selected_options = resolved_product_variant_selected_options(input);
+    if input.contains_key("selectedOptions") || input.contains_key("options") {
+        variant.selected_options = selected_options;
+    }
+    if let Some(inventory_item) = resolved_object_field(input, "inventoryItem") {
+        if let Some(tracked) = resolved_bool_field(&inventory_item, "tracked") {
+            variant.inventory_item.tracked = tracked;
+        }
+        if let Some(requires_shipping) = resolved_bool_field(&inventory_item, "requiresShipping") {
+            variant.inventory_item.requires_shipping = requires_shipping;
+        }
+        if let Some(id) = resolved_string_field(&inventory_item, "id") {
+            variant.inventory_item.id = id;
+        }
+        for field in [
+            "sku",
+            "countryCodeOfOrigin",
+            "provinceCodeOfOrigin",
+            "measurement",
+        ] {
+            if let Some(value) = inventory_item.get(field) {
+                variant
+                    .inventory_item
+                    .extra_fields
+                    .insert(field.to_string(), resolved_value_json(value));
+            }
+        }
+        if let Some(value) = inventory_item.get("harmonizedSystemCode") {
+            let value = match value {
+                ResolvedValue::String(value) => {
+                    Value::String(product_variant_normalized_harmonized_system_code(value))
+                }
+                _ => resolved_value_json(value),
+            };
+            variant
+                .inventory_item
+                .extra_fields
+                .insert("harmonizedSystemCode".to_string(), value);
+        }
+    }
+}
+
+fn product_variant_normalized_harmonized_system_code(value: &str) -> String {
+    value.chars().filter(char::is_ascii_alphanumeric).collect()
+}
+
+fn resolved_product_variant_selected_options(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Vec<ProductVariantSelectedOption> {
+    let selected_options = resolved_object_list_field(input, "selectedOptions")
+        .into_iter()
+        .filter_map(|option| {
+            Some(ProductVariantSelectedOption {
+                name: resolved_string_field(&option, "name")?,
+                value: resolved_string_field(&option, "value")?,
+            })
+        })
+        .collect::<Vec<_>>();
+    if !selected_options.is_empty() || input.contains_key("selectedOptions") {
+        return selected_options;
+    }
+    match input.get("options") {
+        Some(ResolvedValue::List(options)) => options
+            .iter()
+            .enumerate()
+            .filter_map(|(index, option)| match option {
+                ResolvedValue::String(value) => Some(ProductVariantSelectedOption {
+                    name: format!("Option{}", index + 1),
+                    value: value.clone(),
+                }),
+                ResolvedValue::Object(object) => Some(ProductVariantSelectedOption {
+                    name: resolved_string_field(object, "name")
+                        .unwrap_or_else(|| format!("Option{}", index + 1)),
+                    value: resolved_string_field(object, "value")?,
+                }),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+pub(in crate::proxy) fn product_variant_input_user_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if input.get("price") == Some(&ResolvedValue::Null) {
+        errors.push(json!({
+            "field": ["price"],
+            "message": "Price can't be blank",
+            "code": "INVALID"
+        }));
+    } else if let Some(price) = resolved_variant_decimal(input, "price") {
+        if price < 0.0 {
+            errors.push(json!({
+                "field": ["price"],
+                "message": "Price must be greater than or equal to 0",
+                "code": "GREATER_THAN_OR_EQUAL_TO"
+            }));
+        } else if price >= 1_000_000_000_000_000_000.0 {
+            errors.push(json!({
+                "field": ["price"],
+                "message": "Price must be less than 1000000000000000000",
+                "code": "INVALID_INPUT"
+            }));
+        }
+    }
+
+    if let Some(compare_at_price) = resolved_variant_decimal(input, "compareAtPrice") {
+        if compare_at_price >= 1_000_000_000_000_000_000.0 {
+            errors.push(json!({
+                "field": ["compareAtPrice"],
+                "message": "must be less than 1000000000000000000",
+                "code": "INVALID_INPUT"
+            }));
+        }
+    }
+
+    if let Some(quantity) = resolved_int_field(input, "inventoryQuantity") {
+        if quantity > 1_000_000_000 {
+            errors.push(json!({
+                "field": ["inventoryQuantity"],
+                "message": "Inventory quantity must be less than or equal to 1000000000",
+                "code": "INVALID_INPUT"
+            }));
+        }
+    }
+
+    if resolved_string_field(input, "sku").is_some_and(|sku| sku.chars().count() > 255) {
+        errors.push(json!({
+            "field": ["sku"],
+            "message": "SKU is too long (maximum is 255 characters)",
+            "code": "INVALID_INPUT"
+        }));
+    }
+    if resolved_string_field(input, "barcode").is_some_and(|barcode| barcode.chars().count() > 255)
+    {
+        errors.push(json!({
+            "field": ["barcode"],
+            "message": "Barcode is too long (maximum is 255 characters)",
+            "code": "INVALID_INPUT"
+        }));
+    }
+
+    for option in resolved_product_variant_selected_options(input) {
+        if option.value.chars().count() > 255 {
+            errors.push(json!({
+                "field": ["options"],
+                "message": "Option value name is too long",
+                "code": "INVALID_INPUT"
+            }));
+            break;
+        }
+    }
+
+    if let Some(inventory_item) = resolved_object_field(input, "inventoryItem") {
+        if let Some(measurement) = resolved_object_field(&inventory_item, "measurement") {
+            if let Some(weight) = resolved_object_field(&measurement, "weight") {
+                if let Some(value) = resolved_variant_decimal(&weight, "value") {
+                    if value < 0.0 {
+                        errors.push(json!({
+                            "field": ["inventoryItem", "measurement", "weight"],
+                            "message": "Weight must be greater than or equal to 0",
+                            "code": "GREATER_THAN_OR_EQUAL_TO"
+                        }));
+                    } else if value >= 2_000_000_000.0 {
+                        errors.push(json!({
+                            "field": ["inventoryItem", "measurement", "weight"],
+                            "message": "Weight must be less than 2000000000",
+                            "code": "INVALID_INPUT"
+                        }));
+                    }
+                }
+            }
+        }
+    }
+
+    errors
+}
+
+fn resolved_variant_decimal(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Option<f64> {
+    match input.get(field) {
+        Some(ResolvedValue::String(value)) => value.parse::<f64>().ok(),
+        Some(ResolvedValue::Int(value)) => Some(*value as f64),
+        Some(ResolvedValue::Float(value)) => Some(*value),
+        _ => None,
+    }
+}
+
+pub(in crate::proxy) fn no_key_on_variant_create_response(field: &str) -> Response {
+    ok_json(json!({
+        "errors": [{
+            "message": format!("Field '{}' is not allowed on create", field),
+            "extensions": {
+                "code": "no_key_on_create",
+                "key": field
+            }
+        }]
+    }))
+}
 pub(in crate::proxy) fn product_create_user_errors_response(
     query: &str,
     errors: Vec<Value>,
@@ -2092,6 +2608,17 @@ pub(in crate::proxy) fn product_input(
         .remove("product")
         .or_else(|| arguments.remove("input"))
     {
+        Some(ResolvedValue::Object(input)) => Some(input),
+        _ => None,
+    }
+}
+
+pub(in crate::proxy) fn product_variant_input(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<BTreeMap<String, ResolvedValue>> {
+    let mut arguments = root_field_arguments(query, variables)?;
+    match arguments.remove("input") {
         Some(ResolvedValue::Object(input)) => Some(input),
         _ => None,
     }

@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createDraftProxy, type DraftProxy } from '../js/src/index.js';
+import { createDraftProxy, type DraftProxy, type DraftProxyStateDump } from '../js/src/index.js';
 
 type CliArgs = {
   all: boolean;
@@ -55,6 +55,7 @@ type ExpectedDifference = {
 type ParitySpec = {
   scenarioId: string;
   liveCaptureFiles?: string[];
+  proxySetupStatePath?: string;
   proxyRequest?: ProxyRequestSpec;
   comparison?: {
     expectedDifferences?: ExpectedDifference[];
@@ -518,6 +519,10 @@ async function runSpec(
   const upstreamCalls = (capture['upstreamCalls'] ?? []) as RecordedUpstreamCall[];
   cassette.setCalls(upstreamCalls);
   await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
+  if (spec.proxySetupStatePath) {
+    const setupState = await readJsonFile<DraftProxyStateDump>(path.resolve(repoRoot, spec.proxySetupStatePath));
+    proxy.restoreState(setupState);
+  }
   const failures: string[] = [];
   let primaryResponse: ProxyResponse | null = null;
   const namedResponses = new Map<string, ProxyResponse>();

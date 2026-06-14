@@ -724,6 +724,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     }
                 },
                 "productOrder": ["gid://shopify/Product/base"],
+                "productVariants": {},
+                "productVariantOrder": [],
                 "savedSearches": {},
                 "savedSearchOrder": []
             },
@@ -746,6 +748,9 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                 },
                 "productOrder": ["gid://shopify/Product/1?shopify-draft-proxy=synthetic"],
                 "deletedProductIds": ["gid://shopify/Product/base"],
+                "productVariants": {},
+                "productVariantOrder": [],
+                "deletedProductVariantIds": [],
                 "shippingPackages": {},
                 "deletedShippingPackageIds": {},
                 "delegatedAccessTokens": {},

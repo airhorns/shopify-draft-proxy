@@ -407,9 +407,9 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Query,
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
-            false,
+            true,
             &["productVariant", "ProductVariant"],
-            &[],
+            &["tests/graphql_routes/products_saved_searches.rs"],
         ),
         registry_entry(
             "productVariantByIdentifier",

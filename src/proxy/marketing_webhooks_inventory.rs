@@ -1609,6 +1609,13 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         selections: &[SelectedField],
     ) -> Value {
+        if let Some(variant) = self
+            .store
+            .product_variant_by_inventory_item_id(inventory_item_id)
+        {
+            return product_variant_inventory_item_json(variant, selections);
+        }
+
         let inventory_quantity = self.inventory_total(inventory_item_id, "available");
         let item_levels = self.inventory_levels_for_item(inventory_item_id);
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
