@@ -2166,12 +2166,23 @@ impl DraftProxy {
                 })
             };
             if user_errors.is_empty() {
+                if root_field == "publishablePublish" {
+                    for publication_id in
+                        publishable_publication_input_ids(field.arguments.get("input"))
+                    {
+                        if !is_base_publication_id(&publication_id) {
+                            self.store.staged.publication_ids.insert(publication_id);
+                        }
+                    }
+                }
                 self.record_mutation_log_entry(request, query, variables, root_field, vec![]);
             }
+            let shop = effective_shop_json(&self.store);
             data.insert(
                 field.response_key,
                 publishable_payload_json(
                     publishable,
+                    shop,
                     &payload_selection,
                     &publishable_selection,
                     user_errors,
@@ -5100,6 +5111,22 @@ fn publishable_publication_input_errors(
         }
     }
     user_errors
+}
+
+fn publishable_publication_input_ids(input: Option<&ResolvedValue>) -> Vec<String> {
+    let Some(ResolvedValue::List(publications)) = input else {
+        return Vec::new();
+    };
+    publications
+        .iter()
+        .filter_map(|publication| {
+            let ResolvedValue::Object(publication) = publication else {
+                return None;
+            };
+            resolved_string_field(publication, "publicationId")
+        })
+        .filter(|id| !id.is_empty())
+        .collect()
 }
 
 fn publishable_publish_date_is_before_1970(value: &str) -> bool {

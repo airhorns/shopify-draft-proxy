@@ -189,6 +189,7 @@ describe('Rust HTTP adapter route surface', () => {
             reverseFulfillmentOrders: {},
             locations: {},
             locationOrder: [],
+            publicationIds: [],
             locationLimitReached: false,
           },
         },

@@ -1462,6 +1462,63 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
         );
         assert_eq!(response.body["data"][root]["userErrors"], json!([]));
     }
+
+    let create_publication = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalPublication($input: PublicationCreateInput!) {
+          publicationCreate(input: $input) {
+            publication { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "name": "Local staged publication" } }),
+    ));
+    assert_eq!(
+        create_publication.body["data"]["publicationCreate"],
+        json!({
+            "publication": { "id": "gid://shopify/Publication/2" },
+            "userErrors": []
+        })
+    );
+
+    let state = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/state".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert_eq!(
+        state.body["stagedState"]["publicationIds"],
+        json!(["gid://shopify/Publication/2"])
+    );
+
+    let staged_count = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PublishablePublishProductStagedShopCount($id: ID!, $input: [PublicationInput!]!) {
+          publishablePublish(id: $id, input: $input) {
+            publishable { ... on Product { id } }
+            shop { id publicationCount }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/9264105488617",
+            "input": [{ "publicationId": "gid://shopify/Publication/2" }]
+        }),
+    ));
+    assert_eq!(
+        staged_count.body["data"]["publishablePublish"]["shop"],
+        json!({
+            "id": "gid://shopify/Shop/92891250994",
+            "publicationCount": 6
+        })
+    );
+    assert_eq!(
+        staged_count.body["data"]["publishablePublish"]["userErrors"],
+        json!([])
+    );
 }
 
 #[test]

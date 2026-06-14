@@ -131,6 +131,32 @@ pub(in crate::proxy) fn synthetic_shop_json() -> Value {
     })
 }
 
+const BASE_PUBLICATION_COUNT: usize = 5;
+const BASE_PUBLICATION_IDS: [&str; 6] = [
+    "gid://shopify/Publication/82090459369",
+    "gid://shopify/Publication/268039389490",
+    "gid://shopify/Publication/268039455026",
+    "gid://shopify/Publication/268039487794",
+    "gid://shopify/Publication/273897881906",
+    "gid://shopify/Publication/292074258738",
+];
+
+pub(in crate::proxy) fn is_base_publication_id(id: &str) -> bool {
+    BASE_PUBLICATION_IDS.contains(&id)
+}
+
+pub(in crate::proxy) fn effective_shop_json(store: &Store) -> Value {
+    let mut shop = synthetic_shop_json();
+    let staged_publication_count = store
+        .staged
+        .publication_ids
+        .iter()
+        .filter(|id| !is_base_publication_id(id))
+        .count();
+    shop["publicationCount"] = json!(BASE_PUBLICATION_COUNT + staged_publication_count);
+    shop
+}
+
 pub(in crate::proxy) fn local_app_json() -> Value {
     json!({
         "id": "gid://shopify/App/expected",
@@ -695,6 +721,7 @@ pub(in crate::proxy) fn collection_publication_record(id: String, published: boo
 
 pub(in crate::proxy) fn publishable_payload_json(
     publishable: Value,
+    shop: Value,
     payload_selection: &[SelectedField],
     publishable_selection: &[SelectedField],
     user_errors: Vec<Value>,
@@ -702,7 +729,7 @@ pub(in crate::proxy) fn publishable_payload_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "publishable" => Some(selected_json(&publishable, publishable_selection)),
-            "shop" => Some(selected_json(&synthetic_shop_json(), &selection.selection)),
+            "shop" => Some(selected_json(&shop, &selection.selection)),
             "userErrors" => Some(Value::Array(
                 user_errors
                     .iter()

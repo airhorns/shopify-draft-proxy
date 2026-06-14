@@ -134,6 +134,7 @@ impl DraftProxy {
                 "reverseFulfillmentOrders": self.store.staged.reverse_fulfillment_orders.clone(),
                 "locations": self.store.staged.locations.clone(),
                 "locationOrder": self.store.staged.location_order.clone(),
+                "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "locationLimitReached": self.store.staged.location_limit_reached
             }
         });
@@ -283,6 +284,10 @@ impl DraftProxy {
                     }),
                 )])
             });
+        self.store.staged.publication_ids =
+            string_array_from_json(&state["stagedState"]["publicationIds"])
+                .into_iter()
+                .collect();
         self.store.replace_staged_saved_searches_map_with_order(
             saved_search_state_map_from_json(&state["stagedState"]["savedSearches"]),
             string_array_from_json(&state["stagedState"]["savedSearchOrder"]),

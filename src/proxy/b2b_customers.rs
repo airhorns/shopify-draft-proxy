@@ -567,6 +567,18 @@ impl DraftProxy {
             staged_ids,
             status,
         );
+        if status == "staged" {
+            if let Some(publication_id) = payload
+                .get("publication")
+                .and_then(|publication| publication.get("id"))
+                .and_then(Value::as_str)
+            {
+                self.store
+                    .staged
+                    .publication_ids
+                    .insert(publication_id.to_string());
+            }
+        }
         selected_json(&payload, &field.selection)
     }
 
