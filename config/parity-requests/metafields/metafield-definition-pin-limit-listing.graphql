@@ -1,7 +1,7 @@
 query MetafieldDefinitionPinLimitListing($namespace: String!) {
   metafieldDefinitions(
     ownerType: PRODUCT
-    first: 25
+    first: 50
     namespace: $namespace
     pinnedStatus: PINNED
     sortKey: PINNED_POSITION

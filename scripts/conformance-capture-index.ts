@@ -1817,6 +1817,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}metafield-definition-pin-limit-and-constraint-guard.json`,
       'config/parity-specs/metafields/metafield-definition-pin-limit-and-constraint-guard.json',
+      'config/parity-requests/metafields/metafield-definition-pin-limit-and-constraint-guard.graphql',
+      'config/parity-requests/metafields/metafield-definition-pin-limit-listing.graphql',
     ],
     cleanupBehavior:
       'Temporarily unpins existing product definitions, creates disposable product-owned definitions, deletes them, then restores original pins.',

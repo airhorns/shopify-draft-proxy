@@ -38,7 +38,7 @@ const readPinnedDefinitionsQuery = `#graphql
 
 const readNamespaceDefinitionsQuery = `#graphql
   query HAR699NamespaceDefinitions($namespace: String!) {
-    metafieldDefinitions(ownerType: PRODUCT, first: 50, namespace: $namespace) {
+    metafieldDefinitions(ownerType: PRODUCT, first: 100, namespace: $namespace) {
       nodes {
         id
         key
@@ -111,6 +111,138 @@ const baselinePinned =
   ((await runGraphql(readPinnedDefinitionsQuery)).data?.metafieldDefinitions?.nodes as DefinitionNode[] | undefined) ??
   [];
 
+function createAndPinBatchDocument(start: number, end: number): string {
+  const fields: string[] = [];
+  for (let index = start; index <= end; index++) {
+    const suffix = String(index).padStart(2, '0');
+    fields.push(`
+      create${suffix}: metafieldDefinitionCreate(
+        definition: {
+          ownerType: PRODUCT
+          namespace: $namespace
+          key: "pin_${suffix}"
+          name: "HAR 699 pin ${suffix}"
+          type: "single_line_text_field"
+        }
+      ) {
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+      pin${suffix}: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_${suffix}" }) {
+        pinnedDefinition {
+          id
+          key
+          pinnedPosition
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }`);
+  }
+  return `#graphql
+    mutation MetafieldDefinitionPinLimitAndConstraintGuardBatch($namespace: String!) {
+      ${fields.join('\n')}
+    }
+  `;
+}
+
+const overCapAndConstraintDocument = `#graphql
+  mutation MetafieldDefinitionPinLimitAndConstraintGuardFinal($namespace: String!, $categoryId: String!) {
+    create51: metafieldDefinitionCreate(
+      definition: {
+        ownerType: PRODUCT
+        namespace: $namespace
+        key: "pin_51"
+        name: "HAR 699 pin 51"
+        type: "single_line_text_field"
+      }
+    ) {
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+    pin51: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_51" }) {
+      pinnedDefinition {
+        id
+        key
+        pinnedPosition
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+    constrainedCreate: metafieldDefinitionCreate(
+      definition: {
+        ownerType: PRODUCT
+        namespace: $namespace
+        key: "constrained"
+        name: "HAR 699 constrained"
+        type: "single_line_text_field"
+        constraints: { key: "category", values: [$categoryId] }
+      }
+    ) {
+      createdDefinition {
+        id
+        key
+        constraints {
+          key
+        }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+    constrainedPin: metafieldDefinitionPin(
+      identifier: { ownerType: PRODUCT, namespace: $namespace, key: "constrained" }
+    ) {
+      pinnedDefinition {
+        id
+        key
+        pinnedPosition
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+async function capturePrimaryResponse(): Promise<{
+  data?: {
+    pin01?: {
+      pinnedDefinition?: {
+        id?: unknown;
+      } | null;
+    } | null;
+  };
+}> {
+  void primaryDocument;
+  const responses = [
+    await runGraphql(createAndPinBatchDocument(1, 10), { namespace }),
+    await runGraphql(createAndPinBatchDocument(11, 20), { namespace }),
+    await runGraphql(createAndPinBatchDocument(21, 30), { namespace }),
+    await runGraphql(createAndPinBatchDocument(31, 40), { namespace }),
+    await runGraphql(createAndPinBatchDocument(41, 50), { namespace }),
+    await runGraphql(overCapAndConstraintDocument, variables),
+  ];
+  return {
+    data: Object.assign({}, ...responses.map((response) => response.data ?? {})),
+  };
+}
+
 async function deleteNamespaceDefinitions(): Promise<DefinitionNode[]> {
   const read = await runGraphql(readNamespaceDefinitionsQuery, { namespace });
   const definitions = (read.data?.metafieldDefinitions?.nodes as DefinitionNode[] | undefined) ?? [];
@@ -155,7 +287,7 @@ try {
     await runGraphql(unpinByIdMutation, { definitionId: definition.id });
   }
 
-  primaryResponse = await runGraphql(primaryDocument, variables);
+  primaryResponse = await capturePrimaryResponse();
   pinnedDefinitionsListing = await runGraphql(listingDocument, { namespace });
 
   const firstPinnedId = primaryResponse.data?.pin01?.pinnedDefinition?.id;
