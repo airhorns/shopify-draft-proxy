@@ -858,12 +858,146 @@ pub(in crate::proxy) fn is_ported_market_localization_document(query: &str) -> b
     query.contains("RustMarketLocalizationsLocalRuntime")
 }
 
-pub(in crate::proxy) fn localization_baseline_read_data() -> Value {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-locale-translation-fixture.json"
-    ))
-    .expect("localization locale fixture must parse");
-    fixture["readCapture"]["response"]["data"].clone()
+pub(in crate::proxy) fn default_available_locales() -> BTreeMap<String, String> {
+    BTreeMap::from([
+        ("af".to_string(), "Afrikaans".to_string()),
+        ("ak".to_string(), "Akan".to_string()),
+        ("sq".to_string(), "Albanian".to_string()),
+        ("am".to_string(), "Amharic".to_string()),
+        ("ar".to_string(), "Arabic".to_string()),
+        ("hy".to_string(), "Armenian".to_string()),
+        ("as".to_string(), "Assamese".to_string()),
+        ("az".to_string(), "Azerbaijani".to_string()),
+        ("bm".to_string(), "Bambara".to_string()),
+        ("bn".to_string(), "Bangla".to_string()),
+        ("eu".to_string(), "Basque".to_string()),
+        ("be".to_string(), "Belarusian".to_string()),
+        ("bs".to_string(), "Bosnian".to_string()),
+        ("br".to_string(), "Breton".to_string()),
+        ("bg".to_string(), "Bulgarian".to_string()),
+        ("my".to_string(), "Burmese".to_string()),
+        ("ca".to_string(), "Catalan".to_string()),
+        ("ckb".to_string(), "Central Kurdish".to_string()),
+        ("ce".to_string(), "Chechen".to_string()),
+        ("zh-CN".to_string(), "Chinese (Simplified)".to_string()),
+        ("zh-TW".to_string(), "Chinese (Traditional)".to_string()),
+        ("kw".to_string(), "Cornish".to_string()),
+        ("hr".to_string(), "Croatian".to_string()),
+        ("cs".to_string(), "Czech".to_string()),
+        ("da".to_string(), "Danish".to_string()),
+        ("nl".to_string(), "Dutch".to_string()),
+        ("dz".to_string(), "Dzongkha".to_string()),
+        ("en".to_string(), "English".to_string()),
+        ("eo".to_string(), "Esperanto".to_string()),
+        ("et".to_string(), "Estonian".to_string()),
+        ("ee".to_string(), "Ewe".to_string()),
+        ("fo".to_string(), "Faroese".to_string()),
+        ("fil".to_string(), "Filipino".to_string()),
+        ("fi".to_string(), "Finnish".to_string()),
+        ("fr".to_string(), "French".to_string()),
+        ("ff".to_string(), "Fulah".to_string()),
+        ("gl".to_string(), "Galician".to_string()),
+        ("lg".to_string(), "Ganda".to_string()),
+        ("ka".to_string(), "Georgian".to_string()),
+        ("de".to_string(), "German".to_string()),
+        ("el".to_string(), "Greek".to_string()),
+        ("gu".to_string(), "Gujarati".to_string()),
+        ("ha".to_string(), "Hausa".to_string()),
+        ("he".to_string(), "Hebrew".to_string()),
+        ("hi".to_string(), "Hindi".to_string()),
+        ("hu".to_string(), "Hungarian".to_string()),
+        ("is".to_string(), "Icelandic".to_string()),
+        ("ig".to_string(), "Igbo".to_string()),
+        ("id".to_string(), "Indonesian".to_string()),
+        ("ia".to_string(), "Interlingua".to_string()),
+        ("ga".to_string(), "Irish".to_string()),
+        ("it".to_string(), "Italian".to_string()),
+        ("ja".to_string(), "Japanese".to_string()),
+        ("jv".to_string(), "Javanese".to_string()),
+        ("kl".to_string(), "Kalaallisut".to_string()),
+        ("kn".to_string(), "Kannada".to_string()),
+        ("ks".to_string(), "Kashmiri".to_string()),
+        ("kk".to_string(), "Kazakh".to_string()),
+        ("km".to_string(), "Khmer".to_string()),
+        ("ki".to_string(), "Kikuyu".to_string()),
+        ("rw".to_string(), "Kinyarwanda".to_string()),
+        ("ko".to_string(), "Korean".to_string()),
+        ("ku".to_string(), "Kurdish".to_string()),
+        ("ky".to_string(), "Kyrgyz".to_string()),
+        ("lo".to_string(), "Lao".to_string()),
+        ("lv".to_string(), "Latvian".to_string()),
+        ("ln".to_string(), "Lingala".to_string()),
+        ("lt".to_string(), "Lithuanian".to_string()),
+        ("lu".to_string(), "Luba-Katanga".to_string()),
+        ("lb".to_string(), "Luxembourgish".to_string()),
+        ("mk".to_string(), "Macedonian".to_string()),
+        ("mg".to_string(), "Malagasy".to_string()),
+        ("ms".to_string(), "Malay".to_string()),
+        ("ml".to_string(), "Malayalam".to_string()),
+        ("mt".to_string(), "Maltese".to_string()),
+        ("gv".to_string(), "Manx".to_string()),
+        ("mr".to_string(), "Marathi".to_string()),
+        ("mn".to_string(), "Mongolian".to_string()),
+        ("mi".to_string(), "M\u{101}ori".to_string()),
+        ("ne".to_string(), "Nepali".to_string()),
+        ("nd".to_string(), "North Ndebele".to_string()),
+        ("se".to_string(), "Northern Sami".to_string()),
+        ("no".to_string(), "Norwegian".to_string()),
+        ("nb".to_string(), "Norwegian (Bokm\u{e5}l)".to_string()),
+        ("nn".to_string(), "Norwegian Nynorsk".to_string()),
+        ("or".to_string(), "Odia".to_string()),
+        ("om".to_string(), "Oromo".to_string()),
+        ("os".to_string(), "Ossetic".to_string()),
+        ("ps".to_string(), "Pashto".to_string()),
+        ("fa".to_string(), "Persian".to_string()),
+        ("pl".to_string(), "Polish".to_string()),
+        ("pt-BR".to_string(), "Portuguese (Brazil)".to_string()),
+        ("pt-PT".to_string(), "Portuguese (Portugal)".to_string()),
+        ("pa".to_string(), "Punjabi".to_string()),
+        ("qu".to_string(), "Quechua".to_string()),
+        ("ro".to_string(), "Romanian".to_string()),
+        ("rm".to_string(), "Romansh".to_string()),
+        ("rn".to_string(), "Rundi".to_string()),
+        ("ru".to_string(), "Russian".to_string()),
+        ("sg".to_string(), "Sango".to_string()),
+        ("sa".to_string(), "Sanskrit".to_string()),
+        ("sc".to_string(), "Sardinian".to_string()),
+        ("gd".to_string(), "Scottish Gaelic".to_string()),
+        ("sr".to_string(), "Serbian".to_string()),
+        ("sn".to_string(), "Shona".to_string()),
+        ("ii".to_string(), "Sichuan Yi".to_string()),
+        ("sd".to_string(), "Sindhi".to_string()),
+        ("si".to_string(), "Sinhala".to_string()),
+        ("sk".to_string(), "Slovak".to_string()),
+        ("sl".to_string(), "Slovenian".to_string()),
+        ("so".to_string(), "Somali".to_string()),
+        ("es".to_string(), "Spanish".to_string()),
+        ("su".to_string(), "Sundanese".to_string()),
+        ("sw".to_string(), "Swahili".to_string()),
+        ("sv".to_string(), "Swedish".to_string()),
+        ("tg".to_string(), "Tajik".to_string()),
+        ("ta".to_string(), "Tamil".to_string()),
+        ("tt".to_string(), "Tatar".to_string()),
+        ("te".to_string(), "Telugu".to_string()),
+        ("th".to_string(), "Thai".to_string()),
+        ("bo".to_string(), "Tibetan".to_string()),
+        ("ti".to_string(), "Tigrinya".to_string()),
+        ("to".to_string(), "Tongan".to_string()),
+        ("tr".to_string(), "Turkish".to_string()),
+        ("tk".to_string(), "Turkmen".to_string()),
+        ("uk".to_string(), "Ukrainian".to_string()),
+        ("ur".to_string(), "Urdu".to_string()),
+        ("ug".to_string(), "Uyghur".to_string()),
+        ("uz".to_string(), "Uzbek".to_string()),
+        ("vi".to_string(), "Vietnamese".to_string()),
+        ("cy".to_string(), "Welsh".to_string()),
+        ("fy".to_string(), "Western Frisian".to_string()),
+        ("wo".to_string(), "Wolof".to_string()),
+        ("xh".to_string(), "Xhosa".to_string()),
+        ("yi".to_string(), "Yiddish".to_string()),
+        ("yo".to_string(), "Yoruba".to_string()),
+        ("zu".to_string(), "Zulu".to_string()),
+    ])
 }
 
 pub(in crate::proxy) fn localization_collection_read_data(with_translation: bool) -> Value {
@@ -886,8 +1020,7 @@ pub(in crate::proxy) fn localization_market_scoped_read_data() -> Value {
     fixture["marketScopedTranslationLifecycle"]["readBeforeRegister"]["data"].clone()
 }
 
-pub(in crate::proxy) fn shop_locale_record(locale: &str, published: bool) -> Value {
-    let name = localization_available_locale_name(locale).unwrap_or_else(|| locale.to_string());
+pub(in crate::proxy) fn shop_locale_record(locale: &str, name: &str, published: bool) -> Value {
     json!({
         "locale": locale,
         "name": name,
@@ -895,16 +1028,6 @@ pub(in crate::proxy) fn shop_locale_record(locale: &str, published: bool) -> Val
         "published": published,
         "marketWebPresences": []
     })
-}
-
-pub(in crate::proxy) fn localization_available_locale_name(locale: &str) -> Option<String> {
-    localization_baseline_read_data()["availableLocalesExcerpt"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .find(|candidate| candidate["isoCode"].as_str() == Some(locale))
-        .and_then(|candidate| candidate["name"].as_str())
-        .map(str::to_string)
 }
 
 pub(in crate::proxy) fn shop_locale_user_error(
@@ -917,10 +1040,6 @@ pub(in crate::proxy) fn shop_locale_user_error(
         "message": message,
         "code": code
     })
-}
-
-pub(in crate::proxy) fn is_valid_shop_locale(locale: &str) -> bool {
-    localization_available_locale_name(locale).is_some()
 }
 
 pub(in crate::proxy) fn is_known_market_web_presence_id(id: &str) -> bool {
@@ -1033,79 +1152,6 @@ pub(in crate::proxy) fn market_localization_error(field: Vec<&str>, code: &str) 
         "field": field,
         "code": code
     })
-}
-
-pub(in crate::proxy) fn is_ported_metaobject_document(query: &str) -> bool {
-    query.contains("MetaobjectsReadParity")
-        || query.contains("MetaobjectEntryLifecycleCreate")
-        || query.contains("MetaobjectEntryLifecycleDelete")
-}
-
-pub(in crate::proxy) fn seed_metaobject_record() -> Value {
-    metaobject_record(
-        "gid://shopify/Metaobject/185593102642",
-        "codex-har-240-1777156845370",
-        "codex_har_240_1777156845370",
-        "HAR-240 title 1777156845370",
-        "HAR-240 body 1777156845370",
-        "2026-04-25T22:40:46Z",
-    )
-}
-
-pub(in crate::proxy) fn metaobject_record(
-    id: &str,
-    handle: &str,
-    meta_type: &str,
-    title: &str,
-    body: &str,
-    updated_at: &str,
-) -> Value {
-    let title_field = json!({
-        "key": "title",
-        "type": "single_line_text_field",
-        "value": title,
-        "jsonValue": title,
-        "definition": {"key": "title", "name": "Title", "required": true, "type": {"name": "single_line_text_field", "category": "TEXT"}}
-    });
-    let body_field = json!({
-        "key": "body",
-        "type": "multi_line_text_field",
-        "value": body,
-        "jsonValue": body,
-        "definition": {"key": "body", "name": "Body", "required": false, "type": {"name": "multi_line_text_field", "category": "TEXT"}}
-    });
-    json!({
-        "id": id,
-        "handle": handle,
-        "type": meta_type,
-        "displayName": title,
-        "updatedAt": updated_at,
-        "capabilities": {"publishable": {"status": "ACTIVE"}, "onlineStore": null},
-        "fields": [title_field.clone(), body_field],
-        "titleField": title_field
-    })
-}
-
-pub(in crate::proxy) fn metaobject_cursor(record: &Value) -> String {
-    if record.get("id").and_then(Value::as_str) == Some("gid://shopify/Metaobject/185593102642") {
-        String::from_utf8(vec![
-            0x65, 0x79, 0x4a, 0x73, 0x59, 0x58, 0x4e, 0x30, 0x58, 0x32, 0x6c, 0x6b, 0x49, 0x6a,
-            0x6f, 0x78, 0x4f, 0x44, 0x55, 0x31, 0x4f, 0x54, 0x4d, 0x78, 0x4d, 0x44, 0x49, 0x32,
-            0x4e, 0x44, 0x49, 0x73, 0x49, 0x6d, 0x78, 0x68, 0x63, 0x33, 0x52, 0x66, 0x64, 0x6d,
-            0x46, 0x73, 0x64, 0x57, 0x55, 0x69, 0x4f, 0x69, 0x49, 0x78, 0x4f, 0x44, 0x55, 0x31,
-            0x4f, 0x54, 0x4d, 0x78, 0x4d, 0x44, 0x49, 0x32, 0x4e, 0x44, 0x49, 0x69, 0x66, 0x51,
-            0x3d, 0x3d,
-        ])
-        .expect("seed cursor is valid UTF-8")
-    } else {
-        format!(
-            "cursor:{}",
-            record
-                .get("id")
-                .and_then(Value::as_str)
-                .unwrap_or("metaobject")
-        )
-    }
 }
 
 pub(in crate::proxy) fn is_ported_online_store_document(query: &str) -> bool {
@@ -1568,6 +1614,7 @@ pub(in crate::proxy) fn inventory_empty_connection(selection: &[SelectedField]) 
 pub(in crate::proxy) fn inventory_levels_connection_selected_json(
     inventory_item_id: &str,
     levels: &[(String, BTreeMap<String, i64>)],
+    quantity_updated_at: &BTreeMap<(String, String, String), String>,
     arguments: &BTreeMap<String, ResolvedValue>,
     selections: &[SelectedField],
     locations: Option<&BTreeMap<String, Value>>,
@@ -1587,6 +1634,7 @@ pub(in crate::proxy) fn inventory_levels_connection_selected_json(
                             inventory_item_id,
                             location_id,
                             quantities,
+                            quantity_updated_at,
                             &selection.selection,
                             locations,
                         )
@@ -1615,6 +1663,7 @@ pub(in crate::proxy) fn inventory_level_selected_json(
     inventory_item_id: &str,
     location_id: &str,
     quantities: &BTreeMap<String, i64>,
+    quantity_updated_at: &BTreeMap<(String, String, String), String>,
     selections: &[SelectedField],
     locations: Option<&BTreeMap<String, Value>>,
 ) -> Value {
@@ -1645,11 +1694,18 @@ pub(in crate::proxy) fn inventory_level_selected_json(
                 inventory_quantity_names(&selection.arguments)
                     .into_iter()
                     .map(|name| {
+                        let updated_at = quantity_updated_at
+                            .get(&(
+                                inventory_item_id.to_string(),
+                                location_id.to_string(),
+                                name.clone(),
+                            ))
+                            .map_or(Value::Null, |value| json!(value));
                         selected_json(
                             &json!({
                                 "name": name,
                                 "quantity": quantities.get(&name).copied().unwrap_or(0),
-                                "updatedAt": null
+                                "updatedAt": updated_at
                             }),
                             &selection.selection,
                         )
@@ -1731,13 +1787,14 @@ pub(in crate::proxy) fn inventory_change_json(
     item_id: &str,
     name: &str,
     delta: i64,
+    quantity_after_change: i64,
     ledger: Option<&str>,
     location_id: &str,
 ) -> Value {
     json!({
         "name": name,
         "delta": delta,
-        "quantityAfterChange": null,
+        "quantityAfterChange": quantity_after_change,
         "ledgerDocumentUri": ledger,
         "item": {
             "id": item_id
@@ -1825,14 +1882,6 @@ pub(in crate::proxy) fn marketing_activity_missing_error() -> Value {
         "field": null,
         "message": "Marketing activity does not exist.",
         "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
-    })
-}
-
-pub(in crate::proxy) fn marketing_activity_not_external_error() -> Value {
-    json!({
-        "field": null,
-        "message": "The marketing activity must be an external activity.",
-        "code": "ACTIVITY_NOT_EXTERNAL"
     })
 }
 
@@ -2092,23 +2141,6 @@ pub(in crate::proxy) fn invalid_marketing_url_error(
     None
 }
 
-pub(in crate::proxy) fn input_utm_differs(
-    existing: &Value,
-    input: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    let Some(utm) = resolved_object_field(input, "utm") else {
-        return false;
-    };
-    for key in ["campaign", "source", "medium"] {
-        if resolved_string_field(&utm, key)
-            .is_some_and(|value| existing["utmParameters"][key].as_str() != Some(value.as_str()))
-        {
-            return true;
-        }
-    }
-    false
-}
-
 pub(in crate::proxy) fn marketing_status_label(
     status: &str,
     tactic: &str,
@@ -2258,19 +2290,6 @@ pub(in crate::proxy) fn draft_order_invoice_line_item() -> Value {
         "totalDiscountSet": draft_order_invoice_money_set("0.0", "CAD"),
         "variant": Value::Null
     })
-}
-
-pub(in crate::proxy) fn resolved_object_field_bool(
-    value: &ResolvedValue,
-    name: &str,
-) -> Option<bool> {
-    match value {
-        ResolvedValue::Object(fields) => match fields.get(name) {
-            Some(ResolvedValue::Bool(value)) => Some(*value),
-            _ => None,
-        },
-        _ => None,
-    }
 }
 
 pub(in crate::proxy) fn is_rust_webhook_local_runtime_document(query: &str) -> bool {

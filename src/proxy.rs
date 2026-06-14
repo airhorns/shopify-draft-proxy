@@ -130,6 +130,8 @@ struct Store {
 struct BaseState {
     products: OrderedRecords<ProductRecord>,
     saved_searches: OrderedRecords<SavedSearchRecord>,
+    available_locales: BTreeMap<String, String>,
+    shop_locales: BTreeMap<String, Value>,
 }
 
 #[derive(Clone)]
@@ -142,6 +144,7 @@ struct StagedState {
     customers: BTreeMap<String, Value>,
     deleted_customer_ids: BTreeSet<String>,
     customer_orders: BTreeMap<String, Vec<Value>>,
+    taggable_resources: BTreeMap<String, Value>,
     carrier_services: BTreeMap<String, Value>,
     deleted_carrier_service_ids: BTreeSet<String>,
     app_subscriptions: BTreeMap<String, Value>,
@@ -162,6 +165,10 @@ struct StagedState {
     fulfillment_order_deadlines: BTreeMap<String, String>,
     bulk_operations: BTreeMap<String, Value>,
     bulk_operation_staged_uploads: BTreeMap<String, Option<u64>>,
+    discounts: BTreeMap<String, Value>,
+    discount_code_index: BTreeMap<String, String>,
+    deleted_discount_ids: BTreeSet<String>,
+    discount_redeem_code_bulk_creations: BTreeMap<String, Value>,
     timestamp_discounts: BTreeMap<String, Value>,
     gift_cards: BTreeMap<String, Value>,
     markets: BTreeMap<String, Value>,
@@ -178,7 +185,11 @@ struct StagedState {
     b2b_locations: BTreeMap<String, Value>,
     next_b2b_company_id: u64,
     inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
+    inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
+    next_inventory_quantity_timestamp: u64,
     inventory_transfers: BTreeMap<String, InventoryTransferRecord>,
+    metaobject_definitions: BTreeMap<String, Value>,
+    deleted_metaobject_definition_ids: BTreeSet<String>,
     metaobjects: BTreeMap<String, Value>,
     deleted_metaobject_ids: BTreeSet<String>,
     app_metafields: BTreeMap<(String, String, String), Value>,
@@ -373,6 +384,7 @@ impl Default for StagedState {
             customers: BTreeMap::new(),
             deleted_customer_ids: BTreeSet::new(),
             customer_orders: BTreeMap::new(),
+            taggable_resources: BTreeMap::new(),
             carrier_services: BTreeMap::new(),
             deleted_carrier_service_ids: BTreeSet::new(),
             app_subscriptions: BTreeMap::new(),
@@ -393,6 +405,10 @@ impl Default for StagedState {
             fulfillment_order_deadlines: BTreeMap::new(),
             bulk_operations: BTreeMap::new(),
             bulk_operation_staged_uploads: BTreeMap::new(),
+            discounts: BTreeMap::new(),
+            discount_code_index: BTreeMap::new(),
+            deleted_discount_ids: BTreeSet::new(),
+            discount_redeem_code_bulk_creations: BTreeMap::new(),
             timestamp_discounts: BTreeMap::new(),
             gift_cards: BTreeMap::new(),
             markets: BTreeMap::new(),
@@ -409,7 +425,11 @@ impl Default for StagedState {
             b2b_locations: BTreeMap::new(),
             next_b2b_company_id: 1,
             inventory_levels: BTreeMap::new(),
+            inventory_quantity_updated_at: BTreeMap::new(),
+            next_inventory_quantity_timestamp: 0,
             inventory_transfers: BTreeMap::new(),
+            metaobject_definitions: BTreeMap::new(),
+            deleted_metaobject_definition_ids: BTreeSet::new(),
             metaobjects: BTreeMap::new(),
             deleted_metaobject_ids: BTreeSet::new(),
             app_metafields: BTreeMap::new(),
@@ -543,6 +563,25 @@ where
 }
 
 impl Store {
+    fn with_default_baseline() -> Self {
+        let mut store = Self::default();
+        store.base.available_locales = default_available_locales();
+        store.base.shop_locales.insert(
+            "en".to_string(),
+            json!({
+                "locale": "en",
+                "name": "English",
+                "primary": true,
+                "published": true,
+                "marketWebPresences": [{
+                    "id": "gid://shopify/MarketWebPresence/62842765618",
+                    "subfolderSuffix": null
+                }]
+            }),
+        );
+        store
+    }
+
     fn clear_staged(&mut self) {
         self.staged = StagedState::default();
     }
@@ -820,6 +859,7 @@ mod markets_online_inventory;
 mod media_products_saved_searches;
 mod metafield_metaobject_definitions;
 mod metafields_orders_payments;
+mod metaobjects;
 mod online_store_orders_payments;
 mod product_helpers;
 mod resolved_values;
@@ -855,6 +895,8 @@ pub(in crate::proxy) use self::media_products_saved_searches::*;
 pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::metafields_orders_payments::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::metaobjects::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::online_store_orders_payments::*;
 #[allow(unused_imports)]

@@ -102,13 +102,16 @@ async function fetchJson(origin: string, request: DraftProxyRequest): Promise<Dr
   return out;
 }
 
-function fetchJsonSync(origin: string, request: DraftProxyRequest): DraftProxyHttpResponse {
+function fetchJsonSync(origin: string, request: DraftProxyRequest, timeoutMs = 10_000): DraftProxyHttpResponse {
   const script = `
     const request = JSON.parse(process.env.DRAFT_PROXY_REQUEST);
+    const timeoutMs = Number(process.env.DRAFT_PROXY_FETCH_TIMEOUT_MS || 10000);
+    const signal = AbortSignal.timeout(timeoutMs);
     fetch(process.env.DRAFT_PROXY_URL + request.path, {
       method: request.method,
       headers: request.headers,
       body: request.body.length === 0 ? undefined : request.body,
+      signal,
     }).then(async (response) => {
       const text = await response.text();
       let body = text;
@@ -126,6 +129,7 @@ function fetchJsonSync(origin: string, request: DraftProxyRequest): DraftProxyHt
     env: {
       ...process.env,
       DRAFT_PROXY_URL: origin,
+      DRAFT_PROXY_FETCH_TIMEOUT_MS: String(timeoutMs),
       DRAFT_PROXY_REQUEST: JSON.stringify({
         method: request.method,
         path: request.path,
@@ -142,14 +146,14 @@ function fetchJsonSync(origin: string, request: DraftProxyRequest): DraftProxyHt
 }
 
 function waitForRustServer(child: ChildProcessWithoutNullStreams, origin: string, output: () => string): void {
-  const deadline = Date.now() + 15_000;
+  const deadline = Date.now() + 60_000;
   while (Date.now() < deadline) {
     if (output().includes('shopify-draft-proxy rust runtime listening')) return;
     if (child.exitCode !== null) {
       throw new Error(`Rust DraftProxy runtime exited before listening:\n${output()}`);
     }
     try {
-      const response = fetchJsonSync(origin, { method: 'GET', path: '/__meta/health' });
+      const response = fetchJsonSync(origin, { method: 'GET', path: '/__meta/health' }, 250);
       if (response.status === 200) return;
     } catch {
       // Server is not accepting connections yet.

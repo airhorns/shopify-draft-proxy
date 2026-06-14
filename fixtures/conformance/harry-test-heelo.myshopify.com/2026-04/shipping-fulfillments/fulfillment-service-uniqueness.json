@@ -1,36 +1,36 @@
 {
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "capturedAt": "2026-05-08T08:45:11.046Z",
-  "token": "fsuniq-mowo6bal",
+  "capturedAt": "2026-06-13T22:31:39.538Z",
+  "token": "fsuniq-mqcxjtib",
   "notes": [
     "Live fulfillmentService uniqueness capture.",
     "Created disposable fulfillment services, then recorded Shopify rejecting same-name duplicate create, case-variant duplicate create, generated-handle collision create, and update-to-existing-name.",
     "Recorded Shopify fulfillment-service handle generation for a diacritic/punctuation name: Latin diacritics are transliterated, punctuation collapses to hyphens, underscores are preserved, and trailing punctuation is trimmed.",
-    "Recorded Shopify rejecting generated reserved handles for Manual and Gift_Card on create, and Manual on update, with field [\"name\"] and message \"Name is reserved\".",
+    "Recorded Shopify rejecting generated reserved handles for Manual, Gift_Card, Shopify, and Amazon on create, and Manual, Shopify, and Amazon on update, with field [\"name\"] and message \"Name is reserved\".",
     "The active app schema exposes fulfillmentServiceCreate/Update.userErrors as UserError without a selectable code field; focused runtime tests cover the proxy projecting null when clients select code.",
     "Rejected duplicate create/update branches returned fulfillmentService: null and userErrors[{ field: [\"name\"], message: \"Name has already been taken\" }]."
   ],
   "createA": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
     "variables": {
-      "name": "FS Unique Acme fsuniq-mowo6bal"
+      "name": "FS Unique Acme fsuniq-mqcxjtib"
     },
     "payload": {
       "data": {
         "fulfillmentServiceCreate": {
           "fulfillmentService": {
-            "id": "gid://shopify/FulfillmentService/71930413362?id=true",
-            "handle": "fs-unique-acme-fsuniq-mowo6bal",
-            "serviceName": "FS Unique Acme fsuniq-mowo6bal",
+            "id": "gid://shopify/FulfillmentService/72025276722?id=true",
+            "handle": "fs-unique-acme-fsuniq-mqcxjtib",
+            "serviceName": "FS Unique Acme fsuniq-mqcxjtib",
             "callbackUrl": null,
             "trackingSupport": true,
             "inventoryManagement": true,
             "requiresShippingMethod": true,
             "type": "THIRD_PARTY",
             "location": {
-              "id": "gid://shopify/Location/112890052914",
-              "name": "FS Unique Acme fsuniq-mowo6bal",
+              "id": "gid://shopify/Location/113464410418",
+              "name": "FS Unique Acme fsuniq-mqcxjtib",
               "isFulfillmentService": true,
               "fulfillsOnlineOrders": true,
               "shipsInventory": false
@@ -55,7 +55,7 @@
   "sameNameDuplicateCreate": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
     "variables": {
-      "name": "FS Unique Acme fsuniq-mowo6bal"
+      "name": "FS Unique Acme fsuniq-mqcxjtib"
     },
     "payload": {
       "data": {
@@ -85,7 +85,7 @@
   "caseVariantDuplicateCreate": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
     "variables": {
-      "name": "FS UNIQUE ACME FSUNIQ-MOWO6BAL"
+      "name": "FS UNIQUE ACME FSUNIQ-MQCXJTIB"
     },
     "payload": {
       "data": {
@@ -115,23 +115,23 @@
   "createSpaced": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
     "variables": {
-      "name": "FS Unique AB fsuniq-mowo6bal"
+      "name": "FS Unique AB fsuniq-mqcxjtib"
     },
     "payload": {
       "data": {
         "fulfillmentServiceCreate": {
           "fulfillmentService": {
-            "id": "gid://shopify/FulfillmentService/71930446130?id=true",
-            "handle": "fs-unique-ab-fsuniq-mowo6bal",
-            "serviceName": "FS Unique AB fsuniq-mowo6bal",
+            "id": "gid://shopify/FulfillmentService/72025309490?id=true",
+            "handle": "fs-unique-ab-fsuniq-mqcxjtib",
+            "serviceName": "FS Unique AB fsuniq-mqcxjtib",
             "callbackUrl": null,
             "trackingSupport": true,
             "inventoryManagement": true,
             "requiresShippingMethod": true,
             "type": "THIRD_PARTY",
             "location": {
-              "id": "gid://shopify/Location/112890085682",
-              "name": "FS Unique AB fsuniq-mowo6bal",
+              "id": "gid://shopify/Location/113464443186",
+              "name": "FS Unique AB fsuniq-mqcxjtib",
               "isFulfillmentService": true,
               "fulfillsOnlineOrders": true,
               "shipsInventory": false
@@ -156,7 +156,7 @@
   "handleCollisionDuplicateCreate": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
     "variables": {
-      "name": "fs-unique-ab-fsuniq-mowo6bal"
+      "name": "fs-unique-ab-fsuniq-mqcxjtib"
     },
     "payload": {
       "data": {
@@ -186,23 +186,23 @@
   "createDiacriticPunctuation": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
     "variables": {
-      "name": "FS Unique Café__3PL fsuniq-mowo6bal!!!"
+      "name": "FS Unique Café__3PL fsuniq-mqcxjtib!!!"
     },
     "payload": {
       "data": {
         "fulfillmentServiceCreate": {
           "fulfillmentService": {
-            "id": "gid://shopify/FulfillmentService/71930478898?id=true",
-            "handle": "fs-unique-cafe__3pl-fsuniq-mowo6bal",
-            "serviceName": "FS Unique Café__3PL fsuniq-mowo6bal!!!",
+            "id": "gid://shopify/FulfillmentService/72025342258?id=true",
+            "handle": "fs-unique-cafe__3pl-fsuniq-mqcxjtib",
+            "serviceName": "FS Unique Café__3PL fsuniq-mqcxjtib!!!",
             "callbackUrl": null,
             "trackingSupport": true,
             "inventoryManagement": true,
             "requiresShippingMethod": true,
             "type": "THIRD_PARTY",
             "location": {
-              "id": "gid://shopify/Location/112890118450",
-              "name": "FS Unique Café__3PL fsuniq-mowo6bal!!!",
+              "id": "gid://shopify/Location/113464475954",
+              "name": "FS Unique Café__3PL fsuniq-mqcxjtib!!!",
               "isFulfillmentService": true,
               "fulfillsOnlineOrders": true,
               "shipsInventory": false
@@ -284,26 +284,86 @@
       }
     }
   },
+  "reservedShopifyCreate": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
+    "variables": {
+      "name": "Shopify"
+    },
+    "payload": {
+      "data": {
+        "fulfillmentServiceCreate": {
+          "fulfillmentService": null,
+          "userErrors": [
+            {
+              "field": ["name"],
+              "message": "Name is reserved"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "reservedAmazonCreate": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
+    "variables": {
+      "name": "Amazon"
+    },
+    "payload": {
+      "data": {
+        "fulfillmentServiceCreate": {
+          "fulfillmentService": null,
+          "userErrors": [
+            {
+              "field": ["name"],
+              "message": "Name is reserved"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
   "createUpdateSource": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
     "variables": {
-      "name": "FS Unique Source fsuniq-mowo6bal"
+      "name": "FS Unique Source fsuniq-mqcxjtib"
     },
     "payload": {
       "data": {
         "fulfillmentServiceCreate": {
           "fulfillmentService": {
-            "id": "gid://shopify/FulfillmentService/71930511666?id=true",
-            "handle": "fs-unique-source-fsuniq-mowo6bal",
-            "serviceName": "FS Unique Source fsuniq-mowo6bal",
+            "id": "gid://shopify/FulfillmentService/72025375026?id=true",
+            "handle": "fs-unique-source-fsuniq-mqcxjtib",
+            "serviceName": "FS Unique Source fsuniq-mqcxjtib",
             "callbackUrl": null,
             "trackingSupport": true,
             "inventoryManagement": true,
             "requiresShippingMethod": true,
             "type": "THIRD_PARTY",
             "location": {
-              "id": "gid://shopify/Location/112890151218",
-              "name": "FS Unique Source fsuniq-mowo6bal",
+              "id": "gid://shopify/Location/113464508722",
+              "name": "FS Unique Source fsuniq-mqcxjtib",
               "isFulfillmentService": true,
               "fulfillsOnlineOrders": true,
               "shipsInventory": false
@@ -328,23 +388,23 @@
   "createUpdateTarget": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
     "variables": {
-      "name": "FS Unique Target fsuniq-mowo6bal"
+      "name": "FS Unique Target fsuniq-mqcxjtib"
     },
     "payload": {
       "data": {
         "fulfillmentServiceCreate": {
           "fulfillmentService": {
-            "id": "gid://shopify/FulfillmentService/71930544434?id=true",
-            "handle": "fs-unique-target-fsuniq-mowo6bal",
-            "serviceName": "FS Unique Target fsuniq-mowo6bal",
+            "id": "gid://shopify/FulfillmentService/72025407794?id=true",
+            "handle": "fs-unique-target-fsuniq-mqcxjtib",
+            "serviceName": "FS Unique Target fsuniq-mqcxjtib",
             "callbackUrl": null,
             "trackingSupport": true,
             "inventoryManagement": true,
             "requiresShippingMethod": true,
             "type": "THIRD_PARTY",
             "location": {
-              "id": "gid://shopify/Location/112890183986",
-              "name": "FS Unique Target fsuniq-mowo6bal",
+              "id": "gid://shopify/Location/113464541490",
+              "name": "FS Unique Target fsuniq-mqcxjtib",
               "isFulfillmentService": true,
               "fulfillsOnlineOrders": true,
               "shipsInventory": false
@@ -369,8 +429,8 @@
   "updateToExistingName": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-update.graphql",
     "variables": {
-      "id": "gid://shopify/FulfillmentService/71930544434?id=true",
-      "name": "FS Unique Source fsuniq-mowo6bal"
+      "id": "gid://shopify/FulfillmentService/72025407794?id=true",
+      "name": "FS Unique Source fsuniq-mqcxjtib"
     },
     "payload": {
       "data": {
@@ -400,8 +460,70 @@
   "updateToReservedName": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-update.graphql",
     "variables": {
-      "id": "gid://shopify/FulfillmentService/71930544434?id=true",
+      "id": "gid://shopify/FulfillmentService/72025407794?id=true",
       "name": "Manual"
+    },
+    "payload": {
+      "data": {
+        "fulfillmentServiceUpdate": {
+          "fulfillmentService": null,
+          "userErrors": [
+            {
+              "field": ["name"],
+              "message": "Name is reserved"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateToReservedShopifyName": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-update.graphql",
+    "variables": {
+      "id": "gid://shopify/FulfillmentService/72025407794?id=true",
+      "name": "Shopify"
+    },
+    "payload": {
+      "data": {
+        "fulfillmentServiceUpdate": {
+          "fulfillmentService": null,
+          "userErrors": [
+            {
+              "field": ["name"],
+              "message": "Name is reserved"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateToReservedAmazonName": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-update.graphql",
+    "variables": {
+      "id": "gid://shopify/FulfillmentService/72025407794?id=true",
+      "name": "Amazon"
     },
     "payload": {
       "data": {

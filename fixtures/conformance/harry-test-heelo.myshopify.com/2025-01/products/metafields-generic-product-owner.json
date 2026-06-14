@@ -1,0 +1,187 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-06-14T01:58:13.939Z",
+  "setupProduct": {
+    "query": "#graphql\n  mutation GenericProductMetafieldsProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
+    "variables": {
+      "product": {
+        "title": "Hermes Generic Metafields 1781402293016"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10213083578674",
+            "title": "Hermes Generic Metafields 1781402293016"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "set": {
+    "query": "mutation NaturalProductMetafieldsSet($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      namespace\n      key\n      type\n      value\n    }\n    userErrors {\n      field\n      message\n      code\n      elementIndex\n    }\n  }\n}\n",
+    "variables": {
+      "metafields": [
+        {
+          "ownerId": "gid://shopify/Product/10213083578674",
+          "namespace": "custom",
+          "key": "generic_material",
+          "type": "single_line_text_field",
+          "value": "Wool 1781402293016"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [
+            {
+              "namespace": "custom",
+              "key": "generic_material",
+              "type": "single_line_text_field",
+              "value": "Wool 1781402293016"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterSet": {
+    "query": "query NaturalProductMetafieldsRead($id: ID!) {\n  product(id: $id) {\n    id\n    material: metafield(namespace: \"custom\", key: \"generic_material\") {\n      namespace\n      key\n      type\n      value\n    }\n    metafields(first: 10, namespace: \"custom\") {\n      nodes {\n        namespace\n        key\n        type\n        value\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Product/10213083578674"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10213083578674",
+          "material": {
+            "namespace": "custom",
+            "key": "generic_material",
+            "type": "single_line_text_field",
+            "value": "Wool 1781402293016"
+          },
+          "metafields": {
+            "nodes": [
+              {
+                "namespace": "custom",
+                "key": "generic_material",
+                "type": "single_line_text_field",
+                "value": "Wool 1781402293016"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 8,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1995,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "delete": {
+    "query": "mutation NaturalProductMetafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {\n  metafieldsDelete(metafields: $metafields) {\n    deletedMetafields {\n      ownerId\n      namespace\n      key\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "metafields": [
+        {
+          "ownerId": "gid://shopify/Product/10213083578674",
+          "namespace": "custom",
+          "key": "generic_material"
+        }
+      ]
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metafieldsDelete": {
+          "deletedMetafields": [
+            {
+              "ownerId": "gid://shopify/Product/10213083578674",
+              "namespace": "custom",
+              "key": "generic_material"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterDelete": {
+    "query": "query NaturalProductMetafieldsRead($id: ID!) {\n  product(id: $id) {\n    id\n    material: metafield(namespace: \"custom\", key: \"generic_material\") {\n      namespace\n      key\n      type\n      value\n    }\n    metafields(first: 10, namespace: \"custom\") {\n      nodes {\n        namespace\n        key\n        type\n        value\n      }\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Product/10213083578674"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "product": {
+          "id": "gid://shopify/Product/10213083578674",
+          "material": null,
+          "metafields": {
+            "nodes": []
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 8,
+          "actualQueryCost": 8,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1992,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [],
+  "upstreamCalls": []
+}

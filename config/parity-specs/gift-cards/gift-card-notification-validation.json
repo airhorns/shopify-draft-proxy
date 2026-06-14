@@ -39,7 +39,7 @@
         "selectedPaths": ["$.giftCard", "$.userErrors"],
         "expectedDifferences": [
           {
-            "path": "$[0].field",
+            "path": "$.userErrors[0].field",
             "ignore": true,
             "regrettable": true,
             "reason": "The internal validation branch is base-scoped and HAR-688 acceptance requires field [\"base\"], while live Admin GraphQL 2025-01 serializes the same base error as null."
@@ -57,7 +57,7 @@
         "selectedPaths": ["$.giftCard", "$.userErrors"],
         "expectedDifferences": [
           {
-            "path": "$[0].field",
+            "path": "$.userErrors[0].field",
             "ignore": true,
             "regrettable": true,
             "reason": "The internal validation branch is base-scoped and HAR-688 acceptance requires field [\"base\"], while live Admin GraphQL 2025-01 serializes the same base error as null."

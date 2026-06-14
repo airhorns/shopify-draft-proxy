@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-shop-locale-primary-guards.json"
   ],
-  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/localization_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
     "variablesCapturePath": "$.primaryGuards.enablePrimary.request.variables"
@@ -66,8 +66,19 @@
           "documentPath": "config/parity-requests/localization/localization-shop-locale-update-user-errors.graphql",
           "variablesCapturePath": "$.primaryGuards.updateMissingLocale.request.variables"
         }
+      },
+      {
+        "name": "shop-locale-update-missing-locale-with-web-presence-guard",
+        "capturePath": "$.primaryGuards.updateMissingLocaleWithWebPresence.response.data.shopLocaleUpdate",
+        "proxyPath": "$.data.shopLocaleUpdate",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.shopLocale", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-update-user-errors.graphql",
+          "variablesCapturePath": "$.primaryGuards.updateMissingLocaleWithWebPresence.request.variables"
+        }
       }
     ]
   },
-  "notes": "Live Admin GraphQL 2026-04 capture proves shopLocaleEnable, shopLocaleUpdate, and shopLocaleDisable reject primary-locale mutation attempts with coded ShopLocale userErrors. The shopLocaleUpdate primary guard covers both published:false and published:true, and shopLocaleUpdate distinguishes a missing locale with its own code."
+  "notes": "Live Admin GraphQL 2026-04 capture proves shopLocaleEnable, shopLocaleUpdate, and shopLocaleDisable reject primary-locale mutation attempts with coded ShopLocale userErrors. The shopLocaleUpdate primary guard covers both published:false and published:true, and shopLocaleUpdate distinguishes a missing locale with its own code even when marketWebPresenceIds are supplied."
 }
