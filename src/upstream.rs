@@ -8,6 +8,61 @@ use serde_json::Value;
 
 use crate::proxy::{Request, Response};
 
+/// An upstream request resolved against an origin, with hop-by-hop headers
+/// stripped, ready to be sent by *any* HTTP client — including one living in a
+/// host language (Ruby/Python) reached through a binding callback. Keeping URL
+/// assembly and header filtering here means every transport, native or
+/// host-language, shares one tested implementation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreparedRequest {
+    pub method: String,
+    pub url: String,
+    pub headers: BTreeMap<String, String>,
+    pub body: String,
+}
+
+/// Resolve a proxy [`Request`] against `origin` into a [`PreparedRequest`]: build
+/// the absolute URL (preserving the versioned path and any query string) and
+/// drop hop-by-hop headers that must not be forwarded upstream.
+pub fn prepare_upstream_request(
+    origin: &str,
+    request: Request,
+) -> Result<PreparedRequest, UpstreamError> {
+    let url = build_upstream_url(origin, &request.path)?;
+    let headers = request
+        .headers
+        .into_iter()
+        .filter(|(name, _)| should_forward_header(name))
+        .collect();
+
+    Ok(PreparedRequest {
+        method: request.method,
+        url: url.to_string(),
+        headers,
+        body: request.body,
+    })
+}
+
+/// Parse an upstream response body string the way the native client does: JSON
+/// when it parses, otherwise the raw string. Shared so host-language transports
+/// produce identical bodies.
+pub fn parse_upstream_body(text: String) -> Value {
+    match serde_json::from_str::<Value>(&text) {
+        Ok(body) => body,
+        Err(_) => Value::String(text),
+    }
+}
+
+/// The 502 envelope used when an upstream call fails, shared across transports
+/// so native and host-language failures look identical to callers.
+pub fn upstream_error_response(message: &str) -> Response {
+    Response {
+        status: 502,
+        headers: BTreeMap::new(),
+        body: serde_json::json!({ "errors": [{ "message": format!("upstream network error: {message}") }] }),
+    }
+}
+
 #[derive(Clone)]
 pub struct HttpUpstreamClient {
     origin: String,
@@ -25,11 +80,7 @@ impl HttpUpstreamClient {
     pub fn send(&self, request: Request) -> Response {
         match self.send_result(request) {
             Ok(response) => response,
-            Err(error) => Response {
-                status: 502,
-                headers: BTreeMap::new(),
-                body: serde_json::json!({ "errors": [{ "message": format!("upstream network error: {error}") }] }),
-            },
+            Err(error) => upstream_error_response(&error.to_string()),
         }
     }
 
@@ -48,10 +99,7 @@ impl HttpUpstreamClient {
             })
             .collect();
         let text = upstream_response.text()?;
-        let body = match serde_json::from_str::<Value>(&text) {
-            Ok(body) => body,
-            Err(_) => Value::String(text),
-        };
+        let body = parse_upstream_body(text);
 
         Ok(Response {
             status,
@@ -61,15 +109,14 @@ impl HttpUpstreamClient {
     }
 
     pub fn build_request(&self, request: Request) -> Result<ReqwestRequest, UpstreamError> {
-        let method = Method::from_bytes(request.method.as_bytes())
+        let prepared = prepare_upstream_request(&self.origin, request)?;
+        let method = Method::from_bytes(prepared.method.as_bytes())
             .map_err(|error| UpstreamError::InvalidMethod(error.to_string()))?;
-        let url = build_upstream_url(&self.origin, &request.path)?;
+        let url = Url::parse(&prepared.url)
+            .map_err(|error| UpstreamError::InvalidOrigin(error.to_string()))?;
         let mut builder = self.client.request(method, url);
 
-        for (name, value) in request.headers {
-            if !should_forward_header(&name) {
-                continue;
-            }
+        for (name, value) in prepared.headers {
             let header_name = HeaderName::from_bytes(name.as_bytes())
                 .map_err(|error| UpstreamError::InvalidHeaderName(error.to_string()))?;
             let header_value = HeaderValue::from_str(&value)
@@ -78,7 +125,7 @@ impl HttpUpstreamClient {
         }
 
         builder
-            .body(request.body)
+            .body(prepared.body)
             .build()
             .map_err(UpstreamError::Http)
     }
@@ -230,6 +277,87 @@ mod tests {
         assert!(headers.get(CONTENT_LENGTH).is_none());
         assert!(headers.get("connection").is_none());
         assert!(headers.get("transfer-encoding").is_none());
+    }
+
+    #[test]
+    fn prepare_upstream_request_builds_url_and_strips_hop_by_hop_headers() {
+        let prepared = prepare_upstream_request(
+            "https://example.myshopify.com",
+            Request {
+                method: "POST".to_string(),
+                path: "/admin/api/2026-04/graphql.json?debug=1".to_string(),
+                headers: [
+                    (
+                        "x-shopify-access-token".to_string(),
+                        "shpat_unchanged".to_string(),
+                    ),
+                    ("content-type".to_string(), "application/json".to_string()),
+                    ("host".to_string(), "wrong-host".to_string()),
+                    ("content-length".to_string(), "999".to_string()),
+                    ("connection".to_string(), "keep-alive".to_string()),
+                ]
+                .into(),
+                body: "{}".to_string(),
+            },
+        )
+        .expect("request should prepare");
+
+        assert_eq!(prepared.method, "POST");
+        assert_eq!(
+            prepared.url,
+            "https://example.myshopify.com/admin/api/2026-04/graphql.json?debug=1"
+        );
+        assert_eq!(
+            prepared
+                .headers
+                .get("x-shopify-access-token")
+                .map(String::as_str),
+            Some("shpat_unchanged")
+        );
+        assert_eq!(
+            prepared.headers.get("content-type").map(String::as_str),
+            Some("application/json")
+        );
+        assert!(!prepared.headers.contains_key("host"));
+        assert!(!prepared.headers.contains_key("content-length"));
+        assert!(!prepared.headers.contains_key("connection"));
+    }
+
+    #[test]
+    fn prepare_upstream_request_rejects_non_http_origin() {
+        let error = prepare_upstream_request(
+            "ftp://example.com",
+            Request {
+                method: "POST".to_string(),
+                path: "/admin/api/2026-04/graphql.json".to_string(),
+                headers: BTreeMap::new(),
+                body: String::new(),
+            },
+        )
+        .expect_err("non-http origin should be rejected");
+        assert!(matches!(error, UpstreamError::InvalidScheme(_)));
+    }
+
+    #[test]
+    fn parse_upstream_body_prefers_json_then_falls_back_to_raw_string() {
+        assert_eq!(
+            parse_upstream_body("{\"data\":{\"ok\":true}}".to_string()),
+            json!({ "data": { "ok": true } })
+        );
+        assert_eq!(
+            parse_upstream_body("not json".to_string()),
+            json!("not json")
+        );
+    }
+
+    #[test]
+    fn upstream_error_response_uses_the_shared_502_envelope() {
+        let response = upstream_error_response("boom");
+        assert_eq!(response.status, 502);
+        assert_eq!(
+            response.body,
+            json!({ "errors": [{ "message": "upstream network error: boom" }] })
+        );
     }
 
     #[test]

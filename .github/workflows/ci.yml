@@ -148,3 +148,39 @@ jobs:
       - name: Ruby Minitest smoke
         working-directory: ruby
         run: bundle exec rake smoke
+
+      # The catalog-importer example consumes the gem the way a real embedder
+      # would (official shopify_api client → intercepted HTTP → in-process
+      # proxy). `rake smoke` above already built the native extension into
+      # ruby/lib, which the example loads via its path-gem dependency.
+      - name: Install catalog importer example dependencies
+        working-directory: examples/catalog-importer
+        run: bundle install --jobs 4
+
+      - name: Catalog importer example end-to-end tests
+        working-directory: examples/catalog-importer
+        run: bundle exec rake test
+
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+    env:
+      PYTHON_VERSION: '3.11'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      # `uv run` builds the maturin/PyO3 extension from the in-repo Rust crate
+      # (Rust is preinstalled on the runner) and runs the binding test suite:
+      # the host-language transport smoke tests plus the existing round-trips.
+      - name: Python tests
+        run: uv run --project python --extra test pytest

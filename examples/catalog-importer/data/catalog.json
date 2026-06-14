@@ -1,0 +1,30 @@
+[
+  {
+    "title": "Aurora Tee",
+    "handle": "aurora-tee",
+    "description_html": "<p>A soft organic-cotton tee in northern-lights colours.</p>",
+    "vendor": "Northwind",
+    "product_type": "Shirts",
+    "status": "ACTIVE",
+    "tags": ["summer", "organic"],
+    "extra_tags": ["featured"]
+  },
+  {
+    "title": "Borealis Mug",
+    "handle": "borealis-mug",
+    "description_html": "<p>A 16oz stoneware mug with a reactive glaze.</p>",
+    "vendor": "Northwind",
+    "product_type": "Drinkware",
+    "status": "ACTIVE",
+    "tags": ["kitchen"]
+  },
+  {
+    "title": "Tundra Beanie",
+    "handle": "tundra-beanie",
+    "description_html": "<p>A merino-wool beanie for cold mornings.</p>",
+    "vendor": "Glacier Goods",
+    "product_type": "Accessories",
+    "status": "DRAFT",
+    "tags": ["winter", "wool"]
+  }
+]
