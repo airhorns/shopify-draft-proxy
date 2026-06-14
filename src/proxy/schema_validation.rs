@@ -136,7 +136,6 @@ fn validate_argument_value(
                 location,
             };
             let problems = validate_resolved_input_object(
-                variable_context,
                 &type_ref.named_type,
                 input_object,
                 fields,
@@ -223,7 +222,6 @@ fn validate_raw_input_object(
 }
 
 fn validate_resolved_input_object(
-    context: VariableValidationContext<'_>,
     input_type_name: &str,
     input_object: &BTreeMap<String, SchemaInputField>,
     fields: &BTreeMap<String, ResolvedValue>,
@@ -268,7 +266,6 @@ fn validate_resolved_input_object(
             let mut nested_path = problem_path.to_vec();
             nested_path.push(field_name.clone());
             problems.extend(validate_resolved_input_object(
-                context,
                 &field_schema.type_ref.named_type,
                 nested_input_object,
                 nested_fields,
