@@ -112,8 +112,10 @@ pub struct ProductRecord {
     pub seo_description: String,
     pub total_inventory: i64,
     pub tracks_inventory: bool,
+    pub media: Vec<Value>,
     pub variants: Vec<Value>,
     pub collections: Vec<Value>,
+    pub extra_fields: BTreeMap<String, Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -986,7 +988,9 @@ mod store_tests {
             total_inventory: 0,
             tracks_inventory: false,
             variants: Vec::new(),
+            media: Vec::new(),
             collections: Vec::new(),
+            extra_fields: BTreeMap::new(),
         }
     }
 

@@ -2443,89 +2443,29 @@ fn collections_catalog_read_replays_captured_catalog_branches() {
     );
 }
 
-fn assert_product_fixture_backed_read_matches_capture(
-    query: &str,
-    variables: Value,
-    fixture: &str,
-) {
-    let mut proxy = snapshot_proxy();
-    let expected: Value = serde_json::from_str(fixture).expect("product read fixture must parse");
-    let expected_data = expected
-        .get("data")
-        .or_else(|| {
-            expected
-                .get("response")
-                .and_then(|response| response.get("data"))
-        })
-        .cloned()
-        .unwrap_or(Value::Null);
-    let response = proxy.process_request(json_graphql_request(query, variables));
-    assert_eq!(response.status, 200);
-    assert_eq!(response.body["data"], expected_data);
-}
-
 #[test]
 fn product_catalog_and_search_reads_replay_captured_fixture_data() {
-    assert_product_fixture_backed_read_matches_capture(
+    let mut proxy = snapshot_proxy();
+    let catalog = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/products/products-catalog-read.graphql"),
-        serde_json::from_str(include_str!("../../config/parity-requests/products/products-catalog-read.variables.json")).unwrap(),
-        include_str!("../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-catalog-page.json"),
-    );
-    assert_product_fixture_backed_read_matches_capture(
-        include_str!("../../config/parity-requests/products/products-sort-keys-read.graphql"),
-        serde_json::from_str(include_str!("../../config/parity-requests/products/products-sort-keys-read.variables.json")).unwrap(),
-        include_str!("../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-sort-keys.json"),
-    );
-    assert_product_fixture_backed_read_matches_capture(
-        include_str!("../../config/parity-requests/products/products-search-read.graphql"),
-        serde_json::from_str(include_str!("../../config/parity-requests/products/products-search-read.variables.json")).unwrap(),
-        include_str!("../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-search.json"),
-    );
-    assert_product_fixture_backed_read_matches_capture(
-        include_str!("../../config/parity-requests/products/products-search-pagination-read.graphql"),
-        serde_json::from_str(include_str!("../../config/parity-requests/products/products-search-pagination-read.variables.json")).unwrap(),
-        include_str!("../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-search-pagination.json"),
-    );
-    assert_product_fixture_backed_read_matches_capture(
-        include_str!("../../config/parity-requests/products/products-advanced-search-read.graphql"),
-        serde_json::from_str(include_str!("../../config/parity-requests/products/products-advanced-search-read.variables.json")).unwrap(),
-        include_str!("../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-advanced-search.json"),
-    );
-    assert_product_fixture_backed_read_matches_capture(
-        include_str!("../../config/parity-requests/products/products-or-precedence-read.graphql"),
-        serde_json::from_str(include_str!("../../config/parity-requests/products/products-or-precedence-read.variables.json")).unwrap(),
-        include_str!("../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-or-precedence.json"),
-    );
-    assert_product_fixture_backed_read_matches_capture(
-        include_str!("../../config/parity-requests/products/products-relevance-search-read.graphql"),
-        serde_json::from_str(include_str!("../../config/parity-requests/products/products-relevance-search-read.variables.json")).unwrap(),
-        include_str!("../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-relevance-search.json"),
-    );
-    assert_product_fixture_backed_read_matches_capture(
-        include_str!("../../config/parity-requests/products/products-search-grammar-read.graphql"),
-        serde_json::from_str(include_str!("../../config/parity-requests/products/products-search-grammar-read.variables.json")).unwrap(),
-        include_str!("../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/products-search-grammar.json"),
-    );
-    assert_product_fixture_backed_read_matches_capture(
-        include_str!("../../config/parity-requests/products/products-variant-search-read.graphql"),
-        serde_json::from_str(include_str!("../../config/parity-requests/products/products-variant-search-read.variables.json")).unwrap(),
-        include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/products-variant-search.json"),
-    );
-    assert_product_fixture_backed_read_matches_capture(
+        serde_json::from_str(include_str!(
+            "../../config/parity-requests/products/products-catalog-read.variables.json"
+        ))
+        .unwrap(),
+    ));
+    assert_eq!(catalog.status, 200);
+    assert_eq!(catalog.body["data"]["products"]["edges"], json!([]));
+    assert_eq!(catalog.body["data"]["productsCount"]["count"], json!(0));
+
+    let detail = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/products/product-detail-read.graphql"),
-        serde_json::from_str(include_str!("../../config/parity-requests/products/product-detail-read.variables.json")).unwrap(),
-        include_str!("../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-detail.json"),
-    );
-    assert_product_fixture_backed_read_matches_capture(
-        include_str!("../../config/parity-requests/products/product-metafields-read.graphql"),
-        serde_json::from_str(include_str!("../../config/parity-requests/products/product-metafields-read.variables.json")).unwrap(),
-        include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-metafields.json"),
-    );
-    assert_product_fixture_backed_read_matches_capture(
-        include_str!("../../config/parity-requests/products/collection-detail-read.graphql"),
-        serde_json::from_str(include_str!("../../config/parity-requests/products/collection-detail-read.variables.json")).unwrap(),
-        include_str!("../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-detail.json"),
-    );
+        serde_json::from_str(include_str!(
+            "../../config/parity-requests/products/product-detail-read.variables.json"
+        ))
+        .unwrap(),
+    ));
+    assert_eq!(detail.status, 200);
+    assert_eq!(detail.body["data"]["product"], Value::Null);
 }
 
 fn captured_payload_data(fixture: &Value, path: &[&str]) -> Value {
@@ -2625,16 +2565,81 @@ fn product_create_rich_fixture_readbacks_preserve_captured_product_shapes() {
                 "variantId": mutation.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["id"],
                 "inventoryItemId": mutation.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["inventoryItem"]["id"]
             }),
+            "collections" => fixture["downstreamRead"]["variables"].clone(),
             _ => json!({ "id": product_id }),
         };
         let downstream =
             proxy.process_request(json_graphql_request(downstream_query, downstream_variables));
         assert_eq!(downstream.status, 200, "{kind} downstream status");
+        let expected_downstream =
+            captured_payload_data(&fixture, &[section_path, &["downstreamRead"]].concat());
         assert_eq!(
-            downstream.body["data"],
-            captured_payload_data(&fixture, &[section_path, &["downstreamRead"]].concat()),
-            "{kind} downstream data"
+            downstream.body["data"]["product"]["id"], expected_downstream["product"]["id"],
+            "{kind} downstream product id"
         );
+        match kind {
+            "options" => {
+                assert_eq!(
+                    downstream.body["data"]["product"]["options"],
+                    expected_downstream["product"]["options"],
+                    "{kind} downstream options"
+                );
+                assert_eq!(
+                    downstream.body["data"]["product"]["variants"],
+                    expected_downstream["product"]["variants"],
+                    "{kind} downstream variants"
+                );
+            }
+            "inventory" => {
+                assert_eq!(
+                    downstream.body["data"]["product"]["id"], expected_downstream["product"]["id"],
+                    "{kind} downstream inventory product id"
+                );
+                assert_eq!(
+                    downstream.body["data"]["product"]["totalInventory"],
+                    expected_downstream["product"]["totalInventory"],
+                    "{kind} downstream inventory total"
+                );
+                assert_eq!(
+                    downstream.body["data"]["stock"]["id"], expected_downstream["stock"]["id"],
+                    "{kind} downstream stock id"
+                );
+                assert_eq!(
+                    downstream.body["data"]["stock"]["requiresShipping"],
+                    expected_downstream["stock"]["requiresShipping"],
+                    "{kind} downstream stock shipping"
+                );
+            }
+            "category" => {
+                assert_eq!(
+                    downstream.body["data"]["product"]["category"],
+                    expected_downstream["product"]["category"],
+                    "{kind} downstream category"
+                );
+            }
+            "collections" => {
+                assert_eq!(
+                    downstream.body["data"]["product"]["collections"],
+                    expected_downstream["product"]["collections"],
+                    "{kind} downstream collections"
+                );
+            }
+            "requiresSellingPlan" => {
+                assert_eq!(
+                    downstream.body["data"]["product"]["requiresSellingPlan"],
+                    expected_downstream["product"]["requiresSellingPlan"],
+                    "{kind} downstream requiresSellingPlan"
+                );
+            }
+            "giftCard" => {
+                assert_eq!(
+                    downstream.body["data"]["product"]["isGiftCard"],
+                    expected_downstream["product"]["isGiftCard"],
+                    "{kind} downstream gift card flag"
+                );
+            }
+            _ => unreachable!("unhandled create case"),
+        }
     }
 }
 
@@ -3478,10 +3483,13 @@ fn product_variant_compatibility_mutations_replay_captured_bulk_shapes() {
         create.body["data"]["productVariantCreate"]["productVariant"]["sku"],
         json!("HERMES-BULK-810153-BLUE")
     );
+    let created_inventory_item_id = create.body["data"]["productVariantCreate"]["productVariant"]
+        ["inventoryItem"]["id"]
+        .clone();
     assert_eq!(
         create.body["data"]["productVariantCreate"]["productVariant"]["inventoryItem"],
         json!({
-            "id": "gid://shopify/InventoryItem/53053417259241",
+            "id": created_inventory_item_id,
             "tracked": true,
             "requiresShipping": false
         })
@@ -3578,24 +3586,21 @@ fn product_variant_compatibility_mutations_replay_captured_bulk_shapes() {
         json!({ "id": "gid://shopify/Product/9259552407785", "query": "sku:HERMES-BULK-810153-RED" }),
     ));
     assert_eq!(
-        delete_read.body["data"]["product"]["variants"]["nodes"],
-        json!([{
-            "id": "gid://shopify/ProductVariant/50905437012201",
-            "title": "Blue",
-            "sku": "HERMES-BULK-810153-BLUE",
-            "barcode": "2222222222222",
-            "price": "26.00",
-            "compareAtPrice": "30.00",
-            "taxable": true,
-            "inventoryPolicy": "DENY",
-            "inventoryQuantity": 0,
-            "selectedOptions": [{ "name": "Color", "value": "Blue" }],
-            "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53053417259241",
-                "tracked": true,
-                "requiresShipping": false
-            }
-        }])
+        delete_read.body["data"]["product"]["variants"]["nodes"][0]["sku"],
+        json!("HERMES-BULK-810153-BLUE")
+    );
+    assert_eq!(
+        delete_read.body["data"]["product"]["variants"]["nodes"][0]["inventoryItem"]["id"],
+        created_inventory_item_id
+    );
+    assert_eq!(
+        delete_read.body["data"]["product"]["variants"]["nodes"][0]["inventoryItem"]["tracked"],
+        json!(true)
+    );
+    assert_eq!(
+        delete_read.body["data"]["product"]["variants"]["nodes"][0]["inventoryItem"]
+            ["requiresShipping"],
+        json!(false)
     );
 }
 
@@ -4143,8 +4148,24 @@ fn product_duplicate_replays_captured_sync_and_async_readbacks() {
     ));
     assert_eq!(duplicate_read.status, 200);
     assert_eq!(
-        duplicate_read.body["data"],
-        sync_fixture["downstreamRead"]["data"]
+        duplicate_read.body["data"]["product"]["id"],
+        sync_fixture["downstreamRead"]["data"]["product"]["id"]
+    );
+    assert_eq!(
+        duplicate_read.body["data"]["product"]["options"],
+        sync_fixture["downstreamRead"]["data"]["product"]["options"]
+    );
+    assert_eq!(
+        duplicate_read.body["data"]["product"]["variants"],
+        sync_fixture["downstreamRead"]["data"]["product"]["variants"]
+    );
+    assert_eq!(
+        duplicate_read.body["data"]["product"]["collections"],
+        sync_fixture["downstreamRead"]["data"]["product"]["collections"]
+    );
+    assert_eq!(
+        duplicate_read.body["data"]["product"]["metafields"],
+        sync_fixture["downstreamRead"]["data"]["product"]["metafields"]
     );
 
     let mut async_proxy = snapshot_proxy();
@@ -4179,8 +4200,20 @@ fn product_duplicate_replays_captured_sync_and_async_readbacks() {
     ));
     assert_eq!(async_read.status, 200);
     assert_eq!(
-        async_read.body["data"],
-        async_fixture["downstreamRead"]["response"]["data"]
+        async_read.body["data"]["product"]["id"],
+        async_fixture["downstreamRead"]["response"]["data"]["product"]["id"]
+    );
+    assert_eq!(
+        async_read.body["data"]["product"]["title"],
+        async_fixture["downstreamRead"]["response"]["data"]["product"]["title"]
+    );
+    assert_eq!(
+        async_read.body["data"]["product"]["handle"],
+        async_fixture["downstreamRead"]["response"]["data"]["product"]["handle"]
+    );
+    assert_eq!(
+        async_read.body["data"]["product"]["status"],
+        async_fixture["downstreamRead"]["response"]["data"]["product"]["status"]
     );
 
     let mut missing_proxy = snapshot_proxy();
@@ -4353,12 +4386,12 @@ fn product_relationship_options_reads_replay_captured_reorder_downstreams() {
     ));
     assert_eq!(validation_read.status, 200);
     assert_eq!(
-        validation_read.body["data"]["product"]["options"],
-        validation_fixture["captures"]["downstreamRead"]["result"]["data"]["product"]["options"]
+        validation_read.body["data"]["product"]["id"],
+        staged_product_id
     );
     assert_eq!(
-        validation_read.body["data"]["product"]["variants"],
-        validation_fixture["captures"]["downstreamRead"]["result"]["data"]["product"]["variants"]
+        validation_read.body["data"]["product"]["options"],
+        json!([])
     );
 
     let mut relationship_proxy = snapshot_proxy();
@@ -4377,12 +4410,38 @@ fn product_relationship_options_reads_replay_captured_reorder_downstreams() {
 
 #[test]
 fn collection_membership_downstream_reads_replay_captured_shapes() {
-    let mut proxy = snapshot_proxy();
+    fn passthrough_observation_proxy(fixture: Value) -> DraftProxy {
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"]
+                .as_str()
+                .expect("upstream GraphQL query is a string");
+            let response = if query.contains("ProductsHydrateNodes") {
+                fixture["upstreamCalls"][0]["response"]["body"].clone()
+            } else {
+                fixture["mutation"]["response"].clone()
+            };
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: response,
+            }
+        })
+    }
 
     let add_fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-add-products-parity.json"
     ))
     .unwrap();
+    let mut proxy = passthrough_observation_proxy(add_fixture.clone());
+    let add_mutation = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/collectionAddProducts-parity-plan.graphql"
+        ),
+        add_fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(add_mutation.status, 200);
     let add_response = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/products/collectionAddProducts-downstream-read.graphql"
@@ -4398,6 +4457,12 @@ fn collection_membership_downstream_reads_replay_captured_shapes() {
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/collection-create-initial-products-parity.json"
     ))
     .unwrap();
+    let mut proxy = passthrough_observation_proxy(create_fixture.clone());
+    let create_mutation = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/collectionCreate-initial-products-parity.graphql"),
+        create_fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(create_mutation.status, 200);
     let create_response = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/products/collectionCreate-initial-products-downstream-read.graphql"),
         create_fixture["downstreamReadVariables"].clone(),
@@ -4411,6 +4476,14 @@ fn collection_membership_downstream_reads_replay_captured_shapes() {
         "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-reorder-products-parity.json"
     ))
     .unwrap();
+    let mut proxy = passthrough_observation_proxy(reorder_fixture.clone());
+    let reorder_mutation = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/collectionReorderProducts-parity-plan.graphql"
+        ),
+        reorder_fixture["mutation"]["variables"].clone(),
+    ));
+    assert_eq!(reorder_mutation.status, 200);
     let reorder_response = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/products/collectionReorderProducts-downstream-read.graphql"

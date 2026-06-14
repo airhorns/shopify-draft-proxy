@@ -722,7 +722,40 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                         "productType": "Base type",
                         "tags": ["base"],
                         "templateSuffix": "",
-                        "seo": { "title": "", "description": "" }
+                        "seo": { "title": "", "description": "" },
+                        "totalInventory": 0,
+                        "tracksInventory": false,
+                        "media": {
+                            "edges": [],
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "variants": {
+                            "edges": [],
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "collections": {
+                            "edges": [],
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "extraFields": {}
                     }
                 },
                 "productOrder": ["gid://shopify/Product/base"],
@@ -743,7 +776,40 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                         "productType": "",
                         "tags": ["new"],
                         "templateSuffix": "",
-                        "seo": { "title": "", "description": "" }
+                        "seo": { "title": "", "description": "" },
+                        "totalInventory": 0,
+                        "tracksInventory": false,
+                        "media": {
+                            "edges": [],
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "variants": {
+                            "edges": [],
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "collections": {
+                            "edges": [],
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "extraFields": {}
                     }
                 },
                 "productOrder": ["gid://shopify/Product/1?shopify-draft-proxy=synthetic"],

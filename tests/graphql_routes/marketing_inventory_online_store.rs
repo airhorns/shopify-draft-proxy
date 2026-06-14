@@ -2573,7 +2573,7 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
     ));
     assert_eq!(
         files_read.body["data"]["files"],
-        json!({"nodes": [{"id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "endCursor": "cursor:gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic"}})
+        json!({"nodes": [{"id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "alt": "Reference source", "createdAt": "2024-01-01T00:00:01.000Z", "fileStatus": "UPLOADED", "filename": "reference-source.jpg", "image": {"url": "https://cdn.example.com/reference-source.jpg", "width": null, "height": null}}], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "endCursor": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic"}})
     );
 
     let delete = proxy.process_request(json_graphql_request(
@@ -2644,14 +2644,14 @@ fn media_files_connection_paginates_edges_nodes_and_page_info_consistently() {
                 {"id": "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "alt": "Second"}
             ],
             "edges": [
-                {"cursor": "cursor:gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "alt": "First"}},
-                {"cursor": "cursor:gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "alt": "Second"}}
+                {"cursor": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic", "alt": "First"}},
+                {"cursor": "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "alt": "Second"}}
             ],
             "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
-                "startCursor": "cursor:gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic",
-                "endCursor": "cursor:gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic"
+                "startCursor": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic",
+                "endCursor": "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic"
             }
         })
     );
@@ -2672,12 +2672,12 @@ fn media_files_connection_paginates_edges_nodes_and_page_info_consistently() {
         second_page.body["data"]["files"],
         json!({
             "nodes": [{"id": "gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic", "alt": "Third"}],
-            "edges": [{"cursor": "cursor:gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic", "alt": "Third"}}],
+            "edges": [{"cursor": "gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic", "alt": "Third"}}],
             "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": true,
-                "startCursor": "cursor:gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic",
-                "endCursor": "cursor:gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic"
+                "startCursor": "gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic",
+                "endCursor": "gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic"
             }
         })
     );
@@ -2692,18 +2692,18 @@ fn media_files_connection_paginates_edges_nodes_and_page_info_consistently() {
           }
         }
         "#,
-        json!({"last": 1, "before": "cursor:gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic"}),
+        json!({"last": 1, "before": "gid://shopify/MediaImage/3?shopify-draft-proxy=synthetic"}),
     ));
     assert_eq!(
         before_tail.body["data"]["files"],
         json!({
             "nodes": [{"id": "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "alt": "Second"}],
-            "edges": [{"cursor": "cursor:gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "alt": "Second"}}],
+            "edges": [{"cursor": "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "node": {"id": "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic", "alt": "Second"}}],
             "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": true,
-                "startCursor": "cursor:gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic",
-                "endCursor": "cursor:gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic"
+                "startCursor": "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic",
+                "endCursor": "gid://shopify/MediaImage/2?shopify-draft-proxy=synthetic"
             }
         })
     );

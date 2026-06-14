@@ -299,17 +299,9 @@ fn product_variant_bulk_fixture_downstream_reads_return_captured_shapes() {
     ));
     assert_eq!(bulk_create.status, 200);
     assert_eq!(
-        bulk_create.body["data"]["product"]["variants"]["nodes"][1]["inventoryItem"]["id"],
-        json!("gid://shopify/InventoryItem/53240636637490")
-    );
-    assert_eq!(
-        bulk_create.body["data"]["product"]["variants"]["nodes"][1]["inventoryItem"]["tracked"],
-        json!(true)
-    );
-    assert_eq!(
-        bulk_create.body["data"]["product"]["variants"]["nodes"][1]["inventoryItem"]
-            ["requiresShipping"],
-        json!(false)
+        bulk_create.body["data"]["product"],
+        Value::Null,
+        "unobserved product reads should not replay a baked downstream fixture"
     );
     assert_eq!(bulk_create.body["data"]["skuCount"]["count"], json!(0));
 
@@ -333,8 +325,9 @@ fn product_variant_bulk_fixture_downstream_reads_return_captured_shapes() {
         json!("gid://shopify/Product/9263919988969")
     );
     assert_eq!(
-        inventory_read.body["data"]["variant"]["inventoryItem"]["tracked"],
-        json!(true)
+        inventory_read.body["data"]["variant"],
+        Value::Null,
+        "unobserved variant reads should not replay a baked downstream fixture"
     );
     assert_eq!(
         inventory_read.body["data"]["stock"]["variant"]["id"],
@@ -356,8 +349,9 @@ fn product_variant_bulk_fixture_downstream_reads_return_captured_shapes() {
     ));
     assert_eq!(bulk_update.status, 200);
     assert_eq!(
-        bulk_update.body["data"]["product"]["variants"]["nodes"][0]["metafield"],
-        json!({ "value": "premium", "ownerType": "PRODUCTVARIANT" })
+        bulk_update.body["data"]["product"],
+        Value::Null,
+        "unobserved product reads should not replay a baked bulk-update downstream fixture"
     );
 
     let reorder = proxy.process_request(json_graphql_request(
@@ -370,12 +364,9 @@ fn product_variant_bulk_fixture_downstream_reads_return_captured_shapes() {
     ));
     assert_eq!(reorder.status, 200);
     assert_eq!(
-        reorder.body["data"]["product"]["variants"]["nodes"][0],
-        json!({
-            "id": "gid://shopify/ProductVariant/51098748059954",
-            "title": "Blue",
-            "selectedOptions": [{ "name": "Color", "value": "Blue" }]
-        })
+        reorder.body["data"]["product"],
+        Value::Null,
+        "unobserved product reads should not replay a baked bulk-reorder downstream fixture"
     );
 
     let node = proxy.process_request(json_graphql_request(
@@ -389,7 +380,11 @@ fn product_variant_bulk_fixture_downstream_reads_return_captured_shapes() {
     assert_eq!(node.status, 200);
     assert_eq!(
         node.body["data"]["node"],
-        reorder.body["data"]["product"]["variants"]["nodes"][0]
+        json!({
+            "id": "gid://shopify/ProductVariant/51098748059954",
+            "title": "Blue",
+            "selectedOptions": [{ "name": "Color", "value": "Blue" }]
+        })
     );
 }
 

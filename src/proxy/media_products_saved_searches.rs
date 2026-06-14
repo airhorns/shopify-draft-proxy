@@ -1947,8 +1947,10 @@ impl DraftProxy {
                 .unwrap_or_default(),
             total_inventory: 0,
             tracks_inventory: false,
+            media: Vec::new(),
             variants: Vec::new(),
             collections: Vec::new(),
+            extra_fields: BTreeMap::new(),
         };
         self.store.stage_product(product.clone());
 
@@ -2061,8 +2063,10 @@ impl DraftProxy {
                 .unwrap_or(existing.seo_description),
             total_inventory: existing.total_inventory,
             tracks_inventory: existing.tracks_inventory,
+            media: existing.media,
             variants: existing.variants,
             collections: existing.collections,
+            extra_fields: existing.extra_fields,
         };
         self.store.stage_product(product.clone());
 
@@ -2193,8 +2197,10 @@ impl DraftProxy {
             seo_description: String::new(),
             total_inventory: 0,
             tracks_inventory: false,
+            media: Vec::new(),
             variants: Vec::new(),
             collections: Vec::new(),
+            extra_fields: BTreeMap::new(),
         };
         self.store.stage_product(product.clone());
 
@@ -3010,12 +3016,19 @@ fn product_record_from_hydrated_json(record: &Value) -> ProductRecord {
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default(),
+        media: record
+            .get("media")
+            .and_then(|connection| connection.get("nodes"))
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default(),
         collections: record
             .get("collections")
             .and_then(|connection| connection.get("nodes"))
             .and_then(Value::as_array)
             .cloned()
             .unwrap_or_default(),
+        extra_fields: product_extra_fields_from_json(record),
     }
 }
 

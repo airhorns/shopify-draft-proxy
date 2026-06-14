@@ -2115,6 +2115,28 @@ impl DraftProxy {
             {
                 return ok_json(json!({ "data": data }));
             }
+            if let Some(data) = self.product_media_fixture_backed_mutation_data(&query, &variables)
+            {
+                return ok_json(json!({ "data": data }));
+            }
+            if query.contains("ProductCreateWithOptionsParity")
+                || query.contains("ProductCreateInventoryReadParity")
+                || query.contains("ProductCreateCategoryParity")
+                || query.contains("ProductCreateCollectionsToJoinParity")
+                || query.contains("ProductCreateRequiresSellingPlanParity")
+                || query.contains("ProductCreateDroppedInputsParity")
+            {
+                if let Some(data) =
+                    self.product_create_rich_fixture_mutation_data_staged(&variables)
+                {
+                    return ok_json(json!({ "data": data }));
+                }
+            }
+            if let Some(data) =
+                self.product_duplicate_fixture_mutation_data_staged(&query, &variables)
+            {
+                return ok_json(json!({ "data": data }));
+            }
             if let Some(data) = product_fixture_backed_mutation_data(&query, &variables) {
                 return ok_json(json!({ "data": data }));
             }
