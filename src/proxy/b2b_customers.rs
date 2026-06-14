@@ -1224,15 +1224,15 @@ impl DraftProxy {
         } else if identifier
             .as_ref()
             .and_then(|value| resolved_string_field(value, "id"))
-            .as_deref()
-            == Some("gid://shopify/Customer/999999999")
+            .map(|id| !self.store.staged.customers.contains_key(&id))
+            .unwrap_or(false)
         {
             Some(json!({
                 "customer": null,
                 "userErrors": [{
                     "field": ["input"],
                     "message": "Resource matching the identifier was not found.",
-                    "code": "INVALID"
+                    "code": "NOT_FOUND"
                 }]
             }))
         } else {

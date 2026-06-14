@@ -858,12 +858,146 @@ pub(in crate::proxy) fn is_ported_market_localization_document(query: &str) -> b
     query.contains("RustMarketLocalizationsLocalRuntime")
 }
 
-pub(in crate::proxy) fn localization_baseline_read_data() -> Value {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-locale-translation-fixture.json"
-    ))
-    .expect("localization locale fixture must parse");
-    fixture["readCapture"]["response"]["data"].clone()
+pub(in crate::proxy) fn default_available_locales() -> BTreeMap<String, String> {
+    BTreeMap::from([
+        ("af".to_string(), "Afrikaans".to_string()),
+        ("ak".to_string(), "Akan".to_string()),
+        ("sq".to_string(), "Albanian".to_string()),
+        ("am".to_string(), "Amharic".to_string()),
+        ("ar".to_string(), "Arabic".to_string()),
+        ("hy".to_string(), "Armenian".to_string()),
+        ("as".to_string(), "Assamese".to_string()),
+        ("az".to_string(), "Azerbaijani".to_string()),
+        ("bm".to_string(), "Bambara".to_string()),
+        ("bn".to_string(), "Bangla".to_string()),
+        ("eu".to_string(), "Basque".to_string()),
+        ("be".to_string(), "Belarusian".to_string()),
+        ("bs".to_string(), "Bosnian".to_string()),
+        ("br".to_string(), "Breton".to_string()),
+        ("bg".to_string(), "Bulgarian".to_string()),
+        ("my".to_string(), "Burmese".to_string()),
+        ("ca".to_string(), "Catalan".to_string()),
+        ("ckb".to_string(), "Central Kurdish".to_string()),
+        ("ce".to_string(), "Chechen".to_string()),
+        ("zh-CN".to_string(), "Chinese (Simplified)".to_string()),
+        ("zh-TW".to_string(), "Chinese (Traditional)".to_string()),
+        ("kw".to_string(), "Cornish".to_string()),
+        ("hr".to_string(), "Croatian".to_string()),
+        ("cs".to_string(), "Czech".to_string()),
+        ("da".to_string(), "Danish".to_string()),
+        ("nl".to_string(), "Dutch".to_string()),
+        ("dz".to_string(), "Dzongkha".to_string()),
+        ("en".to_string(), "English".to_string()),
+        ("eo".to_string(), "Esperanto".to_string()),
+        ("et".to_string(), "Estonian".to_string()),
+        ("ee".to_string(), "Ewe".to_string()),
+        ("fo".to_string(), "Faroese".to_string()),
+        ("fil".to_string(), "Filipino".to_string()),
+        ("fi".to_string(), "Finnish".to_string()),
+        ("fr".to_string(), "French".to_string()),
+        ("ff".to_string(), "Fulah".to_string()),
+        ("gl".to_string(), "Galician".to_string()),
+        ("lg".to_string(), "Ganda".to_string()),
+        ("ka".to_string(), "Georgian".to_string()),
+        ("de".to_string(), "German".to_string()),
+        ("el".to_string(), "Greek".to_string()),
+        ("gu".to_string(), "Gujarati".to_string()),
+        ("ha".to_string(), "Hausa".to_string()),
+        ("he".to_string(), "Hebrew".to_string()),
+        ("hi".to_string(), "Hindi".to_string()),
+        ("hu".to_string(), "Hungarian".to_string()),
+        ("is".to_string(), "Icelandic".to_string()),
+        ("ig".to_string(), "Igbo".to_string()),
+        ("id".to_string(), "Indonesian".to_string()),
+        ("ia".to_string(), "Interlingua".to_string()),
+        ("ga".to_string(), "Irish".to_string()),
+        ("it".to_string(), "Italian".to_string()),
+        ("ja".to_string(), "Japanese".to_string()),
+        ("jv".to_string(), "Javanese".to_string()),
+        ("kl".to_string(), "Kalaallisut".to_string()),
+        ("kn".to_string(), "Kannada".to_string()),
+        ("ks".to_string(), "Kashmiri".to_string()),
+        ("kk".to_string(), "Kazakh".to_string()),
+        ("km".to_string(), "Khmer".to_string()),
+        ("ki".to_string(), "Kikuyu".to_string()),
+        ("rw".to_string(), "Kinyarwanda".to_string()),
+        ("ko".to_string(), "Korean".to_string()),
+        ("ku".to_string(), "Kurdish".to_string()),
+        ("ky".to_string(), "Kyrgyz".to_string()),
+        ("lo".to_string(), "Lao".to_string()),
+        ("lv".to_string(), "Latvian".to_string()),
+        ("ln".to_string(), "Lingala".to_string()),
+        ("lt".to_string(), "Lithuanian".to_string()),
+        ("lu".to_string(), "Luba-Katanga".to_string()),
+        ("lb".to_string(), "Luxembourgish".to_string()),
+        ("mk".to_string(), "Macedonian".to_string()),
+        ("mg".to_string(), "Malagasy".to_string()),
+        ("ms".to_string(), "Malay".to_string()),
+        ("ml".to_string(), "Malayalam".to_string()),
+        ("mt".to_string(), "Maltese".to_string()),
+        ("gv".to_string(), "Manx".to_string()),
+        ("mr".to_string(), "Marathi".to_string()),
+        ("mn".to_string(), "Mongolian".to_string()),
+        ("mi".to_string(), "M\u{101}ori".to_string()),
+        ("ne".to_string(), "Nepali".to_string()),
+        ("nd".to_string(), "North Ndebele".to_string()),
+        ("se".to_string(), "Northern Sami".to_string()),
+        ("no".to_string(), "Norwegian".to_string()),
+        ("nb".to_string(), "Norwegian (Bokm\u{e5}l)".to_string()),
+        ("nn".to_string(), "Norwegian Nynorsk".to_string()),
+        ("or".to_string(), "Odia".to_string()),
+        ("om".to_string(), "Oromo".to_string()),
+        ("os".to_string(), "Ossetic".to_string()),
+        ("ps".to_string(), "Pashto".to_string()),
+        ("fa".to_string(), "Persian".to_string()),
+        ("pl".to_string(), "Polish".to_string()),
+        ("pt-BR".to_string(), "Portuguese (Brazil)".to_string()),
+        ("pt-PT".to_string(), "Portuguese (Portugal)".to_string()),
+        ("pa".to_string(), "Punjabi".to_string()),
+        ("qu".to_string(), "Quechua".to_string()),
+        ("ro".to_string(), "Romanian".to_string()),
+        ("rm".to_string(), "Romansh".to_string()),
+        ("rn".to_string(), "Rundi".to_string()),
+        ("ru".to_string(), "Russian".to_string()),
+        ("sg".to_string(), "Sango".to_string()),
+        ("sa".to_string(), "Sanskrit".to_string()),
+        ("sc".to_string(), "Sardinian".to_string()),
+        ("gd".to_string(), "Scottish Gaelic".to_string()),
+        ("sr".to_string(), "Serbian".to_string()),
+        ("sn".to_string(), "Shona".to_string()),
+        ("ii".to_string(), "Sichuan Yi".to_string()),
+        ("sd".to_string(), "Sindhi".to_string()),
+        ("si".to_string(), "Sinhala".to_string()),
+        ("sk".to_string(), "Slovak".to_string()),
+        ("sl".to_string(), "Slovenian".to_string()),
+        ("so".to_string(), "Somali".to_string()),
+        ("es".to_string(), "Spanish".to_string()),
+        ("su".to_string(), "Sundanese".to_string()),
+        ("sw".to_string(), "Swahili".to_string()),
+        ("sv".to_string(), "Swedish".to_string()),
+        ("tg".to_string(), "Tajik".to_string()),
+        ("ta".to_string(), "Tamil".to_string()),
+        ("tt".to_string(), "Tatar".to_string()),
+        ("te".to_string(), "Telugu".to_string()),
+        ("th".to_string(), "Thai".to_string()),
+        ("bo".to_string(), "Tibetan".to_string()),
+        ("ti".to_string(), "Tigrinya".to_string()),
+        ("to".to_string(), "Tongan".to_string()),
+        ("tr".to_string(), "Turkish".to_string()),
+        ("tk".to_string(), "Turkmen".to_string()),
+        ("uk".to_string(), "Ukrainian".to_string()),
+        ("ur".to_string(), "Urdu".to_string()),
+        ("ug".to_string(), "Uyghur".to_string()),
+        ("uz".to_string(), "Uzbek".to_string()),
+        ("vi".to_string(), "Vietnamese".to_string()),
+        ("cy".to_string(), "Welsh".to_string()),
+        ("fy".to_string(), "Western Frisian".to_string()),
+        ("wo".to_string(), "Wolof".to_string()),
+        ("xh".to_string(), "Xhosa".to_string()),
+        ("yi".to_string(), "Yiddish".to_string()),
+        ("yo".to_string(), "Yoruba".to_string()),
+        ("zu".to_string(), "Zulu".to_string()),
+    ])
 }
 
 pub(in crate::proxy) fn localization_collection_read_data(with_translation: bool) -> Value {
@@ -886,8 +1020,7 @@ pub(in crate::proxy) fn localization_market_scoped_read_data() -> Value {
     fixture["marketScopedTranslationLifecycle"]["readBeforeRegister"]["data"].clone()
 }
 
-pub(in crate::proxy) fn shop_locale_record(locale: &str, published: bool) -> Value {
-    let name = localization_available_locale_name(locale).unwrap_or_else(|| locale.to_string());
+pub(in crate::proxy) fn shop_locale_record(locale: &str, name: &str, published: bool) -> Value {
     json!({
         "locale": locale,
         "name": name,
@@ -895,16 +1028,6 @@ pub(in crate::proxy) fn shop_locale_record(locale: &str, published: bool) -> Val
         "published": published,
         "marketWebPresences": []
     })
-}
-
-pub(in crate::proxy) fn localization_available_locale_name(locale: &str) -> Option<String> {
-    localization_baseline_read_data()["availableLocalesExcerpt"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .find(|candidate| candidate["isoCode"].as_str() == Some(locale))
-        .and_then(|candidate| candidate["name"].as_str())
-        .map(str::to_string)
 }
 
 pub(in crate::proxy) fn shop_locale_user_error(
@@ -917,10 +1040,6 @@ pub(in crate::proxy) fn shop_locale_user_error(
         "message": message,
         "code": code
     })
-}
-
-pub(in crate::proxy) fn is_valid_shop_locale(locale: &str) -> bool {
-    localization_available_locale_name(locale).is_some()
 }
 
 pub(in crate::proxy) fn is_known_market_web_presence_id(id: &str) -> bool {
@@ -1035,12 +1154,6 @@ pub(in crate::proxy) fn market_localization_error(field: Vec<&str>, code: &str) 
     })
 }
 
-pub(in crate::proxy) fn is_ported_metaobject_document(query: &str) -> bool {
-    query.contains("MetaobjectsReadParity")
-        || query.contains("MetaobjectEntryLifecycleCreate")
-        || query.contains("MetaobjectEntryLifecycleDelete")
-}
-
 pub(in crate::proxy) fn seed_metaobject_record() -> Value {
     metaobject_record(
         "gid://shopify/Metaobject/185593102642",
@@ -1050,6 +1163,32 @@ pub(in crate::proxy) fn seed_metaobject_record() -> Value {
         "HAR-240 body 1777156845370",
         "2026-04-25T22:40:46Z",
     )
+}
+
+pub(in crate::proxy) fn seed_metaobject_definition_record() -> Value {
+    json!({
+        "id": "gid://shopify/MetaobjectDefinition/185593102642",
+        "type": "codex_har_240_1777156845370",
+        "name": "HAR-240 Metaobject",
+        "description": Value::Null,
+        "displayNameKey": "title",
+        "access": {"admin": "PUBLIC_READ_WRITE", "storefront": "NONE", "customerAccount": "NONE"},
+        "capabilities": {
+            "publishable": {"enabled": true},
+            "onlineStore": {"enabled": false, "data": Value::Null},
+            "renderable": {"enabled": false},
+            "translatable": {"enabled": false}
+        },
+        "fieldDefinitions": [
+            {"key": "title", "name": "Title", "description": Value::Null, "required": true, "type": {"name": "single_line_text_field", "category": "TEXT"}, "validations": []},
+            {"key": "body", "name": "Body", "description": Value::Null, "required": false, "type": {"name": "multi_line_text_field", "category": "TEXT"}, "validations": []}
+        ],
+        "hasThumbnailField": false,
+        "metaobjectsCount": 1,
+        "standardTemplate": Value::Null,
+        "createdAt": "2026-04-25T22:40:46Z",
+        "updatedAt": "2026-04-25T22:40:46Z"
+    })
 }
 
 pub(in crate::proxy) fn metaobject_record(
@@ -1084,6 +1223,429 @@ pub(in crate::proxy) fn metaobject_record(
         "fields": [title_field.clone(), body_field],
         "titleField": title_field
     })
+}
+
+pub(in crate::proxy) fn metaobject_definition_record(
+    id: &str,
+    input: &BTreeMap<String, ResolvedValue>,
+    meta_type: &str,
+) -> Value {
+    let name = resolved_string_field(input, "name").unwrap_or_else(|| meta_type.to_string());
+    let display_name_key = resolved_string_field(input, "displayNameKey");
+    let field_definitions = resolved_object_list_field(input, "fieldDefinitions")
+        .into_iter()
+        .map(metaobject_field_definition_record)
+        .collect::<Vec<_>>();
+    json!({
+        "id": id,
+        "type": meta_type,
+        "name": name,
+        "description": input.get("description").and_then(resolved_value_string).map_or(Value::Null, |description| json!(description)),
+        "displayNameKey": display_name_key,
+        "access": {"admin": "PUBLIC_READ_WRITE", "storefront": "NONE", "customerAccount": "NONE"},
+        "capabilities": metaobject_definition_capabilities(input),
+        "fieldDefinitions": field_definitions,
+        "hasThumbnailField": false,
+        "metaobjectsCount": 0,
+        "standardTemplate": Value::Null,
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "updatedAt": "2024-01-01T00:00:00.000Z"
+    })
+}
+
+pub(in crate::proxy) fn metaobject_record_from_definition(
+    id: &str,
+    handle: &str,
+    definition: &Value,
+    input_values: &BTreeMap<String, String>,
+    display_name: &str,
+    publishable_status: &str,
+) -> Value {
+    let fields = definition["fieldDefinitions"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|field_definition| {
+            let key = field_definition
+                .get("key")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let value = input_values.get(key).cloned().unwrap_or_default();
+            json!({
+                "key": key,
+                "type": field_definition["type"]["name"].clone(),
+                "value": value,
+                "jsonValue": metaobject_field_json_value(field_definition["type"]["name"].as_str().unwrap_or_default(), input_values.get(key).map(String::as_str)),
+                "definition": field_definition
+            })
+        })
+        .collect::<Vec<_>>();
+    let title_key = definition
+        .get("displayNameKey")
+        .and_then(Value::as_str)
+        .unwrap_or("title");
+    let title_field = fields
+        .iter()
+        .find(|field| field.get("key").and_then(Value::as_str) == Some(title_key))
+        .cloned()
+        .or_else(|| fields.first().cloned())
+        .unwrap_or(Value::Null);
+    json!({
+        "id": id,
+        "handle": handle,
+        "type": definition["type"].clone(),
+        "displayName": display_name,
+        "updatedAt": "2024-01-01T00:00:00.000Z",
+        "capabilities": {
+            "publishable": {"status": publishable_status},
+            "onlineStore": Value::Null
+        },
+        "fields": fields,
+        "titleField": title_field
+    })
+}
+
+pub(in crate::proxy) fn metaobject_create_input_values(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> BTreeMap<String, String> {
+    let mut values = BTreeMap::new();
+    if let Some(ResolvedValue::List(fields)) = input.get("fields") {
+        for field in fields {
+            if let ResolvedValue::Object(field) = field {
+                if let (Some(key), Some(value)) = (
+                    resolved_string_field(field, "key"),
+                    resolved_string_field(field, "value"),
+                ) {
+                    values.insert(key, value);
+                }
+            }
+        }
+    }
+    if let Some(ResolvedValue::Object(object)) = input.get("values") {
+        for (key, value) in object {
+            match value {
+                ResolvedValue::String(value) => {
+                    values.insert(key.clone(), value.clone());
+                }
+                ResolvedValue::Null => {
+                    values.insert(key.clone(), String::new());
+                }
+                _ => {
+                    values.insert(key.clone(), resolved_value_json(value).to_string());
+                }
+            }
+        }
+    }
+    values
+}
+
+pub(in crate::proxy) fn metaobject_create_validation_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    definition: &Value,
+    input_values: &BTreeMap<String, String>,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    let definition_keys = definition["fieldDefinitions"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|field| field.get("key").and_then(Value::as_str))
+        .collect::<BTreeSet<_>>();
+    let mut seen = BTreeSet::new();
+    if let Some(ResolvedValue::List(fields)) = input.get("fields") {
+        for (index, field) in fields.iter().enumerate() {
+            let ResolvedValue::Object(field) = field else {
+                continue;
+            };
+            let key = resolved_string_field(field, "key").unwrap_or_default();
+            if !seen.insert(key.clone()) {
+                errors.push(metaobject_user_error(
+                    vec!["metaobject", "fields", &index.to_string()],
+                    "Field input contains a duplicate key.",
+                    "DUPLICATE_FIELD_INPUT",
+                    json!(key),
+                    json!(index),
+                ));
+                continue;
+            }
+            if !definition_keys.contains(key.as_str()) {
+                errors.push(metaobject_user_error(
+                    vec!["metaobject", "fields", &index.to_string()],
+                    &format!("Field key \"{key}\" is not defined on this metaobject definition."),
+                    "UNDEFINED_OBJECT_FIELD",
+                    json!(key),
+                    json!(index),
+                ));
+            } else if let Some(field_definition) = definition["fieldDefinitions"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find(|definition| {
+                    definition.get("key").and_then(Value::as_str) == Some(key.as_str())
+                })
+            {
+                let value = resolved_string_field(field, "value").unwrap_or_default();
+                if !metaobject_value_matches_type(
+                    field_definition["type"]["name"]
+                        .as_str()
+                        .unwrap_or_default(),
+                    &value,
+                ) {
+                    errors.push(metaobject_user_error(
+                        vec!["metaobject", "fields", &index.to_string()],
+                        &format!("Value is invalid for field \"{key}\"."),
+                        "INVALID_VALUE",
+                        json!(key),
+                        json!(index),
+                    ));
+                }
+            }
+        }
+    }
+    for key in input_values.keys() {
+        if !definition_keys.contains(key.as_str()) {
+            errors.push(metaobject_user_error(
+                vec!["metaobject", "values", key],
+                &format!("Field key \"{key}\" is not defined on this metaobject definition."),
+                "UNDEFINED_OBJECT_FIELD",
+                json!(key),
+                Value::Null,
+            ));
+        }
+    }
+    for field_definition in definition["fieldDefinitions"]
+        .as_array()
+        .into_iter()
+        .flatten()
+    {
+        let key = field_definition
+            .get("key")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if field_definition
+            .get("required")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+            && input_values
+                .get(key)
+                .is_none_or(|value| value.trim().is_empty())
+        {
+            errors.push(metaobject_user_error(
+                vec!["metaobject", "fields"],
+                &format!("Field \"{key}\" is required."),
+                "OBJECT_FIELD_REQUIRED",
+                json!(key),
+                Value::Null,
+            ));
+        }
+        if let Some(value) = input_values.get(key) {
+            if !metaobject_value_matches_type(
+                field_definition["type"]["name"]
+                    .as_str()
+                    .unwrap_or_default(),
+                value,
+            ) {
+                errors.push(metaobject_user_error(
+                    vec!["metaobject", "fields"],
+                    &format!("Value is invalid for field \"{key}\"."),
+                    "INVALID_VALUE",
+                    json!(key),
+                    Value::Null,
+                ));
+            }
+        }
+    }
+    if let Some(capabilities) = resolved_object_field(input, "capabilities") {
+        for key in capabilities.keys() {
+            let enabled = definition["capabilities"][key]["enabled"]
+                .as_bool()
+                .unwrap_or(false);
+            if !enabled {
+                errors.push(metaobject_user_error(
+                    vec!["metaobject", "capabilities", key],
+                    "Capability is not enabled for this metaobject definition.",
+                    "CAPABILITY_NOT_ENABLED",
+                    json!(key),
+                    Value::Null,
+                ));
+            }
+        }
+    }
+    if definition
+        .get("metaobjectsCount")
+        .and_then(Value::as_i64)
+        .unwrap_or(0)
+        >= 10_000
+    {
+        errors.push(metaobject_user_error(
+            vec!["metaobject"],
+            "Maximum number of metaobjects exceeded.",
+            "MAX_OBJECTS_EXCEEDED",
+            Value::Null,
+            Value::Null,
+        ));
+    }
+    errors
+}
+
+pub(in crate::proxy) fn metaobject_display_name(
+    definition: &Value,
+    input_values: &BTreeMap<String, String>,
+) -> String {
+    definition
+        .get("displayNameKey")
+        .and_then(Value::as_str)
+        .and_then(|key| input_values.get(key))
+        .filter(|value| !value.trim().is_empty())
+        .cloned()
+        .or_else(|| {
+            input_values
+                .values()
+                .find(|value| !value.trim().is_empty())
+                .cloned()
+        })
+        .unwrap_or_else(|| {
+            definition["type"]
+                .as_str()
+                .unwrap_or("Metaobject")
+                .to_string()
+        })
+}
+
+pub(in crate::proxy) fn metaobject_publishable_status(
+    input: &BTreeMap<String, ResolvedValue>,
+    definition: &Value,
+) -> String {
+    let publishable_enabled = definition["capabilities"]["publishable"]["enabled"]
+        .as_bool()
+        .unwrap_or(false);
+    resolved_object_field(input, "capabilities")
+        .and_then(|capabilities| resolved_object_field(&capabilities, "publishable"))
+        .and_then(|publishable| resolved_string_field(&publishable, "status"))
+        .unwrap_or_else(|| {
+            if publishable_enabled {
+                "DRAFT".to_string()
+            } else {
+                "ACTIVE".to_string()
+            }
+        })
+}
+
+pub(in crate::proxy) fn metaobject_user_error(
+    field: Vec<&str>,
+    message: &str,
+    code: &str,
+    element_key: Value,
+    element_index: Value,
+) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code,
+        "elementKey": element_key,
+        "elementIndex": element_index
+    })
+}
+
+fn metaobject_field_definition_record(input: BTreeMap<String, ResolvedValue>) -> Value {
+    let key = resolved_string_field(&input, "key").unwrap_or_default();
+    let name = resolved_string_field(&input, "name").unwrap_or_else(|| key.clone());
+    let field_type = metaobject_field_definition_type(&input);
+    json!({
+        "key": key,
+        "name": name,
+        "description": input.get("description").and_then(resolved_value_string).map_or(Value::Null, |description| json!(description)),
+        "required": resolved_bool_field(&input, "required").unwrap_or(false),
+        "type": {"name": field_type, "category": metaobject_field_type_category(&field_type)},
+        "validations": resolved_object_list_field(&input, "validations")
+            .into_iter()
+            .map(|validation| {
+                json!({
+                    "name": resolved_string_field(&validation, "name").unwrap_or_default(),
+                    "value": resolved_string_field(&validation, "value").unwrap_or_default()
+                })
+            })
+            .collect::<Vec<_>>()
+    })
+}
+
+fn metaobject_definition_capabilities(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    let capabilities = resolved_object_field(input, "capabilities").unwrap_or_default();
+    let publishable = resolved_object_field(&capabilities, "publishable")
+        .and_then(|publishable| resolved_bool_field(&publishable, "enabled"))
+        .unwrap_or(false);
+    let online_store = resolved_object_field(&capabilities, "onlineStore")
+        .and_then(|online_store| resolved_bool_field(&online_store, "enabled"))
+        .unwrap_or(false);
+    let renderable = resolved_object_field(&capabilities, "renderable")
+        .and_then(|renderable| resolved_bool_field(&renderable, "enabled"))
+        .unwrap_or(false);
+    let translatable = resolved_object_field(&capabilities, "translatable")
+        .and_then(|translatable| resolved_bool_field(&translatable, "enabled"))
+        .unwrap_or(false);
+    json!({
+        "publishable": {"enabled": publishable},
+        "onlineStore": {"enabled": online_store, "data": Value::Null},
+        "renderable": {"enabled": renderable},
+        "translatable": {"enabled": translatable}
+    })
+}
+
+fn metaobject_field_definition_type(input: &BTreeMap<String, ResolvedValue>) -> String {
+    match input.get("type") {
+        Some(ResolvedValue::String(value)) => value.clone(),
+        Some(ResolvedValue::Object(value)) => resolved_string_field(value, "name")
+            .unwrap_or_else(|| "single_line_text_field".to_string()),
+        _ => "single_line_text_field".to_string(),
+    }
+}
+
+fn metaobject_field_type_category(field_type: &str) -> &'static str {
+    match field_type {
+        "number_integer" | "number_decimal" => "NUMBER",
+        "boolean" => "TRUE_FALSE",
+        "date" | "date_time" => "DATE_TIME",
+        "json" | "rich_text_field" => "JSON",
+        value if value.ends_with("_reference") || value.starts_with("list.") => "REFERENCE",
+        _ => "TEXT",
+    }
+}
+
+fn metaobject_field_json_value(field_type: &str, value: Option<&str>) -> Value {
+    let Some(value) = value else {
+        return Value::Null;
+    };
+    match field_type {
+        "number_integer" => value
+            .parse::<i64>()
+            .map_or(Value::Null, |number| json!(number)),
+        "number_decimal" => value
+            .parse::<f64>()
+            .map_or(Value::Null, |number| json!(number)),
+        "boolean" => match value {
+            "true" => json!(true),
+            "false" => json!(false),
+            _ => Value::Null,
+        },
+        "json" | "rich_text_field" => serde_json::from_str(value).unwrap_or_else(|_| json!(value)),
+        value_type if value_type.starts_with("list.") => {
+            serde_json::from_str(value).unwrap_or_else(|_| json!([value]))
+        }
+        _ => json!(value),
+    }
+}
+
+fn metaobject_value_matches_type(field_type: &str, value: &str) -> bool {
+    match field_type {
+        "number_integer" => value.parse::<i64>().is_ok(),
+        "number_decimal" => value.parse::<f64>().is_ok(),
+        "boolean" => matches!(value, "true" | "false"),
+        "json" | "rich_text_field" => serde_json::from_str::<Value>(value).is_ok(),
+        value_type if value_type.starts_with("list.") => serde_json::from_str::<Value>(value)
+            .ok()
+            .is_some_and(|value| value.is_array()),
+        _ => true,
+    }
 }
 
 pub(in crate::proxy) fn metaobject_cursor(record: &Value) -> String {
@@ -1839,14 +2401,6 @@ pub(in crate::proxy) fn marketing_activity_missing_error() -> Value {
     })
 }
 
-pub(in crate::proxy) fn marketing_activity_not_external_error() -> Value {
-    json!({
-        "field": null,
-        "message": "The marketing activity must be an external activity.",
-        "code": "ACTIVITY_NOT_EXTERNAL"
-    })
-}
-
 pub(in crate::proxy) fn marketing_activity_child_events_error() -> Value {
     json!({
         "field": null,
@@ -2103,23 +2657,6 @@ pub(in crate::proxy) fn invalid_marketing_url_error(
     None
 }
 
-pub(in crate::proxy) fn input_utm_differs(
-    existing: &Value,
-    input: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    let Some(utm) = resolved_object_field(input, "utm") else {
-        return false;
-    };
-    for key in ["campaign", "source", "medium"] {
-        if resolved_string_field(&utm, key)
-            .is_some_and(|value| existing["utmParameters"][key].as_str() != Some(value.as_str()))
-        {
-            return true;
-        }
-    }
-    false
-}
-
 pub(in crate::proxy) fn marketing_status_label(
     status: &str,
     tactic: &str,
@@ -2269,19 +2806,6 @@ pub(in crate::proxy) fn draft_order_invoice_line_item() -> Value {
         "totalDiscountSet": draft_order_invoice_money_set("0.0", "CAD"),
         "variant": Value::Null
     })
-}
-
-pub(in crate::proxy) fn resolved_object_field_bool(
-    value: &ResolvedValue,
-    name: &str,
-) -> Option<bool> {
-    match value {
-        ResolvedValue::Object(fields) => match fields.get(name) {
-            Some(ResolvedValue::Bool(value)) => Some(*value),
-            _ => None,
-        },
-        _ => None,
-    }
 }
 
 pub(in crate::proxy) fn is_rust_webhook_local_runtime_document(query: &str) -> bool {

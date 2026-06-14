@@ -872,14 +872,19 @@ impl DraftProxy {
             .unwrap_or(Value::Null);
         if existing["isExternal"] == json!(false) {
             return selected_json(
-                &marketing_activity_payload(
-                    None,
-                    vec![json!({
-                        "field": null,
-                        "message": "Marketing activity is not external.",
-                        "code": "MARKETING_ACTIVITY_NOT_EXTERNAL"
-                    })],
-                ),
+                &marketing_activity_payload(None, vec![marketing_activity_not_external_error()]),
+                &field.selection,
+            );
+        }
+        let selector_utm = resolved_object_field(&field.arguments, "utm");
+        if let Some(err) = self.marketing_external_immutable_update_error(
+            &existing,
+            &input,
+            selector_utm.as_ref(),
+            request,
+        ) {
+            return selected_json(
+                &marketing_activity_payload(None, vec![err]),
                 &field.selection,
             );
         }
@@ -937,42 +942,11 @@ impl DraftProxy {
         let existing_id = self.find_marketing_activity_by_remote(&remote, request);
         if let Some(id) = &existing_id {
             if let Some(existing) = self.store.staged.marketing_activities.get(id) {
-                if input_utm_differs(existing, &input) {
-                    return selected_json(
-                        &marketing_activity_payload(
-                            None,
-                            vec![json!({
-                                "field": ["input"],
-                                "message": "UTM parameters cannot be modified.",
-                                "code": "IMMUTABLE_UTM_PARAMETERS"
-                            })],
-                        ),
-                        &field.selection,
-                    );
-                }
-                if resolved_string_field(&input, "channelHandle").is_some_and(|ch| {
-                    existing["marketingEvent"]["channelHandle"].as_str() != Some(ch.as_str())
-                }) {
-                    return selected_json(
-                        &marketing_activity_payload(
-                            None,
-                            vec![
-                                json!({"field": ["input", "channelHandle"], "message": "Channel handle cannot be modified.", "code": "IMMUTABLE_CHANNEL_HANDLE"}),
-                            ],
-                        ),
-                        &field.selection,
-                    );
-                }
-                if resolved_string_field(&input, "urlParameterValue")
-                    .is_some_and(|v| existing["urlParameterValue"].as_str() != Some(v.as_str()))
+                if let Some(err) =
+                    self.marketing_external_immutable_update_error(existing, &input, None, request)
                 {
                     return selected_json(
-                        &marketing_activity_payload(
-                            None,
-                            vec![
-                                json!({"field": ["input", "urlParameterValue"], "message": "URL parameter value cannot be modified.", "code": "IMMUTABLE_URL_PARAMETER_VALUE"}),
-                            ],
-                        ),
+                        &marketing_activity_payload(None, vec![err]),
                         &field.selection,
                     );
                 }
@@ -1158,7 +1132,7 @@ impl DraftProxy {
         };
         if activity["isExternal"] == json!(false) {
             return selected_json(
-                &json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_not_external_error()] }),
+                &json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_delete_not_external_error()] }),
                 &field.selection,
             );
         }
@@ -1478,6 +1452,90 @@ impl DraftProxy {
                     None
                 }
             })
+    }
+
+    fn marketing_external_immutable_update_error(
+        &self,
+        existing: &Value,
+        input: &BTreeMap<String, ResolvedValue>,
+        selector_utm: Option<&BTreeMap<String, ResolvedValue>>,
+        request: &Request,
+    ) -> Option<Value> {
+        if existing["isExternal"] == json!(false) {
+            return Some(marketing_activity_not_external_error());
+        }
+        if existing["marketingEvent"].is_null() {
+            return Some(json!({
+                "field": null,
+                "message": "Marketing activity is not valid, the associated marketing event does not exist.",
+                "code": "MARKETING_EVENT_DOES_NOT_EXIST"
+            }));
+        }
+        if resolved_string_field(input, "channelHandle").is_some_and(|channel_handle| {
+            existing["marketingEvent"]["channelHandle"].as_str() != Some(channel_handle.as_str())
+        }) {
+            return Some(json!({
+                "field": ["input"],
+                "message": "Channel handle cannot be modified.",
+                "code": "IMMUTABLE_CHANNEL_HANDLE"
+            }));
+        }
+        if input_string_field_value(input, "urlParameterValue")
+            != json_string_value(&existing["urlParameterValue"])
+        {
+            return Some(json!({
+                "field": ["input"],
+                "message": "URL parameter value cannot be modified.",
+                "code": "IMMUTABLE_URL_PARAMETER"
+            }));
+        }
+        if input_utm_value(input, selector_utm, "campaign")
+            != json_string_value(&existing["utmParameters"]["campaign"])
+            || input_utm_value(input, selector_utm, "source")
+                != json_string_value(&existing["utmParameters"]["source"])
+            || input_utm_value(input, selector_utm, "medium")
+                != json_string_value(&existing["utmParameters"]["medium"])
+        {
+            return Some(json!({
+                "field": ["input"],
+                "message": "UTM parameters cannot be modified.",
+                "code": "IMMUTABLE_UTM_PARAMETERS"
+            }));
+        }
+        if let Some(parent_remote_id) = resolved_string_field(input, "parentRemoteId") {
+            let Some(parent_id) =
+                self.find_marketing_activity_by_remote(&parent_remote_id, request)
+            else {
+                return Some(json!({
+                    "field": ["input"],
+                    "message": "Remote ID does not correspond to an activity.",
+                    "code": "INVALID_REMOTE_ID"
+                }));
+            };
+            let existing_parent_remote_id = existing["parentRemoteId"].as_str().unwrap_or("");
+            let existing_parent_id = if existing_parent_remote_id.is_empty() {
+                None
+            } else {
+                self.find_marketing_activity_by_remote(existing_parent_remote_id, request)
+            };
+            if existing_parent_id.as_deref() != Some(parent_id.as_str()) {
+                return Some(json!({
+                    "field": ["input"],
+                    "message": "Parent ID cannot be modified.",
+                    "code": "IMMUTABLE_PARENT_ID"
+                }));
+            }
+        }
+        if resolved_string_field(input, "hierarchyLevel").is_some_and(|hierarchy_level| {
+            existing["hierarchyLevel"].as_str() != Some(hierarchy_level.as_str())
+        }) {
+            return Some(json!({
+                "field": ["input"],
+                "message": "Hierarchy level cannot be modified.",
+                "code": "IMMUTABLE_HIERARCHY_LEVEL"
+            }));
+        }
+        None
     }
 
     pub(in crate::proxy) fn engagement_currency_mismatches_activity(
@@ -2522,6 +2580,47 @@ impl DraftProxy {
     }
 }
 
+fn input_string_field_value(
+    input: &BTreeMap<String, ResolvedValue>,
+    field: &str,
+) -> Option<String> {
+    match input.get(field) {
+        Some(ResolvedValue::String(value)) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+fn input_utm_value(
+    input: &BTreeMap<String, ResolvedValue>,
+    selector_utm: Option<&BTreeMap<String, ResolvedValue>>,
+    field: &str,
+) -> Option<String> {
+    match input.get("utm") {
+        Some(ResolvedValue::Object(utm)) => input_string_field_value(utm, field),
+        _ => selector_utm.and_then(|utm| input_string_field_value(utm, field)),
+    }
+}
+
+fn json_string_value(value: &Value) -> Option<String> {
+    value.as_str().map(str::to_string)
+}
+
+fn marketing_activity_not_external_error() -> Value {
+    json!({
+        "field": null,
+        "message": "Marketing activity is not external.",
+        "code": "ACTIVITY_NOT_EXTERNAL"
+    })
+}
+
+fn marketing_activity_delete_not_external_error() -> Value {
+    json!({
+        "field": null,
+        "message": "The marketing activity must be an external activity.",
+        "code": "ACTIVITY_NOT_EXTERNAL"
+    })
+}
+
 fn webhook_subscription_topic_coercion_error(
     field: &RootFieldSelection,
     document: Option<&ParsedDocument>,
@@ -2750,6 +2849,43 @@ fn inventory_invalid_reason_payload(
         }),
         &field.selection,
     ))
+}
+
+#[cfg(test)]
+#[test]
+fn immutable_external_activity_validator_rejects_missing_marketing_event() {
+    let proxy = DraftProxy::new(Config {
+        read_mode: ReadMode::Snapshot,
+        unsupported_mutation_mode: None,
+        bulk_operation_run_mutation_max_input_file_size_bytes: None,
+        port: 0,
+        shopify_admin_origin: "https://shopify.com".to_string(),
+        snapshot_path: None,
+    });
+    let err = proxy.marketing_external_immutable_update_error(
+        &json!({
+            "isExternal": true,
+            "marketingEvent": null,
+            "urlParameterValue": "url",
+            "utmParameters": {
+                "campaign": "campaign",
+                "source": "source",
+                "medium": "medium"
+            }
+        }),
+        &BTreeMap::new(),
+        None,
+        &Request::default(),
+    );
+
+    assert_eq!(
+        err,
+        Some(json!({
+            "field": null,
+            "message": "Marketing activity is not valid, the associated marketing event does not exist.",
+            "code": "MARKETING_EVENT_DOES_NOT_EXIST"
+        }))
+    );
 }
 
 const WEBHOOK_SUBSCRIPTION_TOPIC_EXPECTED_VALUES: &str = "TAX_SUMMARIES_CREATE, APP_UNINSTALLED, APP_SCOPES_UPDATE, CARTS_CREATE, CARTS_UPDATE, CHANNELS_DELETE, CHECKOUTS_CREATE, CHECKOUTS_DELETE, CHECKOUTS_UPDATE, CUSTOMER_PAYMENT_METHODS_CREATE, CUSTOMER_PAYMENT_METHODS_UPDATE, CUSTOMER_PAYMENT_METHODS_REVOKE, COLLECTION_LISTINGS_ADD, COLLECTION_LISTINGS_REMOVE, COLLECTION_LISTINGS_UPDATE, COLLECTION_PUBLICATIONS_CREATE, COLLECTION_PUBLICATIONS_DELETE, COLLECTION_PUBLICATIONS_UPDATE, COLLECTIONS_CREATE, COLLECTIONS_DELETE, COLLECTIONS_UPDATE, CUSTOMER_GROUPS_CREATE, CUSTOMER_GROUPS_DELETE, CUSTOMER_GROUPS_UPDATE, CUSTOMERS_CREATE, CUSTOMERS_DELETE, CUSTOMERS_DISABLE, CUSTOMERS_ENABLE, CUSTOMERS_UPDATE, CUSTOMERS_PURCHASING_SUMMARY, CUSTOMERS_MARKETING_CONSENT_UPDATE, CUSTOMER_TAGS_ADDED, CUSTOMER_TAGS_REMOVED, CUSTOMERS_EMAIL_MARKETING_CONSENT_UPDATE, DISPUTES_CREATE, DISPUTES_UPDATE, DRAFT_ORDERS_CREATE, DRAFT_ORDERS_DELETE, DRAFT_ORDERS_UPDATE, FULFILLMENT_EVENTS_CREATE, FULFILLMENT_EVENTS_DELETE, FULFILLMENTS_CREATE, FULFILLMENTS_UPDATE, ATTRIBUTED_SESSIONS_FIRST, ATTRIBUTED_SESSIONS_LAST, ORDER_TRANSACTIONS_CREATE, ORDERS_CANCELLED, ORDERS_CREATE, ORDERS_DELETE, ORDERS_EDITED, ORDERS_FULFILLED, ORDERS_PAID, ORDERS_PARTIALLY_FULFILLED, ORDERS_UPDATED, ORDERS_LINK_REQUESTED, FULFILLMENT_ORDERS_MOVED, FULFILLMENT_ORDERS_HOLD_RELEASED, FULFILLMENT_ORDERS_SCHEDULED_FULFILLMENT_ORDER_READY, FULFILLMENT_HOLDS_RELEASED, FULFILLMENT_ORDERS_ORDER_ROUTING_COMPLETE, FULFILLMENT_ORDERS_CANCELLED, FULFILLMENT_ORDERS_FULFILLMENT_SERVICE_FAILED_TO_COMPLETE, FULFILLMENT_ORDERS_FULFILLMENT_REQUEST_REJECTED, FULFILLMENT_ORDERS_CANCELLATION_REQUEST_SUBMITTED, FULFILLMENT_ORDERS_CANCELLATION_REQUEST_ACCEPTED, FULFILLMENT_ORDERS_CANCELLATION_REQUEST_REJECTED, FULFILLMENT_ORDERS_FULFILLMENT_REQUEST_SUBMITTED, FULFILLMENT_ORDERS_FULFILLMENT_REQUEST_ACCEPTED, FULFILLMENT_HOLDS_ADDED, FULFILLMENT_ORDERS_LINE_ITEMS_PREPARED_FOR_LOCAL_DELIVERY, FULFILLMENT_ORDERS_PLACED_ON_HOLD, FULFILLMENT_ORDERS_MERGED, FULFILLMENT_ORDERS_SPLIT, FULFILLMENT_ORDERS_PROGRESS_REPORTED, FULFILLMENT_ORDERS_MANUALLY_REPORTED_PROGRESS_STOPPED, PRODUCT_LISTINGS_ADD, PRODUCT_LISTINGS_REMOVE, PRODUCT_LISTINGS_UPDATE, SCHEDULED_PRODUCT_LISTINGS_ADD, SCHEDULED_PRODUCT_LISTINGS_UPDATE, SCHEDULED_PRODUCT_LISTINGS_REMOVE, PRODUCT_PUBLICATIONS_CREATE, PRODUCT_PUBLICATIONS_DELETE, PRODUCT_PUBLICATIONS_UPDATE, PRODUCTS_CREATE, PRODUCTS_DELETE, PRODUCTS_UPDATE, REFUNDS_CREATE, SEGMENTS_CREATE, SEGMENTS_DELETE, SEGMENTS_UPDATE, SHIPPING_ADDRESSES_CREATE, SHIPPING_ADDRESSES_UPDATE, SHOP_UPDATE, TAX_PARTNERS_UPDATE, TAX_SERVICES_CREATE, TAX_SERVICES_UPDATE, THEMES_CREATE, THEMES_DELETE, THEMES_PUBLISH, THEMES_UPDATE, VARIANTS_IN_STOCK, VARIANTS_OUT_OF_STOCK, INVENTORY_LEVELS_CONNECT, INVENTORY_LEVELS_UPDATE, INVENTORY_LEVELS_DISCONNECT, INVENTORY_ITEMS_CREATE, INVENTORY_ITEMS_UPDATE, INVENTORY_ITEMS_DELETE, LOCATIONS_ACTIVATE, LOCATIONS_DEACTIVATE, LOCATIONS_CREATE, LOCATIONS_UPDATE, LOCATIONS_DELETE, TENDER_TRANSACTIONS_CREATE, APP_PURCHASES_ONE_TIME_UPDATE, APP_SUBSCRIPTIONS_APPROACHING_CAPPED_AMOUNT, APP_SUBSCRIPTIONS_UPDATE, LOCALES_CREATE, LOCALES_UPDATE, LOCALES_DESTROY, DOMAINS_CREATE, DOMAINS_UPDATE, DOMAINS_DESTROY, SUBSCRIPTION_CONTRACTS_CREATE, SUBSCRIPTION_CONTRACTS_UPDATE, SUBSCRIPTION_BILLING_CYCLE_EDITS_CREATE, SUBSCRIPTION_BILLING_CYCLE_EDITS_UPDATE, SUBSCRIPTION_BILLING_CYCLE_EDITS_DELETE, PROFILES_CREATE, PROFILES_UPDATE, PROFILES_DELETE, SUBSCRIPTION_BILLING_ATTEMPTS_SUCCESS, SUBSCRIPTION_BILLING_ATTEMPTS_FAILURE, SUBSCRIPTION_BILLING_ATTEMPTS_CHALLENGED, RETURNS_CANCEL, RETURNS_CLOSE, RETURNS_REOPEN, RETURNS_REQUEST, RETURNS_APPROVE, RETURNS_UPDATE, RETURNS_PROCESS, RETURNS_DECLINE, REVERSE_DELIVERIES_ATTACH_DELIVERABLE, REVERSE_FULFILLMENT_ORDERS_DISPOSE, PAYMENT_TERMS_CREATE, PAYMENT_TERMS_DELETE, PAYMENT_TERMS_UPDATE, PAYMENT_SCHEDULES_DUE, SELLING_PLAN_GROUPS_CREATE, SELLING_PLAN_GROUPS_UPDATE, SELLING_PLAN_GROUPS_DELETE, BULK_OPERATIONS_FINISH, PRODUCT_FEEDS_CREATE, PRODUCT_FEEDS_UPDATE, PRODUCT_FEEDS_INCREMENTAL_SYNC, PRODUCT_FEEDS_FULL_SYNC, PRODUCT_FEEDS_FULL_SYNC_FINISH, MARKETS_CREATE, MARKETS_UPDATE, MARKETS_DELETE, ORDERS_RISK_ASSESSMENT_CHANGED, ORDERS_SHOPIFY_PROTECT_ELIGIBILITY_CHANGED, FINANCE_KYC_INFORMATION_UPDATE, FULFILLMENT_ORDERS_RESCHEDULED, PUBLICATIONS_DELETE, AUDIT_EVENTS_ADMIN_API_ACTIVITY, FULFILLMENT_ORDERS_LINE_ITEMS_PREPARED_FOR_PICKUP, COMPANIES_CREATE, COMPANIES_UPDATE, COMPANIES_DELETE, COMPANY_LOCATIONS_CREATE, COMPANY_LOCATIONS_UPDATE, COMPANY_LOCATIONS_DELETE, COMPANY_CONTACTS_CREATE, COMPANY_CONTACTS_UPDATE, COMPANY_CONTACTS_DELETE, CUSTOMERS_MERGE, INVENTORY_TRANSFERS_ADD_ITEMS, INVENTORY_TRANSFERS_UPDATE_ITEM_QUANTITIES, INVENTORY_TRANSFERS_REMOVE_ITEMS, INVENTORY_TRANSFERS_READY_TO_SHIP, INVENTORY_TRANSFERS_CANCEL, INVENTORY_TRANSFERS_COMPLETE, INVENTORY_SHIPMENTS_DELETE, INVENTORY_SHIPMENTS_CREATE, INVENTORY_SHIPMENTS_MARK_IN_TRANSIT, INVENTORY_SHIPMENTS_UPDATE_TRACKING, INVENTORY_SHIPMENTS_ADD_ITEMS, INVENTORY_SHIPMENTS_UPDATE_ITEM_QUANTITIES, INVENTORY_SHIPMENTS_REMOVE_ITEMS, INVENTORY_SHIPMENTS_RECEIVE_ITEMS, CUSTOMER_ACCOUNT_SETTINGS_UPDATE, CUSTOMER_JOINED_SEGMENT, CUSTOMER_LEFT_SEGMENT, COMPANY_CONTACT_ROLES_ASSIGN, COMPANY_CONTACT_ROLES_REVOKE, SUBSCRIPTION_CONTRACTS_ACTIVATE, SUBSCRIPTION_CONTRACTS_PAUSE, SUBSCRIPTION_CONTRACTS_CANCEL, SUBSCRIPTION_CONTRACTS_FAIL, SUBSCRIPTION_CONTRACTS_EXPIRE, SUBSCRIPTION_BILLING_CYCLES_SKIP, SUBSCRIPTION_BILLING_CYCLES_UNSKIP, METAOBJECTS_CREATE, METAOBJECTS_UPDATE, METAOBJECTS_DELETE, FINANCE_APP_STAFF_MEMBER_GRANT, FINANCE_APP_STAFF_MEMBER_REVOKE, FINANCE_APP_STAFF_MEMBER_DELETE, FINANCE_APP_STAFF_MEMBER_UPDATE, DISCOUNTS_CREATE, DISCOUNTS_UPDATE, DISCOUNTS_DELETE, DISCOUNTS_REDEEMCODE_ADDED, DISCOUNTS_REDEEMCODE_REMOVED, METAFIELD_DEFINITIONS_CREATE, METAFIELD_DEFINITIONS_UPDATE, METAFIELD_DEFINITIONS_DELETE, DELIVERY_PROMISE_SETTINGS_UPDATE, MARKETS_BACKUP_REGION_UPDATE, CHECKOUT_AND_ACCOUNTS_CONFIGURATIONS_UPDATE";

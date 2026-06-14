@@ -727,7 +727,9 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                 "productVariants": {},
                 "productVariantOrder": [],
                 "savedSearches": {},
-                "savedSearchOrder": []
+                "savedSearchOrder": [],
+                "availableLocales": state.body["baseState"]["availableLocales"].clone(),
+                "shopLocales": state.body["baseState"]["shopLocales"].clone()
             },
             "stagedState": {
                 "products": {

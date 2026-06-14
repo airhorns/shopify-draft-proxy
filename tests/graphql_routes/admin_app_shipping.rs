@@ -1652,15 +1652,16 @@ fn customer_set_id_and_unknown_identifier_guards_do_not_stage_or_log() {
         })
     );
 
-    let unknown_id = proxy.process_request(json_graphql_request(
-        r#"
+    let unknown_id_query = r#"
         mutation CustomerSetUnknownIdErrors($input: CustomerSetInput!, $identifier: CustomerSetIdentifiers) {
           customerSet(input: $input, identifier: $identifier) {
             customer { id email }
             userErrors { field message code }
           }
         }
-        "#,
+        "#;
+    let unknown_id = proxy.process_request(json_graphql_request(
+        unknown_id_query,
         json!({
             "identifier": { "id": "gid://shopify/Customer/999999999" },
             "input": { "email": "buyer@example.com" }
@@ -1673,10 +1674,30 @@ fn customer_set_id_and_unknown_identifier_guards_do_not_stage_or_log() {
             "userErrors": [{
                 "field": ["input"],
                 "message": "Resource matching the identifier was not found.",
-                "code": "INVALID"
+                "code": "NOT_FOUND"
             }]
         })
     );
+
+    let arbitrary_unknown_id = proxy.process_request(json_graphql_request(
+        unknown_id_query,
+        json!({
+            "identifier": { "id": "gid://shopify/Customer/999999999999999" },
+            "input": { "firstName": "Ghost" }
+        }),
+    ));
+    assert_eq!(
+        arbitrary_unknown_id.body["data"]["customerSet"],
+        json!({
+            "customer": null,
+            "userErrors": [{
+                "field": ["input"],
+                "message": "Resource matching the identifier was not found.",
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+
     assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
     assert_eq!(
         proxy.get_state_snapshot()["stagedState"]["products"],
