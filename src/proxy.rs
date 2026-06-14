@@ -130,6 +130,8 @@ struct Store {
 struct BaseState {
     products: OrderedRecords<ProductRecord>,
     saved_searches: OrderedRecords<SavedSearchRecord>,
+    available_locales: BTreeMap<String, String>,
+    shop_locales: BTreeMap<String, Value>,
 }
 
 #[derive(Clone)]
@@ -179,6 +181,8 @@ struct StagedState {
     b2b_locations: BTreeMap<String, Value>,
     next_b2b_company_id: u64,
     inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
+    inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
+    next_inventory_quantity_timestamp: u64,
     inventory_transfers: BTreeMap<String, InventoryTransferRecord>,
     metaobject_definitions: BTreeMap<String, Value>,
     deleted_metaobject_definition_ids: BTreeSet<String>,
@@ -413,6 +417,8 @@ impl Default for StagedState {
             b2b_locations: BTreeMap::new(),
             next_b2b_company_id: 1,
             inventory_levels: BTreeMap::new(),
+            inventory_quantity_updated_at: BTreeMap::new(),
+            next_inventory_quantity_timestamp: 0,
             inventory_transfers: BTreeMap::new(),
             metaobject_definitions: BTreeMap::new(),
             deleted_metaobject_definition_ids: BTreeSet::new(),
@@ -549,6 +555,25 @@ where
 }
 
 impl Store {
+    fn with_default_baseline() -> Self {
+        let mut store = Self::default();
+        store.base.available_locales = default_available_locales();
+        store.base.shop_locales.insert(
+            "en".to_string(),
+            json!({
+                "locale": "en",
+                "name": "English",
+                "primary": true,
+                "published": true,
+                "marketWebPresences": [{
+                    "id": "gid://shopify/MarketWebPresence/62842765618",
+                    "subfolderSuffix": null
+                }]
+            }),
+        );
+        store
+    }
+
     fn clear_staged(&mut self) {
         self.staged = StagedState::default();
     }

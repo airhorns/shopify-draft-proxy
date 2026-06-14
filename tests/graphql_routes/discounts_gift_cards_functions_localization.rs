@@ -760,6 +760,11 @@ fn localization_locale_and_translation_lifecycle_stages_reads_and_clears_locale_
         initial.body["data"]["allShopLocales"][0]["locale"],
         json!("en")
     );
+    assert!(initial.body["data"]["availableLocalesExcerpt"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|locale| locale["isoCode"] == json!("fr") && locale["name"] == json!("French")));
     assert_eq!(initial.body["data"]["missing"], Value::Null);
 
     let enable = proxy.process_request(json_graphql_request(
@@ -809,6 +814,100 @@ fn localization_locale_and_translation_lifecycle_stages_reads_and_clears_locale_
     assert_eq!(
         after_disable.body["data"]["translatableResource"]["translations"],
         json!([])
+    );
+}
+
+#[test]
+fn localization_catalog_reads_are_store_backed_without_ported_document_marker() {
+    let mut proxy = snapshot_proxy();
+
+    let baseline = proxy.process_request(json_graphql_request(
+        r#"query ArbitraryLocaleCatalogRead {
+          locales: availableLocales { isoCode name }
+          all: shopLocales { locale name primary published marketWebPresences { id subfolderSuffix } }
+          published: shopLocales(published: true) { locale published }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(baseline.status, 200);
+    assert_eq!(
+        baseline.body["data"]["all"],
+        json!([{
+            "locale": "en",
+            "name": "English",
+            "primary": true,
+            "published": true,
+            "marketWebPresences": [{
+                "id": "gid://shopify/MarketWebPresence/62842765618",
+                "subfolderSuffix": null
+            }]
+        }])
+    );
+    assert!(baseline.body["data"]["locales"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|locale| locale["isoCode"] == json!("tr") && locale["name"] == json!("Turkish")));
+    assert_eq!(
+        baseline.body["data"]["published"],
+        json!([{ "locale": "en", "published": true }])
+    );
+
+    let lifecycle = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleEnable($known: ID!) {
+          enable: shopLocaleEnable(locale: "fr") { shopLocale { locale published } userErrors { field message code } }
+          update: shopLocaleUpdate(locale: "fr", shopLocale: { published: true, marketWebPresenceIds: [$known] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } }
+        }"#,
+        json!({ "known": "gid://shopify/MarketWebPresence/known" }),
+    ));
+    assert_eq!(lifecycle.status, 200);
+    assert_eq!(
+        lifecycle.body["data"]["update"]["shopLocale"],
+        json!({
+            "locale": "fr",
+            "name": "French",
+            "published": true,
+            "marketWebPresences": [{
+                "id": "gid://shopify/MarketWebPresence/known",
+                "__typename": "MarketWebPresence",
+                "defaultLocale": { "locale": "en" }
+            }]
+        })
+    );
+
+    let after_update = proxy.process_request(json_graphql_request(
+        r#"query AnyNameCanReadStagedLocales {
+          all: shopLocales { locale name published marketWebPresences { id __typename defaultLocale { locale } } }
+          published: shopLocales(published: true) { locale published }
+        }"#,
+        json!({}),
+    ));
+    let all = after_update.body["data"]["all"].as_array().unwrap();
+    assert!(all
+        .iter()
+        .any(|locale| locale["locale"] == json!("fr") && locale["published"] == json!(true)));
+    assert!(after_update.body["data"]["published"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|locale| locale["locale"] == json!("fr")));
+
+    let disabled = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleDisable($locale: String!) { shopLocaleDisable(locale: $locale) { locale userErrors { field message code } } }"#,
+        json!({ "locale": "fr" }),
+    ));
+    assert_eq!(
+        disabled.body["data"]["shopLocaleDisable"],
+        json!({ "locale": "fr", "userErrors": [] })
+    );
+
+    let after_disable = proxy.process_request(json_graphql_request(
+        r#"query NoMarkerShopLocaleAfterDisable { shopLocales { locale published } }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        after_disable.body["data"]["shopLocales"],
+        json!([{ "locale": "en", "published": true }])
     );
 }
 
@@ -1595,6 +1694,305 @@ fn gift_card_mutation_user_error_codes_cover_create_update_credit_and_debit_path
             "insufficientDebit": {
                 "giftCardDebitTransaction": null,
                 "userErrors": [{ "field": ["debitInput", "debitAmount", "amount"], "code": "INSUFFICIENT_FUNDS", "message": "The gift card does not have sufficient funds to satisfy the request." }]
+            }
+        })
+    );
+}
+
+#[test]
+fn gift_card_create_validation_is_input_driven_under_ordinary_operation_name() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation IssueGiftCards($validCode: String!, $tooLongCode: String!, $missingCustomerId: ID!) {
+          zeroInitialValue: giftCardCreate(input: { initialValue: "0" }) {
+            giftCard { id }
+            giftCardCode
+            userErrors { field code message }
+          }
+          shortCode: giftCardCreate(input: { initialValue: "10", code: "abc" }) {
+            giftCard { id }
+            giftCardCode
+            userErrors { field code message }
+          }
+          longCode: giftCardCreate(input: { initialValue: "10", code: $tooLongCode }) {
+            giftCard { id }
+            giftCardCode
+            userErrors { field code message }
+          }
+          invalidCode: giftCardCreate(input: { initialValue: "10", code: "bad!code" }) {
+            giftCard { id }
+            giftCardCode
+            userErrors { field code message }
+          }
+          shortCodeMissingCustomer: giftCardCreate(input: { initialValue: "10", code: "abc", customerId: $missingCustomerId }) {
+            giftCard { id }
+            giftCardCode
+            userErrors { field code message }
+          }
+          missingCustomer: giftCardCreate(input: { initialValue: "10", customerId: $missingCustomerId }) {
+            giftCard { id }
+            giftCardCode
+            userErrors { field code message }
+          }
+          success: giftCardCreate(input: { initialValue: "10", code: $validCode }) {
+            giftCard { id lastCharacters maskedCode initialValue { amount currencyCode } balance { amount currencyCode } }
+            giftCardCode
+            userErrors { field code message }
+          }
+          duplicate: giftCardCreate(input: { initialValue: "10", code: $validCode }) {
+            giftCard { id }
+            giftCardCode
+            userErrors { field code message }
+          }
+          autoGenerated: giftCardCreate(input: { initialValue: "10" }) {
+            giftCard { id lastCharacters maskedCode initialValue { amount currencyCode } balance { amount currencyCode } }
+            giftCardCode
+            userErrors { field code message }
+          }
+        }"#,
+        json!({
+            "validCode": "ParityOkMowpZlrz",
+            "tooLongCode": "x".repeat(21),
+            "missingCustomerId": "gid://shopify/Customer/999999999"
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "zeroInitialValue": {
+                "giftCard": null,
+                "giftCardCode": null,
+                "userErrors": [{ "field": ["input", "initialValue"], "code": "GREATER_THAN", "message": "must be greater than 0" }]
+            },
+            "shortCode": {
+                "giftCard": null,
+                "giftCardCode": null,
+                "userErrors": [{ "field": ["input", "code"], "code": "TOO_SHORT", "message": "Code must be at least 8 characters long" }]
+            },
+            "longCode": {
+                "giftCard": null,
+                "giftCardCode": null,
+                "userErrors": [{ "field": ["input", "code"], "code": "TOO_LONG", "message": "Code must be at most 20 characters long" }]
+            },
+            "invalidCode": {
+                "giftCard": null,
+                "giftCardCode": null,
+                "userErrors": [{ "field": ["input", "code"], "code": "INVALID", "message": "Code can only contain letters(a-z) and numbers(0-9)" }]
+            },
+            "shortCodeMissingCustomer": {
+                "giftCard": null,
+                "giftCardCode": null,
+                "userErrors": [{ "field": ["input", "customerId"], "code": "CUSTOMER_NOT_FOUND", "message": "The customer could not be found." }]
+            },
+            "missingCustomer": {
+                "giftCard": null,
+                "giftCardCode": null,
+                "userErrors": [{ "field": ["input", "customerId"], "code": "CUSTOMER_NOT_FOUND", "message": "The customer could not be found." }]
+            },
+            "success": {
+                "giftCard": {
+                    "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
+                    "lastCharacters": "zlrz",
+                    "maskedCode": "•••• •••• •••• zlrz",
+                    "initialValue": { "amount": "10.0", "currencyCode": "CAD" },
+                    "balance": { "amount": "10.0", "currencyCode": "CAD" }
+                },
+                "giftCardCode": "parityokmowpzlrz",
+                "userErrors": []
+            },
+            "duplicate": {
+                "giftCard": null,
+                "giftCardCode": null,
+                "userErrors": [{ "field": ["input", "code"], "code": null, "message": "Code has already been taken" }]
+            },
+            "autoGenerated": {
+                "giftCard": {
+                    "id": "gid://shopify/GiftCard/2?shopify-draft-proxy=synthetic",
+                    "lastCharacters": "0002",
+                    "maskedCode": "•••• •••• •••• 0002",
+                    "initialValue": { "amount": "10.0", "currencyCode": "CAD" },
+                    "balance": { "amount": "10.0", "currencyCode": "CAD" }
+                },
+                "giftCardCode": "giftcard00000002",
+                "userErrors": []
+            }
+        })
+    );
+}
+
+#[test]
+fn gift_card_roots_accept_ordinary_operation_names_without_501s() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"mutation IssueLocalGiftCard {
+          issue: giftCardCreate(input: { initialValue: "12.50", notify: false }) {
+            giftCard { id balance { amount currencyCode } }
+            giftCardCode
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["issue"],
+        json!({
+            "giftCard": {
+                "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
+                "balance": { "amount": "12.5", "currencyCode": "CAD" }
+            },
+            "giftCardCode": "giftcard00000001",
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query ReadLocalGiftCard($id: ID!, $query: String!) {
+          card: giftCard(id: $id) { id balance { amount currencyCode } }
+          cards: giftCards(first: 5, query: $query, sortKey: ID) { nodes { id balance { amount currencyCode } } }
+          count: giftCardsCount(query: $query) { count precision }
+          config: giftCardConfiguration { issueLimit { amount currencyCode } }
+        }"#,
+        json!({
+            "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
+            "query": "id:1"
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"],
+        json!({
+            "card": {
+                "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
+                "balance": { "amount": "12.5", "currencyCode": "CAD" }
+            },
+            "cards": {
+                "nodes": [{
+                    "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
+                    "balance": { "amount": "12.5", "currencyCode": "CAD" }
+                }]
+            },
+            "count": { "count": 1, "precision": "EXACT" },
+            "config": { "issueLimit": { "amount": "3000.0", "currencyCode": "CAD" } }
+        })
+    );
+
+    let validations = proxy.process_request(json_graphql_request(
+        r#"mutation ValidateLocalGiftCards {
+          emptyUpdate: giftCardUpdate(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", input: {}) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+          missingUpdate: giftCardUpdate(id: "gid://shopify/GiftCard/999999999", input: { note: "x" }) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+          negativeCredit: giftCardCredit(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", creditInput: { creditAmount: { amount: "-1", currencyCode: CAD } }) {
+            giftCardCreditTransaction { id }
+            userErrors { field code message }
+          }
+          insufficientDebit: giftCardDebit(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", debitInput: { debitAmount: { amount: "999", currencyCode: CAD } }) {
+            giftCardDebitTransaction { id }
+            userErrors { field code message }
+          }
+          missingDeactivate: giftCardDeactivate(id: "gid://shopify/GiftCard/999999999") {
+            giftCard { id }
+            userErrors { field code message }
+          }
+          notifyDisabled: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic") {
+            giftCard { id }
+            userErrors { field code message }
+          }
+          missingRecipientNotify: giftCardSendNotificationToRecipient(id: "gid://shopify/GiftCard/999999999") {
+            giftCard { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(validations.status, 200);
+    assert_eq!(
+        validations.body["data"],
+        json!({
+            "emptyUpdate": {
+                "giftCard": null,
+                "userErrors": [{ "field": ["input"], "code": "INVALID", "message": "At least one argument is required in the input." }]
+            },
+            "missingUpdate": {
+                "giftCard": null,
+                "userErrors": [{ "field": ["id"], "code": "GIFT_CARD_NOT_FOUND", "message": "The gift card could not be found." }]
+            },
+            "negativeCredit": {
+                "giftCardCreditTransaction": null,
+                "userErrors": [{ "field": ["creditInput", "creditAmount", "amount"], "code": "NEGATIVE_OR_ZERO_AMOUNT", "message": "A positive amount must be used." }]
+            },
+            "insufficientDebit": {
+                "giftCardDebitTransaction": null,
+                "userErrors": [{ "field": ["debitInput", "debitAmount", "amount"], "code": "INSUFFICIENT_FUNDS", "message": "The gift card does not have sufficient funds to satisfy the request." }]
+            },
+            "missingDeactivate": {
+                "giftCard": null,
+                "userErrors": [{ "field": ["id"], "code": "GIFT_CARD_NOT_FOUND", "message": "The gift card could not be found." }]
+            },
+            "notifyDisabled": {
+                "giftCard": null,
+                "userErrors": [{ "field": ["id"], "code": "INVALID", "message": "Notifications for this gift card are disabled." }]
+            },
+            "missingRecipientNotify": {
+                "giftCard": null,
+                "userErrors": [{ "field": ["id"], "code": "GIFT_CARD_NOT_FOUND", "message": "The gift card could not be found." }]
+            }
+        })
+    );
+
+    let transactions = proxy.process_request(json_graphql_request(
+        r#"mutation AdjustLocalGiftCard {
+          credit: giftCardCredit(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", creditInput: { creditAmount: { amount: "2.50", currencyCode: CAD }, note: "manual credit" }) {
+            giftCardCreditTransaction { __typename amount { amount currencyCode } giftCard { balance { amount currencyCode } } }
+            userErrors { field code message }
+          }
+          debit: giftCardDebit(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic", debitInput: { debitAmount: { amount: "3.00", currencyCode: CAD }, note: "manual debit" }) {
+            giftCardDebitTransaction { __typename amount { amount currencyCode } giftCard { balance { amount currencyCode } } }
+            userErrors { field code message }
+          }
+          deactivate: giftCardDeactivate(id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic") {
+            giftCard { id enabled balance { amount currencyCode } }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(transactions.status, 200);
+    assert_eq!(
+        transactions.body["data"],
+        json!({
+            "credit": {
+                "giftCardCreditTransaction": {
+                    "__typename": "GiftCardCreditTransaction",
+                    "amount": { "amount": "2.5", "currencyCode": "CAD" },
+                    "giftCard": { "balance": { "amount": "15.0", "currencyCode": "CAD" } }
+                },
+                "userErrors": []
+            },
+            "debit": {
+                "giftCardDebitTransaction": {
+                    "__typename": "GiftCardDebitTransaction",
+                    "amount": { "amount": "-3.0", "currencyCode": "CAD" },
+                    "giftCard": { "balance": { "amount": "12.0", "currencyCode": "CAD" } }
+                },
+                "userErrors": []
+            },
+            "deactivate": {
+                "giftCard": {
+                    "id": "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic",
+                    "enabled": false,
+                    "balance": { "amount": "12.0", "currencyCode": "CAD" }
+                },
+                "userErrors": []
             }
         })
     );

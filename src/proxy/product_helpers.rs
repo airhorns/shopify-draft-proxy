@@ -862,83 +862,6 @@ pub(in crate::proxy) fn gift_card_payload_json(
     gift_card_payload_json_nullable(Some(gift_card), selections, user_errors)
 }
 
-pub(in crate::proxy) fn gift_card_entitlement_disabled_data(
-    fields: &[RootFieldSelection],
-) -> Value {
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        data.insert(
-            field.response_key.clone(),
-            gift_card_entitlement_disabled_payload(&field.selection),
-        );
-    }
-    Value::Object(data)
-}
-
-pub(in crate::proxy) fn gift_card_credit_limit_exceeded_data(
-    fields: &[RootFieldSelection],
-) -> Value {
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        let payload = match field.name.as_str() {
-            "giftCardCredit" => gift_card_transaction_payload(
-                &field.selection,
-                "giftCardCreditTransaction",
-                None,
-                vec![json!({
-                    "field": ["creditInput", "creditAmount", "amount"],
-                    "code": "GIFT_CARD_LIMIT_EXCEEDED",
-                    "message": "The gift card's value exceeds the allowed limits."
-                })],
-            ),
-            "giftCardDebit" => gift_card_transaction_payload(
-                &field.selection,
-                "giftCardDebitTransaction",
-                Some(json!({
-                    "__typename": "GiftCardDebitTransaction",
-                    "amount": { "amount": "-0.01", "currencyCode": "CAD" }
-                })),
-                Vec::new(),
-            ),
-            _ => continue,
-        };
-        data.insert(field.response_key.clone(), payload);
-    }
-    Value::Object(data)
-}
-
-pub(in crate::proxy) fn gift_card_expiry_shop_timezone_data(
-    fields: &[RootFieldSelection],
-) -> Value {
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        let payload = match field.name.as_str() {
-            "giftCardCredit" => gift_card_transaction_payload(
-                &field.selection,
-                "giftCardCreditTransaction",
-                Some(json!({ "__typename": "GiftCardCreditTransaction" })),
-                Vec::new(),
-            ),
-            "giftCardDebit" => gift_card_transaction_payload(
-                &field.selection,
-                "giftCardDebitTransaction",
-                Some(json!({ "__typename": "GiftCardDebitTransaction" })),
-                Vec::new(),
-            ),
-            "giftCardSendNotificationToCustomer" | "giftCardSendNotificationToRecipient" => {
-                let id = resolved_string_arg(&field.arguments, "id")
-                    .or_else(|| resolved_string_arg(&field.arguments, "giftCardId"))
-                    .unwrap_or_default();
-                let gift_card = json!({ "id": id });
-                gift_card_payload_json(&gift_card, &field.selection, Vec::new())
-            }
-            _ => continue,
-        };
-        data.insert(field.response_key.clone(), payload);
-    }
-    Value::Object(data)
-}
-
 pub(in crate::proxy) fn gift_card_transaction_payload(
     selections: &[SelectedField],
     transaction_field: &str,
@@ -960,28 +883,6 @@ pub(in crate::proxy) fn gift_card_transaction_payload(
     })
 }
 
-pub(in crate::proxy) fn gift_card_entitlement_disabled_payload(
-    selections: &[SelectedField],
-) -> Value {
-    let user_errors = [json!({
-        "field": ["base"],
-        "code": null,
-        "message": "Gift cards are unavailable on your plan."
-    })];
-    selected_payload_json(selections, |selection| {
-        Some(if selection.name == "userErrors" {
-            Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
-            )
-        } else {
-            Value::Null
-        })
-    })
-}
-
 pub(in crate::proxy) fn gift_card_payload_json_nullable(
     gift_card: Option<&Value>,
     selections: &[SelectedField],
@@ -992,7 +893,12 @@ pub(in crate::proxy) fn gift_card_payload_json_nullable(
             Some(card) => selected_json(card, &selection.selection),
             None => Value::Null,
         }),
-        "giftCardCode" => Some(Value::Null),
+        "giftCardCode" => Some(
+            gift_card
+                .and_then(|card| card.get("giftCardCode"))
+                .cloned()
+                .unwrap_or(Value::Null),
+        ),
         "userErrors" => Some(Value::Array(
             user_errors
                 .iter()

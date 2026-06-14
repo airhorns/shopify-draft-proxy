@@ -6,7 +6,7 @@ impl DraftProxy {
             config,
             log_entries: Vec::new(),
             registry: default_registry(),
-            store: Store::default(),
+            store: Store::with_default_baseline(),
             next_synthetic_id: 1,
             commit_transport: Arc::new(default_commit_transport),
             upstream_transport: Arc::new(default_upstream_transport),
@@ -109,7 +109,9 @@ impl DraftProxy {
                 "products": product_state_map_json(&self.store.base.products.records),
                 "productOrder": self.store.base.products.order,
                 "savedSearches": saved_search_state_map_json(&self.store.base.saved_searches.records),
-                "savedSearchOrder": self.store.base.saved_searches.order
+                "savedSearchOrder": self.store.base.saved_searches.order,
+                "availableLocales": self.store.base.available_locales.iter().map(|(locale, name)| (locale.clone(), json!(name))).collect::<serde_json::Map<_, _>>(),
+                "shopLocales": self.store.base.shop_locales.clone()
             },
             "stagedState": {
                 "products": product_state_map_json(&self.store.staged.products.records),
@@ -277,6 +279,40 @@ impl DraftProxy {
             saved_search_state_map_from_json(&state["baseState"]["savedSearches"]),
             string_array_from_json(&state["baseState"]["savedSearchOrder"]),
         );
+        self.store.base.available_locales = state["baseState"]["availableLocales"]
+            .as_object()
+            .map(|locales| {
+                locales
+                    .iter()
+                    .filter_map(|(locale, name)| {
+                        name.as_str().map(|name| (locale.clone(), name.to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_else(default_available_locales);
+        self.store.base.shop_locales = state["baseState"]["shopLocales"]
+            .as_object()
+            .map(|locales| {
+                locales
+                    .iter()
+                    .map(|(locale, record)| (locale.clone(), record.clone()))
+                    .collect()
+            })
+            .unwrap_or_else(|| {
+                BTreeMap::from([(
+                    "en".to_string(),
+                    json!({
+                        "locale": "en",
+                        "name": "English",
+                        "primary": true,
+                        "published": true,
+                        "marketWebPresences": [{
+                            "id": "gid://shopify/MarketWebPresence/62842765618",
+                            "subfolderSuffix": null
+                        }]
+                    }),
+                )])
+            });
         self.store.replace_staged_saved_searches_map_with_order(
             saved_search_state_map_from_json(&state["stagedState"]["savedSearches"]),
             string_array_from_json(&state["stagedState"]["savedSearchOrder"]),

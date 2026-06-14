@@ -269,8 +269,8 @@ fn top_level_inventory_level_read_observes_staged_inventory_level_state() {
             "id": "gid://shopify/InventoryLevel/50643009569001-68509171945?inventory_item_id=gid://shopify/InventoryItem/50643009569001",
             "location": { "id": "gid://shopify/Location/68509171945", "name": "Shop location" },
             "quantities": [
-                { "name": "available", "quantity": 4, "updatedAt": null },
-                { "name": "on_hand", "quantity": 4, "updatedAt": null },
+                { "name": "available", "quantity": 4, "updatedAt": "2024-01-01T00:00:00.000Z" },
+                { "name": "on_hand", "quantity": 4, "updatedAt": "2024-01-01T00:00:00.000Z" },
                 { "name": "incoming", "quantity": 0, "updatedAt": null }
             ]
         })
@@ -2632,6 +2632,197 @@ fn segment_create_update_query_grammar_stages_and_reads_generic_node() {
             { "field": ["query"], "message": "Query Line 1 Column 4: 'a' filter cannot be found." }
         ])
     );
+}
+
+#[test]
+fn segment_delete_stages_local_removal_and_keeps_raw_mutation_for_commit() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation SegmentCreateQueryGrammar($name: String!, $query: String!) {
+          segmentCreate(name: $name, query: $query) {
+            segment { id name query }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let created = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "name": "Delete setup segment-query-grammar-local",
+            "query": "number_of_orders >= 1"
+        }),
+    ));
+    let segment_id = created.body["data"]["segmentCreate"]["segment"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let remaining = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "name": "Remaining setup segment-query-grammar-local",
+            "query": "customer_countries CONTAINS 'US'"
+        }),
+    ));
+    let remaining_segment_id = remaining.body["data"]["segmentCreate"]["segment"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read_query = r#"
+        query SegmentDeleteReadAfterWrite($id: ID!) {
+          segment(id: $id) { id name query }
+          segments(first: 10) {
+            nodes { id name query }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          segmentsCount { count precision }
+        }
+    "#;
+    let before_delete = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": segment_id }),
+    ));
+    assert_eq!(
+        before_delete.body["data"]["segment"],
+        json!({
+            "id": segment_id,
+            "name": "Delete setup segment-query-grammar-local",
+            "query": "number_of_orders >= 1"
+        })
+    );
+    assert_eq!(
+        before_delete.body["data"]["segments"]["nodes"],
+        json!([
+            {
+                "id": segment_id,
+                "name": "Delete setup segment-query-grammar-local",
+                "query": "number_of_orders >= 1"
+            },
+            {
+                "id": remaining_segment_id,
+                "name": "Remaining setup segment-query-grammar-local",
+                "query": "customer_countries CONTAINS 'US'"
+            }
+        ])
+    );
+    assert_eq!(
+        before_delete.body["data"]["segmentsCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+
+    let delete_query = r#"
+        mutation LocalSegmentDelete($id: ID!) {
+          segmentDelete(id: $id) {
+            deletedSegmentId
+            userErrors { field message }
+          }
+        }
+    "#;
+    let deleted = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "id": segment_id }),
+    ));
+    assert_eq!(deleted.status, 200);
+    assert_eq!(
+        deleted.body["data"]["segmentDelete"],
+        json!({
+            "deletedSegmentId": segment_id,
+            "userErrors": []
+        })
+    );
+
+    let node = proxy.process_request(json_graphql_request(
+        r#"
+        query SegmentNodeRead($id: ID!) {
+          node(id: $id) { ... on Segment { id name query } }
+        }
+        "#,
+        json!({ "id": segment_id }),
+    ));
+    assert_eq!(node.status, 200);
+    assert_eq!(node.body["data"]["node"], Value::Null);
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": segment_id }),
+    ));
+    assert_eq!(after_delete.body["data"]["segment"], Value::Null);
+    assert_eq!(
+        after_delete.body["data"]["segments"]["nodes"],
+        json!([{
+            "id": remaining_segment_id,
+            "name": "Remaining setup segment-query-grammar-local",
+            "query": "customer_countries CONTAINS 'US'"
+        }])
+    );
+    assert_eq!(
+        after_delete.body["data"]["segmentsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"].as_array().unwrap().len(), 3);
+    assert_eq!(
+        log["entries"][2]["interpreted"]["primaryRootField"],
+        json!("segmentDelete")
+    );
+    assert_eq!(
+        log["entries"][2]["rawBody"],
+        json_graphql_request(delete_query, json!({ "id": segment_id })).body
+    );
+    assert_eq!(log["entries"][2]["stagedResourceIds"], json!([segment_id]));
+}
+
+#[test]
+fn segment_delete_matches_shopify_validation_shapes() {
+    let mut proxy = snapshot_proxy();
+    let delete_query = r#"
+        mutation LocalSegmentDelete($id: ID!) {
+          segmentDelete(id: $id) {
+            deletedSegmentId
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    let unknown = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "id": "gid://shopify/Segment/999999999999" }),
+    ));
+    assert_eq!(unknown.status, 200);
+    assert_eq!(
+        unknown.body["data"]["segmentDelete"],
+        json!({
+            "deletedSegmentId": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Segment does not exist"
+            }]
+        })
+    );
+
+    let malformed = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "id": "not-a-gid" }),
+    ));
+    assert_eq!(malformed.status, 200);
+    assert_eq!(
+        malformed.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(malformed.body.get("data"), None);
+
+    let wrong_type = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "id": "gid://shopify/Order/1" }),
+    ));
+    assert_eq!(wrong_type.status, 200);
+    assert_eq!(
+        wrong_type.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(wrong_type.body["data"]["segmentDelete"], Value::Null);
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
 }
 
 #[test]

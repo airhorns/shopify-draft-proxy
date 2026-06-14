@@ -5923,7 +5923,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::Segments,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &["segmentDelete", "SegmentDelete"],
             &[],
         ),

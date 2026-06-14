@@ -33,9 +33,11 @@ The registry-only mutation roots are:
 
 ### Local behavior
 
-The Rust runtime has a scenario-backed localization slice for ported parity
-requests and runtime tests. It serializes a baseline available-locale and
-shop-locale catalog, stages selected `shopLocaleEnable`,
+The Rust runtime has a store-backed locale-catalog slice plus scenario-backed
+translation branches for ported parity requests and runtime tests.
+`availableLocales` and `shopLocales` project from the proxy store's baseline
+locale state plus staged shop-locale rows; plain catalog reads are not selected
+by document name. The runtime stages selected `shopLocaleEnable`,
 `shopLocaleUpdate`, and `shopLocaleDisable` requests locally, and exposes
 downstream `shopLocales` read-after-write behavior for the staged locale rows.
 Supported staged shop-locale mutations append replay-ready mutation-log entries
@@ -51,8 +53,9 @@ and accepted rows project selected
 For `shopLocaleUpdate`, the primary-locale guard applies when the input supplies
 a non-null `published` value, whether `true` or `false`; primary-locale updates
 that only supply `marketWebPresenceIds` remain accepted by this slice.
-Captured `shopLocales` reads can hydrate base enabled locale rows before later
-translation mutations replay against the same scenario.
+The baseline shop locale includes the captured primary English row, and staged
+enable/update/disable effects are merged with that baseline for subsequent
+`shopLocales` reads.
 
 `translationsRegister` and `translationsRemove` are locally modeled for the
 ported product, collection, product-metafield, and market-scoped translation
@@ -64,9 +67,10 @@ subsequent `translatableResource.translations(...)` reads observe the staged or
 removed rows. `translationsRemove` removes every requested
 translation-key/locale/market combination that exists in staged state.
 
-Collection translation lifecycle support is fixture-backed. Product and
-product-metafield translation behavior has runtime coverage for guardrails that
-the generic parity replay cannot isolate cleanly.
+Collection translation lifecycle and market-scoped translation read support
+remain fixture-backed. Product and product-metafield translation behavior has
+runtime coverage for guardrails that the generic parity replay cannot isolate
+cleanly.
 
 ### Boundaries
 
@@ -91,7 +95,9 @@ the generic parity replay cannot isolate cleanly.
 ### Evidence
 
 - Registry status: `src/operation_registry.rs`
-- Runtime coverage: `tests/graphql_routes.rs`
+- Runtime coverage: `tests/graphql_routes.rs`, including store-backed
+  `availableLocales` / `shopLocales` catalog reads without ported document-name
+  markers
 - Parity specs: `config/parity-specs/localization/*.json`
 - Fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/*.json`
 

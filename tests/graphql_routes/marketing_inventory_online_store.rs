@@ -660,7 +660,7 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
     );
     assert_eq!(
         set.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"]["changes"][0],
-        json!({"name": "available", "delta": 7, "quantityAfterChange": null, "ledgerDocumentUri": null, "location": {"id": "gid://shopify/Location/106318430514", "name": "Shop location"}})
+        json!({"name": "available", "delta": 7, "quantityAfterChange": 7, "ledgerDocumentUri": null, "location": {"id": "gid://shopify/Location/106318430514", "name": "Shop location"}})
     );
     assert_eq!(
         set.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"]["changes"][2]
@@ -673,7 +673,7 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
         query InventoryQuantityDownstreamRead($inventoryItemId: ID!, $productId: ID!) {
           inventoryItem(id: $inventoryItemId) {
             variant { inventoryQuantity product { totalInventory } }
-            inventoryLevels(first: 10) { nodes { location { id } quantities(names: ["available", "on_hand", "damaged"]) { name quantity } } }
+            inventoryLevels(first: 10) { nodes { location { id } quantities(names: ["available", "on_hand", "damaged"]) { name quantity updatedAt } } }
           }
           product(id: $productId) { totalInventory }
         }
@@ -688,6 +688,21 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
         read_after_set.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
             [0]["quantity"],
         json!(7)
+    );
+    assert_eq!(
+        read_after_set.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+            [0]["updatedAt"],
+        json!("2024-01-01T00:00:00.000Z")
+    );
+    assert_eq!(
+        read_after_set.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+            [1]["updatedAt"],
+        json!("2024-01-01T00:00:00.000Z")
+    );
+    assert_eq!(
+        read_after_set.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+            [2]["updatedAt"],
+        Value::Null
     );
     assert_eq!(
         read_after_set.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][1]["quantities"]
@@ -717,7 +732,17 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
     );
     assert_eq!(
         move_response.body["data"]["inventoryMoveQuantities"]["inventoryAdjustmentGroup"]
+            ["changes"][0]["quantityAfterChange"],
+        json!(4)
+    );
+    assert_eq!(
+        move_response.body["data"]["inventoryMoveQuantities"]["inventoryAdjustmentGroup"]
             ["changes"][1]["delta"],
+        json!(3)
+    );
+    assert_eq!(
+        move_response.body["data"]["inventoryMoveQuantities"]["inventoryAdjustmentGroup"]
+            ["changes"][1]["quantityAfterChange"],
         json!(3)
     );
 
@@ -726,7 +751,7 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
         query InventoryQuantityDownstreamRead($inventoryItemId: ID!, $productId: ID!) {
           inventoryItem(id: $inventoryItemId) {
             variant { inventoryQuantity product { totalInventory } }
-            inventoryLevels(first: 10) { nodes { location { id } quantities(names: ["available", "on_hand", "damaged"]) { name quantity } } }
+            inventoryLevels(first: 10) { nodes { location { id } quantities(names: ["available", "on_hand", "damaged"]) { name quantity updatedAt } } }
           }
           product(id: $productId) { totalInventory }
         }
@@ -744,8 +769,23 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
     );
     assert_eq!(
         read_after_move.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+            [0]["updatedAt"],
+        json!("2024-01-01T00:00:01.000Z")
+    );
+    assert_eq!(
+        read_after_move.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+            [1]["updatedAt"],
+        json!("2024-01-01T00:00:00.000Z")
+    );
+    assert_eq!(
+        read_after_move.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
             [2]["quantity"],
         json!(3)
+    );
+    assert_eq!(
+        read_after_move.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+            [2]["updatedAt"],
+        json!("2024-01-01T00:00:01.000Z")
     );
 
     let blocked_set = proxy.process_request(json_graphql_request(
@@ -838,8 +878,8 @@ fn inventory_adjust_quantities_stages_levels_logs_and_reads_back_by_root_field()
     assert_eq!(
         read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"],
         json!([
-            {"name": "available", "quantity": 5, "updatedAt": null},
-            {"name": "on_hand", "quantity": 5, "updatedAt": null},
+            {"name": "available", "quantity": 5, "updatedAt": "2024-01-01T00:00:00.000Z"},
+            {"name": "on_hand", "quantity": 5, "updatedAt": "2024-01-01T00:00:00.000Z"},
             {"name": "damaged", "quantity": 0, "updatedAt": null}
         ])
     );
