@@ -1370,6 +1370,12 @@ impl DraftProxy {
             .get("role")
             .and_then(Value::as_str)
             .unwrap_or("UNPUBLISHED");
+        if role == "DEVELOPMENT" {
+            return selected_json(
+                &json!({"theme": null, "userErrors": [{"field": ["base"], "message": "You cannot publish a development theme.", "code": null}]}),
+                &field.selection,
+            );
+        }
         if matches!(role, "DEMO" | "LOCKED" | "ARCHIVED") {
             return selected_json(
                 &json!({"theme": null, "userErrors": [{"field": ["id"], "message": format!("Theme cannot be published from role {role}")}]}),
