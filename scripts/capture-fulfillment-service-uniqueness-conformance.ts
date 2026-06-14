@@ -188,6 +188,8 @@ const handleCollisionDuplicateVariables = { name: handleCollisionName };
 const diacriticPunctuationVariables = { name: diacriticPunctuationName };
 const reservedManualVariables = { name: 'Manual' };
 const reservedGiftCardVariables = { name: 'Gift_Card' };
+const reservedShopifyVariables = { name: 'Shopify' };
+const reservedAmazonVariables = { name: 'Amazon' };
 const createUpdateSourceVariables = { name: updateSourceName };
 const createUpdateTargetVariables = { name: updateTargetName };
 
@@ -199,10 +201,14 @@ let handleCollisionDuplicateCreate: ConformanceGraphqlResult | null = null;
 let createDiacriticPunctuation: ConformanceGraphqlResult | null = null;
 let reservedManualCreate: ConformanceGraphqlResult | null = null;
 let reservedGiftCardCreate: ConformanceGraphqlResult | null = null;
+let reservedShopifyCreate: ConformanceGraphqlResult | null = null;
+let reservedAmazonCreate: ConformanceGraphqlResult | null = null;
 let createUpdateSource: ConformanceGraphqlResult | null = null;
 let createUpdateTarget: ConformanceGraphqlResult | null = null;
 let updateToExistingName: ConformanceGraphqlResult | null = null;
 let updateToReservedName: ConformanceGraphqlResult | null = null;
+let updateToReservedShopifyName: ConformanceGraphqlResult | null = null;
+let updateToReservedAmazonName: ConformanceGraphqlResult | null = null;
 
 try {
   createA = await client.runGraphqlRequest(createDocument, createAVariables);
@@ -252,6 +258,16 @@ try {
   const unexpectedGiftCardId = readOptionalFulfillmentServiceId(reservedGiftCardCreate.payload);
   if (unexpectedGiftCardId) cleanupIds.push(unexpectedGiftCardId);
 
+  reservedShopifyCreate = await client.runGraphqlRequest(createDocument, reservedShopifyVariables);
+  assertReservedNameUserError(reservedShopifyCreate, 'fulfillmentServiceCreate', 'reserved shopify create');
+  const unexpectedShopifyId = readOptionalFulfillmentServiceId(reservedShopifyCreate.payload);
+  if (unexpectedShopifyId) cleanupIds.push(unexpectedShopifyId);
+
+  reservedAmazonCreate = await client.runGraphqlRequest(createDocument, reservedAmazonVariables);
+  assertReservedNameUserError(reservedAmazonCreate, 'fulfillmentServiceCreate', 'reserved amazon create');
+  const unexpectedAmazonId = readOptionalFulfillmentServiceId(reservedAmazonCreate.payload);
+  if (unexpectedAmazonId) cleanupIds.push(unexpectedAmazonId);
+
   createUpdateSource = await client.runGraphqlRequest(createDocument, createUpdateSourceVariables);
   assertNoUserErrors(createUpdateSource, 'fulfillmentServiceCreate', 'create update source');
   cleanupIds.push(readFulfillmentServiceId(createUpdateSource.payload, 'create update source'));
@@ -275,6 +291,24 @@ try {
   updateToReservedName = await client.runGraphqlRequest(updateDocument, updateToReservedNameVariables);
   assertReservedNameUserError(updateToReservedName, 'fulfillmentServiceUpdate', 'update-to-reserved-name');
 
+  const updateToReservedShopifyNameVariables = {
+    id: updateTargetId,
+    name: reservedShopifyVariables.name,
+  };
+  updateToReservedShopifyName = await client.runGraphqlRequest(updateDocument, updateToReservedShopifyNameVariables);
+  assertReservedNameUserError(
+    updateToReservedShopifyName,
+    'fulfillmentServiceUpdate',
+    'update-to-reserved-shopify-name',
+  );
+
+  const updateToReservedAmazonNameVariables = {
+    id: updateTargetId,
+    name: reservedAmazonVariables.name,
+  };
+  updateToReservedAmazonName = await client.runGraphqlRequest(updateDocument, updateToReservedAmazonNameVariables);
+  assertReservedNameUserError(updateToReservedAmazonName, 'fulfillmentServiceUpdate', 'update-to-reserved-amazon-name');
+
   const fixture = {
     storeDomain,
     apiVersion,
@@ -284,7 +318,7 @@ try {
       'Live fulfillmentService uniqueness capture.',
       'Created disposable fulfillment services, then recorded Shopify rejecting same-name duplicate create, case-variant duplicate create, generated-handle collision create, and update-to-existing-name.',
       'Recorded Shopify fulfillment-service handle generation for a diacritic/punctuation name: Latin diacritics are transliterated, punctuation collapses to hyphens, underscores are preserved, and trailing punctuation is trimmed.',
-      'Recorded Shopify rejecting generated reserved handles for Manual and Gift_Card on create, and Manual on update, with field ["name"] and message "Name is reserved".',
+      'Recorded Shopify rejecting generated reserved handles for Manual, Gift_Card, Shopify, and Amazon on create, and Manual, Shopify, and Amazon on update, with field ["name"] and message "Name is reserved".',
       'The active app schema exposes fulfillmentServiceCreate/Update.userErrors as UserError without a selectable code field; focused runtime tests cover the proxy projecting null when clients select code.',
       'Rejected duplicate create/update branches returned fulfillmentService: null and userErrors[{ field: ["name"], message: "Name has already been taken" }].',
     ],
@@ -328,6 +362,16 @@ try {
       variables: reservedGiftCardVariables,
       payload: reservedGiftCardCreate.payload,
     },
+    reservedShopifyCreate: {
+      documentPath: 'config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql',
+      variables: reservedShopifyVariables,
+      payload: reservedShopifyCreate.payload,
+    },
+    reservedAmazonCreate: {
+      documentPath: 'config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql',
+      variables: reservedAmazonVariables,
+      payload: reservedAmazonCreate.payload,
+    },
     createUpdateSource: {
       documentPath: 'config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql',
       variables: createUpdateSourceVariables,
@@ -347,6 +391,16 @@ try {
       documentPath: 'config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-update.graphql',
       variables: updateToReservedNameVariables,
       payload: updateToReservedName.payload,
+    },
+    updateToReservedShopifyName: {
+      documentPath: 'config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-update.graphql',
+      variables: updateToReservedShopifyNameVariables,
+      payload: updateToReservedShopifyName.payload,
+    },
+    updateToReservedAmazonName: {
+      documentPath: 'config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-update.graphql',
+      variables: updateToReservedAmazonNameVariables,
+      payload: updateToReservedAmazonName.payload,
     },
     upstreamCalls: [],
   };

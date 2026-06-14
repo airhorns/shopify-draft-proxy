@@ -63,7 +63,7 @@ pub(in crate::proxy) fn fulfillment_service_handle(name: &str) -> String {
 pub(in crate::proxy) fn fulfillment_service_name_is_reserved(name: &str) -> bool {
     matches!(
         fulfillment_service_handle(name).as_str(),
-        "manual" | "gift_card"
+        "shopify" | "amazon" | "gift_card" | "manual"
     )
 }
 
