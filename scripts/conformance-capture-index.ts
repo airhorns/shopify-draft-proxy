@@ -2169,6 +2169,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'saved-searches',
+    captureId: 'saved-search-blank-name-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-saved-search-blank-name-validation-conformance.ts',
+    purpose:
+      'savedSearchCreate empty-name validation returns schema-shaped UserError field/message payloads and aggregates query validation errors.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-blank-name-validation.json`,
+      'config/parity-specs/saved-searches/saved-search-blank-name-validation.json',
+      'config/parity-requests/saved-searches/saved-search-blank-name-validation-create.graphql',
+    ],
+    cleanupBehavior: 'No Shopify writes are committed because both savedSearchCreate aliases fail validation.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'saved-searches',
     captureId: 'saved-search-delete-shop-payload',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-saved-search-delete-shop-payload-conformance.ts',
