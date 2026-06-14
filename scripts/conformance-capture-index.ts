@@ -2494,6 +2494,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-name-independence-create',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-name-independence-conformance.ts',
+    purpose:
+      'metaobjectCreate payload and read-after-write behavior when the client operation name is CreateMetaobject instead of the captured lifecycle fixture name.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-name-independence-create.json`,
+      'config/parity-specs/metaobjects/metaobject-name-independence-create.json',
+      'config/parity-requests/metaobjects/metaobject-name-independence-definition-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-name-independence-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-name-independence-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable metaobject definition and one row, records normal-name create/read behavior, then deletes the row and definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-definition-create-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-definition-create-validation-conformance.ts',
