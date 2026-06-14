@@ -1265,7 +1265,7 @@ fn order_create_decrements_inventory_when_inventory_behaviour_is_not_bypass() {
     );
     assert_eq!(
         log["entries"][1]["notes"],
-        json!("Supported mutation staged locally; commit replays the original raw mutation.")
+        json!("Locally staged orderCreate in shopify-draft-proxy.")
     );
     assert_eq!(
         log["entries"][1]["stagedResourceIds"],

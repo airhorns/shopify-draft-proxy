@@ -234,8 +234,7 @@ impl DraftProxy {
             return response;
         }
 
-        if let Some(data) = self.remaining_order_local_data(request, root_field, &query, &variables)
-        {
+        if let Some(data) = self.remaining_order_local_data(root_field, &query, &variables) {
             return ok_json(data);
         }
 
