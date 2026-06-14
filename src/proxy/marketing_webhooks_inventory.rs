@@ -870,12 +870,6 @@ impl DraftProxy {
             .get(&existing_id)
             .cloned()
             .unwrap_or(Value::Null);
-        if existing["isExternal"] == json!(false) {
-            return selected_json(
-                &marketing_activity_payload(None, vec![marketing_activity_not_external_error()]),
-                &field.selection,
-            );
-        }
         let selector_utm = resolved_object_field(&field.arguments, "utm");
         if let Some(err) = self.marketing_external_immutable_update_error(
             &existing,
@@ -885,20 +879,6 @@ impl DraftProxy {
         ) {
             return selected_json(
                 &marketing_activity_payload(None, vec![err]),
-                &field.selection,
-            );
-        }
-        if input
-            .get("tactic")
-            .is_some_and(|value| matches!(value, ResolvedValue::String(t) if t == "STOREFRONT" || t == "STOREFRONT_APP"))
-        {
-            return selected_json(
-                &marketing_activity_payload(
-                    None,
-                    vec![json!({
-                        "field": ["input", "tactic"], "message": "You can not update an activity tactic to STOREFRONT_APP. This type of tactic can only be specified when creating a new activity.", "code": "CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP"
-                    })],
-                ),
                 &field.selection,
             );
         }
@@ -924,16 +904,11 @@ impl DraftProxy {
         request: &Request,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        if input
-            .get("tactic")
-            .is_some_and(|value| matches!(value, ResolvedValue::String(t) if t == "STOREFRONT" || t == "STOREFRONT_APP"))
-        {
+        if marketing_input_tactic_is_storefront_app(&input) {
             return selected_json(
                 &marketing_activity_payload(
                     None,
-                    vec![json!({
-                        "field": ["input", "tactic"], "message": "You can not update an activity tactic to STOREFRONT_APP. This type of tactic can only be specified when creating a new activity.", "code": "CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP"
-                    })],
+                    vec![marketing_activity_cannot_update_tactic_to_storefront_error()],
                 ),
                 &field.selection,
             );
@@ -1471,6 +1446,14 @@ impl DraftProxy {
                 "code": "MARKETING_EVENT_DOES_NOT_EXIST"
             }));
         }
+        if marketing_input_tactic_is_storefront_app(input) {
+            return Some(marketing_activity_cannot_update_tactic_to_storefront_error());
+        }
+        if marketing_input_has_tactic(input)
+            && marketing_activity_tactic_is_storefront_app(existing)
+        {
+            return Some(marketing_activity_cannot_update_tactic_from_storefront_error());
+        }
         if resolved_string_field(input, "channelHandle").is_some_and(|channel_handle| {
             existing["marketingEvent"]["channelHandle"].as_str() != Some(channel_handle.as_str())
         }) {
@@ -1489,12 +1472,13 @@ impl DraftProxy {
                 "code": "IMMUTABLE_URL_PARAMETER"
             }));
         }
-        if input_utm_value(input, selector_utm, "campaign")
-            != json_string_value(&existing["utmParameters"]["campaign"])
-            || input_utm_value(input, selector_utm, "source")
-                != json_string_value(&existing["utmParameters"]["source"])
-            || input_utm_value(input, selector_utm, "medium")
-                != json_string_value(&existing["utmParameters"]["medium"])
+        if (input.contains_key("utm") || selector_utm.is_some())
+            && (input_utm_value(input, selector_utm, "campaign")
+                != json_string_value(&existing["utmParameters"]["campaign"])
+                || input_utm_value(input, selector_utm, "source")
+                    != json_string_value(&existing["utmParameters"]["source"])
+                || input_utm_value(input, selector_utm, "medium")
+                    != json_string_value(&existing["utmParameters"]["medium"]))
         {
             return Some(json!({
                 "field": ["input"],
