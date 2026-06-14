@@ -155,6 +155,18 @@ describe('Rust HTTP adapter route surface', () => {
             productOrder: [],
             savedSearches: {},
             savedSearchOrder: [],
+            availableLocales: expect.objectContaining({
+              en: 'English',
+              fr: 'French',
+            }),
+            shopLocales: expect.objectContaining({
+              en: expect.objectContaining({
+                locale: 'en',
+                name: 'English',
+                primary: true,
+                published: true,
+              }),
+            }),
           },
           stagedState: {
             products: {},
@@ -168,6 +180,10 @@ describe('Rust HTTP adapter route surface', () => {
             delegatedAccessTokens: {},
             customers: {},
             deletedCustomerIds: [],
+            discounts: {},
+            discountCodeIndex: {},
+            deletedDiscountIds: [],
+            discountRedeemCodeBulkCreations: {},
             customerOrders: {},
             taggableResources: {},
             orders: {},

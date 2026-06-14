@@ -166,6 +166,8 @@ pub(in crate::proxy) fn resolved_value_string(value: &ResolvedValue) -> Option<S
 
 pub(in crate::proxy) fn owner_type_from_gid(id: &str) -> &'static str {
     match shopify_gid_resource_type(id) {
+        Some("ProductVariant") => "PRODUCTVARIANT",
+        Some("Collection") => "COLLECTION",
         Some("Customer") => "CUSTOMER",
         Some("Order") => "ORDER",
         Some("Company") => "COMPANY",
@@ -2222,6 +2224,34 @@ fn selection_contains_any(selections: &[SelectedField], names: &[&str]) -> bool 
     })
 }
 
+fn selected_field_contains_only_any(
+    selection: &SelectedField,
+    names: &[&str],
+    allowed_context: &[&str],
+) -> bool {
+    if names.contains(&selection.name.as_str()) {
+        return true;
+    }
+    if !allowed_context.contains(&selection.name.as_str()) {
+        return false;
+    }
+    selection.selection.is_empty()
+        || selection
+            .selection
+            .iter()
+            .all(|child| selected_field_contains_only_any(child, names, allowed_context))
+}
+
+fn selection_contains_only_any(
+    selections: &[SelectedField],
+    names: &[&str],
+    allowed_context: &[&str],
+) -> bool {
+    selections
+        .iter()
+        .all(|selection| selected_field_contains_only_any(selection, names, allowed_context))
+}
+
 fn is_customer_payment_method_customer_create_seed(field: &RootFieldSelection) -> bool {
     if field.name != "customerCreate" {
         return false;
@@ -2394,6 +2424,35 @@ impl DraftProxy {
             selection_contains_any(&field.selection, &["presentmentMoney", "totalRefundedSet"])
         });
         if !handles_money_bag_selection {
+            return None;
+        }
+        let order_create_is_money_bag_only = fields.iter().all(|field| {
+            field.name != "orderCreate"
+                || selection_contains_only_any(
+                    &field.selection,
+                    &["presentmentMoney", "totalRefundedSet"],
+                    &[
+                        "order",
+                        "userErrors",
+                        "id",
+                        "field",
+                        "message",
+                        "code",
+                        "currentTotalPriceSet",
+                        "totalPriceSet",
+                        "totalTaxSet",
+                        "totalReceivedSet",
+                        "totalOutstandingSet",
+                        "lineItems",
+                        "nodes",
+                        "originalUnitPriceSet",
+                        "shopMoney",
+                        "amount",
+                        "currencyCode",
+                    ],
+                )
+        });
+        if !order_create_is_money_bag_only {
             return None;
         }
 
