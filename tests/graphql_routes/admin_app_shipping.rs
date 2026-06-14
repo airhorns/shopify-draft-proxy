@@ -3670,6 +3670,31 @@ fn fulfillment_service_callback_url_validation_matches_captured_shopify_behavior
             }]
         })
     );
+
+    let update_protocol = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentServiceCallbackUrlValidationUpdateProtocol($id: ID!, $callbackUrl: URL!) {
+          fulfillmentServiceUpdate(id: $id, callbackUrl: $callbackUrl) {
+            fulfillmentService { id callbackUrl }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": primary.body["data"]["originCreate"]["fulfillmentService"]["id"],
+            "callbackUrl": "ftp://mock.shop/fulfillment-service-callback-updated"
+        }),
+    ));
+    assert_eq!(
+        update_protocol.body["data"]["fulfillmentServiceUpdate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [{
+                "field": ["callbackUrl"],
+                "message": "Callback url protocol ftp:// is not supported"
+            }]
+        })
+    );
 }
 
 #[test]
