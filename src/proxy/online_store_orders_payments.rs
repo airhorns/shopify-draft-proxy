@@ -98,6 +98,47 @@ fn order_create_selects_payment_transaction_fields(field: &RootFieldSelection) -
     })
 }
 
+fn order_create_inventory_behaviour(field: &RootFieldSelection) -> String {
+    resolved_object_field(&field.arguments, "options")
+        .and_then(|options| resolved_string_field(&options, "inventoryBehaviour"))
+        .unwrap_or_else(|| "DECREMENT_IGNORING_POLICY".to_string())
+}
+
+fn order_line_inventory_item_id(line_item: &BTreeMap<String, ResolvedValue>) -> Option<String> {
+    resolved_string_field(line_item, "inventoryItemId").or_else(|| {
+        resolved_string_field(line_item, "variantId").map(|variant_id| {
+            format!(
+                "gid://shopify/InventoryItem/{}",
+                resource_id_tail(&variant_id)
+            )
+        })
+    })
+}
+
+fn order_input_has_inventory_backed_lines(order_input: &BTreeMap<String, ResolvedValue>) -> bool {
+    resolved_object_list_field(order_input, "lineItems")
+        .iter()
+        .any(|line_item| order_line_inventory_item_id(line_item).is_some())
+}
+
+fn order_line_json(id: String, line_item: &BTreeMap<String, ResolvedValue>) -> Value {
+    let variant_id = resolved_string_field(line_item, "variantId");
+    let quantity = resolved_i64_field(line_item, "quantity").unwrap_or(1);
+    let title = resolved_string_field(line_item, "title")
+        .or_else(|| variant_id.as_ref().map(|_| "Product variant".to_string()))
+        .unwrap_or_else(|| "Custom item".to_string());
+    let sku = resolved_string_field(line_item, "sku").unwrap_or_default();
+    json!({
+        "id": id,
+        "title": title,
+        "name": title,
+        "quantity": quantity,
+        "currentQuantity": quantity,
+        "sku": sku,
+        "variant": variant_id.map(|id| json!({ "id": id })).unwrap_or(Value::Null)
+    })
+}
+
 fn order_read_selects_payment_transaction_fields(field: &RootFieldSelection) -> bool {
     field.selection.iter().any(|field| {
         matches!(
@@ -2028,6 +2069,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn remaining_order_local_data(
         &mut self,
+        request: &Request,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
@@ -2083,6 +2125,30 @@ impl DraftProxy {
         }
         if root_field == "orderCreate" {
             let field = field?;
+            let order_arg = field.arguments.get("order")?;
+            if let ResolvedValue::Object(order_input) = order_arg {
+                let email = resolved_string_field(order_input, "email").unwrap_or_default();
+                if !email.is_empty() && !email.starts_with("order-customer-") {
+                    if !order_input_has_inventory_backed_lines(order_input) {
+                        return None;
+                    }
+                    let order = self.stage_inventory_backed_order_create(&field, order_input);
+                    let staged_id = order["id"].as_str().unwrap_or_default().to_string();
+                    self.record_mutation_log_draft(
+                        request,
+                        query,
+                        variables,
+                        LogDraft::staged("orderCreate", "orders", vec![staged_id]),
+                    );
+                    return Some(data_response(
+                        &field.response_key,
+                        selected_json(
+                            &json!({ "order": order, "userErrors": [] }),
+                            &field.selection,
+                        ),
+                    ));
+                }
+            }
             let order = self.order_customer_paths_order_create(&field)?;
             return Some(data_response(&field.response_key, order));
         }
@@ -2716,6 +2782,43 @@ impl DraftProxy {
             &json!({ "order": order, "userErrors": [] }),
             &field.selection,
         ))
+    }
+
+    fn stage_inventory_backed_order_create(
+        &mut self,
+        field: &RootFieldSelection,
+        order_input: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let id = format!("gid://shopify/Order/{}", self.store.staged.next_order_id);
+        self.store.staged.next_order_id += 1;
+        let line_items = resolved_object_list_field(order_input, "lineItems");
+        let mut line_nodes = Vec::new();
+        let should_decrement = order_create_inventory_behaviour(field) != "BYPASS";
+        for (index, line_item) in line_items.iter().enumerate() {
+            if should_decrement {
+                if let Some(inventory_item_id) = order_line_inventory_item_id(line_item) {
+                    let quantity = resolved_i64_field(line_item, "quantity").unwrap_or(1);
+                    self.decrement_inventory_item_available(&inventory_item_id, quantity);
+                }
+            }
+            line_nodes.push(order_line_json(
+                format!("gid://shopify/LineItem/{}", index + 1),
+                line_item,
+            ));
+        }
+        let order = json!({
+            "id": id,
+            "name": format!("#{}", self.store.staged.orders.len() + 1),
+            "email": resolved_string_field(order_input, "email").unwrap_or_default(),
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED",
+            "lineItems": connection_json(line_nodes)
+        });
+        self.store.staged.orders.insert(
+            order["id"].as_str().unwrap_or_default().to_string(),
+            order.clone(),
+        );
+        order
     }
 
     pub(in crate::proxy) fn order_customer_paths_cancel_order(

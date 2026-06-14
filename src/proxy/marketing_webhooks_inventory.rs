@@ -1745,6 +1745,38 @@ impl DraftProxy {
         );
     }
 
+    pub(in crate::proxy) fn decrement_inventory_item_available(
+        &mut self,
+        inventory_item_id: &str,
+        quantity: i64,
+    ) {
+        if quantity <= 0 {
+            return;
+        }
+        let location_id = self
+            .store
+            .staged
+            .inventory_levels
+            .keys()
+            .find(|(item_id, _)| item_id == inventory_item_id)
+            .map(|(_, location_id)| location_id.clone())
+            .unwrap_or_else(|| "gid://shopify/Location/1".to_string());
+        let updated_at = self.next_inventory_quantity_timestamp();
+        {
+            let level = self
+                .store
+                .staged
+                .inventory_levels
+                .entry((inventory_item_id.to_string(), location_id.clone()))
+                .or_default();
+            *level.entry("available".to_string()).or_insert(0) -= quantity;
+            *level.entry("on_hand".to_string()).or_insert(0) -= quantity;
+            level.entry("damaged".to_string()).or_insert(0);
+        }
+        self.stamp_inventory_quantity(inventory_item_id, &location_id, "available", &updated_at);
+        self.stamp_inventory_quantity(inventory_item_id, &location_id, "on_hand", &updated_at);
+    }
+
     fn inventory_total_all(&self, name: &str) -> i64 {
         self.store
             .staged

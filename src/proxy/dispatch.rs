@@ -97,7 +97,7 @@ impl DraftProxy {
         }))
     }
 
-    fn record_mutation_log_draft(
+    pub(in crate::proxy) fn record_mutation_log_draft(
         &mut self,
         request: &Request,
         query: &str,
@@ -229,7 +229,8 @@ impl DraftProxy {
             return response;
         }
 
-        if let Some(data) = self.remaining_order_local_data(root_field, &query, &variables) {
+        if let Some(data) = self.remaining_order_local_data(request, root_field, &query, &variables)
+        {
             return ok_json(data);
         }
 
