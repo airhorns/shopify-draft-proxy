@@ -754,6 +754,15 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                 "customers": {},
                 "deletedCustomerIds": [],
                 "customerOrders": {},
+                "taggableResources": {},
+                "orders": {},
+                "returns": {},
+                "returnsByOrder": {},
+                "reverseDeliveries": {},
+                "reverseFulfillmentOrders": {},
+                "locations": {},
+                "locationOrder": [],
+                "locationLimitReached": false,
                 "savedSearches": {
                     "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic": {
                         "id": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic",

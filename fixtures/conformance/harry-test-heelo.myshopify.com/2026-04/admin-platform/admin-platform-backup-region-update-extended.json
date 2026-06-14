@@ -1,11 +1,118 @@
 {
-  "capturedAt": "2026-05-05T02:26:28.958Z",
+  "capturedAt": "2026-06-13T22:01:30.785Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "supportedNonCaCountryCode": "AE",
-  "restoredCountryCode": "CA",
-  "notes": "HAR-737 captures backupRegionUpdate current-region baseline, harry-test-heelo non-CA success, read-after-write, unknown-region validation, and cleanup back to CA. Live omitted/null invocations currently return Shopify INTERNAL_SERVER_ERROR on this store/API, so expected omitted/null current-state parity is derived from the captured current backupRegion and empty successful-update userErrors, matching the source resolver contract cited by HAR-737.",
+  "supportedUsCountryCode": "US",
+  "baselineCountryCode": "CA",
+  "restoredCountryCode": "AE",
+  "temporaryMarketIds": ["gid://shopify/Market/98516336946", "gid://shopify/Market/98516369714"],
+  "notes": "HAR-737 captures backupRegionUpdate current-region baseline, harry-test-heelo non-CA success, read-after-write, unknown-region validation, and cleanup back to the original live backup region. HAR-1436 extends the capture to prove countryCode US succeeds by creating a temporary US region market when the live store does not already cover US; the recorder also creates a temporary CA baseline market when the live store no longer covers CA. Temporary markets are deleted after restoring the original backup region. Live omitted/null invocations currently return Shopify INTERNAL_SERVER_ERROR on this store/API, so expected omitted/null current-state parity is derived from the captured current backupRegion and empty successful-update userErrors, matching the source resolver contract cited by HAR-737.",
   "captures": {
+    "originalBackupRegion": {
+      "query": "#graphql\n  query BackupRegionRead {\n    backupRegion {\n      __typename\n      id\n      name\n      ... on MarketRegionCountry {\n        code\n      }\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "backupRegion": {
+              "__typename": "MarketRegionCountry",
+              "id": "gid://shopify/MarketRegionCountry/4062110482738",
+              "name": "United Arab Emirates",
+              "code": "AE"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "setupCurrentBackupRegionBeforeTemporaryMarket": {
+      "query": "#graphql\n  mutation BackupRegionUpdateRestore {\n    backupRegionUpdate(region: { countryCode: CA }) {\n      \n  backupRegion {\n    __typename\n    id\n    name\n    ... on MarketRegionCountry {\n      code\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "backupRegionUpdate": {
+              "backupRegion": null,
+              "userErrors": [
+                {
+                  "field": ["region"],
+                  "message": "Region not found.",
+                  "code": "REGION_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createTemporaryBaselineMarket": {
+      "query": "#graphql\n  mutation BackupRegionUpdateTemporaryMarketCreate($input: MarketCreateInput!) {\n    marketCreate(input: $input) {\n      market {\n        id\n        name\n        status\n        enabled\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "Backup Region CA 1781388087012",
+          "status": "ACTIVE",
+          "enabled": true,
+          "conditions": {
+            "regionsCondition": {
+              "regions": [
+                {
+                  "countryCode": "CA"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/98516336946",
+                "name": "Backup Region CA 1781388087012",
+                "status": "ACTIVE",
+                "enabled": true
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     "setupCurrentBackupRegion": {
       "query": "#graphql\n  mutation BackupRegionUpdateRestore {\n    backupRegionUpdate(region: { countryCode: CA }) {\n      \n  backupRegion {\n    __typename\n    id\n    name\n    ... on MarketRegionCountry {\n      code\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
       "result": {
@@ -68,16 +175,28 @@
       "result": {
         "status": 200,
         "payload": {
-          "errors": [
-            {
-              "message": "Internal error. Looks like something went wrong on our end.\nRequest ID: 441a310b-039b-423d-b88d-9f280ae51906-1777947987 (include this in support requests).",
-              "extensions": {
-                "requestId": "441a310b-039b-423d-b88d-9f280ae51906-1777947987",
-                "code": "INTERNAL_SERVER_ERROR"
+          "data": {
+            "backupRegionUpdate": {
+              "backupRegion": {
+                "__typename": "MarketRegionCountry",
+                "id": "gid://shopify/MarketRegionCountry/4062110417202",
+                "name": "Canada",
+                "code": "CA"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
               }
             }
-          ],
-          "data": null
+          }
         }
       }
     },
@@ -86,16 +205,28 @@
       "result": {
         "status": 200,
         "payload": {
-          "errors": [
-            {
-              "message": "Internal error. Looks like something went wrong on our end.\nRequest ID: c6de7381-3e8a-490c-9bac-872951973402-1777947987 (include this in support requests).",
-              "extensions": {
-                "requestId": "c6de7381-3e8a-490c-9bac-872951973402-1777947987",
-                "code": "INTERNAL_SERVER_ERROR"
+          "data": {
+            "backupRegionUpdate": {
+              "backupRegion": {
+                "__typename": "MarketRegionCountry",
+                "id": "gid://shopify/MarketRegionCountry/4062110417202",
+                "name": "Canada",
+                "code": "CA"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
               }
             }
-          ],
-          "data": null
+          }
         }
       }
     },
@@ -156,6 +287,140 @@
         }
       }
     },
+    "backupRegionUpdateUsBeforeTemporaryMarket": {
+      "query": "mutation BackupRegionUpdateUs {\n  backupRegionUpdate(region: { countryCode: US }) {\n    backupRegion {\n      __typename\n      id\n      name\n      ... on MarketRegionCountry {\n        code\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "backupRegionUpdate": {
+              "backupRegion": null,
+              "userErrors": [
+                {
+                  "field": ["region"],
+                  "message": "Region not found.",
+                  "code": "REGION_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createTemporaryUsMarket": {
+      "query": "#graphql\n  mutation BackupRegionUpdateTemporaryMarketCreate($input: MarketCreateInput!) {\n    marketCreate(input: $input) {\n      market {\n        id\n        name\n        status\n        enabled\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "Backup Region US 1781388088719",
+          "status": "ACTIVE",
+          "enabled": true,
+          "conditions": {
+            "regionsCondition": {
+              "regions": [
+                {
+                  "countryCode": "US"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": {
+                "id": "gid://shopify/Market/98516369714",
+                "name": "Backup Region US 1781388088719",
+                "status": "ACTIVE",
+                "enabled": true
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "backupRegionUpdateUs": {
+      "query": "mutation BackupRegionUpdateUs {\n  backupRegionUpdate(region: { countryCode: US }) {\n    backupRegion {\n      __typename\n      id\n      name\n      ... on MarketRegionCountry {\n        code\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "backupRegionUpdate": {
+              "backupRegion": {
+                "__typename": "MarketRegionCountry",
+                "id": "gid://shopify/MarketRegionCountry/4062110449970",
+                "name": "United States",
+                "code": "US"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "backupRegionAfterUsUpdate": {
+      "query": "#graphql\n  query BackupRegionRead {\n    backupRegion {\n      __typename\n      id\n      name\n      ... on MarketRegionCountry {\n        code\n      }\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "backupRegion": {
+              "__typename": "MarketRegionCountry",
+              "id": "gid://shopify/MarketRegionCountry/4062110449970",
+              "name": "United States",
+              "code": "US"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     "backupRegionUpdateInvalid": {
       "query": "#graphql\n  mutation BackupRegionUpdateInvalid {\n    backupRegionUpdate(region: { countryCode: ZZ }) {\n      \n  backupRegion {\n    __typename\n    id\n    name\n    ... on MarketRegionCountry {\n      code\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
       "result": {
@@ -188,7 +453,7 @@
       }
     },
     "cleanupBackupRegion": {
-      "query": "#graphql\n  mutation BackupRegionUpdateRestore {\n    backupRegionUpdate(region: { countryCode: CA }) {\n      \n  backupRegion {\n    __typename\n    id\n    name\n    ... on MarketRegionCountry {\n      code\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
+      "query": "#graphql\n    mutation BackupRegionUpdateRestoreOriginal {\n      backupRegionUpdate(region: { countryCode: AE }) {\n        \n  backupRegion {\n    __typename\n    id\n    name\n    ... on MarketRegionCountry {\n      code\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n      }\n    }\n  ",
       "result": {
         "status": 200,
         "payload": {
@@ -196,9 +461,9 @@
             "backupRegionUpdate": {
               "backupRegion": {
                 "__typename": "MarketRegionCountry",
-                "id": "gid://shopify/MarketRegionCountry/4062110417202",
-                "name": "Canada",
-                "code": "CA"
+                "id": "gid://shopify/MarketRegionCountry/4062110482738",
+                "name": "United Arab Emirates",
+                "code": "AE"
               },
               "userErrors": []
             }
@@ -209,7 +474,63 @@
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cleanupTemporaryMarket1": {
+      "query": "#graphql\n  mutation BackupRegionUpdateTemporaryMarketDelete($id: ID!) {\n    marketDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Market/98516336946"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/98516336946",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cleanupTemporaryMarket2": {
+      "query": "#graphql\n  mutation BackupRegionUpdateTemporaryMarketDelete($id: ID!) {\n    marketDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Market/98516369714"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketDelete": {
+              "deletedId": "gid://shopify/Market/98516369714",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
                 "restoreRate": 100
               }
             }

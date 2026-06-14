@@ -151,6 +151,15 @@ impl DraftProxy {
             return json_error(400, "Operation has no root field");
         };
 
+        if matches!(
+            root_field,
+            "customerCreate" | "companyCreate" | "companyAssignCustomerAsContact"
+        ) {
+            if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
+                return ok_json(data);
+            }
+        }
+
         if let Some(response) = self.products_mutation_tail_helper_response(
             request,
             &query,
@@ -204,32 +213,23 @@ impl DraftProxy {
             return ok_json(data);
         }
 
-        if let Some(data) = self.draft_order_complete_fixture_data(root_field, &query, &variables) {
-            return ok_json(data);
-        }
-
-        if let Some(response) =
-            self.draft_order_invoice_send_fixture_response(request, &query, &variables)
-        {
-            return response;
-        }
-
-        if let Some(data) = self.remaining_order_fixture_data(root_field, &query, &variables) {
+        if let Some(data) = self.draft_order_complete_local_data(root_field, &query, &variables) {
             return ok_json(data);
         }
 
         if let Some(data) =
-            self.order_payment_transaction_fixture_data(root_field, &query, &variables)
+            self.order_payment_transaction_local_data(root_field, &query, &variables)
         {
             return ok_json(data);
         }
 
-        if let Some(data) = order_create_mandate_payment_data(
-            root_field,
-            &query,
-            &variables,
-            &mut self.store.staged.mandate_payment_keys,
-        ) {
+        if let Some(response) =
+            self.draft_order_invoice_send_local_response(request, &query, &variables)
+        {
+            return response;
+        }
+
+        if let Some(data) = self.remaining_order_local_data(root_field, &query, &variables) {
             return ok_json(data);
         }
 
@@ -299,11 +299,7 @@ impl DraftProxy {
             }
         }
 
-        if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
-            return ok_json(data);
-        }
-
-        if let Some(data) = self.draft_order_bulk_tag_fixture_data(&query, &variables) {
+        if let Some(data) = self.draft_order_bulk_tag_local_data(&query, &variables) {
             return ok_json(data);
         }
 
@@ -735,7 +731,6 @@ impl DraftProxy {
                 .root_fields
                 .iter()
                 .all(|field| matches!(field.as_str(), "carrierService" | "carrierServices"))
-            && is_carrier_service_lifecycle_document(&query)
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({ "data": self.carrier_service_read_data(&fields) }));
@@ -761,6 +756,20 @@ impl DraftProxy {
             && is_location_custom_id_miss_document(&query)
         {
             return ok_json(location_custom_id_miss_response());
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "location" | "locationByIdentifier" | "locations"
+                )
+            })
+            && (self.config.read_mode == ReadMode::Snapshot || self.has_staged_locations())
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.location_read_data(&fields) }));
+            }
         }
 
         if operation.operation_type == OperationType::Query
@@ -1085,32 +1094,7 @@ impl DraftProxy {
             );
         }
 
-        if let Some(data) =
-            order_return_recorded_reverse_logistics_data(root_field, &query, &variables)
-        {
-            return ok_json(data);
-        }
-
-        if let Some(data) = order_return_recorded_shipping_fee_data(root_field, &query, &variables)
-        {
-            return ok_json(data);
-        }
-
-        if let Some(data) = order_return_recorded_state_precondition_data(
-            root_field,
-            &query,
-            &variables,
-            &mut self.store.staged.recorded_return_statuses,
-        ) {
-            return ok_json(data);
-        }
-
-        if let Some(data) = order_return_local_runtime_data(
-            root_field,
-            &query,
-            &variables,
-            &mut self.store.staged.return_status,
-        ) {
+        if let Some(data) = self.order_return_local_runtime_data(root_field, &query, &variables) {
             return ok_json(data);
         }
 
@@ -1165,6 +1149,23 @@ impl DraftProxy {
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
+                    "order" | "customer" | "article" | "draftOrder"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                if self.should_handle_taggable_resource_overlay_read(&fields) {
+                    return ok_json(
+                        json!({ "data": self.taggable_resource_overlay_read_fields(&fields) }),
+                    );
+                }
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
                     "customer" | "customers" | "customersCount" | "customerByIdentifier"
                 )
             })
@@ -1210,25 +1211,16 @@ impl DraftProxy {
             }
         }
 
-        if operation.operation_type == OperationType::Query
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "bulkOperation" | "bulkOperations" | "currentBulkOperation"
-                )
-            })
-            && is_local_bulk_operation_read_document(&query)
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "bulkOperationRunQuery"
         {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.bulk_operation_read_data(&fields) }));
-            }
+            return self.bulk_operation_run_query(request, &query, &variables);
         }
 
         if operation.operation_type == OperationType::Mutation
-            && root_field == "bulkOperationRunQuery"
-            && is_local_bulk_operation_run_query_document(&query)
+            && root_field == "bulkOperationRunMutation"
         {
-            return self.bulk_operation_run_query(request, &query, &variables);
+            return self.bulk_operation_run_mutation(request, &query, &variables);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -1252,31 +1244,20 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && root_field == "fileCreate"
-            && (query.contains("FileReferenceCreate")
-                || query.contains("MediaFileDeleteTypedGidRoundtripCreate"))
+            && matches!(
+                root_field,
+                "fileCreate"
+                    | "fileUpdate"
+                    | "fileDelete"
+                    | "fileAcknowledgeUpdateFailed"
+                    | "stagedUploadsCreate"
+            )
         {
-            return self.media_file_create(&query, &variables);
+            let outcome = self.media_mutation(root_field, request, &query, &variables);
+            return self.finalize_mutation_outcome(request, &query, &variables, outcome);
         }
 
-        if operation.operation_type == OperationType::Mutation
-            && root_field == "fileUpdate"
-            && query.contains("FileReferenceAttach")
-        {
-            return self.media_file_update(&query);
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && root_field == "fileDelete"
-            && query.contains("FileDeleteParity")
-        {
-            return self.media_file_delete(&query, &variables);
-        }
-
-        if operation.operation_type == OperationType::Query
-            && root_field == "files"
-            && query.contains("FileReferenceFilesRead")
-        {
+        if operation.operation_type == OperationType::Query && root_field == "files" {
             return self.media_files_read(&query, &variables);
         }
 
@@ -1352,14 +1333,16 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "metafieldsSet"
-            && is_owner_metafields_set_document(&query)
+            && (is_owner_metafields_set_document(&query)
+                || !self.store.staged.metafield_definitions.is_empty())
         {
             return self.owner_metafields_set(&query, &variables);
         }
 
         if operation.operation_type == OperationType::Query
             && matches!(root_field, "product" | "customer" | "order" | "company")
-            && is_owner_metafields_read_document(&query)
+            && (is_owner_metafields_read_document(&query)
+                || !self.store.staged.owner_metafields.is_empty())
         {
             return self.owner_metafields_read(&query, &variables);
         }
@@ -1432,13 +1415,14 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && matches!(
-                root_field,
-                "carrierServiceCreate" | "carrierServiceUpdate" | "carrierServiceDelete"
-            )
-            && is_carrier_service_lifecycle_document(&query)
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "carrierServiceCreate" | "carrierServiceUpdate" | "carrierServiceDelete"
+                )
+            })
         {
-            return self.carrier_service_mutation(root_field, &query, &variables, request);
+            return self.carrier_service_mutations(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -1479,17 +1463,9 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && root_field == "locationActivate"
-            && is_location_activate_limit_relocation_document(&query)
+            && matches!(root_field, "locationAdd" | "locationActivate")
         {
-            return self.location_activate_limit_relocation(&query, &variables, request);
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && root_field == "locationAdd"
-            && is_location_add_resource_limit_document(&query)
-        {
-            return self.location_add_resource_limit(&query);
+            return self.location_mutation(root_field, &query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation && root_field == "locationDeactivate"
@@ -1523,63 +1499,54 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionCreate"
-            && is_app_subscription_create_document(&query)
         {
             return self.app_subscription_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionCancel"
-            && is_app_subscription_cancel_document(&query)
         {
             return self.app_subscription_cancel(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionTrialExtend"
-            && is_app_subscription_trial_extend_document(&query)
         {
             return self.app_subscription_trial_extend(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appSubscriptionLineItemUpdate"
-            && is_app_subscription_line_item_update_document(&query)
         {
             return self.app_subscription_line_item_update(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appUsageRecordCreate"
-            && is_app_usage_record_create_document(&query)
         {
             return self.app_usage_record_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appPurchaseOneTimeCreate"
-            && is_app_purchase_one_time_document(&query)
         {
             return self.app_purchase_one_time_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "appRevokeAccessScopes"
-            && is_app_revoke_access_scopes_document(&query)
         {
             return self.app_revoke_access_scopes(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "delegateAccessTokenCreate"
-            && is_delegate_access_token_create_document(&query)
         {
             return self.delegate_access_token_create(&query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "delegateAccessTokenDestroy"
-            && is_delegate_access_token_destroy_document(&query)
         {
             return self.delegate_access_token_destroy(&query, &variables, request);
         }
@@ -2164,19 +2131,6 @@ impl DraftProxy {
             }
         }
 
-        if is_inventory_quantity_document(&query) {
-            if operation.operation_type == OperationType::Query {
-                if let Some(fields) = root_fields(&query, &variables) {
-                    return ok_json(json!({ "data": self.inventory_query_data(&fields) }));
-                }
-            }
-            if operation.operation_type == OperationType::Mutation {
-                if let Some(fields) = root_fields(&query, &variables) {
-                    return ok_json(json!({ "data": self.inventory_mutation_data(&fields) }));
-                }
-            }
-        }
-
         if operation.operation_type == OperationType::Query {
             if let Some(data) = product_variant_compat_downstream_read_data(&query) {
                 return ok_json(json!({ "data": data }));
@@ -2191,9 +2145,6 @@ impl DraftProxy {
                 return ok_json(
                     json!({ "data": product_contextual_pricing_price_list_read_data() }),
                 );
-            }
-            if query.contains("InventoryLevelRead") {
-                return ok_json(json!({ "data": inventory_level_read_data(&query, &variables) }));
             }
             if query.contains("CollectionsCatalogRead") {
                 return ok_json(json!({ "data": collections_catalog_read_data() }));
@@ -2237,17 +2188,20 @@ impl DraftProxy {
             if query.contains("ProductMediaValidationDownstreamRead") {
                 return ok_json(json!({ "data": product_media_validation_downstream_data() }));
             }
-            if let Some(data) = inventory_fixture_backed_downstream_read_data(&query) {
-                return ok_json(json!({ "data": data }));
-            }
-            if let Some(data) = inventory_transfer_lifecycle_data(&query, &variables) {
-                return ok_json(json!({ "data": data }));
-            }
             if let Some(data) = self.selling_plan_downstream_read_data(&query) {
                 return ok_json(json!({ "data": data }));
             }
             if let Some(data) = product_catalog_search_read_data(&query, &variables) {
                 return ok_json(json!({ "data": data }));
+            }
+        }
+
+        if matches!(
+            root_field,
+            "orderCancel" | "orderCustomerSet" | "orderCustomerRemove"
+        ) {
+            if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
+                return ok_json(data);
             }
         }
 
@@ -2260,9 +2214,6 @@ impl DraftProxy {
             root_field,
         )
         .is_some();
-        if let Some(data) = inventory_transfer_lifecycle_data(&query, &variables) {
-            return ok_json(json!({ "data": data }));
-        }
         if operation.operation_type == OperationType::Mutation
             && self.is_registered_orders_stage_locally_root(operation.operation_type, root_field)
         {
@@ -2282,9 +2233,46 @@ impl DraftProxy {
                         "product" | "products" | "productsCount" | "productByIdentifier"
                     ) =>
             {
-                ok_json(json!({
-                    "data": self.product_overlay_read_fields(&query, &variables)
-                }))
+                if operation.root_fields.iter().any(|field| {
+                    matches!(
+                        field.as_str(),
+                        "inventoryItem"
+                            | "inventoryItems"
+                            | "inventoryLevel"
+                            | "inventoryProperties"
+                            | "inventoryTransfer"
+                            | "inventoryTransfers"
+                    )
+                }) {
+                    if let Some(fields) = root_fields(&query, &variables) {
+                        ok_json(json!({ "data": self.inventory_query_data(&fields, &variables) }))
+                    } else {
+                        json_error(400, "Could not parse GraphQL operation")
+                    }
+                } else {
+                    ok_json(json!({
+                        "data": self.product_overlay_read_fields(&query, &variables)
+                    }))
+                }
+            }
+            (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "inventoryItem"
+                            | "inventoryItems"
+                            | "inventoryLevel"
+                            | "inventoryProperties"
+                            | "inventoryTransfer"
+                            | "inventoryTransfers"
+                    ) =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    ok_json(json!({ "data": self.inventory_query_data(&fields, &variables) }))
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if has_local_dispatch && root_field == "productCreate" =>
@@ -2332,6 +2320,30 @@ impl DraftProxy {
                 let outcome = self.product_tags_mutation(root_field, &query, &variables, request);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "inventoryAdjustQuantities"
+                            | "inventorySetQuantities"
+                            | "inventoryMoveQuantities"
+                            | "inventoryTransferCreate"
+                            | "inventoryTransferCreateAsReadyToShip"
+                            | "inventoryTransferMarkAsReadyToShip"
+                            | "inventoryTransferSetItems"
+                            | "inventoryTransferRemoveItems"
+                            | "inventoryTransferCancel"
+                            | "inventoryTransferDelete"
+                    ) =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    let outcome = self.inventory_mutation_data(request, &fields);
+                    self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
+            }
             (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead)
                 if has_local_dispatch =>
             {
@@ -2344,6 +2356,11 @@ impl DraftProxy {
             {
                 let outcome = self.saved_search_mutation_fields(&query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::BulkOperations, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+            {
+                self.bulk_operation_read_response(request, &query, &variables, root_field)
             }
             (CapabilityDomain::Functions, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>

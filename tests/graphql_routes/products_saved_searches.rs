@@ -209,8 +209,44 @@ fn collection_publishable_mutations_stage_publication_state_for_downstream_reads
 }
 
 #[test]
-fn top_level_inventory_level_read_replays_product_variant_matrix_level_shape() {
+fn top_level_inventory_level_read_observes_staged_inventory_level_state() {
     let mut proxy = snapshot_proxy();
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedInventoryLevel($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) { userErrors { field message } }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/50643009569001", "locationId": "gid://shopify/Location/68509171945", "quantity": 4}
+        ]}}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let item_response = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryItemRead($inventoryItemId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            inventoryLevels(first: 10) {
+              nodes { id }
+            }
+          }
+        }
+        "#,
+        json!({
+            "inventoryItemId": "gid://shopify/InventoryItem/50643009569001"
+        }),
+    ));
+    assert_eq!(item_response.status, 200);
+    let inventory_level_id = item_response.body["data"]["inventoryItem"]["inventoryLevels"]
+        ["nodes"][0]["id"]
+        .as_str()
+        .expect("staged inventory level should have an id")
+        .to_string();
+
     let response = proxy.process_request(json_graphql_request(
         r#"
         query InventoryLevelRead($inventoryLevelId: ID!) {
@@ -222,7 +258,7 @@ fn top_level_inventory_level_read_replays_product_variant_matrix_level_shape() {
         }
         "#,
         json!({
-            "inventoryLevelId": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=50643009569001"
+            "inventoryLevelId": inventory_level_id
         }),
     ));
 
@@ -230,11 +266,11 @@ fn top_level_inventory_level_read_replays_product_variant_matrix_level_shape() {
     assert_eq!(
         response.body["data"]["inventoryLevel"],
         json!({
-            "id": "gid://shopify/InventoryLevel/104875000041?inventory_item_id=50643009569001",
-            "location": { "id": "gid://shopify/Location/68509171945", "name": "103 ossington" },
+            "id": "gid://shopify/InventoryLevel/50643009569001-68509171945?inventory_item_id=gid://shopify/InventoryItem/50643009569001",
+            "location": { "id": "gid://shopify/Location/68509171945", "name": "Shop location" },
             "quantities": [
-                { "name": "available", "quantity": 0, "updatedAt": "2025-07-01T23:57:25Z" },
-                { "name": "on_hand", "quantity": 0, "updatedAt": null },
+                { "name": "available", "quantity": 4, "updatedAt": "2024-01-01T00:00:00.000Z" },
+                { "name": "on_hand", "quantity": 4, "updatedAt": "2024-01-01T00:00:00.000Z" },
                 { "name": "incoming", "quantity": 0, "updatedAt": null }
             ]
         })
@@ -885,6 +921,114 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
                     .as_array()
                     .is_some_and(|ids| ids.iter().any(|id| id == "gid://shopify/Job/2"))),
         "successful full sync should stage the ProductFeed and pollable Job IDs: {log}"
+    );
+}
+
+#[test]
+fn product_resource_feedback_validates_mixed_batches_with_per_entry_errors() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustProductFeedbackMixedBatch {
+          productFeedback: bulkProductResourceFeedbackCreate(feedbackInput: [
+            {
+              productId: "gid://shopify/Product/optioned",
+              state: ACCEPTED,
+              feedbackGeneratedAt: "2024-01-01T00:00:00Z",
+              productUpdatedAt: "2024-01-01T00:00:00Z",
+              messages: ["ready"]
+            },
+            {
+              productId: "gid://shopify/Product/optioned",
+              state: ACCEPTED,
+              feedbackGeneratedAt: "2100-01-01T00:00:00Z",
+              productUpdatedAt: "2024-01-01T00:00:00Z",
+              messages: ["future"]
+            },
+            {
+              productId: "gid://shopify/Product/optioned",
+              state: REQUIRES_ACTION,
+              feedbackGeneratedAt: "2024-01-01T00:00:00Z",
+              productUpdatedAt: "2024-01-01T00:00:00Z",
+              messages: []
+            }
+          ]) {
+            feedback {
+              productId
+              state
+              messages
+              feedbackGeneratedAt
+              productUpdatedAt
+            }
+            userErrors { field message code }
+          }
+          shopFuture: shopResourceFeedbackCreate(input: {
+            state: ACCEPTED,
+            feedbackGeneratedAt: "2100-01-01T00:00:00Z",
+            messages: ["future"]
+          }) {
+            feedback { state }
+            userErrors { field message code }
+          }
+          shopSecondMessageTooLong: shopResourceFeedbackCreate(input: {
+            state: REQUIRES_ACTION,
+            feedbackGeneratedAt: "2024-01-01T00:00:00Z",
+            messages: ["ok", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]
+          }) {
+            feedback { state messages { message } feedbackGeneratedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200, "response body: {}", response.body);
+    assert_eq!(
+        response.body["data"]["productFeedback"],
+        json!({
+            "feedback": [{
+                "productId": "gid://shopify/Product/optioned",
+                "state": "ACCEPTED",
+                "messages": ["ready"],
+                "feedbackGeneratedAt": "2024-01-01T00:00:00Z",
+                "productUpdatedAt": "2024-01-01T00:00:00Z"
+            }],
+            "userErrors": [
+                {
+                    "field": ["feedback", "1", "feedbackGeneratedAt"],
+                    "message": "Feedback generated at must not be in the future",
+                    "code": "INVALID"
+                },
+                {
+                    "field": ["feedback", "2", "messages"],
+                    "message": "Messages can't be blank",
+                    "code": "BLANK"
+                }
+            ]
+        })
+    );
+    assert_eq!(
+        response.body["data"]["shopFuture"],
+        json!({
+            "feedback": Value::Null,
+            "userErrors": [{
+                "field": ["feedback", "feedbackGeneratedAt"],
+                "message": "Feedback generated at must not be in the future",
+                "code": "INVALID"
+            }]
+        })
+    );
+    assert_eq!(
+        response.body["data"]["shopSecondMessageTooLong"],
+        json!({
+            "feedback": Value::Null,
+            "userErrors": [{
+                "field": ["feedback", "messages", "1"],
+                "message": "Message is too long (maximum is 100 characters)",
+                "code": "TOO_LONG"
+            }]
+        })
     );
 }
 
@@ -1838,6 +1982,141 @@ fn products_connection_serializes_edges_and_page_info_for_selected_window() {
                         "endCursor": "gid://shopify/Product/2"
                     }
                 }
+            }
+        })
+    );
+}
+
+#[test]
+fn products_connection_paginates_edges_nodes_and_page_info_consistently() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![
+        ProductRecord {
+            id: "gid://shopify/Product/1".to_string(),
+            created_at: "2024-01-01T00:00:01Z".to_string(),
+            updated_at: "2024-01-01T00:00:01Z".to_string(),
+            title: "First product".to_string(),
+            handle: "first-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/2".to_string(),
+            created_at: "2024-01-01T00:00:02Z".to_string(),
+            updated_at: "2024-01-01T00:00:02Z".to_string(),
+            title: "Second product".to_string(),
+            handle: "second-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/3".to_string(),
+            created_at: "2024-01-01T00:00:03Z".to_string(),
+            updated_at: "2024-01-01T00:00:03Z".to_string(),
+            title: "Third product".to_string(),
+            handle: "third-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: Vec::new(),
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+        },
+    ]);
+
+    let first_page = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductConnectionRelayPage($first: Int!) {
+          products(first: $first) {
+            nodes { id title }
+            edges { cursor node { id title } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 2}),
+    ));
+    assert_eq!(
+        first_page.body["data"]["products"],
+        json!({
+            "nodes": [
+                {"id": "gid://shopify/Product/1", "title": "First product"},
+                {"id": "gid://shopify/Product/2", "title": "Second product"}
+            ],
+            "edges": [
+                {"cursor": "gid://shopify/Product/1", "node": {"id": "gid://shopify/Product/1", "title": "First product"}},
+                {"cursor": "gid://shopify/Product/2", "node": {"id": "gid://shopify/Product/2", "title": "Second product"}}
+            ],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false,
+                "startCursor": "gid://shopify/Product/1",
+                "endCursor": "gid://shopify/Product/2"
+            }
+        })
+    );
+
+    let second_page = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductConnectionRelayAfter($first: Int!, $after: String!) {
+          products(first: $first, after: $after) {
+            nodes { id title }
+            edges { cursor node { id title } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"first": 2, "after": first_page.body["data"]["products"]["pageInfo"]["endCursor"]}),
+    ));
+    assert_eq!(
+        second_page.body["data"]["products"],
+        json!({
+            "nodes": [{"id": "gid://shopify/Product/3", "title": "Third product"}],
+            "edges": [{"cursor": "gid://shopify/Product/3", "node": {"id": "gid://shopify/Product/3", "title": "Third product"}}],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/Product/3",
+                "endCursor": "gid://shopify/Product/3"
+            }
+        })
+    );
+
+    let tail = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductConnectionRelayLast($last: Int!, $before: String!) {
+          products(last: $last, before: $before) {
+            nodes { id }
+            edges { cursor node { id } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"last": 1, "before": "gid://shopify/Product/3"}),
+    ));
+    assert_eq!(
+        tail.body["data"]["products"],
+        json!({
+            "nodes": [{"id": "gid://shopify/Product/2"}],
+            "edges": [{"cursor": "gid://shopify/Product/2", "node": {"id": "gid://shopify/Product/2"}}],
+            "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": true,
+                "startCursor": "gid://shopify/Product/2",
+                "endCursor": "gid://shopify/Product/2"
             }
         })
     );

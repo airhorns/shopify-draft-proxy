@@ -687,11 +687,161 @@ pub(in crate::proxy) fn market_currency_settings_json(
     })
 }
 
-pub(in crate::proxy) fn market_currency_name(code: &str) -> &str {
+pub(in crate::proxy) fn market_currency_name(code: &str) -> &'static str {
     match code {
-        "USD" => "US Dollar",
+        "AED" => "United Arab Emirates Dirham",
+        "AFN" => "Afghan Afghani",
+        "ALL" => "Albanian Lek",
+        "AMD" => "Armenian Dram",
+        "ANG" => "Netherlands Antillean Guilder",
+        "AOA" => "Angolan Kwanza",
+        "ARS" => "Argentine Peso",
+        "AUD" => "Australian Dollar",
+        "AWG" => "Aruban Florin",
+        "AZN" => "Azerbaijani Manat",
+        "BAM" => "Bosnia-Herzegovina Convertible Mark",
+        "BBD" => "Barbadian Dollar",
+        "BDT" => "Bangladeshi Taka",
+        "BGN" => "Bulgarian Lev",
+        "BHD" => "Bahraini Dinar",
+        "BIF" => "Burundian Franc",
+        "BMD" => "Bermudian Dollar",
+        "BND" => "Brunei Dollar",
+        "BOB" => "Bolivian Boliviano",
+        "BRL" => "Brazilian Real",
+        "BSD" => "Bahamian Dollar",
+        "BTN" => "Bhutanese Ngultrum",
+        "BWP" => "Botswanan Pula",
+        "BYN" => "Belarusian Ruble",
+        "BZD" => "Belize Dollar",
+        "CAD" => "Canadian Dollar",
+        "CDF" => "Congolese Franc",
+        "CHF" => "Swiss Franc",
+        "CLP" => "Chilean Peso",
+        "CNY" => "Chinese Yuan",
+        "COP" => "Colombian Peso",
+        "CRC" => "Costa Rican Colon",
+        "CVE" => "Cape Verdean Escudo",
+        "CZK" => "Czech Koruna",
+        "DJF" => "Djiboutian Franc",
         "DKK" => "Danish Krone",
-        _ => code,
+        "DOP" => "Dominican Peso",
+        "DZD" => "Algerian Dinar",
+        "EGP" => "Egyptian Pound",
+        "ERN" => "Eritrean Nakfa",
+        "ETB" => "Ethiopian Birr",
+        "EUR" => "Euro",
+        "FJD" => "Fijian Dollar",
+        "FKP" => "Falkland Islands Pound",
+        "GBP" => "British Pound",
+        "GEL" => "Georgian Lari",
+        "GHS" => "Ghanaian Cedi",
+        "GIP" => "Gibraltar Pound",
+        "GMD" => "Gambian Dalasi",
+        "GNF" => "Guinean Franc",
+        "GTQ" => "Guatemalan Quetzal",
+        "GYD" => "Guyanese Dollar",
+        "HKD" => "Hong Kong Dollar",
+        "HNL" => "Honduran Lempira",
+        "HRK" => "Croatian Kuna",
+        "HTG" => "Haitian Gourde",
+        "HUF" => "Hungarian Forint",
+        "IDR" => "Indonesian Rupiah",
+        "ILS" => "Israeli New Shekel",
+        "INR" => "Indian Rupee",
+        "IQD" => "Iraqi Dinar",
+        "ISK" => "Icelandic Krona",
+        "JMD" => "Jamaican Dollar",
+        "JOD" => "Jordanian Dinar",
+        "JPY" => "Japanese Yen",
+        "KES" => "Kenyan Shilling",
+        "KGS" => "Kyrgyzstani Som",
+        "KHR" => "Cambodian Riel",
+        "KID" => "Kiribati Dollar",
+        "KMF" => "Comorian Franc",
+        "KRW" => "South Korean Won",
+        "KWD" => "Kuwaiti Dinar",
+        "KYD" => "Cayman Islands Dollar",
+        "KZT" => "Kazakhstani Tenge",
+        "LAK" => "Lao Kip",
+        "LBP" => "Lebanese Pound",
+        "LKR" => "Sri Lankan Rupee",
+        "LRD" => "Liberian Dollar",
+        "LSL" => "Lesotho Loti",
+        "LTL" => "Lithuanian Litas",
+        "LVL" => "Latvian Lats",
+        "LYD" => "Libyan Dinar",
+        "MAD" => "Moroccan Dirham",
+        "MDL" => "Moldovan Leu",
+        "MGA" => "Malagasy Ariary",
+        "MKD" => "Macedonian Denar",
+        "MMK" => "Myanmar Kyat",
+        "MNT" => "Mongolian Tugrik",
+        "MOP" => "Macanese Pataca",
+        "MRU" => "Mauritanian Ouguiya",
+        "MUR" => "Mauritian Rupee",
+        "MVR" => "Maldivian Rufiyaa",
+        "MWK" => "Malawian Kwacha",
+        "MXN" => "Mexican Peso",
+        "MYR" => "Malaysian Ringgit",
+        "MZN" => "Mozambican Metical",
+        "NAD" => "Namibian Dollar",
+        "NGN" => "Nigerian Naira",
+        "NIO" => "Nicaraguan Cordoba",
+        "NOK" => "Norwegian Krone",
+        "NPR" => "Nepalese Rupee",
+        "NZD" => "New Zealand Dollar",
+        "OMR" => "Omani Rial",
+        "PAB" => "Panamanian Balboa",
+        "PEN" => "Peruvian Sol",
+        "PGK" => "Papua New Guinean Kina",
+        "PHP" => "Philippine Peso",
+        "PKR" => "Pakistani Rupee",
+        "PLN" => "Polish Zloty",
+        "PYG" => "Paraguayan Guarani",
+        "QAR" => "Qatari Riyal",
+        "RON" => "Romanian Leu",
+        "RSD" => "Serbian Dinar",
+        "RUB" => "Russian Ruble",
+        "RWF" => "Rwandan Franc",
+        "SAR" => "Saudi Riyal",
+        "SBD" => "Solomon Islands Dollar",
+        "SCR" => "Seychellois Rupee",
+        "SDG" => "Sudanese Pound",
+        "SEK" => "Swedish Krona",
+        "SGD" => "Singapore Dollar",
+        "SHP" => "Saint Helena Pound",
+        "SLE" => "Sierra Leonean Leone",
+        "SLL" => "Sierra Leonean Leone",
+        "SOS" => "Somali Shilling",
+        "SRD" => "Surinamese Dollar",
+        "SSP" => "South Sudanese Pound",
+        "STN" => "Sao Tome and Principe Dobra",
+        "SYP" => "Syrian Pound",
+        "SZL" => "Swazi Lilangeni",
+        "THB" => "Thai Baht",
+        "TJS" => "Tajikistani Somoni",
+        "TMT" => "Turkmenistani Manat",
+        "TND" => "Tunisian Dinar",
+        "TOP" => "Tongan Pa'anga",
+        "TRY" => "Turkish Lira",
+        "TTD" => "Trinidad and Tobago Dollar",
+        "TWD" => "New Taiwan Dollar",
+        "TZS" => "Tanzanian Shilling",
+        "UAH" => "Ukrainian Hryvnia",
+        "UGX" => "Ugandan Shilling",
+        "USD" => "US Dollar",
+        "UYU" => "Uruguayan Peso",
+        "UZS" => "Uzbekistani Som",
+        "VES" => "Venezuelan Bolivar",
+        "VND" => "Vietnamese Dong",
+        "VUV" => "Vanuatu Vatu",
+        "WST" => "Samoan Tala",
+        "XCD" => "East Caribbean Dollar",
+        "YER" => "Yemeni Rial",
+        "ZAR" => "South African Rand",
+        "ZMW" => "Zambian Kwacha",
+        _ => "Unknown Currency",
     }
 }
 
@@ -1298,14 +1448,6 @@ pub(in crate::proxy) fn validate_script_src(
     None
 }
 
-pub(in crate::proxy) fn nested_node_selection(selection: &[SelectedField]) -> Vec<SelectedField> {
-    selection
-        .iter()
-        .find(|field| field.name == "nodes")
-        .map(|field| field.selection.clone())
-        .unwrap_or_default()
-}
-
 pub(in crate::proxy) fn webhook_endpoint(uri: &str) -> Value {
     if uri.starts_with("arn:aws:events:") {
         json!({ "__typename": "WebhookEventBridgeEndpoint", "arn": uri })
@@ -1349,14 +1491,49 @@ pub(in crate::proxy) fn valid_gcp_pubsub_topic_id(topic: &str) -> bool {
             .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '~'))
 }
 
-pub(in crate::proxy) fn valid_eventbridge_arn(uri: &str) -> bool {
+pub(in crate::proxy) fn eventbridge_arn_api_client_id(uri: &str) -> Option<&str> {
     let parts: Vec<&str> = uri.splitn(6, ':').collect();
-    parts.len() == 6
-        && parts[0] == "arn"
-        && parts[1] == "aws"
-        && parts[2] == "events"
-        && !parts[3].is_empty()
-        && !parts[5].is_empty()
+    if parts.len() != 6
+        || parts[0] != "arn"
+        || parts[1] != "aws"
+        || parts[2] != "events"
+        || !valid_eventbridge_region(parts[3])
+        || !parts[4].is_empty()
+    {
+        return None;
+    }
+    let resource = parts[5];
+    let tail = resource
+        .strip_prefix("event-source/aws.partner/shopify.com/")
+        .or_else(|| resource.strip_prefix("event-source/aws.partner/shopify.com.test/"))?;
+    let (api_client_id, event_source_name) = tail.split_once('/')?;
+    if api_client_id.is_empty()
+        || !api_client_id.chars().all(|ch| ch.is_ascii_digit())
+        || event_source_name.is_empty()
+    {
+        return None;
+    }
+    Some(api_client_id)
+}
+
+fn valid_eventbridge_region(region: &str) -> bool {
+    let mut parts = region.split('-');
+    let Some(prefix) = parts.next() else {
+        return false;
+    };
+    let Some(name) = parts.next() else {
+        return false;
+    };
+    let Some(number) = parts.next() else {
+        return false;
+    };
+    parts.next().is_none()
+        && prefix.len() == 2
+        && prefix.chars().all(|ch| ch.is_ascii_lowercase())
+        && !name.is_empty()
+        && name.chars().all(|ch| ch.is_ascii_lowercase())
+        && !number.is_empty()
+        && number.chars().all(|ch| ch.is_ascii_digit())
 }
 
 pub(in crate::proxy) fn webhook_uri_uses_disallowed_host(uri: &str) -> bool {
@@ -1492,91 +1669,6 @@ pub(in crate::proxy) fn webhook_subscription_matches_query_term(
     }
 }
 
-pub(in crate::proxy) fn connection_page_info(
-    has_next_page: bool,
-    has_previous_page: bool,
-    start_cursor: Option<String>,
-    end_cursor: Option<String>,
-) -> Value {
-    json!({
-        "hasNextPage": has_next_page,
-        "hasPreviousPage": has_previous_page,
-        "startCursor": start_cursor,
-        "endCursor": end_cursor
-    })
-}
-
-pub(in crate::proxy) fn connection_edges_with_cursor<F>(
-    nodes: &[Value],
-    cursor_for: F,
-) -> Vec<Value>
-where
-    F: Fn(usize, &Value) -> String,
-{
-    nodes
-        .iter()
-        .enumerate()
-        .map(|(index, node)| {
-            json!({
-                "cursor": cursor_for(index, node),
-                "node": node
-            })
-        })
-        .collect()
-}
-
-pub(in crate::proxy) fn connection_json_with_cursor<F>(
-    nodes: Vec<Value>,
-    cursor_for: F,
-    page_info: Value,
-) -> Value
-where
-    F: Fn(usize, &Value) -> String,
-{
-    let edges = connection_edges_with_cursor(&nodes, cursor_for);
-    json!({ "nodes": nodes, "edges": edges, "pageInfo": page_info })
-}
-
-pub(in crate::proxy) fn connection_json_with_empty_edges(nodes: Vec<Value>) -> Value {
-    json!({ "nodes": nodes, "edges": [], "pageInfo": empty_page_info() })
-}
-
-pub(in crate::proxy) fn connection_json(nodes: Vec<Value>) -> Value {
-    connection_json_with_cursor(
-        nodes,
-        |_, node| {
-            node.get("id")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string()
-        },
-        empty_page_info(),
-    )
-}
-
-pub(in crate::proxy) fn selected_connection_json(
-    nodes: Vec<Value>,
-    selections: &[SelectedField],
-) -> Value {
-    selected_json(&connection_json(nodes), selections)
-}
-
-pub(in crate::proxy) fn selected_empty_connection_json(selections: &[SelectedField]) -> Value {
-    selected_connection_json(Vec::new(), selections)
-}
-
-pub(in crate::proxy) fn is_inventory_quantity_document(query: &str) -> bool {
-    [
-        "InventoryItemsEmptyRead",
-        "InventoryPropertiesRead",
-        "InventoryQuantitySet",
-        "InventoryQuantityMove",
-        "InventoryQuantityDownstreamRead",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
 pub(in crate::proxy) fn inventory_empty_connection(selection: &[SelectedField]) -> Value {
     selected_json(
         &json!({
@@ -1595,20 +1687,29 @@ pub(in crate::proxy) fn inventory_empty_connection(selection: &[SelectedField]) 
 pub(in crate::proxy) fn inventory_levels_connection_selected_json(
     inventory_item_id: &str,
     levels: &[(String, BTreeMap<String, i64>)],
+    quantity_updated_at: &BTreeMap<(String, String, String), String>,
+    arguments: &BTreeMap<String, ResolvedValue>,
     selections: &[SelectedField],
+    locations: Option<&BTreeMap<String, Value>>,
 ) -> Value {
+    let first = resolved_int_field(arguments, "first")
+        .and_then(|value| usize::try_from(value).ok())
+        .unwrap_or(levels.len());
     let mut fields = serde_json::Map::new();
     for selection in selections {
         let value = match selection.name.as_str() {
             "nodes" => Some(Value::Array(
                 levels
                     .iter()
+                    .take(first)
                     .map(|(location_id, quantities)| {
                         inventory_level_selected_json(
                             inventory_item_id,
                             location_id,
                             quantities,
+                            quantity_updated_at,
                             &selection.selection,
+                            locations,
                         )
                     })
                     .collect(),
@@ -1635,7 +1736,9 @@ pub(in crate::proxy) fn inventory_level_selected_json(
     inventory_item_id: &str,
     location_id: &str,
     quantities: &BTreeMap<String, i64>,
+    quantity_updated_at: &BTreeMap<(String, String, String), String>,
     selections: &[SelectedField],
+    locations: Option<&BTreeMap<String, Value>>,
 ) -> Value {
     let mut fields = serde_json::Map::new();
     for selection in selections {
@@ -1646,22 +1749,36 @@ pub(in crate::proxy) fn inventory_level_selected_json(
                 &json!({ "id": inventory_item_id }),
                 &selection.selection,
             )),
-            "location" => Some(selected_json(
-                &json!({
-                    "id": location_id,
-                    "name": inventory_location_name(location_id)
-                }),
-                &selection.selection,
-            )),
+            "location" => Some(
+                locations
+                    .and_then(|locations| locations.get(location_id))
+                    .map(|location| selected_json(location, &selection.selection))
+                    .unwrap_or_else(|| {
+                        selected_json(
+                            &json!({
+                                "id": location_id,
+                                "name": inventory_location_name(location_id)
+                            }),
+                            &selection.selection,
+                        )
+                    }),
+            ),
             "quantities" => Some(Value::Array(
                 inventory_quantity_names(&selection.arguments)
                     .into_iter()
                     .map(|name| {
+                        let updated_at = quantity_updated_at
+                            .get(&(
+                                inventory_item_id.to_string(),
+                                location_id.to_string(),
+                                name.clone(),
+                            ))
+                            .map_or(Value::Null, |value| json!(value));
                         selected_json(
                             &json!({
                                 "name": name,
                                 "quantity": quantities.get(&name).copied().unwrap_or(0),
-                                "updatedAt": null
+                                "updatedAt": updated_at
                             }),
                             &selection.selection,
                         )
@@ -1703,6 +1820,18 @@ fn inventory_level_id(inventory_item_id: &str, location_id: &str) -> String {
     )
 }
 
+pub(in crate::proxy) fn inventory_level_parts_from_id(id: &str) -> Option<(String, String)> {
+    let rest = id.strip_prefix("gid://shopify/InventoryLevel/")?;
+    let (level_tail, query) = rest.split_once("?inventory_item_id=")?;
+    let (item_tail, location_tail) = level_tail.rsplit_once('-')?;
+    let item_id = if query.starts_with("gid://shopify/InventoryItem/") {
+        query.to_string()
+    } else {
+        format!("gid://shopify/InventoryItem/{item_tail}")
+    };
+    Some((item_id, format!("gid://shopify/Location/{location_tail}")))
+}
+
 fn resource_id_tail(id: &str) -> &str {
     id.rsplit('/')
         .next()
@@ -1728,16 +1857,21 @@ pub(in crate::proxy) fn inventory_properties_json() -> Value {
 }
 
 pub(in crate::proxy) fn inventory_change_json(
+    item_id: &str,
     name: &str,
     delta: i64,
+    quantity_after_change: i64,
     ledger: Option<&str>,
     location_id: &str,
 ) -> Value {
     json!({
         "name": name,
         "delta": delta,
-        "quantityAfterChange": null,
+        "quantityAfterChange": quantity_after_change,
         "ledgerDocumentUri": ledger,
+        "item": {
+            "id": item_id
+        },
         "location": {
             "id": location_id,
             "name": inventory_location_name(location_id)
@@ -1821,6 +1955,22 @@ pub(in crate::proxy) fn marketing_activity_missing_error() -> Value {
         "field": null,
         "message": "Marketing activity does not exist.",
         "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+    })
+}
+
+pub(in crate::proxy) fn marketing_activity_not_external_error() -> Value {
+    json!({
+        "field": null,
+        "message": "The marketing activity must be an external activity.",
+        "code": "ACTIVITY_NOT_EXTERNAL"
+    })
+}
+
+pub(in crate::proxy) fn marketing_activity_child_events_error() -> Value {
+    json!({
+        "field": null,
+        "message": "This activity has child activities and thus cannot be deleted. Child activities must be deleted before a parent activity.",
+        "code": "CANNOT_DELETE_ACTIVITY_WITH_CHILD_EVENTS"
     })
 }
 
@@ -2253,17 +2403,6 @@ pub(in crate::proxy) fn resolved_object_field_bool(
     }
 }
 
-pub(in crate::proxy) fn is_local_bulk_operation_read_document(query: &str) -> bool {
-    query.contains("BulkOperationStatusParityRead") || query.contains("BulkOperationByIdParity")
-}
-
-pub(in crate::proxy) fn is_local_bulk_operation_run_query_document(query: &str) -> bool {
-    query.contains("BulkOperationRunQueryGroupObjectsTrue")
-        || query.contains("BulkOperationRunQueryParity")
-        || query.contains("BulkOperationRunQueryValidatorParity")
-        || query.contains("BulkOperationRunQueryUserErrorCodes")
-}
-
 pub(in crate::proxy) fn is_rust_webhook_local_runtime_document(query: &str) -> bool {
     query.contains("RustWebhookLocalRuntime")
 }
@@ -2280,6 +2419,18 @@ pub(in crate::proxy) fn bulk_operation_record_with(
     created_at: &str,
     file_size: &str,
 ) -> Value {
+    bulk_operation_record_with_type(id, status, "QUERY", query, count, created_at, file_size)
+}
+
+pub(in crate::proxy) fn bulk_operation_record_with_type(
+    id: &str,
+    status: &str,
+    operation_type: &str,
+    query: &str,
+    count: &str,
+    created_at: &str,
+    file_size: &str,
+) -> Value {
     let completed = status == "COMPLETED";
     let file_size_value = if completed {
         json!(file_size)
@@ -2289,7 +2440,7 @@ pub(in crate::proxy) fn bulk_operation_record_with(
     json!({
         "id": id,
         "status": status,
-        "type": "QUERY",
+        "type": operation_type,
         "errorCode": null,
         "createdAt": created_at,
         "completedAt": if completed { json!(created_at) } else { Value::Null },
@@ -2300,10 +2451,6 @@ pub(in crate::proxy) fn bulk_operation_record_with(
         "partialDataUrl": null,
         "query": query
     })
-}
-
-pub(in crate::proxy) fn empty_bulk_operation_connection(selection: &[SelectedField]) -> Value {
-    selected_empty_connection_json(selection)
 }
 
 pub(in crate::proxy) fn b2b_company_customer_since_read_data(

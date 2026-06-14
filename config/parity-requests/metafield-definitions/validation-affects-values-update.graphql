@@ -1,0 +1,28 @@
+mutation MetafieldDefinitionValidationAffectsValuesUpdate($definition: MetafieldDefinitionUpdateInput!) {
+  metafieldDefinitionUpdate(definition: $definition) {
+    updatedDefinition {
+      id
+      namespace
+      key
+      ownerType
+      validations {
+        name
+        value
+      }
+      validationStatus
+    }
+    validationJob {
+      __typename
+      id
+      done
+      query {
+        __typename
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

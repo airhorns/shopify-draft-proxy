@@ -873,6 +873,45 @@ fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tes
         currency_read.body["data"]["market"]["currencySettings"],
         currency_create.body["data"]["marketCreate"]["market"]["currencySettings"]
     );
+    let eur_create = currency_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Euro Currency", "currencySettings": {"baseCurrency": "EUR"}}}),
+    ));
+    assert_eq!(
+        eur_create.body["data"]["marketCreate"]["market"]["currencySettings"],
+        json!({"baseCurrency": {"currencyCode": "EUR", "currencyName": "Euro"}, "localCurrencies": false, "roundingEnabled": false})
+    );
+    let eur_read = currency_proxy.process_request(json_graphql_request(
+        read_query,
+        json!({"id": "gid://shopify/Market/2"}),
+    ));
+    assert_eq!(
+        eur_read.body["data"]["market"]["currencySettings"],
+        eur_create.body["data"]["marketCreate"]["market"]["currencySettings"]
+    );
+    for (code, name) in [
+        ("GBP", "British Pound"),
+        ("CAD", "Canadian Dollar"),
+        ("DKK", "Danish Krone"),
+        ("MXN", "Mexican Peso"),
+    ] {
+        let response = currency_proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"input": {"name": format!("{code} Currency"), "currencySettings": {"baseCurrency": code}}}),
+        ));
+        assert_eq!(
+            response.body["data"]["marketCreate"]["market"]["currencySettings"],
+            json!({"baseCurrency": {"currencyCode": code, "currencyName": name}, "localCurrencies": false, "roundingEnabled": false})
+        );
+    }
+    let unknown_currency = currency_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Unknown Currency", "currencySettings": {"baseCurrency": "ZZZ"}}}),
+    ));
+    assert_eq!(
+        unknown_currency.body["data"]["marketCreate"]["market"]["currencySettings"],
+        json!({"baseCurrency": {"currencyCode": "ZZZ", "currencyName": "Unknown Currency"}, "localCurrencies": false, "roundingEnabled": false})
+    );
 
     for input in [
         json!({"name": "Currency", "currencySettings": {"baseCurrency": "XXX"}}),
@@ -3054,6 +3093,269 @@ fn product_tags_add_remove_and_multi_resource_reads_match_captured_state() {
             "tags": ["hermes-tags-added-1778091014318", "hermes-tags-base-1778091014318"]
         })
     );
+}
+
+#[test]
+fn product_tags_add_remove_split_and_match_case_insensitively() {
+    fn seeded_proxy() -> DraftProxy {
+        snapshot_proxy().with_base_products(vec![ProductRecord {
+            id: "gid://shopify/Product/tag-normalization".to_string(),
+            created_at: "2024-01-01T00:00:00.000Z".to_string(),
+            updated_at: "2024-01-01T00:00:00.000Z".to_string(),
+            title: "Tag normalization product".to_string(),
+            handle: "tag-normalization-product".to_string(),
+            status: "ACTIVE".to_string(),
+            description_html: String::new(),
+            vendor: String::new(),
+            product_type: String::new(),
+            tags: vec!["Red".to_string()],
+            template_suffix: String::new(),
+            seo_title: String::new(),
+            seo_description: String::new(),
+        }])
+    }
+
+    let add_string = seeded_proxy().process_request(json_graphql_request(
+        r#"
+        mutation ProductTagsAddCommaString($id: ID!, $tags: [String!]!) {
+          tagsAdd(id: $id, tags: $tags) {
+            node { ... on Product { id tags } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/tag-normalization",
+            "tags": "blue, green"
+        }),
+    ));
+    assert_eq!(add_string.status, 200);
+    assert_eq!(
+        add_string.body["data"]["tagsAdd"]["node"]["tags"],
+        json!(["blue", "green", "Red"])
+    );
+
+    let add_list_element = seeded_proxy().process_request(json_graphql_request(
+        r#"
+        mutation ProductTagsAddCommaListElement($id: ID!, $tags: [String!]!) {
+          tagsAdd(id: $id, tags: $tags) {
+            node { ... on Product { id tags } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/tag-normalization",
+            "tags": ["blue,green"]
+        }),
+    ));
+    assert_eq!(add_list_element.status, 200);
+    assert_eq!(
+        add_list_element.body["data"]["tagsAdd"]["node"]["tags"],
+        json!(["blue", "green", "Red"])
+    );
+
+    let add_case_variant = seeded_proxy().process_request(json_graphql_request(
+        r#"
+        mutation ProductTagsAddCaseVariant($id: ID!, $tags: [String!]!) {
+          tagsAdd(id: $id, tags: $tags) {
+            node { ... on Product { id tags } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/tag-normalization",
+            "tags": ["red"]
+        }),
+    ));
+    assert_eq!(add_case_variant.status, 200);
+    assert_eq!(
+        add_case_variant.body["data"]["tagsAdd"]["node"]["tags"],
+        json!(["Red"])
+    );
+
+    let add_case_sort = seeded_proxy().process_request(json_graphql_request(
+        r#"
+        mutation ProductTagsAddCaseSort($id: ID!, $tags: [String!]!) {
+          tagsAdd(id: $id, tags: $tags) {
+            node { ... on Product { id tags } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/tag-normalization",
+            "tags": ["b", "A"]
+        }),
+    ));
+    assert_eq!(add_case_sort.status, 200);
+    assert_eq!(
+        add_case_sort.body["data"]["tagsAdd"]["node"]["tags"],
+        json!(["A", "b", "Red"])
+    );
+
+    let remove_case_variant = seeded_proxy().process_request(json_graphql_request(
+        r#"
+        mutation ProductTagsRemoveCaseVariant($id: ID!, $tags: [String!]!) {
+          tagsRemove(id: $id, tags: $tags) {
+            node { ... on Product { id tags } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/tag-normalization",
+            "tags": ["red"]
+        }),
+    ));
+    assert_eq!(remove_case_variant.status, 200);
+    assert_eq!(
+        remove_case_variant.body["data"]["tagsRemove"]["node"]["tags"],
+        json!([])
+    );
+
+    let remove_string = seeded_proxy().process_request(json_graphql_request(
+        r#"
+        mutation ProductTagsRemoveString($id: ID!, $tags: [String!]!) {
+          tagsRemove(id: $id, tags: $tags) {
+            node { ... on Product { id tags } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/tag-normalization",
+            "tags": "Red"
+        }),
+    ));
+    assert_eq!(remove_string.status, 200);
+    assert_eq!(
+        remove_string.body["data"]["tagsRemove"]["node"]["tags"],
+        json!([])
+    );
+}
+
+#[test]
+fn polymorphic_tags_add_remove_split_and_match_case_insensitively() {
+    fn proxy_with_taggable_hydration(id: &'static str) -> (DraftProxy, Arc<Mutex<Vec<String>>>) {
+        let upstream_queries = Arc::new(Mutex::new(Vec::new()));
+        let captured_queries = Arc::clone(&upstream_queries);
+        let proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+            move |request| {
+                let body: Value =
+                    serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+                let query = body["query"]
+                    .as_str()
+                    .expect("upstream GraphQL query is a string")
+                    .to_string();
+                captured_queries.lock().unwrap().push(query.clone());
+                let response = if query.contains("OrdersOrderHydrate") {
+                    json!({"data": {"order": {"id": id, "__typename": "Order", "name": "#1001", "tags": ["Red"]}}})
+                } else if query.contains("CustomerHydrate") {
+                    json!({"data": {"customer": {"id": id, "__typename": "Customer", "email": "tags@example.com", "displayName": "Tags Customer", "tags": ["Red"]}}})
+                } else if query.contains("TagsArticleHydrate") {
+                    json!({"data": {"article": {"id": id, "__typename": "Article", "title": "Tags Article", "tags": ["Red"], "blog": {"id": "gid://shopify/Blog/1"}}}})
+                } else if query.contains("OrdersDraftOrderHydrate") {
+                    json!({"data": {"draftOrder": {"id": id, "__typename": "DraftOrder", "name": "#D1", "tags": ["Red"]}}})
+                } else {
+                    json!({"errors": [{"message": format!("unexpected upstream query: {query}")}]})
+                };
+                shopify_draft_proxy::proxy::Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: response,
+                }
+            },
+        );
+        (proxy, upstream_queries)
+    }
+
+    fn assert_tags_mutation(id: &'static str, root: &str, tags: Value, expected: Value) {
+        let (mut proxy, upstream_queries) = proxy_with_taggable_hydration(id);
+        let response = proxy.process_request(json_graphql_request(
+            &format!(
+                r#"
+                mutation PolymorphicTags($id: ID!, $tags: [String!]!) {{
+                  {root}(id: $id, tags: $tags) {{
+                    node {{
+                      __typename
+                      ... on Order {{ id name tags }}
+                      ... on Customer {{ id email displayName tags }}
+                      ... on Article {{ id title tags }}
+                      ... on DraftOrder {{ id name tags }}
+                    }}
+                    userErrors {{ field message }}
+                  }}
+                }}
+                "#
+            ),
+            json!({ "id": id, "tags": tags }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body["data"][root]["node"]["tags"], expected);
+        assert_eq!(response.body["data"][root]["userErrors"], json!([]));
+
+        let read_response = proxy.process_request(json_graphql_request(
+            r#"
+            query PolymorphicTagsRead($id: ID!) {
+              order(id: $id) { id name tags }
+              customer(id: $id) { id email displayName tags }
+              article(id: $id) { id title tags }
+              draftOrder(id: $id) { id name tags }
+            }
+            "#,
+            json!({ "id": id }),
+        ));
+        let read_key = if id.contains("/Order/") {
+            "order"
+        } else if id.contains("/Customer/") {
+            "customer"
+        } else if id.contains("/Article/") {
+            "article"
+        } else {
+            "draftOrder"
+        };
+        assert_eq!(read_response.status, 200);
+        assert_eq!(read_response.body["data"][read_key]["tags"], expected);
+        assert!(
+            upstream_queries
+                .lock()
+                .unwrap()
+                .iter()
+                .all(|query| !query.contains("mutation PolymorphicTags")),
+            "generic tags mutation must not be sent upstream"
+        );
+    }
+
+    let resource_ids = [
+        "gid://shopify/Order/tag-normalization",
+        "gid://shopify/Customer/tag-normalization",
+        "gid://shopify/Article/tag-normalization",
+        "gid://shopify/DraftOrder/tag-normalization",
+    ];
+    for id in resource_ids {
+        assert_tags_mutation(
+            id,
+            "tagsAdd",
+            json!("blue, green"),
+            json!(["blue", "green", "Red"]),
+        );
+        assert_tags_mutation(
+            id,
+            "tagsAdd",
+            json!(["blue,green"]),
+            json!(["blue", "green", "Red"]),
+        );
+        assert_tags_mutation(id, "tagsAdd", json!(["red"]), json!(["Red"]));
+        let remove_case_expected = if id.contains("/Customer/") {
+            json!([])
+        } else {
+            json!(["Red"])
+        };
+        assert_tags_mutation(id, "tagsRemove", json!(["red"]), remove_case_expected);
+        assert_tags_mutation(id, "tagsRemove", json!("Red"), json!([]));
+    }
 }
 
 #[test]

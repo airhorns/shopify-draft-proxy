@@ -2548,13 +2548,12 @@ impl DraftProxy {
         }
 
         let translations = resolved_list_arg(&field.arguments, "translations");
-        let Some(first) = translations.first() else {
+        if translations.is_empty() {
             return selected_json(
                 &json!({ "translations": [], "userErrors": [] }),
                 &field.selection,
             );
-        };
-        let mut user_errors = Vec::new();
+        }
         if translations.len() > 100 {
             return selected_json(
                 &json!({
@@ -2568,106 +2567,84 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        if resolved_object_string(first, "value").as_deref() == Some("") {
-            return selected_json(
-                &json!({
-                    "translations": [],
-                    "userErrors": [{
-                        "field": ["translations", "0", "value"],
-                        "message": "Value can't be blank",
-                        "code": "FAILS_RESOURCE_VALIDATION"
-                    }]
-                }),
-                &field.selection,
-            );
-        }
+        let mut staged = Vec::new();
+        let mut user_errors = Vec::new();
+        let mut has_null_translation_error = false;
         for (index, translation_input) in translations.iter().enumerate() {
+            let field_index = index.to_string();
+            if resolved_object_string(translation_input, "value").as_deref() == Some("") {
+                user_errors.push(json!({
+                    "field": ["translations", field_index, "value"],
+                    "message": "Value can't be blank",
+                    "code": "FAILS_RESOURCE_VALIDATION"
+                }));
+                continue;
+            }
             let locale = resolved_object_string(translation_input, "locale")
                 .unwrap_or_else(|| "fr".to_string());
             if locale == "en" {
-                return selected_json(
-                    &json!({
-                        "translations": [],
-                        "userErrors": [{
-                            "field": ["translations", index.to_string(), "locale"],
-                            "message": "Locale cannot be the same as the shop's primary locale",
-                            "code": "INVALID_LOCALE_FOR_SHOP"
-                        }]
-                    }),
-                    &field.selection,
-                );
+                user_errors.push(json!({
+                    "field": ["translations", field_index, "locale"],
+                    "message": "Locale cannot be the same as the shop's primary locale",
+                    "code": "INVALID_LOCALE_FOR_SHOP"
+                }));
+                continue;
             }
             if !self.store.staged.shop_locales.contains_key(&locale) {
-                return selected_json(
-                    &json!({
-                        "translations": [],
-                        "userErrors": [{
-                            "field": ["translations", index.to_string(), "locale"],
-                            "message": "Locale is not enabled for this shop",
-                            "code": "INVALID_LOCALE_FOR_SHOP"
-                        }]
-                    }),
-                    &field.selection,
-                );
+                user_errors.push(json!({
+                    "field": ["translations", field_index, "locale"],
+                    "message": "Locale is not enabled for this shop",
+                    "code": "INVALID_LOCALE_FOR_SHOP"
+                }));
+                continue;
             }
             if resolved_object_string(translation_input, "translatableContentDigest")
                 .is_some_and(|digest| digest.starts_with("invalid-"))
             {
                 user_errors.push(json!({
-                    "field": ["translations", index.to_string(), "translatableContentDigest"],
+                    "field": ["translations", field_index, "translatableContentDigest"],
                     "message": "Translatable content hash is invalid",
                     "code": "INVALID_TRANSLATABLE_CONTENT"
                 }));
+                continue;
             }
-        }
-        let market_id = resolved_object_string(first, "marketId");
-        if matches!(market_id.as_deref(), Some(id) if id.contains("999999")) {
-            return selected_json(
-                &json!({
-                    "translations": null,
-                    "userErrors": [{
-                        "field": ["translations", "0", "marketId"],
-                        "message": "The market corresponding to the `marketId` argument doesn't exist",
-                        "code": "MARKET_DOES_NOT_EXIST"
-                    }]
-                }),
-                &field.selection,
-            );
-        }
-        if resource_id.contains("PackingSlipTemplate") {
-            return selected_json(
-                &json!({
-                    "translations": null,
-                    "userErrors": [{
-                        "field": ["translations", "0", "key"],
-                        "message": "Key body cannot be customized for a market; it can only be translated.",
-                        "code": "RESOURCE_NOT_MARKET_CUSTOMIZABLE"
-                    }]
-                }),
-                &field.selection,
-            );
-        }
+            let market_id = resolved_object_string(translation_input, "marketId");
+            if matches!(market_id.as_deref(), Some(id) if id.contains("999999")) {
+                has_null_translation_error = true;
+                user_errors.push(json!({
+                    "field": ["translations", field_index, "marketId"],
+                    "message": "The market corresponding to the `marketId` argument doesn't exist",
+                    "code": "MARKET_DOES_NOT_EXIST"
+                }));
+                continue;
+            }
+            if resource_id.contains("PackingSlipTemplate") {
+                has_null_translation_error = true;
+                user_errors.push(json!({
+                    "field": ["translations", field_index, "key"],
+                    "message": "Key body cannot be customized for a market; it can only be translated.",
+                    "code": "RESOURCE_NOT_MARKET_CUSTOMIZABLE"
+                }));
+                continue;
+            }
 
-        let mut staged = Vec::new();
-        for (index, translation_input) in translations.iter().enumerate() {
             let mut translation = translation_from_input(translation_input);
             if translation["key"] == json!("handle") {
                 let original_value = translation["value"].as_str().unwrap_or_default();
                 if original_value.chars().count() > 255 {
-                    return selected_json(
-                        &json!({
-                            "translations": [],
-                            "userErrors": [{
-                                "field": ["translations", index.to_string(), "value"],
-                                "message": "Value fails validation on resource: [\"Handle is too long (maximum is 255 characters)\"]",
-                                "code": "FAILS_RESOURCE_VALIDATION"
-                            }]
-                        }),
-                        &field.selection,
-                    );
+                    user_errors.push(json!({
+                        "field": ["translations", field_index, "value"],
+                        "message": "Value fails validation on resource: [\"Handle is too long (maximum is 255 characters)\"]",
+                        "code": "FAILS_RESOURCE_VALIDATION"
+                    }));
+                    continue;
                 }
                 translation["value"] = json!(normalize_localized_handle(original_value));
             }
+            staged.push(translation);
+        }
+
+        for translation in &staged {
             self.store
                 .staged
                 .localization_translations
@@ -2680,10 +2657,15 @@ impl DraftProxy {
                 .staged
                 .localization_translations
                 .push(translation.clone());
-            staged.push(translation);
         }
+
+        let translations = if staged.is_empty() && has_null_translation_error {
+            Value::Null
+        } else {
+            Value::Array(staged)
+        };
         selected_json(
-            &json!({ "translations": staged, "userErrors": user_errors }),
+            &json!({ "translations": translations, "userErrors": user_errors }),
             &field.selection,
         )
     }
