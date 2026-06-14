@@ -2288,10 +2288,6 @@ pub(in crate::proxy) fn is_rust_webhook_local_runtime_document(query: &str) -> b
     query.contains("RustWebhookLocalRuntime")
 }
 
-pub(in crate::proxy) fn is_ported_payment_customization_document(query: &str) -> bool {
-    query.contains("RustPaymentCustomizationLocalRuntime")
-}
-
 pub(in crate::proxy) fn bulk_operation_record_with(
     id: &str,
     status: &str,

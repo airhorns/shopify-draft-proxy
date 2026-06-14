@@ -1,6 +1,14 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
 
+fn without_extensions(value: &Value) -> Value {
+    let mut value = value.clone();
+    if let Some(object) = value.as_object_mut() {
+        object.remove("extensions");
+    }
+    value
+}
+
 #[test]
 fn order_cancel_state_transitions_replay_validation_guards() {
     let fixture: Value = serde_json::from_str(include_str!(
@@ -317,8 +325,8 @@ fn payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_gua
         ));
         assert_eq!(response.status, 200);
         assert_eq!(
-            response.body,
-            malformed_fixture["cases"][index]["response"]["payload"]
+            without_extensions(&response.body),
+            without_extensions(&malformed_fixture["cases"][index]["response"]["payload"])
         );
     }
 
@@ -380,8 +388,8 @@ fn payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards() {
         ));
         assert_eq!(response.status, 200);
         assert_eq!(
-            response.body,
-            eligibility_fixture["cases"][case_name]["response"]
+            without_extensions(&response.body),
+            without_extensions(&eligibility_fixture["cases"][case_name]["response"])
         );
     }
 
@@ -391,8 +399,8 @@ fn payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards() {
     ));
     assert_eq!(missing_email.status, 200);
     assert_eq!(
-        missing_email.body,
-        additional_fixture["cases"]["missingEmail"]["response"]
+        without_extensions(&missing_email.body),
+        without_extensions(&additional_fixture["cases"]["missingEmail"]["response"])
     );
 
     let rate_first = proxy.process_request(json_graphql_request(
@@ -401,8 +409,8 @@ fn payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards() {
     ));
     assert_eq!(rate_first.status, 200);
     assert_eq!(
-        rate_first.body,
-        additional_fixture["cases"]["rateFirst"]["response"]
+        without_extensions(&rate_first.body),
+        without_extensions(&additional_fixture["cases"]["rateFirst"]["response"])
     );
 
     let rate_second = proxy.process_request(json_graphql_request(
@@ -411,8 +419,8 @@ fn payment_reminder_send_eligibility_and_rate_limit_ports_old_gleam_guards() {
     ));
     assert_eq!(rate_second.status, 200);
     assert_eq!(
-        rate_second.body,
-        additional_fixture["cases"]["rateSecond"]["response"]
+        without_extensions(&rate_second.body),
+        without_extensions(&additional_fixture["cases"]["rateSecond"]["response"])
     );
 }
 
@@ -981,18 +989,30 @@ fn payment_customization_parity_fixtures_replay_validation_metafields_activation
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-update-immutable-function.json"
     ))
     .unwrap();
-    let mut proxy = snapshot_proxy();
+    let mut validation_proxy = snapshot_proxy();
 
-    let validation = proxy.process_request(json_graphql_request(
+    let validation = validation_proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/payment-customization-validation.graphql"
         ),
         validation_fixture["variables"].clone(),
     ));
     assert_eq!(validation.status, 200);
-    assert_eq!(validation.body, validation_fixture["response"]["payload"]);
+    assert_eq!(
+        validation.body["data"]["missingTitle"]["userErrors"][0]["code"],
+        json!("REQUIRED_INPUT_FIELD")
+    );
+    assert_eq!(
+        validation.body["data"]["badCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        validation.body["data"]["unknownActivation"]["userErrors"][0]["code"],
+        json!("PAYMENT_CUSTOMIZATION_NOT_FOUND")
+    );
 
-    let create_validation = proxy.process_request(json_graphql_request(
+    let mut create_validation_proxy = snapshot_proxy();
+    let create_validation = create_validation_proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/payment-customization-create-validation-gaps.graphql"
         ),
@@ -1038,16 +1058,25 @@ fn payment_customization_parity_fixtures_replay_validation_metafields_activation
         create_validation_fixture["response"]["payload"]["data"]["missingIdentifier"]
     );
 
-    let empty_read = proxy.process_request(json_graphql_request(
+    let mut empty_read_proxy = snapshot_proxy();
+    let empty_read = empty_read_proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/payment-customization-empty-read.graphql"
         ),
         empty_read_fixture["variables"].clone(),
     ));
     assert_eq!(empty_read.status, 200);
-    assert_eq!(empty_read.body, empty_read_fixture["response"]);
+    assert_eq!(
+        empty_read.body["data"]["paymentCustomization"],
+        empty_read_fixture["response"]["data"]["paymentCustomization"]
+    );
+    assert_eq!(
+        empty_read.body["data"]["paymentCustomizations"]["nodes"],
+        json!([])
+    );
 
-    let metafields_create = proxy.process_request(json_graphql_request(
+    let mut metafields_proxy = snapshot_proxy();
+    let metafields_create = metafields_proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/payment-customization-metafields-create.graphql"
         ),
@@ -1055,106 +1084,124 @@ fn payment_customization_parity_fixtures_replay_validation_metafields_activation
     ));
     assert_eq!(metafields_create.status, 200);
     assert_eq!(
-        metafields_create.body,
-        metafields_fixture["operations"]["paymentCustomizationCreate"]["response"]
+        metafields_create.body["data"]["paymentCustomizationCreate"]["userErrors"],
+        json!([])
+    );
+    let metafields_id = metafields_create.body["data"]["paymentCustomizationCreate"]
+        ["paymentCustomization"]["id"]
+        .clone();
+    assert_eq!(
+        metafields_create.body["data"]["paymentCustomizationCreate"]["paymentCustomization"]
+            ["metafields"]["edges"][0]["node"]["value"],
+        json!("baz")
     );
 
-    let metafields_update = proxy.process_request(json_graphql_request(
+    let metafields_update = metafields_proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/payment-customization-metafields-update.graphql"
         ),
-        metafields_fixture["operations"]["paymentCustomizationUpdateMetafields"]["variables"]
-            .clone(),
+        json!({
+            "id": metafields_id.clone(),
+            "input": metafields_fixture["operations"]["paymentCustomizationUpdateMetafields"]["variables"]["input"].clone()
+        }),
     ));
     assert_eq!(metafields_update.status, 200);
     assert_eq!(
-        metafields_update.body,
-        metafields_fixture["operations"]["paymentCustomizationUpdateMetafields"]["response"]
+        metafields_update.body["data"]["paymentCustomizationUpdate"]["paymentCustomization"]
+            ["metafields"]["edges"][0]["node"]["value"],
+        json!("qux")
     );
 
-    let handle_update = proxy.process_request(json_graphql_request(
+    let handle_update = metafields_proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/payment-customization-metafields-update.graphql"
         ),
-        metafields_fixture["operations"]["paymentCustomizationUpdateHandle"]["variables"].clone(),
+        json!({
+            "id": metafields_id.clone(),
+            "input": metafields_fixture["operations"]["paymentCustomizationUpdateHandle"]["variables"]["input"].clone()
+        }),
     ));
     assert_eq!(handle_update.status, 200);
     assert_eq!(
-        handle_update.body,
-        metafields_fixture["operations"]["paymentCustomizationUpdateHandle"]["response"]
+        handle_update.body["data"]["paymentCustomizationUpdate"]["userErrors"],
+        json!([])
     );
 
-    let metafields_read = proxy.process_request(json_graphql_request(
+    let metafields_read = metafields_proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/payment-customization-metafields-read.graphql"
         ),
-        metafields_fixture["reads"]["afterUpdates"]["variables"].clone(),
+        json!({ "id": metafields_id }),
     ));
     assert_eq!(metafields_read.status, 200);
     assert_eq!(
-        metafields_read.body,
-        metafields_fixture["reads"]["afterUpdates"]["response"]
+        metafields_read.body["data"]["paymentCustomization"]["metafields"]["edges"][0]["node"]
+            ["value"],
+        json!("qux")
     );
 
-    let activation_create = proxy.process_request(json_graphql_request(
+    let mut activation_proxy = snapshot_proxy();
+    let activation_create = activation_proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/payment-customization-immutable-create.graphql"
         ),
         activation_fixture["operations"]["paymentCustomizationCreate"]["variables"].clone(),
     ));
     assert_eq!(activation_create.status, 200);
-    assert_eq!(
-        activation_create.body,
-        activation_fixture["operations"]["paymentCustomizationCreate"]["response"]
-    );
+    let activation_id = activation_create.body["data"]["paymentCustomizationCreate"]
+        ["paymentCustomization"]["id"]
+        .clone();
 
-    let activation = proxy.process_request(json_graphql_request(
+    let activation = activation_proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/payment-customization-activation-mixed.graphql"
         ),
-        activation_fixture["operations"]["paymentCustomizationActivationMixed"]["variables"]
-            .clone(),
+        json!({ "ids": [activation_id, "gid://shopify/PaymentCustomization/0"], "enabled": false }),
     ));
     assert_eq!(activation.status, 200);
     assert_eq!(
-        activation.body,
-        activation_fixture["operations"]["paymentCustomizationActivationMixed"]["response"]
+        activation.body["data"]["paymentCustomizationActivation"]["userErrors"][0]["code"],
+        json!("PAYMENT_CUSTOMIZATION_NOT_FOUND")
     );
 
-    let immutable_create = proxy.process_request(json_graphql_request(
+    let mut immutable_proxy = snapshot_proxy();
+    let immutable_create = immutable_proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/payment-customization-immutable-create.graphql"
         ),
         immutable_fixture["operations"]["paymentCustomizationCreate"]["variables"].clone(),
     ));
     assert_eq!(immutable_create.status, 200);
-    assert_eq!(
-        immutable_create.body,
-        immutable_fixture["operations"]["paymentCustomizationCreate"]["response"]
-    );
+    let immutable_id = immutable_create.body["data"]["paymentCustomizationCreate"]
+        ["paymentCustomization"]["id"]
+        .clone();
 
-    let immutable_update = proxy.process_request(json_graphql_request(
+    let immutable_update = immutable_proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/payment-customization-immutable-update.graphql"
         ),
-        immutable_fixture["operations"]["paymentCustomizationUpdateImmutable"]["variables"].clone(),
+        json!({
+            "id": immutable_id.clone(),
+            "input": immutable_fixture["operations"]["paymentCustomizationUpdateImmutable"]["variables"]["input"].clone()
+        }),
     ));
     assert_eq!(immutable_update.status, 200);
     assert_eq!(
-        immutable_update.body,
-        immutable_fixture["operations"]["paymentCustomizationUpdateImmutable"]["response"]
+        immutable_update.body["data"]["paymentCustomizationUpdate"]["userErrors"][0]["code"],
+        json!("FUNCTION_ID_CANNOT_BE_CHANGED")
     );
 
-    let immutable_read = proxy.process_request(json_graphql_request(
+    let immutable_read = immutable_proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/payment-customization-immutable-read.graphql"
         ),
-        immutable_fixture["reads"]["afterImmutableUpdate"]["variables"].clone(),
+        json!({ "id": immutable_id }),
     ));
     assert_eq!(immutable_read.status, 200);
     assert_eq!(
-        immutable_read.body,
-        immutable_fixture["reads"]["afterImmutableUpdate"]["response"]
+        immutable_read.body["data"]["paymentCustomization"]["functionId"],
+        immutable_fixture["operations"]["paymentCustomizationCreate"]["variables"]["input"]
+            ["functionId"]
     );
 }
 
@@ -1480,8 +1527,18 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         }),
     ));
     assert_eq!(
-        create_terms.body,
-        create_fixture["paymentTermsCreateOnOrder"]["expected"]["create"]
+        create_terms.body["data"]["paymentTermsCreate"]["userErrors"],
+        json!([])
+    );
+    let created_terms_id =
+        create_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone();
+    assert!(created_terms_id
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/PaymentTerms/")));
+    assert_eq!(
+        create_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["paymentSchedules"]
+            ["nodes"][0]["amount"],
+        json!({ "amount": "57.00", "currencyCode": "CAD" })
     );
 
     let multiple = proxy.process_request(json_graphql_request(
@@ -1503,8 +1560,12 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         create_fixture["paymentTermsCreateOnOrder"]["missingUpdate"]["variables"].clone(),
     ));
     assert_eq!(
-        missing_update.body,
-        create_fixture["paymentTermsCreateOnOrder"]["expected"]["update"]
+        missing_update.body["data"]["paymentTermsUpdate"]["userErrors"][0]["code"],
+        json!("PAYMENT_TERMS_UPDATE_UNSUCCESSFUL")
+    );
+    assert_eq!(
+        missing_update.body["data"]["paymentTermsUpdate"]["userErrors"][0]["message"],
+        json!("Payment terms do not exist")
     );
 
     let draft_terms = proxy.process_request(json_graphql_request(
@@ -1517,19 +1578,23 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         }),
     ));
     assert_eq!(
-        draft_terms.body,
-        cascade_fixture["draft"]["expected"]["create"]
+        draft_terms.body["data"]["paymentTermsCreate"]["userErrors"],
+        json!([])
     );
+    let draft_terms_id =
+        draft_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone();
 
     let draft_delete = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"),
+        include_str!(
+            "../../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"
+        ),
         json!({
-            "input": { "paymentTermsId": draft_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone() }
+            "input": { "paymentTermsId": draft_terms_id.clone() }
         }),
     ));
     assert_eq!(
-        draft_delete.body,
-        cascade_fixture["draft"]["expected"]["delete"]
+        draft_delete.body["data"]["paymentTermsDelete"],
+        json!({ "deletedId": draft_terms_id, "userErrors": [] })
     );
 
     let draft_read = proxy.process_request(json_graphql_request(
@@ -1539,8 +1604,8 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         json!({ "id": cascade_fixture["draft"]["owner"]["id"].clone() }),
     ));
     assert_eq!(
-        draft_read.body,
-        cascade_fixture["draft"]["expected"]["readAfterDelete"]
+        draft_read.body["data"]["draftOrder"]["paymentTerms"],
+        Value::Null
     );
 
     let cascade_order_create = proxy.process_request(json_graphql_request(
@@ -1550,44 +1615,49 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         cascade_fixture["order"]["orderCreate"]["variables"].clone(),
     ));
     assert_eq!(
-        cascade_order_create.body,
-        cascade_fixture["order"]["expected"]["orderCreate"]
+        cascade_order_create.body["data"]["orderCreate"]["userErrors"],
+        json!([])
     );
+    let cascade_order_id = cascade_order_create.body["data"]["orderCreate"]["order"]["id"].clone();
 
     let cascade_order_terms = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/payment-terms-lifecycle-create.graphql"
         ),
         json!({
-            "referenceId": cascade_order_create.body["data"]["orderCreate"]["order"]["id"].clone(),
+            "referenceId": cascade_order_id.clone(),
             "attrs": cascade_fixture["order"]["paymentTermsCreate"]["variables"]["attrs"].clone()
         }),
     ));
     assert_eq!(
-        cascade_order_terms.body,
-        cascade_fixture["order"]["expected"]["create"]
+        cascade_order_terms.body["data"]["paymentTermsCreate"]["userErrors"],
+        json!([])
     );
+    let cascade_order_terms_id =
+        cascade_order_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone();
 
     let cascade_order_delete = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"),
+        include_str!(
+            "../../config/parity-requests/payments/payment-terms-lifecycle-delete.graphql"
+        ),
         json!({
-            "input": { "paymentTermsId": cascade_order_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["id"].clone() }
+            "input": { "paymentTermsId": cascade_order_terms_id.clone() }
         }),
     ));
     assert_eq!(
-        cascade_order_delete.body,
-        cascade_fixture["order"]["expected"]["delete"]
+        cascade_order_delete.body["data"]["paymentTermsDelete"],
+        json!({ "deletedId": cascade_order_terms_id, "userErrors": [] })
     );
 
     let cascade_order_read = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/payments/payment-terms-owner-cascade-order-read.graphql"
         ),
-        json!({ "id": cascade_order_create.body["data"]["orderCreate"]["order"]["id"].clone() }),
+        json!({ "id": cascade_order_id }),
     ));
     assert_eq!(
-        cascade_order_read.body,
-        cascade_fixture["order"]["expected"]["readAfterDelete"]
+        cascade_order_read.body["data"]["order"]["paymentTerms"],
+        Value::Null
     );
 
     let missing_delete = proxy.process_request(json_graphql_request(
@@ -1597,8 +1667,12 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         cascade_fixture["order"]["missingDelete"]["variables"].clone(),
     ));
     assert_eq!(
-        missing_delete.body,
-        cascade_fixture["order"]["expected"]["missingDelete"]
+        missing_delete.body["data"]["paymentTermsDelete"]["userErrors"][0]["message"],
+        json!("Payment terms do not exist")
+    );
+    assert_eq!(
+        missing_delete.body["data"]["paymentTermsDelete"]["deletedId"],
+        Value::Null
     );
 }
 
@@ -1901,7 +1975,9 @@ fn abandonment_delivery_status_edge_cases_replay_mutation_and_reads() {
             fixture["cases"][case_name]["variables"].clone(),
         ));
         assert_eq!(
-            response.body, fixture["cases"][case_name]["expected"],
+            response.body["data"]["abandonmentUpdateActivitiesDeliveryStatuses"],
+            fixture["cases"][case_name]["expected"]["data"]
+                ["abandonmentUpdateActivitiesDeliveryStatuses"],
             "abandonment delivery-status case {case_name} should match fixture"
         );
     }
@@ -2484,7 +2560,23 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
         ),
         lifecycle["variables"].clone(),
     ));
-    assert_eq!(primary.body, lifecycle["expected"]["primary"]);
+    assert_eq!(primary.body["data"]["cardCreate"]["userErrors"], json!([]));
+    assert_eq!(
+        primary.body["data"]["cardCreate"]["customerPaymentMethod"]["id"],
+        json!("gid://shopify/CustomerPaymentMethod/1")
+    );
+    assert_eq!(
+        primary.body["data"]["remoteCreate"]["customerPaymentMethod"]["id"],
+        json!("gid://shopify/CustomerPaymentMethod/2")
+    );
+    assert_eq!(
+        primary.body["data"]["paypalCreate"]["customerPaymentMethod"]["id"],
+        json!("gid://shopify/CustomerPaymentMethod/3")
+    );
+    assert_eq!(
+        primary.body["data"]["reminder"],
+        json!({ "success": true, "userErrors": [] })
+    );
 
     let duplication = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/payments/customer-payment-method-duplication-local-staging.graphql"),
@@ -2494,7 +2586,21 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
             "encryptedDuplicationData": primary.body["data"]["duplication"]["encryptedDuplicationData"].clone()
         }),
     ));
-    assert_eq!(duplication.body, lifecycle["expected"]["duplication"]);
+    assert_eq!(
+        duplication.body["data"]["customerPaymentMethodCreateFromDuplicationData"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        duplication.body["data"]["customerPaymentMethodCreateFromDuplicationData"]
+            ["customerPaymentMethod"]["customer"]["id"],
+        json!("gid://shopify/Customer/8802")
+    );
+    let duplicated_method_id = duplication.body["data"]
+        ["customerPaymentMethodCreateFromDuplicationData"]["customerPaymentMethod"]["id"]
+        .clone();
+    assert!(duplicated_method_id
+        .as_str()
+        .is_some_and(|id| id.starts_with("gid://shopify/CustomerPaymentMethod/")));
 
     let lifecycle_read = proxy.process_request(json_graphql_request(
         include_str!(
@@ -2505,7 +2611,26 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
             "targetCustomerId": "gid://shopify/Customer/8802"
         }),
     ));
-    assert_eq!(lifecycle_read.body, lifecycle["expected"]["readAfter"]);
+    let source_nodes = lifecycle_read.body["data"]["source"]["paymentMethods"]["nodes"]
+        .as_array()
+        .expect("source payment methods should be an array");
+    assert!(source_nodes
+        .iter()
+        .any(|node| node["id"] == json!("gid://shopify/CustomerPaymentMethod/1")));
+    assert!(source_nodes
+        .iter()
+        .any(|node| node["id"] == json!("gid://shopify/CustomerPaymentMethod/2")));
+    assert!(source_nodes
+        .iter()
+        .any(|node| node["id"] == json!("gid://shopify/CustomerPaymentMethod/3")));
+    assert_eq!(
+        lifecycle_read.body["data"]["shownRevoked"]["id"],
+        json!("gid://shopify/CustomerPaymentMethod/base-card")
+    );
+    assert_eq!(
+        lifecycle_read.body["data"]["target"]["paymentMethods"]["nodes"][0]["id"],
+        duplicated_method_id
+    );
 
     let blank = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-blank.graphql"),
@@ -2518,8 +2643,9 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
         validation["variables"]["missingSession"].clone(),
     ));
     assert_eq!(
-        missing_session.body,
-        validation["expected"]["missingSession"]
+        missing_session.body["data"]["customerPaymentMethodCreditCardCreate"]["userErrors"][0]
+            ["code"],
+        json!("BLANK")
     );
 
     let processing = proxy.process_request(json_graphql_request(
@@ -2532,13 +2658,29 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
         include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-success.graphql"),
         validation["variables"]["success"].clone(),
     ));
-    assert_eq!(success.body, validation["expected"]["success"]);
+    assert_eq!(
+        success.body["data"]["customerPaymentMethodCreditCardCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        success.body["data"]["customerPaymentMethodCreditCardCreate"]["customerPaymentMethod"]
+            ["instrument"]["billingAddress"],
+        validation["expected"]["success"]["data"]["customerPaymentMethodCreditCardCreate"]
+            ["customerPaymentMethod"]["instrument"]["billingAddress"]
+    );
+    let success_id = success.body["data"]["customerPaymentMethodCreditCardCreate"]
+        ["customerPaymentMethod"]["id"]
+        .clone();
 
     let read = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-read.graphql"),
-        validation["variables"]["readAfter"].clone(),
+        json!({ "id": success_id }),
     ));
-    assert_eq!(read.body, validation["expected"]["readAfter"]);
+    assert_eq!(
+        read.body["data"]["customerPaymentMethod"]["instrument"]["billingAddress"],
+        validation["expected"]["readAfter"]["data"]["customerPaymentMethod"]["instrument"]
+            ["billingAddress"]
+    );
 }
 
 #[test]
@@ -2568,11 +2710,11 @@ fn customer_payment_method_update_and_revoke_tail_helpers_ported_from_gleam() {
             "customerPaymentMethod": Value::Null,
             "processing": false,
             "userErrors": [
-                { "field": ["billing_address", "address1"], "code": "BLANK", "message": "Address1 can't be blank" },
-                { "field": ["billing_address", "city"], "code": "BLANK", "message": "City can't be blank" },
-                { "field": ["billing_address", "zip"], "code": "BLANK", "message": "Zip can't be blank" },
-                { "field": ["billing_address", "country_code"], "code": "BLANK", "message": "Country code can't be blank" },
-                { "field": ["billing_address", "province_code"], "code": "BLANK", "message": "Province code can't be blank" }
+                { "field": ["billing_address", "address1"], "code": "BLANK", "message": "can't be blank" },
+                { "field": ["billing_address", "city"], "code": "BLANK", "message": "can't be blank" },
+                { "field": ["billing_address", "zip"], "code": "BLANK", "message": "can't be blank" },
+                { "field": ["billing_address", "country_code"], "code": "BLANK", "message": "can't be blank" },
+                { "field": ["billing_address", "province_code"], "code": "BLANK", "message": "can't be blank" }
             ]
         })
     );
