@@ -54,6 +54,43 @@ fn product_read_serializes_seeded_base_product_by_id() {
 }
 
 #[test]
+fn product_variants_read_respects_connection_arguments() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
+        title: "Seeded product".to_string(),
+        handle: "seeded-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
+    let first_variant =
+        create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "FIRST", "1.00");
+    create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "SECOND", "1.00");
+
+    let response = proxy.process_request(graphql_request(
+        "POST",
+        r#"{"query":"query { product(id: \"gid://shopify/Product/1\") { variants(first: 1) { nodes { id sku } pageInfo { hasNextPage endCursor } } } }"}"#,
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["product"]["variants"]["nodes"],
+        json!([{ "id": first_variant["id"], "sku": "FIRST" }])
+    );
+    assert_eq!(
+        response.body["data"]["product"]["variants"]["pageInfo"]["hasNextPage"],
+        json!(true)
+    );
+}
+
+#[test]
 fn product_read_serializes_only_requested_scalar_fields() {
     let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
         id: "gid://shopify/Product/1".to_string(),
@@ -85,6 +122,433 @@ fn product_read_serializes_only_requested_scalar_fields() {
                     "handle": "seeded-product"
                 }
             }
+        })
+    );
+}
+
+#[test]
+fn legacy_product_variant_roots_stage_variants_into_product_graph() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
+        title: "Seeded product".to_string(),
+        handle: "seeded-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LegacyVariantCreate($input: ProductVariantInput!) {
+          productVariantCreate(input: $input) {
+            product { id totalInventory tracksInventory variants(first: 10) { nodes { id sku price selectedOptions { name value } } } }
+            productVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity taxCode showUnitPrice unitPriceMeasurement { quantityValue quantityUnit referenceValue referenceUnit } selectedOptions { name value } inventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "productId": "gid://shopify/Product/1",
+                "title": "Blue",
+                "sku": "LEGACY-BLUE",
+                "barcode": "2222222222222",
+                "price": "9.99",
+                "compareAtPrice": "12.50",
+                "taxable": false,
+                "inventoryPolicy": "CONTINUE",
+                "inventoryQuantity": 7,
+                "taxCode": "PC040100",
+                "showUnitPrice": true,
+                "unitPriceMeasurement": {
+                    "quantityValue": 1,
+                    "quantityUnit": "L",
+                    "referenceValue": 100,
+                    "referenceUnit": "ML"
+                },
+                "selectedOptions": [{ "name": "Color", "value": "Blue" }],
+                "inventoryItem": {
+                    "tracked": true,
+                    "requiresShipping": false,
+                    "countryCodeOfOrigin": "CA",
+                    "provinceCodeOfOrigin": "ON",
+                    "harmonizedSystemCode": "1234.56",
+                    "measurement": { "weight": { "value": 2.5, "unit": "KILOGRAMS" } }
+                }
+            }
+        }),
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productVariantCreate"]["productVariant"]["sku"],
+        json!("LEGACY-BLUE")
+    );
+    assert_eq!(
+        create.body["data"]["productVariantCreate"]["productVariant"]["price"],
+        json!("9.99")
+    );
+    assert_eq!(
+        create.body["data"]["productVariantCreate"]["productVariant"]["taxCode"],
+        json!("PC040100")
+    );
+    assert_eq!(
+        create.body["data"]["productVariantCreate"]["productVariant"]["inventoryItem"]
+            ["harmonizedSystemCode"],
+        json!("123456")
+    );
+    assert_eq!(
+        create.body["data"]["productVariantCreate"]["productVariant"]["inventoryItem"]
+            ["measurement"]["weight"]["value"],
+        json!(2.5)
+    );
+    assert_eq!(
+        create.body["data"]["productVariantCreate"]["product"]["variants"]["nodes"][0]["sku"],
+        json!("LEGACY-BLUE")
+    );
+    let variant_id = create.body["data"]["productVariantCreate"]["productVariant"]["id"]
+        .as_str()
+        .expect("variant id should be synthesized")
+        .to_string();
+    let inventory_item_id = create.body["data"]["productVariantCreate"]["productVariant"]
+        ["inventoryItem"]["id"]
+        .as_str()
+        .expect("inventory item id should be synthesized")
+        .to_string();
+
+    let read_after_create = proxy.process_request(json_graphql_request(
+        r#"
+        query LegacyVariantReadAfterWrite($productId: ID!, $variantId: ID!, $inventoryItemId: ID!) {
+          product(id: $productId) { id variants(first: 10) { nodes { id sku price taxCode inventoryItem { id tracked requiresShipping countryCodeOfOrigin harmonizedSystemCode } } } }
+          variant: productVariant(id: $variantId) { id sku price showUnitPrice product { id title } inventoryItem { id tracked requiresShipping measurement { weight { value unit } } } }
+          stock: inventoryItem(id: $inventoryItemId) { id tracked requiresShipping countryCodeOfOrigin harmonizedSystemCode variant { id sku inventoryQuantity product { id title } } }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "variantId": variant_id,
+            "inventoryItemId": inventory_item_id
+        }),
+    ));
+    assert_eq!(read_after_create.status, 200);
+    assert_eq!(
+        read_after_create.body["data"]["product"]["variants"]["nodes"][0]["sku"],
+        json!("LEGACY-BLUE")
+    );
+    assert_eq!(
+        read_after_create.body["data"]["variant"]["price"],
+        json!("9.99")
+    );
+    assert_eq!(
+        read_after_create.body["data"]["product"]["variants"]["nodes"][0]["taxCode"],
+        json!("PC040100")
+    );
+    assert_eq!(
+        read_after_create.body["data"]["stock"]["harmonizedSystemCode"],
+        json!("123456")
+    );
+    assert_eq!(
+        read_after_create.body["data"]["stock"]["variant"]["inventoryQuantity"],
+        json!(7)
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LegacyVariantUpdate($input: ProductVariantInput!) {
+          productVariantUpdate(input: $input) {
+            productVariant { id sku price taxCode inventoryItem { id tracked requiresShipping harmonizedSystemCode } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": variant_id,
+                "sku": "LEGACY-BLUE-UPDATED",
+                "price": "1.00",
+                "taxCode": "PC040200",
+                "inventoryItem": { "tracked": false, "requiresShipping": true, "harmonizedSystemCode": "6543 21" }
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productVariantUpdate"]["productVariant"]["sku"],
+        json!("LEGACY-BLUE-UPDATED")
+    );
+    assert_eq!(
+        update.body["data"]["productVariantUpdate"]["productVariant"]["price"],
+        json!("1.00")
+    );
+    assert_eq!(
+        update.body["data"]["productVariantUpdate"]["productVariant"]["taxCode"],
+        json!("PC040200")
+    );
+    assert_eq!(
+        update.body["data"]["productVariantUpdate"]["productVariant"]["inventoryItem"]
+            ["harmonizedSystemCode"],
+        json!("654321")
+    );
+
+    let read_after_update = proxy.process_request(json_graphql_request(
+        r#"
+        query LegacyVariantReadAfterUpdate($productId: ID!, $variantId: ID!) {
+          product(id: $productId) { id variants(first: 10) { nodes { id sku price taxCode inventoryItem { tracked requiresShipping harmonizedSystemCode } } } }
+          variant: productVariant(id: $variantId) { id sku price taxCode inventoryItem { tracked requiresShipping harmonizedSystemCode } }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "variantId": variant_id
+        }),
+    ));
+    assert_eq!(
+        read_after_update.body["data"]["product"]["variants"]["nodes"][0]["sku"],
+        json!("LEGACY-BLUE-UPDATED")
+    );
+    assert_eq!(
+        read_after_update.body["data"]["variant"]["inventoryItem"]["tracked"],
+        json!(false)
+    );
+    assert_eq!(
+        read_after_update.body["data"]["variant"]["inventoryItem"]["harmonizedSystemCode"],
+        json!("654321")
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LegacyVariantDelete($id: ID!) {
+          productVariantDelete(id: $id) { deletedProductVariantId userErrors { field message } }
+        }
+        "#,
+        json!({ "id": variant_id }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productVariantDelete"]["deletedProductVariantId"],
+        json!(variant_id)
+    );
+
+    let read_after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query LegacyVariantReadAfterDelete($productId: ID!, $variantId: ID!, $inventoryItemId: ID!) {
+          product(id: $productId) { id variants(first: 10) { nodes { id } } }
+          variant: productVariant(id: $variantId) { id }
+          stock: inventoryItem(id: $inventoryItemId) { id }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "variantId": variant_id,
+            "inventoryItemId": inventory_item_id
+        }),
+    ));
+    assert_eq!(
+        read_after_delete.body["data"]["product"]["variants"]["nodes"],
+        json!([])
+    );
+    assert_eq!(read_after_delete.body["data"]["variant"], Value::Null);
+    assert_eq!(read_after_delete.body["data"]["stock"], Value::Null);
+}
+
+#[test]
+fn legacy_product_variant_create_validates_forbidden_keys_and_missing_product() {
+    let mut proxy = snapshot_proxy();
+
+    let forbidden_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LegacyVariantCreateForbiddenId($input: ProductVariantInput!) {
+          productVariantCreate(input: $input) { productVariant { id } userErrors { field message } }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/ProductVariant/1",
+                "productId": "gid://shopify/Product/1"
+            }
+        }),
+    ));
+    assert_eq!(forbidden_id.status, 200);
+    assert_eq!(
+        forbidden_id.body["errors"][0]["extensions"]["code"],
+        json!("no_key_on_create")
+    );
+
+    let forbidden_adjustment = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LegacyVariantCreateForbiddenAdjustment($input: ProductVariantInput!) {
+          productVariantCreate(input: $input) { productVariant { id } userErrors { field message } }
+        }
+        "#,
+        json!({
+            "input": {
+                "productId": "gid://shopify/Product/1",
+                "inventoryQuantityAdjustment": 1
+            }
+        }),
+    ));
+    assert_eq!(forbidden_adjustment.status, 200);
+    assert_eq!(
+        forbidden_adjustment.body["errors"][0]["extensions"]["key"],
+        json!("inventoryQuantityAdjustment")
+    );
+
+    let missing_product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LegacyVariantCreateMissingProduct($input: ProductVariantInput!) {
+          productVariantCreate(input: $input) { product { id } productVariant { id } userErrors { field message } }
+        }
+        "#,
+        json!({
+            "input": {
+                "productId": "gid://shopify/Product/missing",
+                "sku": "MISSING"
+            }
+        }),
+    ));
+    assert_eq!(missing_product.status, 200);
+    assert_eq!(
+        missing_product.body["data"]["productVariantCreate"]["product"],
+        Value::Null
+    );
+    assert_eq!(
+        missing_product.body["data"]["productVariantCreate"]["productVariant"],
+        Value::Null
+    );
+    assert_eq!(
+        missing_product.body["data"]["productVariantCreate"]["userErrors"],
+        json!([{ "field": ["productId"], "message": "Product does not exist" }])
+    );
+}
+
+#[test]
+fn legacy_product_variant_update_and_delete_validate_unknown_ids() {
+    let mut proxy = snapshot_proxy();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LegacyVariantUpdateMissing($input: ProductVariantInput!) {
+          productVariantUpdate(input: $input) { productVariant { id } userErrors { field message } }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": "gid://shopify/ProductVariant/missing",
+                "price": "1.00"
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productVariantUpdate"]["productVariant"],
+        Value::Null
+    );
+    assert_eq!(
+        update.body["data"]["productVariantUpdate"]["userErrors"],
+        json!([{ "field": ["id"], "message": "Product variant does not exist" }])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LegacyVariantDeleteMissing($id: ID!) {
+          productVariantDelete(id: $id) { deletedProductVariantId userErrors { field message } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/ProductVariant/missing" }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productVariantDelete"]["deletedProductVariantId"],
+        Value::Null
+    );
+    assert_eq!(
+        delete.body["data"]["productVariantDelete"]["userErrors"],
+        json!([{ "field": ["id"], "message": "Product variant does not exist" }])
+    );
+}
+
+#[test]
+fn legacy_product_variant_scalar_validation_rejects_before_staging() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
+        title: "Seeded product".to_string(),
+        handle: "seeded-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
+    let seeded_variant =
+        create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "VALID-SKU", "10.00");
+    let seeded_variant_id = seeded_variant["id"]
+        .as_str()
+        .expect("setup variant should have an id");
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LegacyVariantInvalidScalars($input: ProductVariantInput!) {
+          productVariantUpdate(input: $input) {
+            productVariant { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": seeded_variant_id,
+                "price": "-1.00",
+                "sku": "S".repeat(256),
+                "inventoryItem": { "measurement": { "weight": { "value": -1, "unit": "KILOGRAMS" } } }
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    let errors = update.body["data"]["productVariantUpdate"]["userErrors"]
+        .as_array()
+        .expect("validation user errors should be an array");
+    assert!(errors.contains(&json!({
+        "field": ["price"],
+        "message": "Price must be greater than or equal to 0",
+        "code": "GREATER_THAN_OR_EQUAL_TO"
+    })));
+    assert!(errors.contains(&json!({
+        "field": ["sku"],
+        "message": "SKU is too long (maximum is 255 characters)",
+        "code": "INVALID_INPUT"
+    })));
+    assert!(errors.contains(&json!({
+        "field": ["inventoryItem", "measurement", "weight"],
+        "message": "Weight must be greater than or equal to 0",
+        "code": "GREATER_THAN_OR_EQUAL_TO"
+    })));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query LegacyVariantUnchangedAfterInvalidUpdate($id: ID!) {
+          productVariant(id: $id) { id sku price }
+        }
+        "#,
+        json!({ "id": seeded_variant_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["productVariant"],
+        json!({
+            "id": seeded_variant_id,
+            "sku": "VALID-SKU",
+            "price": "10.00"
         })
     );
 }
@@ -4521,11 +4985,25 @@ fn implemented_registry_entry_without_local_dispatch_passes_through_never_501() 
 
 #[test]
 fn supported_product_variant_mutation_keeps_capability_metadata_in_log() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
+        title: "Seeded product".to_string(),
+        handle: "seeded-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
 
     let response = proxy.process_request(graphql_request(
         "POST",
-        r#"{"query":"mutation { productVariantCreate(input: {}) { productVariant { id } userErrors { message } } }"}"#,
+        r#"{"query":"mutation { productVariantCreate(input: { productId: \"gid://shopify/Product/1\" }) { productVariant { id } userErrors { message } } }"}"#,
     ));
 
     assert_eq!(response.status, 200);
