@@ -74,6 +74,7 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 - Do not add files to linter/formatter ignore lists just because formatting changes fixtures or parity requests. Format the files, then fix affected tests, captures, specs, or code.
 - In unattended or CI-like workspaces, prefer `corepack pnpm ...` for package scripts.
 - Before adding a resource-local parser, serializer, scalar reader, projection helper, or metafield/search/connection utility, read `docs/helpers.md` and search for an existing shared helper.
+- Do not hardcode captured Shopify resource IDs in runtime implementation to make one fixture pass. Fixture/shop IDs may appear in tests, docs, parity requests, and recorded evidence, but production handlers must derive IDs from request arguments, staged/base store state, observed upstream responses, or synthetic ID allocators.
 
 ## Verification loop
 

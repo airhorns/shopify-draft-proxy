@@ -397,16 +397,16 @@ pub(in crate::proxy) fn merge_observed_product(
         existing.variants = observed
             .variants
             .into_iter()
-            .filter(|variant| {
+            .filter_map(|variant| {
                 let observed_id = variant.get("id").and_then(Value::as_str);
-                observed_id
-                    .map(|id| {
-                        existing
-                            .variants
-                            .iter()
-                            .any(|existing| existing.get("id").and_then(Value::as_str) == Some(id))
-                    })
-                    .unwrap_or(true)
+                let Some(id) = observed_id else {
+                    return Some(variant);
+                };
+                existing
+                    .variants
+                    .iter()
+                    .find(|existing| existing.get("id").and_then(Value::as_str) == Some(id))
+                    .map(|existing| merge_json_objects(existing.clone(), variant))
             })
             .collect();
     }
@@ -1810,6 +1810,28 @@ pub(in crate::proxy) fn product_tag_query_value(query: &str) -> Option<&str> {
     query
         .strip_prefix("tag:")
         .map(|tag| tag.strip_suffix(" OR").unwrap_or(tag))
+}
+
+pub(in crate::proxy) fn product_sku_query_value(query: &str) -> Option<&str> {
+    product_search_term_value(query, "sku:")
+}
+
+pub(in crate::proxy) fn product_matches_sku_query(product: &ProductRecord, query: &str) -> bool {
+    let Some(sku) = product_sku_query_value(query) else {
+        return true;
+    };
+    product
+        .variants
+        .iter()
+        .any(|variant| variant.get("sku").and_then(Value::as_str) == Some(sku))
+}
+
+fn product_search_term_value<'a>(query: &'a str, prefix: &str) -> Option<&'a str> {
+    query
+        .split_ascii_whitespace()
+        .find_map(|term| term.strip_prefix(prefix))
+        .map(|value| value.trim_matches('"'))
+        .filter(|value| !value.is_empty())
 }
 
 pub(in crate::proxy) fn product_media_validation_downstream_data() -> Value {

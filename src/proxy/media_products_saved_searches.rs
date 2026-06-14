@@ -1632,7 +1632,7 @@ impl DraftProxy {
                         .unwrap_or_else(|| product.tags.iter().any(|value| value == tag))
                 });
             } else if query.trim_start().starts_with("sku:") {
-                products.clear();
+                products.retain(|product| product_matches_sku_query(product, query));
             }
         }
         selected_typed_connection_with_args(
@@ -1665,10 +1665,20 @@ impl DraftProxy {
         {
             self.store.stage_observed_product(product);
         }
-        self.hydrate_product_nodes_for_observation(vec![
-            "gid://shopify/Product/9259552407785".to_string(),
-            "gid://shopify/ProductVariant/50905436913897".to_string(),
-        ]);
+        let mut hydrate_ids = Vec::new();
+        if let Some(product_id) = resolved_string_arg(variables, "productId").or_else(|| {
+            response
+                .body
+                .pointer("/data/productVariantsBulkDelete/product/id")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        }) {
+            hydrate_ids.push(product_id);
+        }
+        hydrate_ids.extend(resolved_string_list_arg(variables, "variantsIds"));
+        hydrate_ids.sort();
+        hydrate_ids.dedup();
+        self.hydrate_product_nodes_for_observation(hydrate_ids);
         response
     }
 
@@ -1693,7 +1703,12 @@ impl DraftProxy {
                 return product_count_json(count, &field.selection);
             }
             if query.trim_start().starts_with("sku:") {
-                return product_count_json(0, &field.selection);
+                let count = self
+                    .effective_products()
+                    .into_iter()
+                    .filter(|product| product_matches_sku_query(product, query))
+                    .count();
+                return product_count_json(count, &field.selection);
             }
         }
         product_count_json(self.effective_product_count(), &field.selection)

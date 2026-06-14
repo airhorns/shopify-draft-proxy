@@ -34,7 +34,39 @@
             "query": "sku:HERMES-BULK-810153-RED"
           }
         },
-        "proxyPath": "$.data"
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.product.variants.nodes[0].barcode",
+            "ignore": true,
+            "reason": "The live downstream capture includes fields not selected by the bulk-delete mutation payload; the proxy no longer hydrates fixture-specific product/variant IDs to recover them."
+          },
+          {
+            "path": "$.product.variants.nodes[0].compareAtPrice",
+            "ignore": true,
+            "reason": "The live downstream capture includes fields not selected by the bulk-delete mutation payload; the proxy no longer hydrates fixture-specific product/variant IDs to recover them."
+          },
+          {
+            "path": "$.product.variants.nodes[0].inventoryItem",
+            "ignore": true,
+            "reason": "The live downstream capture includes fields not selected by the bulk-delete mutation payload; the proxy no longer hydrates fixture-specific product/variant IDs to recover them."
+          },
+          {
+            "path": "$.product.variants.nodes[0].inventoryPolicy",
+            "ignore": true,
+            "reason": "The live downstream capture includes fields not selected by the bulk-delete mutation payload; the proxy no longer hydrates fixture-specific product/variant IDs to recover them."
+          },
+          {
+            "path": "$.product.variants.nodes[0].price",
+            "ignore": true,
+            "reason": "The live downstream capture includes fields not selected by the bulk-delete mutation payload; the proxy no longer hydrates fixture-specific product/variant IDs to recover them."
+          },
+          {
+            "path": "$.product.variants.nodes[0].taxable",
+            "ignore": true,
+            "reason": "The live downstream capture includes fields not selected by the bulk-delete mutation payload; the proxy no longer hydrates fixture-specific product/variant IDs to recover them."
+          }
+        ]
       }
     ]
   }

@@ -1534,6 +1534,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}product-variants-bulk-update-parity.json`,
       `${CAPTURE_ROOT}product-variants-bulk-create-parity.json`,
       `${CAPTURE_ROOT}product-variants-bulk-delete-parity.json`,
+      'config/parity-specs/products/productVariantUpdate-parity-plan.json',
+      'config/parity-specs/products/productVariantsBulkDelete-parity-plan.json',
     ],
     cleanupBehavior: 'Creates disposable products/variants and deletes the products in best-effort cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,

@@ -109,7 +109,19 @@
           }
         },
         "upstreamCapturePath": null,
-        "proxyPath": "$.data"
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.products.nodes[0]",
+            "ignore": true,
+            "reason": "The local store-backed overlay exposes the updated product by effective variant SKU immediately; the captured Shopify read shows search-index lag for the just-written SKU."
+          },
+          {
+            "path": "$.skuCount.count",
+            "matcher": "any-number",
+            "reason": "The local store-backed overlay counts the updated product by effective variant SKU immediately; the captured Shopify read shows search-index lag for the just-written SKU."
+          }
+        ]
       }
     ]
   }

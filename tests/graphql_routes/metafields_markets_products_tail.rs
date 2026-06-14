@@ -3560,10 +3560,19 @@ fn product_variant_compatibility_mutations_replay_captured_bulk_shapes() {
         update_read.body["data"]["product"]["variants"]["nodes"][0]["id"],
         json!("gid://shopify/ProductVariant/50905436913897")
     );
-    assert_eq!(update_read.body["data"]["products"], json!({ "nodes": [] }));
+    assert_eq!(
+        update_read.body["data"]["products"],
+        json!({
+            "nodes": [{
+                "id": "gid://shopify/Product/9259552407785",
+                "totalInventory": 0,
+                "tracksInventory": true
+            }]
+        })
+    );
     assert_eq!(
         update_read.body["data"]["skuCount"],
-        json!({ "count": 0, "precision": "EXACT" })
+        json!({ "count": 1, "precision": "EXACT" })
     );
 
     let delete = proxy.process_request(json_graphql_request(
@@ -3601,6 +3610,11 @@ fn product_variant_compatibility_mutations_replay_captured_bulk_shapes() {
         delete_read.body["data"]["product"]["variants"]["nodes"][0]["inventoryItem"]
             ["requiresShipping"],
         json!(false)
+    );
+    assert_eq!(delete_read.body["data"]["products"], json!({ "nodes": [] }));
+    assert_eq!(
+        delete_read.body["data"]["skuCount"],
+        json!({ "count": 0, "precision": "EXACT" })
     );
 }
 
