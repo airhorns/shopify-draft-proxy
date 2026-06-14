@@ -112,7 +112,6 @@ export type Matcher = z.infer<typeof matcherSchema>;
 
 export const expectedDifferenceSchema = z.strictObject({
   path: z.string(),
-  exact: jsonValueSchema.optional(),
   ignore: z.boolean().optional(),
   matcher: matcherSchema.optional(),
   reason: z.string().optional(),
@@ -126,7 +125,6 @@ export const comparisonTargetSchema = z.strictObject({
   proxyPath: z.string().optional(),
   proxyStatePath: z.string().optional(),
   proxyLogPath: z.string().optional(),
-  proxyResponse: z.string().optional(),
   upstreamCapturePath: z.string().nullable().optional(),
   proxyRequest: parityProxyRequestSpecSchema.optional(),
   proxyUpload: parityProxyUploadSpecSchema.optional(),

@@ -138,12 +138,6 @@
         ]
       },
       {
-        "name": "user-errors",
-        "capturePath": "$.mutation.response.data.productVariantsBulkDelete.userErrors",
-        "proxyResponse": "deleted-variant-id",
-        "proxyPath": "$.data.productVariantDelete.userErrors"
-      },
-      {
         "name": "downstream-read",
         "capturePath": "$.downstreamRead.data",
         "proxyRequest": {
