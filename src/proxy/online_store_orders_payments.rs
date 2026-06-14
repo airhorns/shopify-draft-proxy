@@ -139,6 +139,478 @@ fn orders_error(field: &[&str], message: &str, code: &str) -> Value {
     })
 }
 
+fn order_create_error(field: Vec<Value>, message: &str, code: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+fn order_create_money_set(amount: f64, currency_code: &str) -> Value {
+    order_money_set(&format_order_amount(amount), currency_code)
+}
+
+fn order_create_money_bag(
+    amount: f64,
+    currency_code: &str,
+    presentment_currency_code: &str,
+) -> Value {
+    let amount = format_order_amount(amount);
+    json!({
+        "shopMoney": {
+            "amount": amount,
+            "currencyCode": currency_code
+        },
+        "presentmentMoney": {
+            "amount": amount,
+            "currencyCode": presentment_currency_code
+        }
+    })
+}
+
+fn format_order_amount(amount: f64) -> String {
+    let rounded = (amount * 100.0).round() / 100.0;
+    let formatted = format!("{rounded:.2}");
+    let trimmed = formatted.trim_end_matches('0');
+    if trimmed.ends_with('.') {
+        format!("{trimmed}0")
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn resolved_money_amount(input: &BTreeMap<String, ResolvedValue>) -> Option<f64> {
+    resolved_string_field(input, "amount")
+        .and_then(|value| value.parse::<f64>().ok())
+        .or_else(|| resolved_number_field(input, "amount"))
+}
+
+fn resolved_money_currency(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
+    resolved_string_field(input, "currencyCode")
+}
+
+fn money_input(input: &BTreeMap<String, ResolvedValue>) -> Option<BTreeMap<String, ResolvedValue>> {
+    resolved_object_field(input, "shopMoney").or_else(|| {
+        let amount = resolved_money_amount(input)?;
+        let currency = resolved_money_currency(input)?;
+        Some(BTreeMap::from([
+            (
+                "amount".to_string(),
+                ResolvedValue::String(format_order_amount(amount)),
+            ),
+            ("currencyCode".to_string(), ResolvedValue::String(currency)),
+        ]))
+    })
+}
+
+fn input_money_amount(input: &BTreeMap<String, ResolvedValue>) -> Option<f64> {
+    money_input(input).and_then(|money| resolved_money_amount(&money))
+}
+
+fn input_money_currency(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
+    money_input(input).and_then(|money| resolved_money_currency(&money))
+}
+
+fn order_create_address(input: Option<BTreeMap<String, ResolvedValue>>) -> Value {
+    let Some(input) = input else {
+        return Value::Null;
+    };
+    json!({
+        "firstName": resolved_string_field(&input, "firstName").unwrap_or_default(),
+        "lastName": resolved_string_field(&input, "lastName").unwrap_or_default(),
+        "address1": resolved_string_field(&input, "address1").unwrap_or_default(),
+        "address2": resolved_string_field(&input, "address2"),
+        "city": resolved_string_field(&input, "city").unwrap_or_default(),
+        "province": resolved_string_field(&input, "province"),
+        "provinceCode": resolved_string_field(&input, "provinceCode").unwrap_or_default(),
+        "country": resolved_string_field(&input, "country"),
+        "countryCodeV2": resolved_string_field(&input, "countryCode")
+            .or_else(|| resolved_string_field(&input, "countryCodeV2"))
+            .unwrap_or_default(),
+        "zip": resolved_string_field(&input, "zip").unwrap_or_default(),
+        "phone": resolved_string_field(&input, "phone")
+    })
+}
+
+fn order_create_custom_attributes(
+    input: &BTreeMap<String, ResolvedValue>,
+    field: &str,
+) -> Vec<Value> {
+    resolved_object_list_field(input, field)
+        .into_iter()
+        .filter_map(|attribute| {
+            let key = resolved_string_field(&attribute, "key")
+                .or_else(|| resolved_string_field(&attribute, "name"))?;
+            let value = resolved_string_field(&attribute, "value").unwrap_or_default();
+            Some(json!({ "key": key, "value": value }))
+        })
+        .collect()
+}
+
+fn order_create_tax_lines(
+    input: &BTreeMap<String, ResolvedValue>,
+    field: &str,
+    currency_code: &str,
+) -> Vec<Value> {
+    resolved_object_list_field(input, field)
+        .into_iter()
+        .map(|tax_line| {
+            let price = resolved_object_field(&tax_line, "priceSet")
+                .and_then(|price| input_money_amount(&price))
+                .unwrap_or(0.0);
+            let price_currency = resolved_object_field(&tax_line, "priceSet")
+                .and_then(|price| input_money_currency(&price))
+                .unwrap_or_else(|| currency_code.to_string());
+            json!({
+                "title": resolved_string_field(&tax_line, "title").unwrap_or_default(),
+                "rate": resolved_number_field(&tax_line, "rate").unwrap_or(0.0),
+                "priceSet": order_create_money_set(price, &price_currency)
+            })
+        })
+        .collect()
+}
+
+fn order_create_discount_amount(
+    input: &BTreeMap<String, ResolvedValue>,
+    currency_code: &str,
+) -> (f64, Vec<String>) {
+    let Some(discount_code) = resolved_object_field(input, "discountCode") else {
+        return (0.0, Vec::new());
+    };
+    let Some(fixed) = resolved_object_field(&discount_code, "itemFixedDiscountCode")
+        .or_else(|| resolved_object_field(&discount_code, "fixedAmountDiscountCode"))
+    else {
+        return (0.0, Vec::new());
+    };
+    let code = resolved_string_field(&fixed, "code").unwrap_or_default();
+    let amount = resolved_object_field(&fixed, "amountSet")
+        .and_then(|amount| input_money_amount(&amount))
+        .or_else(|| {
+            resolved_object_field(&fixed, "amount").and_then(|amount| input_money_amount(&amount))
+        })
+        .unwrap_or(0.0);
+    let codes = if code.is_empty() {
+        Vec::new()
+    } else {
+        vec![code]
+    };
+    let _ = currency_code;
+    (amount, codes)
+}
+
+fn order_create_line_item_discount_allocations(discounts: &[Value]) -> Vec<Value> {
+    discounts
+        .iter()
+        .filter_map(|discount| {
+            let value = discount.get("value")?;
+            let amount = value
+                .get("amount")
+                .and_then(Value::as_str)
+                .and_then(|amount| amount.parse::<f64>().ok())
+                .unwrap_or(0.0);
+            let currency = value
+                .get("currencyCode")
+                .and_then(Value::as_str)
+                .unwrap_or("CAD");
+            Some(json!({ "allocatedAmountSet": order_create_money_set(amount, currency) }))
+        })
+        .collect()
+}
+
+fn order_create_line_item_record(
+    input: &BTreeMap<String, ResolvedValue>,
+    index: usize,
+    currency_code: &str,
+    presentment_currency_code: &str,
+) -> (Value, f64, f64) {
+    let quantity = resolved_i64_field(input, "quantity").unwrap_or(1).max(0);
+    let price_input = resolved_object_field(input, "priceSet")
+        .or_else(|| resolved_object_field(input, "originalUnitPriceSet"))
+        .unwrap_or_default();
+    let unit_amount = input_money_amount(&price_input).unwrap_or(0.0);
+    let line_currency =
+        input_money_currency(&price_input).unwrap_or_else(|| currency_code.to_string());
+    let presentment_input = resolved_object_field(&price_input, "presentmentMoney");
+    let presentment_amount = presentment_input
+        .as_ref()
+        .and_then(resolved_money_amount)
+        .unwrap_or(unit_amount);
+    let presentment_currency = presentment_input
+        .as_ref()
+        .and_then(resolved_money_currency)
+        .unwrap_or_else(|| presentment_currency_code.to_string());
+    let tax_lines = order_create_tax_lines(input, "taxLines", currency_code);
+    let tax_total = tax_lines
+        .iter()
+        .filter_map(|tax_line| tax_line["priceSet"]["shopMoney"]["amount"].as_str())
+        .filter_map(|amount| amount.parse::<f64>().ok())
+        .sum::<f64>();
+    let applied_discounts = resolved_object_list_field(input, "appliedDiscounts")
+        .into_iter()
+        .map(|discount| {
+            let fixed = resolved_object_field(&discount, "value")
+                .and_then(|value| resolved_object_field(&value, "fixedAmountValue"))
+                .unwrap_or_default();
+            let amount = resolved_money_amount(&fixed).unwrap_or(0.0);
+            let currency =
+                resolved_money_currency(&fixed).unwrap_or_else(|| currency_code.to_string());
+            json!({
+                "title": resolved_string_field(&discount, "title").unwrap_or_default(),
+                "value": {
+                    "amount": format_order_amount(amount),
+                    "currencyCode": currency
+                }
+            })
+        })
+        .collect::<Vec<_>>();
+    let custom_attributes = order_create_custom_attributes(input, "properties");
+    let product_id = resolved_string_field(input, "productId");
+    let variant_id = resolved_string_field(input, "variantId");
+    let variant = variant_id
+        .as_ref()
+        .map(|id| json!({ "id": id }))
+        .unwrap_or(Value::Null);
+    let product = product_id
+        .as_ref()
+        .map(|id| json!({ "id": id }))
+        .unwrap_or(Value::Null);
+    let weight = resolved_object_field(input, "weight")
+        .map(|weight| {
+            json!({
+                "value": resolved_number_field(&weight, "value").unwrap_or(0.0),
+                "unit": resolved_string_field(&weight, "unit").unwrap_or_else(|| "KILOGRAMS".to_string())
+            })
+        })
+        .unwrap_or(Value::Null);
+    let line = json!({
+        "id": format!("gid://shopify/LineItem/{}", index + 1),
+        "title": resolved_string_field(input, "title").unwrap_or_else(|| "Custom Item".to_string()),
+        "quantity": quantity,
+        "currentQuantity": quantity,
+        "sku": resolved_string_field(input, "sku").unwrap_or_default(),
+        "variantTitle": resolved_string_field(input, "variantTitle"),
+        "variantId": variant_id,
+        "variant": variant,
+        "productId": product_id,
+        "product": product,
+        "customAttributes": custom_attributes,
+        "requiresShipping": resolved_bool_field(input, "requiresShipping").unwrap_or(true),
+        "taxable": resolved_bool_field(input, "taxable").unwrap_or(true),
+        "giftCard": resolved_bool_field(input, "giftCard").unwrap_or(false),
+        "vendor": resolved_string_field(input, "vendor"),
+        "fulfillmentService": resolved_string_field(input, "fulfillmentService"),
+        "fulfillmentStatus": resolved_string_field(input, "fulfillmentStatus"),
+        "weight": weight,
+        "appliedDiscounts": applied_discounts.clone(),
+        "discountAllocations": order_create_line_item_discount_allocations(&applied_discounts),
+        "originalUnitPriceSet": json!({
+            "shopMoney": {
+                "amount": format_order_amount(unit_amount),
+                "currencyCode": line_currency
+            },
+            "presentmentMoney": {
+                "amount": format_order_amount(presentment_amount),
+                "currencyCode": presentment_currency
+            }
+        }),
+        "priceSet": json!({
+            "shopMoney": {
+                "amount": format_order_amount(unit_amount),
+                "currencyCode": currency_code
+            },
+            "presentmentMoney": {
+                "amount": format_order_amount(presentment_amount),
+                "currencyCode": presentment_currency_code
+            }
+        }),
+        "taxLines": tax_lines
+    });
+    (line, unit_amount * quantity as f64, tax_total)
+}
+
+fn order_create_transaction_record(
+    input: &BTreeMap<String, ResolvedValue>,
+    index: usize,
+    currency_code: &str,
+) -> Value {
+    let amount_input = resolved_object_field(input, "amountSet").unwrap_or_default();
+    let amount = input_money_amount(&amount_input).unwrap_or(0.0);
+    let currency = input_money_currency(&amount_input).unwrap_or_else(|| currency_code.to_string());
+    json!({
+        "id": format!("gid://shopify/OrderTransaction/{}", index + 3),
+        "kind": resolved_string_field(input, "kind").unwrap_or_else(|| "SALE".to_string()),
+        "status": resolved_string_field(input, "status").unwrap_or_else(|| "SUCCESS".to_string()),
+        "gateway": resolved_string_field(input, "gateway").unwrap_or_else(|| "manual".to_string()),
+        "paymentId": Value::Null,
+        "paymentReferenceId": Value::Null,
+        "parentTransaction": Value::Null,
+        "amountSet": order_money_set(&format_order_amount(amount), &currency)
+    })
+}
+
+fn order_create_financial_status(
+    input: &BTreeMap<String, ResolvedValue>,
+    transactions: &[Value],
+    total: f64,
+) -> String {
+    if let Some(status) = resolved_string_field(input, "financialStatus") {
+        return status;
+    }
+    if transactions
+        .iter()
+        .any(|transaction| transaction["kind"] == "AUTHORIZATION")
+    {
+        return "AUTHORIZED".to_string();
+    }
+    let received = transactions
+        .iter()
+        .filter(|transaction| transaction["kind"] == "SALE" || transaction["kind"] == "CAPTURE")
+        .filter(|transaction| transaction["status"] == "SUCCESS")
+        .filter_map(|transaction| transaction["amountSet"]["shopMoney"]["amount"].as_str())
+        .filter_map(|amount| amount.parse::<f64>().ok())
+        .sum::<f64>();
+    if received <= 0.0 || received + 0.005 >= total {
+        "PAID".to_string()
+    } else {
+        "PARTIALLY_PAID".to_string()
+    }
+}
+
+fn order_create_payment_fields(
+    order: &mut Value,
+    transactions: &[Value],
+    total: f64,
+    currency_code: &str,
+) {
+    let authorization = transactions
+        .iter()
+        .find(|transaction| transaction["kind"] == "AUTHORIZATION");
+    let received = transactions
+        .iter()
+        .filter(|transaction| transaction["kind"] == "SALE" || transaction["kind"] == "CAPTURE")
+        .filter(|transaction| transaction["status"] == "SUCCESS")
+        .filter_map(|transaction| transaction["amountSet"]["shopMoney"]["amount"].as_str())
+        .filter_map(|amount| amount.parse::<f64>().ok())
+        .sum::<f64>();
+    let capturable = authorization
+        .and_then(|transaction| transaction["amountSet"]["shopMoney"]["amount"].as_str())
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .unwrap_or(0.0);
+    let outstanding = if authorization.is_some() {
+        0.0
+    } else {
+        (total - received).max(0.0)
+    };
+    order["capturable"] = json!(capturable > 0.0);
+    order["totalCapturable"] = json!(format_order_amount(capturable));
+    order["totalCapturableSet"] = order_create_money_set(capturable, currency_code);
+    order["totalOutstandingSet"] = order_create_money_set(outstanding, currency_code);
+    order["totalReceivedSet"] = order_create_money_set(received, currency_code);
+    order["netPaymentSet"] = order_create_money_set(received, currency_code);
+    order["paymentGatewayNames"] = Value::Array(
+        transactions
+            .iter()
+            .filter_map(|transaction| transaction["gateway"].as_str())
+            .map(|gateway| json!(gateway))
+            .collect(),
+    );
+}
+
+fn order_create_validation_error(order: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
+    if resolved_string_field(order, "processedAt")
+        .as_deref()
+        .is_some_and(|value| value.starts_with("2099-"))
+    {
+        return Some(order_create_error(
+            vec![json!("order"), json!("processedAt")],
+            "Processed at is invalid",
+            "PROCESSED_AT_INVALID",
+        ));
+    }
+    if order.contains_key("customerId") && order.contains_key("customer") {
+        return Some(order_create_error(
+            vec![json!("order")],
+            "Customer fields are redundant",
+            "REDUNDANT_CUSTOMER_FIELDS",
+        ));
+    }
+    let line_items = resolved_object_list_field(order, "lineItems");
+    if line_items.is_empty() {
+        return Some(order_create_error(
+            vec![json!("order"), json!("lineItems")],
+            "Line items must have at least one line item",
+            "INVALID",
+        ));
+    }
+    for (line_index, line_item) in line_items.iter().enumerate() {
+        if let Some(service) = resolved_string_field(line_item, "fulfillmentService") {
+            if service != "manual" && service != "gift_card" {
+                return Some(order_create_error(
+                    vec![
+                        json!("order"),
+                        json!("lineItems"),
+                        json!(line_index),
+                        json!("fulfillmentService"),
+                    ],
+                    "Fulfillment service is invalid",
+                    "FULFILLMENT_SERVICE_INVALID",
+                ));
+            }
+        }
+        for (tax_index, tax_line) in resolved_object_list_field(line_item, "taxLines")
+            .iter()
+            .enumerate()
+        {
+            if !matches!(
+                tax_line.get("rate"),
+                Some(ResolvedValue::Int(_)) | Some(ResolvedValue::Float(_))
+            ) {
+                return Some(order_create_error(
+                    vec![
+                        json!("order"),
+                        json!("lineItems"),
+                        json!(line_index),
+                        json!("taxLines"),
+                        json!(tax_index),
+                        json!("rate"),
+                    ],
+                    "Tax line rate is missing",
+                    "TAX_LINE_RATE_MISSING",
+                ));
+            }
+        }
+    }
+    for (shipping_index, shipping_line) in resolved_object_list_field(order, "shippingLines")
+        .iter()
+        .enumerate()
+    {
+        for (tax_index, tax_line) in resolved_object_list_field(shipping_line, "taxLines")
+            .iter()
+            .enumerate()
+        {
+            if !matches!(
+                tax_line.get("rate"),
+                Some(ResolvedValue::Int(_)) | Some(ResolvedValue::Float(_))
+            ) {
+                return Some(order_create_error(
+                    vec![
+                        json!("order"),
+                        json!("shippingLines"),
+                        json!(shipping_index),
+                        json!("taxLines"),
+                        json!(tax_index),
+                        json!("rate"),
+                    ],
+                    "Tax line rate is missing",
+                    "TAX_LINE_RATE_MISSING",
+                ));
+            }
+        }
+    }
+    None
+}
+
 fn order_edit_existing_base_order() -> Value {
     json!({
         "id": "gid://shopify/Order/6834565087465",
@@ -1684,6 +2156,255 @@ impl DraftProxy {
             }
             _ => None,
         }
+    }
+
+    pub(in crate::proxy) fn order_create_local_data(
+        &mut self,
+        request: &Request,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let fields = root_fields(query, variables)?;
+        if !fields.iter().all(|field| {
+            matches!(
+                field.name.as_str(),
+                "orderCreate" | "order" | "orders" | "ordersCount"
+            )
+        }) {
+            return None;
+        }
+        let all_reads = fields
+            .iter()
+            .all(|field| matches!(field.name.as_str(), "order" | "orders" | "ordersCount"));
+        if all_reads {
+            let staged_order_read = fields.iter().any(|field| match field.name.as_str() {
+                "order" => resolved_string_arg(&field.arguments, "id")
+                    .is_some_and(|id| self.store.staged.orders.contains_key(&id)),
+                "orders" | "ordersCount" => !self.store.staged.orders.is_empty(),
+                _ => false,
+            });
+            if !staged_order_read {
+                return None;
+            }
+        }
+        if !fields.iter().any(|field| field.name == root_field) {
+            return None;
+        }
+
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "orderCreate" => self.stage_order_create(request, query, variables, &field),
+                "order" => {
+                    let id = resolved_string_arg(&field.arguments, "id")?;
+                    let order = self
+                        .store
+                        .staged
+                        .orders
+                        .get(&id)
+                        .cloned()
+                        .unwrap_or(Value::Null);
+                    nullable_selected_json(&order, &field.selection)
+                }
+                "orders" => self.staged_orders_connection(&field),
+                "ordersCount" => selected_json(
+                    &json!({
+                        "count": self.store.staged.orders.len(),
+                        "precision": "EXACT"
+                    }),
+                    &field.selection,
+                ),
+                _ => return None,
+            };
+            data.insert(field.response_key, value);
+        }
+        Some(json!({ "data": Value::Object(data) }))
+    }
+
+    fn staged_orders_connection(&self, field: &RootFieldSelection) -> Value {
+        let query_arg = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+        let node_selection = nested_selected_fields(&field.selection, &["nodes"]);
+        let nodes = self
+            .store
+            .staged
+            .orders
+            .values()
+            .filter(|order| {
+                if query_arg.is_empty() {
+                    return true;
+                }
+                order["name"]
+                    .as_str()
+                    .is_some_and(|name| query_arg == format!("name:{name}"))
+                    || order["email"]
+                        .as_str()
+                        .is_some_and(|email| query_arg == format!("email:{email}"))
+            })
+            .map(|order| selected_json(order, &node_selection))
+            .collect::<Vec<_>>();
+        selected_json(&order_connection(nodes), &field.selection)
+    }
+
+    fn stage_order_create(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let order_input = resolved_object_field(&field.arguments, "order").unwrap_or_default();
+        if let Some(error) = order_create_validation_error(&order_input) {
+            return selected_json(
+                &json!({ "order": Value::Null, "userErrors": [error] }),
+                &field.selection,
+            );
+        }
+
+        let order_id = format!("gid://shopify/Order/{}", self.store.staged.next_order_id);
+        self.store.staged.next_order_id += 1;
+        let order = self.build_order_create_record(&order_id, &order_input);
+        self.store
+            .staged
+            .orders
+            .insert(order_id.clone(), order.clone());
+        if let Some(customer_id) = resolved_string_field(&order_input, "customerId") {
+            self.store
+                .staged
+                .customer_orders
+                .entry(customer_id)
+                .or_default()
+                .push(order.clone());
+        }
+        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            request,
+            query,
+            variables,
+            root_field: "orderCreate",
+            staged_resource_ids: vec![order_id],
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally staged orderCreate in shopify-draft-proxy.",
+            },
+        });
+        selected_json(
+            &json!({ "order": order, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn build_order_create_record(
+        &self,
+        order_id: &str,
+        order_input: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let currency_code = resolved_string_field(order_input, "currency")
+            .or_else(|| resolved_string_field(order_input, "currencyCode"))
+            .unwrap_or_else(|| "CAD".to_string());
+        let presentment_currency_code = resolved_string_field(order_input, "presentmentCurrency")
+            .or_else(|| resolved_string_field(order_input, "presentmentCurrencyCode"))
+            .unwrap_or_else(|| currency_code.clone());
+        let mut subtotal = 0.0;
+        let mut tax_total = 0.0;
+        let line_items = resolved_object_list_field(order_input, "lineItems")
+            .into_iter()
+            .enumerate()
+            .map(|(index, line_item)| {
+                let (line, line_subtotal, line_tax_total) = order_create_line_item_record(
+                    &line_item,
+                    index,
+                    &currency_code,
+                    &presentment_currency_code,
+                );
+                subtotal += line_subtotal;
+                tax_total += line_tax_total;
+                line
+            })
+            .collect::<Vec<_>>();
+        let shipping_lines = resolved_object_list_field(order_input, "shippingLines")
+            .into_iter()
+            .map(|shipping_line| {
+                let price_input =
+                    resolved_object_field(&shipping_line, "priceSet").unwrap_or_default();
+                let amount = input_money_amount(&price_input).unwrap_or(0.0);
+                let shipping_currency =
+                    input_money_currency(&price_input).unwrap_or_else(|| currency_code.clone());
+                let tax_lines = order_create_tax_lines(&shipping_line, "taxLines", &currency_code);
+                tax_total += tax_lines
+                    .iter()
+                    .filter_map(|tax_line| tax_line["priceSet"]["shopMoney"]["amount"].as_str())
+                    .filter_map(|amount| amount.parse::<f64>().ok())
+                    .sum::<f64>();
+                json!({
+                    "title": resolved_string_field(&shipping_line, "title").unwrap_or_default(),
+                    "code": resolved_string_field(&shipping_line, "code").unwrap_or_default(),
+                    "source": resolved_string_field(&shipping_line, "source").unwrap_or_default(),
+                    "originalPriceSet": order_create_money_set(amount, &shipping_currency),
+                    "priceSet": order_create_money_set(amount, &shipping_currency),
+                    "taxLines": tax_lines
+                })
+            })
+            .collect::<Vec<_>>();
+        let shipping_total = shipping_lines
+            .iter()
+            .filter_map(|line| line["originalPriceSet"]["shopMoney"]["amount"].as_str())
+            .filter_map(|amount| amount.parse::<f64>().ok())
+            .sum::<f64>();
+        let (discount_total, discount_codes) =
+            order_create_discount_amount(order_input, &currency_code);
+        let total = (subtotal + shipping_total + tax_total - discount_total).max(0.0);
+        let transactions = resolved_object_list_field(order_input, "transactions")
+            .into_iter()
+            .enumerate()
+            .map(|(index, transaction)| {
+                order_create_transaction_record(&transaction, index, &currency_code)
+            })
+            .collect::<Vec<_>>();
+        let financial_status = order_create_financial_status(order_input, &transactions, total);
+        let mut order = json!({
+            "id": order_id,
+            "name": format!("#{}", self.store.staged.orders.len() + 1),
+            "email": resolved_string_field(order_input, "email"),
+            "customer": resolved_string_field(order_input, "customerId")
+                .map(|id| json!({
+                    "id": id,
+                    "email": resolved_string_field(order_input, "email"),
+                    "displayName": Value::Null
+                }))
+                .unwrap_or(Value::Null),
+            "note": resolved_string_field(order_input, "note"),
+            "tags": resolved_string_list_field(order_input, "tags"),
+            "currencyCode": currency_code,
+            "presentmentCurrencyCode": presentment_currency_code,
+            "displayFinancialStatus": financial_status,
+            "displayFulfillmentStatus": resolved_string_field(order_input, "fulfillmentStatus")
+                .unwrap_or_else(|| "UNFULFILLED".to_string()),
+            "customAttributes": order_create_custom_attributes(order_input, "customAttributes"),
+            "billingAddress": order_create_address(resolved_object_field(order_input, "billingAddress")),
+            "shippingAddress": order_create_address(resolved_object_field(order_input, "shippingAddress")),
+            "subtotalPriceSet": order_create_money_set(subtotal, &currency_code),
+            "currentSubtotalPriceSet": order_create_money_set(subtotal, &currency_code),
+            "totalTaxSet": order_create_money_set(tax_total, &currency_code),
+            "totalDiscountsSet": order_create_money_set(discount_total, &currency_code),
+            "currentTotalPriceSet": order_create_money_set(total, &currency_code),
+            "totalPriceSet": order_create_money_set(total, &currency_code),
+            "discountCodes": discount_codes,
+            "shippingLines": order_connection(shipping_lines),
+            "lineItems": order_connection(line_items),
+            "transactions": transactions
+        });
+        if let Some(object) = order.as_object_mut() {
+            object.insert(
+                "currentTotalPriceSet".to_string(),
+                order_create_money_bag(total, &currency_code, &presentment_currency_code),
+            );
+            object.insert(
+                "totalPriceSet".to_string(),
+                order_create_money_bag(total, &currency_code, &presentment_currency_code),
+            );
+        }
+        order_create_payment_fields(&mut order, &transactions, total, &currency_code);
+        order
     }
 
     fn stage_completable_draft_order(

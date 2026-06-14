@@ -2924,32 +2924,26 @@ impl DraftProxy {
                 &saved_search_selection,
                 vec![json!({
                     "field": ["input"],
-                    "message": "Saved search input is required",
-                    "code": "REQUIRED"
+                    "message": "Saved search input is required"
                 })],
             ));
         };
-        let Some(name) =
-            resolved_string_field(&input, "name").filter(|value| !value.trim().is_empty())
-        else {
-            return MutationFieldOutcome::unlogged(saved_search_mutation_payload_json(
-                None,
-                payload_selection,
-                &saved_search_selection,
-                vec![json!({
-                    "field": ["input", "name"],
-                    "message": "Name can't be blank",
-                    "code": "BLANK"
-                })],
-            ));
-        };
+        let name = resolved_string_field(&input, "name").unwrap_or_default();
+        let name_is_blank = name.trim().is_empty();
         let search_query = resolved_string_field(&input, "query").unwrap_or_default();
         let resource_type =
             resolved_string_field(&input, "resourceType").unwrap_or_else(|| "PRODUCT".to_string());
         let mut user_errors = Vec::new();
-        if is_reserved_saved_search_name(&resource_type, &name)
-            || self.saved_search_name_exists(&resource_type, &name, None)
-        {
+        if !name_is_blank && is_reserved_saved_search_name(&resource_type, &name) {
+            user_errors.push(saved_search_name_taken_user_error());
+        }
+        if name_is_blank {
+            user_errors.push(json!({
+                "field": ["input", "name"],
+                "message": "Name can't be blank"
+            }));
+        }
+        if !name_is_blank && self.saved_search_name_exists(&resource_type, &name, None) {
             user_errors.push(saved_search_name_taken_user_error());
         }
         if resource_type == "CUSTOMER" {
@@ -3008,8 +3002,7 @@ impl DraftProxy {
                 &saved_search_selection,
                 vec![json!({
                     "field": ["input"],
-                    "message": "Saved search input is required",
-                    "code": "REQUIRED"
+                    "message": "Saved search input is required"
                 })],
             ));
         };

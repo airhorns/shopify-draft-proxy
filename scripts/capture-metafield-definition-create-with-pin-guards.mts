@@ -37,7 +37,7 @@ const readPinnedDefinitionsQuery = `#graphql
 
 const readNamespaceDefinitionsQuery = `#graphql
   query TemporaryNamespaceDefinitions($namespace: String!) {
-    metafieldDefinitions(ownerType: PRODUCT, first: 50, namespace: $namespace) {
+    metafieldDefinitions(ownerType: PRODUCT, first: 100, namespace: $namespace) {
       nodes {
         id
         key
@@ -110,6 +110,128 @@ const baselinePinned =
   ((await runGraphql(readPinnedDefinitionsQuery)).data?.metafieldDefinitions?.nodes as DefinitionNode[] | undefined) ??
   [];
 
+function createPinnedBatchDocument(start: number, end: number): string {
+  const fields: string[] = [];
+  for (let index = start; index <= end; index++) {
+    const suffix = String(index).padStart(2, '0');
+    const createdDefinitionSelection =
+      index === 50
+        ? `
+        createdDefinition {
+          id
+          key
+          pinnedPosition
+        }`
+        : '';
+    fields.push(`
+      create${suffix}: metafieldDefinitionCreate(
+        definition: {
+          ownerType: PRODUCT
+          namespace: $namespace
+          key: "pin_${suffix}"
+          name: "Create pin guard ${suffix}"
+          type: "single_line_text_field"
+          pin: true
+        }
+      ) {
+        ${createdDefinitionSelection}
+        userErrors {
+          field
+          message
+          code
+        }
+      }`);
+  }
+  return `#graphql
+    mutation MetafieldDefinitionCreateWithPinGuardsBatch($namespace: String!) {
+      ${fields.join('\n')}
+    }
+  `;
+}
+
+const createGuardFinalDocument = `#graphql
+  mutation MetafieldDefinitionCreateWithPinGuardsFinal(
+    $namespace: String!
+    $categoryId: String!
+    $standardTemplateId: ID!
+  ) {
+    overCapCreate: metafieldDefinitionCreate(
+      definition: {
+        ownerType: PRODUCT
+        namespace: $namespace
+        key: "over_cap"
+        name: "Create over cap"
+        type: "single_line_text_field"
+        pin: true
+      }
+    ) {
+      createdDefinition {
+        id
+        key
+        pinnedPosition
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+    constrainedCreate: metafieldDefinitionCreate(
+      definition: {
+        ownerType: PRODUCT
+        namespace: $namespace
+        key: "constrained"
+        name: "Create constrained pin"
+        type: "single_line_text_field"
+        constraints: { key: "category", values: [$categoryId] }
+        pin: true
+      }
+    ) {
+      createdDefinition {
+        id
+        key
+        pinnedPosition
+        constraints {
+          key
+        }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+    standardConstrainedEnable: standardMetafieldDefinitionEnable(ownerType: PRODUCT, id: $standardTemplateId, pin: true) {
+      createdDefinition {
+        id
+        namespace
+        key
+        pinnedPosition
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+async function capturePrimaryResponse(): Promise<unknown> {
+  void primaryDocument;
+  const responses = [
+    await runGraphql(createPinnedBatchDocument(1, 10), { namespace }),
+    await runGraphql(createPinnedBatchDocument(11, 20), { namespace }),
+    await runGraphql(createPinnedBatchDocument(21, 30), { namespace }),
+    await runGraphql(createPinnedBatchDocument(31, 40), { namespace }),
+    await runGraphql(createPinnedBatchDocument(41, 50), { namespace }),
+    await runGraphql(createGuardFinalDocument, variables),
+  ];
+  return {
+    data: Object.assign({}, ...responses.map((response) => response.data ?? {})),
+  };
+}
+
 async function deleteNamespaceDefinitions(): Promise<DefinitionNode[]> {
   const read = await runGraphql(readNamespaceDefinitionsQuery, { namespace });
   const definitions = (read.data?.metafieldDefinitions?.nodes as DefinitionNode[] | undefined) ?? [];
@@ -145,7 +267,7 @@ try {
     await runGraphql(unpinByIdMutation, { definitionId: definition.id });
   }
 
-  primaryResponse = await runGraphql(primaryDocument, variables);
+  primaryResponse = await capturePrimaryResponse();
   readAfterResponse = await runGraphql(readAfterDocument, variables);
 } finally {
   deletedDefinitions = await deleteNamespaceDefinitions();
