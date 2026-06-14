@@ -135,9 +135,43 @@ impl DraftProxy {
                 "locations": self.store.staged.locations.clone(),
                 "locationOrder": self.store.staged.location_order.clone(),
                 "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
-                "locationLimitReached": self.store.staged.location_limit_reached
+                "locationLimitReached": self.store.staged.location_limit_reached,
+                "discounts": self.store.staged.discounts.clone(),
+                "discountCodeIndex": self.store.staged.discount_code_index.clone(),
+                "deletedDiscountIds": self.store.staged.deleted_discount_ids.iter().cloned().collect::<Vec<_>>(),
+                "discountRedeemCodeBulkCreations": self.store.staged.discount_redeem_code_bulk_creations.clone()
             }
         });
+        if !self.store.staged.metaobject_definitions.is_empty() {
+            snapshot["stagedState"]["metaobjectDefinitions"] =
+                json!(self.store.staged.metaobject_definitions);
+        }
+        if !self
+            .store
+            .staged
+            .deleted_metaobject_definition_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["deletedMetaobjectDefinitionIds"] = json!(self
+                .store
+                .staged
+                .deleted_metaobject_definition_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if !self.store.staged.metaobjects.is_empty() {
+            snapshot["stagedState"]["metaobjects"] = json!(self.store.staged.metaobjects);
+        }
+        if !self.store.staged.deleted_metaobject_ids.is_empty() {
+            snapshot["stagedState"]["deletedMetaobjectIds"] = json!(self
+                .store
+                .staged
+                .deleted_metaobject_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.flow_signatures.is_empty() {
             snapshot["stagedState"]["flowSignatures"] = json!(self.store.staged.flow_signatures);
         }
@@ -420,6 +454,38 @@ impl DraftProxy {
             .get("locationLimitReached")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        self.store.staged.metaobject_definitions = state["stagedState"]
+            .get("metaobjectDefinitions")
+            .and_then(Value::as_object)
+            .map(|definitions| {
+                definitions
+                    .iter()
+                    .map(|(id, definition)| (id.clone(), definition.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.deleted_metaobject_definition_ids = state["stagedState"]
+            .get("deletedMetaobjectDefinitionIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.metaobjects = state["stagedState"]
+            .get("metaobjects")
+            .and_then(Value::as_object)
+            .map(|metaobjects| {
+                metaobjects
+                    .iter()
+                    .map(|(id, metaobject)| (id.clone(), metaobject.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.deleted_metaobject_ids = state["stagedState"]
+            .get("deletedMetaobjectIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.flow_signatures = state["stagedState"]["flowSignatures"]
             .as_array()
             .cloned()
@@ -427,6 +493,40 @@ impl DraftProxy {
         self.store.staged.flow_trigger_receipts = state["stagedState"]["flowTriggerReceipts"]
             .as_array()
             .cloned()
+            .unwrap_or_default();
+        self.store.staged.discounts = state["stagedState"]["discounts"]
+            .as_object()
+            .map(|discounts| {
+                discounts
+                    .iter()
+                    .map(|(id, discount)| (id.clone(), discount.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.discount_code_index = state["stagedState"]["discountCodeIndex"]
+            .as_object()
+            .map(|index| {
+                index
+                    .iter()
+                    .filter_map(|(code, id)| id.as_str().map(|id| (code.clone(), id.to_string())))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.deleted_discount_ids = state["stagedState"]["deletedDiscountIds"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|value| value.as_str().map(str::to_string))
+            .collect();
+        self.store.staged.discount_redeem_code_bulk_creations = state["stagedState"]
+            ["discountRedeemCodeBulkCreations"]
+            .as_object()
+            .map(|creations| {
+                creations
+                    .iter()
+                    .map(|(id, creation)| (id.clone(), creation.clone()))
+                    .collect()
+            })
             .unwrap_or_default();
         self.log_entries = dump["log"]["entries"]
             .as_array()

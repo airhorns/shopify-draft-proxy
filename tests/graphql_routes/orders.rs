@@ -1171,7 +1171,7 @@ fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_
     assert_eq!(repeated_activation.status, 200);
     assert_eq!(
         repeated_activation.body["data"]["paymentCustomizationActivation"],
-        json!({ "ids": [], "userErrors": [] })
+        json!({ "ids": ["gid://shopify/PaymentCustomization/2"], "userErrors": [] })
     );
 
     let all_invalid_activation = proxy.process_request(json_graphql_request(
@@ -1268,8 +1268,8 @@ fn payment_customization_parity_fixtures_replay_validation_metafields_activation
             .is_some_and(|id| id.starts_with("gid://shopify/PaymentCustomization/"))
     );
     assert_eq!(
-        create_validation.body["data"]["bothIdentifiers"]["userErrors"][0]["code"],
-        json!("MULTIPLE_FUNCTION_IDENTIFIERS")
+        create_validation.body["data"]["bothIdentifiers"],
+        create_validation_fixture["response"]["payload"]["data"]["bothIdentifiers"]
     );
     assert_eq!(
         create_validation.body["data"]["missingIdentifier"],

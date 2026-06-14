@@ -1700,6 +1700,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'products',
+    captureId: 'metafields-generic-product-owner',
+    scriptPath: 'scripts/capture-metafields-generic-product-owner-conformance.ts',
+    purpose:
+      'Product-owner metafieldsSet/metafieldsDelete live payloads and readbacks using ordinary operation names and a disposable non-fixture product owner.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafields-generic-product-owner.json`,
+      'config/parity-specs/products/metafields-generic-product-owner.json',
+      'config/parity-requests/products/metafieldsSet-generic-product-owner.graphql',
+      'config/parity-requests/products/metafieldsDelete-generic-product-owner.graphql',
+      'config/parity-requests/products/metafields-generic-product-owner-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, records metafieldsSet/read/metafieldsDelete/read behavior, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'metafields',
     captureId: 'metafields-set-input-validation',
     scriptPath: 'scripts/capture-metafields-set-input-validation-conformance.mts',
@@ -2490,6 +2508,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Deletes remaining seeded metaobject rows and definition after the schema-change lifecycle capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'metaobject-name-independence-create',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-name-independence-conformance.ts',
+    purpose:
+      'metaobjectCreate payload and read-after-write behavior when the client operation name is CreateMetaobject instead of the captured lifecycle fixture name.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-name-independence-create.json`,
+      'config/parity-specs/metaobjects/metaobject-name-independence-create.json',
+      'config/parity-requests/metaobjects/metaobject-name-independence-definition-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-name-independence-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-name-independence-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable metaobject definition and one row, records normal-name create/read behavior, then deletes the row and definition.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -5737,6 +5774,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-code-basic-name-alias-independence',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-name-alias-independence-conformance.ts',
+    purpose: 'Code discount basic create under an ordinary client operation name and aliased response key.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-code-basic-name-alias-independence.json`,
+      'config/parity-specs/discounts/discount-code-basic-name-alias-independence.json',
+      'config/parity-requests/discounts/discount-code-basic-name-alias-independence-create.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable code discount and deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-activate-deactivate-noop-idempotence',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-activate-deactivate-noop-idempotence-conformance.ts',
@@ -6889,6 +6941,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'payment-customization-activation-already-in-state',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-customization-activation-already-in-state-conformance.ts',
+    purpose:
+      'paymentCustomizationActivation returns a valid id when the submitted disposable payment customization is already in the requested enabled state.',
+    requiredAuthScopes: ['read_payment_customizations', 'write_payment_customizations', 'shopifyFunctions read access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-customization-activation-already-in-state.json`,
+      'config/parity-specs/payments/payment-customization-activation-already-in-state.json',
+      'config/parity-requests/payments/payment-customization-activation-already-in-state-create.graphql',
+      'config/parity-requests/payments/payment-customization-activation-already-in-state.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one enabled disposable payment customization, re-activates it with enabled:true to capture the no-op success ids payload, then deletes the payment customization.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
     captureId: 'payment-customization-create-validation-gaps',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-customization-create-validation-gaps-conformance.ts',
@@ -7645,6 +7715,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable fulfillment services with allowed callback URLs, records invalid create/update attempts, then deletes the created fulfillment services in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-service-callback-url-update-protocol-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-service-callback-url-update-protocol-conformance.ts',
+    purpose: 'FulfillmentService callbackUrl protocol validation for update.',
+    requiredAuthScopes: ['read_assigned_fulfillment_orders', 'write_assigned_fulfillment_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-service-callback-url-update-protocol-validation.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-service-callback-url-update-protocol-validation.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-callback-url-update-protocol-create.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-callback-url-validation-update-protocol.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable fulfillment service with an allowed callback URL, records an invalid ftp:// callbackUrl update attempt, then deletes the fulfillment service in cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

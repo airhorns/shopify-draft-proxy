@@ -1,0 +1,39 @@
+mutation CreateDiscountForNameIndependence($input: DiscountCodeBasicInput!) {
+  madeDiscount: discountCodeBasicCreate(basicCodeDiscount: $input) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          asyncUsageCount
+          discountClasses
+          combinesWith {
+            productDiscounts
+            orderDiscounts
+            shippingDiscounts
+          }
+          codes(first: 1) {
+            nodes {
+              code
+              asyncUsageCount
+            }
+          }
+          context {
+            __typename
+            ... on DiscountBuyerSelectionAll {
+              all
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}
