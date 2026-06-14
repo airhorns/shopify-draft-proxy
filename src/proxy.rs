@@ -1484,10 +1484,13 @@ mod store_tests {
                 ["requiresShipping"],
             json!(false)
         );
-        assert_eq!(read.body["data"]["products"]["nodes"], json!([]));
+        assert_eq!(
+            read.body["data"]["products"]["nodes"],
+            json!([{ "id": product_id }])
+        );
         assert_eq!(
             read.body["data"]["skuCount"],
-            json!({ "count": 0, "precision": "EXACT" })
+            json!({ "count": 1, "precision": "EXACT" })
         );
     }
 
