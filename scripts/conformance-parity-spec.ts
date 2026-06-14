@@ -76,9 +76,10 @@ function validateExpectedDifferences(rawRules: unknown, labelPrefix: string): st
     }
 
     const hasMatcher = typeof rule['matcher'] === 'string';
+    const hasExact = Object.prototype.hasOwnProperty.call(rule, 'exact');
     const isIgnored = rule['ignore'] === true;
-    if (hasMatcher === isIgnored) {
-      errors.push(`${label} must declare exactly one of \`matcher\` or \`ignore: true\`.`);
+    if ([hasMatcher, hasExact, isIgnored].filter(Boolean).length !== 1) {
+      errors.push(`${label} must declare exactly one of \`matcher\`, \`exact\`, or \`ignore: true\`.`);
     }
 
     if (hasMatcher && !isKnownMatcher(rule['matcher'] as string)) {

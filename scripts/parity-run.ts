@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createDraftProxy, type DraftProxy, type DraftProxyStateDump } from '../js/src/index.js';
+import { createDraftProxy, type DraftProxy } from '../js/src/index.js';
 
 type CliArgs = {
   all: boolean;
@@ -37,6 +37,7 @@ type ComparisonTarget = {
   proxyPath?: string;
   proxyStatePath?: string;
   proxyLogPath?: string;
+  proxyResponse?: string;
   proxyRequest?: ProxyRequestSpec;
   proxyUpload?: ProxyUploadSpec;
   isolatedProxy?: boolean;
@@ -47,6 +48,7 @@ type ComparisonTarget = {
 
 type ExpectedDifference = {
   path: string;
+  exact?: unknown;
   matcher?: string;
   ignore?: true;
   reason: string;
@@ -55,7 +57,6 @@ type ExpectedDifference = {
 type ParitySpec = {
   scenarioId: string;
   liveCaptureFiles?: string[];
-  proxySetupStatePath?: string;
   proxyRequest?: ProxyRequestSpec;
   comparison?: {
     expectedDifferences?: ExpectedDifference[];
@@ -458,6 +459,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 function matchesRule(value: unknown, rule: ExpectedDifference): boolean {
   if (rule.ignore) return true;
+  if (Object.prototype.hasOwnProperty.call(rule, 'exact')) return Object.is(value, rule.exact);
   const matcher = rule.matcher ?? '';
   if (matcher === 'any-string') return typeof value === 'string';
   if (matcher === 'non-empty-string') return typeof value === 'string' && value.length > 0;
@@ -519,10 +521,6 @@ async function runSpec(
   const upstreamCalls = (capture['upstreamCalls'] ?? []) as RecordedUpstreamCall[];
   cassette.setCalls(upstreamCalls);
   await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
-  if (spec.proxySetupStatePath) {
-    const setupState = await readJsonFile<DraftProxyStateDump>(path.resolve(repoRoot, spec.proxySetupStatePath));
-    proxy.restoreState(setupState);
-  }
   const failures: string[] = [];
   let primaryResponse: ProxyResponse | null = null;
   const namedResponses = new Map<string, ProxyResponse>();
@@ -572,6 +570,11 @@ async function runSpec(
           log(
             `[parity-debug] ${relativeSpecPath} [${target.name}] proxy response ${JSON.stringify(proxySource).slice(0, 1000)}`,
           );
+      } else if (target.proxyResponse) {
+        const response = namedResponses.get(target.proxyResponse);
+        if (!response)
+          throw new Error(`${target.name}: proxyResponse references unknown target: ${target.proxyResponse}`);
+        proxySource = response.body;
       } else if (target.proxyStatePath) {
         proxySource = await proxy.getState();
       } else if (target.proxyLogPath) {
@@ -583,7 +586,7 @@ async function runSpec(
       const captureValue = normalizeForTarget(getPath(capture, target.capturePath), target);
       const proxyPath = target.proxyPath ?? target.proxyStatePath ?? target.proxyLogPath ?? '$';
       const proxyValue = normalizeForTarget(getPath(proxySource, proxyPath), target);
-      const rules = [...(spec.comparison?.expectedDifferences ?? []), ...(target.expectedDifferences ?? [])];
+      const rules = [...(target.expectedDifferences ?? []), ...(spec.comparison?.expectedDifferences ?? [])];
       const diffs = diffValues(captureValue, proxyValue, rules);
       if (diffs.length > 0) {
         failures.push(`${relativeSpecPath} [${target.name}] ${diffs.slice(0, debug ? 20 : 3).join('; ')}`);

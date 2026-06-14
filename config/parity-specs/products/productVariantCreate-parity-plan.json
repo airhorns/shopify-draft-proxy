@@ -7,12 +7,17 @@
     "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-bulk-create-parity.json"
   ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/products/productVariantCreate-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/products/productVariantCreate-parity-plan.variables.json"
+    "documentPath": "config/parity-requests/products/productVariantCompatibility-setup-product.graphql",
+    "variables": {
+      "product": {
+        "title": "Hermes Variant Compatibility",
+        "handle": "hermes-variant-compatibility",
+        "status": "ACTIVE"
+      }
+    }
   },
-  "proxySetupStatePath": "config/parity-requests/products/setup-state/productVariantCreate-setup-state.json",
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executable compatibility parity for `productVariantCreate`: the generic parity runner compares the checked-in single-variant proxy request against the equivalent live-supported `productVariantsBulkCreate` capture with explicit strict-json targets for payload shape, user errors, inventory summary, and downstream product reads. Linear HAR-189 tracks re-checking direct legacy-root availability on future Shopify schemas; this spec is no longer capture-only or pending Markdown evidence.",
+  "notes": "Executable compatibility parity for `productVariantCreate`: the proxy first creates the product through the normal GraphQL productCreate path, then runs the checked-in single-variant legacy create request and compares it against the equivalent live-supported `productVariantsBulkCreate` capture with explicit strict-json targets for payload shape, user errors, inventory summary, and downstream product reads. Linear HAR-189 tracks re-checking direct legacy-root availability on future Shopify schemas; this spec is no longer capture-only or pending Markdown evidence.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -22,6 +27,11 @@
         "reason": "The proxy allocates a stable synthetic product variant GID for the staged compatibility wrapper; Shopify returns the dev-store variant GID from the bulk-create capture."
       },
       {
+        "path": "$.product.id",
+        "matcher": "shopify-gid:Product",
+        "reason": "The proxy creates the setup product through the local productCreate path and therefore uses a synthetic product GID while Shopify returns the captured dev-store product GID."
+      },
+      {
         "path": "$.inventoryItem.id",
         "matcher": "shopify-gid:InventoryItem",
         "reason": "The proxy allocates a stable synthetic inventory item GID for the staged compatibility wrapper; Shopify returns the dev-store inventory item GID from the bulk-create capture."
@@ -29,28 +39,69 @@
     ],
     "targets": [
       {
+        "name": "setup-product-user-errors",
+        "capturePath": "$.mutation.response.data.productVariantsBulkCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors"
+      },
+      {
         "name": "variant-payload",
         "capturePath": "$.mutation.response.data.productVariantsBulkCreate.productVariants[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantCreate-parity-plan.graphql",
+          "variables": {
+            "input": {
+              "productId": {
+                "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+              },
+              "title": "Blue",
+              "sku": "HERMES-BULK-810153-BLUE",
+              "barcode": "2222222222222",
+              "price": "26.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Blue"
+                }
+              ],
+              "inventoryItem": {
+                "tracked": true,
+                "requiresShipping": false
+              }
+            }
+          }
+        },
         "proxyPath": "$.data.productVariantCreate.productVariant"
       },
       {
         "name": "product-id",
         "capturePath": "$.mutation.response.data.productVariantsBulkCreate.product.id",
-        "proxyPath": "$.data.productVariantCreate.product.id"
+        "proxyResponse": "variant-payload",
+        "proxyPath": "$.data.productVariantCreate.product.id",
+        "expectedDifferences": [
+          {
+            "path": "$",
+            "matcher": "shopify-gid:Product",
+            "reason": "The local setup product is created through productCreate and uses a synthetic product GID."
+          }
+        ]
       },
       {
         "name": "product-totalInventory",
         "capturePath": "$.mutation.response.data.productVariantsBulkCreate.product.totalInventory",
+        "proxyResponse": "variant-payload",
         "proxyPath": "$.data.productVariantCreate.product.totalInventory"
       },
       {
         "name": "product-tracksInventory",
         "capturePath": "$.mutation.response.data.productVariantsBulkCreate.product.tracksInventory",
+        "proxyResponse": "variant-payload",
         "proxyPath": "$.data.productVariantCreate.product.tracksInventory"
       },
       {
         "name": "user-errors",
         "capturePath": "$.mutation.response.data.productVariantsBulkCreate.userErrors",
+        "proxyResponse": "variant-payload",
         "proxyPath": "$.data.productVariantCreate.userErrors"
       },
       {
@@ -60,12 +111,20 @@
           "documentPath": "config/parity-requests/products/productVariantCreate-downstream-read.graphql",
           "variables": {
             "id": {
-              "fromPrimaryProxyPath": "$.data.productVariantCreate.product.id"
+              "fromProxyResponse": "variant-payload",
+              "path": "$.data.productVariantCreate.product.id"
             }
           }
         },
         "upstreamCapturePath": "$.downstreamRead",
-        "proxyPath": "$.data.product.id"
+        "proxyPath": "$.data.product.id",
+        "expectedDifferences": [
+          {
+            "path": "$",
+            "matcher": "shopify-gid:Product",
+            "reason": "The local setup product is created through productCreate and uses a synthetic product GID."
+          }
+        ]
       },
       {
         "name": "downstream-product-totalInventory",
@@ -74,7 +133,8 @@
           "documentPath": "config/parity-requests/products/productVariantCreate-downstream-read.graphql",
           "variables": {
             "id": {
-              "fromPrimaryProxyPath": "$.data.productVariantCreate.product.id"
+              "fromProxyResponse": "variant-payload",
+              "path": "$.data.productVariantCreate.product.id"
             }
           }
         },
@@ -88,7 +148,8 @@
           "documentPath": "config/parity-requests/products/productVariantCreate-downstream-read.graphql",
           "variables": {
             "id": {
-              "fromPrimaryProxyPath": "$.data.productVariantCreate.product.id"
+              "fromProxyResponse": "variant-payload",
+              "path": "$.data.productVariantCreate.product.id"
             }
           }
         },
