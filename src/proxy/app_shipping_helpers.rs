@@ -142,12 +142,11 @@ pub(in crate::proxy) fn delegate_access_token_destroy_user_error(
 }
 
 pub(in crate::proxy) fn synthetic_shop_json() -> Value {
-    json!({
-        "id": "gid://shopify/Shop/92891250994",
-        "name": "harry-test-heelo",
-        "myshopifyDomain": "harry-test-heelo.myshopify.com",
-        "currencyCode": "USD"
-    })
+    default_shop_json()
+}
+
+pub(in crate::proxy) fn effective_shop_json(store: &Store) -> Value {
+    store.effective_shop()
 }
 
 pub(in crate::proxy) fn local_app_json() -> Value {
@@ -714,6 +713,7 @@ pub(in crate::proxy) fn collection_publication_record(id: String, published: boo
 
 pub(in crate::proxy) fn publishable_payload_json(
     publishable: Value,
+    shop: Value,
     payload_selection: &[SelectedField],
     publishable_selection: &[SelectedField],
     user_errors: Vec<Value>,
@@ -721,6 +721,7 @@ pub(in crate::proxy) fn publishable_payload_json(
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
             "publishable" => Some(selected_json(&publishable, publishable_selection)),
+            "shop" => Some(selected_json(&shop, &selection.selection)),
             "userErrors" => Some(Value::Array(
                 user_errors
                     .iter()

@@ -95,7 +95,7 @@ pub struct Response {
     pub body: Value,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProductRecord {
     pub id: String,
     pub created_at: String,
@@ -110,6 +110,12 @@ pub struct ProductRecord {
     pub template_suffix: String,
     pub seo_title: String,
     pub seo_description: String,
+    pub total_inventory: i64,
+    pub tracks_inventory: bool,
+    pub media: Vec<Value>,
+    pub variants: Vec<Value>,
+    pub collections: Vec<Value>,
+    pub extra_fields: BTreeMap<String, Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -162,6 +168,9 @@ struct BaseState {
     products: OrderedRecords<ProductRecord>,
     product_variants: OrderedRecords<ProductVariantRecord>,
     saved_searches: OrderedRecords<SavedSearchRecord>,
+    shop: Value,
+    publication_ids: BTreeSet<String>,
+    publication_count: Option<usize>,
     available_locales: BTreeMap<String, String>,
     shop_locales: BTreeMap<String, Value>,
 }
@@ -208,6 +217,8 @@ struct StagedState {
     catalogs: BTreeMap<String, Value>,
     price_lists: BTreeMap<String, Value>,
     web_presences: BTreeMap<String, Value>,
+    publication_ids: BTreeSet<String>,
+    created_publication_ids: BTreeSet<String>,
     shop_locales: BTreeMap<String, Value>,
     localization_translations: Vec<Value>,
     marketing_activities: BTreeMap<String, Value>,
@@ -227,6 +238,7 @@ struct StagedState {
     deleted_metaobject_ids: BTreeSet<String>,
     app_metafields: BTreeMap<(String, String, String), Value>,
     owner_metafields: BTreeMap<String, Vec<Value>>,
+    deleted_owner_metafields: BTreeSet<(String, String, String)>,
     metafield_definitions: BTreeMap<(String, String), Value>,
     media_files: BTreeMap<String, Value>,
     deleted_media_file_ids: BTreeSet<String>,
@@ -453,6 +465,8 @@ impl Default for StagedState {
             catalogs: BTreeMap::new(),
             price_lists: BTreeMap::new(),
             web_presences: BTreeMap::new(),
+            publication_ids: BTreeSet::new(),
+            created_publication_ids: BTreeSet::new(),
             shop_locales: BTreeMap::new(),
             localization_translations: Vec::new(),
             marketing_activities: BTreeMap::new(),
@@ -472,6 +486,7 @@ impl Default for StagedState {
             deleted_metaobject_ids: BTreeSet::new(),
             app_metafields: BTreeMap::new(),
             owner_metafields: BTreeMap::new(),
+            deleted_owner_metafields: BTreeSet::new(),
             metafield_definitions: BTreeMap::new(),
             media_files: BTreeMap::new(),
             deleted_media_file_ids: BTreeSet::new(),
@@ -604,9 +619,19 @@ where
     normalized
 }
 
+fn default_shop_json() -> Value {
+    json!({
+        "id": "gid://shopify/Shop/92891250994",
+        "name": "harry-test-heelo",
+        "myshopifyDomain": "harry-test-heelo.myshopify.com",
+        "currencyCode": "USD"
+    })
+}
+
 impl Store {
     fn with_default_baseline() -> Self {
         let mut store = Self::default();
+        store.base.shop = default_shop_json();
         store.base.available_locales = default_available_locales();
         store.base.shop_locales.insert(
             "en".to_string(),
@@ -704,6 +729,31 @@ impl Store {
         self.staged.saved_searches.tombstones = ids;
     }
 
+    fn stage_created_publication_id(&mut self, id: String) {
+        self.staged.created_publication_ids.insert(id.clone());
+        self.staged.publication_ids.insert(id);
+    }
+
+    fn effective_publication_count(&self) -> usize {
+        let base_count = self
+            .base
+            .publication_count
+            .unwrap_or(self.base.publication_ids.len());
+        base_count
+            + self
+                .staged
+                .created_publication_ids
+                .iter()
+                .filter(|id| !self.base.publication_ids.contains(*id))
+                .count()
+    }
+
+    fn effective_shop(&self) -> Value {
+        let mut shop = self.base.shop.clone();
+        shop["publicationCount"] = json!(self.effective_publication_count());
+        shop
+    }
+
     fn product_by_id(&self, id: &str) -> Option<&ProductRecord> {
         effective_get(&self.base.products, &self.staged.products, id)
     }
@@ -738,12 +788,98 @@ impl Store {
         effective_count(&self.base.products, &self.staged.products)
     }
 
+    fn has_product_state(&self) -> bool {
+        !self.base.products.records.is_empty()
+            || !self.staged.products.records.is_empty()
+            || !self.staged.products.tombstones.is_empty()
+    }
+
     fn has_product(&self, id: &str) -> bool {
         self.product_by_id(id).is_some()
     }
 
     fn stage_product(&mut self, product: ProductRecord) {
         self.staged.products.stage(product.id.clone(), product);
+    }
+
+    fn stage_observed_product(&mut self, product: ProductRecord) {
+        let merged = match self.product_by_id(&product.id).cloned() {
+            Some(existing) => merge_observed_product(existing, product),
+            None => product,
+        };
+        self.stage_product(merged);
+    }
+
+    fn stage_observed_product_json(&mut self, value: &Value) {
+        if let Some(product) = product_state_from_json(value) {
+            self.stage_observed_product(product);
+        }
+    }
+
+    fn stage_collection_membership(&mut self, collection: Value, products: Vec<ProductRecord>) {
+        let Some(collection_id) = collection
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            return;
+        };
+
+        let mut normalized_products = Vec::new();
+        for mut product in products {
+            upsert_minimal_collection(&mut product.collections, &collection);
+            normalized_products.push(product);
+        }
+
+        let product_nodes = normalized_products
+            .iter()
+            .map(product_summary_json)
+            .collect::<Vec<_>>();
+        let mut collection_record = self
+            .staged
+            .collections
+            .get(&collection_id)
+            .and_then(Value::as_object)
+            .cloned()
+            .unwrap_or_default();
+        if let Some(observed) = collection.as_object() {
+            for (key, value) in observed {
+                if key == "products"
+                    && value
+                        .get("nodes")
+                        .and_then(Value::as_array)
+                        .map(Vec::is_empty)
+                        .unwrap_or(false)
+                    && collection_record.contains_key("products")
+                {
+                    continue;
+                }
+                collection_record.insert(key.clone(), value.clone());
+            }
+        }
+        if !product_nodes.is_empty() || !collection_record.contains_key("products") {
+            collection_record.insert(
+                "products".to_string(),
+                connection_json(product_nodes.clone()),
+            );
+        }
+        collection_record
+            .entry("defaultProducts".to_string())
+            .or_insert_with(|| connection_json(product_nodes.clone()));
+        collection_record
+            .entry("manualProducts".to_string())
+            .or_insert_with(|| connection_json(product_nodes));
+        collection_record.insert(
+            "productsCount".to_string(),
+            json!({"count": normalized_products.len(), "precision": "EXACT"}),
+        );
+        self.staged
+            .collections
+            .insert(collection_id, Value::Object(collection_record));
+
+        for product in normalized_products {
+            self.stage_observed_product(product);
+        }
     }
 
     fn delete_product(&mut self, id: &str) {
@@ -986,6 +1122,7 @@ mod product_helpers;
 mod resolved_values;
 mod resource_ids;
 mod routing;
+mod schema_validation;
 mod selection;
 
 #[allow(unused_imports)]
@@ -1029,6 +1166,8 @@ pub(in crate::proxy) use self::resource_ids::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::routing::*;
 #[allow(unused_imports)]
+pub(in crate::proxy) use self::schema_validation::*;
+#[allow(unused_imports)]
 pub(in crate::proxy) use self::selection::*;
 
 #[cfg(test)]
@@ -1050,6 +1189,12 @@ mod store_tests {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            total_inventory: 0,
+            tracks_inventory: false,
+            variants: Vec::new(),
+            media: Vec::new(),
+            collections: Vec::new(),
+            extra_fields: BTreeMap::new(),
         }
     }
 
@@ -1080,6 +1225,18 @@ mod store_tests {
             headers: BTreeMap::new(),
             body: body.to_string(),
         }
+    }
+
+    fn graphql_request(query: &str, variables: Value) -> Request {
+        request(
+            "POST",
+            "/admin/api/2025-01/graphql.json",
+            &json!({
+                "query": query,
+                "variables": variables
+            })
+            .to_string(),
+        )
     }
 
     #[test]
@@ -1253,6 +1410,508 @@ mod store_tests {
         assert_eq!(
             restored.store.saved_searches_for_resource("PRODUCT")[0].id,
             "gid://shopify/SavedSearch/new"
+        );
+    }
+
+    #[test]
+    fn product_downstream_read_uses_staged_store_instead_of_operation_name_fixture() {
+        let mut proxy = snapshot_proxy();
+        let create = proxy.process_request(graphql_request(
+            r#"
+            mutation ProductCreateParityPlan($product: ProductInput!) {
+              productCreate(product: $product) {
+                product {
+                  id
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({
+                "product": {
+                    "title": "Store backed product",
+                    "handle": "store-backed-product",
+                    "vendor": "Hermes",
+                    "productType": "Proof",
+                    "tags": ["local", "store"],
+                    "seo": {
+                        "title": "Store SEO",
+                        "description": "Projected from store"
+                    }
+                }
+            }),
+        ));
+        let id = create.body["data"]["productCreate"]["product"]["id"]
+            .as_str()
+            .expect("productCreate should return a staged product id")
+            .to_string();
+
+        let read = proxy.process_request(graphql_request(
+            r#"
+            query ProductDetailRead($id: ID!) {
+              product(id: $id) {
+                id
+                title
+                handle
+                vendor
+                productType
+                tags
+                totalInventory
+                tracksInventory
+                onlineStorePreviewUrl
+                category {
+                  id
+                  fullName
+                }
+                seo {
+                  title
+                  description
+                }
+                variants(first: 2) {
+                  nodes {
+                    id
+                  }
+                  pageInfo {
+                    hasNextPage
+                    hasPreviousPage
+                    startCursor
+                    endCursor
+                  }
+                }
+                metafield(namespace: "custom", key: "material") {
+                  value
+                }
+              }
+            }
+            "#,
+            json!({ "id": id }),
+        ));
+
+        assert_eq!(read.status, 200);
+        assert_eq!(read.body["data"]["product"]["id"], json!(id));
+        assert_eq!(
+            read.body["data"]["product"]["title"],
+            json!("Store backed product")
+        );
+        assert_eq!(
+            read.body["data"]["product"]["handle"],
+            json!("store-backed-product")
+        );
+        assert_eq!(read.body["data"]["product"]["vendor"], json!("Hermes"));
+        assert_eq!(read.body["data"]["product"]["productType"], json!("Proof"));
+        assert_eq!(
+            read.body["data"]["product"]["tags"],
+            json!(["local", "store"])
+        );
+        assert_eq!(read.body["data"]["product"]["totalInventory"], json!(0));
+        assert_eq!(
+            read.body["data"]["product"]["tracksInventory"],
+            json!(false)
+        );
+        assert_eq!(
+            read.body["data"]["product"]["onlineStorePreviewUrl"],
+            Value::Null
+        );
+        assert_eq!(read.body["data"]["product"]["category"], Value::Null);
+        assert_eq!(
+            read.body["data"]["product"]["seo"],
+            json!({ "title": "Store SEO", "description": "Projected from store" })
+        );
+        assert_eq!(
+            read.body["data"]["product"]["variants"]["pageInfo"],
+            json!({
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            })
+        );
+        assert_eq!(read.body["data"]["product"]["variants"]["nodes"], json!([]));
+        assert_eq!(read.body["data"]["product"]["metafield"], Value::Null);
+    }
+
+    #[test]
+    fn product_read_passthroughs_in_live_hybrid_when_there_is_no_local_overlay_state() {
+        let upstream_body = json!({
+            "data": {
+                "product": {
+                    "id": "gid://shopify/Product/upstream",
+                    "title": "Upstream product"
+                }
+            }
+        });
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: Some(UnsupportedMutationMode::Passthrough),
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+        })
+        .with_upstream_transport({
+            let upstream_body = upstream_body.clone();
+            move |_| ok_json(upstream_body.clone())
+        });
+
+        let response = proxy.process_request(graphql_request(
+            r#"
+            query ProductDetailRead($id: ID!) {
+              product(id: $id) {
+                id
+                title
+              }
+            }
+            "#,
+            json!({ "id": "gid://shopify/Product/upstream" }),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body, upstream_body);
+    }
+
+    #[test]
+    fn product_variant_downstream_read_uses_staged_variant_state() {
+        let mut proxy = snapshot_proxy();
+
+        let create_product = proxy.process_request(graphql_request(
+            r#"
+            mutation ProductVariantUpdateSetupProduct($product: ProductCreateInput!) {
+              productCreate(product: $product) {
+                product {
+                  id
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({
+                "product": {
+                    "title": "Store Variant Product",
+                    "status": "ACTIVE"
+                }
+            }),
+        ));
+        let product_id = create_product.body["data"]["productCreate"]["product"]["id"]
+            .as_str()
+            .expect("product create should return product id")
+            .to_string();
+
+        let create_variant = proxy.process_request(graphql_request(
+            r#"
+            mutation ProductVariantUpdateSetupVariant($input: ProductVariantInput!) {
+              productVariantCreate(input: $input) {
+                productVariant {
+                  id
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "productId": product_id,
+                    "title": "Store Red",
+                    "sku": "STORE-DRAFT",
+                    "inventoryItem": {
+                        "tracked": false,
+                        "requiresShipping": true
+                    }
+                }
+            }),
+        ));
+        let variant_id = create_variant.body["data"]["productVariantCreate"]["productVariant"]
+            ["id"]
+            .as_str()
+            .expect("variant create should return variant id")
+            .to_string();
+
+        let update = proxy.process_request(graphql_request(
+            r#"
+            mutation ProductVariantUpdateParityPlan($input: ProductVariantInput!) {
+              productVariantUpdate(input: $input) {
+                product {
+                  id
+                  totalInventory
+                  tracksInventory
+                  variants(first: 10) {
+                    nodes {
+                      id
+                      title
+                      sku
+                    }
+                  }
+                }
+                productVariant {
+                  id
+                  title
+                  sku
+                  barcode
+                  selectedOptions {
+                    name
+                    value
+                  }
+                  inventoryItem {
+                    id
+                    tracked
+                    requiresShipping
+                  }
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "id": variant_id,
+                    "title": "Store Red",
+                    "sku": "STORE-RED",
+                    "barcode": "store-barcode",
+                    "selectedOptions": [{ "name": "Color", "value": "Store Red" }],
+                    "inventoryItem": {
+                        "tracked": true,
+                        "requiresShipping": false
+                    }
+                }
+            }),
+        ));
+        assert_eq!(
+            update.body["data"]["productVariantUpdate"]["product"]["id"],
+            json!(product_id)
+        );
+
+        let read = proxy.process_request(graphql_request(
+            r#"
+            query ProductVariantUpdateDownstreamRead($id: ID!, $query: String!) {
+              product(id: $id) {
+                id
+                totalInventory
+                tracksInventory
+                variants(first: 10) {
+                  nodes {
+                    id
+                    title
+                    sku
+                    barcode
+                    selectedOptions {
+                      name
+                      value
+                    }
+                    inventoryItem {
+                      id
+                      tracked
+                      requiresShipping
+                    }
+                  }
+                }
+              }
+              products(first: 10, query: $query) {
+                nodes {
+                  id
+                }
+              }
+              skuCount: productsCount(query: $query) {
+                count
+                precision
+              }
+            }
+            "#,
+            json!({ "id": product_id, "query": "sku:STORE-RED" }),
+        ));
+
+        assert_eq!(read.status, 200);
+        assert_eq!(read.body["data"]["product"]["id"], json!(product_id));
+        assert_eq!(read.body["data"]["product"]["tracksInventory"], json!(true));
+        assert_eq!(
+            read.body["data"]["product"]["variants"]["nodes"][0]["title"],
+            json!("Store Red")
+        );
+        assert_eq!(
+            read.body["data"]["product"]["variants"]["nodes"][0]["sku"],
+            json!("STORE-RED")
+        );
+        assert_eq!(
+            read.body["data"]["product"]["variants"]["nodes"][0]["inventoryItem"]
+                ["requiresShipping"],
+            json!(false)
+        );
+        assert_eq!(
+            read.body["data"]["products"]["nodes"],
+            json!([{ "id": product_id }])
+        );
+        assert_eq!(
+            read.body["data"]["skuCount"],
+            json!({ "count": 1, "precision": "EXACT" })
+        );
+    }
+
+    #[test]
+    fn collection_downstream_read_uses_observed_passthrough_membership_state() {
+        let upstream_body = json!({
+            "data": {
+                "collectionAddProducts": {
+                    "collection": {
+                        "id": "gid://shopify/Collection/store-backed",
+                        "title": "Store Backed Collection",
+                        "handle": "store-backed-collection",
+                        "products": {
+                            "nodes": [
+                                {
+                                    "id": "gid://shopify/Product/first",
+                                    "title": "First Product",
+                                    "handle": "first-product"
+                                },
+                                {
+                                    "id": "gid://shopify/Product/second",
+                                    "title": "Second Product",
+                                    "handle": "second-product"
+                                }
+                            ],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false
+                            }
+                        }
+                    },
+                    "userErrors": []
+                }
+            }
+        });
+        let mut proxy = DraftProxy::new(Config {
+            read_mode: ReadMode::LiveHybrid,
+            unsupported_mutation_mode: Some(UnsupportedMutationMode::Passthrough),
+            bulk_operation_run_mutation_max_input_file_size_bytes: None,
+            port: 0,
+            shopify_admin_origin: "https://shopify.com".to_string(),
+            snapshot_path: None,
+        })
+        .with_upstream_transport({
+            let upstream_body = upstream_body.clone();
+            move |_| ok_json(upstream_body.clone())
+        });
+
+        let mutation = proxy.process_request(graphql_request(
+            r#"
+            mutation CollectionAddProductsParityPlan($id: ID!, $productIds: [ID!]!) {
+              collectionAddProducts(id: $id, productIds: $productIds) {
+                collection {
+                  id
+                  title
+                  handle
+                  products(first: 10) {
+                    nodes {
+                      id
+                      title
+                      handle
+                    }
+                    pageInfo {
+                      hasNextPage
+                      hasPreviousPage
+                    }
+                  }
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({
+                "id": "gid://shopify/Collection/store-backed",
+                "productIds": ["gid://shopify/Product/first", "gid://shopify/Product/second"]
+            }),
+        ));
+        assert_eq!(mutation.status, 200);
+
+        let read = proxy.process_request(graphql_request(
+            r#"
+            query CollectionAddProductsDownstream($collectionId: ID!, $firstProductId: ID!, $secondProductId: ID!) {
+              collection(id: $collectionId) {
+                id
+                title
+                handle
+                products(first: 10) {
+                  nodes {
+                    id
+                    title
+                    handle
+                  }
+                  pageInfo {
+                    hasNextPage
+                    hasPreviousPage
+                  }
+                }
+              }
+              first: product(id: $firstProductId) {
+                id
+                collections(first: 10) {
+                  nodes {
+                    id
+                    title
+                    handle
+                  }
+                }
+              }
+              second: product(id: $secondProductId) {
+                id
+                collections(first: 10) {
+                  nodes {
+                    id
+                    title
+                    handle
+                  }
+                }
+              }
+            }
+            "#,
+            json!({
+                "collectionId": "gid://shopify/Collection/store-backed",
+                "firstProductId": "gid://shopify/Product/first",
+                "secondProductId": "gid://shopify/Product/second"
+            }),
+        ));
+
+        assert_eq!(read.status, 200);
+        assert_eq!(
+            read.body["data"]["collection"]["products"]["nodes"],
+            json!([
+                {
+                    "id": "gid://shopify/Product/first",
+                    "title": "First Product",
+                    "handle": "first-product"
+                },
+                {
+                    "id": "gid://shopify/Product/second",
+                    "title": "Second Product",
+                    "handle": "second-product"
+                }
+            ])
+        );
+        assert_eq!(
+            read.body["data"]["first"]["collections"]["nodes"],
+            json!([
+                {
+                    "id": "gid://shopify/Collection/store-backed",
+                    "title": "Store Backed Collection",
+                    "handle": "store-backed-collection"
+                }
+            ])
+        );
+        assert_eq!(
+            read.body["data"]["second"]["collections"]["nodes"],
+            read.body["data"]["first"]["collections"]["nodes"]
         );
     }
 }

@@ -1,5 +1,6 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
+use std::collections::BTreeMap;
 
 #[test]
 fn standard_proxy_construction_attaches_default_registry_for_core_roots() {
@@ -30,6 +31,7 @@ fn product_read_serializes_seeded_base_product_by_id() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let product = proxy.process_request(graphql_request(
@@ -69,6 +71,7 @@ fn product_variants_read_respects_connection_arguments() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
     let first_variant =
         create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "FIRST", "1.00");
@@ -106,6 +109,7 @@ fn product_read_serializes_only_requested_scalar_fields() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let product = proxy.process_request(graphql_request(
@@ -142,6 +146,7 @@ fn legacy_product_variant_roots_stage_variants_into_product_graph() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let create = proxy.process_request(json_graphql_request(
@@ -490,6 +495,7 @@ fn legacy_product_variant_scalar_validation_rejects_before_staging() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
     let seeded_variant =
         create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "VALID-SKU", "10.00");
@@ -569,6 +575,7 @@ fn product_read_preserves_root_alias() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let product = proxy.process_request(graphql_request(
@@ -743,7 +750,28 @@ fn top_level_inventory_level_read_observes_staged_inventory_level_state() {
 
 #[test]
 fn product_variant_bulk_fixture_downstream_reads_return_captured_shapes() {
-    let mut proxy = snapshot_proxy();
+    let bulk_create_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-bulk-create-inventory-read-parity.json"
+    ))
+    .unwrap();
+    let observed_product = &bulk_create_fixture["mutation"]["response"]["data"]
+        ["productVariantsBulkCreate"]["product"];
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: observed_product["id"].as_str().unwrap().to_string(),
+        title: observed_product["title"].as_str().unwrap().to_string(),
+        handle: observed_product["handle"].as_str().unwrap().to_string(),
+        status: observed_product["status"].as_str().unwrap().to_string(),
+        total_inventory: observed_product["totalInventory"].as_i64().unwrap_or(0),
+        tracks_inventory: observed_product["tracksInventory"]
+            .as_bool()
+            .unwrap_or(false),
+        variants: observed_product["variants"]["nodes"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default(),
+        extra_fields: BTreeMap::new(),
+        ..ProductRecord::default()
+    }]);
 
     let bulk_create = proxy.process_request(json_graphql_request(
         r#"
@@ -760,17 +788,9 @@ fn product_variant_bulk_fixture_downstream_reads_return_captured_shapes() {
     ));
     assert_eq!(bulk_create.status, 200);
     assert_eq!(
-        bulk_create.body["data"]["product"]["variants"]["nodes"][1]["inventoryItem"]["id"],
-        json!("gid://shopify/InventoryItem/53240636637490")
-    );
-    assert_eq!(
-        bulk_create.body["data"]["product"]["variants"]["nodes"][1]["inventoryItem"]["tracked"],
-        json!(true)
-    );
-    assert_eq!(
-        bulk_create.body["data"]["product"]["variants"]["nodes"][1]["inventoryItem"]
-            ["requiresShipping"],
-        json!(false)
+        bulk_create.body["data"]["product"],
+        Value::Null,
+        "unobserved product reads should not replay a baked downstream fixture"
     );
     assert_eq!(bulk_create.body["data"]["skuCount"]["count"], json!(0));
 
@@ -794,8 +814,9 @@ fn product_variant_bulk_fixture_downstream_reads_return_captured_shapes() {
         json!("gid://shopify/Product/9263919988969")
     );
     assert_eq!(
-        inventory_read.body["data"]["variant"]["inventoryItem"]["tracked"],
-        json!(true)
+        inventory_read.body["data"]["variant"],
+        Value::Null,
+        "unobserved variant reads should not replay a baked downstream fixture"
     );
     assert_eq!(
         inventory_read.body["data"]["stock"]["variant"]["id"],
@@ -817,8 +838,9 @@ fn product_variant_bulk_fixture_downstream_reads_return_captured_shapes() {
     ));
     assert_eq!(bulk_update.status, 200);
     assert_eq!(
-        bulk_update.body["data"]["product"]["variants"]["nodes"][0]["metafield"],
-        json!({ "value": "premium", "ownerType": "PRODUCTVARIANT" })
+        bulk_update.body["data"]["product"],
+        Value::Null,
+        "unobserved product reads should not replay a baked bulk-update downstream fixture"
     );
 
     let reorder = proxy.process_request(json_graphql_request(
@@ -831,12 +853,9 @@ fn product_variant_bulk_fixture_downstream_reads_return_captured_shapes() {
     ));
     assert_eq!(reorder.status, 200);
     assert_eq!(
-        reorder.body["data"]["product"]["variants"]["nodes"][0],
-        json!({
-            "id": "gid://shopify/ProductVariant/51098748059954",
-            "title": "Blue",
-            "selectedOptions": [{ "name": "Color", "value": "Blue" }]
-        })
+        reorder.body["data"]["product"],
+        Value::Null,
+        "unobserved product reads should not replay a baked bulk-reorder downstream fixture"
     );
 
     let node = proxy.process_request(json_graphql_request(
@@ -850,7 +869,11 @@ fn product_variant_bulk_fixture_downstream_reads_return_captured_shapes() {
     assert_eq!(node.status, 200);
     assert_eq!(
         node.body["data"]["node"],
-        reorder.body["data"]["product"]["variants"]["nodes"][0]
+        json!({
+            "id": "gid://shopify/ProductVariant/51098748059954",
+            "title": "Blue",
+            "selectedOptions": [{ "name": "Color", "value": "Blue" }]
+        })
     );
 }
 
@@ -1652,10 +1675,16 @@ fn product_create_and_delete_media_replay_captured_mutations_and_downstream_read
         }),
     ));
     assert_eq!(create.status, 200);
+    let created_media_id = create.body["data"]["productCreateMedia"]["media"][0]["id"]
+        .as_str()
+        .expect("productCreateMedia media id should be a string")
+        .to_string();
+    assert!(created_media_id.starts_with("gid://shopify/MediaImage/"));
+    assert!(created_media_id.contains("shopify-draft-proxy=synthetic"));
     assert_eq!(
         create.body["data"]["productCreateMedia"]["media"][0],
         json!({
-            "id": "gid://shopify/MediaImage/39467722375401",
+            "id": created_media_id,
             "alt": "Front view",
             "mediaContentType": "IMAGE",
             "status": "UPLOADED",
@@ -1666,6 +1695,10 @@ fn product_create_and_delete_media_replay_captured_mutations_and_downstream_read
     assert_eq!(
         create.body["data"]["productCreateMedia"]["product"]["media"]["nodes"][0]["status"],
         json!("UPLOADED")
+    );
+    assert_eq!(
+        create.body["data"]["productCreateMedia"]["product"]["media"]["nodes"][0]["id"],
+        json!(created_media_id)
     );
 
     let create_read = proxy.process_request(json_graphql_request(
@@ -1680,7 +1713,7 @@ fn product_create_and_delete_media_replay_captured_mutations_and_downstream_read
     assert_eq!(
         create_read.body["data"]["product"]["media"]["nodes"][0],
         json!({
-            "id": "gid://shopify/MediaImage/39467722375401",
+            "id": created_media_id,
             "alt": "Front view",
             "mediaContentType": "IMAGE",
             "status": "PROCESSING",
@@ -1850,6 +1883,59 @@ fn product_publication_aggregate_downstream_read_returns_captured_product_shape(
 #[test]
 fn product_publishable_mutations_return_captured_aggregate_shape() {
     let mut proxy = snapshot_proxy();
+    let restore = proxy.process_request(Request {
+        method: "POST".to_string(),
+        path: "/__meta/restore".to_string(),
+        headers: Default::default(),
+        body: json!({
+            "schema": "shopify-draft-proxy-rust-state/v1",
+            "createdAt": "2026-06-14T00:00:00.000Z",
+            "state": {
+                "baseState": {
+                    "products": {},
+                    "productOrder": [],
+                    "savedSearches": {},
+                    "savedSearchOrder": [],
+                    "shop": {
+                        "id": "gid://shopify/Shop/test-store",
+                        "name": "Seeded Test Store",
+                        "myshopifyDomain": "seeded-test-store.myshopify.com",
+                        "currencyCode": "USD"
+                    },
+                    "publicationIds": [
+                        "gid://shopify/Publication/base-a",
+                        "gid://shopify/Publication/base-b",
+                        "gid://shopify/Publication/base-c"
+                    ],
+                    "publicationCount": 3,
+                    "availableLocales": {},
+                    "shopLocales": {}
+                },
+                "stagedState": {
+                    "products": {},
+                    "productOrder": [],
+                    "deletedProductIds": [],
+                    "savedSearches": {},
+                    "savedSearchOrder": [],
+                    "deletedSavedSearchIds": [],
+                    "shippingPackages": {},
+                    "deletedShippingPackageIds": {},
+                    "delegatedAccessTokens": {},
+                    "customers": {},
+                    "deletedCustomerIds": [],
+                    "customerOrders": {},
+                    "taggableResources": {},
+                    "publicationIds": [],
+                    "createdPublicationIds": []
+                }
+            },
+            "log": { "entries": [] },
+            "nextSyntheticId": 1
+        })
+        .to_string(),
+    });
+    assert_eq!(restore.status, 200);
+
     for (root, query) in [
         (
             "publishablePublish",
@@ -1857,6 +1943,7 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
             mutation PublishablePublishProductParity($id: ID!, $input: [PublicationInput!]!) {
               publishablePublish(id: $id, input: $input) {
                 publishable { ... on Product { id publishedOnCurrentPublication availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+                shop { id name publicationCount }
                 userErrors { field message }
               }
             }
@@ -1868,6 +1955,7 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
             mutation PublishableUnpublishProductParity($id: ID!, $input: [PublicationInput!]!) {
               publishableUnpublish(id: $id, input: $input) {
                 publishable { ... on Product { id publishedOnCurrentPublication availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+                shop { id name publicationCount }
                 userErrors { field message }
               }
             }
@@ -1879,6 +1967,7 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
             mutation PublishablePublishToCurrentChannelProductParity($id: ID!) {
               publishablePublishToCurrentChannel(id: $id) {
                 publishable { ... on Product { id publishedOnCurrentPublication availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+                shop { id name publicationCount }
                 userErrors { field message }
               }
             }
@@ -1890,6 +1979,7 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
             mutation PublishableUnpublishToCurrentChannelProductParity($id: ID!) {
               publishableUnpublishToCurrentChannel(id: $id) {
                 publishable { ... on Product { id publishedOnCurrentPublication availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
+                shop { id name publicationCount }
                 userErrors { field message }
               }
             }
@@ -1912,8 +2002,186 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
                 "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
             })
         );
+        assert_eq!(
+            response.body["data"][root]["shop"],
+            json!({
+                "id": "gid://shopify/Shop/test-store",
+                "name": "Seeded Test Store",
+                "publicationCount": 3
+            })
+        );
         assert_eq!(response.body["data"][root]["userErrors"], json!([]));
     }
+
+    let create_publication = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLocalPublication($input: PublicationCreateInput!) {
+          publicationCreate(input: $input) {
+            publication { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "name": "Local staged publication" } }),
+    ));
+    assert_eq!(
+        create_publication.body["data"]["publicationCreate"],
+        json!({
+            "publication": { "id": "gid://shopify/Publication/2" },
+            "userErrors": []
+        })
+    );
+
+    let state = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/state".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert_eq!(
+        state.body["stagedState"]["publicationIds"],
+        json!(["gid://shopify/Publication/2"])
+    );
+    assert_eq!(
+        state.body["stagedState"]["createdPublicationIds"],
+        json!(["gid://shopify/Publication/2"])
+    );
+
+    let staged_count = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PublishablePublishProductStagedShopCount($id: ID!, $input: [PublicationInput!]!) {
+          publishablePublish(id: $id, input: $input) {
+            publishable { ... on Product { id } }
+            shop { id publicationCount }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/9264105488617",
+            "input": [{ "publicationId": "gid://shopify/Publication/2" }]
+        }),
+    ));
+    assert_eq!(
+        staged_count.body["data"]["publishablePublish"]["shop"],
+        json!({
+            "id": "gid://shopify/Shop/test-store",
+            "publicationCount": 4
+        })
+    );
+    assert_eq!(
+        staged_count.body["data"]["publishablePublish"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request.clone());
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            assert!(
+                body["query"].as_str().is_some_and(
+                    |query| query.contains("StorePropertiesPublishablePayloadShopHydrate")
+                ),
+                "unexpected upstream query: {}",
+                body["query"]
+            );
+            assert_eq!(
+                body["variables"],
+                json!({ "id": "gid://shopify/Product/10172067414322" })
+            );
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "publishable": {
+                            "id": "gid://shopify/Product/10172067414322",
+                            "publishedOnCurrentPublication": false,
+                            "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+                            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+                        },
+                        "shop": {
+                            "id": "gid://shopify/Shop/upstream",
+                            "name": "Upstream Shop",
+                            "myshopifyDomain": "upstream-shop.myshopify.com",
+                            "currencyCode": "CAD",
+                            "publicationCount": 5
+                        },
+                        "publications": {
+                            "nodes": [
+                                { "id": "gid://shopify/Publication/one" },
+                                { "id": "gid://shopify/Publication/two" },
+                                { "id": "gid://shopify/Publication/three" },
+                                { "id": "gid://shopify/Publication/four" },
+                                { "id": "gid://shopify/Publication/five" }
+                            ]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PublishablePayloadShopHydrate($id: ID!, $input: [PublicationInput!]!) {
+          publishablePublish(id: $id, input: $input) {
+            publishable { ... on Product { id } }
+            shop { id name myshopifyDomain currencyCode publicationCount }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10172067414322",
+            "input": [{ "publicationId": "gid://shopify/Publication/one" }]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["publishablePublish"]["shop"],
+        json!({
+            "id": "gid://shopify/Shop/upstream",
+            "name": "Upstream Shop",
+            "myshopifyDomain": "upstream-shop.myshopify.com",
+            "currencyCode": "CAD",
+            "publicationCount": 5
+        })
+    );
+    assert_eq!(
+        response.body["data"]["publishablePublish"]["userErrors"],
+        json!([])
+    );
+
+    let state = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/state".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert_eq!(
+        state.body["baseState"]["shop"]["id"],
+        json!("gid://shopify/Shop/upstream")
+    );
+    assert_eq!(state.body["baseState"]["publicationCount"], json!(5));
+    assert_eq!(
+        state.body["baseState"]["publicationIds"],
+        json!([
+            "gid://shopify/Publication/five",
+            "gid://shopify/Publication/four",
+            "gid://shopify/Publication/one",
+            "gid://shopify/Publication/three",
+            "gid://shopify/Publication/two"
+        ])
+    );
+
+    assert_eq!(forwarded.lock().unwrap().len(), 1);
 }
 
 #[test]
@@ -2186,6 +2454,7 @@ fn product_update_stages_scalar_changes_visible_to_product_read() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let update = proxy.process_request(graphql_request(
@@ -2255,6 +2524,7 @@ fn products_connection_reflects_staged_creates_and_deletes() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let create = proxy.process_request(graphql_request(
@@ -2336,6 +2606,7 @@ fn products_connection_applies_first_limit_after_overlaying_state() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
         ProductRecord {
             id: "gid://shopify/Product/2".to_string(),
@@ -2351,6 +2622,7 @@ fn products_connection_applies_first_limit_after_overlaying_state() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
     ]);
 
@@ -2394,6 +2666,7 @@ fn products_connection_serializes_edges_and_page_info_for_selected_window() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
         ProductRecord {
             id: "gid://shopify/Product/2".to_string(),
@@ -2409,6 +2682,7 @@ fn products_connection_serializes_edges_and_page_info_for_selected_window() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
     ]);
 
@@ -2468,6 +2742,7 @@ fn products_connection_paginates_edges_nodes_and_page_info_consistently() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
         ProductRecord {
             id: "gid://shopify/Product/2".to_string(),
@@ -2483,6 +2758,7 @@ fn products_connection_paginates_edges_nodes_and_page_info_consistently() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
         ProductRecord {
             id: "gid://shopify/Product/3".to_string(),
@@ -2498,6 +2774,7 @@ fn products_connection_paginates_edges_nodes_and_page_info_consistently() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
     ]);
 
@@ -2602,6 +2879,7 @@ fn products_count_reflects_staged_creates_and_deletes() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let create = proxy.process_request(graphql_request(
@@ -2697,6 +2975,7 @@ fn product_by_identifier_preserves_root_alias() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let by_handle = proxy.process_request(graphql_request(
@@ -2735,6 +3014,7 @@ fn product_by_identifier_supports_multiple_aliases_in_one_query() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let create = proxy.process_request(graphql_request(
@@ -2784,6 +3064,7 @@ fn products_and_products_count_preserve_root_aliases() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
         ProductRecord {
             id: "gid://shopify/Product/2".to_string(),
@@ -2799,6 +3080,7 @@ fn products_and_products_count_preserve_root_aliases() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
     ]);
 
@@ -2846,6 +3128,7 @@ fn product_roots_support_multiple_aliases_in_one_query() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
         ProductRecord {
             id: "gid://shopify/Product/2".to_string(),
@@ -2861,6 +3144,7 @@ fn product_roots_support_multiple_aliases_in_one_query() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         },
     ]);
 
@@ -2898,6 +3182,7 @@ fn product_mutations_preserve_root_alias_response_keys() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let create = proxy.process_request(graphql_request(
@@ -4364,6 +4649,7 @@ fn product_delete_stages_downstream_no_data_for_product_read() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let delete = proxy.process_request(graphql_request(
@@ -4532,6 +4818,7 @@ fn product_read_resolves_id_from_request_variables() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let product = proxy.process_request(graphql_request(
@@ -4677,6 +4964,7 @@ fn product_change_status_rejects_invalid_status_without_staging() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let mut literal_request = graphql_request(
@@ -4873,6 +5161,7 @@ fn supported_product_variant_mutation_keeps_capability_metadata_in_log() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let response = proxy.process_request(graphql_request(

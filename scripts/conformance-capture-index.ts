@@ -1067,6 +1067,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/store-properties/publishable-publish-shop-count-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/store-properties/publishable-unpublish-current-shop-count-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/store-properties/publishable-unpublish-shop-count-parity.json',
+      'config/parity-specs/store-properties/publishablePublish-shop-count-parity.json',
+      'config/parity-specs/store-properties/publishablePublishToCurrentChannel-shop-count-parity.json',
+      'config/parity-specs/store-properties/publishableUnpublish-shop-count-parity.json',
+      'config/parity-specs/store-properties/publishableUnpublishToCurrentChannel-shop-count-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/publications-catalog.json',
     ],
     cleanupBehavior: 'Publishes/unpublishes disposable products only after publication target probes pass.',
@@ -1537,8 +1541,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/products/productVariantCreate-parity-plan.json',
       'config/parity-specs/products/productVariantUpdate-parity-plan.json',
       'config/parity-specs/products/productVariantDelete-parity-plan.json',
+      'config/parity-specs/products/productVariantsBulkDelete-parity-plan.json',
       'config/parity-requests/products/productVariantCompatibility-setup-product.graphql',
       'config/parity-requests/products/productVariantCompatibility-setup-variant.graphql',
+      'config/parity-requests/products/productVariantsBulkDelete-parity-plan.graphql',
     ],
     cleanupBehavior: 'Creates disposable products/variants and deletes the products in best-effort cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -1720,6 +1726,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable product, records metafieldsSet/read/metafieldsDelete/read behavior, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
+    captureId: 'product-metafield-owner-isolation',
+    scriptPath: 'scripts/capture-product-metafield-owner-isolation-conformance.mts',
+    purpose: 'Product owner-scoped metafield read isolation after staging metafields on a different product owner.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-owner-isolation-parity.json',
+      'config/parity-specs/products/metafieldsSet-owner-isolation.json',
+      'config/parity-requests/products/metafieldsSet-owner-isolation.graphql',
+      'config/parity-requests/products/metafieldsSet-owner-isolation-empty-owner-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable products, sets a metafield on one product, captures the other product owner empty metafield read, then deletes both products.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -8241,6 +8263,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'gift-cards',
     captureId: 'gift-card-create-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-gift-card-create-validation-conformance.ts',
     purpose:
       'Gift-card create validation for initial value, code length/format/uniqueness, missing customer, combined invalid-code plus missing-customer precedence, and generated code behavior.',

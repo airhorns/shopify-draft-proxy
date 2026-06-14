@@ -150,7 +150,24 @@
           }
         },
         "upstreamCapturePath": null,
-        "proxyPath": "$.data"
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The local setup product is created through productCreate and uses a synthetic product GID."
+          },
+          {
+            "path": "$.product.variants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The remaining setup variant is created through the proxy legacy create path and uses a synthetic variant GID."
+          },
+          {
+            "path": "$.product.variants.nodes[*].inventoryItem.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "The remaining setup variant is created through the proxy legacy create path and uses a synthetic inventory item GID."
+          }
+        ]
       }
     ]
   }

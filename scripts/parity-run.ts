@@ -300,7 +300,13 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
     const variablesMatch = stableJson(parsed['variables'] ?? {}) === stableJson(call.variables ?? {});
     const query = typeof parsed['query'] === 'string' ? parsed['query'] : '';
     const operationName = typeof parsed['operationName'] === 'string' ? parsed['operationName'] : '';
-    const canMatchSynthesizedNodeQuery = call.query?.startsWith('sha:') && /\bnode(?:s)?\s*\(/u.test(query);
+    const isSyntheticNodeCassette =
+      call.query?.startsWith('sha:') ||
+      call.query ===
+        'hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration' ||
+      call.query ===
+        'recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration';
+    const canMatchSynthesizedNodeQuery = isSyntheticNodeCassette && /\bnode(?:s)?\s*\(/u.test(query);
     return (
       variablesMatch &&
       (canMatchSynthesizedNodeQuery ||
