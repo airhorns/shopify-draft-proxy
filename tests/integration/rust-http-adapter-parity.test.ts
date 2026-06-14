@@ -153,6 +153,8 @@ describe('Rust HTTP adapter route surface', () => {
           baseState: {
             products: {},
             productOrder: [],
+            productVariants: {},
+            productVariantOrder: [],
             savedSearches: {},
             savedSearchOrder: [],
             availableLocales: expect.objectContaining({
@@ -172,6 +174,9 @@ describe('Rust HTTP adapter route surface', () => {
             products: {},
             productOrder: [],
             deletedProductIds: [],
+            productVariants: {},
+            productVariantOrder: [],
+            deletedProductVariantIds: [],
             savedSearches: {},
             savedSearchOrder: [],
             deletedSavedSearchIds: [],
