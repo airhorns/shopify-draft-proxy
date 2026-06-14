@@ -168,6 +168,9 @@ struct BaseState {
     products: OrderedRecords<ProductRecord>,
     product_variants: OrderedRecords<ProductVariantRecord>,
     saved_searches: OrderedRecords<SavedSearchRecord>,
+    shop: Value,
+    publication_ids: BTreeSet<String>,
+    publication_count: Option<usize>,
     available_locales: BTreeMap<String, String>,
     shop_locales: BTreeMap<String, Value>,
 }
@@ -214,6 +217,8 @@ struct StagedState {
     catalogs: BTreeMap<String, Value>,
     price_lists: BTreeMap<String, Value>,
     web_presences: BTreeMap<String, Value>,
+    publication_ids: BTreeSet<String>,
+    created_publication_ids: BTreeSet<String>,
     shop_locales: BTreeMap<String, Value>,
     localization_translations: Vec<Value>,
     marketing_activities: BTreeMap<String, Value>,
@@ -460,6 +465,8 @@ impl Default for StagedState {
             catalogs: BTreeMap::new(),
             price_lists: BTreeMap::new(),
             web_presences: BTreeMap::new(),
+            publication_ids: BTreeSet::new(),
+            created_publication_ids: BTreeSet::new(),
             shop_locales: BTreeMap::new(),
             localization_translations: Vec::new(),
             marketing_activities: BTreeMap::new(),
@@ -612,9 +619,19 @@ where
     normalized
 }
 
+fn default_shop_json() -> Value {
+    json!({
+        "id": "gid://shopify/Shop/92891250994",
+        "name": "harry-test-heelo",
+        "myshopifyDomain": "harry-test-heelo.myshopify.com",
+        "currencyCode": "USD"
+    })
+}
+
 impl Store {
     fn with_default_baseline() -> Self {
         let mut store = Self::default();
+        store.base.shop = default_shop_json();
         store.base.available_locales = default_available_locales();
         store.base.shop_locales.insert(
             "en".to_string(),
@@ -710,6 +727,31 @@ impl Store {
 
     fn replace_saved_search_tombstones(&mut self, ids: BTreeSet<String>) {
         self.staged.saved_searches.tombstones = ids;
+    }
+
+    fn stage_created_publication_id(&mut self, id: String) {
+        self.staged.created_publication_ids.insert(id.clone());
+        self.staged.publication_ids.insert(id);
+    }
+
+    fn effective_publication_count(&self) -> usize {
+        let base_count = self
+            .base
+            .publication_count
+            .unwrap_or(self.base.publication_ids.len());
+        base_count
+            + self
+                .staged
+                .created_publication_ids
+                .iter()
+                .filter(|id| !self.base.publication_ids.contains(*id))
+                .count()
+    }
+
+    fn effective_shop(&self) -> Value {
+        let mut shop = self.base.shop.clone();
+        shop["publicationCount"] = json!(self.effective_publication_count());
+        shop
     }
 
     fn product_by_id(&self, id: &str) -> Option<&ProductRecord> {

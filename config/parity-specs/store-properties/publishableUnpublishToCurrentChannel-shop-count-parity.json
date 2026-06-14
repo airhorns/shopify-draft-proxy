@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Direct live parity for product-scoped `publishableUnpublishToCurrentChannel` selecting `shop.publicationCount`. The fixture seeds Shopify's publication catalog so the local current-publication placeholder cannot inflate the shop-level publication count.",
+  "notes": "Direct live parity for product-scoped `publishableUnpublishToCurrentChannel` selecting `shop.publicationCount`. The local runtime hydrates the selected payload shop from the captured upstream hydrate call when the shop baseline is not already present in store state.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

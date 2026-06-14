@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Direct live parity for product-scoped generic `publishablePublish` selecting `shop.publicationCount`. The fixture seeds Shopify's publication catalog so the local store-property count is compared against the captured shop-level publication count rather than only product aggregate publication fields.",
+  "notes": "Direct live parity for product-scoped generic `publishablePublish` selecting `shop.publicationCount`. The local runtime hydrates the selected payload shop from the captured upstream hydrate call when the shop baseline is not already present in store state.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

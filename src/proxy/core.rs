@@ -112,6 +112,9 @@ impl DraftProxy {
                 "productVariantOrder": self.store.base.product_variants.order,
                 "savedSearches": saved_search_state_map_json(&self.store.base.saved_searches.records),
                 "savedSearchOrder": self.store.base.saved_searches.order,
+                "shop": self.store.base.shop.clone(),
+                "publicationIds": self.store.base.publication_ids.iter().cloned().collect::<Vec<_>>(),
+                "publicationCount": self.store.base.publication_count,
                 "availableLocales": self.store.base.available_locales.iter().map(|(locale, name)| (locale.clone(), json!(name))).collect::<serde_json::Map<_, _>>(),
                 "shopLocales": self.store.base.shop_locales.clone()
             },
@@ -139,6 +142,8 @@ impl DraftProxy {
                 "reverseFulfillmentOrders": self.store.staged.reverse_fulfillment_orders.clone(),
                 "locations": self.store.staged.locations.clone(),
                 "locationOrder": self.store.staged.location_order.clone(),
+                "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
+                "createdPublicationIds": self.store.staged.created_publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "locationLimitReached": self.store.staged.location_limit_reached,
                 "discounts": self.store.staged.discounts.clone(),
                 "discountCodeIndex": self.store.staged.discount_code_index.clone(),
@@ -301,6 +306,18 @@ impl DraftProxy {
             saved_search_state_map_from_json(&state["baseState"]["savedSearches"]),
             string_array_from_json(&state["baseState"]["savedSearchOrder"]),
         );
+        self.store.base.shop = state["baseState"]
+            .get("shop")
+            .filter(|shop| shop.is_object())
+            .cloned()
+            .unwrap_or_else(default_shop_json);
+        self.store.base.publication_ids =
+            string_array_from_json(&state["baseState"]["publicationIds"])
+                .into_iter()
+                .collect();
+        self.store.base.publication_count = state["baseState"]["publicationCount"]
+            .as_u64()
+            .map(|count| count as usize);
         self.store.base.available_locales = state["baseState"]["availableLocales"]
             .as_object()
             .map(|locales| {
@@ -335,6 +352,14 @@ impl DraftProxy {
                     }),
                 )])
             });
+        self.store.staged.publication_ids =
+            string_array_from_json(&state["stagedState"]["publicationIds"])
+                .into_iter()
+                .collect();
+        self.store.staged.created_publication_ids =
+            string_array_from_json(&state["stagedState"]["createdPublicationIds"])
+                .into_iter()
+                .collect();
         self.store.replace_staged_saved_searches_map_with_order(
             saved_search_state_map_from_json(&state["stagedState"]["savedSearches"]),
             string_array_from_json(&state["stagedState"]["savedSearchOrder"]),

@@ -157,6 +157,14 @@ describe('Rust HTTP adapter route surface', () => {
             productVariantOrder: [],
             savedSearches: {},
             savedSearchOrder: [],
+            shop: {
+              id: 'gid://shopify/Shop/92891250994',
+              name: 'harry-test-heelo',
+              myshopifyDomain: 'harry-test-heelo.myshopify.com',
+              currencyCode: 'USD',
+            },
+            publicationIds: [],
+            publicationCount: null,
             availableLocales: expect.objectContaining({
               en: 'English',
               fr: 'French',
@@ -198,6 +206,8 @@ describe('Rust HTTP adapter route surface', () => {
             reverseFulfillmentOrders: {},
             locations: {},
             locationOrder: [],
+            publicationIds: [],
+            createdPublicationIds: [],
             locationLimitReached: false,
           },
         },
