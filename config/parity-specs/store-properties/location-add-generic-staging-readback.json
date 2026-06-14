@@ -1,0 +1,50 @@
+{
+  "scenarioId": "location-add-generic-staging-readback",
+  "operationNames": ["locationAdd", "location"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "payload-shape", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-add-validation-and-defaults.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes.rs"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-add-validation-and-defaults.graphql",
+    "variablesCapturePath": "$.cases.defaultAdd.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "generic-location-add-payload",
+        "capturePath": "$.cases.defaultAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy stages a deterministic synthetic Location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "generic-location-read-after-add",
+        "capturePath": "$.cases.defaultRead.response.payload.data.location",
+        "proxyPath": "$.data.location",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-read-after-add.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+            }
+          }
+        },
+        "selectedPaths": ["$.name", "$.fulfillsOnlineOrders", "$.address"]
+      }
+    ]
+  },
+  "notes": "Rework coverage for the generic locationAdd staging path. This spec reuses the existing live Shopify location-add-validation-and-defaults capture and proves an ordinary public GraphQL document stages locally, returns the captured payload shape, and is immediately visible through location(id:) without runtime upstream mutation passthrough."
+}

@@ -27,6 +27,21 @@ type UpstreamCall = {
   };
 };
 
+type NormalizationCaseSet = {
+  commaStringAdd: CaptureCase;
+  commaListElementAdd: CaptureCase;
+  caseVariantAdd: CaptureCase;
+  caseSortAdd: CaptureCase;
+  caseVariantRemove: CaptureCase;
+  stringRemove: CaptureCase;
+};
+
+type OrderTagRestore = {
+  id: string;
+  originalTags: string[];
+  cleanupTags: string[];
+};
+
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const { runGraphqlRaw } = createAdminGraphqlClient({
@@ -91,6 +106,14 @@ const shopCurrencyQuery = `#graphql
   query TagsMultiResourceShopCurrency {
     shop {
       currencyCode
+    }
+  }
+`;
+
+const existingOrderQuery = `#graphql
+  query TagsMultiResourceExistingOrder {
+    orders(first: 1, reverse: true) {
+      nodes { id name tags }
     }
   }
 `;
@@ -267,6 +290,11 @@ function readRequiredId(value: unknown, pathSegments: string[], label: string): 
   return id;
 }
 
+function readStringArray(value: unknown, pathSegments: string[]): string[] {
+  const tags = readPath(value, pathSegments);
+  return Array.isArray(tags) ? tags.filter((tag): tag is string => typeof tag === 'string') : [];
+}
+
 function requireNoUserErrors(value: unknown, pathSegments: string[], label: string): void {
   const errors = readPath(value, pathSegments);
   if (Array.isArray(errors) && errors.length === 0) {
@@ -295,6 +323,26 @@ function upstreamCall(operationName: string, variables: JsonObject, query: strin
   };
 }
 
+async function hydrateCallForResource(id: string): Promise<UpstreamCall> {
+  if (id.includes('/Order/')) {
+    const hydrate = await runRequired(ordersOrderHydrateQuery, { id }, `order hydrate ${id}`);
+    return upstreamCall('OrdersOrderHydrate', { id }, ordersOrderHydrateQuery, hydrate.payload);
+  }
+  if (id.includes('/Customer/')) {
+    const hydrate = await runRequired(customerHydrateQuery, { id }, `customer hydrate ${id}`);
+    return upstreamCall('CustomerHydrate', { id }, customerHydrateQuery, hydrate.payload);
+  }
+  if (id.includes('/Article/')) {
+    const hydrate = await runRequired(articleHydrateQuery, { id }, `article hydrate ${id}`);
+    return upstreamCall('TagsArticleHydrate', { id }, articleHydrateQuery, hydrate.payload);
+  }
+  if (id.includes('/DraftOrder/')) {
+    const hydrate = await runRequired(ordersDraftOrderHydrateQuery, { id }, `draft order hydrate ${id}`);
+    return upstreamCall('OrdersDraftOrderHydrate', { id }, ordersDraftOrderHydrateQuery, hydrate.payload);
+  }
+  throw new Error(`Unsupported hydrate resource id: ${id}`);
+}
+
 function downstreamVariables(ids: {
   productId: string;
   orderId: string;
@@ -311,6 +359,176 @@ function downstreamVariables(ids: {
   };
 }
 
+async function createCustomerForTags(label: string, tags: string[]): Promise<string> {
+  const result = await runRequired(
+    customerCreateMutation,
+    {
+      input: {
+        firstName: 'Hermes',
+        lastName: `Tags ${label} ${runId}`,
+        email: `hermes-tags-${label}-${runId}@example.com`,
+        tags,
+      },
+    },
+    `${label} customer setup`,
+  );
+  const id = readRequiredId(result.payload, ['data', 'customerCreate', 'customer', 'id'], `${label} customer setup`);
+  requireNoUserErrors(result.payload, ['data', 'customerCreate', 'userErrors'], `${label} customer setup`);
+  cleanupCustomerIds.push(id);
+  return id;
+}
+
+async function prepareExistingOrderForTags(label: string, tags: string[], cleanupTags: string[]): Promise<string> {
+  const existing = await runRequired(existingOrderQuery, {}, `${label} existing order fallback`);
+  const id = readRequiredId(
+    existing.payload,
+    ['data', 'orders', 'nodes', '0', 'id'],
+    `${label} existing order fallback`,
+  );
+  const originalTags = readStringArray(existing.payload, ['data', 'orders', 'nodes', '0', 'tags']);
+  if (originalTags.length > 0) {
+    await capture(tagsRemoveDocument, { id, tags: originalTags });
+  }
+  if (tags.length > 0) {
+    await capture(tagsAddDocument, { id, tags });
+  }
+  restoreOrderTags.push({ id, originalTags, cleanupTags: [...new Set([...cleanupTags, ...tags])] });
+  return id;
+}
+
+async function createOrderForTags(
+  label: string,
+  shopCurrency: string,
+  tags: string[],
+  cleanupTags: string[] = tags,
+): Promise<string> {
+  const result = await runGraphqlRaw(orderCreateMutation, {
+    order: {
+      email: `hermes-tags-order-${label}-${runId}@example.com`,
+      currency: shopCurrency,
+      tags,
+      lineItems: [
+        {
+          title: `Hermes Tags ${label} Item ${runId}`,
+          priceSet: { shopMoney: { amount: '12.00', currencyCode: shopCurrency } },
+          quantity: 1,
+        },
+      ],
+      transactions: [
+        {
+          kind: 'SALE',
+          status: 'SUCCESS',
+          amountSet: { shopMoney: { amount: '12.00', currencyCode: shopCurrency } },
+        },
+      ],
+    },
+    options: { inventoryBehaviour: 'BYPASS' },
+  });
+  const id = readPath(result.payload, ['data', 'orderCreate', 'order', 'id']);
+  if (typeof id !== 'string' || id.length === 0) {
+    const message = JSON.stringify(result.payload);
+    if (message.includes('Too many attempts')) {
+      return await prepareExistingOrderForTags(label, tags, cleanupTags);
+    }
+    throw new Error(`${label} order setup did not return an id: ${JSON.stringify(result.payload, null, 2)}`);
+  }
+  requireNoUserErrors(result.payload, ['data', 'orderCreate', 'userErrors'], `${label} order setup`);
+  cleanupOrderIds.push(id);
+  return id;
+}
+
+async function createDraftOrderForTags(label: string, tags: string[]): Promise<string> {
+  const result = await runRequired(
+    draftOrderCreateMutation,
+    {
+      input: {
+        email: `hermes-tags-draft-${label}-${runId}@example.com`,
+        tags,
+        lineItems: [{ title: `Hermes Draft Tags ${label} Item ${runId}`, originalUnitPrice: '11.00', quantity: 1 }],
+      },
+    },
+    `${label} draft order setup`,
+  );
+  const id = readRequiredId(
+    result.payload,
+    ['data', 'draftOrderCreate', 'draftOrder', 'id'],
+    `${label} draft order setup`,
+  );
+  requireNoUserErrors(result.payload, ['data', 'draftOrderCreate', 'userErrors'], `${label} draft order setup`);
+  cleanupDraftOrderIds.push(id);
+  return id;
+}
+
+async function createArticleForTags(label: string, tags: string[]): Promise<string> {
+  const blogCreate = await runRequired(
+    blogCreateMutation,
+    { blog: { title: `Hermes Tags ${label} Blog ${runId}` } },
+    `${label} blog setup`,
+  );
+  const localBlogId = readRequiredId(blogCreate.payload, ['data', 'blogCreate', 'blog', 'id'], `${label} blog setup`);
+  requireNoUserErrors(blogCreate.payload, ['data', 'blogCreate', 'userErrors'], `${label} blog setup`);
+  cleanupBlogIds.push(localBlogId);
+  const articleCreate = await runRequired(
+    articleCreateMutation,
+    {
+      article: {
+        blogId: localBlogId,
+        title: `Hermes Tags ${label} Article ${runId}`,
+        body: 'Tags conformance article',
+        author: { name: 'Hermes Conformance' },
+        tags,
+      },
+    },
+    `${label} article setup`,
+  );
+  const id = readRequiredId(
+    articleCreate.payload,
+    ['data', 'articleCreate', 'article', 'id'],
+    `${label} article setup`,
+  );
+  requireNoUserErrors(articleCreate.payload, ['data', 'articleCreate', 'userErrors'], `${label} article setup`);
+  cleanupArticleIds.push(id);
+  return id;
+}
+
+async function captureNormalizationCases(
+  resourceLabel: string,
+  createResource: (label: string, tags: string[]) => Promise<string>,
+): Promise<{ cases: NormalizationCaseSet; hydrateCalls: UpstreamCall[] }> {
+  const caseToken = `${resourceLabel}-${runId}`;
+  const id = await createResource(`${resourceLabel}-normalization`, ['Red']);
+  const hydrateCalls: UpstreamCall[] = [];
+  const blue = `blue-${caseToken}`;
+  const green = `green-${caseToken}`;
+  hydrateCalls.push(await hydrateCallForResource(id));
+  const commaStringAdd = await capture(tagsAddDocument, { id, tags: `${blue}, ${green}` });
+  await capture(tagsRemoveDocument, { id, tags: [blue, green] });
+  hydrateCalls.push(await hydrateCallForResource(id));
+  const commaListElementAdd = await capture(tagsAddDocument, { id, tags: [`${blue},${green}`] });
+  await capture(tagsRemoveDocument, { id, tags: [blue, green] });
+  hydrateCalls.push(await hydrateCallForResource(id));
+  const caseVariantAdd = await capture(tagsAddDocument, { id, tags: ['red'] });
+  hydrateCalls.push(await hydrateCallForResource(id));
+  const caseSortAdd = await capture(tagsAddDocument, { id, tags: ['b', 'A'] });
+  await capture(tagsRemoveDocument, { id, tags: ['A', 'b'] });
+  hydrateCalls.push(await hydrateCallForResource(id));
+  const caseVariantRemove = await capture(tagsRemoveDocument, { id, tags: ['red'] });
+  await capture(tagsAddDocument, { id, tags: ['Red'] });
+  hydrateCalls.push(await hydrateCallForResource(id));
+  const stringRemove = await capture(tagsRemoveDocument, { id, tags: 'Red' });
+  return {
+    cases: {
+      commaStringAdd,
+      commaListElementAdd,
+      caseVariantAdd,
+      caseSortAdd,
+      caseVariantRemove,
+      stringRemove,
+    },
+    hydrateCalls,
+  };
+}
+
 await mkdir(outputDir, { recursive: true });
 
 let productId: string | null = null;
@@ -320,6 +538,12 @@ let draftOrderId: string | null = null;
 let blogId: string | null = null;
 let articleId: string | null = null;
 const cleanup: CaptureCase[] = [];
+const cleanupCustomerIds: string[] = [];
+const cleanupOrderIds: string[] = [];
+const cleanupDraftOrderIds: string[] = [];
+const cleanupArticleIds: string[] = [];
+const cleanupBlogIds: string[] = [];
+const restoreOrderTags: OrderTagRestore[] = [];
 
 try {
   const shopCurrencyResult = await runRequired(shopCurrencyQuery, {}, 'shop currency setup');
@@ -357,38 +581,7 @@ try {
   );
   requireNoUserErrors(customerCreate.payload, ['data', 'customerCreate', 'userErrors'], 'customerCreate setup');
 
-  const orderCreate = await runRequired(
-    orderCreateMutation,
-    {
-      order: {
-        email: `hermes-tags-order-${runId}@example.com`,
-        currency: shopCurrency,
-        tags: [baseTag],
-        lineItems: [
-          {
-            title: `Hermes Tags Item ${runId}`,
-            priceSet: {
-              shopMoney: { amount: '12.00', currencyCode: shopCurrency },
-            },
-            quantity: 1,
-          },
-        ],
-        transactions: [
-          {
-            kind: 'SALE',
-            status: 'SUCCESS',
-            amountSet: {
-              shopMoney: { amount: '12.00', currencyCode: shopCurrency },
-            },
-          },
-        ],
-      },
-      options: { inventoryBehaviour: 'BYPASS' },
-    },
-    'orderCreate setup',
-  );
-  orderId = readRequiredId(orderCreate.payload, ['data', 'orderCreate', 'order', 'id'], 'orderCreate setup');
-  requireNoUserErrors(orderCreate.payload, ['data', 'orderCreate', 'userErrors'], 'orderCreate setup');
+  orderId = await createOrderForTags('basic', shopCurrency, [baseTag], [baseTag, addTag]);
 
   const draftOrderCreate = await runRequired(
     draftOrderCreateMutation,
@@ -457,6 +650,19 @@ try {
     id: 'gid://shopify/SomethingUnsupported/1',
     tags: [addTag],
   });
+  const normalizationCaptures = {
+    order: await captureNormalizationCases('order', (label, tags) => createOrderForTags(label, shopCurrency, tags)),
+    customer: await captureNormalizationCases('customer', createCustomerForTags),
+    article: await captureNormalizationCases('article', createArticleForTags),
+    draftOrder: await captureNormalizationCases('draft-order', createDraftOrderForTags),
+  };
+  const normalizationCases = {
+    order: normalizationCaptures.order.cases,
+    customer: normalizationCaptures.customer.cases,
+    article: normalizationCaptures.article.cases,
+    draftOrder: normalizationCaptures.draftOrder.cases,
+  };
+  const normalizationHydrateCalls = Object.values(normalizationCaptures).flatMap(({ hydrateCalls }) => hydrateCalls);
   const downstreamRead = await capture(
     downstreamReadDocument,
     downstreamVariables({ productId, orderId, customerId, draftOrderId, articleId }),
@@ -474,6 +680,7 @@ try {
       draftOrderRemove,
       unsupportedAdd,
     },
+    normalizationCases,
     downstreamRead,
     upstreamCalls: [
       upstreamCall('ProductsHydrateNodes', { ids: [productId] }, productsHydrateNodesQuery, productHydrate.payload),
@@ -486,12 +693,36 @@ try {
         ordersDraftOrderHydrateQuery,
         draftOrderHydrate.payload,
       ),
+      ...normalizationHydrateCalls,
     ],
   };
 
   await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
   console.log(JSON.stringify({ ok: true, outputPath, specPath, runId }, null, 2));
 } finally {
+  for (const restore of restoreOrderTags.reverse()) {
+    if (restore.cleanupTags.length > 0) {
+      cleanup.push(await capture(tagsRemoveDocument, { id: restore.id, tags: restore.cleanupTags }));
+    }
+    if (restore.originalTags.length > 0) {
+      cleanup.push(await capture(tagsAddDocument, { id: restore.id, tags: restore.originalTags }));
+    }
+  }
+  for (const id of cleanupArticleIds.reverse()) {
+    cleanup.push(await capture(articleDeleteMutation, { id }));
+  }
+  for (const id of cleanupBlogIds.reverse()) {
+    cleanup.push(await capture(blogDeleteMutation, { id }));
+  }
+  for (const id of cleanupDraftOrderIds.reverse()) {
+    cleanup.push(await capture(draftOrderDeleteMutation, { input: { id } }));
+  }
+  for (const id of cleanupOrderIds.reverse()) {
+    cleanup.push(await capture(orderDeleteMutation, { id }));
+  }
+  for (const id of cleanupCustomerIds.reverse()) {
+    cleanup.push(await capture(customerDeleteMutation, { input: { id } }));
+  }
   if (articleId) {
     cleanup.push(await capture(articleDeleteMutation, { id: articleId }));
   }

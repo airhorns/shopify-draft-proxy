@@ -73,14 +73,14 @@ fn marketing_external_activity_lifecycle_stages_updates_engagements_and_reads_ba
 
     let update = proxy.process_request(json_graphql_request(
         r#"
-        mutation MarketingActivityLifecycleUpdate($remoteId: String!, $input: MarketingActivityUpdateExternalInput!) {
-          updateExternalByRemoteId: marketingActivityUpdateExternal(remoteId: $remoteId, input: $input) {
+        mutation MarketingActivityLifecycleUpdate($remoteId: String!, $utm: UTMInput, $input: MarketingActivityUpdateExternalInput!) {
+          updateExternalByRemoteId: marketingActivityUpdateExternal(remoteId: $remoteId, utm: $utm, input: $input) {
             marketingActivity { id title status statusLabel marketingEvent { remoteId manageUrl description } }
             userErrors { field message code }
           }
         }
         "#,
-        json!({"remoteId": "remote-1", "input": {"title": "Launch updated", "status": "PAUSED", "remoteUrl": "https://example.com/manage-2"}}),
+        json!({"remoteId": "remote-1", "utm": {"campaign": "launch", "source": "email", "medium": "newsletter"}, "input": {"title": "Launch updated", "status": "PAUSED", "remoteUrl": "https://example.com/manage-2"}}),
     ));
     assert_eq!(
         update.body["data"]["updateExternalByRemoteId"]["marketingActivity"]["title"],
@@ -375,6 +375,206 @@ fn marketing_external_activity_upsert_create_branch_rejects_currency_and_duplica
 }
 
 #[test]
+fn marketing_external_activity_update_and_upsert_reject_immutable_field_changes() {
+    let mut proxy = snapshot_proxy();
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle(
+          $parentInput: MarketingActivityCreateExternalInput!
+          $otherParentInput: MarketingActivityCreateExternalInput!
+          $childInput: MarketingActivityCreateExternalInput!
+          $utmOnlyInput: MarketingActivityCreateExternalInput!
+        ) {
+          parent: marketingActivityCreateExternal(input: $parentInput) { marketingActivity { id } userErrors { field message code } }
+          otherParent: marketingActivityCreateExternal(input: $otherParentInput) { marketingActivity { id } userErrors { field message code } }
+          child: marketingActivityCreateExternal(input: $childInput) { marketingActivity { id title parentRemoteId hierarchyLevel urlParameterValue utmParameters { campaign source medium } marketingEvent { channelHandle } } userErrors { field message code } }
+          utmOnly: marketingActivityCreateExternal(input: $utmOnlyInput) { marketingActivity { id } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "parentInput": {"title": "Parent", "remoteId": "guard-parent", "status": "ACTIVE", "remoteUrl": "https://example.com/parent", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "guard-parent", "source": "email", "medium": "newsletter"}, "hierarchyLevel": "CAMPAIGN"},
+            "otherParentInput": {"title": "Other parent", "remoteId": "guard-other-parent", "status": "ACTIVE", "remoteUrl": "https://example.com/other-parent", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "guard-other-parent", "source": "email", "medium": "newsletter"}, "hierarchyLevel": "CAMPAIGN"},
+            "childInput": {"title": "Child", "remoteId": "guard-child", "status": "ACTIVE", "remoteUrl": "https://example.com/child", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "urlParameterValue": "guard-child-url", "utm": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}, "parentRemoteId": "guard-parent", "hierarchyLevel": "AD"},
+            "utmOnlyInput": {"title": "UTM only", "remoteId": "guard-utm-only", "status": "ACTIVE", "remoteUrl": "https://example.com/utm-only", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "guard-utm-only", "source": "email", "medium": "newsletter"}}
+        }),
+    ));
+    assert_eq!(seed.body["data"]["parent"]["userErrors"], json!([]));
+    assert_eq!(seed.body["data"]["otherParent"]["userErrors"], json!([]));
+    assert_eq!(seed.body["data"]["child"]["userErrors"], json!([]));
+    assert_eq!(seed.body["data"]["utmOnly"]["userErrors"], json!([]));
+
+    let order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($input: MarketingActivityUpsertExternalInput!) {
+          changed: marketingActivityUpsertExternal(input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Should not stage", "remoteId": "guard-child", "status": "ACTIVE", "remoteUrl": "https://example.com/child", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "urlParameterValue": "changed-url", "utm": {"campaign": "changed-campaign", "source": "email", "medium": "newsletter"}, "channelHandle": "changed-channel"}}),
+    ));
+    assert_eq!(
+        order.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Channel handle cannot be modified.", "code": "IMMUTABLE_CHANNEL_HANDLE"}]})
+    );
+
+    let update_parent = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($remoteId: String!, $input: MarketingActivityUpdateExternalInput!) {
+          changed: marketingActivityUpdateExternal(remoteId: $remoteId, input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"remoteId": "guard-child", "input": {"title": "Should not stage parent", "urlParameterValue": "guard-child-url", "utm": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}, "parentRemoteId": "guard-other-parent", "hierarchyLevel": "AD"}}),
+    ));
+    assert_eq!(
+        update_parent.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Parent ID cannot be modified.", "code": "IMMUTABLE_PARENT_ID"}]})
+    );
+
+    let invalid_parent = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($input: MarketingActivityUpsertExternalInput!) {
+          changed: marketingActivityUpsertExternal(input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Should not stage invalid parent", "remoteId": "guard-child", "status": "ACTIVE", "remoteUrl": "https://example.com/child", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "urlParameterValue": "guard-child-url", "utm": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}, "parentRemoteId": "missing-parent", "hierarchyLevel": "AD"}}),
+    ));
+    assert_eq!(
+        invalid_parent.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Remote ID does not correspond to an activity.", "code": "INVALID_REMOTE_ID"}]})
+    );
+
+    let hierarchy = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($input: MarketingActivityUpsertExternalInput!) {
+          changed: marketingActivityUpsertExternal(input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Should not stage hierarchy", "remoteId": "guard-child", "status": "ACTIVE", "remoteUrl": "https://example.com/child", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "urlParameterValue": "guard-child-url", "utm": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}, "parentRemoteId": "guard-parent", "hierarchyLevel": "AD_GROUP"}}),
+    ));
+    assert_eq!(
+        hierarchy.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Hierarchy level cannot be modified.", "code": "IMMUTABLE_HIERARCHY_LEVEL"}]})
+    );
+
+    let omitted_url = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($input: MarketingActivityUpsertExternalInput!) {
+          changed: marketingActivityUpsertExternal(input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Should not stage omitted URL", "remoteId": "guard-child", "status": "ACTIVE", "remoteUrl": "https://example.com/child", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}, "parentRemoteId": "guard-parent", "hierarchyLevel": "AD"}}),
+    ));
+    assert_eq!(
+        omitted_url.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "URL parameter value cannot be modified.", "code": "IMMUTABLE_URL_PARAMETER"}]})
+    );
+
+    let omitted_utm = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($remoteId: String!, $input: MarketingActivityUpdateExternalInput!) {
+          changed: marketingActivityUpdateExternal(remoteId: $remoteId, input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"remoteId": "guard-utm-only", "input": {"title": "Should not stage omitted UTM"}}),
+    ));
+    assert_eq!(
+        omitted_utm.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "UTM parameters cannot be modified.", "code": "IMMUTABLE_UTM_PARAMETERS"}]})
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingActivityLifecycleRead($remoteIds: [String!]) {
+          marketingActivities(first: 10, remoteIds: $remoteIds) { nodes { title remoteId parentRemoteId hierarchyLevel urlParameterValue utmParameters { campaign source medium } } }
+        }
+        "#,
+        json!({"remoteIds": ["guard-child", "guard-utm-only"]}),
+    ));
+    assert_eq!(
+        read.body["data"]["marketingActivities"]["nodes"][0],
+        json!({"title": "Child", "remoteId": "guard-child", "parentRemoteId": "guard-parent", "hierarchyLevel": "AD", "urlParameterValue": "guard-child-url", "utmParameters": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}})
+    );
+    assert_eq!(
+        read.body["data"]["marketingActivities"]["nodes"][1]["title"],
+        json!("UTM only")
+    );
+}
+
+#[test]
+fn marketing_external_activity_update_and_upsert_reject_not_external_and_missing_event_records() {
+    let mut proxy = snapshot_proxy();
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingEngagementCreateValidationOrder($activityInput: MarketingActivityUpdateInput!, $externalInput: MarketingActivityCreateExternalInput!) {
+          native: marketingActivityUpdate(input: $activityInput) { marketingActivity { id title isExternal marketingEvent { id } } userErrors { field message } }
+          external: marketingActivityCreateExternal(input: $externalInput) { marketingActivity { id title remoteId } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "activityInput": {"id": "gid://shopify/MarketingActivity/native-no-event", "title": "Native no event", "status": "ACTIVE"},
+            "externalInput": {"title": "External", "remoteId": "eventless-remote", "status": "ACTIVE", "remoteUrl": "https://example.com/eventless", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "eventless-remote", "source": "email", "medium": "newsletter"}}
+        }),
+    ));
+    assert_eq!(seed.body["data"]["native"]["userErrors"], json!([]));
+    assert_eq!(seed.body["data"]["external"]["userErrors"], json!([]));
+    let external_id = seed.body["data"]["external"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let not_external_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($marketingActivityId: ID!, $input: MarketingActivityUpdateExternalInput!) {
+          changed: marketingActivityUpdateExternal(marketingActivityId: $marketingActivityId, input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"marketingActivityId": "gid://shopify/MarketingActivity/native-no-event", "input": {"title": "Should not stage native"}}),
+    ));
+    assert_eq!(
+        not_external_update.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": null, "message": "Marketing activity is not external.", "code": "ACTIVITY_NOT_EXTERNAL"}]})
+    );
+
+    let not_external_upsert = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($input: MarketingActivityUpsertExternalInput!) {
+          changed: marketingActivityUpsertExternal(input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Should not stage native upsert", "remoteId": "native-local", "status": "ACTIVE", "remoteUrl": "https://example.com/native", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "native-local", "source": "email", "medium": "newsletter"}}}),
+    ));
+    assert_eq!(
+        not_external_upsert.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": null, "message": "Marketing activity is not external.", "code": "ACTIVITY_NOT_EXTERNAL"}]})
+    );
+
+    assert!(external_id.starts_with("gid://shopify/MarketingActivity/"));
+}
+
+#[test]
 fn marketing_engagement_create_validation_order_and_missing_event_reach_rust_handler() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
@@ -660,7 +860,7 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
     );
     assert_eq!(
         set.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"]["changes"][0],
-        json!({"name": "available", "delta": 7, "quantityAfterChange": null, "ledgerDocumentUri": null, "location": {"id": "gid://shopify/Location/106318430514", "name": "Shop location"}})
+        json!({"name": "available", "delta": 7, "quantityAfterChange": 7, "ledgerDocumentUri": null, "location": {"id": "gid://shopify/Location/106318430514", "name": "Shop location"}})
     );
     assert_eq!(
         set.body["data"]["inventorySetQuantities"]["inventoryAdjustmentGroup"]["changes"][2]
@@ -673,7 +873,7 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
         query InventoryQuantityDownstreamRead($inventoryItemId: ID!, $productId: ID!) {
           inventoryItem(id: $inventoryItemId) {
             variant { inventoryQuantity product { totalInventory } }
-            inventoryLevels(first: 10) { nodes { location { id } quantities(names: ["available", "on_hand", "damaged"]) { name quantity } } }
+            inventoryLevels(first: 10) { nodes { location { id } quantities(names: ["available", "on_hand", "damaged"]) { name quantity updatedAt } } }
           }
           product(id: $productId) { totalInventory }
         }
@@ -688,6 +888,21 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
         read_after_set.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
             [0]["quantity"],
         json!(7)
+    );
+    assert_eq!(
+        read_after_set.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+            [0]["updatedAt"],
+        json!("2024-01-01T00:00:00.000Z")
+    );
+    assert_eq!(
+        read_after_set.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+            [1]["updatedAt"],
+        json!("2024-01-01T00:00:00.000Z")
+    );
+    assert_eq!(
+        read_after_set.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+            [2]["updatedAt"],
+        Value::Null
     );
     assert_eq!(
         read_after_set.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][1]["quantities"]
@@ -717,7 +932,17 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
     );
     assert_eq!(
         move_response.body["data"]["inventoryMoveQuantities"]["inventoryAdjustmentGroup"]
+            ["changes"][0]["quantityAfterChange"],
+        json!(4)
+    );
+    assert_eq!(
+        move_response.body["data"]["inventoryMoveQuantities"]["inventoryAdjustmentGroup"]
             ["changes"][1]["delta"],
+        json!(3)
+    );
+    assert_eq!(
+        move_response.body["data"]["inventoryMoveQuantities"]["inventoryAdjustmentGroup"]
+            ["changes"][1]["quantityAfterChange"],
         json!(3)
     );
 
@@ -726,7 +951,7 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
         query InventoryQuantityDownstreamRead($inventoryItemId: ID!, $productId: ID!) {
           inventoryItem(id: $inventoryItemId) {
             variant { inventoryQuantity product { totalInventory } }
-            inventoryLevels(first: 10) { nodes { location { id } quantities(names: ["available", "on_hand", "damaged"]) { name quantity } } }
+            inventoryLevels(first: 10) { nodes { location { id } quantities(names: ["available", "on_hand", "damaged"]) { name quantity updatedAt } } }
           }
           product(id: $productId) { totalInventory }
         }
@@ -744,8 +969,23 @@ fn inventory_quantity_roots_stage_set_move_properties_and_downstream_reads() {
     );
     assert_eq!(
         read_after_move.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+            [0]["updatedAt"],
+        json!("2024-01-01T00:00:01.000Z")
+    );
+    assert_eq!(
+        read_after_move.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+            [1]["updatedAt"],
+        json!("2024-01-01T00:00:00.000Z")
+    );
+    assert_eq!(
+        read_after_move.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
             [2]["quantity"],
         json!(3)
+    );
+    assert_eq!(
+        read_after_move.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"]
+            [2]["updatedAt"],
+        json!("2024-01-01T00:00:01.000Z")
     );
 
     let blocked_set = proxy.process_request(json_graphql_request(
@@ -838,8 +1078,8 @@ fn inventory_adjust_quantities_stages_levels_logs_and_reads_back_by_root_field()
     assert_eq!(
         read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"],
         json!([
-            {"name": "available", "quantity": 5, "updatedAt": null},
-            {"name": "on_hand", "quantity": 5, "updatedAt": null},
+            {"name": "available", "quantity": 5, "updatedAt": "2024-01-01T00:00:00.000Z"},
+            {"name": "on_hand", "quantity": 5, "updatedAt": "2024-01-01T00:00:00.000Z"},
             {"name": "damaged", "quantity": 0, "updatedAt": null}
         ])
     );
@@ -1795,6 +2035,216 @@ fn online_store_pixel_endpoint_edges_ported_from_gleam() {
         server_pixel.body["data"]["pubsub"]["serverPixel"]["webhookEndpointAddress"],
         json!("project/topic")
     );
+}
+
+#[test]
+fn webhook_eventbridge_arn_validation_uses_shopify_partner_shape_and_fields() {
+    let mut proxy = snapshot_proxy();
+    let create_mutation = r#"
+        mutation RustWebhookLocalRuntimeEventBridgeValidation($webhookSubscription: EventBridgeWebhookSubscriptionInput!) {
+          eventBridgeWebhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id endpoint { __typename ... on WebhookEventBridgeEndpoint { arn } } }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let mut missing_source_request = json_graphql_request(
+        create_mutation,
+        json!({"webhookSubscription": {"arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713"}}),
+    );
+    missing_source_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let missing_source = proxy.process_request(missing_source_request);
+    assert_eq!(
+        missing_source.body["data"]["eventBridgeWebhookSubscriptionCreate"],
+        json!({"webhookSubscription": null, "userErrors": [
+            {"field": ["webhookSubscription", "arn"], "message": "Address is invalid"},
+            {"field": ["webhookSubscription", "arn"], "message": "Address is not a valid AWS ARN"}
+        ]})
+    );
+
+    let mut wrong_client_request = json_graphql_request(
+        create_mutation,
+        json!({"webhookSubscription": {"arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/1/source-x"}}),
+    );
+    wrong_client_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let wrong_client = proxy.process_request(wrong_client_request);
+    assert_eq!(
+        wrong_client.body["data"]["eventBridgeWebhookSubscriptionCreate"],
+        json!({"webhookSubscription": null, "userErrors": [
+            {"field": ["webhookSubscription", "arn"], "message": "Address is invalid"},
+            {"field": ["webhookSubscription", "arn"], "message": "Address is an AWS ARN and includes api_client_id '1' instead of '347082227713'"}
+        ]})
+    );
+
+    let mut generic_arn_request = json_graphql_request(
+        create_mutation,
+        json!({"webhookSubscription": {"arn": "arn:aws:events:us-east-1:123456789012:rule/foo"}}),
+    );
+    generic_arn_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let generic_arn = proxy.process_request(generic_arn_request);
+    assert_eq!(
+        generic_arn.body["data"]["eventBridgeWebhookSubscriptionCreate"],
+        json!({"webhookSubscription": null, "userErrors": [
+            {"field": ["webhookSubscription", "arn"], "message": "Address is invalid"},
+            {"field": ["webhookSubscription", "arn"], "message": "Address is not a valid AWS ARN"}
+        ]})
+    );
+
+    let mut accepted_request = json_graphql_request(
+        create_mutation,
+        json!({"webhookSubscription": {"arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/source-x"}}),
+    );
+    accepted_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let accepted = proxy.process_request(accepted_request);
+    let subscription_id = accepted.body["data"]["eventBridgeWebhookSubscriptionCreate"]
+        ["webhookSubscription"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        accepted.body["data"]["eventBridgeWebhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let update_mutation = r#"
+        mutation RustWebhookLocalRuntimeEventBridgeUpdateValidation($id: ID!, $webhookSubscription: EventBridgeWebhookSubscriptionInput!) {
+          eventBridgeWebhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let mut update_request = json_graphql_request(
+        update_mutation,
+        json!({
+            "id": subscription_id,
+            "webhookSubscription": {"arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/1/source-x"}
+        }),
+    );
+    update_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let update = proxy.process_request(update_request);
+    assert_eq!(
+        update.body["data"]["eventBridgeWebhookSubscriptionUpdate"],
+        json!({"webhookSubscription": null, "userErrors": [
+            {"field": ["webhookSubscription", "arn"], "message": "Address is invalid"},
+            {"field": ["webhookSubscription", "arn"], "message": "Address is an AWS ARN and includes api_client_id '1' instead of '347082227713'"}
+        ]})
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        ..Default::default()
+    });
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn webhook_cloud_destination_validation_preserves_unified_and_pubsub_fields() {
+    let mut proxy = snapshot_proxy();
+    let unified_mutation = r#"
+        mutation RustWebhookLocalRuntimeUnifiedCloudValidation($webhookSubscription: WebhookSubscriptionInput!) {
+          webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let mut unified_request = json_graphql_request(
+        unified_mutation,
+        json!({"webhookSubscription": {"callbackUrl": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/1/source-x"}}),
+    );
+    unified_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let unified = proxy.process_request(unified_request);
+    assert_eq!(
+        unified.body["data"]["webhookSubscriptionCreate"],
+        json!({"webhookSubscription": null, "userErrors": [
+            {"field": ["webhookSubscription", "callbackUrl"], "message": "Address is invalid"},
+            {"field": ["webhookSubscription", "callbackUrl"], "message": "Address is an AWS ARN and includes api_client_id '1' instead of '347082227713'"}
+        ]})
+    );
+
+    let pubsub_create = r#"
+        mutation RustWebhookLocalRuntimePubSubProjectValidation($webhookSubscription: PubSubWebhookSubscriptionInput!) {
+          pubSubWebhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let bad_project_create = proxy.process_request(json_graphql_request(
+        pubsub_create,
+        json!({"webhookSubscription": {"pubSubProject": "-bad-project", "pubSubTopic": "valid-topic"}}),
+    ));
+    assert_eq!(
+        bad_project_create.body["data"]["pubSubWebhookSubscriptionCreate"],
+        json!({"webhookSubscription": null, "userErrors": [{
+            "field": ["webhookSubscription", "pubSubProject"],
+            "message": "Google Cloud Pub/Sub project ID is not valid"
+        }]})
+    );
+
+    let valid_project_create = proxy.process_request(json_graphql_request(
+        pubsub_create,
+        json!({"webhookSubscription": {"pubSubProject": "valid-project", "pubSubTopic": "valid-topic"}}),
+    ));
+    let subscription_id = valid_project_create.body["data"]["pubSubWebhookSubscriptionCreate"]
+        ["webhookSubscription"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        valid_project_create.body["data"]["pubSubWebhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let pubsub_update = r#"
+        mutation RustWebhookLocalRuntimePubSubProjectUpdateValidation($id: ID!, $webhookSubscription: PubSubWebhookSubscriptionInput!) {
+          pubSubWebhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let bad_project_update = proxy.process_request(json_graphql_request(
+        pubsub_update,
+        json!({
+            "id": subscription_id,
+            "webhookSubscription": {"pubSubProject": "-bad-project", "pubSubTopic": "valid-topic"}
+        }),
+    ));
+    assert_eq!(
+        bad_project_update.body["data"]["pubSubWebhookSubscriptionUpdate"],
+        json!({"webhookSubscription": null, "userErrors": [{
+            "field": ["webhookSubscription", "pubSubProject"],
+            "message": "Google Cloud Pub/Sub project ID is not valid"
+        }]})
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        ..Default::default()
+    });
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 1);
 }
 
 #[test]

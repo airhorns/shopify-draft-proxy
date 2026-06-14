@@ -1,274 +1,5 @@
 use super::*;
 
-pub(in crate::proxy) fn gift_card_update_validation_data(
-    fields: &[RootFieldSelection],
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Value {
-    let active_id = resolved_string_arg(variables, "activeId")
-        .unwrap_or_else(|| "gid://shopify/GiftCard/har694-active".to_string());
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        let payload = if field.response_key == "success" {
-            let card = json!({
-                "id": active_id,
-                "note": "HAR-694 updated note",
-                "updatedAt": "2024-01-01T00:00:00.000Z"
-            });
-            gift_card_payload_json_nullable(Some(&card), &field.selection, Vec::new())
-        } else {
-            let error = match field.response_key.as_str() {
-                "deactivatedExpiresOn" => json!({
-                    "field": ["input", "expiresOn"],
-                    "message": "The gift card is deactivated.",
-                    "code": "INVALID"
-                }),
-                "emptyInput" => json!({
-                    "field": ["input"],
-                    "message": "At least one argument is required in the input.",
-                    "code": "INVALID"
-                }),
-                "missingCustomer" => json!({
-                    "field": ["input", "customerId"],
-                    "message": "The customer could not be found.",
-                    "code": "CUSTOMER_NOT_FOUND"
-                }),
-                "longRecipientName" => json!({
-                    "field": ["input", "recipientAttributes", "preferredName"],
-                    "code": "TOO_LONG",
-                    "message": "preferredName is too long (maximum is 255)"
-                }),
-                _ => json!({
-                    "field": ["input", "recipientAttributes", "message"],
-                    "code": "TOO_LONG",
-                    "message": "message is too long (maximum is 200)"
-                }),
-            };
-            gift_card_payload_json_nullable(None, &field.selection, vec![error])
-        };
-        data.insert(field.response_key.clone(), payload);
-    }
-    Value::Object(data)
-}
-
-pub(in crate::proxy) fn gift_card_update_noop_data(
-    fields: &[RootFieldSelection],
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Value {
-    let id = resolved_string_arg(variables, "id")
-        .unwrap_or_else(|| "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic".to_string());
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        let payload = if field.response_key == "emptyInput" {
-            gift_card_payload_json_nullable(
-                None,
-                &field.selection,
-                vec![json!({
-                    "field": ["input"],
-                    "message": "At least one argument is required in the input.",
-                    "code": "INVALID"
-                })],
-            )
-        } else {
-            let mut card = json!({
-                "id": id,
-                "updatedAt": "2024-01-01T00:00:00.000Z"
-            });
-            if field.response_key == "noteNoop" {
-                card["note"] = json!("HAR-766 no-op current note");
-            } else if field.response_key == "expiresNoop" {
-                card["expiresOn"] = json!("2030-01-01");
-            } else {
-                card["templateSuffix"] = json!("birthday");
-            }
-            gift_card_payload_json_nullable(Some(&card), &field.selection, Vec::new())
-        };
-        data.insert(field.response_key.clone(), payload);
-    }
-    Value::Object(data)
-}
-
-pub(in crate::proxy) fn gift_card_update_deactivated_multi_field_data(
-    fields: &[RootFieldSelection],
-) -> Value {
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        let blocked_field = if field.response_key == "customerAndRecipient" {
-            "customerId"
-        } else {
-            "expiresOn"
-        };
-        data.insert(
-            field.response_key.clone(),
-            gift_card_payload_json_nullable(
-                None,
-                &field.selection,
-                vec![json!({
-                    "field": ["input", blocked_field],
-                    "message": "The gift card is deactivated.",
-                    "code": "INVALID"
-                })],
-            ),
-        );
-    }
-    Value::Object(data)
-}
-
-pub(in crate::proxy) fn gift_card_trial_shop_assignment_data(
-    fields: &[RootFieldSelection],
-) -> Value {
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        let error = if field.response_key.contains("CustomerAssignment") {
-            json!({
-                "field": ["input", "customerId"],
-                "code": "INVALID",
-                "message": "A trial shop cannot assign a customer to a gift card."
-            })
-        } else {
-            json!({
-                "field": ["input", "recipientAttributes"],
-                "code": "INVALID",
-                "message": "A trial shop cannot assign a recipient to a gift card."
-            })
-        };
-        data.insert(
-            field.response_key.clone(),
-            gift_card_payload_json_nullable(None, &field.selection, vec![error]),
-        );
-    }
-    Value::Object(data)
-}
-
-pub(in crate::proxy) fn gift_card_transaction_validation_data(
-    fields: &[RootFieldSelection],
-) -> Value {
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        let (transaction_field, transaction, user_errors) = match field.response_key.as_str() {
-            "expiredCredit" => (
-                "giftCardCreditTransaction",
-                None,
-                vec![json!({
-                    "field": ["id"],
-                    "code": "INVALID",
-                    "message": "The gift card has expired."
-                })],
-            ),
-            "deactivatedCredit" => (
-                "giftCardCreditTransaction",
-                None,
-                vec![json!({
-                    "field": ["id"],
-                    "code": "INVALID",
-                    "message": "The gift card is deactivated."
-                })],
-            ),
-            "mismatchCredit" => (
-                "giftCardCreditTransaction",
-                None,
-                vec![json!({
-                    "field": ["creditInput", "creditAmount", "currencyCode"],
-                    "code": "MISMATCHING_CURRENCY",
-                    "message": "The currency provided does not match the currency of the gift card."
-                })],
-            ),
-            "futureCredit" => (
-                "giftCardCreditTransaction",
-                None,
-                vec![json!({
-                    "field": ["creditInput", "processedAt"],
-                    "code": "INVALID",
-                    "message": "The processed date must not be in the future."
-                })],
-            ),
-            "preEpochCredit" => (
-                "giftCardCreditTransaction",
-                None,
-                vec![json!({
-                    "field": ["creditInput", "processedAt"],
-                    "code": "INVALID",
-                    "message": "A valid processed date must be used."
-                })],
-            ),
-            "deactivatedDebit" => (
-                "giftCardDebitTransaction",
-                None,
-                vec![json!({
-                    "field": ["id"],
-                    "code": "INVALID",
-                    "message": "The gift card is deactivated."
-                })],
-            ),
-            _ => (
-                "giftCardCreditTransaction",
-                Some(json!({
-                    "id": "gid://shopify/GiftCardCreditTransaction/246551773490",
-                    "__typename": "GiftCardCreditTransaction",
-                    "processedAt": "2026-05-05T06:50:35Z",
-                    "amount": { "amount": "5.0", "currencyCode": "CAD" }
-                })),
-                Vec::new(),
-            ),
-        };
-        data.insert(
-            field.response_key.clone(),
-            gift_card_transaction_payload(
-                &field.selection,
-                transaction_field,
-                transaction,
-                user_errors,
-            ),
-        );
-    }
-    Value::Object(data)
-}
-
-pub(in crate::proxy) fn gift_card_recipient_validation_data(
-    fields: &[RootFieldSelection],
-) -> Value {
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        let error = gift_card_recipient_validation_error(&field.response_key);
-        let payload = gift_card_payload_json_nullable(None, &field.selection, vec![error]);
-        data.insert(field.response_key.clone(), payload);
-    }
-    Value::Object(data)
-}
-
-pub(in crate::proxy) fn gift_card_recipient_validation_error(response_key: &str) -> Value {
-    if response_key.contains("LongPreferredName") {
-        json!({
-            "field": ["input", "recipientAttributes", "preferredName"],
-            "code": "TOO_LONG",
-            "message": "preferredName is too long (maximum is 255)"
-        })
-    } else if response_key.contains("LongMessage") {
-        json!({
-            "field": ["input", "recipientAttributes", "message"],
-            "code": "TOO_LONG",
-            "message": "message is too long (maximum is 200)"
-        })
-    } else if response_key.contains("HtmlPreferredName") {
-        json!({
-            "field": ["input", "recipientAttributes", "preferredName"],
-            "code": "INVALID",
-            "message": "Preferred name cannot contain HTML tags"
-        })
-    } else if response_key.contains("HtmlMessage") {
-        json!({
-            "field": ["input", "recipientAttributes", "message"],
-            "code": "INVALID",
-            "message": "Message cannot contain HTML tags"
-        })
-    } else {
-        json!({
-            "field": ["input", "recipientAttributes", "sendNotificationAt"],
-            "code": "INVALID",
-            "message": "Send notification at must be within 90 days from now"
-        })
-    }
-}
-
 pub(in crate::proxy) fn gift_card_lifecycle_base_card(id: &str) -> Value {
     json!({
         "__typename": "GiftCard",
@@ -344,20 +75,87 @@ pub(in crate::proxy) fn gift_card_count_json(count: usize, selections: &[Selecte
     selected_json(&full, selections)
 }
 
-pub(in crate::proxy) fn backup_region_country(country_code: &str) -> Value {
+pub(in crate::proxy) fn backup_region_country(country_code: &str) -> Option<Value> {
     match country_code {
-        "AE" => json!({
+        "AE" => Some(json!({
             "__typename": "MarketRegionCountry",
             "id": "gid://shopify/MarketRegionCountry/4062110482738",
             "name": "United Arab Emirates",
             "code": "AE"
-        }),
-        _ => json!({
+        })),
+        "AT" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110515506",
+            "name": "Austria",
+            "code": "AT"
+        })),
+        "AU" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110548274",
+            "name": "Australia",
+            "code": "AU"
+        })),
+        "BE" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110581042",
+            "name": "Belgium",
+            "code": "BE"
+        })),
+        "CA" => Some(json!({
             "__typename": "MarketRegionCountry",
             "id": "gid://shopify/MarketRegionCountry/4062110417202",
             "name": "Canada",
             "code": "CA"
-        }),
+        })),
+        "CH" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110613810",
+            "name": "Switzerland",
+            "code": "CH"
+        })),
+        "CZ" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110646578",
+            "name": "Czechia",
+            "code": "CZ"
+        })),
+        "DE" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110679346",
+            "name": "Germany",
+            "code": "DE"
+        })),
+        "DK" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110712114",
+            "name": "Denmark",
+            "code": "DK"
+        })),
+        "ES" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110744882",
+            "name": "Spain",
+            "code": "ES"
+        })),
+        "FI" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110777650",
+            "name": "Finland",
+            "code": "FI"
+        })),
+        "MX" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062111334706",
+            "name": "Mexico",
+            "code": "MX"
+        })),
+        "US" => Some(json!({
+            "__typename": "MarketRegionCountry",
+            "id": "gid://shopify/MarketRegionCountry/4062110449970",
+            "name": "United States",
+            "code": "US"
+        })),
+        _ => None,
     }
 }
 
@@ -487,9 +285,12 @@ pub(in crate::proxy) fn local_node_value(
     if is_safe_no_data_node_gid(id) {
         return Some(Value::Null);
     }
+    if let Some(region) = backup_region {
+        if region.get("id").and_then(Value::as_str) == Some(id) {
+            return Some(selected_json(region, selection));
+        }
+    }
     let full = match id {
-        "gid://shopify/MarketRegionCountry/4062110417202"
-        | "gid://shopify/MarketRegionCountry/4062110482738" => backup_region?.clone(),
         "gid://shopify/CompanyAddress/9348383026" => json!({
             "id": "gid://shopify/CompanyAddress/9348383026",
             "address1": "446 Assignment Way",

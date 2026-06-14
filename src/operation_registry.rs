@@ -217,7 +217,7 @@ fn registry_entry_json_value(entry: &OperationRegistryEntry) -> Value {
     Value::Object(object)
 }
 
-const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 49] = [
+const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 65] = [
     local_query("product", CapabilityDomain::Products),
     local_query("products", CapabilityDomain::Products),
     local_query("productsCount", CapabilityDomain::Products),
@@ -269,6 +269,9 @@ const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 49] = [
     local_query("orderSavedSearches", CapabilityDomain::SavedSearches),
     local_query("productSavedSearches", CapabilityDomain::SavedSearches),
     local_mutation("savedSearchCreate", CapabilityDomain::SavedSearches),
+    local_query("bulkOperation", CapabilityDomain::BulkOperations),
+    local_query("bulkOperations", CapabilityDomain::BulkOperations),
+    local_query("currentBulkOperation", CapabilityDomain::BulkOperations),
     local_query("files", CapabilityDomain::Media),
     local_mutation("stagedUploadsCreate", CapabilityDomain::Media),
     local_mutation("fileAcknowledgeUpdateFailed", CapabilityDomain::Media),
@@ -282,6 +285,25 @@ const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 49] = [
         "standardMetafieldDefinitionEnable",
         CapabilityDomain::Metafields,
     ),
+    local_query("giftCard", CapabilityDomain::GiftCards),
+    local_query("giftCards", CapabilityDomain::GiftCards),
+    local_query("giftCardsCount", CapabilityDomain::GiftCards),
+    local_query("giftCardConfiguration", CapabilityDomain::GiftCards),
+    local_mutation("giftCardCreate", CapabilityDomain::GiftCards),
+    local_mutation("giftCardUpdate", CapabilityDomain::GiftCards),
+    local_mutation("giftCardCredit", CapabilityDomain::GiftCards),
+    local_mutation("giftCardDebit", CapabilityDomain::GiftCards),
+    local_mutation("giftCardDeactivate", CapabilityDomain::GiftCards),
+    local_mutation(
+        "giftCardSendNotificationToCustomer",
+        CapabilityDomain::GiftCards,
+    ),
+    local_mutation(
+        "giftCardSendNotificationToRecipient",
+        CapabilityDomain::GiftCards,
+    ),
+    local_mutation("locationAdd", CapabilityDomain::StoreProperties),
+    local_mutation("locationActivate", CapabilityDomain::StoreProperties),
 ];
 
 const fn local_query(name: &'static str, domain: CapabilityDomain) -> LocalDispatchRoot {

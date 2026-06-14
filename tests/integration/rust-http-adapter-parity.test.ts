@@ -155,6 +155,18 @@ describe('Rust HTTP adapter route surface', () => {
             productOrder: [],
             savedSearches: {},
             savedSearchOrder: [],
+            availableLocales: expect.objectContaining({
+              en: 'English',
+              fr: 'French',
+            }),
+            shopLocales: expect.objectContaining({
+              en: expect.objectContaining({
+                locale: 'en',
+                name: 'English',
+                primary: true,
+                published: true,
+              }),
+            }),
           },
           stagedState: {
             products: {},
@@ -169,6 +181,15 @@ describe('Rust HTTP adapter route surface', () => {
             customers: {},
             deletedCustomerIds: [],
             customerOrders: {},
+            taggableResources: {},
+            orders: {},
+            returns: {},
+            returnsByOrder: {},
+            reverseDeliveries: {},
+            reverseFulfillmentOrders: {},
+            locations: {},
+            locationOrder: [],
+            locationLimitReached: false,
           },
         },
       });
@@ -244,8 +265,7 @@ describe('Rust HTTP adapter route surface', () => {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({
-              query:
-                'mutation { delegateAccessTokenCreate(input: { expiresIn: 60, delegateAccessScope: ["read_products"] }) { userErrors { message } } }',
+              query: '{ currentAppInstallation { id } }',
             }),
           });
           expect(response).toEqual({

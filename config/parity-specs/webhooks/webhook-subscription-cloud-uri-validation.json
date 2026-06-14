@@ -55,6 +55,16 @@
         }
       },
       {
+        "name": "regression-create-arn-malformed-null-and-errors",
+        "capturePath": "$.cases.createArnMalformedRejected.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.cases.createArnMalformedRejected.variables"
+        },
+        "selectedPaths": ["$.webhookSubscription", "$.userErrors"]
+      },
+      {
         "name": "create-arn-wrong-api-client-rejected",
         "capturePath": "$.cases.createArnWrongApiClientRejected.response.payload.data.webhookSubscriptionCreate",
         "proxyPath": "$.data.webhookSubscriptionCreate",
@@ -65,6 +75,19 @@
             "x-shopify-draft-proxy-api-client-id": "347082227713"
           }
         }
+      },
+      {
+        "name": "regression-create-arn-wrong-api-client-null-and-errors",
+        "capturePath": "$.cases.createArnWrongApiClientRejected.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.cases.createArnWrongApiClientRejected.variables",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "selectedPaths": ["$.webhookSubscription", "$.userErrors"]
       },
       {
         "name": "create-kafka-rejected",
@@ -140,6 +163,23 @@
         }
       },
       {
+        "name": "regression-update-arn-malformed-null-and-errors",
+        "capturePath": "$.cases.updateArnMalformedRejected.response.payload.data.webhookSubscriptionUpdate",
+        "proxyPath": "$.data.webhookSubscriptionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.cases.updateArnMalformedRejected.variables.webhookSubscription"
+            }
+          }
+        },
+        "selectedPaths": ["$.webhookSubscription", "$.userErrors"]
+      },
+      {
         "name": "update-arn-wrong-api-client-rejected",
         "capturePath": "$.cases.updateArnWrongApiClientRejected.response.payload.data.webhookSubscriptionUpdate",
         "proxyPath": "$.data.webhookSubscriptionUpdate",
@@ -157,6 +197,26 @@
             "x-shopify-draft-proxy-api-client-id": "347082227713"
           }
         }
+      },
+      {
+        "name": "regression-update-arn-wrong-api-client-null-and-errors",
+        "capturePath": "$.cases.updateArnWrongApiClientRejected.response.payload.data.webhookSubscriptionUpdate",
+        "proxyPath": "$.data.webhookSubscriptionUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.cases.updateArnWrongApiClientRejected.variables.webhookSubscription"
+            }
+          },
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "selectedPaths": ["$.webhookSubscription", "$.userErrors"]
       },
       {
         "name": "update-kafka-rejected",

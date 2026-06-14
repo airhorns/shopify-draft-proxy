@@ -600,7 +600,7 @@ mutation {
 }
 
 #[test]
-fn webhook_subscription_endpoint_uri_variants_match_old_gleam_helpers() {
+fn webhook_subscription_endpoint_uri_variants_validate_cloud_destinations() {
     let mut proxy = snapshot_proxy();
 
     let eventbridge = proxy.process_request(json_graphql_request(
@@ -609,10 +609,13 @@ fn webhook_subscription_endpoint_uri_variants_match_old_gleam_helpers() {
     ));
     assert_eq!(eventbridge.status, 200);
     assert_eq!(
-        eventbridge.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]["endpoint"],
+        eventbridge.body["data"]["webhookSubscriptionCreate"],
         json!({
-            "__typename": "WebhookEventBridgeEndpoint",
-            "arn": "arn:aws:events:us-east-1:1234:event-bus/default"
+            "webhookSubscription": null,
+            "userErrors": [
+                {"field": ["webhookSubscription", "callbackUrl"], "message": "Address is invalid"},
+                {"field": ["webhookSubscription", "callbackUrl"], "message": "Address is not a valid AWS ARN"}
+            ]
         })
     );
 

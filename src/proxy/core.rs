@@ -6,7 +6,7 @@ impl DraftProxy {
             config,
             log_entries: Vec::new(),
             registry: default_registry(),
-            store: Store::default(),
+            store: Store::with_default_baseline(),
             next_synthetic_id: 1,
             commit_transport: Arc::new(default_commit_transport),
             upstream_transport: Arc::new(default_upstream_transport),
@@ -109,7 +109,9 @@ impl DraftProxy {
                 "products": product_state_map_json(&self.store.base.products.records),
                 "productOrder": self.store.base.products.order,
                 "savedSearches": saved_search_state_map_json(&self.store.base.saved_searches.records),
-                "savedSearchOrder": self.store.base.saved_searches.order
+                "savedSearchOrder": self.store.base.saved_searches.order,
+                "availableLocales": self.store.base.available_locales.iter().map(|(locale, name)| (locale.clone(), json!(name))).collect::<serde_json::Map<_, _>>(),
+                "shopLocales": self.store.base.shop_locales.clone()
             },
             "stagedState": {
                 "products": product_state_map_json(&self.store.staged.products.records),
@@ -123,7 +125,16 @@ impl DraftProxy {
                 "delegatedAccessTokens": self.store.staged.delegate_access_tokens.clone(),
                 "customers": self.store.staged.customers.clone(),
                 "deletedCustomerIds": self.store.staged.deleted_customer_ids.iter().cloned().collect::<Vec<_>>(),
-                "customerOrders": self.store.staged.customer_orders.clone()
+                "customerOrders": self.store.staged.customer_orders.clone(),
+                "taggableResources": self.store.staged.taggable_resources.clone(),
+                "orders": self.store.staged.orders.clone(),
+                "returns": self.store.staged.returns.clone(),
+                "returnsByOrder": self.store.staged.returns_by_order.clone(),
+               "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
+                "reverseFulfillmentOrders": self.store.staged.reverse_fulfillment_orders.clone(),
+                "locations": self.store.staged.locations.clone(),
+                "locationOrder": self.store.staged.location_order.clone(),
+                "locationLimitReached": self.store.staged.location_limit_reached
             }
         });
         if !self.store.staged.flow_signatures.is_empty() {
@@ -238,6 +249,40 @@ impl DraftProxy {
             saved_search_state_map_from_json(&state["baseState"]["savedSearches"]),
             string_array_from_json(&state["baseState"]["savedSearchOrder"]),
         );
+        self.store.base.available_locales = state["baseState"]["availableLocales"]
+            .as_object()
+            .map(|locales| {
+                locales
+                    .iter()
+                    .filter_map(|(locale, name)| {
+                        name.as_str().map(|name| (locale.clone(), name.to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_else(default_available_locales);
+        self.store.base.shop_locales = state["baseState"]["shopLocales"]
+            .as_object()
+            .map(|locales| {
+                locales
+                    .iter()
+                    .map(|(locale, record)| (locale.clone(), record.clone()))
+                    .collect()
+            })
+            .unwrap_or_else(|| {
+                BTreeMap::from([(
+                    "en".to_string(),
+                    json!({
+                        "locale": "en",
+                        "name": "English",
+                        "primary": true,
+                        "published": true,
+                        "marketWebPresences": [{
+                            "id": "gid://shopify/MarketWebPresence/62842765618",
+                            "subfolderSuffix": null
+                        }]
+                    }),
+                )])
+            });
         self.store.replace_staged_saved_searches_map_with_order(
             saved_search_state_map_from_json(&state["stagedState"]["savedSearches"]),
             string_array_from_json(&state["stagedState"]["savedSearchOrder"]),
@@ -287,6 +332,89 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.taggable_resources = state["stagedState"]["taggableResources"]
+            .as_object()
+            .map(|resources| {
+                resources
+                    .iter()
+                    .map(|(id, resource)| (id.clone(), resource.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.orders = state["stagedState"]["orders"]
+            .as_object()
+            .map(|orders| {
+                orders
+                    .iter()
+                    .map(|(id, order)| (id.clone(), order.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.returns = state["stagedState"]["returns"]
+            .as_object()
+            .map(|returns| {
+                returns
+                    .iter()
+                    .map(|(id, return_record)| (id.clone(), return_record.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.returns_by_order = state["stagedState"]["returnsByOrder"]
+            .as_object()
+            .map(|returns_by_order| {
+                returns_by_order
+                    .iter()
+                    .map(|(id, returns)| {
+                        (
+                            id.clone(),
+                            returns
+                                .as_array()
+                                .into_iter()
+                                .flatten()
+                                .filter_map(|value| value.as_str().map(str::to_string))
+                                .collect(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.reverse_deliveries = state["stagedState"]["reverseDeliveries"]
+            .as_object()
+            .map(|deliveries| {
+                deliveries
+                    .iter()
+                    .map(|(id, delivery)| (id.clone(), delivery.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.reverse_fulfillment_orders = state["stagedState"]
+            ["reverseFulfillmentOrders"]
+            .as_object()
+            .map(|orders| {
+                orders
+                    .iter()
+                    .map(|(id, order)| (id.clone(), order.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.locations = state["stagedState"]
+            .get("locations")
+            .and_then(Value::as_object)
+            .map(|locations| {
+                locations
+                    .iter()
+                    .map(|(id, location)| (id.clone(), location.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.location_order = state["stagedState"]
+            .get("locationOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| self.store.staged.locations.keys().cloned().collect());
+        self.store.staged.location_limit_reached = state["stagedState"]
+            .get("locationLimitReached")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         self.store.staged.flow_signatures = state["stagedState"]["flowSignatures"]
             .as_array()
             .cloned()

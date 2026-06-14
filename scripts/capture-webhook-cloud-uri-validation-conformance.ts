@@ -227,13 +227,25 @@ function buildSpec(requestingApiClientId: string): Record<string, unknown> {
         createTarget('create-pubsub-bad-project-rejected', 'createPubsubBadProjectRejected'),
         createTarget('create-pubsub-bad-topic-rejected', 'createPubsubBadTopicRejected'),
         createTarget('create-arn-malformed-rejected', 'createArnMalformedRejected'),
+        regressionCreateTarget('regression-create-arn-malformed-null-and-errors', 'createArnMalformedRejected'),
         createTarget('create-arn-wrong-api-client-rejected', 'createArnWrongApiClientRejected', wrongClientHeaders),
+        regressionCreateTarget(
+          'regression-create-arn-wrong-api-client-null-and-errors',
+          'createArnWrongApiClientRejected',
+          wrongClientHeaders,
+        ),
         createTarget('create-kafka-rejected', 'createKafkaRejected'),
         updateTarget('update-pubsub-no-topic-rejected', 'updatePubsubNoTopicRejected'),
         updateTarget('update-pubsub-bad-project-rejected', 'updatePubsubBadProjectRejected'),
         updateTarget('update-pubsub-bad-topic-rejected', 'updatePubsubBadTopicRejected'),
         updateTarget('update-arn-malformed-rejected', 'updateArnMalformedRejected'),
+        regressionUpdateTarget('regression-update-arn-malformed-null-and-errors', 'updateArnMalformedRejected'),
         updateTarget('update-arn-wrong-api-client-rejected', 'updateArnWrongApiClientRejected', wrongClientHeaders),
+        regressionUpdateTarget(
+          'regression-update-arn-wrong-api-client-null-and-errors',
+          'updateArnWrongApiClientRejected',
+          wrongClientHeaders,
+        ),
         updateTarget('update-kafka-rejected', 'updateKafkaRejected'),
       ],
     },
@@ -250,6 +262,17 @@ function createTarget(name: string, caseName: string, headers?: Record<string, s
       variablesCapturePath: `$.cases.${caseName}.variables`,
       ...(headers ? { headers } : {}),
     },
+  };
+}
+
+function regressionCreateTarget(
+  name: string,
+  caseName: string,
+  headers?: Record<string, string>,
+): Record<string, unknown> {
+  return {
+    ...createTarget(name, caseName, headers),
+    selectedPaths: ['$.webhookSubscription', '$.userErrors'],
   };
 }
 
@@ -270,5 +293,16 @@ function updateTarget(name: string, caseName: string, headers?: Record<string, s
       },
       ...(headers ? { headers } : {}),
     },
+  };
+}
+
+function regressionUpdateTarget(
+  name: string,
+  caseName: string,
+  headers?: Record<string, string>,
+): Record<string, unknown> {
+  return {
+    ...updateTarget(name, caseName, headers),
+    selectedPaths: ['$.webhookSubscription', '$.userErrors'],
   };
 }
