@@ -213,7 +213,12 @@ impl DraftProxy {
             return ok_json(data);
         }
 
-        if let Some(data) = self.draft_order_complete_local_data(root_field, &query, &variables) {
+        if let Some(data) = payment_terms_fixture_data(
+            root_field,
+            &query,
+            &variables,
+            &mut self.store.staged.payment_terms_ids,
+        ) {
             return ok_json(data);
         }
 
@@ -223,23 +228,29 @@ impl DraftProxy {
             return ok_json(data);
         }
 
-        if let Some(response) =
-            self.draft_order_invoice_send_local_response(request, &query, &variables)
-        {
-            return response;
-        }
-
         if let Some(data) = self.remaining_order_local_data(root_field, &query, &variables) {
             return ok_json(data);
         }
 
-        if let Some(data) = payment_terms_fixture_data(
+        if matches!(
             root_field,
-            &query,
-            &variables,
-            &mut self.store.staged.payment_terms_ids,
+            "orderCreate" | "order" | "orders" | "ordersCount"
         ) {
+            if let Some(data) =
+                self.order_create_local_data(request, root_field, &query, &variables)
+            {
+                return ok_json(data);
+            }
+        }
+
+        if let Some(data) = self.draft_order_complete_local_data(root_field, &query, &variables) {
             return ok_json(data);
+        }
+
+        if let Some(response) =
+            self.draft_order_invoice_send_local_response(request, &query, &variables)
+        {
+            return response;
         }
 
         if let Some(data) = payment_reminder_fixture_data(
