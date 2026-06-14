@@ -1,0 +1,16 @@
+mutation NaturalProductMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+  metafieldsSet(metafields: $metafields) {
+    metafields {
+      namespace
+      key
+      type
+      value
+    }
+    userErrors {
+      field
+      message
+      code
+      elementIndex
+    }
+  }
+}

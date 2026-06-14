@@ -1,0 +1,121 @@
+{
+  "capturedAt": "2026-06-14T15:46:11.964Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "Captures fulfillmentServiceUpdate callbackUrl protocol validation against live Shopify Admin GraphQL.",
+    "A valid mock.shop fulfillment service is created only as setup for the update validation branch.",
+    "Shopify rejects ftp:// callbackUrl updates with a protocol-specific payload userError on field [\"callbackUrl\"].",
+    "The created fulfillment service is deleted during cleanup."
+  ],
+  "setupCreate": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-callback-url-update-protocol-create.graphql",
+    "variables": {
+      "name": "Hermes Callback Update Protocol 1781451971430",
+      "callbackUrl": "https://mock.shop/fulfillment-service-callback"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentServiceCreate": {
+            "fulfillmentService": {
+              "id": "gid://shopify/FulfillmentService/72026849586?id=true",
+              "handle": "hermes-callback-update-protocol-1781451971430",
+              "serviceName": "Hermes Callback Update Protocol 1781451971430",
+              "callbackUrl": "https://mock.shop/fulfillment-service-callback",
+              "trackingSupport": false,
+              "inventoryManagement": false,
+              "requiresShippingMethod": false,
+              "type": "THIRD_PARTY",
+              "location": {
+                "id": "gid://shopify/Location/113472864562",
+                "name": "Hermes Callback Update Protocol 1781451971430",
+                "isFulfillmentService": true,
+                "fulfillsOnlineOrders": true,
+                "shipsInventory": false
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "updateProtocol": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-callback-url-validation-update-protocol.graphql",
+    "variables": {
+      "id": "gid://shopify/FulfillmentService/72026849586?id=true",
+      "callbackUrl": "ftp://mock.shop/fulfillment-service-callback-updated"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fulfillmentServiceUpdate": {
+            "fulfillmentService": null,
+            "userErrors": [
+              {
+                "field": ["callbackUrl"],
+                "message": "Callback url protocol ftp:// is not supported"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "query": "mutation FulfillmentServiceCallbackUrlUpdateProtocolCleanup($id: ID!) {\n    fulfillmentServiceDelete(id: $id, inventoryAction: DELETE) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentService/72026849586?id=true"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceDelete": {
+              "deletedId": "gid://shopify/FulfillmentService/72026849586",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

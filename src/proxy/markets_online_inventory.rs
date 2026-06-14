@@ -1154,79 +1154,6 @@ pub(in crate::proxy) fn market_localization_error(field: Vec<&str>, code: &str) 
     })
 }
 
-pub(in crate::proxy) fn is_ported_metaobject_document(query: &str) -> bool {
-    query.contains("MetaobjectsReadParity")
-        || query.contains("MetaobjectEntryLifecycleCreate")
-        || query.contains("MetaobjectEntryLifecycleDelete")
-}
-
-pub(in crate::proxy) fn seed_metaobject_record() -> Value {
-    metaobject_record(
-        "gid://shopify/Metaobject/185593102642",
-        "codex-har-240-1777156845370",
-        "codex_har_240_1777156845370",
-        "HAR-240 title 1777156845370",
-        "HAR-240 body 1777156845370",
-        "2026-04-25T22:40:46Z",
-    )
-}
-
-pub(in crate::proxy) fn metaobject_record(
-    id: &str,
-    handle: &str,
-    meta_type: &str,
-    title: &str,
-    body: &str,
-    updated_at: &str,
-) -> Value {
-    let title_field = json!({
-        "key": "title",
-        "type": "single_line_text_field",
-        "value": title,
-        "jsonValue": title,
-        "definition": {"key": "title", "name": "Title", "required": true, "type": {"name": "single_line_text_field", "category": "TEXT"}}
-    });
-    let body_field = json!({
-        "key": "body",
-        "type": "multi_line_text_field",
-        "value": body,
-        "jsonValue": body,
-        "definition": {"key": "body", "name": "Body", "required": false, "type": {"name": "multi_line_text_field", "category": "TEXT"}}
-    });
-    json!({
-        "id": id,
-        "handle": handle,
-        "type": meta_type,
-        "displayName": title,
-        "updatedAt": updated_at,
-        "capabilities": {"publishable": {"status": "ACTIVE"}, "onlineStore": null},
-        "fields": [title_field.clone(), body_field],
-        "titleField": title_field
-    })
-}
-
-pub(in crate::proxy) fn metaobject_cursor(record: &Value) -> String {
-    if record.get("id").and_then(Value::as_str) == Some("gid://shopify/Metaobject/185593102642") {
-        String::from_utf8(vec![
-            0x65, 0x79, 0x4a, 0x73, 0x59, 0x58, 0x4e, 0x30, 0x58, 0x32, 0x6c, 0x6b, 0x49, 0x6a,
-            0x6f, 0x78, 0x4f, 0x44, 0x55, 0x31, 0x4f, 0x54, 0x4d, 0x78, 0x4d, 0x44, 0x49, 0x32,
-            0x4e, 0x44, 0x49, 0x73, 0x49, 0x6d, 0x78, 0x68, 0x63, 0x33, 0x52, 0x66, 0x64, 0x6d,
-            0x46, 0x73, 0x64, 0x57, 0x55, 0x69, 0x4f, 0x69, 0x49, 0x78, 0x4f, 0x44, 0x55, 0x31,
-            0x4f, 0x54, 0x4d, 0x78, 0x4d, 0x44, 0x49, 0x32, 0x4e, 0x44, 0x49, 0x69, 0x66, 0x51,
-            0x3d, 0x3d,
-        ])
-        .expect("seed cursor is valid UTF-8")
-    } else {
-        format!(
-            "cursor:{}",
-            record
-                .get("id")
-                .and_then(Value::as_str)
-                .unwrap_or("metaobject")
-        )
-    }
-}
-
 pub(in crate::proxy) fn is_ported_online_store_document(query: &str) -> bool {
     query.contains("MobilePlatformApplicationUpdate")
         || query.contains("MobilePlatformApplicationCreateBlankApplicationId")
@@ -1958,14 +1885,6 @@ pub(in crate::proxy) fn marketing_activity_missing_error() -> Value {
     })
 }
 
-pub(in crate::proxy) fn marketing_activity_not_external_error() -> Value {
-    json!({
-        "field": null,
-        "message": "The marketing activity must be an external activity.",
-        "code": "ACTIVITY_NOT_EXTERNAL"
-    })
-}
-
 pub(in crate::proxy) fn marketing_activity_child_events_error() -> Value {
     json!({
         "field": null,
@@ -2238,23 +2157,6 @@ pub(in crate::proxy) fn invalid_marketing_url_error(
     None
 }
 
-pub(in crate::proxy) fn input_utm_differs(
-    existing: &Value,
-    input: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    let Some(utm) = resolved_object_field(input, "utm") else {
-        return false;
-    };
-    for key in ["campaign", "source", "medium"] {
-        if resolved_string_field(&utm, key)
-            .is_some_and(|value| existing["utmParameters"][key].as_str() != Some(value.as_str()))
-        {
-            return true;
-        }
-    }
-    false
-}
-
 pub(in crate::proxy) fn marketing_input_has_tactic(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> bool {
@@ -2425,19 +2327,6 @@ pub(in crate::proxy) fn draft_order_invoice_line_item() -> Value {
         "totalDiscountSet": draft_order_invoice_money_set("0.0", "CAD"),
         "variant": Value::Null
     })
-}
-
-pub(in crate::proxy) fn resolved_object_field_bool(
-    value: &ResolvedValue,
-    name: &str,
-) -> Option<bool> {
-    match value {
-        ResolvedValue::Object(fields) => match fields.get(name) {
-            Some(ResolvedValue::Bool(value)) => Some(*value),
-            _ => None,
-        },
-        _ => None,
-    }
 }
 
 pub(in crate::proxy) fn is_rust_webhook_local_runtime_document(query: &str) -> bool {

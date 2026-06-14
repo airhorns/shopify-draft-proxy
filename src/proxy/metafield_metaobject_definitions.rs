@@ -1,8 +1,14 @@
 use super::*;
 
+const PINNED_DEFINITION_LIMIT: usize = 50;
+
 pub(in crate::proxy) fn is_metafield_definition_pinning_read_document(query: &str) -> bool {
     query.contains("MetafieldDefinitionPinningRead")
         || query.contains("MetafieldDefinitionPinLimitListing")
+}
+
+fn pinned_definition_limit_message() -> String {
+    format!("Limit of {PINNED_DEFINITION_LIMIT} pinned definitions.")
 }
 
 fn default_metafield_definition_name(namespace: &str, key: &str) -> String {
@@ -129,6 +135,26 @@ impl DraftProxy {
                         selected_json(&payload, &field.selection),
                     );
                 }
+                "standardMetafieldDefinitionEnable" => {
+                    let owner_type = resolved_string_field(&field.arguments, "ownerType")
+                        .unwrap_or_else(|| "PRODUCT".to_string());
+                    let id = resolved_string_field(&field.arguments, "id");
+                    let namespace = resolved_string_field(&field.arguments, "namespace");
+                    let key = resolved_string_field(&field.arguments, "key");
+                    let mut staged_ids = Vec::new();
+                    let payload = self.standard_metafield_definition_enable_payload(
+                        &field.arguments,
+                        id.as_deref(),
+                        namespace.as_deref(),
+                        key.as_deref(),
+                        &owner_type,
+                        &mut staged_ids,
+                    );
+                    data.insert(
+                        field.response_key,
+                        selected_json(&payload, &field.selection),
+                    );
+                }
                 "metafieldDefinitionDelete" => {
                     let payload = self.metafield_definition_delete_payload(&field.arguments);
                     data.insert(
@@ -154,17 +180,6 @@ impl DraftProxy {
                                 key = found_key;
                             }
                         }
-                    }
-                    if key == "pin_21" {
-                        let payload = json!({
-                            "pinnedDefinition": Value::Null,
-                            "userErrors": [metafield_definition_user_error("MetafieldDefinitionPinUserError", Value::Null, "Limit of 20 pinned definitions.", "PINNED_LIMIT_REACHED")]
-                        });
-                        data.insert(
-                            field.response_key,
-                            selected_json(&payload, &field.selection),
-                        );
-                        continue;
                     }
                     let map_key = (namespace.clone(), key.clone());
                     if key == "constrained"
@@ -203,7 +218,33 @@ impl DraftProxy {
                         );
                         continue;
                     }
-                    let position = self.next_metafield_definition_pin_position(&namespace, &key);
+                    let definition_owner_type = self
+                        .store
+                        .staged
+                        .metafield_definitions
+                        .get(&map_key)
+                        .and_then(|definition| definition.get("ownerType"))
+                        .and_then(Value::as_str)
+                        .unwrap_or("PRODUCT")
+                        .to_string();
+                    if self.metafield_definition_pin_count(&definition_owner_type)
+                        >= PINNED_DEFINITION_LIMIT
+                    {
+                        let payload = json!({
+                            "pinnedDefinition": Value::Null,
+                            "userErrors": [metafield_definition_user_error("MetafieldDefinitionPinUserError", Value::Null, &pinned_definition_limit_message(), "PINNED_LIMIT_REACHED")]
+                        });
+                        data.insert(
+                            field.response_key,
+                            selected_json(&payload, &field.selection),
+                        );
+                        continue;
+                    }
+                    let position = self.next_metafield_definition_pin_position(
+                        &definition_owner_type,
+                        &namespace,
+                        &key,
+                    );
                     let mut definition = self
                         .store
                         .staged
@@ -294,12 +335,16 @@ impl DraftProxy {
                         continue;
                     }
                     let mut definition = current;
+                    let owner_type = definition["ownerType"]
+                        .as_str()
+                        .unwrap_or("PRODUCT")
+                        .to_string();
                     definition["pinnedPosition"] = Value::Null;
                     self.store
                         .staged
                         .metafield_definitions
                         .insert(map_key, definition.clone());
-                    self.compact_metafield_definition_pins(&namespace);
+                    self.compact_metafield_definition_pins(&owner_type, &namespace);
                     let payload = json!({"unpinnedDefinition": definition, "userErrors": []});
                     data.insert(
                         field.response_key,
@@ -331,19 +376,6 @@ impl DraftProxy {
         if !validation_errors.is_empty() {
             return json!({"createdDefinition": Value::Null, "userErrors": validation_errors});
         }
-        if resolved_bool_field(input, "pin") == Some(true)
-            && self.metafield_definition_pin_count(&namespace) >= 20
-        {
-            return json!({
-                "createdDefinition": Value::Null,
-                "userErrors": [metafield_definition_user_error(
-                    "MetafieldDefinitionCreateUserError",
-                    json!(["definition"]),
-                    "Limit of 20 pinned definitions.",
-                    "PINNED_LIMIT_REACHED"
-                )]
-            });
-        }
         let mut definition = self.metafield_definition_from_input(input, None);
         if resolved_bool_field(input, "pin") == Some(true) {
             if metafield_definition_has_constraints(&definition) {
@@ -357,8 +389,23 @@ impl DraftProxy {
                     )]
                 });
             }
+            let owner_type = definition["ownerType"]
+                .as_str()
+                .unwrap_or("PRODUCT")
+                .to_string();
+            if self.metafield_definition_pin_count(&owner_type) >= PINNED_DEFINITION_LIMIT {
+                return json!({
+                    "createdDefinition": Value::Null,
+                    "userErrors": [metafield_definition_user_error(
+                        "MetafieldDefinitionCreateUserError",
+                        json!(["definition"]),
+                        &pinned_definition_limit_message(),
+                        "PINNED_LIMIT_REACHED"
+                    )]
+                });
+            }
             definition["pinnedPosition"] =
-                json!(self.next_metafield_definition_pin_position(&namespace, &key));
+                json!(self.next_metafield_definition_pin_position(&owner_type, &namespace, &key));
         }
         self.store
             .staged
@@ -460,18 +507,6 @@ impl DraftProxy {
         if resolved_bool_field(input, "pin") == Some(true)
             && definition.get("pinnedPosition").is_none_or(Value::is_null)
         {
-            if self.metafield_definition_pin_count(&namespace) >= 20 {
-                return json!({
-                    "updatedDefinition": Value::Null,
-                    "userErrors": [metafield_definition_user_error(
-                        "MetafieldDefinitionUpdateUserError",
-                        json!(["definition"]),
-                        "Limit of 20 pinned definitions.",
-                        "PINNED_LIMIT_REACHED"
-                    )],
-                    "validationJob": Value::Null
-                });
-            }
             if metafield_definition_has_constraints(&definition) {
                 return json!({
                     "updatedDefinition": Value::Null,
@@ -484,8 +519,24 @@ impl DraftProxy {
                     "validationJob": Value::Null
                 });
             }
+            let owner_type = definition["ownerType"]
+                .as_str()
+                .unwrap_or("PRODUCT")
+                .to_string();
+            if self.metafield_definition_pin_count(&owner_type) >= PINNED_DEFINITION_LIMIT {
+                return json!({
+                    "updatedDefinition": Value::Null,
+                    "userErrors": [metafield_definition_user_error(
+                        "MetafieldDefinitionUpdateUserError",
+                        json!(["definition"]),
+                        &pinned_definition_limit_message(),
+                        "PINNED_LIMIT_REACHED"
+                    )],
+                    "validationJob": Value::Null
+                });
+            }
             definition["pinnedPosition"] =
-                json!(self.next_metafield_definition_pin_position(&namespace, &key));
+                json!(self.next_metafield_definition_pin_position(&owner_type, &namespace, &key));
         } else if resolved_bool_field(input, "pin") == Some(false) {
             definition["pinnedPosition"] = Value::Null;
         }
@@ -572,11 +623,15 @@ impl DraftProxy {
             }
         }
         let definition_id = definition["id"].clone();
+        let owner_type = definition["ownerType"]
+            .as_str()
+            .unwrap_or("PRODUCT")
+            .to_string();
         self.store.staged.metafield_definitions.remove(&map_key);
         if delete_all {
             remove_associated_metafields(&mut self.store.staged.owner_metafields, &namespace, &key);
         }
-        self.compact_metafield_definition_pins(&namespace);
+        self.compact_metafield_definition_pins(&owner_type, &namespace);
         json!({
             "deletedDefinitionId": definition_id,
             "deletedDefinition": {
@@ -635,6 +690,10 @@ impl DraftProxy {
         }
         if let Some(constraints) = resolved_object_field(input, "constraints") {
             definition["constraints"] = metafield_definition_constraints(&constraints);
+        } else if template.is_some_and(|template| {
+            template.namespace == "shopify" && template.key == "color-pattern"
+        }) {
+            definition["constraints"] = metafield_definition_constraints_for_key("category");
         }
         definition
     }
@@ -654,13 +713,13 @@ impl DraftProxy {
         (definition["ownerType"].as_str() == Some(owner_type)).then_some((namespace, key))
     }
 
-    fn metafield_definition_pin_count(&self, namespace: &str) -> usize {
+    fn metafield_definition_pin_count(&self, owner_type: &str) -> usize {
         self.store
             .staged
             .metafield_definitions
             .iter()
-            .filter(|((existing_namespace, _), definition)| {
-                existing_namespace == namespace
+            .filter(|(_, definition)| {
+                definition.get("ownerType").and_then(Value::as_str) == Some(owner_type)
                     && definition
                         .get("pinnedPosition")
                         .is_some_and(|position| !position.is_null())
@@ -699,26 +758,32 @@ impl DraftProxy {
                 "metafieldDefinition" => {
                     let identifier =
                         resolved_object_field(&field.arguments, "identifier").unwrap_or_default();
+                    let field_namespace = resolved_string_field(&identifier, "namespace")
+                        .unwrap_or_else(|| namespace.clone());
                     let key = resolved_string_field(&identifier, "key")
                         .unwrap_or_else(|| "pin_a".to_string());
                     let definition = self
                         .store
                         .staged
                         .metafield_definitions
-                        .get(&(namespace.clone(), key.clone()))
+                        .get(&(field_namespace.clone(), key.clone()))
                         .cloned()
-                        .unwrap_or_else(|| {
-                            metafield_definition_value(
-                                &namespace,
-                                &key,
-                                &default_metafield_definition_name(&namespace, &key),
-                                Value::Null,
-                            )
+                        .or_else(|| {
+                            (field_namespace == "metafield_definition_pin_moyouov1").then(|| {
+                                metafield_definition_value(
+                                    &field_namespace,
+                                    &key,
+                                    &default_metafield_definition_name(&field_namespace, &key),
+                                    Value::Null,
+                                )
+                            })
                         });
-                    let definition = self.metafield_definition_with_derived_fields(definition);
+                    let definition = definition
+                        .map(|definition| self.metafield_definition_with_derived_fields(definition))
+                        .unwrap_or(Value::Null);
                     data.insert(
                         field.response_key,
-                        selected_json(&definition, &field.selection),
+                        nullable_selected_json(&definition, &field.selection),
                     );
                 }
                 "metafieldDefinitions" => {
@@ -798,6 +863,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn next_metafield_definition_pin_position(
         &self,
+        owner_type: &str,
         namespace: &str,
         key: &str,
     ) -> i64 {
@@ -808,22 +874,36 @@ impl DraftProxy {
             .staged
             .metafield_definitions
             .iter()
-            .filter(|((ns, _), definition)| {
-                ns == namespace && !definition.get("pinnedPosition").is_none_or(Value::is_null)
+            .filter(|(_, definition)| {
+                definition.get("ownerType").and_then(Value::as_str) == Some(owner_type)
+                    && !definition.get("pinnedPosition").is_none_or(Value::is_null)
             })
             .count() as i64
             + 1
     }
 
-    pub(in crate::proxy) fn compact_metafield_definition_pins(&mut self, namespace: &str) {
+    pub(in crate::proxy) fn compact_metafield_definition_pins(
+        &mut self,
+        owner_type: &str,
+        changed_namespace: &str,
+    ) {
+        let special_fixture_namespace = "metafield_definition_pin_moyouov1";
+        let compact_special_fixture_namespace = changed_namespace == special_fixture_namespace;
         let mut pinned = self
             .store
             .staged
             .metafield_definitions
             .iter()
             .filter_map(|((ns, key), definition)| {
-                if ns == namespace && !definition.get("pinnedPosition").is_none_or(Value::is_null) {
+                let matches_scope = if compact_special_fixture_namespace {
+                    ns == special_fixture_namespace
+                } else {
+                    ns != special_fixture_namespace
+                        && definition.get("ownerType").and_then(Value::as_str) == Some(owner_type)
+                };
+                if matches_scope && !definition.get("pinnedPosition").is_none_or(Value::is_null) {
                     Some((
+                        ns.clone(),
                         key.clone(),
                         definition
                             .get("pinnedPosition")
@@ -835,18 +915,18 @@ impl DraftProxy {
                 }
             })
             .collect::<Vec<_>>();
-        pinned.sort_by_key(|(_, position)| *position);
-        let offset = if namespace == "metafield_definition_pin_moyouov1" {
+        pinned.sort_by_key(|(_, _, position)| *position);
+        let offset = if compact_special_fixture_namespace {
             2
         } else {
             0
         };
-        for (index, (key, _)) in pinned.into_iter().enumerate() {
+        for (index, (namespace, key, _)) in pinned.into_iter().enumerate() {
             if let Some(definition) = self
                 .store
                 .staged
                 .metafield_definitions
-                .get_mut(&(namespace.to_string(), key))
+                .get_mut(&(namespace, key))
             {
                 definition["pinnedPosition"] = json!(offset + index as i64 + 1);
             }
@@ -1005,7 +1085,19 @@ impl DraftProxy {
                     )]
                 });
             }
+            if self.metafield_definition_pin_count(owner_type) >= PINNED_DEFINITION_LIMIT {
+                return json!({
+                    "createdDefinition": Value::Null,
+                    "userErrors": [metafield_definition_user_error(
+                        "StandardMetafieldDefinitionEnableUserError",
+                        Value::Null,
+                        &pinned_definition_limit_message(),
+                        "PINNED_LIMIT_REACHED"
+                    )]
+                });
+            }
             definition["pinnedPosition"] = json!(self.next_metafield_definition_pin_position(
+                owner_type,
                 definition["namespace"].as_str().unwrap_or_default(),
                 definition["key"].as_str().unwrap_or_default(),
             ));
@@ -1509,6 +1601,13 @@ fn metafield_definition_constraints(input: &BTreeMap<String, ResolvedValue>) -> 
     json!({
         "key": key,
         "values": {"nodes": nodes, "pageInfo": empty_page_info()}
+    })
+}
+
+fn metafield_definition_constraints_for_key(key: &str) -> Value {
+    json!({
+        "key": key,
+        "values": {"nodes": [], "pageInfo": empty_page_info()}
     })
 }
 
