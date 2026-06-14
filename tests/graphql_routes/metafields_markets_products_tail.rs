@@ -3779,7 +3779,32 @@ fn product_change_status_stages_archived_status_and_downstream_read_lag() {
 
 #[test]
 fn product_variant_compatibility_mutations_replay_captured_bulk_shapes() {
-    let mut proxy = snapshot_proxy();
+    let product_id = "gid://shopify/Product/9259552407785";
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: product_id.to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
+        title: "Hermes Variant Compatibility".to_string(),
+        handle: "hermes-variant-compatibility".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
+    let setup_variant =
+        create_legacy_variant(&mut proxy, product_id, "HERMES-BULK-810153-RED", "24.00");
+    let setup_variant_id = setup_variant["id"]
+        .as_str()
+        .expect("setup variant should have an id")
+        .to_string();
+    let setup_inventory_item_id = setup_variant["inventoryItem"]["id"]
+        .as_str()
+        .expect("setup inventory item should have an id")
+        .to_string();
 
     let create = proxy.process_request(json_graphql_request(
         include_str!(
@@ -3787,7 +3812,7 @@ fn product_variant_compatibility_mutations_replay_captured_bulk_shapes() {
         ),
         json!({
             "input": {
-                "productId": "gid://shopify/Product/9259552407785",
+                "productId": product_id,
                 "title": "Blue",
                 "sku": "HERMES-BULK-810153-BLUE",
                 "barcode": "2222222222222",
@@ -3811,13 +3836,19 @@ fn product_variant_compatibility_mutations_replay_captured_bulk_shapes() {
         create.body["data"]["productVariantCreate"]["productVariant"]["sku"],
         json!("HERMES-BULK-810153-BLUE")
     );
+    assert!(
+        create.body["data"]["productVariantCreate"]["productVariant"]["inventoryItem"]["id"]
+            .as_str()
+            .is_some_and(|id| id.starts_with("gid://shopify/InventoryItem/"))
+    );
     assert_eq!(
-        create.body["data"]["productVariantCreate"]["productVariant"]["inventoryItem"],
-        json!({
-            "id": "gid://shopify/InventoryItem/53053417259241",
-            "tracked": true,
-            "requiresShipping": false
-        })
+        create.body["data"]["productVariantCreate"]["productVariant"]["inventoryItem"]["tracked"],
+        json!(true)
+    );
+    assert_eq!(
+        create.body["data"]["productVariantCreate"]["productVariant"]["inventoryItem"]
+            ["requiresShipping"],
+        json!(false)
     );
 
     let create_read = proxy.process_request(json_graphql_request(
@@ -3841,7 +3872,7 @@ fn product_variant_compatibility_mutations_replay_captured_bulk_shapes() {
         ),
         json!({
             "input": {
-                "id": "gid://shopify/ProductVariant/50905436913897",
+                "id": setup_variant_id,
                 "title": "Red",
                 "sku": "HERMES-BULK-810153-RED",
                 "barcode": "1111111111111",
@@ -3859,7 +3890,7 @@ fn product_variant_compatibility_mutations_replay_captured_bulk_shapes() {
     assert_eq!(
         update.body["data"]["productVariantUpdate"]["productVariant"],
         json!({
-            "id": "gid://shopify/ProductVariant/50905436913897",
+            "id": setup_variant_id,
             "title": "Red",
             "sku": "HERMES-BULK-810153-RED",
             "barcode": "1111111111111",
@@ -3870,7 +3901,7 @@ fn product_variant_compatibility_mutations_replay_captured_bulk_shapes() {
             "inventoryQuantity": 0,
             "selectedOptions": [{ "name": "Color", "value": "Red" }],
             "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53053417160937",
+                "id": setup_inventory_item_id,
                 "tracked": true,
                 "requiresShipping": true
             }
@@ -3878,53 +3909,112 @@ fn product_variant_compatibility_mutations_replay_captured_bulk_shapes() {
     );
 
     let update_read = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/products/productVariantUpdate-downstream-read.graphql"),
+        r#"
+        query LegacyVariantUpdateGraphRead($id: ID!, $query: String!) {
+          product(id: $id) {
+            id
+            totalInventory
+            tracksInventory
+            variants(first: 10) {
+              nodes {
+                id
+                title
+                sku
+                barcode
+                price
+                compareAtPrice
+                taxable
+                inventoryPolicy
+                inventoryQuantity
+                selectedOptions { name value }
+                inventoryItem { id tracked requiresShipping }
+              }
+            }
+          }
+          products(first: 10, query: $query) { nodes { id totalInventory tracksInventory } }
+          skuCount: productsCount(query: $query) { count precision }
+        }
+        "#,
         json!({ "id": "gid://shopify/Product/9259552407785", "query": "sku:HERMES-BULK-810153-RED" }),
     ));
     assert_eq!(
         update_read.body["data"]["product"]["variants"]["nodes"][0]["id"],
-        json!("gid://shopify/ProductVariant/50905436913897")
+        json!(setup_variant_id)
     );
-    assert_eq!(update_read.body["data"]["products"], json!({ "nodes": [] }));
+    assert_eq!(
+        update_read.body["data"]["products"],
+        json!({
+            "nodes": [{
+                "id": product_id,
+                "totalInventory": 0,
+                "tracksInventory": true
+            }]
+        })
+    );
     assert_eq!(
         update_read.body["data"]["skuCount"],
-        json!({ "count": 0, "precision": "EXACT" })
+        json!({ "count": 1, "precision": "EXACT" })
     );
 
     let delete = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/products/productVariantDelete-parity-plan.graphql"
         ),
-        json!({ "id": "gid://shopify/ProductVariant/50905436913897" }),
+        json!({ "id": setup_variant_id }),
     ));
     assert_eq!(delete.status, 200);
     assert_eq!(
         delete.body["data"]["productVariantDelete"],
         json!({
-            "deletedProductVariantId": "gid://shopify/ProductVariant/50905436913897",
+            "deletedProductVariantId": setup_variant_id,
             "userErrors": []
         })
     );
 
     let delete_read = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/products/productVariantsBulkDelete-downstream-read.graphql"),
+        r#"
+        query LegacyVariantDeleteGraphRead($id: ID!, $query: String!) {
+          product(id: $id) {
+            id
+            totalInventory
+            tracksInventory
+            variants(first: 10) {
+              nodes {
+                id
+                title
+                sku
+                barcode
+                price
+                compareAtPrice
+                taxable
+                inventoryPolicy
+                inventoryQuantity
+                selectedOptions { name value }
+                inventoryItem { id tracked requiresShipping }
+              }
+            }
+          }
+          products(first: 10, query: $query) { nodes { id totalInventory tracksInventory } }
+          skuCount: productsCount(query: $query) { count precision }
+        }
+        "#,
         json!({ "id": "gid://shopify/Product/9259552407785", "query": "sku:HERMES-BULK-810153-RED" }),
     ));
     assert_eq!(
         delete_read.body["data"]["product"]["variants"]["nodes"],
         json!([{
-            "id": "gid://shopify/ProductVariant/50905437012201",
+            "id": create.body["data"]["productVariantCreate"]["productVariant"]["id"],
             "title": "Blue",
             "sku": "HERMES-BULK-810153-BLUE",
             "barcode": "2222222222222",
             "price": "26.00",
-            "compareAtPrice": "30.00",
+            "compareAtPrice": null,
             "taxable": true,
             "inventoryPolicy": "DENY",
             "inventoryQuantity": 0,
             "selectedOptions": [{ "name": "Color", "value": "Blue" }],
             "inventoryItem": {
-                "id": "gid://shopify/InventoryItem/53053417259241",
+                "id": create.body["data"]["productVariantCreate"]["productVariant"]["inventoryItem"]["id"],
                 "tracked": true,
                 "requiresShipping": false
             }

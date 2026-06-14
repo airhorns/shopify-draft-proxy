@@ -1765,6 +1765,15 @@ impl DraftProxy {
                 "products" => Some(self.products_connection_field(&field)),
                 "productsCount" => Some(self.products_count_field(&field)),
                 "productByIdentifier" => Some(self.product_by_identifier_field(&field)),
+                "productVariant" => Some(self.product_variant_by_id_field(&field)),
+                "inventoryItem" => {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    self.store
+                        .product_variant_by_inventory_item_id(&id)
+                        .map(|variant| {
+                            product_variant_inventory_item_json(variant, &field.selection)
+                        })
+                }
                 _ => None,
             };
             if let Some(value) = value {
@@ -1787,7 +1796,10 @@ impl DraftProxy {
             return Value::Null;
         };
         match self.product_record_by_id(id) {
-            Some(product) => product_json(product, selection),
+            Some(product) => {
+                let variants = self.store.product_variants_for_product(&product.id);
+                product_json_with_variants(product, &variants, selection)
+            }
             None => Value::Null,
         }
     }
@@ -1815,9 +1827,37 @@ impl DraftProxy {
             },
         };
         match product {
-            Some(product) => product_json(product, selection),
+            Some(product) => {
+                let variants = self.store.product_variants_for_product(&product.id);
+                product_json_with_variants(product, &variants, selection)
+            }
             None => Value::Null,
         }
+    }
+
+    pub(in crate::proxy) fn product_variant_by_id_field(
+        &self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let Some(ResolvedValue::String(id)) = field.arguments.get("id") else {
+            return Value::Null;
+        };
+        self.product_variant_by_id_value(id, &field.selection)
+    }
+
+    pub(in crate::proxy) fn product_variant_by_id_value(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Value {
+        let Some(variant) = self.store.product_variant_by_id(id) else {
+            return Value::Null;
+        };
+        product_variant_json(
+            variant,
+            self.store.product_by_id(&variant.product_id),
+            selection,
+        )
     }
 
     pub(in crate::proxy) fn product_record_by_id(&self, id: &str) -> Option<&ProductRecord> {
@@ -1859,7 +1899,10 @@ impl DraftProxy {
             &products,
             arguments,
             root_selection,
-            product_json,
+            |product, selections| {
+                let variants = self.store.product_variants_for_product(&product.id);
+                product_json_with_variants(product, &variants, selections)
+            },
             |product| product_cursor(product).to_string(),
         )
     }
@@ -2259,6 +2302,275 @@ impl DraftProxy {
             })),
             LogDraft::staged("productUpdate", "products", vec![id]),
         )
+    }
+
+    pub(in crate::proxy) fn product_variant_mutation(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        match root_field {
+            "productVariantCreate" => self.product_variant_create(query, variables),
+            "productVariantUpdate" => self.product_variant_update(query, variables),
+            "productVariantDelete" => self.product_variant_delete(query, variables),
+            _ => MutationOutcome::response(json_error(
+                400,
+                "No mutation dispatcher implemented for product variant root",
+            )),
+        }
+    }
+
+    fn product_variant_create(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        let input = product_variant_input(query, variables).unwrap_or_default();
+        if input.contains_key("id") {
+            return MutationOutcome::response(no_key_on_variant_create_response("id"));
+        }
+        if input.contains_key("inventoryQuantityAdjustment") {
+            return MutationOutcome::response(no_key_on_variant_create_response(
+                "inventoryQuantityAdjustment",
+            ));
+        }
+
+        let product_id = resolved_string_field(&input, "productId").unwrap_or_default();
+        let Some(product) = self.store.product_by_id(&product_id).cloned() else {
+            return MutationOutcome::response(self.product_variant_user_error_response(
+                query,
+                "productVariantCreate",
+                None,
+                None,
+                vec![json!({
+                    "field": ["productId"],
+                    "message": "Product does not exist"
+                })],
+            ));
+        };
+        if let Some(response) =
+            self.product_variant_validation_response(query, "productVariantCreate", &input)
+        {
+            return MutationOutcome::response(response);
+        }
+
+        let variant_id = self.next_proxy_synthetic_gid("ProductVariant");
+        let inventory_item_id = self.next_proxy_synthetic_gid("InventoryItem");
+        let variant = product_variant_record_from_create_input(
+            &input,
+            variant_id.clone(),
+            product_id,
+            inventory_item_id,
+        );
+        self.store.stage_product_variant(variant.clone());
+
+        MutationOutcome::staged(
+            self.product_variant_success_response(
+                query,
+                "productVariantCreate",
+                Some(&product),
+                Some(&variant),
+                Vec::new(),
+            ),
+            LogDraft::staged(
+                "productVariantCreate",
+                "products",
+                vec![product.id, variant_id],
+            ),
+        )
+    }
+
+    fn product_variant_update(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        let input = product_variant_input(query, variables).unwrap_or_default();
+        let id = resolved_string_field(&input, "id").unwrap_or_default();
+        let Some(existing) = self.store.product_variant_by_id(&id).cloned() else {
+            return MutationOutcome::response(self.product_variant_user_error_response(
+                query,
+                "productVariantUpdate",
+                None,
+                None,
+                vec![json!({
+                    "field": ["id"],
+                    "message": "Product variant does not exist"
+                })],
+            ));
+        };
+        if let Some(response) =
+            self.product_variant_validation_response(query, "productVariantUpdate", &input)
+        {
+            return MutationOutcome::response(response);
+        }
+        let mut variant = existing;
+        apply_product_variant_input(&mut variant, &input);
+        self.store.stage_product_variant(variant.clone());
+        let product = self.store.product_by_id(&variant.product_id).cloned();
+
+        MutationOutcome::staged(
+            self.product_variant_success_response(
+                query,
+                "productVariantUpdate",
+                product.as_ref(),
+                Some(&variant),
+                Vec::new(),
+            ),
+            LogDraft::staged(
+                "productVariantUpdate",
+                "products",
+                vec![variant.product_id.clone(), variant.id.clone()],
+            ),
+        )
+    }
+
+    fn product_variant_delete(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        let id = resolved_string_field(variables, "id").unwrap_or_default();
+        let Some(variant) = self.store.product_variant_by_id(&id).cloned() else {
+            return MutationOutcome::response(self.product_variant_delete_response(
+                query,
+                None,
+                vec![json!({
+                    "field": ["id"],
+                    "message": "Product variant does not exist"
+                })],
+            ));
+        };
+        self.store.delete_product_variant(&id);
+        MutationOutcome::staged(
+            self.product_variant_delete_response(query, Some(&id), Vec::new()),
+            LogDraft::staged(
+                "productVariantDelete",
+                "products",
+                vec![variant.product_id, id],
+            ),
+        )
+    }
+
+    fn product_variant_success_response(
+        &self,
+        query: &str,
+        root_field: &str,
+        product: Option<&ProductRecord>,
+        variant: Option<&ProductVariantRecord>,
+        user_errors: Vec<Value>,
+    ) -> Response {
+        ok_json(json!({
+            "data": {
+                root_field_response_key(query).unwrap_or_else(|| root_field.to_string()): self.product_variant_payload_json(
+                    query,
+                    product,
+                    variant,
+                    user_errors
+                )
+            }
+        }))
+    }
+
+    fn product_variant_user_error_response(
+        &self,
+        query: &str,
+        root_field: &str,
+        product: Option<&ProductRecord>,
+        variant: Option<&ProductVariantRecord>,
+        user_errors: Vec<Value>,
+    ) -> Response {
+        self.product_variant_success_response(query, root_field, product, variant, user_errors)
+    }
+
+    fn product_variant_validation_response(
+        &self,
+        query: &str,
+        root_field: &str,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Response> {
+        let user_errors = product_variant_input_user_errors(input);
+        if user_errors.is_empty() {
+            None
+        } else {
+            Some(self.product_variant_user_error_response(
+                query,
+                root_field,
+                None,
+                None,
+                user_errors,
+            ))
+        }
+    }
+
+    fn product_variant_payload_json(
+        &self,
+        query: &str,
+        product: Option<&ProductRecord>,
+        variant: Option<&ProductVariantRecord>,
+        user_errors: Vec<Value>,
+    ) -> Value {
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let product_selection =
+            selected_child_selection(&payload_selection, "product").unwrap_or_default();
+        let variant_selection =
+            selected_child_selection(&payload_selection, "productVariant").unwrap_or_default();
+        let error_selection =
+            selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
+        selected_payload_json(&payload_selection, |selection| {
+            match selection.name.as_str() {
+                "product" => Some(match product {
+                    Some(product) => {
+                        let variants = self.store.product_variants_for_product(&product.id);
+                        product_json_with_variants(product, &variants, &product_selection)
+                    }
+                    None => Value::Null,
+                }),
+                "productVariant" => Some(match variant {
+                    Some(variant) => product_variant_json(
+                        variant,
+                        self.store.product_by_id(&variant.product_id),
+                        &variant_selection,
+                    ),
+                    None => Value::Null,
+                }),
+                "userErrors" => Some(Value::Array(
+                    user_errors
+                        .iter()
+                        .map(|error| selected_json(error, &error_selection))
+                        .collect(),
+                )),
+                _ => None,
+            }
+        })
+    }
+
+    fn product_variant_delete_response(
+        &self,
+        query: &str,
+        deleted_id: Option<&str>,
+        user_errors: Vec<Value>,
+    ) -> Response {
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let error_selection =
+            selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "productVariantDelete".to_string());
+        ok_json(json!({
+            "data": {
+                response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
+                    "deletedProductVariantId" => Some(deleted_id.map_or(Value::Null, |id| json!(id))),
+                    "userErrors" => Some(Value::Array(
+                        user_errors
+                            .iter()
+                            .map(|error| selected_json(error, &error_selection))
+                            .collect(),
+                    )),
+                    _ => None,
+                })
+            }
+        }))
     }
 
     pub(in crate::proxy) fn product_delete(

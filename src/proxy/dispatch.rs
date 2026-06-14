@@ -2094,10 +2094,14 @@ impl DraftProxy {
                 if has_local_dispatch
                     && matches!(
                         root_field,
-                        "product" | "products" | "productsCount" | "productByIdentifier"
+                        "product"
+                            | "products"
+                            | "productsCount"
+                            | "productByIdentifier"
+                            | "productVariant"
                     ) =>
             {
-                if operation.root_fields.iter().any(|field| {
+                let has_inventory_fields = operation.root_fields.iter().any(|field| {
                     matches!(
                         field.as_str(),
                         "inventoryItem"
@@ -2107,7 +2111,18 @@ impl DraftProxy {
                             | "inventoryTransfer"
                             | "inventoryTransfers"
                     )
-                }) {
+                });
+                let has_product_overlay_fields = operation.root_fields.iter().any(|field| {
+                    matches!(
+                        field.as_str(),
+                        "product"
+                            | "products"
+                            | "productsCount"
+                            | "productByIdentifier"
+                            | "productVariant"
+                    )
+                });
+                if has_inventory_fields && !has_product_overlay_fields {
                     if let Some(fields) = root_fields(&query, &variables) {
                         ok_json(json!({ "data": self.inventory_query_data(&fields, &variables) }))
                     } else {
@@ -2170,12 +2185,7 @@ impl DraftProxy {
                         "productVariantCreate" | "productVariantUpdate" | "productVariantDelete"
                     ) =>
             {
-                let outcome = MutationOutcome::staged(
-                    ok_json(json!({
-                        "data": product_variant_compat_mutation_data(root_field, &variables)
-                    })),
-                    LogDraft::staged(root_field, "products", Vec::new()),
-                );
+                let outcome = self.product_variant_mutation(root_field, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
