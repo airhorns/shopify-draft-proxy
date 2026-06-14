@@ -12,7 +12,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-745 executable parity for backupRegionUpdate MarketUserError typename on REGION_NOT_FOUND and GraphQL input-object coercion errors for missing, null, and non-enum literal region.countryCode values.",
+  "notes": "HAR-745 executable parity for backupRegionUpdate MarketUserError typename on REGION_NOT_FOUND and GraphQL input-object coercion errors for missing, null, and non-enum literal region.countryCode values. Malformed requests intentionally use non-magic operation names so proxy validation cannot be operation-name-coupled.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

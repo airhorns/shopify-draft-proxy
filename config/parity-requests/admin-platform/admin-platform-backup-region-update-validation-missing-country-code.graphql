@@ -1,4 +1,4 @@
-mutation BackupRegionUpdateMissingCountryCode {
+mutation BackupRegionUpdateMalformedMissing {
   backupRegionUpdate(region: {}) {
     backupRegion {
       id

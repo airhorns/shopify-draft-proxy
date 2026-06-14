@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-05-05T20:24:48.287Z",
+  "capturedAt": "2026-06-13T22:46:47.856Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "notes": "HAR-745 validation-only capture for backupRegionUpdate: well-formed unknown CountryCode ZZ returns MarketUserError REGION_NOT_FOUND, while missing, null, and non-enum literal region.countryCode fail GraphQL input-object coercion before resolver execution.",
@@ -37,7 +37,7 @@
       }
     },
     "missingCountryCode": {
-      "query": "mutation BackupRegionUpdateMissingCountryCode {\n  backupRegionUpdate(region: {}) {\n    backupRegion {\n      id\n    }\n    userErrors {\n      field\n      code\n    }\n  }\n}\n",
+      "query": "mutation BackupRegionUpdateMalformedMissing {\n  backupRegionUpdate(region: {}) {\n    backupRegion {\n      id\n    }\n    userErrors {\n      field\n      code\n    }\n  }\n}\n",
       "result": {
         "status": 200,
         "payload": {
@@ -50,7 +50,7 @@
                   "column": 30
                 }
               ],
-              "path": ["mutation BackupRegionUpdateMissingCountryCode", "backupRegionUpdate", "region", "countryCode"],
+              "path": ["mutation BackupRegionUpdateMalformedMissing", "backupRegionUpdate", "region", "countryCode"],
               "extensions": {
                 "code": "missingRequiredInputObjectAttribute",
                 "argumentName": "countryCode",
@@ -63,7 +63,7 @@
       }
     },
     "nullCountryCode": {
-      "query": "mutation BackupRegionUpdateNullCountryCode {\n  backupRegionUpdate(region: { countryCode: null }) {\n    backupRegion {\n      id\n    }\n    userErrors {\n      field\n      code\n    }\n  }\n}\n",
+      "query": "mutation BackupRegionUpdateMalformedNull {\n  backupRegionUpdate(region: { countryCode: null }) {\n    backupRegion {\n      id\n    }\n    userErrors {\n      field\n      code\n    }\n  }\n}\n",
       "result": {
         "status": 200,
         "payload": {
@@ -76,7 +76,7 @@
                   "column": 30
                 }
               ],
-              "path": ["mutation BackupRegionUpdateNullCountryCode", "backupRegionUpdate", "region", "countryCode"],
+              "path": ["mutation BackupRegionUpdateMalformedNull", "backupRegionUpdate", "region", "countryCode"],
               "extensions": {
                 "code": "argumentLiteralsIncompatible",
                 "typeName": "InputObject",
@@ -88,7 +88,7 @@
       }
     },
     "numericCountryCode": {
-      "query": "mutation BackupRegionUpdateNumericCountryCode {\n  backupRegionUpdate(region: { countryCode: 42 }) {\n    backupRegion {\n      id\n    }\n    userErrors {\n      field\n      code\n    }\n  }\n}\n",
+      "query": "mutation BackupRegionUpdateMalformedNumeric {\n  backupRegionUpdate(region: { countryCode: 42 }) {\n    backupRegion {\n      id\n    }\n    userErrors {\n      field\n      code\n    }\n  }\n}\n",
       "result": {
         "status": 200,
         "payload": {
@@ -101,7 +101,7 @@
                   "column": 30
                 }
               ],
-              "path": ["mutation BackupRegionUpdateNumericCountryCode", "backupRegionUpdate", "region", "countryCode"],
+              "path": ["mutation BackupRegionUpdateMalformedNumeric", "backupRegionUpdate", "region", "countryCode"],
               "extensions": {
                 "code": "argumentLiteralsIncompatible",
                 "typeName": "InputObject",
