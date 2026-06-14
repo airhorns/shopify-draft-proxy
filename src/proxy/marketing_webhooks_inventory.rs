@@ -749,7 +749,7 @@ impl DraftProxy {
                 "marketingEngagementCreate" => {
                     self.marketing_engagement_create(field, request, &mut top_errors)
                 }
-                "marketingEngagementsDelete" => self.marketing_engagements_delete(field),
+                "marketingEngagementsDelete" => self.marketing_engagements_delete(field, request),
                 "marketingActivityCreate" => selected_json(
                     &json!({
                         "marketingActivity": null,
@@ -870,12 +870,6 @@ impl DraftProxy {
             .get(&existing_id)
             .cloned()
             .unwrap_or(Value::Null);
-        if existing["isExternal"] == json!(false) {
-            return selected_json(
-                &marketing_activity_payload(None, vec![marketing_activity_not_external_error()]),
-                &field.selection,
-            );
-        }
         let selector_utm = resolved_object_field(&field.arguments, "utm");
         if let Some(err) = self.marketing_external_immutable_update_error(
             &existing,
@@ -885,20 +879,6 @@ impl DraftProxy {
         ) {
             return selected_json(
                 &marketing_activity_payload(None, vec![err]),
-                &field.selection,
-            );
-        }
-        if input
-            .get("tactic")
-            .is_some_and(|value| matches!(value, ResolvedValue::String(t) if t == "STOREFRONT" || t == "STOREFRONT_APP"))
-        {
-            return selected_json(
-                &marketing_activity_payload(
-                    None,
-                    vec![json!({
-                        "field": ["input", "tactic"], "message": "You can not update an activity tactic to STOREFRONT_APP. This type of tactic can only be specified when creating a new activity.", "code": "CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP"
-                    })],
-                ),
                 &field.selection,
             );
         }
@@ -924,16 +904,11 @@ impl DraftProxy {
         request: &Request,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        if input
-            .get("tactic")
-            .is_some_and(|value| matches!(value, ResolvedValue::String(t) if t == "STOREFRONT" || t == "STOREFRONT_APP"))
-        {
+        if marketing_input_tactic_is_storefront_app(&input) {
             return selected_json(
                 &marketing_activity_payload(
                     None,
-                    vec![json!({
-                        "field": ["input", "tactic"], "message": "You can not update an activity tactic to STOREFRONT_APP. This type of tactic can only be specified when creating a new activity.", "code": "CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP"
-                    })],
+                    vec![marketing_activity_cannot_update_tactic_to_storefront_error()],
                 ),
                 &field.selection,
             );
@@ -1334,29 +1309,83 @@ impl DraftProxy {
     pub(in crate::proxy) fn marketing_engagements_delete(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
     ) -> Value {
-        let errors = if !field.arguments.contains_key("channelHandle")
-            && !matches!(
-                field.arguments.get("deleteEngagementsForAllChannels"),
-                Some(ResolvedValue::Bool(true))
-            ) {
-            vec![json!({
-                "field": null,
-                "message": "Either the channel_handle or delete_engagements_for_all_channels must be provided when deleting a marketing engagement.",
-                "code": "INVALID_DELETE_ENGAGEMENTS_ARGUMENTS"
-            })]
+        let has_channel_handle = field.arguments.contains_key("channelHandle");
+        let delete_all_channels = matches!(
+            field.arguments.get("deleteEngagementsForAllChannels"),
+            Some(ResolvedValue::Bool(true))
+        );
+        let known_handles = self.marketing_channel_handles_for_request(request);
+        let (result, errors) = if has_channel_handle == delete_all_channels {
+            (
+                Value::Null,
+                vec![json!({
+                    "field": null,
+                    "message": "Either the channel_handle or delete_engagements_for_all_channels must be provided when deleting a marketing engagement.",
+                    "code": "INVALID_DELETE_ENGAGEMENTS_ARGUMENTS"
+                })],
+            )
+        } else if let Some(channel_handle) = resolved_string_arg(&field.arguments, "channelHandle")
+        {
+            if known_handles.contains(&channel_handle) {
+                (
+                    json!(format!(
+                        "Engagement data associated to channel handle '{channel_handle}' marked for deletion"
+                    )),
+                    Vec::new(),
+                )
+            } else {
+                (
+                    Value::Null,
+                    vec![json!({
+                        "field": ["channelHandle"],
+                        "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                        "code": "INVALID_CHANNEL_HANDLE"
+                    })],
+                )
+            }
         } else {
-            Vec::new()
-        };
-        let result = if errors.is_empty() {
-            json!("Engagement data marked for deletion for 0 channel(s)")
-        } else {
-            Value::Null
+            (
+                json!(format!(
+                    "Engagement data marked for deletion for {} channel(s)",
+                    known_handles.len()
+                )),
+                Vec::new(),
+            )
         };
         selected_json(
             &json!({ "result": result, "userErrors": errors }),
             &field.selection,
         )
+    }
+
+    fn marketing_channel_handles_for_request(&self, request: &Request) -> BTreeSet<String> {
+        let request_app = request.headers.get("x-shopify-draft-proxy-api-client-id");
+        self.store
+            .staged
+            .marketing_activities
+            .iter()
+            .filter_map(|(id, record)| {
+                if self
+                    .store
+                    .staged
+                    .deleted_marketing_activity_ids
+                    .contains(id)
+                {
+                    return None;
+                }
+                if let Some(app) = request_app {
+                    if record["apiClientId"].as_str() != Some(app.as_str()) {
+                        return None;
+                    }
+                }
+                record["marketingEvent"]["channelHandle"]
+                    .as_str()
+                    .filter(|handle| !handle.is_empty())
+                    .map(str::to_string)
+            })
+            .collect()
     }
 
     pub(in crate::proxy) fn find_marketing_activity_by_remote(
@@ -1471,6 +1500,14 @@ impl DraftProxy {
                 "code": "MARKETING_EVENT_DOES_NOT_EXIST"
             }));
         }
+        if marketing_input_tactic_is_storefront_app(input) {
+            return Some(marketing_activity_cannot_update_tactic_to_storefront_error());
+        }
+        if marketing_input_has_tactic(input)
+            && marketing_activity_tactic_is_storefront_app(existing)
+        {
+            return Some(marketing_activity_cannot_update_tactic_from_storefront_error());
+        }
         if resolved_string_field(input, "channelHandle").is_some_and(|channel_handle| {
             existing["marketingEvent"]["channelHandle"].as_str() != Some(channel_handle.as_str())
         }) {
@@ -1489,12 +1526,13 @@ impl DraftProxy {
                 "code": "IMMUTABLE_URL_PARAMETER"
             }));
         }
-        if input_utm_value(input, selector_utm, "campaign")
-            != json_string_value(&existing["utmParameters"]["campaign"])
-            || input_utm_value(input, selector_utm, "source")
-                != json_string_value(&existing["utmParameters"]["source"])
-            || input_utm_value(input, selector_utm, "medium")
-                != json_string_value(&existing["utmParameters"]["medium"])
+        if (input.contains_key("utm") || selector_utm.is_some())
+            && (input_utm_value(input, selector_utm, "campaign")
+                != json_string_value(&existing["utmParameters"]["campaign"])
+                || input_utm_value(input, selector_utm, "source")
+                    != json_string_value(&existing["utmParameters"]["source"])
+                || input_utm_value(input, selector_utm, "medium")
+                    != json_string_value(&existing["utmParameters"]["medium"]))
         {
             return Some(json!({
                 "field": ["input"],
@@ -1667,6 +1705,13 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         selections: &[SelectedField],
     ) -> Value {
+        if let Some(variant) = self
+            .store
+            .product_variant_by_inventory_item_id(inventory_item_id)
+        {
+            return product_variant_inventory_item_json(variant, selections);
+        }
+
         let inventory_quantity = self.inventory_total(inventory_item_id, "available");
         let item_levels = self.inventory_levels_for_item(inventory_item_id);
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
@@ -1801,6 +1846,38 @@ impl DraftProxy {
             ),
             updated_at.to_string(),
         );
+    }
+
+    pub(in crate::proxy) fn decrement_inventory_item_available(
+        &mut self,
+        inventory_item_id: &str,
+        quantity: i64,
+    ) {
+        if quantity <= 0 {
+            return;
+        }
+        let location_id = self
+            .store
+            .staged
+            .inventory_levels
+            .keys()
+            .find(|(item_id, _)| item_id == inventory_item_id)
+            .map(|(_, location_id)| location_id.clone())
+            .unwrap_or_else(|| "gid://shopify/Location/1".to_string());
+        let updated_at = self.next_inventory_quantity_timestamp();
+        {
+            let level = self
+                .store
+                .staged
+                .inventory_levels
+                .entry((inventory_item_id.to_string(), location_id.clone()))
+                .or_default();
+            *level.entry("available".to_string()).or_insert(0) -= quantity;
+            *level.entry("on_hand".to_string()).or_insert(0) -= quantity;
+            level.entry("damaged".to_string()).or_insert(0);
+        }
+        self.stamp_inventory_quantity(inventory_item_id, &location_id, "available", &updated_at);
+        self.stamp_inventory_quantity(inventory_item_id, &location_id, "on_hand", &updated_at);
     }
 
     fn inventory_total_all(&self, name: &str) -> i64 {

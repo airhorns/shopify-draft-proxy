@@ -1893,6 +1893,22 @@ pub(in crate::proxy) fn marketing_activity_child_events_error() -> Value {
     })
 }
 
+pub(in crate::proxy) fn marketing_activity_cannot_update_tactic_to_storefront_error() -> Value {
+    json!({
+        "field": ["input"],
+        "message": "You can not update an activity tactic to STOREFRONT_APP. This type of tactic can only be specified when creating a new activity.",
+        "code": "CANNOT_UPDATE_TACTIC_TO_STOREFRONT_APP"
+    })
+}
+
+pub(in crate::proxy) fn marketing_activity_cannot_update_tactic_from_storefront_error() -> Value {
+    json!({
+        "field": ["input"],
+        "message": "You can not update an activity tactic from STOREFRONT_APP.",
+        "code": "CANNOT_UPDATE_TACTIC_IF_ORIGINALLY_STOREFRONT_APP"
+    })
+}
+
 pub(in crate::proxy) fn marketing_event_missing_error() -> Value {
     json!({
         "field": null,
@@ -1942,12 +1958,10 @@ pub(in crate::proxy) fn marketing_activity_from_input(
     });
     let url_parameter_value = resolved_string_field(&input, "urlParameterValue")
         .or_else(|| old["urlParameterValue"].as_str().map(str::to_string));
-    let channel_handle = resolved_string_field(&input, "channelHandle").unwrap_or_else(|| {
-        old["marketingEvent"]["channelHandle"]
-            .as_str()
-            .unwrap_or("email")
-            .to_string()
-    });
+    let channel_handle = resolved_string_field(&input, "channelHandle")
+        .map(Value::String)
+        .or_else(|| old["marketingEvent"].get("channelHandle").cloned())
+        .unwrap_or(Value::Null);
     let utm = resolved_object_field(&input, "utm");
     let old_utm = &old["utmParameters"];
     let campaign = utm
@@ -2141,6 +2155,27 @@ pub(in crate::proxy) fn invalid_marketing_url_error(
     None
 }
 
+pub(in crate::proxy) fn marketing_input_has_tactic(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    input.contains_key("tactic")
+}
+
+pub(in crate::proxy) fn marketing_input_tactic_is_storefront_app(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    input
+        .get("tactic")
+        .is_some_and(|value| matches!(value, ResolvedValue::String(t) if t == "STOREFRONT" || t == "STOREFRONT_APP"))
+}
+
+pub(in crate::proxy) fn marketing_activity_tactic_is_storefront_app(activity: &Value) -> bool {
+    matches!(
+        activity["tactic"].as_str(),
+        Some("STOREFRONT") | Some("STOREFRONT_APP")
+    )
+}
+
 pub(in crate::proxy) fn marketing_status_label(
     status: &str,
     tactic: &str,
@@ -2294,10 +2329,6 @@ pub(in crate::proxy) fn draft_order_invoice_line_item() -> Value {
 
 pub(in crate::proxy) fn is_rust_webhook_local_runtime_document(query: &str) -> bool {
     query.contains("RustWebhookLocalRuntime")
-}
-
-pub(in crate::proxy) fn is_ported_payment_customization_document(query: &str) -> bool {
-    query.contains("RustPaymentCustomizationLocalRuntime")
 }
 
 pub(in crate::proxy) fn bulk_operation_record_with(

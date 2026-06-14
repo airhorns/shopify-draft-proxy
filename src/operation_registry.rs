@@ -222,6 +222,7 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_query("products", CapabilityDomain::Products),
     local_query("productsCount", CapabilityDomain::Products),
     local_query("productByIdentifier", CapabilityDomain::Products),
+    local_query("productVariant", CapabilityDomain::Products),
     local_query("inventoryItem", CapabilityDomain::Products),
     local_query("inventoryItems", CapabilityDomain::Products),
     local_query("inventoryLevel", CapabilityDomain::Products),

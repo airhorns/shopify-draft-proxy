@@ -108,6 +108,8 @@ impl DraftProxy {
             "baseState": {
                 "products": product_state_map_json(&self.store.base.products.records),
                 "productOrder": self.store.base.products.order,
+                "productVariants": product_variant_state_map_json(&self.store.base.product_variants.records),
+                "productVariantOrder": self.store.base.product_variants.order,
                 "savedSearches": saved_search_state_map_json(&self.store.base.saved_searches.records),
                 "savedSearchOrder": self.store.base.saved_searches.order,
                 "availableLocales": self.store.base.available_locales.iter().map(|(locale, name)| (locale.clone(), json!(name))).collect::<serde_json::Map<_, _>>(),
@@ -117,6 +119,9 @@ impl DraftProxy {
                 "products": product_state_map_json(&self.store.staged.products.records),
                 "productOrder": self.store.staged.products.order,
                 "deletedProductIds": self.store.staged.products.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "productVariants": product_variant_state_map_json(&self.store.staged.product_variants.records),
+                "productVariantOrder": self.store.staged.product_variants.order,
+                "deletedProductVariantIds": self.store.staged.product_variants.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "savedSearches": saved_search_state_map_json(&self.store.staged.saved_searches.records),
                 "savedSearchOrder": self.store.staged.saved_searches.order,
                 "deletedSavedSearchIds": self.store.staged.saved_searches.tombstones.iter().cloned().collect::<Vec<_>>(),
@@ -282,12 +287,25 @@ impl DraftProxy {
             product_state_map_from_json(&state["baseState"]["products"]),
             string_array_from_json(&state["baseState"]["productOrder"]),
         );
+        self.store.replace_base_product_variants_map_with_order(
+            product_variant_state_map_from_json(&state["baseState"]["productVariants"]),
+            string_array_from_json(&state["baseState"]["productVariantOrder"]),
+        );
         self.store.replace_staged_products_map_with_order(
             product_state_map_from_json(&state["stagedState"]["products"]),
             string_array_from_json(&state["stagedState"]["productOrder"]),
         );
+        self.store.replace_staged_product_variants_map_with_order(
+            product_variant_state_map_from_json(&state["stagedState"]["productVariants"]),
+            string_array_from_json(&state["stagedState"]["productVariantOrder"]),
+        );
         self.store.replace_product_tombstones(
             string_array_from_json(&state["stagedState"]["deletedProductIds"])
+                .into_iter()
+                .collect(),
+        );
+        self.store.replace_product_variant_tombstones(
+            string_array_from_json(&state["stagedState"]["deletedProductVariantIds"])
                 .into_iter()
                 .collect(),
         );

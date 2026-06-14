@@ -49,6 +49,12 @@ If a behavior is surprising or underspecified, do not guess forever — add a co
    unless the exact target already asserts the changed branch and the workpad
    records that target by name.
 9. Add proxy replay files under `config/parity-requests/` only when a captured scenario can be replayed locally as working evidence.
+   Replay setup must use the same public request surface as real agent traffic.
+   Do not add hidden runner hooks, setup-state JSON, state dumps/restores, or
+   `baseState`/`stagedState` seeds to make a parity scenario pass. If setup
+   needs a product, variant, discount, customer, or other resource, create it
+   through the supported GraphQL mutations or use an existing captured setup
+   request.
 10. Prefer full-response strict parity targets over `selectedPaths` allowlists.
     When stable fields differ, model the behavior or expand the fixture/request
     first; use `expectedDifferences` as a narrow denylist only for unavoidable

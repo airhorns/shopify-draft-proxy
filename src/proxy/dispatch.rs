@@ -97,7 +97,7 @@ impl DraftProxy {
         }))
     }
 
-    fn record_mutation_log_draft(
+    pub(in crate::proxy) fn record_mutation_log_draft(
         &mut self,
         request: &Request,
         query: &str,
@@ -200,25 +200,16 @@ impl DraftProxy {
             return response;
         }
 
-        if let Some(data) = customer_payment_method_fixture_data(root_field, &query) {
+        if let Some(data) = self.customer_payment_method_local_data(request, &query, &variables) {
             return ok_json(data);
         }
 
-        if let Some(data) = money_bag_presentment_fixture_data(root_field, &query) {
+        if let Some(data) = self.money_bag_presentment_local_data(request, &query, &variables) {
             return ok_json(data);
         }
 
-        if let Some(data) = abandonment_delivery_status_fixture_data(root_field, &query, &variables)
+        if let Some(data) = self.abandonment_delivery_status_local_data(request, &query, &variables)
         {
-            return ok_json(data);
-        }
-
-        if let Some(data) = payment_terms_fixture_data(
-            root_field,
-            &query,
-            &variables,
-            &mut self.store.staged.payment_terms_ids,
-        ) {
             return ok_json(data);
         }
 
@@ -226,6 +217,12 @@ impl DraftProxy {
             self.order_payment_transaction_local_data(root_field, &query, &variables)
         {
             return ok_json(data);
+        }
+
+        if let Some(response) =
+            self.draft_order_invoice_send_local_response(request, &query, &variables)
+        {
+            return response;
         }
 
         if let Some(data) = self.remaining_order_local_data(root_field, &query, &variables) {
@@ -247,23 +244,18 @@ impl DraftProxy {
             return ok_json(data);
         }
 
-        if let Some(response) =
-            self.draft_order_invoice_send_local_response(request, &query, &variables)
-        {
-            return response;
-        }
-
-        if let Some(data) = payment_reminder_fixture_data(
-            root_field,
-            &query,
-            &variables,
-            &mut self.store.staged.payment_reminder_schedule_ids,
-        ) {
+        if let Some(data) = self.payment_terms_local_data(request, &query, &variables) {
             return ok_json(data);
         }
 
-        if let Some(data) = payment_customization_fixture_data(root_field, &query, &variables) {
-            return ok_json(data);
+        if root_field == "paymentReminderSend" {
+            if let Some(data) = payment_reminder_local_data(
+                &query,
+                &variables,
+                &mut self.store.staged.payment_reminder_schedule_ids,
+            ) {
+                return ok_json(data);
+            }
         }
 
         if operation.operation_type == OperationType::Query
@@ -284,7 +276,6 @@ impl DraftProxy {
                     "paymentCustomization" | "paymentCustomizations"
                 )
             })
-            && is_ported_payment_customization_document(&query)
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({ "data": self.payment_customization_query_data(&fields) }));
@@ -301,12 +292,24 @@ impl DraftProxy {
                         | "paymentCustomizationDelete"
                 )
             })
-            && is_ported_payment_customization_document(&query)
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(
-                    json!({ "data": self.payment_customization_mutation_data(&fields) }),
-                );
+                let data = self.payment_customization_mutation_data(&fields);
+                let staged_ids = fields
+                    .iter()
+                    .filter_map(|field| {
+                        data[field.response_key.as_str()]["paymentCustomization"]["id"]
+                            .as_str()
+                            .map(ToString::to_string)
+                            .or_else(|| {
+                                data[field.response_key.as_str()]["deletedId"]
+                                    .as_str()
+                                    .map(ToString::to_string)
+                            })
+                    })
+                    .collect();
+                self.record_mutation_log_entry(request, &query, &variables, root_field, staged_ids);
+                return ok_json(json!({ "data": data }));
             }
         }
 
@@ -2082,10 +2085,14 @@ impl DraftProxy {
                 if has_local_dispatch
                     && matches!(
                         root_field,
-                        "product" | "products" | "productsCount" | "productByIdentifier"
+                        "product"
+                            | "products"
+                            | "productsCount"
+                            | "productByIdentifier"
+                            | "productVariant"
                     ) =>
             {
-                if operation.root_fields.iter().any(|field| {
+                let has_inventory_fields = operation.root_fields.iter().any(|field| {
                     matches!(
                         field.as_str(),
                         "inventoryItem"
@@ -2095,7 +2102,18 @@ impl DraftProxy {
                             | "inventoryTransfer"
                             | "inventoryTransfers"
                     )
-                }) {
+                });
+                let has_product_overlay_fields = operation.root_fields.iter().any(|field| {
+                    matches!(
+                        field.as_str(),
+                        "product"
+                            | "products"
+                            | "productsCount"
+                            | "productByIdentifier"
+                            | "productVariant"
+                    )
+                });
+                if has_inventory_fields && !has_product_overlay_fields {
                     if let Some(fields) = root_fields(&query, &variables) {
                         ok_json(json!({ "data": self.inventory_query_data(&fields, &variables) }))
                     } else {
@@ -2158,12 +2176,7 @@ impl DraftProxy {
                         "productVariantCreate" | "productVariantUpdate" | "productVariantDelete"
                     ) =>
             {
-                let outcome = MutationOutcome::staged(
-                    ok_json(json!({
-                        "data": product_variant_compat_mutation_data(root_field, &variables)
-                    })),
-                    LogDraft::staged(root_field, "products", Vec::new()),
-                );
+                let outcome = self.product_variant_mutation(root_field, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)

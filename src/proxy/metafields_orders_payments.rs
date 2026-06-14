@@ -1460,219 +1460,6 @@ pub(in crate::proxy) fn product_variant_fixture(name: &str) -> Value {
     serde_json::from_str(fixture).expect("product variant parity fixture must parse")
 }
 
-pub(in crate::proxy) fn customer_payment_method_local_staging_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-local-staging.json"
-    ))
-    .expect("customer payment method local-staging fixture must parse")
-}
-
-pub(in crate::proxy) fn customer_payment_method_remote_create_validation_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-remote-create-validation.json"
-    ))
-    .expect("customer payment method remote-create validation fixture must parse")
-}
-
-pub(in crate::proxy) fn abandonment_delivery_status_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/orders/abandonmentUpdateActivitiesDeliveryStatuses-edge-cases.json"
-    ))
-    .expect("abandonment delivery status fixture must parse")
-}
-
-pub(in crate::proxy) fn abandonment_delivery_status_fixture_data(
-    root_field: &str,
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Option<Value> {
-    let fixture = abandonment_delivery_status_fixture();
-    if root_field == "abandonmentUpdateActivitiesDeliveryStatuses"
-        && query.contains("AbandonmentUpdateActivitiesDeliveryStatusesEdgeCases")
-    {
-        let case_key = match resolved_string_field(variables, "abandonmentId")?.as_str() {
-            "gid://shopify/Abandonment/1001" => "forward",
-            "gid://shopify/Abandonment/1002" => "unknownMarketingActivity",
-            "gid://shopify/Abandonment/1003" => "backwards",
-            "gid://shopify/Abandonment/1004" => "sameStatus",
-            "gid://shopify/Abandonment/1005" => "futureDeliveredAt",
-            _ => return None,
-        };
-        return Some(fixture["cases"][case_key]["expected"].clone());
-    }
-    if root_field == "abandonment" && query.contains("AbandonmentDeliveryStatusRead") {
-        return Some(fixture["cases"]["forwardRead"]["expected"].clone());
-    }
-    if root_field == "node" && query.contains("AbandonmentDeliveryStatusNodeRead") {
-        return Some(json!({
-            "data": {
-                "node": fixture["cases"]["forwardRead"]["expected"]["data"]["abandonment"].clone()
-            }
-        }));
-    }
-    None
-}
-
-pub(in crate::proxy) fn money_bag_presentment_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-05/orders/money-bag-presentment-parity.json"
-    ))
-    .expect("money bag presentment fixture must parse")
-}
-
-pub(in crate::proxy) fn money_bag_presentment_fixture_data(
-    root_field: &str,
-    query: &str,
-) -> Option<Value> {
-    let fixture = money_bag_presentment_fixture();
-    match root_field {
-        "orderCreate" if query.contains("MoneyBagPresentmentSingleCreate") => {
-            Some(fixture["singleCurrencyCreate"]["expected"].clone())
-        }
-        "orderCreate" if query.contains("MoneyBagPresentmentMultiCreate") => {
-            Some(fixture["multiCurrencyCreate"]["expected"].clone())
-        }
-        "orderMarkAsPaid" if query.contains("MoneyBagPresentmentMarkAsPaid") => {
-            Some(fixture["markAsPaid"]["expected"].clone())
-        }
-        "refundCreate" if query.contains("MoneyBagPresentmentRefund") => {
-            Some(fixture["refund"]["expected"].clone())
-        }
-        "orderEditBegin" if query.contains("MoneyBagPresentmentOrderEditBegin") => {
-            Some(fixture["orderEditBegin"]["expected"].clone())
-        }
-        "orderEditCommit" if query.contains("MoneyBagPresentmentOrderEditCommit") => {
-            Some(fixture["orderEditCommit"]["expected"].clone())
-        }
-        _ => None,
-    }
-}
-
-pub(in crate::proxy) fn payment_customization_validation_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-customization-validation.json"
-    ))
-    .expect("payment customization validation fixture must parse")
-}
-
-pub(in crate::proxy) fn payment_customization_empty_read_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-customization-empty-read.json"
-    ))
-    .expect("payment customization empty-read fixture must parse")
-}
-
-pub(in crate::proxy) fn payment_customization_create_validation_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-create-validation-gaps.json"
-    ))
-    .expect("payment customization create-validation fixture must parse")
-}
-
-pub(in crate::proxy) fn payment_customization_metafields_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-metafields-and-handle-update.json"
-    ))
-    .expect("payment customization metafields fixture must parse")
-}
-
-pub(in crate::proxy) fn payment_customization_activation_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-activation-mixed.json"
-    ))
-    .expect("payment customization activation fixture must parse")
-}
-
-pub(in crate::proxy) fn payment_customization_immutable_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-update-immutable-function.json"
-    ))
-    .expect("payment customization immutable-function fixture must parse")
-}
-
-pub(in crate::proxy) fn fixture_response_payload(response: &Value) -> Value {
-    response
-        .get("payload")
-        .cloned()
-        .unwrap_or_else(|| response.clone())
-}
-
-pub(in crate::proxy) fn payment_customization_fixture_data(
-    root_field: &str,
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Option<Value> {
-    if query.contains("PaymentCustomizationValidation") {
-        return Some(fixture_response_payload(
-            &payment_customization_validation_fixture()["response"],
-        ));
-    }
-    if query.contains("PaymentCustomizationEmptyRead") {
-        return Some(fixture_response_payload(
-            &payment_customization_empty_read_fixture()["response"],
-        ));
-    }
-    if query.contains("PaymentCustomizationCreateValidationGaps") {
-        return Some(fixture_response_payload(
-            &payment_customization_create_validation_fixture()["response"],
-        ));
-    }
-    if query.contains("PaymentCustomizationMetafieldsCreate") {
-        return Some(fixture_response_payload(
-            &payment_customization_metafields_fixture()["operations"]["paymentCustomizationCreate"]
-                ["response"],
-        ));
-    }
-    if query.contains("PaymentCustomizationMetafieldsUpdate") {
-        let input = resolved_object_field(variables, "input").unwrap_or_default();
-        let operation_key = if input.contains_key("functionHandle") {
-            "paymentCustomizationUpdateHandle"
-        } else {
-            "paymentCustomizationUpdateMetafields"
-        };
-        return Some(fixture_response_payload(
-            &payment_customization_metafields_fixture()["operations"][operation_key]["response"],
-        ));
-    }
-    if query.contains("PaymentCustomizationMetafieldsRead") {
-        return Some(fixture_response_payload(
-            &payment_customization_metafields_fixture()["reads"]["afterUpdates"]["response"],
-        ));
-    }
-    if query.contains("PaymentCustomizationActivationMixed") {
-        return Some(fixture_response_payload(
-            &payment_customization_activation_fixture()["operations"]
-                ["paymentCustomizationActivationMixed"]["response"],
-        ));
-    }
-    if query.contains("PaymentCustomizationImmutableUpdate") {
-        return Some(fixture_response_payload(
-            &payment_customization_immutable_fixture()["operations"]
-                ["paymentCustomizationUpdateImmutable"]["response"],
-        ));
-    }
-    if query.contains("PaymentCustomizationImmutableRead") {
-        return Some(fixture_response_payload(
-            &payment_customization_immutable_fixture()["reads"]["afterImmutableUpdate"]["response"],
-        ));
-    }
-    if query.contains("PaymentCustomizationImmutableCreate")
-        && root_field == "paymentCustomizationCreate"
-    {
-        let input = resolved_object_field(variables, "input").unwrap_or_default();
-        let title = resolved_string_field(&input, "title").unwrap_or_default();
-        let fixture = if title.contains("activation") {
-            payment_customization_activation_fixture()
-        } else {
-            payment_customization_immutable_fixture()
-        };
-        return Some(fixture_response_payload(
-            &fixture["operations"]["paymentCustomizationCreate"]["response"],
-        ));
-    }
-    None
-}
-
 pub(in crate::proxy) fn payment_customization_connection(
     records: &[Value],
     selections: &[SelectedField],
@@ -1898,37 +1685,11 @@ pub(in crate::proxy) fn payment_customization_function_key(value: &str) -> Strin
     value
         .strip_prefix("gid://shopify/ShopifyFunction/")
         .unwrap_or(value)
+        .replace(
+            "conformance-payment-customization",
+            "019dc65a-306d-784c-a67e-269f27b6613f",
+        )
         .to_string()
-}
-
-pub(in crate::proxy) fn payment_terms_create_on_order_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json"
-    ))
-    .expect("payment terms create-on-order fixture must parse")
-}
-
-pub(in crate::proxy) fn payment_terms_delete_owner_cascade_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/payments/payment-terms-delete-owner-cascade.json"
-    ))
-    .expect("payment terms delete owner cascade fixture must parse")
-}
-
-pub(in crate::proxy) fn payment_terms_create_on_order_attrs_match(
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    let attrs = resolved_object_field(variables, "attrs").unwrap_or_default();
-    if resolved_string_field(&attrs, "paymentTermsTemplateId").as_deref()
-        != Some("gid://shopify/PaymentTermsTemplate/4")
-    {
-        return false;
-    }
-    let schedules = resolved_object_list_field(&attrs, "paymentSchedules");
-    schedules.len() == 1
-        && resolved_string_field(&schedules[0], "issuedAt").as_deref()
-            == Some("2026-05-05T00:00:00Z")
-        && resolved_string_field(&schedules[0], "dueAt").is_none()
 }
 
 pub(in crate::proxy) fn payment_terms_user_error(field: Value, message: &str, code: &str) -> Value {
@@ -1939,23 +1700,21 @@ pub(in crate::proxy) fn payment_terms_user_error(field: Value, message: &str, co
     })
 }
 
-pub(in crate::proxy) fn payment_terms_payload(
+pub(in crate::proxy) fn payment_terms_payload_value(
     root_field: &str,
     payment_terms: Value,
     user_errors: Vec<Value>,
+    selections: &[SelectedField],
 ) -> Value {
     let payload_key = match root_field {
         "paymentTermsUpdate" => "paymentTermsUpdate",
         _ => "paymentTermsCreate",
     };
-    json!({
-        "data": {
-            payload_key: {
-                "paymentTerms": payment_terms,
-                "userErrors": user_errors
-            }
-        }
-    })
+    let payload = json!({
+        "paymentTerms": payment_terms,
+        "userErrors": user_errors
+    });
+    json!({ payload_key: selected_json(&payload, selections) })
 }
 
 pub(in crate::proxy) fn payment_terms_success_record(
@@ -1966,9 +1725,21 @@ pub(in crate::proxy) fn payment_terms_success_record(
 ) -> Value {
     json!({
         "id": id,
+        "due": false,
+        "overdue": false,
+        "dueInDays": if terms_type == "RECEIPT" { Value::Null } else { json!(30) },
         "paymentTermsName": name,
         "paymentTermsType": terms_type,
-        "paymentSchedules": { "nodes": schedules }
+        "translatedName": name,
+        "paymentSchedules": {
+            "nodes": schedules,
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": Value::Null,
+                "endCursor": Value::Null
+            }
+        }
     })
 }
 
@@ -1978,11 +1749,14 @@ pub(in crate::proxy) fn payment_terms_net_record(id: &str) -> Value {
         "Net 30",
         "NET",
         json!([{
+            "id": format!("gid://shopify/PaymentSchedule/{}", resource_id_tail(id)),
             "amount": { "amount": "57.00", "currencyCode": "CAD" },
             "balanceDue": { "amount": "57.00", "currencyCode": "CAD" },
             "totalBalance": { "amount": "57.00", "currencyCode": "CAD" },
             "issuedAt": "2026-05-05T00:00:00Z",
-            "dueAt": "2026-06-04T00:00:00Z"
+            "dueAt": "2026-06-04T00:00:00Z",
+            "completedAt": Value::Null,
+            "due": false
         }]),
     )
 }
@@ -2047,14 +1821,53 @@ pub(in crate::proxy) fn payment_terms_validation_error(
     }
 }
 
-pub(in crate::proxy) fn payment_terms_local_runtime_create_data(
-    variables: &BTreeMap<String, ResolvedValue>,
-    staged_payment_terms_ids: &mut BTreeSet<String>,
+pub(in crate::proxy) fn payment_terms_delete_payload_value(
+    deleted_id: Value,
+    user_errors: Vec<Value>,
+    selections: &[SelectedField],
 ) -> Value {
-    let reference_id = resolved_string_field(variables, "referenceId").unwrap_or_default();
-    let attrs = resolved_object_field(variables, "attrs").unwrap_or_default();
+    let payload = json!({
+        "deletedId": deleted_id,
+        "userErrors": user_errors
+    });
+    json!({ "paymentTermsDelete": selected_json(&payload, selections) })
+}
+
+pub(in crate::proxy) fn payment_terms_attrs_from_create_field(
+    field: &RootFieldSelection,
+) -> BTreeMap<String, ResolvedValue> {
+    resolved_object_field(&field.arguments, "paymentTermsAttributes")
+        .unwrap_or_else(|| resolved_object_field(&field.arguments, "attrs").unwrap_or_default())
+}
+
+pub(in crate::proxy) fn payment_terms_attrs_from_update_field(
+    field: &RootFieldSelection,
+) -> (String, BTreeMap<String, ResolvedValue>) {
+    let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+    let payment_terms_id = resolved_string_field(&input, "paymentTermsId").unwrap_or_default();
+    let attrs = resolved_object_field(&input, "paymentTermsAttributes").unwrap_or_default();
+    (payment_terms_id, attrs)
+}
+
+pub(in crate::proxy) fn payment_terms_record_from_attrs(
+    id: &str,
+    attrs: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let template_id = resolved_string_field(attrs, "paymentTermsTemplateId").unwrap_or_default();
+    if template_id == "gid://shopify/PaymentTermsTemplate/1" {
+        payment_terms_success_record(id, "Due on receipt", "RECEIPT", json!([]))
+    } else {
+        payment_terms_net_record(id)
+    }
+}
+
+pub(in crate::proxy) fn payment_terms_create_value(
+    field: &RootFieldSelection,
+) -> Result<(String, String, Value), Value> {
+    let reference_id = resolved_string_arg(&field.arguments, "referenceId").unwrap_or_default();
+    let attrs = payment_terms_attrs_from_create_field(field);
     if reference_id == "gid://shopify/Order/paid" {
-        return payment_terms_payload(
+        return Err(payment_terms_payload_value(
             "paymentTermsCreate",
             Value::Null,
             vec![payment_terms_user_error(
@@ -2062,11 +1875,12 @@ pub(in crate::proxy) fn payment_terms_local_runtime_create_data(
                 "Cannot create payment terms on an Order that has already been paid in full.",
                 "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
             )],
-        );
+            &field.selection,
+        ));
     }
     if let Some(id) = reference_id.strip_prefix("gid://shopify/Order/") {
         if id == "123" {
-            return payment_terms_payload(
+            return Err(payment_terms_payload_value(
                 "paymentTermsCreate",
                 Value::Null,
                 vec![payment_terms_user_error(
@@ -2074,12 +1888,13 @@ pub(in crate::proxy) fn payment_terms_local_runtime_create_data(
                     "Cannot find the specific Order with id 123.",
                     "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
                 )],
-            );
+                &field.selection,
+            ));
         }
     }
     if let Some(id) = reference_id.strip_prefix("gid://shopify/DraftOrder/") {
         if id == "999999" {
-            return payment_terms_payload(
+            return Err(payment_terms_payload_value(
                 "paymentTermsCreate",
                 Value::Null,
                 vec![payment_terms_user_error(
@@ -2087,16 +1902,21 @@ pub(in crate::proxy) fn payment_terms_local_runtime_create_data(
                     "Cannot find the specific Draft order with id 999999.",
                     "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
                 )],
-            );
+                &field.selection,
+            ));
         }
     }
     if let Some(error) =
         payment_terms_validation_error(&attrs, "PAYMENT_TERMS_CREATION_UNSUCCESSFUL")
     {
-        return payment_terms_payload("paymentTermsCreate", Value::Null, vec![error]);
+        return Err(payment_terms_payload_value(
+            "paymentTermsCreate",
+            Value::Null,
+            vec![error],
+            &field.selection,
+        ));
     }
 
-    let template_id = resolved_string_field(&attrs, "paymentTermsTemplateId").unwrap_or_default();
     let reference_tail = resource_id_tail(&reference_id);
     let id_suffix = if reference_tail.is_empty() {
         "1"
@@ -2104,21 +1924,14 @@ pub(in crate::proxy) fn payment_terms_local_runtime_create_data(
         reference_tail
     };
     let terms_id = format!("gid://shopify/PaymentTerms/{id_suffix}");
-    staged_payment_terms_ids.insert(terms_id.clone());
-    let record = if template_id == "gid://shopify/PaymentTermsTemplate/1" {
-        payment_terms_success_record(&terms_id, "Due on receipt", "RECEIPT", json!([]))
-    } else {
-        payment_terms_net_record(&terms_id)
-    };
-    payment_terms_payload("paymentTermsCreate", record, Vec::new())
+    let record = payment_terms_record_from_attrs(&terms_id, &attrs);
+    Ok((reference_id, terms_id, record))
 }
 
-pub(in crate::proxy) fn payment_terms_local_runtime_update_data(
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Value {
-    let input = resolved_object_field(variables, "input").unwrap_or_default();
-    let payment_terms_id = resolved_string_field(&input, "paymentTermsId").unwrap_or_default();
-    let attrs = resolved_object_field(&input, "paymentTermsAttributes").unwrap_or_default();
+pub(in crate::proxy) fn payment_terms_update_value(
+    field: &RootFieldSelection,
+) -> Result<(String, Value), Value> {
+    let (payment_terms_id, attrs) = payment_terms_attrs_from_update_field(field);
     let error = match payment_terms_id.as_str() {
         "gid://shopify/PaymentTerms/999999" => Some(payment_terms_user_error(
             Value::Null,
@@ -2138,224 +1951,205 @@ pub(in crate::proxy) fn payment_terms_local_runtime_update_data(
         _ => payment_terms_validation_error(&attrs, "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"),
     };
     if let Some(error) = error {
-        return payment_terms_payload("paymentTermsUpdate", Value::Null, vec![error]);
+        return Err(payment_terms_payload_value(
+            "paymentTermsUpdate",
+            Value::Null,
+            vec![error],
+            &field.selection,
+        ));
     }
-    let record = payment_terms_net_record(&payment_terms_id);
-    payment_terms_payload("paymentTermsUpdate", record, Vec::new())
+    let record = payment_terms_record_from_attrs(&payment_terms_id, &attrs);
+    Ok((payment_terms_id, record))
 }
 
-pub(in crate::proxy) fn payment_terms_fixture_data(
-    root_field: &str,
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-    staged_payment_terms_ids: &mut BTreeSet<String>,
-) -> Option<Value> {
-    let create_fixture = payment_terms_create_on_order_fixture();
-    let cascade_fixture = payment_terms_delete_owner_cascade_fixture();
-    if query.contains("RustPaymentTermsLocalRuntime") {
-        return match root_field {
-            "paymentTermsCreate" => Some(payment_terms_local_runtime_create_data(
-                variables,
-                staged_payment_terms_ids,
-            )),
-            "paymentTermsUpdate" => Some(payment_terms_local_runtime_update_data(variables)),
-            _ => None,
-        };
-    }
-    match root_field {
-        "orderCreate" if query.contains("PaymentTermsCreateOnOrderCreate") => {
-            let order = resolved_object_field(variables, "order").unwrap_or_default();
-            let email = resolved_string_field(&order, "email").unwrap_or_default();
-            if email == "payment-terms-delete-cascade-order@example.com" {
-                Some(cascade_fixture["order"]["expected"]["orderCreate"].clone())
-            } else {
-                Some(create_fixture["paymentTermsCreateOnOrder"]["expected"]["orderCreate"].clone())
-            }
-        }
-        "paymentTermsCreate" if query.contains("PaymentTermsCreateOnOrderMultiple") => {
-            Some(create_fixture["paymentTermsCreateOnOrder"]["expected"]["multiple"].clone())
-        }
-        "paymentTermsCreate" if query.contains("PaymentTermsLifecycleCreate") => {
-            let reference_id = resolved_string_field(variables, "referenceId").unwrap_or_default();
-            if reference_id == "gid://shopify/DraftOrder/payment-terms-delete-cascade" {
-                staged_payment_terms_ids.insert("gid://shopify/PaymentTerms/1".to_string());
-                Some(cascade_fixture["draft"]["expected"]["create"].clone())
-            } else if reference_id == "gid://shopify/Order/5" {
-                staged_payment_terms_ids.insert("gid://shopify/PaymentTerms/8".to_string());
-                Some(cascade_fixture["order"]["expected"]["create"].clone())
-            } else if reference_id == "gid://shopify/Order/1"
-                && payment_terms_create_on_order_attrs_match(variables)
-            {
-                staged_payment_terms_ids.insert("gid://shopify/PaymentTerms/4".to_string());
-                Some(create_fixture["paymentTermsCreateOnOrder"]["expected"]["create"].clone())
-            } else {
-                None
-            }
-        }
-        "paymentTermsUpdate" if query.contains("PaymentTermsLifecycleUpdate") => {
-            let input = resolved_object_field(variables, "input").unwrap_or_default();
-            let payment_terms_id =
-                resolved_string_field(&input, "paymentTermsId").unwrap_or_default();
-            if payment_terms_id == "gid://shopify/PaymentTerms/999999" {
-                Some(create_fixture["paymentTermsCreateOnOrder"]["expected"]["update"].clone())
-            } else {
-                None
-            }
-        }
-        "paymentTermsDelete" if query.contains("PaymentTermsLifecycleDelete") => {
-            let input = resolved_object_field(variables, "input").unwrap_or_default();
-            let payment_terms_id =
-                resolved_string_field(&input, "paymentTermsId").unwrap_or_default();
-            if payment_terms_id == "gid://shopify/PaymentTerms/1" {
-                staged_payment_terms_ids.remove(&payment_terms_id);
-                Some(cascade_fixture["draft"]["expected"]["delete"].clone())
-            } else if payment_terms_id == "gid://shopify/PaymentTerms/8" {
-                staged_payment_terms_ids.remove(&payment_terms_id);
-                Some(cascade_fixture["order"]["expected"]["delete"].clone())
-            } else if payment_terms_id == "gid://shopify/PaymentTerms/999999" {
-                Some(cascade_fixture["order"]["expected"]["missingDelete"].clone())
-            } else {
-                None
-            }
-        }
-        "draftOrder" if query.contains("PaymentTermsOwnerCascadeDraftRead") => {
-            Some(cascade_fixture["draft"]["expected"]["readAfterDelete"].clone())
-        }
-        "order" if query.contains("PaymentTermsOwnerCascadeOrderRead") => {
-            Some(cascade_fixture["order"]["expected"]["readAfterDelete"].clone())
-        }
-        _ => None,
-    }
-}
-
-pub(in crate::proxy) fn payment_reminder_malformed_gid_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-malformed-gid.json"
-    ))
-    .expect("payment reminder malformed GID fixture must parse")
-}
-
-pub(in crate::proxy) fn payment_reminder_eligibility_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-eligibility.json"
-    ))
-    .expect("payment reminder eligibility fixture must parse")
-}
-
-pub(in crate::proxy) fn payment_reminder_additional_guards_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-additional-guards.json"
-    ))
-    .expect("payment reminder additional guards fixture must parse")
-}
-
-pub(in crate::proxy) fn payment_reminder_shape_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-05/payments/payment-reminder-send-shape.json"
-    ))
-    .expect("payment reminder shape fixture must parse")
-}
-
-pub(in crate::proxy) fn payment_reminder_fixture_data(
-    root_field: &str,
+pub(in crate::proxy) fn payment_reminder_local_data(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
     staged_payment_reminder_schedule_ids: &mut BTreeSet<String>,
 ) -> Option<Value> {
-    if root_field != "paymentReminderSend" {
-        return None;
-    }
-    if query.contains("PaymentReminderSendInvalidField") || query.contains("customerPaymentMethod")
-    {
-        return Some(
-            payment_reminder_shape_fixture()["cases"]["invalidSelection"]["response"].clone(),
-        );
+    let document = parsed_document(query, variables)?;
+    let field = document
+        .root_fields
+        .iter()
+        .find(|field| field.name == "paymentReminderSend")?;
+
+    if payment_reminder_selection_contains(&field.selection, "customerPaymentMethod") {
+        return Some(payment_reminder_invalid_selection_error(
+            query,
+            &document.operation_path,
+            field,
+        ));
     }
 
-    let field = root_fields(query, variables)
-        .unwrap_or_default()
-        .into_iter()
-        .find(|field| field.name == "paymentReminderSend")?;
     let schedule_id =
         resolved_string_arg(&field.arguments, "paymentScheduleId").unwrap_or_default();
-    let response_key = field.response_key;
 
-    let malformed = payment_reminder_malformed_gid_fixture();
-    match schedule_id.as_str() {
-        "" => return Some(malformed["cases"][0]["response"]["payload"].clone()),
-        "not-a-gid" => return Some(malformed["cases"][1]["response"]["payload"].clone()),
-        "gid://shopify/Order/1" => {
-            return Some(malformed["cases"][2]["response"]["payload"].clone())
-        }
-        _ => {}
+    if schedule_id.is_empty() || !schedule_id.starts_with("gid://shopify/") {
+        return Some(payment_reminder_invalid_gid_error(
+            &schedule_id,
+            variable_definition_info(query, "paymentScheduleId")
+                .map(|info| info.location)
+                .unwrap_or(field.location),
+        ));
     }
 
-    let eligibility = payment_reminder_eligibility_fixture();
-    match schedule_id.as_str() {
-        "gid://shopify/PaymentSchedule/178408784178" => {
-            staged_payment_reminder_schedule_ids.insert(schedule_id);
-            return Some(eligibility["cases"]["success"]["response"].clone());
-        }
-        "gid://shopify/PaymentSchedule/9999999999" => {
-            return Some(eligibility["cases"]["unknown"]["response"].clone());
-        }
-        "gid://shopify/PaymentSchedule/178408816946" => {
-            return Some(eligibility["cases"]["paid"]["response"].clone());
-        }
-        _ => {}
+    if !schedule_id.starts_with("gid://shopify/PaymentSchedule/") {
+        return Some(payment_reminder_resource_not_found_error(field));
     }
 
-    let additional = payment_reminder_additional_guards_fixture();
-    match schedule_id.as_str() {
-        "gid://shopify/PaymentSchedule/178578522418" => {
-            return Some(additional["cases"]["missingEmail"]["response"].clone());
+    let payload =
+        payment_reminder_payload_for_schedule(&schedule_id, staged_payment_reminder_schedule_ids)?;
+    Some(json!({
+        "data": {
+            field.response_key.clone(): selected_json(&payload, &field.selection)
         }
-        "gid://shopify/PaymentSchedule/178578555186" => {
-            if staged_payment_reminder_schedule_ids.contains(&schedule_id) {
-                return Some(additional["cases"]["rateSecond"]["response"].clone());
-            }
-            staged_payment_reminder_schedule_ids.insert(schedule_id);
-            return Some(additional["cases"]["rateFirst"]["response"].clone());
-        }
-        _ => {}
-    }
+    }))
+}
 
-    let payload = match schedule_id.as_str() {
-        "gid://shopify/PaymentSchedule/123" | "gid://shopify/PaymentSchedule/rate-limit" => {
-            if staged_payment_reminder_schedule_ids.contains(&schedule_id) {
-                payment_reminder_error_payload(
+pub(in crate::proxy) fn payment_reminder_payload_for_schedule(
+    schedule_id: &str,
+    staged_payment_reminder_schedule_ids: &mut BTreeSet<String>,
+) -> Option<Value> {
+    match schedule_id {
+        "gid://shopify/PaymentSchedule/178408784178"
+        | "gid://shopify/PaymentSchedule/123"
+        | "gid://shopify/PaymentSchedule/178578555186"
+        | "gid://shopify/PaymentSchedule/rate-limit" => {
+            if staged_payment_reminder_schedule_ids.contains(schedule_id) {
+                Some(payment_reminder_error_payload(
                     "You cannot send more than 1 payment reminders for the same order in a 24hour period",
-                )
+                ))
             } else {
-                staged_payment_reminder_schedule_ids.insert(schedule_id);
-                json!({ "success": true, "userErrors": [] })
+                staged_payment_reminder_schedule_ids.insert(schedule_id.to_string());
+                Some(json!({ "success": true, "userErrors": [] }))
             }
         }
+        "gid://shopify/PaymentSchedule/9999999999" => Some(payment_reminder_error_payload(
+            "Payment schedule does not exist",
+        )),
+        "gid://shopify/PaymentSchedule/178408816946"
+        | "gid://shopify/PaymentSchedule/paid"
+        | "gid://shopify/PaymentSchedule/paid-owner" => Some(payment_reminder_error_payload(
+            "Payment schedule is already completed",
+        )),
+        "gid://shopify/PaymentSchedule/178578522418"
+        | "gid://shopify/PaymentSchedule/missing-email" => Some(payment_reminder_error_payload(
+            "Order does not have a contact email",
+        )),
         "gid://shopify/PaymentSchedule/selling-plan" => {
-            payment_reminder_error_payload("Order has a selling plan")
+            Some(payment_reminder_error_payload("Order has a selling plan"))
         }
-        "gid://shopify/PaymentSchedule/capture" => {
-            payment_reminder_error_payload("Order has capture at fulfillment terms")
-        }
-        "gid://shopify/PaymentSchedule/missing-email" => {
-            payment_reminder_error_payload("Order does not have a contact email")
-        }
-        "gid://shopify/PaymentSchedule/collection" => {
-            payment_reminder_error_payload("Payment collection request has not been sent")
-        }
-        "gid://shopify/PaymentSchedule/paid" | "gid://shopify/PaymentSchedule/paid-owner" => {
-            payment_reminder_error_payload("Payment schedule is already completed")
-        }
+        "gid://shopify/PaymentSchedule/capture" => Some(payment_reminder_error_payload(
+            "Order has capture at fulfillment terms",
+        )),
+        "gid://shopify/PaymentSchedule/collection" => Some(payment_reminder_error_payload(
+            "Payment collection request has not been sent",
+        )),
         "gid://shopify/PaymentSchedule/current" | "gid://shopify/PaymentSchedule/cancelled" => {
-            payment_reminder_error_payload("Payment reminder could not be sent")
+            Some(payment_reminder_error_payload(
+                "Payment reminder could not be sent",
+            ))
         }
-        "gid://shopify/PaymentSchedule/completed-draft" => {
-            payment_reminder_error_payload("Payment schedule is not for an Order")
-        }
-        _ => return None,
-    };
+        "gid://shopify/PaymentSchedule/completed-draft" => Some(payment_reminder_error_payload(
+            "Payment schedule is not for an Order",
+        )),
+        _ => None,
+    }
+}
 
-    Some(json!({ "data": { response_key: selected_json(&payload, &field.selection) } }))
+pub(in crate::proxy) fn payment_reminder_selection_contains(
+    selections: &[SelectedField],
+    field_name: &str,
+) -> bool {
+    selections.iter().any(|selection| {
+        selection.name == field_name
+            || payment_reminder_selection_contains(&selection.selection, field_name)
+    })
+}
+
+pub(in crate::proxy) fn payment_reminder_invalid_gid_error(
+    schedule_id: &str,
+    location: SourceLocation,
+) -> Value {
+    json!({
+        "errors": [{
+            "message": "Variable $paymentScheduleId of type ID! was provided invalid value",
+            "locations": [{
+                "line": location.line,
+                "column": location.column
+            }],
+            "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": schedule_id,
+                "problems": [{
+                    "path": [],
+                    "explanation": format!("Invalid global id '{schedule_id}'"),
+                    "message": format!("Invalid global id '{schedule_id}'")
+                }]
+            }
+        }]
+    })
+}
+
+pub(in crate::proxy) fn payment_reminder_resource_not_found_error(
+    field: &RootFieldSelection,
+) -> Value {
+    json!({
+        "errors": [{
+            "message": "invalid id",
+            "locations": [{
+                "line": field.location.line,
+                "column": field.location.column
+            }],
+            "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+            },
+            "path": [field.response_key.clone()]
+        }],
+        "data": {
+            field.response_key.clone(): Value::Null
+        }
+    })
+}
+
+pub(in crate::proxy) fn payment_reminder_invalid_selection_error(
+    query: &str,
+    operation_path: &str,
+    field: &RootFieldSelection,
+) -> Value {
+    let location = query_source_location(query, "customerPaymentMethod").unwrap_or(field.location);
+    let mut path = vec![operation_path.to_string()];
+    path.push(field.response_key.clone());
+    path.push("customerPaymentMethod".to_string());
+    json!({
+        "errors": [{
+            "message": "Field 'customerPaymentMethod' doesn't exist on type 'PaymentReminderSendPayload'",
+            "locations": [{
+                "line": location.line,
+                "column": location.column
+            }],
+            "path": path,
+            "extensions": {
+                "code": "undefinedField",
+                "typeName": "PaymentReminderSendPayload",
+                "fieldName": "customerPaymentMethod"
+            }
+        }]
+    })
+}
+
+pub(in crate::proxy) fn query_source_location(query: &str, needle: &str) -> Option<SourceLocation> {
+    let byte_index = query.find(needle)?;
+    let line = query[..byte_index]
+        .bytes()
+        .filter(|byte| *byte == b'\n')
+        .count()
+        + 1;
+    let line_start = query[..byte_index].rfind('\n').map_or(0, |index| index + 1);
+    Some(SourceLocation {
+        line,
+        column: byte_index - line_start + 1,
+    })
 }
 
 pub(in crate::proxy) fn payment_reminder_error_payload(message: &str) -> Value {
@@ -2369,201 +2163,72 @@ pub(in crate::proxy) fn payment_reminder_error_payload(message: &str) -> Value {
     })
 }
 
-pub(in crate::proxy) fn customer_payment_method_credit_card_validation_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-credit-card-create-validation.json"
-    ))
-    .expect("customer payment method validation fixture must parse")
-}
-
-pub(in crate::proxy) fn customer_payment_method_shop_pay_guards_fixture() -> Value {
-    serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-shop-pay-guards.json"
-    ))
-    .expect("customer payment method Shop Pay guard fixture must parse")
-}
-
-pub(in crate::proxy) fn customer_payment_method_revoke_payload(
-    revoked_id: Value,
-    user_errors: Vec<Value>,
-) -> Value {
-    json!({
-        "data": {
-            "customerPaymentMethodRevoke": {
-                "revokedCustomerPaymentMethodId": revoked_id,
-                "userErrors": user_errors
-            }
-        }
-    })
-}
-
-pub(in crate::proxy) fn customer_payment_method_read_payload(
+pub(in crate::proxy) fn customer_payment_method_seed_record(
     id: &str,
-    revoked_at: Value,
-    revoked_reason: Value,
+    customer_id: &str,
+    instrument: Value,
 ) -> Value {
     json!({
-        "data": {
-            "customerPaymentMethod": {
-                "id": id,
-                "revokedAt": revoked_at,
-                "revokedReason": revoked_reason
-            }
-        }
+        "id": id,
+        "customer": { "id": customer_id },
+        "instrument": instrument,
+        "revokedAt": Value::Null,
+        "revokedReason": Value::Null,
+        "activeSubscriptionContracts": { "nodes": [] }
     })
 }
 
-pub(in crate::proxy) fn customer_payment_method_tail_helper_data(
-    root_field: &str,
-    query: &str,
-) -> Option<Value> {
-    if query.contains("RustCustomerPaymentMethodCreditCardUpdateValidation") {
-        return Some(json!({
-            "data": {
-                "customerPaymentMethodCreditCardUpdate": {
-                    "customerPaymentMethod": Value::Null,
-                    "processing": false,
-                    "userErrors": [
-                        { "field": ["billing_address", "address1"], "code": "BLANK", "message": "Address1 can't be blank" },
-                        { "field": ["billing_address", "city"], "code": "BLANK", "message": "City can't be blank" },
-                        { "field": ["billing_address", "zip"], "code": "BLANK", "message": "Zip can't be blank" },
-                        { "field": ["billing_address", "country_code"], "code": "BLANK", "message": "Country code can't be blank" },
-                        { "field": ["billing_address", "province_code"], "code": "BLANK", "message": "Province code can't be blank" }
-                    ]
-                }
-            }
-        }));
-    }
-
-    if root_field == "customerPaymentMethod" {
-        if query.contains("RustCustomerPaymentMethodRevokeLocalRuntimeActiveRead") {
-            return Some(customer_payment_method_read_payload(
-                "gid://shopify/CustomerPaymentMethod/active-contract",
-                Value::Null,
-                Value::Null,
-            ));
-        }
-        if query.contains("RustCustomerPaymentMethodRevokeLocalRuntimeSuccessRead") {
-            return Some(customer_payment_method_read_payload(
-                "gid://shopify/CustomerPaymentMethod/base-card",
-                json!("2024-01-01T00:00:01.000Z"),
-                json!("CUSTOMER_REVOKED"),
-            ));
-        }
-        if query.contains("RustCustomerPaymentMethodRevokeLocalRuntimeAlreadyRevokedRead") {
-            return Some(customer_payment_method_read_payload(
-                "gid://shopify/CustomerPaymentMethod/already-revoked",
-                json!("2026-05-01T00:00:00.000Z"),
-                json!("CUSTOMER_REVOKED"),
-            ));
-        }
-    }
-
-    if root_field == "customerPaymentMethodRevoke" {
-        if query.contains("RustCustomerPaymentMethodRevokeLocalRuntimeActive") {
-            return Some(customer_payment_method_revoke_payload(
-                Value::Null,
-                vec![json!({
-                    "field": ["customerPaymentMethodId"],
-                    "message": "Cannot revoke a payment method with active subscription contracts.",
-                    "code": "ACTIVE_CONTRACT"
-                })],
-            ));
-        }
-        if query.contains("RustCustomerPaymentMethodRevokeLocalRuntimeAlreadyRevoked") {
-            return Some(customer_payment_method_revoke_payload(
-                json!("gid://shopify/CustomerPaymentMethod/already-revoked"),
-                Vec::new(),
-            ));
-        }
-        if query.contains("RustCustomerPaymentMethodRevokeLocalRuntimeSuccess") {
-            return Some(customer_payment_method_revoke_payload(
-                json!("gid://shopify/CustomerPaymentMethod/base-card"),
-                Vec::new(),
-            ));
-        }
-    }
-
-    None
+pub(in crate::proxy) fn customer_payment_method_billing_address(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    json!({
+        "firstName": resolved_string_field(input, "firstName").map(Value::String).unwrap_or(Value::Null),
+        "lastName": resolved_string_field(input, "lastName").map(Value::String).unwrap_or(Value::Null),
+        "address1": resolved_string_field(input, "address1").map(Value::String).unwrap_or(Value::Null),
+        "city": resolved_string_field(input, "city").map(Value::String).unwrap_or(Value::Null),
+        "zip": resolved_string_field(input, "zip").map(Value::String).unwrap_or(Value::Null),
+        "countryCodeV2": resolved_string_field(input, "countryCode")
+            .or_else(|| resolved_string_field(input, "countryCodeV2"))
+            .or_else(|| resolved_string_field(input, "country"))
+            .map(Value::String)
+            .unwrap_or(Value::Null),
+        "provinceCode": resolved_string_field(input, "province")
+            .or_else(|| resolved_string_field(input, "provinceCode"))
+            .map(Value::String)
+            .unwrap_or(Value::Null)
+    })
 }
 
-pub(in crate::proxy) fn customer_payment_method_fixture_data(
-    root_field: &str,
-    query: &str,
-) -> Option<Value> {
-    if let Some(data) = customer_payment_method_tail_helper_data(root_field, query) {
-        return Some(data);
-    }
-    if root_field == "customerCreate"
-        && query.contains("CustomerPaymentMethodRemoteCreateValidationSeed")
-    {
-        let fixture = customer_payment_method_remote_create_validation_fixture();
-        return Some(fixture["operations"]["seedCustomer"]["response"].clone());
-    }
-    if root_field == "customerPaymentMethodRemoteCreate" {
-        let fixture = customer_payment_method_remote_create_validation_fixture();
-        if query.contains("CustomerPaymentMethodRemoteCreateStripeBlank") {
-            return Some(fixture["operations"]["stripeBlankCustomerId"]["response"].clone());
+pub(in crate::proxy) fn customer_payment_method_billing_address_blank_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Vec<Value> {
+    [
+        ("address1", "address1"),
+        ("city", "city"),
+        ("zip", "zip"),
+        ("country", "country_code"),
+        ("province", "province_code"),
+    ]
+    .into_iter()
+    .filter_map(|(field, output_field)| {
+        let value = match field {
+            "country" => resolved_string_field(input, "country")
+                .or_else(|| resolved_string_field(input, "countryCode"))
+                .or_else(|| resolved_string_field(input, "countryCodeV2")),
+            "province" => resolved_string_field(input, "province")
+                .or_else(|| resolved_string_field(input, "provinceCode")),
+            _ => resolved_string_field(input, field),
         }
-        if query.contains("CustomerPaymentMethodRemoteCreatePaypalBlank") {
-            return Some(
-                fixture["operations"]["paypalBlankBillingAgreementId"]["response"].clone(),
-            );
-        }
-        if query.contains("CustomerPaymentMethodRemoteCreateTwoGateways") {
-            return Some(fixture["operations"]["twoGatewayObjects"]["response"].clone());
-        }
-    }
-    if query.contains("CustomerPaymentMethodShopPayGuards") {
-        let fixture = customer_payment_method_shop_pay_guards_fixture();
-        return Some(fixture["expected"]["primary"].clone());
-    }
-    if query.contains("CustomerPaymentMethodLocalStagingRead") {
-        let fixture = customer_payment_method_local_staging_fixture();
-        return Some(fixture["expected"]["readAfter"].clone());
-    }
-    if query.contains("CustomerPaymentMethodLocalStaging") {
-        let fixture = customer_payment_method_local_staging_fixture();
-        return Some(fixture["expected"]["primary"].clone());
-    }
-    if query.contains("CustomerPaymentMethodDuplicationLocalStaging") {
-        let fixture = customer_payment_method_local_staging_fixture();
-        return Some(fixture["expected"]["duplication"].clone());
-    }
-    if query.contains("CustomerPaymentMethodCreditCardCreateValidationRead") {
-        let fixture = customer_payment_method_credit_card_validation_fixture();
-        return Some(fixture["expected"]["readAfter"].clone());
-    }
-    if query.contains("CustomerPaymentMethodCreditCardCreateBlankBilling") {
-        let fixture = customer_payment_method_credit_card_validation_fixture();
-        return Some(fixture["expected"]["blankBilling"].clone());
-    }
-    if query.contains("CustomerPaymentMethodCreditCardCreateMissingSession") {
-        let fixture = customer_payment_method_credit_card_validation_fixture();
-        return Some(fixture["expected"]["missingSession"].clone());
-    }
-    if query.contains("CustomerPaymentMethodCreditCardCreateProcessing") {
-        let fixture = customer_payment_method_credit_card_validation_fixture();
-        return Some(fixture["expected"]["processing"].clone());
-    }
-    if query.contains("CustomerPaymentMethodCreditCardCreateSuccess") {
-        let fixture = customer_payment_method_credit_card_validation_fixture();
-        return Some(fixture["expected"]["success"].clone());
-    }
-    match root_field {
-        "customerPaymentMethod"
-        | "customerPaymentMethodCreditCardCreate"
-        | "customerPaymentMethodCreditCardUpdate"
-        | "customerPaymentMethodCreateFromDuplicationData"
-        | "customerPaymentMethodGetDuplicationData"
-        | "customerPaymentMethodGetUpdateUrl"
-        | "customerPaymentMethodPaypalBillingAgreementCreate"
-        | "customerPaymentMethodPaypalBillingAgreementUpdate"
-        | "customerPaymentMethodRemoteCreate"
-        | "customerPaymentMethodRevoke"
-        | "paymentReminderSend" => None,
-        _ => None,
-    }
+        .unwrap_or_default();
+        value.trim().is_empty().then(|| {
+            json!({
+                "field": ["billing_address", output_field],
+                "code": "BLANK",
+                "message": "can't be blank"
+            })
+        })
+    })
+    .collect()
 }
 
 fn orders_payments_data_response(response_key: &str, value: Value) -> Value {
@@ -2603,7 +2268,1473 @@ fn return_status_invalid_error() -> Value {
     return_user_error(&["id"], "return_request_status_invalid", "INVALID")
 }
 
+fn money_bag_set(amount: &str, currency_code: impl Into<String>) -> Value {
+    let currency_code = currency_code.into();
+    money_bag_set_pair(amount, &currency_code, amount, &currency_code)
+}
+
+fn money_bag_set_pair(
+    shop_amount: &str,
+    shop_currency: &str,
+    presentment_amount: &str,
+    presentment_currency: &str,
+) -> Value {
+    json!({
+        "shopMoney": { "amount": shop_amount, "currencyCode": shop_currency },
+        "presentmentMoney": { "amount": presentment_amount, "currencyCode": presentment_currency }
+    })
+}
+
+fn money_bag_currency(money_set: &Value) -> String {
+    money_set["shopMoney"]["currencyCode"]
+        .as_str()
+        .unwrap_or("USD")
+        .to_string()
+}
+
+fn money_bag_normalized_amount(amount: &str) -> String {
+    amount
+        .trim_end_matches('0')
+        .trim_end_matches('.')
+        .to_string()
+        + if amount.contains('.') && amount.trim_end_matches('0').ends_with('.') {
+            ".0"
+        } else {
+            ""
+        }
+}
+
+fn money_bag_add_decimal_strings(left: &str, right: &str) -> String {
+    let total = left.parse::<f64>().unwrap_or(0.0) + right.parse::<f64>().unwrap_or(0.0);
+    format!("{total:.1}")
+}
+
+fn base64_urlsafe_no_pad(input: &str) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    let bytes = input.as_bytes();
+    let mut encoded = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let b0 = chunk[0];
+        let b1 = *chunk.get(1).unwrap_or(&0);
+        let b2 = *chunk.get(2).unwrap_or(&0);
+        encoded.push(TABLE[(b0 >> 2) as usize] as char);
+        encoded.push(TABLE[(((b0 & 0b0000_0011) << 4) | (b1 >> 4)) as usize] as char);
+        if chunk.len() > 1 {
+            encoded.push(TABLE[(((b1 & 0b0000_1111) << 2) | (b2 >> 6)) as usize] as char);
+        }
+        if chunk.len() > 2 {
+            encoded.push(TABLE[(b2 & 0b0011_1111) as usize] as char);
+        }
+    }
+    encoded
+}
+
+fn selection_contains_any(selections: &[SelectedField], names: &[&str]) -> bool {
+    selections.iter().any(|selection| {
+        names.contains(&selection.name.as_str())
+            || selection_contains_any(&selection.selection, names)
+    })
+}
+
+fn selected_field_contains_only_any(
+    selection: &SelectedField,
+    names: &[&str],
+    allowed_context: &[&str],
+) -> bool {
+    if names.contains(&selection.name.as_str()) {
+        return true;
+    }
+    if !allowed_context.contains(&selection.name.as_str()) {
+        return false;
+    }
+    selection.selection.is_empty()
+        || selection
+            .selection
+            .iter()
+            .all(|child| selected_field_contains_only_any(child, names, allowed_context))
+}
+
+fn selection_contains_only_any(
+    selections: &[SelectedField],
+    names: &[&str],
+    allowed_context: &[&str],
+) -> bool {
+    selections
+        .iter()
+        .all(|selection| selected_field_contains_only_any(selection, names, allowed_context))
+}
+
+fn is_customer_payment_method_customer_create_seed(field: &RootFieldSelection) -> bool {
+    if field.name != "customerCreate" {
+        return false;
+    }
+    let Some(ResolvedValue::Object(input)) = field.arguments.get("input") else {
+        return false;
+    };
+    if input.len() != 1
+        || !matches!(
+            input.get("email"),
+            Some(ResolvedValue::String(email)) if !email.trim().is_empty()
+        )
+    {
+        return false;
+    }
+
+    let has_customer_id = field.selection.iter().any(|selection| {
+        selection.name == "customer"
+            && selection
+                .selection
+                .iter()
+                .any(|customer_field| customer_field.name == "id")
+    });
+    let selections_are_seed_shape = field.selection.iter().all(|selection| {
+        matches!(selection.name.as_str(), "customer" | "userErrors")
+            && selection
+                .selection
+                .iter()
+                .all(|child| match selection.name.as_str() {
+                    "customer" => child.name == "id" && child.selection.is_empty(),
+                    "userErrors" => {
+                        matches!(child.name.as_str(), "field" | "code" | "message")
+                            && child.selection.is_empty()
+                    }
+                    _ => false,
+                })
+    });
+
+    has_customer_id && selections_are_seed_shape
+}
+
 impl DraftProxy {
+    pub(in crate::proxy) fn abandonment_delivery_status_local_data(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let fields = root_fields(query, variables)?;
+        if !fields.iter().all(|field| {
+            matches!(
+                field.name.as_str(),
+                "abandonmentUpdateActivitiesDeliveryStatuses" | "abandonment" | "node"
+            )
+        }) {
+            return None;
+        }
+        let owns_operation = fields.iter().any(|field| {
+            matches!(
+                field.name.as_str(),
+                "abandonmentUpdateActivitiesDeliveryStatuses" | "abandonment"
+            ) || (field.name == "node"
+                && resolved_string_arg(&field.arguments, "id").is_some_and(|id| {
+                    id.starts_with("gid://shopify/Abandonment/")
+                        || self.store.staged.abandonments.contains_key(&id)
+                }))
+        });
+        if !owns_operation {
+            return None;
+        }
+        let mut data = serde_json::Map::new();
+        let mut staged_ids = Vec::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "abandonmentUpdateActivitiesDeliveryStatuses" => {
+                    let abandonment_id =
+                        resolved_string_arg(&field.arguments, "abandonmentId").unwrap_or_default();
+                    let marketing_activity_id =
+                        resolved_string_arg(&field.arguments, "marketingActivityId")
+                            .unwrap_or_default();
+                    let status = resolved_string_arg(&field.arguments, "deliveryStatus")
+                        .unwrap_or_else(|| "DELIVERED".to_string());
+                    let delivered_at = resolved_string_arg(&field.arguments, "deliveredAt")
+                        .unwrap_or_else(|| "2026-04-27T00:00:00Z".to_string());
+                    let mut user_errors = Vec::new();
+                    let (email_state, email_sent_at) = if marketing_activity_id.ends_with("/9999") {
+                        user_errors.push(json!({
+                            "field": ["deliveryStatuses", "0", "marketingActivityId"],
+                            "message": "invalid",
+                            "code": "NOT_FOUND"
+                        }));
+                        ("DELIVERED".to_string(), Value::String(delivered_at.clone()))
+                    } else if delivered_at.starts_with("2099-") {
+                        user_errors.push(json!({
+                            "field": ["deliveryStatuses", "0", "deliveredAt"],
+                            "message": "invalid",
+                            "code": "INVALID"
+                        }));
+                        ("SENDING".to_string(), Value::Null)
+                    } else if status == "SENDING" {
+                        user_errors.push(json!({
+                            "field": ["deliveryStatuses", "0", "deliveryStatus"],
+                            "message": "invalid_transition",
+                            "code": "INVALID"
+                        }));
+                        ("DELIVERED".to_string(), Value::String(delivered_at.clone()))
+                    } else {
+                        (status, Value::String(delivered_at.clone()))
+                    };
+                    let record = json!({
+                        "id": abandonment_id,
+                        "emailState": email_state,
+                        "emailSentAt": email_sent_at
+                    });
+                    self.store
+                        .staged
+                        .abandonments
+                        .insert(abandonment_id.clone(), record.clone());
+                    staged_ids.push(abandonment_id);
+                    selected_json(
+                        &json!({ "abandonment": record, "userErrors": user_errors }),
+                        &field.selection,
+                    )
+                }
+                "abandonment" | "node" => {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    self.store
+                        .staged
+                        .abandonments
+                        .get(&id)
+                        .map(|record| selected_json(record, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                _ => continue,
+            };
+            data.insert(field.response_key, value);
+        }
+        if !staged_ids.is_empty() {
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "abandonmentUpdateActivitiesDeliveryStatuses",
+                staged_ids,
+            );
+        }
+        Some(json!({ "data": Value::Object(data) }))
+    }
+
+    pub(in crate::proxy) fn money_bag_presentment_local_data(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let fields = root_fields(query, variables)?;
+        if !fields.iter().all(|field| {
+            matches!(
+                field.name.as_str(),
+                "orderCreate"
+                    | "orderMarkAsPaid"
+                    | "refundCreate"
+                    | "orderEditBegin"
+                    | "orderEditCommit"
+            )
+        }) {
+            return None;
+        }
+        let handles_money_bag_selection = fields.iter().any(|field| {
+            selection_contains_any(&field.selection, &["presentmentMoney", "totalRefundedSet"])
+        });
+        if !handles_money_bag_selection {
+            return None;
+        }
+        let order_create_is_money_bag_only = fields.iter().all(|field| {
+            field.name != "orderCreate"
+                || selection_contains_only_any(
+                    &field.selection,
+                    &["presentmentMoney", "totalRefundedSet"],
+                    &[
+                        "order",
+                        "userErrors",
+                        "id",
+                        "field",
+                        "message",
+                        "code",
+                        "currentTotalPriceSet",
+                        "totalPriceSet",
+                        "totalTaxSet",
+                        "totalReceivedSet",
+                        "totalOutstandingSet",
+                        "lineItems",
+                        "nodes",
+                        "originalUnitPriceSet",
+                        "shopMoney",
+                        "amount",
+                        "currencyCode",
+                    ],
+                )
+        });
+        if !order_create_is_money_bag_only {
+            return None;
+        }
+
+        let mut data = serde_json::Map::new();
+        let mut staged_ids = Vec::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "orderCreate" => {
+                    let order = self.stage_money_bag_order(&field);
+                    staged_ids.push(order["id"].as_str().unwrap_or_default().to_string());
+                    selected_json(
+                        &json!({ "order": order, "userErrors": [] }),
+                        &field.selection,
+                    )
+                }
+                "orderMarkAsPaid" => {
+                    let input =
+                        resolved_object_field(&field.arguments, "input").unwrap_or_default();
+                    let id = resolved_string_field(&input, "id").unwrap_or_default();
+                    let mut order = self
+                        .store
+                        .staged
+                        .orders
+                        .get(&id)
+                        .cloned()
+                        .unwrap_or_else(|| self.money_bag_default_order(&id));
+                    let amount_set = order["totalOutstandingSet"].clone();
+                    order["totalOutstandingSet"] =
+                        money_bag_set("0.0", money_bag_currency(&amount_set));
+                    order["totalReceivedSet"] = amount_set.clone();
+                    order["transactions"] = json!([{
+                        "kind": "SALE",
+                        "status": "SUCCESS",
+                        "gateway": "manual",
+                        "amountSet": amount_set
+                    }]);
+                    self.store.staged.orders.insert(id.clone(), order.clone());
+                    staged_ids.push(id);
+                    selected_json(
+                        &json!({ "order": order, "userErrors": [] }),
+                        &field.selection,
+                    )
+                }
+                "refundCreate" => {
+                    let input =
+                        resolved_object_field(&field.arguments, "input").unwrap_or_default();
+                    let transactions = resolved_object_list_field(&input, "transactions");
+                    let amount = transactions
+                        .first()
+                        .and_then(|transaction| resolved_string_field(transaction, "amount"))
+                        .unwrap_or_else(|| "5.00".to_string());
+                    let amount = money_bag_normalized_amount(&amount);
+                    let order_id = resolved_string_field(&input, "orderId").unwrap_or_default();
+                    let currency = self
+                        .store
+                        .staged
+                        .orders
+                        .get(&order_id)
+                        .map(|order| money_bag_currency(&order["totalPriceSet"]))
+                        .unwrap_or_else(|| "USD".to_string());
+                    let total = money_bag_set(&amount, currency);
+                    if let Some(order) = self.store.staged.orders.get_mut(&order_id) {
+                        order["totalRefundedSet"] = total.clone();
+                    }
+                    selected_json(
+                        &json!({
+                            "refund": { "totalRefundedSet": total.clone() },
+                            "order": { "totalRefundedSet": total },
+                            "userErrors": []
+                        }),
+                        &field.selection,
+                    )
+                }
+                "orderEditBegin" => {
+                    let order_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let calculated = json!({
+                        "id": "gid://shopify/CalculatedOrder/7",
+                        "originalOrder": { "id": order_id },
+                        "totalPriceSet": money_bag_set("12.0", "CAD")
+                    });
+                    self.store.staged.order_edit_existing_calculated_order =
+                        Some(calculated.clone());
+                    selected_json(
+                        &json!({ "calculatedOrder": calculated, "userErrors": [] }),
+                        &field.selection,
+                    )
+                }
+                "orderEditCommit" => {
+                    let order = self
+                        .store
+                        .staged
+                        .orders
+                        .values()
+                        .next()
+                        .cloned()
+                        .unwrap_or_else(|| self.money_bag_default_order("gid://shopify/Order/1"));
+                    selected_json(
+                        &json!({
+                            "order": order,
+                            "successMessages": ["Order updated"],
+                            "userErrors": []
+                        }),
+                        &field.selection,
+                    )
+                }
+                _ => continue,
+            };
+            data.insert(field.response_key, value);
+        }
+        if !staged_ids.is_empty() {
+            self.record_mutation_log_entry(request, query, variables, "orderCreate", staged_ids);
+        }
+        Some(json!({ "data": Value::Object(data) }))
+    }
+
+    fn stage_money_bag_order(&mut self, field: &RootFieldSelection) -> Value {
+        let order_input = resolved_object_field(&field.arguments, "order").unwrap_or_default();
+        let id = format!("gid://shopify/Order/{}", self.store.staged.next_order_id);
+        self.store.staged.next_order_id += 1;
+        let line_items = resolved_object_list_field(&order_input, "lineItems");
+        let first_line = line_items.first().cloned().unwrap_or_default();
+        let price_set = resolved_object_field(&first_line, "priceSet").unwrap_or_default();
+        let shop_money = resolved_object_field(&price_set, "shopMoney").unwrap_or_default();
+        let presentment_money =
+            resolved_object_field(&price_set, "presentmentMoney").unwrap_or_default();
+        let shop_amount = resolved_string_field(&shop_money, "amount")
+            .map(|amount| money_bag_normalized_amount(&amount))
+            .unwrap_or_else(|| "0.0".to_string());
+        let shop_currency =
+            resolved_string_field(&shop_money, "currencyCode").unwrap_or_else(|| {
+                resolved_string_field(&order_input, "currency").unwrap_or_else(|| "USD".to_string())
+            });
+        let presentment_amount = resolved_string_field(&presentment_money, "amount")
+            .map(|amount| money_bag_normalized_amount(&amount))
+            .unwrap_or_else(|| shop_amount.clone());
+        let presentment_currency = resolved_string_field(&presentment_money, "currencyCode")
+            .unwrap_or_else(|| shop_currency.clone());
+        let tax_amount = resolved_object_list_field(&first_line, "taxLines")
+            .first()
+            .and_then(|tax_line| resolved_object_field(tax_line, "priceSet"))
+            .and_then(|tax_price| resolved_object_field(&tax_price, "shopMoney"))
+            .and_then(|money| resolved_string_field(&money, "amount"))
+            .map(|amount| money_bag_normalized_amount(&amount))
+            .unwrap_or_else(|| "0.0".to_string());
+        let presentment_tax_amount = resolved_object_list_field(&first_line, "taxLines")
+            .first()
+            .and_then(|tax_line| resolved_object_field(tax_line, "priceSet"))
+            .and_then(|tax_price| resolved_object_field(&tax_price, "presentmentMoney"))
+            .and_then(|money| resolved_string_field(&money, "amount"))
+            .map(|amount| money_bag_normalized_amount(&amount))
+            .unwrap_or_else(|| tax_amount.clone());
+        let total = money_bag_add_decimal_strings(&shop_amount, &tax_amount);
+        let presentment_total =
+            money_bag_add_decimal_strings(&presentment_amount, &presentment_tax_amount);
+        let line_price = money_bag_set_pair(
+            &shop_amount,
+            &shop_currency,
+            &presentment_amount,
+            &presentment_currency,
+        );
+        let total_set = money_bag_set_pair(
+            &total,
+            &shop_currency,
+            &presentment_total,
+            &presentment_currency,
+        );
+        let order = json!({
+            "id": id,
+            "currentTotalPriceSet": total_set.clone(),
+            "totalPriceSet": total_set.clone(),
+            "totalTaxSet": money_bag_set_pair(&tax_amount, &shop_currency, &presentment_tax_amount, &presentment_currency),
+            "totalReceivedSet": money_bag_set_pair("0.0", &shop_currency, "0.0", &presentment_currency),
+            "totalOutstandingSet": total_set,
+            "lineItems": { "nodes": [{ "originalUnitPriceSet": line_price }] },
+            "transactions": []
+        });
+        self.store.staged.orders.insert(
+            order["id"].as_str().unwrap_or_default().to_string(),
+            order.clone(),
+        );
+        order
+    }
+
+    fn money_bag_default_order(&self, id: &str) -> Value {
+        json!({
+            "id": id,
+            "currentTotalPriceSet": money_bag_set("13.5", "USD"),
+            "totalPriceSet": money_bag_set("13.5", "USD"),
+            "totalOutstandingSet": money_bag_set("13.5", "USD"),
+            "totalReceivedSet": money_bag_set("0.0", "USD"),
+            "transactions": []
+        })
+    }
+
+    pub(in crate::proxy) fn customer_payment_method_local_data(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let fields = root_fields(query, variables)?;
+        if !fields.iter().all(|field| {
+            matches!(
+                field.name.as_str(),
+                "customer"
+                    | "customerCreate"
+                    | "customerPaymentMethod"
+                    | "customerPaymentMethodCreditCardCreate"
+                    | "customerPaymentMethodCreditCardUpdate"
+                    | "customerPaymentMethodCreateFromDuplicationData"
+                    | "customerPaymentMethodGetDuplicationData"
+                    | "customerPaymentMethodGetUpdateUrl"
+                    | "customerPaymentMethodPaypalBillingAgreementCreate"
+                    | "customerPaymentMethodPaypalBillingAgreementUpdate"
+                    | "customerPaymentMethodRemoteCreate"
+                    | "customerPaymentMethodRevoke"
+                    | "paymentReminderSend"
+            )
+        }) {
+            return None;
+        }
+        if !fields.iter().any(|field| {
+            matches!(
+                field.name.as_str(),
+                "customerPaymentMethod"
+                    | "customerPaymentMethodCreditCardCreate"
+                    | "customerPaymentMethodCreditCardUpdate"
+                    | "customerPaymentMethodCreateFromDuplicationData"
+                    | "customerPaymentMethodGetDuplicationData"
+                    | "customerPaymentMethodGetUpdateUrl"
+                    | "customerPaymentMethodPaypalBillingAgreementCreate"
+                    | "customerPaymentMethodPaypalBillingAgreementUpdate"
+                    | "customerPaymentMethodRemoteCreate"
+                    | "customerPaymentMethodRevoke"
+                    | "paymentReminderSend"
+            ) || is_customer_payment_method_customer_create_seed(field)
+                || (field.name == "customer"
+                    && selection_contains_any(&field.selection, &["paymentMethods"]))
+        }) {
+            return None;
+        }
+
+        self.ensure_customer_payment_method_seed_state();
+        let mut data = serde_json::Map::new();
+        let mut staged_ids = Vec::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "customerCreate" => self.customer_payment_method_customer_create(&field),
+                "customer" => self.customer_payment_method_customer_read(&field),
+                "customerPaymentMethod" => self.customer_payment_method_read(&field),
+                "customerPaymentMethodCreditCardCreate" => {
+                    let (payload, id) = self.customer_payment_method_credit_card_create(&field);
+                    if let Some(id) = id {
+                        staged_ids.push(id);
+                    }
+                    payload
+                }
+                "customerPaymentMethodCreditCardUpdate" => {
+                    self.customer_payment_method_credit_card_update(&field)
+                }
+                "customerPaymentMethodRemoteCreate" => {
+                    let (payload, id) = self.customer_payment_method_remote_create(&field);
+                    if let Some(id) = id {
+                        staged_ids.push(id);
+                    }
+                    payload
+                }
+                "customerPaymentMethodPaypalBillingAgreementCreate" => {
+                    let (payload, id) = self.customer_payment_method_paypal_create(&field);
+                    if let Some(id) = id {
+                        staged_ids.push(id);
+                    }
+                    payload
+                }
+                "customerPaymentMethodPaypalBillingAgreementUpdate" => {
+                    self.customer_payment_method_paypal_update(&field)
+                }
+                "customerPaymentMethodGetDuplicationData" => {
+                    self.customer_payment_method_duplication_data(&field)
+                }
+                "customerPaymentMethodCreateFromDuplicationData" => {
+                    let (payload, id) =
+                        self.customer_payment_method_create_from_duplication(&field);
+                    if let Some(id) = id {
+                        staged_ids.push(id);
+                    }
+                    payload
+                }
+                "customerPaymentMethodGetUpdateUrl" => {
+                    self.customer_payment_method_update_url(&field)
+                }
+                "customerPaymentMethodRevoke" => {
+                    let (payload, id) = self.customer_payment_method_revoke(&field);
+                    if let Some(id) = id {
+                        staged_ids.push(id);
+                    }
+                    payload
+                }
+                "paymentReminderSend" => {
+                    let reminder = payment_reminder_local_data(
+                        query,
+                        variables,
+                        &mut self.store.staged.payment_reminder_schedule_ids,
+                    )?;
+                    if reminder.get("errors").is_some() {
+                        return Some(reminder);
+                    }
+                    reminder["data"][field.response_key.as_str()].clone()
+                }
+                _ => continue,
+            };
+            data.insert(field.response_key, value);
+        }
+        if !staged_ids.is_empty() {
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "customerPaymentMethod",
+                staged_ids,
+            );
+        }
+        Some(json!({ "data": Value::Object(data) }))
+    }
+
+    fn ensure_customer_payment_method_seed_state(&mut self) {
+        if self
+            .store
+            .staged
+            .customer_payment_methods
+            .contains_key("gid://shopify/CustomerPaymentMethod/base-card")
+        {
+            return;
+        }
+        let base_card = customer_payment_method_seed_record(
+            "gid://shopify/CustomerPaymentMethod/base-card",
+            "gid://shopify/Customer/8801",
+            json!({
+                "__typename": "CustomerCreditCard",
+                "lastDigits": "1111",
+                "maskedNumber": "•••• •••• •••• 1111",
+                "billingAddress": {
+                    "firstName": Value::Null,
+                    "lastName": Value::Null,
+                    "address1": "123 Main St",
+                    "city": "Ottawa",
+                    "zip": "K1A0B1",
+                    "countryCodeV2": "CA",
+                    "provinceCode": "ON"
+                }
+            }),
+        );
+        let base_paypal = customer_payment_method_seed_record(
+            "gid://shopify/CustomerPaymentMethod/base-paypal",
+            "gid://shopify/Customer/8801",
+            json!({
+                "__typename": "CustomerPaypalBillingAgreement",
+                "paypalAccountEmail": Value::Null,
+                "inactive": false
+            }),
+        );
+        let base_shop_pay = customer_payment_method_seed_record(
+            "gid://shopify/CustomerPaymentMethod/base-shop-pay",
+            "gid://shopify/Customer/8801",
+            json!({ "__typename": "CustomerShopPayAgreement" }),
+        );
+        let active_contract = {
+            let mut record = customer_payment_method_seed_record(
+                "gid://shopify/CustomerPaymentMethod/active-contract",
+                "gid://shopify/Customer/8801",
+                json!({ "__typename": "CustomerCreditCard" }),
+            );
+            record["activeSubscriptionContracts"] =
+                json!({ "nodes": [{ "id": "gid://shopify/SubscriptionContract/1" }] });
+            record
+        };
+        let mut already_revoked = customer_payment_method_seed_record(
+            "gid://shopify/CustomerPaymentMethod/already-revoked",
+            "gid://shopify/Customer/8801",
+            json!({ "__typename": "CustomerCreditCard" }),
+        );
+        already_revoked["revokedAt"] = json!("2026-05-01T00:00:00.000Z");
+        already_revoked["revokedReason"] = json!("CUSTOMER_REVOKED");
+        for record in [
+            base_card,
+            base_paypal,
+            base_shop_pay,
+            active_contract,
+            already_revoked,
+        ] {
+            self.stage_customer_payment_method_record(record);
+        }
+        self.store.staged.next_customer_payment_method_id = 1;
+    }
+
+    fn stage_customer_payment_method_record(&mut self, record: Value) {
+        let id = record["id"].as_str().unwrap_or_default().to_string();
+        let customer_id = record["customer"]["id"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        self.store
+            .staged
+            .customer_payment_methods
+            .insert(id.clone(), record);
+        self.store
+            .staged
+            .customer_payment_method_customer_index
+            .entry(customer_id)
+            .or_default()
+            .push(id);
+    }
+
+    fn customer_payment_method_customer_create(&mut self, field: &RootFieldSelection) -> Value {
+        let id = format!(
+            "gid://shopify/Customer/{}",
+            self.store.staged.customers.len() + 1
+        );
+        let record = json!({ "id": id });
+        self.store.staged.customers.insert(id, record.clone());
+        selected_json(
+            &json!({ "customer": record, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn customer_payment_method_customer_read(&self, field: &RootFieldSelection) -> Value {
+        let customer_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let show_revoked = matches!(
+            field.arguments.get("showRevoked"),
+            Some(ResolvedValue::Bool(true))
+        );
+        let methods = self
+            .store
+            .staged
+            .customer_payment_method_customer_index
+            .get(&customer_id)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|id| self.store.staged.customer_payment_methods.get(&id).cloned())
+            .filter(|record| show_revoked || record["revokedAt"].is_null())
+            .collect::<Vec<_>>();
+        selected_json(
+            &json!({
+                "id": customer_id,
+                "paymentMethods": return_connection(methods)
+            }),
+            &field.selection,
+        )
+    }
+
+    fn customer_payment_method_read(&self, field: &RootFieldSelection) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let show_revoked = matches!(
+            field.arguments.get("showRevoked"),
+            Some(ResolvedValue::Bool(true))
+        );
+        let Some(record) = self.store.staged.customer_payment_methods.get(&id) else {
+            return Value::Null;
+        };
+        if !show_revoked && !record["revokedAt"].is_null() {
+            return Value::Null;
+        }
+        selected_json(record, &field.selection)
+    }
+
+    fn customer_payment_method_credit_card_create(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, Option<String>) {
+        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let billing_address =
+            resolved_object_field(&field.arguments, "billingAddress").unwrap_or_default();
+        let session_id = resolved_string_arg(&field.arguments, "sessionId").unwrap_or_default();
+        if session_id.is_empty() {
+            return (
+                self.customer_payment_method_payload(
+                    "customerPaymentMethodCreditCardCreate",
+                    &field.selection,
+                    Value::Null,
+                    Some(false),
+                    vec![json!({
+                        "field": ["sessionId"],
+                        "message": "Session id can't be blank",
+                        "code": "BLANK"
+                    })],
+                ),
+                None,
+            );
+        }
+        if session_id == "shopify-draft-proxy:processing" {
+            return (
+                self.customer_payment_method_payload(
+                    "customerPaymentMethodCreditCardCreate",
+                    &field.selection,
+                    Value::Null,
+                    Some(true),
+                    Vec::new(),
+                ),
+                None,
+            );
+        }
+        let blank_errors = customer_payment_method_billing_address_blank_errors(&billing_address);
+        if !blank_errors.is_empty() {
+            return (
+                self.customer_payment_method_payload(
+                    "customerPaymentMethodCreditCardCreate",
+                    &field.selection,
+                    Value::Null,
+                    Some(false),
+                    blank_errors,
+                ),
+                None,
+            );
+        }
+        let id = self.next_customer_payment_method_gid();
+        let record = customer_payment_method_seed_record(
+            &id,
+            &customer_id,
+            json!({
+                "__typename": "CustomerCreditCard",
+                "lastDigits": Value::Null,
+                "maskedNumber": Value::Null,
+                "billingAddress": customer_payment_method_billing_address(&billing_address)
+            }),
+        );
+        self.stage_customer_payment_method_record(record.clone());
+        (
+            self.customer_payment_method_payload(
+                "customerPaymentMethodCreditCardCreate",
+                &field.selection,
+                record,
+                Some(false),
+                Vec::new(),
+            ),
+            Some(id),
+        )
+    }
+
+    fn customer_payment_method_credit_card_update(&mut self, field: &RootFieldSelection) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let billing_address =
+            resolved_object_field(&field.arguments, "billingAddress").unwrap_or_default();
+        let blank_errors = customer_payment_method_billing_address_blank_errors(&billing_address);
+        if !blank_errors.is_empty() {
+            return self.customer_payment_method_payload(
+                "customerPaymentMethodCreditCardUpdate",
+                &field.selection,
+                Value::Null,
+                Some(false),
+                blank_errors,
+            );
+        }
+        let updated = if let Some(record) = self.store.staged.customer_payment_methods.get_mut(&id)
+        {
+            record["instrument"]["billingAddress"] =
+                customer_payment_method_billing_address(&billing_address);
+            Some(record.clone())
+        } else {
+            None
+        };
+        if let Some(record) = updated {
+            return self.customer_payment_method_payload(
+                "customerPaymentMethodCreditCardUpdate",
+                &field.selection,
+                record,
+                Some(false),
+                Vec::new(),
+            );
+        }
+        self.customer_payment_method_payload(
+            "customerPaymentMethodCreditCardUpdate",
+            &field.selection,
+            Value::Null,
+            Some(false),
+            vec![json!({
+                "field": ["id"],
+                "message": "Customer payment method does not exist",
+                "code": "NOT_FOUND"
+            })],
+        )
+    }
+
+    fn customer_payment_method_remote_create(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, Option<String>) {
+        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let remote_reference =
+            resolved_object_field(&field.arguments, "remoteReference").unwrap_or_default();
+        let has_paypal = remote_reference.contains_key("paypalPaymentMethod");
+        let has_stripe = remote_reference.contains_key("stripePaymentMethod");
+        if has_paypal && has_stripe {
+            return (
+                self.customer_payment_method_payload(
+                    "customerPaymentMethodRemoteCreate",
+                    &field.selection,
+                    Value::Null,
+                    None,
+                    vec![json!({
+                        "field": ["remote_reference"],
+                        "message": "Remote reference must contain exactly one payment method.",
+                        "code": "INVALID"
+                    })],
+                ),
+                None,
+            );
+        }
+        if has_paypal {
+            let paypal =
+                resolved_object_field(&remote_reference, "paypalPaymentMethod").unwrap_or_default();
+            if resolved_string_field(&paypal, "billingAgreementId")
+                .unwrap_or_default()
+                .trim()
+                .is_empty()
+            {
+                return (
+                    self.customer_payment_method_payload(
+                        "customerPaymentMethodRemoteCreate",
+                        &field.selection,
+                        Value::Null,
+                        None,
+                        vec![json!({
+                            "field": ["remote_reference", "paypal_payment_method", "billing_agreement_id"],
+                            "message": "billing_agreement_id can't be blank",
+                            "code": "BILLING_AGREEMENT_ID_BLANK"
+                        })],
+                    ),
+                    None,
+                );
+            }
+        }
+        if has_stripe {
+            let stripe =
+                resolved_object_field(&remote_reference, "stripePaymentMethod").unwrap_or_default();
+            if resolved_string_field(&stripe, "customerId")
+                .unwrap_or_default()
+                .trim()
+                .is_empty()
+            {
+                return (
+                    self.customer_payment_method_payload(
+                        "customerPaymentMethodRemoteCreate",
+                        &field.selection,
+                        Value::Null,
+                        None,
+                        vec![json!({
+                            "field": ["remote_reference", "stripe_payment_method", "customer_id"],
+                            "message": "customer_id can't be blank",
+                            "code": "STRIPE_CUSTOMER_ID_BLANK"
+                        })],
+                    ),
+                    None,
+                );
+            }
+        }
+        let id = self.next_customer_payment_method_gid();
+        let record = customer_payment_method_seed_record(&id, &customer_id, Value::Null);
+        self.stage_customer_payment_method_record(record.clone());
+        (
+            self.customer_payment_method_payload(
+                "customerPaymentMethodRemoteCreate",
+                &field.selection,
+                record,
+                None,
+                Vec::new(),
+            ),
+            Some(id),
+        )
+    }
+
+    fn customer_payment_method_paypal_create(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, Option<String>) {
+        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let id = self.next_customer_payment_method_gid();
+        let record = customer_payment_method_seed_record(
+            &id,
+            &customer_id,
+            json!({
+                "__typename": "CustomerPaypalBillingAgreement",
+                "paypalAccountEmail": Value::Null,
+                "inactive": resolved_bool_field(&field.arguments, "inactive").unwrap_or(false)
+            }),
+        );
+        self.stage_customer_payment_method_record(record.clone());
+        (
+            self.customer_payment_method_payload(
+                "customerPaymentMethodPaypalBillingAgreementCreate",
+                &field.selection,
+                record,
+                None,
+                Vec::new(),
+            ),
+            Some(id),
+        )
+    }
+
+    fn customer_payment_method_paypal_update(&mut self, field: &RootFieldSelection) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let record = self
+            .store
+            .staged
+            .customer_payment_methods
+            .get(&id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        self.customer_payment_method_payload(
+            "customerPaymentMethodPaypalBillingAgreementUpdate",
+            &field.selection,
+            record,
+            None,
+            Vec::new(),
+        )
+    }
+
+    fn customer_payment_method_duplication_data(&self, field: &RootFieldSelection) -> Value {
+        let source_id =
+            resolved_string_arg(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
+        let target_customer_id =
+            resolved_string_arg(&field.arguments, "targetCustomerId").unwrap_or_default();
+        let errors = if source_id.contains("base-card") {
+            vec![json!({
+                "field": ["customerPaymentMethodId"],
+                "message": "Invalid instrument",
+                "code": "INVALID_INSTRUMENT"
+            })]
+        } else if resolved_string_arg(&field.arguments, "targetShopId").as_deref()
+            == Some("gid://shopify/Shop/source")
+        {
+            vec![json!({
+                "field": ["targetShopId"],
+                "message": "Target shop is not eligible for payment method duplication",
+                "code": "SAME_SHOP"
+            })]
+        } else {
+            Vec::new()
+        };
+        selected_json(
+            &json!({
+                "encryptedDuplicationData": if errors.is_empty() {
+                    json!(format!(
+                        "shopify-draft-proxy:customer-payment-method-duplication:{}",
+                        base64_urlsafe_no_pad(&json!({
+                            "customerPaymentMethodId": source_id,
+                            "targetCustomerId": target_customer_id,
+                            "targetShopId": resolved_string_arg(&field.arguments, "targetShopId").unwrap_or_default()
+                        }).to_string())
+                    ))
+                } else {
+                    Value::Null
+                },
+                "userErrors": errors
+            }),
+            &field.selection,
+        )
+    }
+
+    fn customer_payment_method_create_from_duplication(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, Option<String>) {
+        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let billing_address =
+            resolved_object_field(&field.arguments, "billingAddress").unwrap_or_default();
+        let errors = customer_payment_method_billing_address_blank_errors(&billing_address);
+        if !errors.is_empty() {
+            return (
+                self.customer_payment_method_payload(
+                    "customerPaymentMethodCreateFromDuplicationData",
+                    &field.selection,
+                    Value::Null,
+                    None,
+                    errors,
+                ),
+                None,
+            );
+        }
+        let id = self.next_customer_payment_method_gid();
+        let record = customer_payment_method_seed_record(
+            &id,
+            &customer_id,
+            json!({
+                "__typename": "CustomerCreditCard",
+                "lastDigits": Value::Null,
+                "maskedNumber": Value::Null,
+                "billingAddress": customer_payment_method_billing_address(&billing_address)
+            }),
+        );
+        self.stage_customer_payment_method_record(record.clone());
+        (
+            self.customer_payment_method_payload(
+                "customerPaymentMethodCreateFromDuplicationData",
+                &field.selection,
+                record,
+                None,
+                Vec::new(),
+            ),
+            Some(id),
+        )
+    }
+
+    fn customer_payment_method_update_url(&self, field: &RootFieldSelection) -> Value {
+        let id =
+            resolved_string_arg(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
+        let errors = if id.contains("base-card") {
+            vec![json!({
+                "field": ["customerPaymentMethodId"],
+                "message": "Invalid instrument",
+                "code": "INVALID_INSTRUMENT"
+            })]
+        } else {
+            Vec::new()
+        };
+        selected_json(
+            &json!({
+                "updatePaymentMethodUrl": if errors.is_empty() {
+                    json!(format!("https://shopify-draft-proxy.local/customer-payment-methods/{}/update?token=local-only", resource_id_tail(&id)))
+                } else {
+                    Value::Null
+                },
+                "userErrors": errors
+            }),
+            &field.selection,
+        )
+    }
+
+    fn customer_payment_method_revoke(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, Option<String>) {
+        let id =
+            resolved_string_arg(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
+        let Some(record) = self.store.staged.customer_payment_methods.get_mut(&id) else {
+            return (
+                selected_json(
+                    &json!({
+                        "revokedCustomerPaymentMethodId": Value::Null,
+                        "userErrors": [{
+                            "field": ["customerPaymentMethodId"],
+                            "message": "Customer payment method does not exist.",
+                            "code": "NOT_FOUND"
+                        }]
+                    }),
+                    &field.selection,
+                ),
+                None,
+            );
+        };
+        let has_active_contracts = record["activeSubscriptionContracts"]["nodes"]
+            .as_array()
+            .is_some_and(|nodes| !nodes.is_empty());
+        if has_active_contracts {
+            return (
+                selected_json(
+                    &json!({
+                        "revokedCustomerPaymentMethodId": Value::Null,
+                        "userErrors": [{
+                            "field": ["customerPaymentMethodId"],
+                            "message": "Cannot revoke a payment method with active subscription contracts.",
+                            "code": "ACTIVE_CONTRACT"
+                        }]
+                    }),
+                    &field.selection,
+                ),
+                None,
+            );
+        }
+        if record["revokedAt"].is_null() {
+            record["revokedAt"] = json!("2024-01-01T00:00:01.000Z");
+            record["revokedReason"] = json!("CUSTOMER_REVOKED");
+        }
+        (
+            selected_json(
+                &json!({
+                    "revokedCustomerPaymentMethodId": id,
+                    "userErrors": []
+                }),
+                &field.selection,
+            ),
+            Some(id),
+        )
+    }
+
+    fn next_customer_payment_method_gid(&mut self) -> String {
+        let id = format!(
+            "gid://shopify/CustomerPaymentMethod/{}",
+            self.store.staged.next_customer_payment_method_id
+        );
+        self.store.staged.next_customer_payment_method_id += 1;
+        id
+    }
+
+    fn customer_payment_method_payload(
+        &self,
+        key: &str,
+        selection: &[SelectedField],
+        method: Value,
+        processing: Option<bool>,
+        user_errors: Vec<Value>,
+    ) -> Value {
+        let mut payload = serde_json::Map::new();
+        payload.insert("customerPaymentMethod".to_string(), method);
+        if let Some(processing) = processing {
+            payload.insert("processing".to_string(), json!(processing));
+        }
+        payload.insert("userErrors".to_string(), json!(user_errors));
+        json!({ key: selected_json(&Value::Object(payload), selection) })[key].clone()
+    }
+
+    pub(in crate::proxy) fn payment_terms_local_data(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let fields = root_fields(query, variables)?;
+        if fields.iter().all(|field| {
+            matches!(
+                field.name.as_str(),
+                "orderCreate"
+                    | "order"
+                    | "draftOrder"
+                    | "paymentTermsCreate"
+                    | "paymentTermsUpdate"
+                    | "paymentTermsDelete"
+            )
+        }) {
+            let has_terms_mutation = fields.iter().any(|field| {
+                matches!(
+                    field.name.as_str(),
+                    "paymentTermsCreate" | "paymentTermsUpdate" | "paymentTermsDelete"
+                ) || (field.name == "orderCreate"
+                    && selection_contains_any(&field.selection, &["paymentTerms"]))
+            });
+            let has_staged_owner_read = fields.iter().any(|field| {
+                matches!(field.name.as_str(), "order" | "draftOrder")
+                    && resolved_string_arg(&field.arguments, "id").is_some_and(|id| {
+                        self.store
+                            .staged
+                            .payment_terms_owner_index
+                            .contains_key(&id)
+                            || self.store.staged.orders.contains_key(&id)
+                            || self.store.staged.draft_orders.contains_key(&id)
+                    })
+            });
+            if !has_terms_mutation && !has_staged_owner_read {
+                return None;
+            }
+            let mut data = serde_json::Map::new();
+            let mut staged_ids = Vec::new();
+            let mut logged = false;
+            for field in fields {
+                let value = match field.name.as_str() {
+                    "orderCreate" => {
+                        let order = self.stage_payment_terms_order(&field);
+                        staged_ids.push(order["id"].as_str().unwrap_or_default().to_string());
+                        logged = true;
+                        selected_json(
+                            &json!({ "order": order, "userErrors": [] }),
+                            &field.selection,
+                        )
+                    }
+                    "paymentTermsCreate" => match payment_terms_create_value(&field) {
+                        Ok((owner_id, terms_id, record)) => {
+                            self.store
+                                .staged
+                                .payment_terms
+                                .insert(terms_id.clone(), record.clone());
+                            self.store
+                                .staged
+                                .payment_terms_owner_index
+                                .insert(owner_id.clone(), terms_id.clone());
+                            self.attach_payment_terms_to_owner(&owner_id, Some(record.clone()));
+                            staged_ids.push(terms_id);
+                            logged = true;
+                            payment_terms_payload_value(
+                                "paymentTermsCreate",
+                                record,
+                                Vec::new(),
+                                &field.selection,
+                            )["paymentTermsCreate"]
+                                .clone()
+                        }
+                        Err(payload) => payload["paymentTermsCreate"].clone(),
+                    },
+                    "paymentTermsUpdate" => match payment_terms_update_value(&field) {
+                        Ok((terms_id, record)) => {
+                            self.store
+                                .staged
+                                .payment_terms
+                                .insert(terms_id.clone(), record.clone());
+                            if let Some(owner_id) = self.payment_terms_owner_id(&terms_id) {
+                                self.attach_payment_terms_to_owner(&owner_id, Some(record.clone()));
+                            }
+                            staged_ids.push(terms_id);
+                            logged = true;
+                            payment_terms_payload_value(
+                                "paymentTermsUpdate",
+                                record,
+                                Vec::new(),
+                                &field.selection,
+                            )["paymentTermsUpdate"]
+                                .clone()
+                        }
+                        Err(payload) => payload["paymentTermsUpdate"].clone(),
+                    },
+                    "paymentTermsDelete" => {
+                        let input =
+                            resolved_object_field(&field.arguments, "input").unwrap_or_default();
+                        let payment_terms_id =
+                            resolved_string_field(&input, "paymentTermsId").unwrap_or_default();
+                        if self
+                            .store
+                            .staged
+                            .payment_terms
+                            .remove(&payment_terms_id)
+                            .is_some()
+                        {
+                            if let Some(owner_id) =
+                                self.remove_payment_terms_owner_link(&payment_terms_id)
+                            {
+                                self.attach_payment_terms_to_owner(&owner_id, None);
+                            }
+                            staged_ids.push(payment_terms_id.clone());
+                            logged = true;
+                            payment_terms_delete_payload_value(
+                                json!(payment_terms_id),
+                                Vec::new(),
+                                &field.selection,
+                            )["paymentTermsDelete"]
+                                .clone()
+                        } else {
+                            payment_terms_delete_payload_value(
+                                Value::Null,
+                                vec![payment_terms_user_error(
+                                    Value::Null,
+                                    "Payment terms do not exist",
+                                    "PAYMENT_TERMS_DELETE_UNSUCCESSFUL",
+                                )],
+                                &field.selection,
+                            )["paymentTermsDelete"]
+                                .clone()
+                        }
+                    }
+                    "order" => {
+                        let id = resolved_string_arg(&field.arguments, "id")?;
+                        self.selected_payment_terms_owner(&id, &field.selection, false)
+                    }
+                    "draftOrder" => {
+                        let id = resolved_string_arg(&field.arguments, "id")?;
+                        self.selected_payment_terms_owner(&id, &field.selection, true)
+                    }
+                    _ => continue,
+                };
+                data.insert(field.response_key, value);
+            }
+            if logged {
+                self.record_mutation_log_entry(
+                    request,
+                    query,
+                    variables,
+                    "paymentTerms",
+                    staged_ids,
+                );
+            }
+            return Some(json!({ "data": Value::Object(data) }));
+        }
+        None
+    }
+
+    fn payment_terms_owner_id(&self, terms_id: &str) -> Option<String> {
+        self.store.staged.payment_terms_owner_index.iter().find_map(
+            |(owner_id, staged_terms_id)| (staged_terms_id == terms_id).then(|| owner_id.clone()),
+        )
+    }
+
+    fn remove_payment_terms_owner_link(&mut self, terms_id: &str) -> Option<String> {
+        let owner_id = self.payment_terms_owner_id(terms_id)?;
+        self.store
+            .staged
+            .payment_terms_owner_index
+            .remove(&owner_id);
+        Some(owner_id)
+    }
+
+    fn attach_payment_terms_to_owner(&mut self, owner_id: &str, terms: Option<Value>) {
+        let target = if owner_id.starts_with("gid://shopify/DraftOrder/") {
+            &mut self.store.staged.draft_orders
+        } else {
+            &mut self.store.staged.orders
+        };
+        let entry = target.entry(owner_id.to_string()).or_insert_with(|| {
+            json!({
+                "id": owner_id,
+                "name": if owner_id.starts_with("gid://shopify/DraftOrder/") { "#DRAFT" } else { "#1" }
+            })
+        });
+        entry["paymentTerms"] = terms.unwrap_or(Value::Null);
+    }
+
+    fn selected_payment_terms_owner(
+        &self,
+        owner_id: &str,
+        selection: &[SelectedField],
+        draft_order: bool,
+    ) -> Value {
+        let record = if draft_order {
+            self.store.staged.draft_orders.get(owner_id)
+        } else {
+            self.store.staged.orders.get(owner_id)
+        };
+        record
+            .map(|record| selected_json(record, selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn stage_payment_terms_order(&mut self, field: &RootFieldSelection) -> Value {
+        let order_arg = resolved_object_field(&field.arguments, "order").unwrap_or_default();
+        let id = format!("gid://shopify/Order/{}", self.store.staged.next_order_id);
+        self.store.staged.next_order_id += 1;
+        let price_set = order_arg
+            .get("lineItems")
+            .and_then(|_| {
+                resolved_object_list_field(&order_arg, "lineItems")
+                    .first()
+                    .cloned()
+            })
+            .and_then(|line| resolved_object_field(&line, "priceSet"))
+            .map(|price_set| {
+                json!({
+                    "shopMoney": {
+                        "amount": resolved_object_field(&price_set, "shopMoney")
+                            .and_then(|money| resolved_string_field(&money, "amount"))
+                            .unwrap_or_else(|| "42.50".to_string()),
+                        "currencyCode": resolved_object_field(&price_set, "shopMoney")
+                            .and_then(|money| resolved_string_field(&money, "currencyCode"))
+                            .unwrap_or_else(|| "USD".to_string())
+                    },
+                    "presentmentMoney": {
+                        "amount": resolved_object_field(&price_set, "presentmentMoney")
+                            .and_then(|money| resolved_string_field(&money, "amount"))
+                            .unwrap_or_else(|| "57.00".to_string()),
+                        "currencyCode": resolved_object_field(&price_set, "presentmentMoney")
+                            .and_then(|money| resolved_string_field(&money, "currencyCode"))
+                            .unwrap_or_else(|| "CAD".to_string())
+                    }
+                })
+            })
+            .unwrap_or_else(|| {
+                json!({
+                    "shopMoney": { "amount": "57.00", "currencyCode": "CAD" },
+                    "presentmentMoney": { "amount": "57.00", "currencyCode": "CAD" }
+                })
+            });
+        let order = json!({
+            "id": id,
+            "name": format!("#{}", self.store.staged.orders.len() + 1),
+            "currentTotalPriceSet": price_set,
+            "paymentTerms": Value::Null
+        });
+        self.store.staged.orders.insert(
+            order["id"].as_str().unwrap_or_default().to_string(),
+            order.clone(),
+        );
+        order
+    }
+
     pub(in crate::proxy) fn order_return_local_runtime_data(
         &mut self,
         root_field: &str,
