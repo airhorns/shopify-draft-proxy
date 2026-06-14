@@ -1,12 +1,49 @@
 {
-  "capturedAt": "2026-06-12T18:37:45.534Z",
+  "capturedAt": "2026-06-13T22:24:38.883Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "rootAvailability": {
+    "queries": ["webPresences"],
     "mutations": ["shopLocaleDisable", "shopLocaleEnable", "shopLocaleUpdate"]
   },
   "primaryGuards": {
     "primaryLocale": "en",
+    "webPresences": {
+      "request": {
+        "variables": {
+          "first": 5
+        }
+      },
+      "response": {
+        "data": {
+          "webPresences": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MarketWebPresence/62842765618"
+              },
+              {
+                "id": "gid://shopify/MarketWebPresence/69720899890"
+              },
+              {
+                "id": "gid://shopify/MarketWebPresence/69720998194"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 5,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "capturedWebPresenceId": "gid://shopify/MarketWebPresence/62842765618",
     "enablePrimary": {
       "request": {
         "variables": {
@@ -65,7 +102,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1988,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -99,7 +136,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1987,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -130,7 +167,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1986,
+              "currentlyAvailable": 1990,
               "restoreRate": 100
             }
           }
@@ -164,7 +201,42 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1984,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "updateMissingLocaleWithWebPresence": {
+      "request": {
+        "variables": {
+          "locale": "zz",
+          "shopLocale": {
+            "published": false,
+            "marketWebPresenceIds": ["gid://shopify/MarketWebPresence/62842765618"]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "shopLocaleUpdate": {
+            "shopLocale": null,
+            "userErrors": [
+              {
+                "field": ["locale"],
+                "message": "The locale doesn't exist."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
               "restoreRate": 100
             }
           }
