@@ -1268,8 +1268,8 @@ fn payment_customization_parity_fixtures_replay_validation_metafields_activation
             .is_some_and(|id| id.starts_with("gid://shopify/PaymentCustomization/"))
     );
     assert_eq!(
-        create_validation.body["data"]["bothIdentifiers"]["userErrors"][0]["code"],
-        json!("MULTIPLE_FUNCTION_IDENTIFIERS")
+        create_validation.body["data"]["bothIdentifiers"],
+        create_validation_fixture["response"]["payload"]["data"]["bothIdentifiers"]
     );
     assert_eq!(
         create_validation.body["data"]["missingIdentifier"],
