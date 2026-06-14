@@ -7704,6 +7704,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-service-callback-url-update-protocol-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-service-callback-url-update-protocol-conformance.ts',
+    purpose: 'FulfillmentService callbackUrl protocol validation for update.',
+    requiredAuthScopes: ['read_assigned_fulfillment_orders', 'write_assigned_fulfillment_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-service-callback-url-update-protocol-validation.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-service-callback-url-update-protocol-validation.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-callback-url-update-protocol-create.graphql',
+      'config/parity-requests/shipping-fulfillments/fulfillment-service-callback-url-validation-update-protocol.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable fulfillment service with an allowed callback URL, records an invalid ftp:// callbackUrl update attempt, then deletes the fulfillment service in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'delivery-profiles',
     scriptPath: 'scripts/capture-delivery-profile-conformance.ts',
     purpose: 'Delivery profile read/write lifecycle behavior.',
