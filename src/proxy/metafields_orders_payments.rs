@@ -90,7 +90,7 @@ pub(in crate::proxy) fn metafields_set_input_errors(
     inputs
         .iter()
         .enumerate()
-        .find_map(|(index, input)| {
+        .filter_map(|(index, input)| {
             let namespace = canonical_app_metafield_namespace(
                 resolved_string_field(input, "namespace").as_deref(),
             );

@@ -9,11 +9,6 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       pin: true
     }
   ) {
-    createdDefinition {
-      id
-      key
-      pinnedPosition
-    }
     userErrors {
       field
       message
@@ -30,11 +25,6 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       pin: true
     }
   ) {
-    createdDefinition {
-      id
-      key
-      pinnedPosition
-    }
     userErrors {
       field
       message
@@ -51,11 +41,6 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       pin: true
     }
   ) {
-    createdDefinition {
-      id
-      key
-      pinnedPosition
-    }
     userErrors {
       field
       message
@@ -72,11 +57,6 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       pin: true
     }
   ) {
-    createdDefinition {
-      id
-      key
-      pinnedPosition
-    }
     userErrors {
       field
       message
@@ -93,11 +73,6 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       pin: true
     }
   ) {
-    createdDefinition {
-      id
-      key
-      pinnedPosition
-    }
     userErrors {
       field
       message
@@ -114,11 +89,6 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       pin: true
     }
   ) {
-    createdDefinition {
-      id
-      key
-      pinnedPosition
-    }
     userErrors {
       field
       message
@@ -135,11 +105,6 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       pin: true
     }
   ) {
-    createdDefinition {
-      id
-      key
-      pinnedPosition
-    }
     userErrors {
       field
       message
@@ -156,11 +121,6 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       pin: true
     }
   ) {
-    createdDefinition {
-      id
-      key
-      pinnedPosition
-    }
     userErrors {
       field
       message
@@ -177,11 +137,6 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       pin: true
     }
   ) {
-    createdDefinition {
-      id
-      key
-      pinnedPosition
-    }
     userErrors {
       field
       message
@@ -198,11 +153,6 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       pin: true
     }
   ) {
-    createdDefinition {
-      id
-      key
-      pinnedPosition
-    }
     userErrors {
       field
       message
@@ -219,11 +169,6 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       pin: true
     }
   ) {
-    createdDefinition {
-      id
-      key
-      pinnedPosition
-    }
     userErrors {
       field
       message
@@ -240,11 +185,6 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       pin: true
     }
   ) {
-    createdDefinition {
-      id
-      key
-      pinnedPosition
-    }
     userErrors {
       field
       message
@@ -261,11 +201,6 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       pin: true
     }
   ) {
-    createdDefinition {
-      id
-      key
-      pinnedPosition
-    }
     userErrors {
       field
       message
@@ -282,11 +217,6 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       pin: true
     }
   ) {
-    createdDefinition {
-      id
-      key
-      pinnedPosition
-    }
     userErrors {
       field
       message
@@ -303,11 +233,6 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       pin: true
     }
   ) {
-    createdDefinition {
-      id
-      key
-      pinnedPosition
-    }
     userErrors {
       field
       message
@@ -324,11 +249,6 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       pin: true
     }
   ) {
-    createdDefinition {
-      id
-      key
-      pinnedPosition
-    }
     userErrors {
       field
       message
@@ -345,11 +265,6 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       pin: true
     }
   ) {
-    createdDefinition {
-      id
-      key
-      pinnedPosition
-    }
     userErrors {
       field
       message
@@ -366,11 +281,6 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       pin: true
     }
   ) {
-    createdDefinition {
-      id
-      key
-      pinnedPosition
-    }
     userErrors {
       field
       message
@@ -387,11 +297,6 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       pin: true
     }
   ) {
-    createdDefinition {
-      id
-      key
-      pinnedPosition
-    }
     userErrors {
       field
       message
@@ -404,6 +309,486 @@ mutation MetafieldDefinitionCreateWithPinGuards($namespace: String!, $categoryId
       namespace: $namespace
       key: "pin_20"
       name: "Create pin guard 20"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create21: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_21"
+      name: "Create pin guard 21"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create22: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_22"
+      name: "Create pin guard 22"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create23: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_23"
+      name: "Create pin guard 23"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create24: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_24"
+      name: "Create pin guard 24"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create25: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_25"
+      name: "Create pin guard 25"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create26: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_26"
+      name: "Create pin guard 26"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create27: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_27"
+      name: "Create pin guard 27"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create28: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_28"
+      name: "Create pin guard 28"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create29: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_29"
+      name: "Create pin guard 29"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create30: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_30"
+      name: "Create pin guard 30"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create31: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_31"
+      name: "Create pin guard 31"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create32: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_32"
+      name: "Create pin guard 32"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create33: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_33"
+      name: "Create pin guard 33"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create34: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_34"
+      name: "Create pin guard 34"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create35: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_35"
+      name: "Create pin guard 35"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create36: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_36"
+      name: "Create pin guard 36"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create37: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_37"
+      name: "Create pin guard 37"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create38: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_38"
+      name: "Create pin guard 38"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create39: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_39"
+      name: "Create pin guard 39"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create40: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_40"
+      name: "Create pin guard 40"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create41: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_41"
+      name: "Create pin guard 41"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create42: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_42"
+      name: "Create pin guard 42"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create43: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_43"
+      name: "Create pin guard 43"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create44: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_44"
+      name: "Create pin guard 44"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create45: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_45"
+      name: "Create pin guard 45"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create46: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_46"
+      name: "Create pin guard 46"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create47: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_47"
+      name: "Create pin guard 47"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create48: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_48"
+      name: "Create pin guard 48"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create49: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_49"
+      name: "Create pin guard 49"
+      type: "single_line_text_field"
+      pin: true
+    }
+  ) {
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create50: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_50"
+      name: "Create pin guard 50"
       type: "single_line_text_field"
       pin: true
     }

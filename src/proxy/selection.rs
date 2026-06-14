@@ -1,6 +1,9 @@
 use super::*;
 
 pub(in crate::proxy) fn selected_json(record: &Value, selections: &[SelectedField]) -> Value {
+    if record.is_null() {
+        return Value::Null;
+    }
     let mut fields = serde_json::Map::new();
     for selection in selections {
         let Some(value) = record.get(&selection.name) else {

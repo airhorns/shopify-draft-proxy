@@ -1,9 +1,162 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
 
+fn create_definition(proxy: &mut DraftProxy, namespace: &str, key: &str, pin: bool) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+        mutation MetafieldDefinitionCreateForPinLimit($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id key pinnedPosition }
+            userErrors { field message code }
+          }
+        }
+        "#,
+            json!({
+                "definition": {
+                    "ownerType": "PRODUCT",
+                    "namespace": namespace,
+                    "key": key,
+                    "name": format!("Pin limit {key}"),
+                    "type": "single_line_text_field",
+                    "pin": pin
+                }
+            }),
+        ))
+        .body["data"]["metafieldDefinitionCreate"]
+        .clone()
+}
+
+fn pin_definition(proxy: &mut DraftProxy, namespace: &str, key: &str) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+        mutation MetafieldDefinitionPinForLimit($identifier: MetafieldDefinitionIdentifierInput!) {
+          metafieldDefinitionPin(identifier: $identifier) {
+            pinnedDefinition { id key pinnedPosition }
+            userErrors { field message code }
+          }
+        }
+        "#,
+            json!({"identifier": {"ownerType": "PRODUCT", "namespace": namespace, "key": key}}),
+        ))
+        .body["data"]["metafieldDefinitionPin"]
+        .clone()
+}
+
+fn unpin_definition(proxy: &mut DraftProxy, namespace: &str, key: &str) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+        mutation MetafieldDefinitionUnpinForLimit($identifier: MetafieldDefinitionIdentifierInput!) {
+          metafieldDefinitionUnpin(identifier: $identifier) {
+            unpinnedDefinition { id key pinnedPosition }
+            userErrors { field message code }
+          }
+        }
+        "#,
+            json!({"identifier": {"ownerType": "PRODUCT", "namespace": namespace, "key": key}}),
+        ))
+        .body["data"]["metafieldDefinitionUnpin"]
+        .clone()
+}
+
+fn read_definition(proxy: &mut DraftProxy, namespace: &str, key: &str) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+        query MetafieldDefinitionPinningRead($identifier: MetafieldDefinitionIdentifierInput!) {
+          metafieldDefinition(identifier: $identifier) {
+            key
+            pinnedPosition
+          }
+        }
+        "#,
+            json!({"identifier": {"ownerType": "PRODUCT", "namespace": namespace, "key": key}}),
+        ))
+        .body["data"]["metafieldDefinition"]
+        .clone()
+}
+
+fn update_definition_pin(proxy: &mut DraftProxy, namespace: &str, key: &str) -> Value {
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionUpdateForPinLimit($definition: MetafieldDefinitionUpdateInput!) {
+          metafieldDefinitionUpdate(definition: $definition) {
+            updatedDefinition { id key pinnedPosition }
+            userErrors { field message code }
+            validationJob { id }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "ownerType": "PRODUCT",
+                "namespace": namespace,
+                "key": key,
+                "pin": true
+            }
+        }),
+    )).body["data"]["metafieldDefinitionUpdate"].clone()
+}
+
+fn standard_enable_pin(proxy: &mut DraftProxy) -> Value {
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation StandardMetafieldDefinitionEnablePinLimit($ownerType: MetafieldOwnerType!, $id: ID!) {
+          standardMetafieldDefinitionEnable(ownerType: $ownerType, id: $id, pin: true) {
+            createdDefinition { id namespace key pinnedPosition }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "ownerType": "PRODUCT",
+            "id": "gid://shopify/StandardMetafieldDefinitionTemplate/1"
+        }),
+    )).body["data"]["standardMetafieldDefinitionEnable"].clone()
+}
+
+#[test]
+fn metafield_definition_unpin_compacts_product_positions_across_namespaces() {
+    let mut proxy = snapshot_proxy();
+
+    assert_eq!(
+        create_definition(&mut proxy, "har1423_compact_a", "pin_01", true)["createdDefinition"]
+            ["pinnedPosition"],
+        json!(1)
+    );
+    assert_eq!(
+        create_definition(&mut proxy, "har1423_compact_b", "pin_02", true)["createdDefinition"]
+            ["pinnedPosition"],
+        json!(2)
+    );
+
+    let unpinned = unpin_definition(&mut proxy, "har1423_compact_a", "pin_01");
+    assert_eq!(unpinned["userErrors"], json!([]));
+    assert_eq!(
+        read_definition(&mut proxy, "har1423_compact_b", "pin_02")["pinnedPosition"],
+        json!(1)
+    );
+    assert_eq!(
+        create_definition(&mut proxy, "har1423_compact_c", "pin_03", true)["createdDefinition"]
+            ["pinnedPosition"],
+        json!(2)
+    );
+}
+
 #[test]
 fn metafield_definition_pin_unpin_and_limit_reads_stage_local_positions() {
     let mut proxy = snapshot_proxy();
+    let namespace = "har1423_pin_read";
+    assert_eq!(
+        create_definition(&mut proxy, namespace, "pin_a", false)["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create_definition(&mut proxy, namespace, "pin_b", false)["userErrors"],
+        json!([])
+    );
 
     let pin_a = proxy.process_request(json_graphql_request(
         r#"
@@ -14,7 +167,7 @@ fn metafield_definition_pin_unpin_and_limit_reads_stage_local_positions() {
           }
         }
         "#,
-        json!({"identifier": {"ownerType": "PRODUCT", "namespace": "metafield_definition_pin_moyouov1", "key": "pin_a"}}),
+        json!({"identifier": {"ownerType": "PRODUCT", "namespace": namespace, "key": "pin_a"}}),
     ));
     assert_eq!(
         pin_a.body["data"]["metafieldDefinitionPin"]["userErrors"],
@@ -22,7 +175,7 @@ fn metafield_definition_pin_unpin_and_limit_reads_stage_local_positions() {
     );
     assert_eq!(
         pin_a.body["data"]["metafieldDefinitionPin"]["pinnedDefinition"]["pinnedPosition"],
-        json!(3)
+        json!(1)
     );
 
     let pin_b = proxy.process_request(json_graphql_request(
@@ -31,11 +184,11 @@ fn metafield_definition_pin_unpin_and_limit_reads_stage_local_positions() {
           metafieldDefinitionPin(identifier: $identifier) { pinnedDefinition { id key pinnedPosition } userErrors { field message code } }
         }
         "#,
-        json!({"identifier": {"ownerType": "PRODUCT", "namespace": "metafield_definition_pin_moyouov1", "key": "pin_b"}}),
+        json!({"identifier": {"ownerType": "PRODUCT", "namespace": namespace, "key": "pin_b"}}),
     ));
     assert_eq!(
         pin_b.body["data"]["metafieldDefinitionPin"]["pinnedDefinition"]["pinnedPosition"],
-        json!(4)
+        json!(2)
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -45,17 +198,17 @@ fn metafield_definition_pin_unpin_and_limit_reads_stage_local_positions() {
           pinned: metafieldDefinitions(ownerType: PRODUCT, first: 10, namespace: $namespace, sortKey: PINNED_POSITION, pinnedStatus: PINNED) { nodes { key pinnedPosition } }
         }
         "#,
-        json!({"namespace": "metafield_definition_pin_moyouov1"}),
+        json!({"namespace": namespace}),
     ));
     assert_eq!(
         read.body["data"]["byIdentifier"]["pinnedPosition"],
-        json!(3)
+        json!(1)
     );
     assert_eq!(
         read.body["data"]["pinned"]["nodes"],
         json!([
-            {"key": "pin_b", "pinnedPosition": 4},
-            {"key": "pin_a", "pinnedPosition": 3}
+            {"key": "pin_b", "pinnedPosition": 2},
+            {"key": "pin_a", "pinnedPosition": 1}
         ])
     );
 
@@ -65,37 +218,123 @@ fn metafield_definition_pin_unpin_and_limit_reads_stage_local_positions() {
           metafieldDefinitionUnpin(identifier: $identifier) { unpinnedDefinition { id key pinnedPosition } userErrors { field message code } }
         }
         "#,
-        json!({"identifier": {"ownerType": "PRODUCT", "namespace": "metafield_definition_pin_moyouov1", "key": "pin_a"}}),
+        json!({"identifier": {"ownerType": "PRODUCT", "namespace": namespace, "key": "pin_a"}}),
     ));
     assert_eq!(
         unpin_a.body["data"]["metafieldDefinitionUnpin"]["unpinnedDefinition"]["pinnedPosition"],
         Value::Null
     );
+}
 
-    let limit = proxy.process_request(json_graphql_request(
+#[test]
+fn metafield_definition_pin_limit_is_fifty_for_pin_create_update_and_standard_enable() {
+    let namespace = "har1423_pin_limit";
+
+    let mut pin_proxy = snapshot_proxy();
+    for index in 1..=51 {
+        let key = format!("pin_{index:02}");
+        let created = create_definition(&mut pin_proxy, namespace, &key, false);
+        assert_eq!(created["userErrors"], json!([]));
+    }
+    for index in 1..=50 {
+        let key = format!("pin_{index:02}");
+        let pinned = pin_definition(&mut pin_proxy, namespace, &key);
+        assert_eq!(pinned["userErrors"], json!([]));
+        if index == 50 {
+            assert_eq!(pinned["pinnedDefinition"]["pinnedPosition"], json!(50));
+        }
+    }
+    let over_cap_pin = pin_definition(&mut pin_proxy, namespace, "pin_51");
+    assert_eq!(over_cap_pin["pinnedDefinition"], Value::Null);
+    assert_eq!(
+        over_cap_pin["userErrors"],
+        json!([{
+            "field": null,
+            "message": "Limit of 50 pinned definitions.",
+            "code": "PINNED_LIMIT_REACHED"
+        }])
+    );
+    let constrained = pin_proxy.process_request(json_graphql_request(
         r#"
-        mutation MetafieldDefinitionPinLimitAndConstraintGuard($namespace: String!, $categoryId: String!) {
-          create01: metafieldDefinitionCreate(definition: { ownerType: PRODUCT, namespace: $namespace, key: "pin_01", name: "HAR 699 pin 01", type: "single_line_text_field" }) { createdDefinition { id key } userErrors { field message code } }
-          pin01: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_01" }) { pinnedDefinition { id key pinnedPosition } userErrors { field message code } }
-          create21: metafieldDefinitionCreate(definition: { ownerType: PRODUCT, namespace: $namespace, key: "pin_21", name: "HAR 699 pin 21", type: "single_line_text_field" }) { createdDefinition { id key } userErrors { field message code } }
-          pin21: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_21" }) { pinnedDefinition { id key pinnedPosition } userErrors { field message code } }
-          constrainedCreate: metafieldDefinitionCreate(definition: { ownerType: PRODUCT, namespace: $namespace, key: "constrained", name: "HAR 699 constrained", type: "single_line_text_field", constraints: { key: "category", values: [$categoryId] } }) { createdDefinition { id key constraints { key } } userErrors { field message code } }
-          constrainedPin: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "constrained" }) { pinnedDefinition { id key pinnedPosition } userErrors { field message code } }
+        mutation MetafieldDefinitionConstrainedAtPinLimit($namespace: String!, $categoryId: String!) {
+          constrainedCreate: metafieldDefinitionCreate(definition: { ownerType: PRODUCT, namespace: $namespace, key: "constrained", name: "Constrained", type: "single_line_text_field", constraints: { key: "category", values: [$categoryId] } }) { createdDefinition { id } userErrors { field message code } }
+          constrainedPin: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "constrained" }) { pinnedDefinition { id } userErrors { field message code } }
         }
         "#,
-        json!({"namespace": "har699", "categoryId": "gid://shopify/TaxonomyCategory/sg-4-17-2-17"}),
+        json!({"namespace": namespace, "categoryId": "gid://shopify/TaxonomyCategory/sg-4-17-2-17"}),
     ));
     assert_eq!(
-        limit.body["data"]["pin01"]["pinnedDefinition"]["pinnedPosition"],
-        json!(1)
+        constrained.body["data"]["constrainedPin"]["userErrors"][0]["code"],
+        json!("UNSUPPORTED_PINNING")
+    );
+
+    let mut create_proxy = snapshot_proxy();
+    for index in 1..=50 {
+        let key = format!("pin_{index:02}");
+        let created = create_definition(&mut create_proxy, "har1423_create_limit", &key, true);
+        assert_eq!(created["userErrors"], json!([]));
+        if index == 50 {
+            assert_eq!(created["createdDefinition"]["pinnedPosition"], json!(50));
+        }
+    }
+    let over_cap_create =
+        create_definition(&mut create_proxy, "har1423_create_limit", "pin_51", true);
+    assert_eq!(over_cap_create["createdDefinition"], Value::Null);
+    assert_eq!(
+        over_cap_create["userErrors"][0]["message"],
+        json!("Limit of 50 pinned definitions.")
     );
     assert_eq!(
-        limit.body["data"]["pin21"]["userErrors"][0]["code"],
+        over_cap_create["userErrors"][0]["code"],
         json!("PINNED_LIMIT_REACHED")
     );
+
+    let mut update_proxy = snapshot_proxy();
+    for index in 1..=51 {
+        let key = format!("pin_{index:02}");
+        assert_eq!(
+            create_definition(&mut update_proxy, "har1423_update_limit", &key, false)["userErrors"],
+            json!([])
+        );
+    }
+    for index in 1..=50 {
+        let key = format!("pin_{index:02}");
+        let updated = update_definition_pin(&mut update_proxy, "har1423_update_limit", &key);
+        assert_eq!(updated["userErrors"], json!([]));
+        if index == 50 {
+            assert_eq!(updated["updatedDefinition"]["pinnedPosition"], json!(50));
+        }
+    }
+    let over_cap_update =
+        update_definition_pin(&mut update_proxy, "har1423_update_limit", "pin_51");
+    assert_eq!(over_cap_update["updatedDefinition"], Value::Null);
     assert_eq!(
-        limit.body["data"]["constrainedPin"]["userErrors"][0]["code"],
-        json!("UNSUPPORTED_PINNING")
+        over_cap_update["userErrors"][0]["message"],
+        json!("Limit of 50 pinned definitions.")
+    );
+    assert_eq!(
+        over_cap_update["userErrors"][0]["code"],
+        json!("PINNED_LIMIT_REACHED")
+    );
+
+    let mut standard_proxy = snapshot_proxy();
+    for index in 1..=50 {
+        let key = format!("pin_{index:02}");
+        assert_eq!(
+            create_definition(&mut standard_proxy, "har1423_standard_limit", &key, true)
+                ["userErrors"],
+            json!([])
+        );
+    }
+    let over_cap_standard = standard_enable_pin(&mut standard_proxy);
+    assert_eq!(over_cap_standard["createdDefinition"], Value::Null);
+    assert_eq!(
+        over_cap_standard["userErrors"][0]["message"],
+        json!("Limit of 50 pinned definitions.")
+    );
+    assert_eq!(
+        over_cap_standard["userErrors"][0]["code"],
+        json!("PINNED_LIMIT_REACHED")
     );
 }
 

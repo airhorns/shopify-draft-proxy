@@ -299,8 +299,14 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
     const parsed = JSON.parse(body) as Record<string, unknown>;
     const variablesMatch = stableJson(parsed['variables'] ?? {}) === stableJson(call.variables ?? {});
     const query = typeof parsed['query'] === 'string' ? parsed['query'] : '';
+    const operationName = typeof parsed['operationName'] === 'string' ? parsed['operationName'] : '';
     const canMatchSynthesizedNodeQuery = call.query?.startsWith('sha:') && /\bnode(?:s)?\s*\(/u.test(query);
-    return variablesMatch && (canMatchSynthesizedNodeQuery || parsed['query'] === call.query);
+    return (
+      variablesMatch &&
+      (canMatchSynthesizedNodeQuery ||
+        parsed['query'] === call.query ||
+        (call.query === undefined && call.operationName === operationName && operationName.length > 0))
+    );
   } catch {
     return false;
   }

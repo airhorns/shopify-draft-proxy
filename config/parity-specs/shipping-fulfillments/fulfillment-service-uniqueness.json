@@ -6,14 +6,14 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-service-uniqueness.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
     "variablesCapturePath": "$.createA.variables",
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Live evidence that fulfillmentServiceCreate rejects duplicate names case-insensitively, rejects generated-handle collisions by returning the same name userError, normalizes diacritic/punctuation names into generated handles, rejects reserved generated handles with the captured reserved-name userError, and fulfillmentServiceUpdate rejects renaming to another active service's name or to a reserved generated handle. The public Admin API exposes fulfillmentServiceCreate/Update.userErrors as UserError without a selectable code field in this capture; focused runtime tests cover null code projection.",
+  "notes": "Live evidence that fulfillmentServiceCreate rejects duplicate names case-insensitively, rejects generated-handle collisions by returning the same name userError, normalizes diacritic/punctuation names into generated handles, rejects reserved generated handles with the captured reserved-name userError, and fulfillmentServiceUpdate rejects renaming to another active service's name or to a reserved generated handle. Reserved generated-handle coverage includes manual, gift_card, shopify, and amazon. The public Admin API exposes fulfillmentServiceCreate/Update.userErrors as UserError without a selectable code field in this capture; focused runtime tests cover null code projection.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -138,6 +138,28 @@
         }
       },
       {
+        "name": "reserved-shopify-create",
+        "capturePath": "$.reservedShopifyCreate.payload.data.fulfillmentServiceCreate",
+        "proxyPath": "$.data.fulfillmentServiceCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
+          "variablesCapturePath": "$.reservedShopifyCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "reserved-amazon-create",
+        "capturePath": "$.reservedAmazonCreate.payload.data.fulfillmentServiceCreate",
+        "proxyPath": "$.data.fulfillmentServiceCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-create.graphql",
+          "variablesCapturePath": "$.reservedAmazonCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
         "name": "setup-update-source-create-payload",
         "capturePath": "$.createUpdateSource.payload.data.fulfillmentServiceCreate",
         "proxyPath": "$.data.fulfillmentServiceCreate",
@@ -216,6 +238,44 @@
             },
             "name": {
               "fromCapturePath": "$.updateToReservedName.variables.name"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-to-reserved-shopify-name",
+        "capturePath": "$.updateToReservedShopifyName.payload.data.fulfillmentServiceUpdate",
+        "proxyPath": "$.data.fulfillmentServiceUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-update-target-create-payload",
+              "path": "$.data.fulfillmentServiceCreate.fulfillmentService.id"
+            },
+            "name": {
+              "fromCapturePath": "$.updateToReservedShopifyName.variables.name"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-to-reserved-amazon-name",
+        "capturePath": "$.updateToReservedAmazonName.payload.data.fulfillmentServiceUpdate",
+        "proxyPath": "$.data.fulfillmentServiceUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-uniqueness-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-update-target-create-payload",
+              "path": "$.data.fulfillmentServiceCreate.fulfillmentService.id"
+            },
+            "name": {
+              "fromCapturePath": "$.updateToReservedAmazonName.variables.name"
             }
           },
           "apiVersion": "2026-04"

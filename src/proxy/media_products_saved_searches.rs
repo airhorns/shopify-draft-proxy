@@ -1111,7 +1111,7 @@ impl DraftProxy {
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
+    ) -> MutationOutcome {
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "metafieldsSet".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
@@ -1129,11 +1129,12 @@ impl DraftProxy {
                 json!([])
             };
             let payload = json!({"metafields": metafields, "userErrors": user_errors});
-            return ok_json(
+            return MutationOutcome::response(ok_json(
                 json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
-            );
+            ));
         }
         let mut metafields = Vec::new();
+        let mut staged_owner_ids = Vec::new();
         for input in inputs {
             let owner_id = resolved_string_field(&input, "ownerId").unwrap_or_default();
             let namespace = canonical_app_metafield_namespace(
@@ -1141,6 +1142,17 @@ impl DraftProxy {
             );
             let key = resolved_string_field(&input, "key").unwrap_or_default();
             let metafield_type = resolved_string_field(&input, "type")
+                .or_else(|| {
+                    self.store
+                        .staged
+                        .metafield_definitions
+                        .get(&(namespace.clone(), key.clone()))
+                        .filter(|definition| {
+                            definition["ownerType"].as_str() == Some(owner_type_from_gid(&owner_id))
+                        })
+                        .and_then(|definition| definition["type"]["name"].as_str())
+                        .map(str::to_string)
+                })
                 .unwrap_or_else(|| "single_line_text_field".to_string());
             let value = resolved_string_field(&input, "value").unwrap_or_default();
             let index = self
@@ -1166,7 +1178,7 @@ impl DraftProxy {
             let metafield = if let Some(mut record) =
                 custom_data_metafield_type_matrix_record(&namespace, &key)
             {
-                record["owner"] = json!({"id": owner_id.clone()});
+                record["owner"] = owner_reference_from_gid(&owner_id);
                 record
             } else {
                 let (compare_digest, cursor) =
@@ -1189,7 +1201,7 @@ impl DraftProxy {
                     "createdAt": "2026-05-05T00:00:00Z",
                     "updatedAt": "2026-05-05T00:00:00Z",
                     "ownerType": owner_type_from_gid(&owner_id),
-                    "owner": {"id": owner_id.clone()},
+                    "owner": owner_reference_from_gid(&owner_id),
                 });
                 if let Some(cursor) = cursor {
                     metafield["__cursor"] = json!(cursor);
@@ -1210,21 +1222,28 @@ impl DraftProxy {
             } else {
                 owner_metafields.push(metafield.clone());
             }
+            if !staged_owner_ids.iter().any(|id| id == &owner_id) {
+                staged_owner_ids.push(owner_id);
+            }
             metafields.push(metafield);
         }
         let payload = json!({"metafields": metafields, "userErrors": []});
-        ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+        MutationOutcome::staged(
+            ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}})),
+            LogDraft::staged("metafieldsSet", "products", staged_owner_ids),
+        )
     }
 
     pub(in crate::proxy) fn owner_metafields_delete(
         &mut self,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
+    ) -> MutationOutcome {
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "metafieldsDelete".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
         let mut deleted = Vec::new();
+        let mut staged_owner_ids = Vec::new();
         for input in list_object_arg(variables, "metafields") {
             let owner_id = resolved_string_field(&input, "ownerId").unwrap_or_default();
             self.seed_owner_metafields_for_delete(&owner_id);
@@ -1243,14 +1262,21 @@ impl DraftProxy {
                 existing.get("namespace").and_then(Value::as_str) != Some(namespace.as_str())
                     || existing.get("key").and_then(Value::as_str) != Some(key.as_str())
             });
-            if owner_metafields.len() == before_len {
+            if before_len == owner_metafields.len() {
                 deleted.push(Value::Null);
             } else {
-                deleted.push(json!({"ownerId": owner_id, "namespace": namespace, "key": key}));
+                deleted
+                    .push(json!({"ownerId": owner_id.clone(), "namespace": namespace, "key": key}));
+            }
+            if !staged_owner_ids.iter().any(|id| id == &owner_id) {
+                staged_owner_ids.push(owner_id);
             }
         }
         let payload = json!({"deletedMetafields": deleted, "userErrors": []});
-        ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
+        MutationOutcome::staged(
+            ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}})),
+            LogDraft::staged("metafieldsDelete", "products", staged_owner_ids),
+        )
     }
 
     pub(in crate::proxy) fn owner_metafield_read_has_staged_data(
@@ -1261,7 +1287,7 @@ impl DraftProxy {
         root_fields(query, variables)
             .unwrap_or_default()
             .iter()
-            .any(|field| self.owner_metafield_read_field_has_staged_data(field))
+            .any(|field| self.owner_metafield_read_field_has_staged_data(field, variables))
     }
 
     pub(in crate::proxy) fn owner_metafields_read(
@@ -1277,14 +1303,18 @@ impl DraftProxy {
             ) {
                 continue;
             }
-            let owner = self.owner_metafield_owner_json(&field);
+            let owner = self.owner_metafield_owner_json(&field, variables);
             data.insert(field.response_key, owner);
         }
         ok_json(json!({"data": Value::Object(data)}))
     }
 
-    fn owner_metafield_read_field_has_staged_data(&self, field: &RootFieldSelection) -> bool {
-        let owner_id = self.owner_field_id(field);
+    fn owner_metafield_read_field_has_staged_data(
+        &self,
+        field: &RootFieldSelection,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        let owner_id = self.owner_field_id(field, variables);
         if self.store.staged.owner_metafields.contains_key(&owner_id) {
             return true;
         }
@@ -1301,8 +1331,12 @@ impl DraftProxy {
             })
     }
 
-    fn owner_metafield_owner_json(&self, field: &RootFieldSelection) -> Value {
-        let owner_id = self.owner_field_id(field);
+    fn owner_metafield_owner_json(
+        &self,
+        field: &RootFieldSelection,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let owner_id = self.owner_field_id(field, variables);
         selected_payload_json(&field.selection, |selection| {
             match selection.name.as_str() {
                 "__typename" => Some(json!(owner_typename_from_root(&field.name))),
@@ -1321,11 +1355,17 @@ impl DraftProxy {
         })
     }
 
-    fn owner_field_id(&self, field: &RootFieldSelection) -> String {
+    fn owner_field_id(
+        &self,
+        field: &RootFieldSelection,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> String {
         field
             .arguments
             .get("id")
             .and_then(resolved_value_string)
+            .or_else(|| resolved_string_arg(variables, "id"))
+            .or_else(|| resolved_string_arg(variables, "productId"))
             .unwrap_or_default()
     }
 
@@ -2815,32 +2855,26 @@ impl DraftProxy {
                 &saved_search_selection,
                 vec![json!({
                     "field": ["input"],
-                    "message": "Saved search input is required",
-                    "code": "REQUIRED"
+                    "message": "Saved search input is required"
                 })],
             ));
         };
-        let Some(name) =
-            resolved_string_field(&input, "name").filter(|value| !value.trim().is_empty())
-        else {
-            return MutationFieldOutcome::unlogged(saved_search_mutation_payload_json(
-                None,
-                payload_selection,
-                &saved_search_selection,
-                vec![json!({
-                    "field": ["input", "name"],
-                    "message": "Name can't be blank",
-                    "code": "BLANK"
-                })],
-            ));
-        };
+        let name = resolved_string_field(&input, "name").unwrap_or_default();
+        let name_is_blank = name.trim().is_empty();
         let search_query = resolved_string_field(&input, "query").unwrap_or_default();
         let resource_type =
             resolved_string_field(&input, "resourceType").unwrap_or_else(|| "PRODUCT".to_string());
         let mut user_errors = Vec::new();
-        if is_reserved_saved_search_name(&resource_type, &name)
-            || self.saved_search_name_exists(&resource_type, &name, None)
-        {
+        if !name_is_blank && is_reserved_saved_search_name(&resource_type, &name) {
+            user_errors.push(saved_search_name_taken_user_error());
+        }
+        if name_is_blank {
+            user_errors.push(json!({
+                "field": ["input", "name"],
+                "message": "Name can't be blank"
+            }));
+        }
+        if !name_is_blank && self.saved_search_name_exists(&resource_type, &name, None) {
             user_errors.push(saved_search_name_taken_user_error());
         }
         if resource_type == "CUSTOMER" {
@@ -2899,8 +2933,7 @@ impl DraftProxy {
                 &saved_search_selection,
                 vec![json!({
                     "field": ["input"],
-                    "message": "Saved search input is required",
-                    "code": "REQUIRED"
+                    "message": "Saved search input is required"
                 })],
             ));
         };
@@ -4179,6 +4212,24 @@ fn known_metafield_metadata(
         _ => return None,
     };
     Some(metadata)
+}
+
+fn owner_reference_from_gid(owner_id: &str) -> Value {
+    json!({
+        "__typename": owner_typename_from_gid(owner_id),
+        "id": owner_id
+    })
+}
+
+fn owner_typename_from_gid(owner_id: &str) -> &'static str {
+    match shopify_gid_resource_type(owner_id) {
+        Some("ProductVariant") => "ProductVariant",
+        Some("Collection") => "Collection",
+        Some("Customer") => "Customer",
+        Some("Order") => "Order",
+        Some("Company") => "Company",
+        _ => "Product",
+    }
 }
 
 fn metafield_cursor(metafield: &Value) -> Option<String> {
