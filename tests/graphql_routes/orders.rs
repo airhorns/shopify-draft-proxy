@@ -2,6 +2,244 @@ use super::common::*;
 use pretty_assertions::assert_eq;
 
 #[test]
+fn order_create_stages_rich_order_and_downstream_reads() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-create-parity.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderCreate-parity-plan.graphql"),
+        fixture["variables"].clone(),
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order = &create.body["data"]["orderCreate"]["order"];
+    assert_eq!(
+        order["email"],
+        fixture["mutation"]["response"]["data"]["orderCreate"]["order"]["email"]
+    );
+    assert_eq!(order["displayFinancialStatus"], json!("PAID"));
+    assert_eq!(order["displayFulfillmentStatus"], json!("FULFILLED"));
+    assert_eq!(
+        order["currentTotalPriceSet"]["shopMoney"]["amount"],
+        json!("42.5")
+    );
+    assert_eq!(order["totalTaxSet"]["shopMoney"]["amount"], json!("2.5"));
+    assert_eq!(
+        order["totalDiscountsSet"]["shopMoney"]["amount"],
+        json!("5.0")
+    );
+    assert_eq!(order["discountCodes"], json!(["SAVE5"]));
+    assert_eq!(
+        order["lineItems"]["nodes"][0]["originalUnitPriceSet"],
+        fixture["mutation"]["response"]["data"]["orderCreate"]["order"]["lineItems"]["nodes"][0]
+            ["originalUnitPriceSet"]
+    );
+
+    let order_id = order["id"].clone();
+    let downstream = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderCreate-downstream-read.graphql"),
+        json!({ "id": order_id.clone() }),
+    ));
+    assert_eq!(
+        downstream.body["data"]["order"]["email"],
+        fixture["downstreamRead"]["response"]["data"]["order"]["email"]
+    );
+    assert_eq!(
+        downstream.body["data"]["order"]["lineItems"]["nodes"][0]["taxLines"],
+        fixture["downstreamRead"]["response"]["data"]["order"]["lineItems"]["nodes"][0]["taxLines"]
+    );
+
+    let catalog = proxy.process_request(json_graphql_request(
+        r#"
+        query OrderCreateCatalog($id: ID!) {
+          byId: order(id: $id) { id email }
+          orders(first: 5) { nodes { id email } }
+          ordersCount { count precision }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    assert_eq!(catalog.body["data"]["byId"]["email"], order["email"]);
+    assert_eq!(
+        catalog.body["data"]["orders"]["nodes"][0]["email"],
+        order["email"]
+    );
+    assert_eq!(
+        catalog.body["data"]["ordersCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn order_create_line_item_fields_and_currency_defaults_are_staged() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-create-line-item-fields.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderCreate-line-item-fields.graphql"),
+        fixture["variables"].clone(),
+    ));
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let line = &create.body["data"]["orderCreate"]["order"]["lineItems"]["nodes"][0];
+    assert_eq!(
+        line["customAttributes"],
+        json!([
+            { "key": "engraving", "value": "Ada" },
+            { "key": "fulfillment_note", "value": "Pack flat" }
+        ])
+    );
+    assert_eq!(line["requiresShipping"], json!(false));
+    assert_eq!(line["taxable"], json!(false));
+    assert_eq!(line["vendor"], json!("Hermes Vendor"));
+    assert_eq!(
+        line["product"]["id"],
+        fixture["downstreamRead"]["response"]["data"]["order"]["lineItems"]["nodes"][0]["product"]
+            ["id"]
+    );
+    assert_eq!(
+        create.body["data"]["orderCreate"]["order"]["currentTotalPriceSet"]["shopMoney"],
+        json!({ "amount": "24.0", "currencyCode": "USD" })
+    );
+
+    let custom = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrderCreateInternalLineFields($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              currencyCode
+              presentmentCurrencyCode
+              lineItems(first: 5) {
+                nodes {
+                  giftCard
+                  fulfillmentService
+                  fulfillmentStatus
+                  weight { value unit }
+                  appliedDiscounts {
+                    title
+                    value { amount currencyCode }
+                  }
+                }
+              }
+            }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "line-internal-fields@example.com",
+                "lineItems": [{
+                    "title": "Internal line fields",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "9.00", "currencyCode": "CAD" } },
+                    "giftCard": true,
+                    "fulfillmentService": "manual",
+                    "fulfillmentStatus": "FULFILLED",
+                    "weight": { "value": 2.5, "unit": "KILOGRAMS" },
+                    "appliedDiscounts": [{
+                        "title": "line discount",
+                        "value": { "fixedAmountValue": { "amount": "1.00", "currencyCode": "CAD" } }
+                    }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(custom.body["data"]["orderCreate"]["userErrors"], json!([]));
+    assert_eq!(
+        custom.body["data"]["orderCreate"]["order"]["currencyCode"],
+        json!("CAD")
+    );
+    assert_eq!(
+        custom.body["data"]["orderCreate"]["order"]["presentmentCurrencyCode"],
+        json!("CAD")
+    );
+    let custom_line = &custom.body["data"]["orderCreate"]["order"]["lineItems"]["nodes"][0];
+    assert_eq!(custom_line["giftCard"], json!(true));
+    assert_eq!(custom_line["fulfillmentService"], json!("manual"));
+    assert_eq!(custom_line["fulfillmentStatus"], json!("FULFILLED"));
+    assert_eq!(
+        custom_line["weight"],
+        json!({ "value": 2.5, "unit": "KILOGRAMS" })
+    );
+    assert_eq!(
+        custom_line["appliedDiscounts"],
+        json!([{ "title": "line discount", "value": { "amount": "1.0", "currencyCode": "CAD" } }])
+    );
+}
+
+#[test]
+fn order_create_validation_matrix_returns_typed_user_errors() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/orderCreate-validation-matrix-extended.graphql"
+        ),
+        serde_json::from_str(include_str!(
+            "../../config/parity-requests/orders/orderCreate-validation-matrix-extended.variables.json"
+        ))
+        .unwrap(),
+    ));
+
+    assert_eq!(
+        response.body["data"]["futureProcessedAt"]["userErrors"],
+        json!([{ "field": ["order", "processedAt"], "code": "PROCESSED_AT_INVALID" }])
+    );
+    assert_eq!(
+        response.body["data"]["redundantCustomer"]["userErrors"],
+        json!([{ "field": ["order"], "code": "REDUNDANT_CUSTOMER_FIELDS" }])
+    );
+    assert_eq!(
+        response.body["data"]["lineItemTaxLineMissingRate"]["userErrors"],
+        json!([{ "field": ["order", "lineItems", 0, "taxLines", 0, "rate"], "code": "TAX_LINE_RATE_MISSING" }])
+    );
+    assert_eq!(
+        response.body["data"]["shippingLineTaxLineMissingRate"]["userErrors"],
+        json!([{ "field": ["order", "shippingLines", 0, "taxLines", 0, "rate"], "code": "TAX_LINE_RATE_MISSING" }])
+    );
+
+    let fulfillment = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrderCreateFulfillmentServiceValidation($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "bad-fulfillment-service@example.com",
+                "lineItems": [{
+                    "title": "Bad fulfillment service",
+                    "quantity": 1,
+                    "fulfillmentService": "missing-service"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        fulfillment.body["data"]["orderCreate"]["userErrors"][0]["field"],
+        json!(["order", "lineItems", 0, "fulfillmentService"])
+    );
+    assert_eq!(
+        fulfillment.body["data"]["orderCreate"]["userErrors"][0]["code"],
+        json!("FULFILLMENT_SERVICE_INVALID")
+    );
+    assert_eq!(
+        fulfillment.body["data"]["orderCreate"]["order"],
+        Value::Null
+    );
+}
+
+#[test]
 fn order_cancel_state_transitions_replay_validation_guards() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-04/orders/orderCancel-state-transitions.json"
@@ -933,7 +1171,7 @@ fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_
     assert_eq!(repeated_activation.status, 200);
     assert_eq!(
         repeated_activation.body["data"]["paymentCustomizationActivation"],
-        json!({ "ids": [], "userErrors": [] })
+        json!({ "ids": ["gid://shopify/PaymentCustomization/2"], "userErrors": [] })
     );
 
     let all_invalid_activation = proxy.process_request(json_graphql_request(
@@ -1030,8 +1268,8 @@ fn payment_customization_parity_fixtures_replay_validation_metafields_activation
             .is_some_and(|id| id.starts_with("gid://shopify/PaymentCustomization/"))
     );
     assert_eq!(
-        create_validation.body["data"]["bothIdentifiers"]["userErrors"][0]["code"],
-        json!("MULTIPLE_FUNCTION_IDENTIFIERS")
+        create_validation.body["data"]["bothIdentifiers"],
+        create_validation_fixture["response"]["payload"]["data"]["bothIdentifiers"]
     );
     assert_eq!(
         create_validation.body["data"]["missingIdentifier"],

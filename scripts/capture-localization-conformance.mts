@@ -83,6 +83,16 @@ const readQuery = `#graphql
   }
 `;
 
+const webPresencesQuery = `#graphql
+  query LocalizationShopLocalePrimaryGuardsWebPresences($first: Int!) {
+    webPresences(first: $first) {
+      nodes {
+        id
+      }
+    }
+  }
+`;
+
 const enableMutation = `#graphql
   mutation LocalizationShopLocaleEnable($locale: String!) {
     shopLocaleEnable(locale: $locale) {
@@ -239,6 +249,18 @@ function readPayloadField(payload: JsonRecord, fieldName: string): JsonRecord {
   return field;
 }
 
+function firstWebPresenceId(payload: JsonRecord): string {
+  const webPresences = readData(payload)['webPresences'];
+  if (!isRecord(webPresences) || !Array.isArray(webPresences['nodes'])) {
+    throw new Error(`Expected webPresences nodes: ${JSON.stringify(payload)}`);
+  }
+  const first = webPresences['nodes'].find(isRecord);
+  if (!first || typeof first['id'] !== 'string') {
+    throw new Error(`Expected at least one MarketWebPresence id: ${JSON.stringify(payload)}`);
+  }
+  return first['id'];
+}
+
 function findProductTitleDigest(readCapturePayload: JsonRecord): { resourceId: string; digest: string } {
   const resources = readData(readCapturePayload)['resources'];
   if (!isRecord(resources) || !Array.isArray(resources['nodes'])) {
@@ -290,6 +312,8 @@ const readVariables = {
 await disableFrenchLocaleIfEnabled();
 
 const readCapture = await runGraphql(readQuery, readVariables);
+const webPresencesCapture = await runGraphql(webPresencesQuery, { first: 5 });
+const capturedWebPresenceId = firstWebPresenceId(webPresencesCapture);
 const primaryGuardVariables = {
   locale: 'en',
 };
@@ -305,8 +329,20 @@ const missingLocaleUpdateVariables = {
   locale: 'zz',
   shopLocale: { published: false },
 };
+const missingLocaleUpdateWithWebPresenceVariables = {
+  locale: 'zz',
+  shopLocale: {
+    published: false,
+    marketWebPresenceIds: [capturedWebPresenceId],
+  },
+};
 const primaryGuards = {
   primaryLocale: 'en',
+  webPresences: {
+    request: { variables: { first: 5 } },
+    response: webPresencesCapture,
+  },
+  capturedWebPresenceId,
   enablePrimary: {
     request: { variables: primaryGuardVariables },
     response: await runGraphql(enableUserErrorsMutation, primaryGuardVariables),
@@ -326,6 +362,10 @@ const primaryGuards = {
   updateMissingLocale: {
     request: { variables: missingLocaleUpdateVariables },
     response: await runGraphql(updateUserErrorsMutation, missingLocaleUpdateVariables),
+  },
+  updateMissingLocaleWithWebPresence: {
+    request: { variables: missingLocaleUpdateWithWebPresenceVariables },
+    response: await runGraphql(updateUserErrorsMutation, missingLocaleUpdateWithWebPresenceVariables),
   },
 };
 const { resourceId, digest } = findProductTitleDigest(readCapture);
@@ -392,6 +432,7 @@ try {
         storeDomain,
         apiVersion,
         rootAvailability: {
+          queries: ['webPresences'],
           mutations: ['shopLocaleDisable', 'shopLocaleEnable', 'shopLocaleUpdate'],
         },
         primaryGuards,

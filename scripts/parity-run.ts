@@ -39,6 +39,7 @@ type ComparisonTarget = {
   proxyLogPath?: string;
   proxyRequest?: ProxyRequestSpec;
   proxyUpload?: ProxyUploadSpec;
+  isolatedProxy?: boolean;
   selectedPaths?: string[];
   excludedPaths?: string[];
   expectedDifferences?: ExpectedDifference[];
@@ -537,9 +538,18 @@ async function runSpec(
       );
       primaryResponse = await sendProxyRequest(proxy, primaryRequest);
     }
+    let mainState = proxy.dumpState('1970-01-01T00:00:00.000Z');
 
     for (const target of spec.comparison?.targets ?? []) {
       let proxySource: unknown;
+      if (target.isolatedProxy) {
+        cassette.setCalls(upstreamCalls);
+        await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
+        primaryResponse = null;
+        namedResponses.clear();
+      } else {
+        proxy.restoreState(mainState);
+      }
       if (target.proxyUpload) {
         await sendProxyUpload(proxy, target.name, target.proxyUpload, capture, primaryResponse, namedResponses);
         proxySource = getPath(capture, target.capturePath);
@@ -548,6 +558,9 @@ async function runSpec(
         const request = await loadRequest(target.proxyRequest, capture, primaryResponse, namedResponses);
         if (request === null) throw new Error(`${target.name}: target proxyRequest did not resolve to a request`);
         const targetResponse = await sendProxyRequest(proxy, request);
+        if (!target.isolatedProxy) {
+          mainState = proxy.dumpState('1970-01-01T00:00:00.000Z');
+        }
         namedResponses.set(target.name, targetResponse);
         proxySource = targetResponse.body;
         if (debug)

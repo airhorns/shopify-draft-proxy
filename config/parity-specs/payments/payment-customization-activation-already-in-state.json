@@ -1,0 +1,58 @@
+{
+  "scenarioId": "payment-customization-activation-already-in-state",
+  "operationNames": ["paymentCustomizationCreate", "paymentCustomizationActivation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-activation-already-in-state.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-customization-activation-already-in-state-create.graphql",
+    "variablesCapturePath": "$.operations.paymentCustomizationCreate.variables"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.paymentCustomization.id",
+        "matcher": "shopify-gid:PaymentCustomization",
+        "reason": "Shopify and the local proxy generate independent payment customization IDs."
+      }
+    ],
+    "targets": [
+      {
+        "name": "create-payload",
+        "capturePath": "$.operations.paymentCustomizationCreate.response.data.paymentCustomizationCreate",
+        "proxyPath": "$.data.paymentCustomizationCreate"
+      },
+      {
+        "name": "already-enabled-activation-payload",
+        "capturePath": "$.operations.paymentCustomizationActivationAlreadyEnabled.response.data.paymentCustomizationActivation",
+        "proxyPath": "$.data.paymentCustomizationActivation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-customization-activation-already-in-state.graphql",
+          "variables": {
+            "ids": [
+              {
+                "fromPrimaryProxyPath": "$.data.paymentCustomizationCreate.paymentCustomization.id"
+              }
+            ],
+            "enabled": {
+              "fromCapturePath": "$.operations.paymentCustomizationActivationAlreadyEnabled.variables.enabled"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.ids[0]",
+            "matcher": "shopify-gid:PaymentCustomization",
+            "reason": "Shopify and the local proxy activate independently generated payment customization IDs."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Executable parity for paymentCustomizationActivation no-op success: a captured Shopify call submits an already-enabled disposable PaymentCustomization id with enabled:true, and Shopify still returns that valid id in ids with no userErrors."
+}

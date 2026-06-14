@@ -63,7 +63,7 @@ pub(in crate::proxy) fn fulfillment_service_handle(name: &str) -> String {
 pub(in crate::proxy) fn fulfillment_service_name_is_reserved(name: &str) -> bool {
     matches!(
         fulfillment_service_handle(name).as_str(),
-        "manual" | "gift_card"
+        "shopify" | "amazon" | "gift_card" | "manual"
     )
 }
 
@@ -714,8 +714,10 @@ pub(in crate::proxy) fn publishable_payload_json(
 
 pub(in crate::proxy) fn segment_payload_json(
     segment: Value,
+    deleted_segment_id: Value,
     payload_selection: &[SelectedField],
     segment_selection: &[SelectedField],
+    deleted_segment_id_selection: &[SelectedField],
     user_errors: Vec<Value>,
 ) -> Value {
     selected_payload_json(payload_selection, |selection| {
@@ -725,6 +727,11 @@ pub(in crate::proxy) fn segment_payload_json(
             } else {
                 selected_json(&segment, segment_selection)
             }),
+            "deletedSegmentId" => Some(if deleted_segment_id_selection.is_empty() {
+                deleted_segment_id.clone()
+            } else {
+                selected_json(&deleted_segment_id, deleted_segment_id_selection)
+            }),
             "userErrors" => Some(Value::Array(
                 user_errors
                     .iter()
@@ -733,6 +740,14 @@ pub(in crate::proxy) fn segment_payload_json(
             )),
             _ => None,
         }
+    })
+}
+
+pub(in crate::proxy) fn segment_count_json(count: usize, selections: &[SelectedField]) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "count" => Some(json!(count)),
+        "precision" => Some(json!("EXACT")),
+        _ => None,
     })
 }
 
@@ -1316,7 +1331,7 @@ pub(in crate::proxy) fn resolved_string_list_field(
     values
 }
 
-pub(in crate::proxy) fn normalize_product_tags(tags: Vec<String>) -> Vec<String> {
+pub(in crate::proxy) fn normalize_taggable_tags(tags: Vec<String>) -> Vec<String> {
     let mut seen = BTreeSet::new();
     let mut normalized = Vec::new();
     for tag in tags {
@@ -1330,6 +1345,49 @@ pub(in crate::proxy) fn normalize_product_tags(tags: Vec<String>) -> Vec<String>
     }
     normalized.sort_by_key(|tag| tag.to_lowercase());
     normalized
+}
+
+pub(in crate::proxy) fn normalize_product_tags(tags: Vec<String>) -> Vec<String> {
+    normalize_taggable_tags(tags)
+}
+
+pub(in crate::proxy) fn normalized_taggable_tags_argument(
+    value: Option<&ResolvedValue>,
+) -> Vec<String> {
+    let raw_tags = match value {
+        Some(ResolvedValue::String(value)) => split_taggable_tag_argument(value),
+        Some(ResolvedValue::List(values)) => values
+            .iter()
+            .flat_map(|value| match value {
+                ResolvedValue::String(value) => split_taggable_tag_argument(value),
+                _ => Vec::new(),
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
+    normalize_taggable_tags(raw_tags)
+}
+
+pub(in crate::proxy) fn add_taggable_tags(
+    existing: Vec<String>,
+    incoming: Vec<String>,
+) -> Vec<String> {
+    normalize_taggable_tags(existing.into_iter().chain(incoming).collect())
+}
+
+pub(in crate::proxy) fn remove_taggable_tags(
+    existing: Vec<String>,
+    removals: Vec<String>,
+) -> Vec<String> {
+    let remove_handles: BTreeSet<String> = removals.iter().map(|tag| tag.to_lowercase()).collect();
+    normalize_taggable_tags(existing)
+        .into_iter()
+        .filter(|tag| !remove_handles.contains(&tag.to_lowercase()))
+        .collect()
+}
+
+fn split_taggable_tag_argument(value: &str) -> Vec<String> {
+    value.split(',').map(str::to_string).collect()
 }
 
 pub(in crate::proxy) fn resolved_string_list_field_unsorted(

@@ -1,0 +1,16 @@
+query InventoryQuantityDownstreamRead($inventoryItemId: ID!) {
+  inventoryItem(id: $inventoryItemId) {
+    inventoryLevels(first: 10) {
+      nodes {
+        location {
+          id
+        }
+        quantities(names: ["available", "on_hand", "damaged"]) {
+          name
+          quantity
+          updatedAt
+        }
+      }
+    }
+  }
+}

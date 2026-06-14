@@ -166,6 +166,8 @@ pub(in crate::proxy) fn resolved_value_string(value: &ResolvedValue) -> Option<S
 
 pub(in crate::proxy) fn owner_type_from_gid(id: &str) -> &'static str {
     match shopify_gid_resource_type(id) {
+        Some("ProductVariant") => "PRODUCTVARIANT",
+        Some("Collection") => "COLLECTION",
         Some("Customer") => "CUSTOMER",
         Some("Order") => "ORDER",
         Some("Company") => "COMPANY",
@@ -1141,15 +1143,7 @@ pub(in crate::proxy) fn is_local_customer_update_document(
 }
 
 pub(in crate::proxy) fn normalize_customer_tags(tags: Vec<String>) -> Vec<String> {
-    let mut normalized = tags
-        .into_iter()
-        .map(|tag| tag.trim().to_string())
-        .filter(|tag| !tag.is_empty())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect::<Vec<_>>();
-    normalized.sort_by_key(|tag| tag.to_lowercase());
-    normalized
+    normalize_taggable_tags(tags)
 }
 
 pub(in crate::proxy) fn customer_connection_empty(selection: &[SelectedField]) -> Value {

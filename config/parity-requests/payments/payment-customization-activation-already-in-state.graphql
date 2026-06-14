@@ -1,0 +1,10 @@
+mutation RustPaymentCustomizationLocalRuntimeAlreadyState($ids: [ID!]!, $enabled: Boolean!) {
+  paymentCustomizationActivation(ids: $ids, enabled: $enabled) {
+    ids
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

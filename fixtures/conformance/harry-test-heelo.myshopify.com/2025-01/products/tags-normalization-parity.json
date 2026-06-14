@@ -1,0 +1,365 @@
+{
+  "tagNormalization": {
+    "commaStringAdd": {
+      "seedProduct": {
+        "id": "gid://shopify/Product/10213050810674",
+        "title": "Hermes Product Tag Normalization Comma String 1781382983725",
+        "handle": "hermes-product-tag-normalization-comma-string-1781382983725",
+        "status": "DRAFT",
+        "tags": ["Red"]
+      },
+      "setup": {
+        "variables": {
+          "product": {
+            "title": "Hermes Product Tag Normalization Comma String 1781382983725",
+            "status": "DRAFT",
+            "tags": ["Red"]
+          }
+        },
+        "response": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10213050810674",
+                "title": "Hermes Product Tag Normalization Comma String 1781382983725",
+                "handle": "hermes-product-tag-normalization-comma-string-1781382983725",
+                "status": "DRAFT",
+                "tags": ["Red"]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "mutation": {
+        "query": "#graphql\n  mutation TagsAddCommaString($id: ID!, $tags: [String!]!) {\n    tagsAdd(id: $id, tags: $tags) {\n      node {\n        ... on Product {\n          id\n          tags\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Product/10213050810674",
+          "tags": "blue, green"
+        },
+        "response": {
+          "data": {
+            "tagsAdd": {
+              "node": {
+                "id": "gid://shopify/Product/10213050810674",
+                "tags": ["blue", "green", "Red"]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "commaListElementAdd": {
+      "seedProduct": {
+        "id": "gid://shopify/Product/10213050843442",
+        "title": "Hermes Product Tag Normalization Comma List Element 1781382983725",
+        "handle": "hermes-product-tag-normalization-comma-list-element-1781382983725",
+        "status": "DRAFT",
+        "tags": ["Red"]
+      },
+      "setup": {
+        "variables": {
+          "product": {
+            "title": "Hermes Product Tag Normalization Comma List Element 1781382983725",
+            "status": "DRAFT",
+            "tags": ["Red"]
+          }
+        },
+        "response": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10213050843442",
+                "title": "Hermes Product Tag Normalization Comma List Element 1781382983725",
+                "handle": "hermes-product-tag-normalization-comma-list-element-1781382983725",
+                "status": "DRAFT",
+                "tags": ["Red"]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "mutation": {
+        "query": "#graphql\n  mutation TagsAddCommaListElement($id: ID!, $tags: [String!]!) {\n    tagsAdd(id: $id, tags: $tags) {\n      node {\n        ... on Product {\n          id\n          tags\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Product/10213050843442",
+          "tags": ["blue,green"]
+        },
+        "response": {
+          "data": {
+            "tagsAdd": {
+              "node": {
+                "id": "gid://shopify/Product/10213050843442",
+                "tags": ["blue", "green", "Red"]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "caseVariantAdd": {
+      "seedProduct": {
+        "id": "gid://shopify/Product/10213050876210",
+        "title": "Hermes Product Tag Normalization Case Variant Add 1781382983725",
+        "handle": "hermes-product-tag-normalization-case-variant-add-1781382983725",
+        "status": "DRAFT",
+        "tags": ["Red"]
+      },
+      "setup": {
+        "variables": {
+          "product": {
+            "title": "Hermes Product Tag Normalization Case Variant Add 1781382983725",
+            "status": "DRAFT",
+            "tags": ["Red"]
+          }
+        },
+        "response": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10213050876210",
+                "title": "Hermes Product Tag Normalization Case Variant Add 1781382983725",
+                "handle": "hermes-product-tag-normalization-case-variant-add-1781382983725",
+                "status": "DRAFT",
+                "tags": ["Red"]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "mutation": {
+        "query": "#graphql\n  mutation TagsAddCaseVariant($id: ID!, $tags: [String!]!) {\n    tagsAdd(id: $id, tags: $tags) {\n      node {\n        ... on Product {\n          id\n          tags\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Product/10213050876210",
+          "tags": ["red"]
+        },
+        "response": {
+          "data": {
+            "tagsAdd": {
+              "node": {
+                "id": "gid://shopify/Product/10213050876210",
+                "tags": ["Red"]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "caseVariantRemove": {
+      "seedProduct": {
+        "id": "gid://shopify/Product/10213050908978",
+        "title": "Hermes Product Tag Normalization Case Variant Remove 1781382983725",
+        "handle": "hermes-product-tag-normalization-case-variant-remove-1781382983725",
+        "status": "DRAFT",
+        "tags": ["Red"]
+      },
+      "setup": {
+        "variables": {
+          "product": {
+            "title": "Hermes Product Tag Normalization Case Variant Remove 1781382983725",
+            "status": "DRAFT",
+            "tags": ["Red"]
+          }
+        },
+        "response": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10213050908978",
+                "title": "Hermes Product Tag Normalization Case Variant Remove 1781382983725",
+                "handle": "hermes-product-tag-normalization-case-variant-remove-1781382983725",
+                "status": "DRAFT",
+                "tags": ["Red"]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "mutation": {
+        "query": "#graphql\n  mutation TagsRemoveCaseVariant($id: ID!, $tags: [String!]!) {\n    tagsRemove(id: $id, tags: $tags) {\n      node {\n        ... on Product {\n          id\n          tags\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Product/10213050908978",
+          "tags": ["red"]
+        },
+        "response": {
+          "data": {
+            "tagsRemove": {
+              "node": {
+                "id": "gid://shopify/Product/10213050908978",
+                "tags": []
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "singleStringRemove": {
+      "seedProduct": {
+        "id": "gid://shopify/Product/10213050941746",
+        "title": "Hermes Product Tag Normalization Single String Remove 1781382983725",
+        "handle": "hermes-product-tag-normalization-single-string-remove-1781382983725",
+        "status": "DRAFT",
+        "tags": ["Red"]
+      },
+      "setup": {
+        "variables": {
+          "product": {
+            "title": "Hermes Product Tag Normalization Single String Remove 1781382983725",
+            "status": "DRAFT",
+            "tags": ["Red"]
+          }
+        },
+        "response": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10213050941746",
+                "title": "Hermes Product Tag Normalization Single String Remove 1781382983725",
+                "handle": "hermes-product-tag-normalization-single-string-remove-1781382983725",
+                "status": "DRAFT",
+                "tags": ["Red"]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "mutation": {
+        "query": "#graphql\n  mutation TagsRemoveString($id: ID!, $tags: [String!]!) {\n    tagsRemove(id: $id, tags: $tags) {\n      node {\n        ... on Product {\n          id\n          tags\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Product/10213050941746",
+          "tags": "Red"
+        },
+        "response": {
+          "data": {
+            "tagsRemove": {
+              "node": {
+                "id": "gid://shopify/Product/10213050941746",
+                "tags": []
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
