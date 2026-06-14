@@ -132,7 +132,11 @@ impl DraftProxy {
                 "reverseFulfillmentOrders": self.store.staged.reverse_fulfillment_orders.clone(),
                 "locations": self.store.staged.locations.clone(),
                 "locationOrder": self.store.staged.location_order.clone(),
-                "locationLimitReached": self.store.staged.location_limit_reached
+                "locationLimitReached": self.store.staged.location_limit_reached,
+                "discounts": self.store.staged.discounts.clone(),
+                "discountCodeIndex": self.store.staged.discount_code_index.clone(),
+                "deletedDiscountIds": self.store.staged.deleted_discount_ids.iter().cloned().collect::<Vec<_>>(),
+                "discountRedeemCodeBulkCreations": self.store.staged.discount_redeem_code_bulk_creations.clone()
             }
         });
         if !self.store.staged.flow_signatures.is_empty() {
@@ -386,6 +390,40 @@ impl DraftProxy {
         self.store.staged.flow_trigger_receipts = state["stagedState"]["flowTriggerReceipts"]
             .as_array()
             .cloned()
+            .unwrap_or_default();
+        self.store.staged.discounts = state["stagedState"]["discounts"]
+            .as_object()
+            .map(|discounts| {
+                discounts
+                    .iter()
+                    .map(|(id, discount)| (id.clone(), discount.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.discount_code_index = state["stagedState"]["discountCodeIndex"]
+            .as_object()
+            .map(|index| {
+                index
+                    .iter()
+                    .filter_map(|(code, id)| id.as_str().map(|id| (code.clone(), id.to_string())))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.deleted_discount_ids = state["stagedState"]["deletedDiscountIds"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|value| value.as_str().map(str::to_string))
+            .collect();
+        self.store.staged.discount_redeem_code_bulk_creations = state["stagedState"]
+            ["discountRedeemCodeBulkCreations"]
+            .as_object()
+            .map(|creations| {
+                creations
+                    .iter()
+                    .map(|(id, creation)| (id.clone(), creation.clone()))
+                    .collect()
+            })
             .unwrap_or_default();
         self.log_entries = dump["log"]["entries"]
             .as_array()

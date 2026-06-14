@@ -217,7 +217,7 @@ fn registry_entry_json_value(entry: &OperationRegistryEntry) -> Value {
     Value::Object(object)
 }
 
-const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 54] = [
+const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 81] = [
     local_query("product", CapabilityDomain::Products),
     local_query("products", CapabilityDomain::Products),
     local_query("productsCount", CapabilityDomain::Products),
@@ -278,6 +278,51 @@ const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 54] = [
     local_mutation("fileCreate", CapabilityDomain::Media),
     local_mutation("fileUpdate", CapabilityDomain::Media),
     local_mutation("fileDelete", CapabilityDomain::Media),
+    local_query("discountNode", CapabilityDomain::Discounts),
+    local_query("discountNodes", CapabilityDomain::Discounts),
+    local_query("discountNodesCount", CapabilityDomain::Discounts),
+    local_query("codeDiscountNode", CapabilityDomain::Discounts),
+    local_query("codeDiscountNodeByCode", CapabilityDomain::Discounts),
+    local_query("automaticDiscountNode", CapabilityDomain::Discounts),
+    local_mutation("discountCodeBasicCreate", CapabilityDomain::Discounts),
+    local_mutation("discountCodeBasicUpdate", CapabilityDomain::Discounts),
+    local_mutation("discountCodeBxgyCreate", CapabilityDomain::Discounts),
+    local_mutation("discountCodeBxgyUpdate", CapabilityDomain::Discounts),
+    local_mutation(
+        "discountCodeFreeShippingCreate",
+        CapabilityDomain::Discounts,
+    ),
+    local_mutation(
+        "discountCodeFreeShippingUpdate",
+        CapabilityDomain::Discounts,
+    ),
+    local_mutation("discountCodeActivate", CapabilityDomain::Discounts),
+    local_mutation("discountCodeDeactivate", CapabilityDomain::Discounts),
+    local_mutation("discountCodeDelete", CapabilityDomain::Discounts),
+    local_mutation("discountRedeemCodeBulkAdd", CapabilityDomain::Discounts),
+    local_mutation(
+        "discountCodeRedeemCodeBulkDelete",
+        CapabilityDomain::Discounts,
+    ),
+    local_query(
+        "discountRedeemCodeBulkCreation",
+        CapabilityDomain::Discounts,
+    ),
+    local_mutation("discountAutomaticBasicCreate", CapabilityDomain::Discounts),
+    local_mutation("discountAutomaticBasicUpdate", CapabilityDomain::Discounts),
+    local_mutation("discountAutomaticBxgyCreate", CapabilityDomain::Discounts),
+    local_mutation("discountAutomaticBxgyUpdate", CapabilityDomain::Discounts),
+    local_mutation(
+        "discountAutomaticFreeShippingCreate",
+        CapabilityDomain::Discounts,
+    ),
+    local_mutation(
+        "discountAutomaticFreeShippingUpdate",
+        CapabilityDomain::Discounts,
+    ),
+    local_mutation("discountAutomaticActivate", CapabilityDomain::Discounts),
+    local_mutation("discountAutomaticDeactivate", CapabilityDomain::Discounts),
+    local_mutation("discountAutomaticDelete", CapabilityDomain::Discounts),
     local_mutation("metafieldDefinitionCreate", CapabilityDomain::Metafields),
     local_mutation("metafieldDefinitionUpdate", CapabilityDomain::Metafields),
     local_mutation("metafieldDefinitionDelete", CapabilityDomain::Metafields),

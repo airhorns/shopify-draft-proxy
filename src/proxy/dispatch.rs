@@ -805,6 +805,21 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && self.has_staged_discounts()
+            && operation.root_fields.iter().all(|field| {
+                local_dispatch_root(
+                    OperationType::Query,
+                    CapabilityDomain::Discounts,
+                    CapabilityExecution::OverlayRead,
+                    field,
+                )
+                .is_some()
+            })
+        {
+            return self.discounts_query_response(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Query
             && query.contains("DiscountTimestampsMonotonicRead")
             && operation.root_fields.iter().all(|field| {
                 matches!(
@@ -1542,6 +1557,21 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation && root_field == "appUninstall" {
             return self.app_uninstall(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().all(|field| {
+                local_dispatch_root(
+                    OperationType::Mutation,
+                    CapabilityDomain::Discounts,
+                    CapabilityExecution::StageLocally,
+                    field,
+                )
+                .is_some()
+            })
+        {
+            let outcome = self.discounts_mutation(request, &query, &variables);
+            return self.finalize_mutation_outcome(request, &query, &variables, outcome);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -2350,6 +2380,17 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
             {
                 self.bulk_operation_read_response(request, &query, &variables, root_field)
+            }
+            (CapabilityDomain::Discounts, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+            {
+                self.discounts_query_response(&query, &variables)
+            }
+            (CapabilityDomain::Discounts, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+            {
+                let outcome = self.discounts_mutation(request, &query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Functions, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
