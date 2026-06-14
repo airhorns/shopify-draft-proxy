@@ -2538,77 +2538,72 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
 }
 
 #[test]
-fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
+fn metaobjects_read_empty_and_lifecycle_state_locally_for_arbitrary_documents() {
     let mut proxy = snapshot_proxy();
 
-    let seeded = proxy.process_request(json_graphql_request(
+    let empty = proxy.process_request(json_graphql_request(
         r#"
-        query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
-          catalog: metaobjects(type: $type, first: 10) { edges { cursor node { id handle type displayName updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: "title") { key type value jsonValue definition { key name required type { name category } } } } } nodes { id handle type displayName updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: "title") { key type value jsonValue definition { key name required type { name category } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
-          detail: metaobject(id: $id) { id handle type displayName updatedAt fields { key value } titleField: field(key: "title") { key value } }
-          byHandle: metaobjectByHandle(handle: $handle) { id handle type displayName updatedAt fields { key value } titleField: field(key: "title") { key value } }
-        }
-        "#,
-        json!({
-            "id": "gid://shopify/Metaobject/185593102642",
-            "handle": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370"},
-            "type": "codex_har_240_1777156845370"
-        }),
-    ));
-    assert_eq!(
-        seeded.body["data"]["catalog"]["nodes"][0]["id"],
-        json!("gid://shopify/Metaobject/185593102642")
-    );
-    assert_eq!(
-        seeded.body["data"]["detail"]["displayName"],
-        json!("HAR-240 title 1777156845370")
-    );
-    assert_eq!(
-        seeded.body["data"]["byHandle"]["titleField"]["value"],
-        json!("HAR-240 title 1777156845370")
-    );
-
-    let deleted = proxy.process_request(json_graphql_request(
-        r#"
-        mutation MetaobjectEntryLifecycleDelete($id: ID!) {
-          metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } }
-        }
-        "#,
-        json!({"id": "gid://shopify/Metaobject/185593102642"}),
-    ));
-    assert_eq!(
-        deleted.body["data"]["metaobjectDelete"],
-        json!({"deletedId": "gid://shopify/Metaobject/185593102642", "userErrors": []})
-    );
-
-    let after_delete = proxy.process_request(json_graphql_request(
-        r#"
-        query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+        query AnyMetaobjectReadName($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
           catalog: metaobjects(type: $type, first: 10) { edges { cursor node { id } } nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
           detail: metaobject(id: $id) { id }
           byHandle: metaobjectByHandle(handle: $handle) { id }
         }
         "#,
         json!({
-            "id": "gid://shopify/Metaobject/185593102642",
-            "handle": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370"},
-            "type": "codex_har_240_1777156845370"
+            "id": "gid://shopify/Metaobject/does-not-exist",
+            "handle": {"type": "local_article", "handle": "local-entry"},
+            "type": "local_article"
         }),
     ));
     assert_eq!(
-        after_delete.body["data"]["catalog"],
+        empty.body["data"]["catalog"],
         json!({"edges": [], "nodes": [], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}})
     );
-    assert_eq!(after_delete.body["data"]["detail"], Value::Null);
-    assert_eq!(after_delete.body["data"]["byHandle"], Value::Null);
+    assert_eq!(empty.body["data"]["detail"], Value::Null);
+    assert_eq!(empty.body["data"]["byHandle"], Value::Null);
+
+    let definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AnyMetaobjectDefinitionCreateName($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id type metaobjectsCount }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "local_article",
+            "name": "Local Article",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true},
+                {"key": "body", "name": "Body", "type": "multi_line_text_field", "required": false},
+                {"key": "summary", "name": "Summary", "type": "single_line_text_field", "required": false}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
 
     let created = proxy.process_request(json_graphql_request(
         r#"
-        mutation MetaobjectEntryLifecycleCreate($metaobject: MetaobjectCreateInput!) {
-          metaobjectCreate(metaobject: $metaobject) { metaobject { id handle type displayName updatedAt fields { key value } titleField: field(key: "title") { key value } } userErrors { field message code elementKey elementIndex } }
+        mutation AnyMetaobjectCreateName($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject {
+              id
+              handle
+              type
+              displayName
+              updatedAt
+              fields { key type value jsonValue definition { key name required type { name category } } }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
         }
         "#,
-        json!({"metaobject": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370", "capabilities": {"publishable": {"status": "ACTIVE"}}, "fields": [{"key": "title", "value": "HAR-240 title 1777156845370"}, {"key": "body", "value": "HAR-240 body 1777156845370"}]}}),
+        json!({"metaobject": {"type": "local_article", "handle": "local-entry", "fields": [{"key": "title", "value": "Local Title"}, {"key": "body", "value": "Local body"}, {"key": "summary", "value": "Local summary"}]}}),
     ));
     let created_id = created.body["data"]["metaobjectCreate"]["metaobject"]["id"]
         .as_str()
@@ -2617,7 +2612,41 @@ fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
     assert!(created_id.starts_with("gid://shopify/Metaobject/"));
     assert_eq!(
         created.body["data"]["metaobjectCreate"]["metaobject"]["displayName"],
-        json!("HAR-240 title 1777156845370")
+        json!("Local Title")
+    );
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"]["metaobject"]["handle"],
+        json!("local-entry")
+    );
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"]["metaobject"]["type"],
+        json!("local_article")
+    );
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"]["metaobject"]["fields"],
+        json!([
+            {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "Local Title",
+                "jsonValue": "Local Title",
+                "definition": {"key": "title", "name": "Title", "required": true, "type": {"name": "single_line_text_field", "category": "TEXT"}}
+            },
+            {
+                "key": "body",
+                "type": "multi_line_text_field",
+                "value": "Local body",
+                "jsonValue": "Local body",
+                "definition": {"key": "body", "name": "Body", "required": false, "type": {"name": "multi_line_text_field", "category": "TEXT"}}
+            },
+            {
+                "key": "summary",
+                "type": "single_line_text_field",
+                "value": "Local summary",
+                "jsonValue": "Local summary",
+                "definition": {"key": "summary", "name": "Summary", "required": false, "type": {"name": "single_line_text_field", "category": "TEXT"}}
+            }
+        ])
     );
     assert_eq!(
         created.body["data"]["metaobjectCreate"]["userErrors"],
@@ -2626,7 +2655,7 @@ fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
 
     let after_create = proxy.process_request(json_graphql_request(
         r#"
-        query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+        query AnyDownstreamMetaobjectRead($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
           catalog: metaobjects(type: $type, first: 10) { edges { cursor node { id handle type displayName updatedAt } } nodes { id handle type displayName updatedAt } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
           detail: metaobject(id: $id) { id handle type displayName updatedAt }
           byHandle: metaobjectByHandle(handle: $handle) { id handle type displayName updatedAt }
@@ -2634,8 +2663,8 @@ fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
         "#,
         json!({
             "id": created_id,
-            "handle": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370"},
-            "type": "codex_har_240_1777156845370"
+            "handle": {"type": "local_article", "handle": "local-entry"},
+            "type": "local_article"
         }),
     ));
     assert_eq!(
@@ -2644,7 +2673,100 @@ fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
     );
     assert_eq!(
         after_create.body["data"]["byHandle"]["displayName"],
-        json!("HAR-240 title 1777156845370")
+        json!("Local Title")
+    );
+
+    let deleted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AnyMetaobjectDeleteName($id: ID!) {
+          metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } }
+        }
+        "#,
+        json!({"id": created_id}),
+    ));
+    assert_eq!(
+        deleted.body["data"]["metaobjectDelete"],
+        json!({"deletedId": created.body["data"]["metaobjectCreate"]["metaobject"]["id"], "userErrors": []})
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query AnyReadAfterDelete($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+          catalog: metaobjects(type: $type, first: 10) { edges { cursor node { id } } nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          detail: metaobject(id: $id) { id }
+          byHandle: metaobjectByHandle(handle: $handle) { id }
+        }
+        "#,
+        json!({
+            "id": deleted.body["data"]["metaobjectDelete"]["deletedId"],
+            "handle": {"type": "local_article", "handle": "local-entry"},
+            "type": "local_article"
+        }),
+    ));
+    assert_eq!(
+        after_delete.body["data"]["catalog"],
+        json!({"edges": [], "nodes": [], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}})
+    );
+    assert_eq!(after_delete.body["data"]["detail"], Value::Null);
+    assert_eq!(after_delete.body["data"]["byHandle"], Value::Null);
+}
+
+#[test]
+fn metaobject_create_rejects_duplicate_field_keys() {
+    let mut proxy = snapshot_proxy();
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ArbitraryDuplicateCreateDocument($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) { metaobject { id displayName fields { key value } } userErrors { field message code elementKey elementIndex } }
+        }
+        "#,
+        json!({
+            "metaobject": {
+                "type": "codex_update_errors_1778040780683",
+                "fields": [
+                    {"key": "title", "value": "First 1778040780683"},
+                    {"key": "title", "value": ""},
+                    {"key": "body", "value": "Body 1778040780683"}
+                ]
+            }
+        }),
+    ));
+
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"],
+        json!({
+            "metaobject": null,
+            "userErrors": [
+                {
+                    "field": ["metaobject", "fields", "1"],
+                    "message": "Field \"title\" duplicates other inputs",
+                    "code": "DUPLICATE_FIELD_INPUT",
+                    "elementKey": "title",
+                    "elementIndex": null
+                },
+                {
+                    "field": ["metaobject", "fields", "1"],
+                    "message": "Title can't be blank",
+                    "code": "OBJECT_FIELD_REQUIRED",
+                    "elementKey": "title",
+                    "elementIndex": null
+                }
+            ]
+        })
+    );
+
+    let after_rejected_create = proxy.process_request(json_graphql_request(
+        r#"
+        query ArbitraryRejectedCreateRead($type: String!) {
+          metaobjects(type: $type, first: 10) { nodes { id } }
+        }
+        "#,
+        json!({"type": "codex_update_errors_1778040780683"}),
+    ));
+    assert_eq!(
+        after_rejected_create.body["data"]["metaobjects"]["nodes"],
+        json!([])
     );
 }
 
@@ -2897,7 +3019,7 @@ fn metaobject_delete_returns_record_not_found_without_logging_noop_deletes() {
     let mut proxy = snapshot_proxy();
 
     let delete_query = r#"
-        mutation MetaobjectEntryLifecycleDelete($id: ID!) {
+        mutation ArbitraryMetaobjectDelete($id: ID!) {
           metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } }
         }
         "#;
@@ -2935,15 +3057,51 @@ fn metaobject_delete_returns_record_not_found_without_logging_noop_deletes() {
         json!({"entries": []})
     );
 
-    let seed_id = "gid://shopify/Metaobject/185593102642";
-    let deleted = proxy.process_request(json_graphql_request(delete_query, json!({"id": seed_id})));
+    let definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDeleteTargetDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "delete_test",
+            "name": "Delete Test",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDeleteTarget($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) { metaobject { id } userErrors { field message code } }
+        }
+        "#,
+        json!({"metaobject": {"type": "delete_test", "handle": "delete-test", "fields": [{"key": "title", "value": "Delete test"}]}}),
+    ));
+    let staged_id = created.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let deleted =
+        proxy.process_request(json_graphql_request(delete_query, json!({"id": staged_id})));
     assert_eq!(
         deleted.body["data"]["metaobjectDelete"],
-        json!({"deletedId": seed_id, "userErrors": []})
+        json!({"deletedId": created.body["data"]["metaobjectCreate"]["metaobject"]["id"], "userErrors": []})
     );
 
     let repeated =
-        proxy.process_request(json_graphql_request(delete_query, json!({"id": seed_id})));
+        proxy.process_request(json_graphql_request(delete_query, json!({"id": staged_id})));
     assert_eq!(repeated.body["data"]["metaobjectDelete"], record_not_found);
 
     let log = proxy.process_request(Request {
@@ -2951,10 +3109,10 @@ fn metaobject_delete_returns_record_not_found_without_logging_noop_deletes() {
         path: "/__meta/log".to_string(),
         ..Default::default()
     });
-    assert_eq!(log.body["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 3);
     assert_eq!(
-        log.body["entries"][0]["stagedResourceIds"],
-        json!([seed_id])
+        log.body["entries"][2]["stagedResourceIds"],
+        json!([created.body["data"]["metaobjectCreate"]["metaobject"]["id"]])
     );
 }
 
