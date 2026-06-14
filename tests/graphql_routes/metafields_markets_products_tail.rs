@@ -342,6 +342,91 @@ fn metafields_set_stages_owner_metafield_connections_for_product_and_customer_re
 }
 
 #[test]
+fn owner_scoped_metafields_do_not_leak_between_products() {
+    let mut proxy = snapshot_proxy();
+
+    let owner_with_metafields = "gid://shopify/Product/10173071262002";
+    let owner_without_metafields = "gid://shopify/Product/10173071262003";
+    let namespace = "owner_scope_isolation";
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionLifecycleMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { id namespace key type value owner { id } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"metafields": [{
+            "ownerId": owner_with_metafields,
+            "namespace": namespace,
+            "key": "tier",
+            "type": "single_line_text_field",
+            "value": "gold"
+        }]}),
+    ));
+    assert_eq!(set.status, 200);
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+
+    let read_empty_owner = proxy.process_request(json_graphql_request(
+        r#"
+        query MetafieldDefinitionLifecycleReadProductMetafield($id: ID!, $namespace: String!, $key: String!) {
+          product(id: $id) {
+            id
+            metafield(namespace: $namespace, key: $key) { id namespace key type value owner { id } }
+            metafields(first: 10, namespace: $namespace) {
+              nodes { id namespace key type value owner { id } }
+              edges { cursor node { id namespace key type value owner { id } } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({"id": owner_without_metafields, "namespace": namespace, "key": "tier"}),
+    ));
+    assert_eq!(read_empty_owner.status, 200);
+    assert_eq!(
+        read_empty_owner.body["data"]["product"],
+        json!({
+            "id": owner_without_metafields,
+            "metafield": null,
+            "metafields": {
+                "nodes": [],
+                "edges": [],
+                "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                }
+            }
+        })
+    );
+
+    let read_populated_owner = proxy.process_request(json_graphql_request(
+        r#"
+        query MetafieldDefinitionLifecycleReadProductMetafield($id: ID!, $namespace: String!, $key: String!) {
+          product(id: $id) {
+            id
+            metafield(namespace: $namespace, key: $key) { value owner { id } }
+            metafields(first: 10, namespace: $namespace) { nodes { key value owner { id } } }
+          }
+        }
+        "#,
+        json!({"id": owner_with_metafields, "namespace": namespace, "key": "tier"}),
+    ));
+    assert_eq!(
+        read_populated_owner.body["data"]["product"]["metafield"],
+        json!({"value": "gold", "owner": {"id": owner_with_metafields}})
+    );
+    assert_eq!(
+        read_populated_owner.body["data"]["product"]["metafields"]["nodes"],
+        json!([{"key": "tier", "value": "gold", "owner": {"id": owner_with_metafields}}])
+    );
+}
+
+#[test]
 fn metafields_app_namespace_set_delete_stages_product_readback() {
     let mut proxy = snapshot_proxy();
 

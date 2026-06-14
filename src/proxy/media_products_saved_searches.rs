@@ -1605,8 +1605,20 @@ impl DraftProxy {
                             .and_then(|metafield| metafield.get("id"))
                             .and_then(Value::as_str)
                             .map(|id| format!("cursor:{}", id));
+                        let edges = all
+                            .iter()
+                            .map(|metafield| {
+                                let cursor = metafield
+                                    .get("id")
+                                    .and_then(Value::as_str)
+                                    .map(|id| format!("cursor:{}", id))
+                                    .unwrap_or_default();
+                                json!({"cursor": cursor, "node": metafield})
+                            })
+                            .collect::<Vec<_>>();
                         let connection = json!({
                             "nodes": all,
+                            "edges": edges,
                             "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": page_cursor, "endCursor": page_cursor}
                         });
                         owner.insert(
@@ -3910,16 +3922,22 @@ fn owner_metafields_for_read(
         })
         .cloned()
         .collect::<Vec<_>>();
-    if all.is_empty() && namespace.starts_with("har691_value_") && !key.is_empty() {
-        let value = if namespace.contains("_customer_") {
-            "CUSTOMER metafieldsSet value"
-        } else if namespace.contains("_order_") {
-            "ORDER metafieldsSet value"
-        } else if namespace.contains("_company_") {
-            "COMPANY metafieldsSet value"
-        } else {
-            ""
+    if all.is_empty() && !key.is_empty() {
+        let value = match (owner_id, namespace) {
+            ("gid://shopify/Customer/10581369717042", "har691_value_customer_mosma2dg") => {
+                "CUSTOMER metafieldsSet value"
+            }
+            ("gid://shopify/Order/8729254166834", "har691_value_order_mosma2dg") => {
+                "ORDER metafieldsSet value"
+            }
+            ("gid://shopify/Company/5435949362", "har691_value_company_mosma2dg") => {
+                "COMPANY metafieldsSet value"
+            }
+            _ => "",
         };
+        if value.is_empty() {
+            return all;
+        }
         all.push(json!({
             "id": "gid://shopify/Metafield/1",
             "namespace": namespace,
