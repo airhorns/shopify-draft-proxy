@@ -1368,7 +1368,7 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation && root_field == "metafieldsSet" {
-            let outcome = self.owner_metafields_set(&query, &variables);
+            let outcome = self.owner_metafields_set(request, &query, &variables);
             return self.finalize_mutation_outcome(request, &query, &variables, outcome);
         }
 
@@ -2254,7 +2254,7 @@ impl DraftProxy {
                     && has_local_dispatch
                     && root_field == "metafieldsSet" =>
             {
-                let outcome = self.owner_metafields_set(&query, &variables);
+                let outcome = self.owner_metafields_set(request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)

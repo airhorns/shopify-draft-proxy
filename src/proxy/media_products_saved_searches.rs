@@ -1,4 +1,5 @@
 use super::*;
+use base64::Engine as _;
 
 const TAGGABLE_ORDER_HYDRATE_QUERY: &str =
     "query OrdersOrderHydrate($id: ID!) {\n  order(id: $id) { id name tags }\n}";
@@ -1110,6 +1111,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn owner_metafields_set(
         &mut self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
@@ -1133,6 +1135,13 @@ impl DraftProxy {
                 json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
             ));
         }
+        self.hydrate_owner_metafield_ids(
+            request,
+            inputs
+                .iter()
+                .filter_map(|input| resolved_string_field(input, "ownerId"))
+                .collect(),
+        );
         let mut metafields = Vec::new();
         let mut staged_owner_ids = Vec::new();
         for input in inputs {
@@ -1177,8 +1186,29 @@ impl DraftProxy {
                 record["owner"] = owner_reference_from_gid(&owner_id);
                 record
             } else {
-                let compare_digest = format!("local-metafield-digest-{index}");
+                let compare_digest = existing
+                    .as_ref()
+                    .filter(|metafield| {
+                        metafield.get("value").and_then(Value::as_str) == Some(value.as_str())
+                    })
+                    .and_then(|metafield| metafield.get("compareDigest"))
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+                    .unwrap_or_else(|| format!("local-metafield-digest-{index}"));
                 let timestamp = owner_metafield_timestamp(index as u64);
+                let created_at = existing
+                    .as_ref()
+                    .and_then(|metafield| metafield.get("createdAt"))
+                    .and_then(Value::as_str)
+                    .unwrap_or(&timestamp);
+                let updated_at = existing
+                    .as_ref()
+                    .filter(|metafield| {
+                        metafield.get("value").and_then(Value::as_str) == Some(value.as_str())
+                    })
+                    .and_then(|metafield| metafield.get("updatedAt"))
+                    .and_then(Value::as_str)
+                    .unwrap_or(&timestamp);
                 json!({
                     "id": id,
                     "namespace": namespace,
@@ -1187,8 +1217,8 @@ impl DraftProxy {
                     "value": value,
                     "jsonValue": metafield_json_value(&metafield_type, &value),
                     "compareDigest": compare_digest,
-                    "createdAt": timestamp,
-                    "updatedAt": timestamp,
+                    "createdAt": created_at,
+                    "updatedAt": updated_at,
                     "ownerType": owner_type_from_gid(&owner_id),
                     "owner": owner_reference_from_gid(&owner_id),
                 })
@@ -1287,15 +1317,27 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> bool {
-        root_fields(query, variables)
-            .unwrap_or_default()
-            .iter()
-            .any(|field| {
-                matches!(
-                    field.name.as_str(),
-                    "product" | "productVariant" | "collection" | "customer" | "order" | "company"
-                ) && Self::owner_field_selects_metafields_at_root(&field.name, &field.selection)
-            })
+        let fields = root_fields(query, variables).unwrap_or_default();
+        let mut has_non_product_owner_read = false;
+        let mut needs_live_product_hydration = false;
+        for field in fields {
+            if !Self::owner_field_selects_metafields_at_root(&field.name, &field.selection) {
+                continue;
+            }
+            match field.name.as_str() {
+                "collection" | "customer" | "order" | "company" => {
+                    has_non_product_owner_read = true;
+                }
+                "product" | "productVariant" if self.config.read_mode == ReadMode::LiveHybrid => {
+                    let owner_id = self.owner_field_id(&field, variables);
+                    if self.owner_needs_metafield_hydration(&field.name, &owner_id) {
+                        needs_live_product_hydration = true;
+                    }
+                }
+                _ => {}
+            }
+        }
+        has_non_product_owner_read || needs_live_product_hydration
     }
 
     pub(in crate::proxy) fn owner_metafields_read(
@@ -1403,7 +1445,9 @@ impl DraftProxy {
         match shopify_gid_resource_type(&owner_id) {
             Some("Product") => self.store.stage_observed_product_json(node),
             Some("ProductVariant") => {
-                if let Some(variant) = product_variant_state_from_observed_json(node) {
+                if let Some(variant) = product_variant_state_from_observed_json(node)
+                    .or_else(|| owner_product_variant_state_from_observed_json(node))
+                {
                     self.store.stage_product_variant(variant);
                 }
                 if let Some(product) = node.get("product") {
@@ -1521,6 +1565,11 @@ impl DraftProxy {
             existing.get("namespace").and_then(Value::as_str) == Some(namespace.as_str())
                 && existing.get("key").and_then(Value::as_str) == Some(key.as_str())
         }) {
+            if record.get("__cursor").is_none() {
+                if let Some(cursor) = existing.get("__cursor").cloned() {
+                    record["__cursor"] = cursor;
+                }
+            }
             *existing = record;
         } else {
             owner_metafields.push(record);
@@ -1539,7 +1588,13 @@ impl DraftProxy {
                 let variants = self.store.product_variants_for_product(owner_id);
                 let base = product_json_with_variants(product, &variants, selections);
                 Some(
-                    self.owner_metafield_overlay_owner_json(root_field, owner_id, selections, base),
+                    self.owner_metafield_overlay_owner_json_with_product_variants(
+                        root_field,
+                        owner_id,
+                        selections,
+                        &product.variants,
+                        base,
+                    ),
                 )
             }
             "productVariant" => {
@@ -1617,13 +1672,39 @@ impl DraftProxy {
         selections: &[SelectedField],
         base: Value,
     ) -> Value {
+        self.owner_metafield_overlay_owner_json_with_product_variants(
+            root_field,
+            owner_id,
+            selections,
+            &[],
+            base,
+        )
+    }
+
+    fn owner_metafield_overlay_owner_json_with_product_variants(
+        &self,
+        root_field: &str,
+        owner_id: &str,
+        selections: &[SelectedField],
+        fallback_product_variants: &[Value],
+        base: Value,
+    ) -> Value {
         selected_payload_json(selections, |selection| match selection.name.as_str() {
             "__typename" => Some(json!(owner_typename_from_root(root_field))),
             "id" => Some(json!(owner_id)),
-            "metafield" => Some(self.selected_owner_metafield(owner_id, selection)),
-            "metafields" => Some(self.selected_owner_metafields_connection(owner_id, selection)),
-            "variants" if root_field == "product" => {
-                Some(self.selected_product_variants_with_metafields(owner_id, selection))
+            "metafield" => Some(self.selected_owner_metafield_overlay(owner_id, selection, &base)),
+            "metafields" => {
+                Some(self.selected_owner_metafields_connection_overlay(owner_id, selection, &base))
+            }
+            "variants"
+                if root_field == "product"
+                    && Self::owner_field_selects_metafields(&selection.selection) =>
+            {
+                Some(self.selected_product_variants_with_metafields(
+                    owner_id,
+                    fallback_product_variants,
+                    selection,
+                ))
             }
             _ => base
                 .get(selection.response_key.as_str())
@@ -1635,32 +1716,98 @@ impl DraftProxy {
     fn selected_product_variants_with_metafields(
         &self,
         product_id: &str,
+        fallback_variants: &[Value],
         selection: &SelectedField,
     ) -> Value {
-        let node_selection = nested_selected_fields(&selection.selection, &["nodes"]);
-        let variants = self
-            .store
-            .product_variants_for_product(product_id)
-            .into_iter()
-            .map(|variant| {
-                let base = product_variant_json(
-                    &variant,
-                    self.store.product_by_id(&variant.product_id),
-                    &node_selection,
-                );
-                self.owner_metafield_overlay_owner_json(
-                    "productVariant",
-                    &variant.id,
-                    &node_selection,
-                    base,
-                )
+        #[derive(Clone)]
+        enum VariantSource {
+            Record(Box<ProductVariantRecord>),
+            Fallback(Value),
+        }
+        #[derive(Clone)]
+        struct VariantEntry {
+            id: String,
+            source: VariantSource,
+        }
+
+        let normalized_variants = self.store.product_variants_for_product(product_id);
+        let normalized_ids = normalized_variants
+            .iter()
+            .map(|variant| variant.id.as_str())
+            .collect::<BTreeSet<_>>();
+        let mut entries = fallback_variants
+            .iter()
+            .filter_map(|variant| {
+                let id = variant.get("id").and_then(Value::as_str)?;
+                (!normalized_ids.contains(id)).then(|| VariantEntry {
+                    id: id.to_string(),
+                    source: VariantSource::Fallback(variant.clone()),
+                })
             })
             .collect::<Vec<_>>();
-        let connection = json!({
-            "nodes": variants,
-            "pageInfo": metafield_connection_page_info(None, None)
-        });
-        selected_json(&connection, &selection.selection)
+        entries.extend(normalized_variants.into_iter().map(|variant| VariantEntry {
+            id: variant.id.clone(),
+            source: VariantSource::Record(Box::new(variant)),
+        }));
+
+        let (entries, page_info) =
+            connection_window(&entries, &selection.arguments, |entry| entry.id.clone());
+        let node_selection = nested_selected_fields(&selection.selection, &["nodes"]);
+        let edge_node_selection = nested_selected_fields(&selection.selection, &["edges", "node"]);
+        let page_info_selection = nested_selected_fields(&selection.selection, &["pageInfo"]);
+        let render_variant =
+            |entry: &VariantEntry, selections: &[SelectedField]| match &entry.source {
+                VariantSource::Record(variant) => {
+                    let base = product_variant_json(
+                        variant,
+                        self.store.product_by_id(&variant.product_id),
+                        selections,
+                    );
+                    self.owner_metafield_overlay_owner_json(
+                        "productVariant",
+                        &variant.id,
+                        selections,
+                        base,
+                    )
+                }
+                VariantSource::Fallback(variant) => {
+                    let base = selected_json(variant, selections);
+                    self.owner_metafield_overlay_owner_json(
+                        "productVariant",
+                        &entry.id,
+                        selections,
+                        base,
+                    )
+                }
+            };
+        let mut connection = serde_json::Map::new();
+        for selected in &selection.selection {
+            let value = match selected.name.as_str() {
+                "nodes" => Some(Value::Array(
+                    entries
+                        .iter()
+                        .map(|entry| render_variant(entry, &node_selection))
+                        .collect(),
+                )),
+                "edges" => Some(Value::Array(
+                    entries
+                        .iter()
+                        .map(|entry| {
+                            json!({
+                                "cursor": entry.id,
+                                "node": render_variant(entry, &edge_node_selection)
+                            })
+                        })
+                        .collect(),
+                )),
+                "pageInfo" => Some(selected_json(&page_info, &page_info_selection)),
+                _ => None,
+            };
+            if let Some(value) = value {
+                connection.insert(selected.response_key.clone(), value);
+            }
+        }
+        Value::Object(connection)
     }
 
     fn owner_field_selects_metafields_at_root(
@@ -1673,6 +1820,12 @@ impl DraftProxy {
                     && selection.name == "variants"
                     && Self::owner_field_selects_metafields(&selection.selection))
         })
+    }
+
+    fn owner_field_selects_direct_metafields(selections: &[SelectedField]) -> bool {
+        selections
+            .iter()
+            .any(|selection| matches!(selection.name.as_str(), "metafield" | "metafields"))
     }
 
     fn owner_field_selects_metafields(selections: &[SelectedField]) -> bool {
@@ -1710,6 +1863,24 @@ impl DraftProxy {
             .unwrap_or(Value::Null)
     }
 
+    fn selected_owner_metafield_overlay(
+        &self,
+        owner_id: &str,
+        selection: &SelectedField,
+        base: &Value,
+    ) -> Value {
+        let namespace =
+            resolved_string_field(&selection.arguments, "namespace").unwrap_or_default();
+        let key = resolved_string_field(&selection.arguments, "key").unwrap_or_default();
+        if self.owner_metafield_has_local_effect(owner_id, &namespace, &key) {
+            return self.selected_owner_metafield(owner_id, selection);
+        }
+        base.get(selection.response_key.as_str())
+            .or_else(|| base.get(selection.name.as_str()))
+            .cloned()
+            .unwrap_or(Value::Null)
+    }
+
     fn selected_owner_metafields_connection(
         &self,
         owner_id: &str,
@@ -1743,6 +1914,23 @@ impl DraftProxy {
         selected_json(&connection, &selection.selection)
     }
 
+    fn selected_owner_metafields_connection_overlay(
+        &self,
+        owner_id: &str,
+        selection: &SelectedField,
+        base: &Value,
+    ) -> Value {
+        if !self.owner_has_metafield_local_effects(owner_id) {
+            if let Some(base_value) = base
+                .get(selection.response_key.as_str())
+                .or_else(|| base.get(selection.name.as_str()))
+            {
+                return base_value.clone();
+            }
+        }
+        self.selected_owner_metafields_connection(owner_id, selection)
+    }
+
     fn owner_metafield(&self, owner_id: &str, namespace: &str, key: &str) -> Option<Value> {
         if self.store.staged.deleted_owner_metafields.contains(&(
             owner_id.to_string(),
@@ -1761,6 +1949,38 @@ impl DraftProxy {
                     && metafield.get("key").and_then(Value::as_str) == Some(key)
             })
             .cloned()
+    }
+
+    fn owner_metafield_has_local_effect(&self, owner_id: &str, namespace: &str, key: &str) -> bool {
+        self.store
+            .staged
+            .owner_metafields
+            .get(owner_id)
+            .is_some_and(|metafields| {
+                metafields.iter().any(|metafield| {
+                    metafield.get("namespace").and_then(Value::as_str) == Some(namespace)
+                        && metafield.get("key").and_then(Value::as_str) == Some(key)
+                })
+            })
+            || self.store.staged.deleted_owner_metafields.contains(&(
+                owner_id.to_string(),
+                namespace.to_string(),
+                key.to_string(),
+            ))
+    }
+
+    fn owner_has_metafield_local_effects(&self, owner_id: &str) -> bool {
+        self.store
+            .staged
+            .owner_metafields
+            .get(owner_id)
+            .is_some_and(|metafields| !metafields.is_empty())
+            || self
+                .store
+                .staged
+                .deleted_owner_metafields
+                .iter()
+                .any(|(deleted_owner_id, _, _)| deleted_owner_id == owner_id)
     }
 
     fn owner_metafields(&self, owner_id: &str, namespace: Option<&str>) -> Vec<Value> {
@@ -1955,7 +2175,18 @@ impl DraftProxy {
         match self.product_record_by_id(id) {
             Some(product) => {
                 let variants = self.store.product_variants_for_product(&product.id);
-                product_json_with_variants(product, &variants, selection)
+                let base = product_json_with_variants(product, &variants, selection);
+                self.owner_metafield_overlay_owner_json_with_product_variants(
+                    "product",
+                    &product.id,
+                    selection,
+                    &product.variants,
+                    base,
+                )
+            }
+            None if Self::owner_field_selects_direct_metafields(selection) => {
+                let owner_id = id.clone();
+                self.minimal_owner_json_for_read("product", &owner_id, selection)
             }
             None => Value::Null,
         }
@@ -1986,9 +2217,23 @@ impl DraftProxy {
         match product {
             Some(product) => {
                 let variants = self.store.product_variants_for_product(&product.id);
-                product_json_with_variants(product, &variants, selection)
+                let base = product_json_with_variants(product, &variants, selection);
+                self.owner_metafield_overlay_owner_json_with_product_variants(
+                    "product",
+                    &product.id,
+                    selection,
+                    &product.variants,
+                    base,
+                )
             }
-            None => Value::Null,
+            None => match identifier.get("id") {
+                Some(ResolvedValue::String(id))
+                    if Self::owner_field_selects_direct_metafields(selection) =>
+                {
+                    self.minimal_owner_json_for_read("product", id, selection)
+                }
+                _ => Value::Null,
+            },
         }
     }
 
@@ -2008,13 +2253,18 @@ impl DraftProxy {
         selection: &[SelectedField],
     ) -> Value {
         let Some(variant) = self.store.product_variant_by_id(id) else {
-            return Value::Null;
+            return if Self::owner_field_selects_direct_metafields(selection) {
+                self.minimal_owner_json_for_read("productVariant", id, selection)
+            } else {
+                Value::Null
+            };
         };
-        product_variant_json(
+        let base = product_variant_json(
             variant,
             self.store.product_by_id(&variant.product_id),
             selection,
-        )
+        );
+        self.owner_metafield_overlay_owner_json("productVariant", &variant.id, selection, base)
     }
 
     pub(in crate::proxy) fn product_inventory_item_by_id_value(
@@ -2088,7 +2338,14 @@ impl DraftProxy {
             root_selection,
             |product, selections| {
                 let variants = self.store.product_variants_for_product(&product.id);
-                product_json_with_variants(product, &variants, selections)
+                let base = product_json_with_variants(product, &variants, selections);
+                self.owner_metafield_overlay_owner_json_with_product_variants(
+                    "product",
+                    &product.id,
+                    selections,
+                    &product.variants,
+                    base,
+                )
             },
             |product| product_cursor(product).to_string(),
         )
@@ -4055,6 +4312,92 @@ fn owner_reference_from_gid(owner_id: &str) -> Value {
     })
 }
 
+fn owner_product_variant_state_from_observed_json(value: &Value) -> Option<ProductVariantRecord> {
+    let id = value.get("id")?.as_str()?.to_string();
+    let product_id = value
+        .get("productId")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            value
+                .get("product")
+                .and_then(|product| product.get("id"))
+                .and_then(Value::as_str)
+        })?
+        .to_string();
+    let inventory_item = value.get("inventoryItem");
+    Some(ProductVariantRecord {
+        id: id.clone(),
+        product_id,
+        title: value
+            .get("title")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        sku: value
+            .get("sku")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        barcode: value
+            .get("barcode")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        price: value
+            .get("price")
+            .and_then(Value::as_str)
+            .unwrap_or("0.00")
+            .to_string(),
+        compare_at_price: value
+            .get("compareAtPrice")
+            .and_then(Value::as_str)
+            .map(str::to_string),
+        taxable: value
+            .get("taxable")
+            .and_then(Value::as_bool)
+            .unwrap_or(true),
+        inventory_policy: value
+            .get("inventoryPolicy")
+            .and_then(Value::as_str)
+            .unwrap_or("DENY")
+            .to_string(),
+        inventory_quantity: value
+            .get("inventoryQuantity")
+            .and_then(Value::as_i64)
+            .unwrap_or_default(),
+        selected_options: value
+            .get("selectedOptions")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|option| {
+                Some(ProductVariantSelectedOption {
+                    name: option.get("name")?.as_str()?.to_string(),
+                    value: option.get("value")?.as_str()?.to_string(),
+                })
+            })
+            .collect(),
+        inventory_item: ProductVariantInventoryItem {
+            id: inventory_item
+                .and_then(|item| item.get("id"))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .unwrap_or_else(|| {
+                    format!("gid://shopify/InventoryItem/{}", resource_id_tail(&id))
+                }),
+            tracked: inventory_item
+                .and_then(|item| item.get("tracked"))
+                .and_then(Value::as_bool)
+                .unwrap_or(true),
+            requires_shipping: inventory_item
+                .and_then(|item| item.get("requiresShipping"))
+                .and_then(Value::as_bool)
+                .unwrap_or(true),
+            extra_fields: BTreeMap::new(),
+        },
+        extra_fields: BTreeMap::new(),
+    })
+}
+
 fn owner_typename_from_gid(owner_id: &str) -> &'static str {
     match shopify_gid_resource_type(owner_id) {
         Some("ProductVariant") => "ProductVariant",
@@ -4741,6 +5084,29 @@ fn owner_metafield_timestamp(ordinal: u64) -> String {
 }
 
 fn apply_metafield_connection_cursors(records: &mut [Value], page_info: &Value) {
+    if let Some((record, cursor)) = page_info
+        .get("startCursor")
+        .and_then(Value::as_str)
+        .and_then(|cursor| {
+            shopify_cursor_resource_tail(cursor)
+                .and_then(|tail| metafield_record_by_tail_mut(records, &tail))
+                .map(|record| (record, cursor.to_string()))
+        })
+    {
+        record["__cursor"] = json!(cursor);
+    }
+    if let Some((record, cursor)) =
+        page_info
+            .get("endCursor")
+            .and_then(Value::as_str)
+            .and_then(|cursor| {
+                shopify_cursor_resource_tail(cursor)
+                    .and_then(|tail| metafield_record_by_tail_mut(records, &tail))
+                    .map(|record| (record, cursor.to_string()))
+            })
+    {
+        record["__cursor"] = json!(cursor);
+    }
     if records.len() == 1 {
         if let Some(cursor) = page_info
             .get("startCursor")
@@ -4750,6 +5116,32 @@ fn apply_metafield_connection_cursors(records: &mut [Value], page_info: &Value) 
             records[0]["__cursor"] = json!(cursor);
         }
     }
+}
+
+fn metafield_record_by_tail_mut<'a>(records: &'a mut [Value], tail: &str) -> Option<&'a mut Value> {
+    records.iter_mut().find(|record| {
+        record
+            .get("id")
+            .and_then(Value::as_str)
+            .map(resource_id_tail)
+            .is_some_and(|record_tail| record_tail == tail)
+    })
+}
+
+fn shopify_cursor_resource_tail(cursor: &str) -> Option<String> {
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(cursor)
+        .ok()?;
+    let value: Value = serde_json::from_slice(&decoded).ok()?;
+    value
+        .get("last_id")
+        .and_then(|last_id| {
+            last_id
+                .as_u64()
+                .map(|id| id.to_string())
+                .or_else(|| last_id.as_str().map(str::to_string))
+        })
+        .filter(|tail| !tail.is_empty())
 }
 
 fn metafield_cursor(metafield: &Value) -> Option<String> {

@@ -3264,6 +3264,26 @@ fn product_metafields_set_stages_product_owned_readbacks() {
     }
 }
 
+fn owner_metafield_hydration_proxy(fixture: Value) -> DraftProxy {
+    configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+        let body: Value =
+            serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+        let query = body["query"].as_str().unwrap_or_default();
+        let response = if query.contains("OwnerMetafieldsHydrateNodes")
+            || query.contains("ProductsHydrateNodes")
+        {
+            fixture["upstreamCalls"][0]["response"]["body"].clone()
+        } else {
+            json!({"errors": [{"message": format!("unexpected upstream query: {query}")}]})
+        };
+        shopify_draft_proxy::proxy::Response {
+            status: 200,
+            headers: Default::default(),
+            body: response,
+        }
+    })
+}
+
 #[test]
 fn product_metafields_set_owner_expansion_stages_variant_and_collection_readbacks() {
     let fixture: Value = serde_json::from_str(include_str!(
@@ -3275,7 +3295,7 @@ fn product_metafields_set_owner_expansion_stages_variant_and_collection_readback
     let read_query = include_str!(
         "../../config/parity-requests/products/metafieldsSet-owner-expansion-downstream-read.graphql"
     );
-    let mut proxy = snapshot_proxy();
+    let mut proxy = owner_metafield_hydration_proxy(fixture.clone());
 
     let mutation = proxy.process_request(json_graphql_request(
         mutation_query,
@@ -3320,7 +3340,7 @@ fn product_metafields_delete_stages_product_owned_readback() {
         include_str!("../../config/parity-requests/products/metafieldsDelete-parity-plan.graphql");
     let read_query =
         include_str!("../../config/parity-requests/products/metafieldsSet-downstream-read.graphql");
-    let mut proxy = snapshot_proxy();
+    let mut proxy = owner_metafield_hydration_proxy(fixture.clone());
 
     let mutation = proxy.process_request(json_graphql_request(
         mutation_query,
