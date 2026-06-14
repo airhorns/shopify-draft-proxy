@@ -634,13 +634,23 @@ async function captureDelegateAccessTokenCreateValidation(): Promise<string> {
   const happyPathQuery = await readText(
     'config/parity-requests/apps/delegateAccessTokenCreate-happy-validation.graphql',
   );
+  const ordinaryOperationNameQuery = await readText(
+    'config/parity-requests/apps/delegateAccessTokenCreate-ordinary-operation-name.graphql',
+  );
   const destroyQuery = await readText('config/parity-requests/apps/delegateAccessTokenDestroy-codes.graphql');
 
   const emptyScope = await client.runGraphqlRequest(emptyScopeQuery, {});
   const negativeExpires = await client.runGraphqlRequest(negativeExpiresQuery, {});
   const unknownScope = await client.runGraphqlRequest(unknownScopeQuery, {});
   const happyPath = await client.runGraphqlRequest(happyPathQuery, {});
-  for (const [label, result] of Object.entries({ emptyScope, negativeExpires, unknownScope, happyPath })) {
+  const ordinaryOperationName = await client.runGraphqlRequest(ordinaryOperationNameQuery, {});
+  for (const [label, result] of Object.entries({
+    emptyScope,
+    negativeExpires,
+    unknownScope,
+    happyPath,
+    ordinaryOperationName,
+  })) {
     assertNoTopLevelErrors(result, `delegateAccessTokenCreate ${label}`);
   }
 
@@ -676,6 +686,7 @@ async function captureDelegateAccessTokenCreateValidation(): Promise<string> {
           negativeExpires: readRecord(redactSecrets(negativeExpires.payload)),
           unknownScope: readRecord(redactSecrets(unknownScope.payload)),
           happyPath: readRecord(redactSecrets(happyPath.payload)),
+          ordinaryOperationName: readRecord(redactSecrets(ordinaryOperationName.payload)),
         },
       },
     },

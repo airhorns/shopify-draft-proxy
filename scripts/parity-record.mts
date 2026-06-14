@@ -1,15 +1,14 @@
 // Parity cassette recorder.
 //
-// Boots the Gleam-port DraftProxy in LiveHybrid mode pointed at a local
-// recording SyncTransport, plays the parity spec's primary + target requests
-// through it, and rewrites the capture file with an `upstreamCalls`
-// cassette: every upstream GraphQL call the proxy makes while serving the
-// spec, in order, with its (operationName, variables, response) tuple.
+// Boots the Rust DraftProxy HTTP runtime, plays the parity spec's primary +
+// target requests through it, and rewrites the capture file with an
+// `upstreamCalls` cassette. Rust-backed recording currently supports local-only
+// specs whose cassette remains empty; specs that need upstream cassette refresh
+// fail closed instead of sending unsupported proxy writes to Shopify.
 //
-// The recording transport forwards each intercepted upstream call to the real
-// Shopify Admin GraphQL endpoint using the existing OAuth flow
-// (scripts/shopify-conformance-auth.mts) and stores the response so it can
-// be replayed later by the Gleam parity runner.
+// The existing OAuth flow (scripts/shopify-conformance-auth.mts) is still
+// probed before recording so live-recording requirements fail with the same
+// credential diagnostics as capture scripts.
 //
 // Usage:
 //   pnpm parity:record <scenario-id>
@@ -20,18 +19,16 @@
 
 import 'dotenv/config';
 
-import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { dirname, isAbsolute, relative, resolve } from 'node:path';
 
 import { readConformanceScriptConfig } from './conformance-script-config.js';
-import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
+import { getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..');
-const compiledEntrypoint = resolve(repoRoot, 'build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy.mjs');
 const shimEntrypoint = resolve(repoRoot, 'js/src/index.ts');
 
 type RecordedCall = {
@@ -356,87 +353,8 @@ function rewriteCapture(
   writeFileSync(captureFile, JSON.stringify(parsed, null, 2) + '\n', 'utf8');
 }
 
-async function ensureGleamBuild(): Promise<void> {
-  // Always rebuild — Gleam is incremental and fast (~250ms when nothing
-  // changed). Skipping when the artifact exists is a footgun: the
-  // dispatcher's passthrough decisions live in `.gleam` source, and a
-  // stale shim records 0 upstreamCalls without warning.
-  log('[parity-record] gleam JS build...');
-  execFileSync('gleam', ['build', '--target', 'javascript'], {
-    cwd: repoRoot,
-    stdio: 'inherit',
-  });
-  if (!existsSync(compiledEntrypoint)) {
-    throw new Error(`gleam build did not produce ${compiledEntrypoint}`);
-  }
-}
-
-async function installRecordingSyncTransport(
-  proxy: {
-    installSyncTransport: (send: (request: Record<string, unknown>) => unknown) => void;
-  },
-  opts: {
-    adminOrigin: string;
-    apiVersion: string;
-    authHeaders: Record<string, string>;
-    calls: RecordedCall[];
-  },
-): Promise<void> {
-  const [{ Ok, Error, toList }, { HttpOutcome, CommitTransportError }] = await Promise.all([
-    import(pathToFileURL(resolve(repoRoot, 'build/dev/javascript/prelude.mjs')).href),
-    import(
-      pathToFileURL(resolve(repoRoot, 'build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy/proxy/commit.mjs'))
-        .href
-    ),
-  ]);
-
-  proxy.installSyncTransport((request: Record<string, unknown>) => {
-    try {
-      const body = String(request.body ?? '');
-      const parsed = JSON.parse(body || '{}') as {
-        operationName?: string;
-        query?: string;
-        variables?: Record<string, unknown>;
-      };
-      const url = `${opts.adminOrigin}/admin/api/${opts.apiVersion}/graphql.json`;
-      const args = ['-sS', '-X', 'POST'];
-      for (const [key, value] of Object.entries(opts.authHeaders)) {
-        args.push('-H', `${key}: ${value}`);
-      }
-      for (const [key, value] of gleamHeaderEntries(request.headers)) {
-        args.push('-H', `${key}: ${value}`);
-      }
-      args.push('--data-binary', body, '-w', '\n%{http_code}', url);
-      const output = execFileSync('curl', args, { encoding: 'utf8' });
-      const split = output.lastIndexOf('\n');
-      const responseBody = split >= 0 ? output.slice(0, split) : output;
-      const statusRaw = split >= 0 ? output.slice(split + 1).trim() : '200';
-      const status = Number.parseInt(statusRaw, 10);
-      const statusCode = Number.isFinite(status) ? status : 200;
-      const responsePayload = JSON.parse(responseBody || '{}') as unknown;
-      opts.calls.push({
-        operationName: parsed.operationName ?? extractOperationName(parsed.query ?? '') ?? '',
-        variables: parsed.variables ?? {},
-        query: parsed.query ?? '',
-        response: { status: statusCode, body: responsePayload },
-      });
-      return new Ok(new HttpOutcome(statusCode, responseBody, toList([])));
-    } catch (err) {
-      return new Error(new CommitTransportError((err as Error).message));
-    }
-  });
-}
-
-function gleamHeaderEntries(value: unknown): [string, string][] {
-  if (!value || typeof (value as { toArray?: unknown }).toArray !== 'function') return [];
-  return ((value as { toArray: () => unknown[] }).toArray() as unknown[])
-    .filter(Array.isArray)
-    .map((entry) => [String(entry[0]), String(entry[1])]);
-}
-
-function extractOperationName(query: string): string | undefined {
-  const match = query.match(/\b(?:query|mutation|subscription)\s+([A-Za-z_][A-Za-z0-9_]*)/);
-  return match ? match[1] : undefined;
+function existingUpstreamCalls(capture: Record<string, unknown>): RecordedCall[] {
+  return Array.isArray(capture.upstreamCalls) ? (capture.upstreamCalls as RecordedCall[]) : [];
 }
 
 async function recordSpec(opts: RecordOptions): Promise<void> {
@@ -451,26 +369,32 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
     throw new Error(`Capture file does not exist: ${captureFile}. Run the corresponding capture script first.`);
   }
   const capture = JSON.parse(readFileSync(captureFile, 'utf8'));
-
-  await ensureGleamBuild();
+  const defaultApiVersion = typeof capture.apiVersion === 'string' ? capture.apiVersion : opts.apiVersion;
+  if (existingUpstreamCalls(capture).length > 0) {
+    throw new Error(
+      `Rust parity recorder cannot refresh non-empty upstreamCalls yet for ${spec.scenarioId}; use the dedicated capture script for this scenario.`,
+    );
+  }
 
   const calls: RecordedCall[] = [];
   let rewriteCaptureNow: (() => void) | null = null;
+  let proxy: { dispose?: () => void } | null = null;
   try {
     const shim = await import(shimEntrypoint);
-    const proxy = shim.createDraftProxy({
+    proxy = shim.createDraftProxy({
       readMode: 'live-hybrid',
       port: 4000,
-      shopifyAdminOrigin: opts.adminOrigin,
+      shopifyAdminOrigin: 'https://invalid.shopify-draft-proxy.local',
+      unsupportedMutationMode: 'reject',
     });
+    const runtimeProxy = proxy as {
+      processGraphQLRequest: (
+        body: unknown,
+        options: { headers?: Record<string, string>; apiVersion?: string },
+      ) => Promise<RecordedResponse>;
+    };
 
     const responsesByName = new Map<string, RecordedResponse>();
-    await installRecordingSyncTransport(proxy, {
-      adminOrigin: opts.adminOrigin,
-      apiVersion: opts.apiVersion,
-      authHeaders: buildAdminAuthHeaders(opts.accessToken),
-      calls,
-    });
 
     const primary = loadDocumentVariablesAndHeaders(spec.proxyRequest, capture);
     const targetsWithOwnRequest: { target: SpecTarget; requestName: string }[] = [];
@@ -491,12 +415,12 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
     let previousResponse: RecordedResponse | undefined;
     if (primary) {
       const variables = substituteVariables(primary.variables, { capture, responsesByName }) as Record<string, unknown>;
-      primaryResponse = (await proxy.processGraphQLRequest(
+      primaryResponse = (await runtimeProxy.processGraphQLRequest(
         {
           query: primary.document,
           variables,
         },
-        { headers: primary.headers, apiVersion: primary.apiVersion },
+        { headers: primary.headers, apiVersion: primary.apiVersion ?? defaultApiVersion },
       )) as RecordedResponse;
       responsesByName.set('primary', primaryResponse);
       previousResponse = primaryResponse;
@@ -511,12 +435,12 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
         previousResponse,
         responsesByName,
       }) as Record<string, unknown>;
-      const response = (await proxy.processGraphQLRequest(
+      const response = (await runtimeProxy.processGraphQLRequest(
         {
           query: loaded.document,
           variables,
         },
-        { headers: loaded.headers, apiVersion: loaded.apiVersion },
+        { headers: loaded.headers, apiVersion: loaded.apiVersion ?? defaultApiVersion },
       )) as RecordedResponse;
       responsesByName.set(requestName, response);
       previousResponse = response;
@@ -544,6 +468,7 @@ async function recordSpec(opts: RecordOptions): Promise<void> {
 
     rewriteCaptureNow = () => rewriteCapture(captureFile, calls, []);
   } finally {
+    proxy?.dispose?.();
   }
 
   if (rewriteCaptureNow) {

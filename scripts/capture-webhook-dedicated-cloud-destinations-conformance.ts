@@ -420,6 +420,13 @@ function buildSpec(apiClientId: string): Record<string, unknown> {
           '$.validation.createPubSubBadProject.variables',
           headers,
         ),
+        regressionValidationTarget(
+          'regression-pubsub-create-bad-project-null-and-errors',
+          '$.validation.createPubSubBadProject.response.payload.data.pubSubWebhookSubscriptionCreate',
+          pubSubCreateRequestPath,
+          '$.validation.createPubSubBadProject.variables',
+          headers,
+        ),
         validationTarget(
           'pubsub-create-bad-topic',
           '$.validation.createPubSubBadTopic.response.payload.data.pubSubWebhookSubscriptionCreate',
@@ -429,6 +436,14 @@ function buildSpec(apiClientId: string): Record<string, unknown> {
         ),
         pubSubUpdateTarget(
           'pubsub-update-bad-project',
+          '$.validation.updatePubSubBadProject.response.payload.data.pubSubWebhookSubscriptionUpdate',
+          '$.validation.updatePubSubBadProject.variables.webhookSubscription',
+          pubSubIdRef,
+          headers,
+        ),
+        regressionUpdateTarget(
+          'regression-pubsub-update-bad-project-null-and-errors',
+          pubSubUpdateTarget,
           '$.validation.updatePubSubBadProject.response.payload.data.pubSubWebhookSubscriptionUpdate',
           '$.validation.updatePubSubBadProject.variables.webhookSubscription',
           pubSubIdRef,
@@ -505,8 +520,22 @@ function buildSpec(apiClientId: string): Record<string, unknown> {
           '$.validation.createEventBridgeMalformedArn.variables',
           headers,
         ),
+        regressionValidationTarget(
+          'regression-eventbridge-create-malformed-arn-null-and-errors',
+          '$.validation.createEventBridgeMalformedArn.response.payload.data.eventBridgeWebhookSubscriptionCreate',
+          eventBridgeCreateRequestPath,
+          '$.validation.createEventBridgeMalformedArn.variables',
+          headers,
+        ),
         validationTarget(
           'eventbridge-create-wrong-api-client',
+          '$.validation.createEventBridgeWrongApiClient.response.payload.data.eventBridgeWebhookSubscriptionCreate',
+          eventBridgeCreateRequestPath,
+          '$.validation.createEventBridgeWrongApiClient.variables',
+          headers,
+        ),
+        regressionValidationTarget(
+          'regression-eventbridge-create-wrong-api-client-null-and-errors',
           '$.validation.createEventBridgeWrongApiClient.response.payload.data.eventBridgeWebhookSubscriptionCreate',
           eventBridgeCreateRequestPath,
           '$.validation.createEventBridgeWrongApiClient.variables',
@@ -519,8 +548,24 @@ function buildSpec(apiClientId: string): Record<string, unknown> {
           eventBridgeIdRef,
           headers,
         ),
+        regressionUpdateTarget(
+          'regression-eventbridge-update-malformed-arn-null-and-errors',
+          eventBridgeUpdateTarget,
+          '$.validation.updateEventBridgeMalformedArn.response.payload.data.eventBridgeWebhookSubscriptionUpdate',
+          '$.validation.updateEventBridgeMalformedArn.variables.webhookSubscription',
+          eventBridgeIdRef,
+          headers,
+        ),
         eventBridgeUpdateTarget(
           'eventbridge-update-wrong-api-client',
+          '$.validation.updateEventBridgeWrongApiClient.response.payload.data.eventBridgeWebhookSubscriptionUpdate',
+          '$.validation.updateEventBridgeWrongApiClient.variables.webhookSubscription',
+          eventBridgeIdRef,
+          headers,
+        ),
+        regressionUpdateTarget(
+          'regression-eventbridge-update-wrong-api-client-null-and-errors',
+          eventBridgeUpdateTarget,
           '$.validation.updateEventBridgeWrongApiClient.response.payload.data.eventBridgeWebhookSubscriptionUpdate',
           '$.validation.updateEventBridgeWrongApiClient.variables.webhookSubscription',
           eventBridgeIdRef,
@@ -582,6 +627,19 @@ function validationTarget(
   };
 }
 
+function regressionValidationTarget(
+  name: string,
+  capturePath: string,
+  documentPath: string,
+  variablesCapturePath: string,
+  headers: Record<string, string>,
+): Record<string, unknown> {
+  return {
+    ...validationTarget(name, capturePath, documentPath, variablesCapturePath, headers),
+    selectedPaths: ['$.webhookSubscription', '$.userErrors'],
+  };
+}
+
 function pubSubUpdateTarget(
   name: string,
   capturePath: string,
@@ -604,6 +662,26 @@ function pubSubUpdateTarget(
       apiVersion,
       headers,
     },
+  };
+}
+
+function regressionUpdateTarget(
+  name: string,
+  targetBuilder: (
+    name: string,
+    capturePath: string,
+    inputCapturePath: string,
+    idRef: Record<string, string>,
+    headers: Record<string, string>,
+  ) => Record<string, unknown>,
+  capturePath: string,
+  inputCapturePath: string,
+  idRef: Record<string, string>,
+  headers: Record<string, string>,
+): Record<string, unknown> {
+  return {
+    ...targetBuilder(name, capturePath, inputCapturePath, idRef, headers),
+    selectedPaths: ['$.webhookSubscription', '$.userErrors'],
   };
 }
 

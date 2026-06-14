@@ -1,0 +1,131 @@
+{
+  "scenarioId": "tags-normalization-live-parity",
+  "operationNames": ["productCreate", "tagsAdd", "tagsRemove"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "tag-normalization-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/tags-normalization-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/tags-normalization-setup.graphql",
+    "variablesCapturePath": "$.tagNormalization.commaStringAdd.setup.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify evidence for product tagsAdd/tagsRemove tag argument normalization. Each branch starts from a disposable product with tags [\"Red\"] and compares the mutation payload Product.tags array after comma-string add, comma-containing list-element add, case-variant add, case-variant remove, and single-string remove.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "comma-string-add",
+        "capturePath": "$.tagNormalization.commaStringAdd.mutation.response.data.tagsAdd.node.tags",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-comma-string.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "tags": "blue, green"
+          }
+        },
+        "proxyPath": "$.data.tagsAdd.node.tags"
+      },
+      {
+        "name": "comma-list-element-setup",
+        "capturePath": "$.tagNormalization.commaListElementAdd.setup.response.data.productCreate.product.tags",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tags-normalization-setup.graphql",
+          "variablesCapturePath": "$.tagNormalization.commaListElementAdd.setup.variables"
+        },
+        "proxyPath": "$.data.productCreate.product.tags"
+      },
+      {
+        "name": "comma-list-element-add",
+        "capturePath": "$.tagNormalization.commaListElementAdd.mutation.response.data.tagsAdd.node.tags",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-comma-list-element.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "comma-list-element-setup",
+              "path": "$.data.productCreate.product.id"
+            },
+            "tags": ["blue,green"]
+          }
+        },
+        "proxyPath": "$.data.tagsAdd.node.tags"
+      },
+      {
+        "name": "case-variant-add-setup",
+        "capturePath": "$.tagNormalization.caseVariantAdd.setup.response.data.productCreate.product.tags",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tags-normalization-setup.graphql",
+          "variablesCapturePath": "$.tagNormalization.caseVariantAdd.setup.variables"
+        },
+        "proxyPath": "$.data.productCreate.product.tags"
+      },
+      {
+        "name": "case-variant-add",
+        "capturePath": "$.tagNormalization.caseVariantAdd.mutation.response.data.tagsAdd.node.tags",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsAdd-case-variant.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "case-variant-add-setup",
+              "path": "$.data.productCreate.product.id"
+            },
+            "tags": ["red"]
+          }
+        },
+        "proxyPath": "$.data.tagsAdd.node.tags"
+      },
+      {
+        "name": "case-variant-remove-setup",
+        "capturePath": "$.tagNormalization.caseVariantRemove.setup.response.data.productCreate.product.tags",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tags-normalization-setup.graphql",
+          "variablesCapturePath": "$.tagNormalization.caseVariantRemove.setup.variables"
+        },
+        "proxyPath": "$.data.productCreate.product.tags"
+      },
+      {
+        "name": "case-variant-remove",
+        "capturePath": "$.tagNormalization.caseVariantRemove.mutation.response.data.tagsRemove.node.tags",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsRemove-case-variant.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "case-variant-remove-setup",
+              "path": "$.data.productCreate.product.id"
+            },
+            "tags": ["red"]
+          }
+        },
+        "proxyPath": "$.data.tagsRemove.node.tags"
+      },
+      {
+        "name": "single-string-remove-setup",
+        "capturePath": "$.tagNormalization.singleStringRemove.setup.response.data.productCreate.product.tags",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tags-normalization-setup.graphql",
+          "variablesCapturePath": "$.tagNormalization.singleStringRemove.setup.variables"
+        },
+        "proxyPath": "$.data.productCreate.product.tags"
+      },
+      {
+        "name": "single-string-remove",
+        "capturePath": "$.tagNormalization.singleStringRemove.mutation.response.data.tagsRemove.node.tags",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/tagsRemove-string.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "single-string-remove-setup",
+              "path": "$.data.productCreate.product.id"
+            },
+            "tags": "Red"
+          }
+        },
+        "proxyPath": "$.data.tagsRemove.node.tags"
+      }
+    ]
+  }
+}

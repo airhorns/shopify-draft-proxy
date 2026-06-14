@@ -265,7 +265,7 @@ impl DraftProxy {
             .unwrap_or_else(|| root_field_arguments(query, variables).unwrap_or_default());
         let id = self.next_proxy_synthetic_gid("WebhookSubscription");
         let record = self.webhook_subscription_record(&id, &arguments, None);
-        let errors = self.webhook_subscription_validation_errors(root_field, &id, &record);
+        let errors = self.webhook_subscription_validation_errors(root_field, &id, &record, request);
         if !errors.is_empty() {
             let payload = self.webhook_subscription_payload(Value::Null, payload_selection, errors);
             return ok_json(json!({ "data": { response_key: payload } }));
@@ -318,7 +318,7 @@ impl DraftProxy {
             return ok_json(json!({ "data": { response_key: payload } }));
         };
         let record = self.webhook_subscription_record(&id, &arguments, Some(existing));
-        let errors = self.webhook_subscription_validation_errors(root_field, &id, &record);
+        let errors = self.webhook_subscription_validation_errors(root_field, &id, &record, request);
         if !errors.is_empty() {
             let payload = self.webhook_subscription_payload(Value::Null, payload_selection, errors);
             return ok_json(json!({ "data": { response_key: payload } }));
@@ -401,9 +401,11 @@ impl DraftProxy {
         root_field: &str,
         id: &str,
         record: &Value,
+        request: &Request,
     ) -> Vec<Value> {
         let mut errors = Vec::new();
         let uri = record["callbackUrl"].as_str().unwrap_or_default();
+        let address_field = webhook_subscription_address_error_field(root_field);
         if uri.trim().is_empty() {
             errors.push(json!({
                 "field": ["webhookSubscription", "callbackUrl"],
@@ -451,14 +453,21 @@ impl DraftProxy {
             } else {
                 let (project, topic) = pubsub_tail.split_once(':').unwrap_or((pubsub_tail, ""));
                 if !valid_gcp_project_id(project) {
-                    errors.push(json!({
-                        "field": ["webhookSubscription", "callbackUrl"],
-                        "message": "Address is invalid"
-                    }));
-                    errors.push(json!({
-                        "field": ["webhookSubscription", "callbackUrl"],
-                        "message": "Address is not a valid GCP project id."
-                    }));
+                    if root_field.starts_with("pubSubWebhookSubscription") {
+                        errors.push(json!({
+                            "field": ["webhookSubscription", "pubSubProject"],
+                            "message": "Google Cloud Pub/Sub project ID is not valid"
+                        }));
+                    } else {
+                        errors.push(json!({
+                            "field": ["webhookSubscription", "callbackUrl"],
+                            "message": "Address is invalid"
+                        }));
+                        errors.push(json!({
+                            "field": ["webhookSubscription", "callbackUrl"],
+                            "message": "Address is not a valid GCP project id."
+                        }));
+                    }
                 } else if !valid_gcp_pubsub_topic_id(topic) {
                     if root_field.starts_with("pubSubWebhookSubscription") {
                         errors.push(json!({
@@ -478,15 +487,35 @@ impl DraftProxy {
                 }
             }
         }
-        if uri.starts_with("arn:aws:events:") && !valid_eventbridge_arn(uri) {
-            errors.push(json!({
-                "field": ["webhookSubscription", "callbackUrl"],
-                "message": "Address is invalid"
-            }));
-            errors.push(json!({
-                "field": ["webhookSubscription", "callbackUrl"],
-                "message": "Address is not a valid AWS ARN"
-            }));
+        if uri.starts_with("arn:aws:events:") {
+            if let Some(arn_api_client_id) = eventbridge_arn_api_client_id(uri) {
+                if let Some(caller_api_client_id) =
+                    request.headers.get("x-shopify-draft-proxy-api-client-id")
+                {
+                    if arn_api_client_id != caller_api_client_id {
+                        errors.push(json!({
+                            "field": address_field,
+                            "message": "Address is invalid"
+                        }));
+                        errors.push(json!({
+                            "field": address_field,
+                            "message": format!(
+                                "Address is an AWS ARN and includes api_client_id '{}' instead of '{}'",
+                                arn_api_client_id, caller_api_client_id
+                            )
+                        }));
+                    }
+                }
+            } else {
+                errors.push(json!({
+                    "field": address_field,
+                    "message": "Address is invalid"
+                }));
+                errors.push(json!({
+                    "field": address_field,
+                    "message": "Address is not a valid AWS ARN"
+                }));
+            }
         }
         let topic = record["topic"].as_str().unwrap_or_default();
         let format = record["format"].as_str().unwrap_or_default();
@@ -1095,6 +1124,24 @@ impl DraftProxy {
                 &field.selection,
             );
         };
+        let Some(activity) = self.marketing_activity_for_delete(&id, request) else {
+            return selected_json(
+                &json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_missing_error()] }),
+                &field.selection,
+            );
+        };
+        if activity["isExternal"] == json!(false) {
+            return selected_json(
+                &json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_not_external_error()] }),
+                &field.selection,
+            );
+        }
+        if self.marketing_activity_has_child_events(activity) {
+            return selected_json(
+                &json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_child_events_error()] }),
+                &field.selection,
+            );
+        }
         self.store
             .staged
             .deleted_marketing_activity_ids
@@ -1103,6 +1150,51 @@ impl DraftProxy {
             &json!({ "deletedMarketingActivityId": id, "userErrors": [] }),
             &field.selection,
         )
+    }
+
+    fn marketing_activity_for_delete(&self, id: &str, request: &Request) -> Option<&Value> {
+        if self
+            .store
+            .staged
+            .deleted_marketing_activity_ids
+            .contains(id)
+        {
+            return None;
+        }
+        let activity = self.store.staged.marketing_activities.get(id)?;
+        let request_app = request.headers.get("x-shopify-draft-proxy-api-client-id");
+        if activity["apiClientId"].as_str() == request_app.map(String::as_str) {
+            Some(activity)
+        } else {
+            None
+        }
+    }
+
+    fn marketing_activity_has_child_events(&self, activity: &Value) -> bool {
+        let parent_remote = activity["remoteId"]
+            .as_str()
+            .or_else(|| activity["marketingEvent"]["remoteId"].as_str());
+        let Some(parent_remote) = parent_remote else {
+            return false;
+        };
+        let parent_app = activity["apiClientId"].as_str();
+        self.store
+            .staged
+            .marketing_activities
+            .iter()
+            .any(|(id, candidate)| {
+                if self
+                    .store
+                    .staged
+                    .deleted_marketing_activity_ids
+                    .contains(id)
+                {
+                    return false;
+                }
+                candidate["id"].as_str() != activity["id"].as_str()
+                    && candidate["apiClientId"].as_str() == parent_app
+                    && candidate["parentRemoteId"].as_str() == Some(parent_remote)
+            })
     }
 
     pub(in crate::proxy) fn marketing_engagement_create(
@@ -1620,15 +1712,19 @@ impl DraftProxy {
                             inventory_item_id,
                             location_id,
                             quantities,
+                            &self.store.staged.inventory_quantity_updated_at,
                             &selection.selection,
+                            Some(&self.store.staged.locations),
                         )
                     }))
                 }
                 "inventoryLevels" => Some(inventory_levels_connection_selected_json(
                     inventory_item_id,
                     &item_levels,
+                    &self.store.staged.inventory_quantity_updated_at,
                     &selection.arguments,
                     &selection.selection,
+                    Some(&self.store.staged.locations),
                 )),
                 _ => None,
             };
@@ -1651,7 +1747,14 @@ impl DraftProxy {
         else {
             return Value::Null;
         };
-        inventory_level_selected_json(&inventory_item_id, &location_id, quantities, selections)
+        inventory_level_selected_json(
+            &inventory_item_id,
+            &location_id,
+            quantities,
+            &self.store.staged.inventory_quantity_updated_at,
+            selections,
+            Some(&self.store.staged.locations),
+        )
     }
 
     fn inventory_levels_for_item(
@@ -1675,6 +1778,29 @@ impl DraftProxy {
             .filter(|((item_id, _), _)| item_id == inventory_item_id)
             .map(|(_, quantities)| quantities.get(name).copied().unwrap_or(0))
             .sum()
+    }
+
+    fn next_inventory_quantity_timestamp(&mut self) -> String {
+        let sequence = self.store.staged.next_inventory_quantity_timestamp;
+        self.store.staged.next_inventory_quantity_timestamp += 1;
+        format!("2024-01-01T00:00:{sequence:02}.000Z")
+    }
+
+    fn stamp_inventory_quantity(
+        &mut self,
+        inventory_item_id: &str,
+        location_id: &str,
+        name: &str,
+        updated_at: &str,
+    ) {
+        self.store.staged.inventory_quantity_updated_at.insert(
+            (
+                inventory_item_id.to_string(),
+                location_id.to_string(),
+                name.to_string(),
+            ),
+            updated_at.to_string(),
+        );
     }
 
     fn inventory_total_all(&self, name: &str) -> i64 {
@@ -1749,6 +1875,7 @@ impl DraftProxy {
         let reference = resolved_string_field(&input, "referenceDocumentUri").unwrap_or_default();
         let mut changes = Vec::new();
         let mut on_hand_changes = Vec::new();
+        let updated_at = self.next_inventory_quantity_timestamp();
         for quantity in quantities {
             let item_id = resolved_string_field(&quantity, "inventoryItemId").unwrap_or_default();
             let location_id = resolved_string_field(&quantity, "locationId").unwrap_or_default();
@@ -1760,20 +1887,25 @@ impl DraftProxy {
             level.insert(name.clone(), new_quantity);
             if name == "available" {
                 let old_on_hand = level.get("on_hand").copied().unwrap_or(0);
-                level.insert("on_hand".to_string(), old_on_hand + delta);
+                let on_hand_after_change = old_on_hand + delta;
+                level.insert("on_hand".to_string(), on_hand_after_change);
                 level.entry("damaged".to_string()).or_insert(0);
+                self.stamp_inventory_quantity(&item_id, &location_id, "on_hand", &updated_at);
                 on_hand_changes.push(inventory_change_json(
                     &item_id,
                     "on_hand",
                     delta,
+                    on_hand_after_change,
                     None,
                     &location_id,
                 ));
             }
+            self.stamp_inventory_quantity(&item_id, &location_id, &name, &updated_at);
             changes.push(inventory_change_json(
                 &item_id,
                 &name,
                 delta,
+                new_quantity,
                 None,
                 &location_id,
             ));
@@ -1822,6 +1954,7 @@ impl DraftProxy {
         let reference = resolved_string_field(&input, "referenceDocumentUri").unwrap_or_default();
         let mut changes = Vec::new();
         let mut on_hand_changes = Vec::new();
+        let updated_at = self.next_inventory_quantity_timestamp();
         for change in changes_input {
             let item_id = resolved_string_field(&change, "inventoryItemId").unwrap_or_default();
             let location_id = resolved_string_field(&change, "locationId").unwrap_or_default();
@@ -1832,22 +1965,34 @@ impl DraftProxy {
                 .inventory_levels
                 .entry((item_id.clone(), location_id.clone()))
                 .or_default();
-            *level.entry(name.clone()).or_insert(0) += delta;
+            let after_change = {
+                let quantity = level.entry(name.clone()).or_insert(0);
+                *quantity += delta;
+                *quantity
+            };
             if name == "available" {
-                *level.entry("on_hand".to_string()).or_insert(0) += delta;
+                let on_hand_after_change = {
+                    let on_hand = level.entry("on_hand".to_string()).or_insert(0);
+                    *on_hand += delta;
+                    *on_hand
+                };
                 level.entry("damaged".to_string()).or_insert(0);
+                self.stamp_inventory_quantity(&item_id, &location_id, "on_hand", &updated_at);
                 on_hand_changes.push(inventory_change_json(
                     &item_id,
                     "on_hand",
                     delta,
+                    on_hand_after_change,
                     None,
                     &location_id,
                 ));
             }
+            self.stamp_inventory_quantity(&item_id, &location_id, &name, &updated_at);
             changes.push(inventory_change_json(
                 &item_id,
                 &name,
                 delta,
+                after_change,
                 None,
                 &location_id,
             ));
@@ -1909,19 +2054,34 @@ impl DraftProxy {
             let from_name = resolved_string_field(&from, "name").unwrap_or_default();
             let to_name = resolved_string_field(&to, "name").unwrap_or_default();
             let ledger = resolved_string_field(&to, "ledgerDocumentUri");
-            let level = self
-                .store
-                .staged
-                .inventory_levels
-                .entry((item_id.clone(), location_id.clone()))
-                .or_default();
-            *level.entry(from_name.clone()).or_insert(0) -= quantity;
-            *level.entry(to_name.clone()).or_insert(0) += quantity;
-            level.entry("on_hand".to_string()).or_insert(0);
+            let updated_at = self.next_inventory_quantity_timestamp();
+            let (from_after_change, to_after_change) = {
+                let level = self
+                    .store
+                    .staged
+                    .inventory_levels
+                    .entry((item_id.clone(), location_id.clone()))
+                    .or_default();
+                let from_after_change = {
+                    let from_quantity = level.entry(from_name.clone()).or_insert(0);
+                    *from_quantity -= quantity;
+                    *from_quantity
+                };
+                let to_after_change = {
+                    let to_quantity = level.entry(to_name.clone()).or_insert(0);
+                    *to_quantity += quantity;
+                    *to_quantity
+                };
+                level.entry("on_hand".to_string()).or_insert(0);
+                (from_after_change, to_after_change)
+            };
+            self.stamp_inventory_quantity(&item_id, &location_id, &from_name, &updated_at);
+            self.stamp_inventory_quantity(&item_id, &location_id, &to_name, &updated_at);
             changes.push(inventory_change_json(
                 &item_id,
                 &from_name,
                 -quantity,
+                from_after_change,
                 None,
                 &location_id,
             ));
@@ -1929,6 +2089,7 @@ impl DraftProxy {
                 &item_id,
                 &to_name,
                 quantity,
+                to_after_change,
                 ledger.as_deref(),
                 &location_id,
             ));
@@ -2581,6 +2742,14 @@ fn missing_pubsub_resolved_fields(value: &BTreeMap<String, ResolvedValue>) -> Ve
             !value.contains_key(*key) || matches!(value.get(*key), Some(ResolvedValue::Null))
         })
         .collect()
+}
+
+fn webhook_subscription_address_error_field(root_field: &str) -> Value {
+    if root_field.starts_with("eventBridgeWebhookSubscription") {
+        json!(["webhookSubscription", "arn"])
+    } else {
+        json!(["webhookSubscription", "callbackUrl"])
+    }
 }
 
 fn webhook_subscription_optional_string_key(record: &Value, key: &str) -> Option<String> {

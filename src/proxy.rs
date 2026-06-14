@@ -130,6 +130,8 @@ struct Store {
 struct BaseState {
     products: OrderedRecords<ProductRecord>,
     saved_searches: OrderedRecords<SavedSearchRecord>,
+    available_locales: BTreeMap<String, String>,
+    shop_locales: BTreeMap<String, Value>,
 }
 
 #[derive(Clone)]
@@ -142,6 +144,7 @@ struct StagedState {
     customers: BTreeMap<String, Value>,
     deleted_customer_ids: BTreeSet<String>,
     customer_orders: BTreeMap<String, Vec<Value>>,
+    taggable_resources: BTreeMap<String, Value>,
     carrier_services: BTreeMap<String, Value>,
     deleted_carrier_service_ids: BTreeSet<String>,
     app_subscriptions: BTreeMap<String, Value>,
@@ -154,10 +157,14 @@ struct StagedState {
     fulfillment_service_locations: BTreeMap<String, Value>,
     deleted_fulfillment_service_ids: BTreeSet<String>,
     deleted_fulfillment_service_location_ids: BTreeSet<String>,
+    locations: BTreeMap<String, Value>,
+    location_order: Vec<String>,
+    location_limit_reached: bool,
     segments: BTreeMap<String, Value>,
     collections: BTreeMap<String, Value>,
     fulfillment_order_deadlines: BTreeMap<String, String>,
     bulk_operations: BTreeMap<String, Value>,
+    bulk_operation_staged_uploads: BTreeMap<String, Option<u64>>,
     timestamp_discounts: BTreeMap<String, Value>,
     gift_cards: BTreeMap<String, Value>,
     markets: BTreeMap<String, Value>,
@@ -174,6 +181,8 @@ struct StagedState {
     b2b_locations: BTreeMap<String, Value>,
     next_b2b_company_id: u64,
     inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
+    inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
+    next_inventory_quantity_timestamp: u64,
     inventory_transfers: BTreeMap<String, InventoryTransferRecord>,
     metaobjects: BTreeMap<String, Value>,
     deleted_metaobject_ids: BTreeSet<String>,
@@ -188,14 +197,24 @@ struct StagedState {
     product_metafields_fixture: Option<String>,
     product_delete_operations: BTreeMap<String, String>,
     selling_plan_group_downstream_step: usize,
-    return_status: Option<String>,
-    recorded_return_statuses: BTreeMap<String, String>,
     mandate_payment_keys: BTreeSet<String>,
     payment_terms_ids: BTreeSet<String>,
     payment_reminder_schedule_ids: BTreeSet<String>,
     payment_customizations: BTreeMap<String, Value>,
+    orders: BTreeMap<String, Value>,
     draft_orders: BTreeMap<String, Value>,
+    returns: BTreeMap<String, Value>,
+    returns_by_order: BTreeMap<String, Vec<String>>,
+    reverse_deliveries: BTreeMap<String, Value>,
+    reverse_fulfillment_orders: BTreeMap<String, Value>,
+    next_order_id: u64,
     next_draft_order_id: u64,
+    next_return_id: u64,
+    next_return_line_item_id: u64,
+    next_reverse_delivery_id: u64,
+    next_reverse_delivery_line_item_id: u64,
+    next_reverse_fulfillment_order_id: u64,
+    next_reverse_fulfillment_order_line_item_id: u64,
     draft_order_tags: BTreeMap<String, Vec<String>>,
     next_draft_order_bulk_tag_job_id: u64,
     draft_order_complete_gateway_create_count: usize,
@@ -204,7 +223,12 @@ struct StagedState {
     order_customer_b2b_order_ids: BTreeSet<String>,
     order_customer_contact_customer_ids: BTreeSet<String>,
     next_order_customer_order_id: u64,
+    order_edit_existing_order: Option<Value>,
+    order_edit_existing_calculated_order: Option<Value>,
     order_payment_transaction_state: Option<String>,
+    order_payment_transaction_order_id: Option<String>,
+    order_payment_parent_transaction_id: Option<String>,
+    order_payment_next_transaction_id: u64,
     order_edit_existing_mode: Option<String>,
     function_validation: Option<Value>,
     function_cart_transform: Option<Value>,
@@ -354,6 +378,7 @@ impl Default for StagedState {
             customers: BTreeMap::new(),
             deleted_customer_ids: BTreeSet::new(),
             customer_orders: BTreeMap::new(),
+            taggable_resources: BTreeMap::new(),
             carrier_services: BTreeMap::new(),
             deleted_carrier_service_ids: BTreeSet::new(),
             app_subscriptions: BTreeMap::new(),
@@ -366,10 +391,14 @@ impl Default for StagedState {
             fulfillment_service_locations: BTreeMap::new(),
             deleted_fulfillment_service_ids: BTreeSet::new(),
             deleted_fulfillment_service_location_ids: BTreeSet::new(),
+            locations: BTreeMap::new(),
+            location_order: Vec::new(),
+            location_limit_reached: false,
             segments: BTreeMap::new(),
             collections: BTreeMap::new(),
             fulfillment_order_deadlines: BTreeMap::new(),
             bulk_operations: BTreeMap::new(),
+            bulk_operation_staged_uploads: BTreeMap::new(),
             timestamp_discounts: BTreeMap::new(),
             gift_cards: BTreeMap::new(),
             markets: BTreeMap::new(),
@@ -386,6 +415,8 @@ impl Default for StagedState {
             b2b_locations: BTreeMap::new(),
             next_b2b_company_id: 1,
             inventory_levels: BTreeMap::new(),
+            inventory_quantity_updated_at: BTreeMap::new(),
+            next_inventory_quantity_timestamp: 0,
             inventory_transfers: BTreeMap::new(),
             metaobjects: BTreeMap::new(),
             deleted_metaobject_ids: BTreeSet::new(),
@@ -400,14 +431,24 @@ impl Default for StagedState {
             product_metafields_fixture: None,
             product_delete_operations: BTreeMap::new(),
             selling_plan_group_downstream_step: 0,
-            return_status: None,
-            recorded_return_statuses: BTreeMap::new(),
             mandate_payment_keys: BTreeSet::new(),
             payment_terms_ids: BTreeSet::new(),
             payment_reminder_schedule_ids: BTreeSet::new(),
             payment_customizations: BTreeMap::new(),
+            orders: BTreeMap::new(),
             draft_orders: BTreeMap::new(),
+            returns: BTreeMap::new(),
+            returns_by_order: BTreeMap::new(),
+            reverse_deliveries: BTreeMap::new(),
+            reverse_fulfillment_orders: BTreeMap::new(),
+            next_order_id: 1,
             next_draft_order_id: 1,
+            next_return_id: 2,
+            next_return_line_item_id: 1,
+            next_reverse_delivery_id: 8,
+            next_reverse_delivery_line_item_id: 7,
+            next_reverse_fulfillment_order_id: 5,
+            next_reverse_fulfillment_order_line_item_id: 4,
             draft_order_tags: BTreeMap::new(),
             next_draft_order_bulk_tag_job_id: 1,
             draft_order_complete_gateway_create_count: 0,
@@ -416,7 +457,12 @@ impl Default for StagedState {
             order_customer_b2b_order_ids: BTreeSet::new(),
             order_customer_contact_customer_ids: BTreeSet::new(),
             next_order_customer_order_id: 1,
+            order_edit_existing_order: None,
+            order_edit_existing_calculated_order: None,
             order_payment_transaction_state: None,
+            order_payment_transaction_order_id: None,
+            order_payment_parent_transaction_id: None,
+            order_payment_next_transaction_id: 3,
             order_edit_existing_mode: None,
             function_validation: None,
             function_cart_transform: None,
@@ -429,7 +475,8 @@ impl Default for StagedState {
             free_shipping_automatic_status: None,
             redeem_code_bulk_live_added: false,
             redeem_code_bulk_live_deleted_seed: false,
-            backup_region: backup_region_country("CA"),
+            backup_region: backup_region_country("CA")
+                .expect("default backup region country must be captured"),
             flow_signatures: Vec::new(),
             flow_trigger_receipts: Vec::new(),
         }
@@ -504,6 +551,25 @@ where
 }
 
 impl Store {
+    fn with_default_baseline() -> Self {
+        let mut store = Self::default();
+        store.base.available_locales = default_available_locales();
+        store.base.shop_locales.insert(
+            "en".to_string(),
+            json!({
+                "locale": "en",
+                "name": "English",
+                "primary": true,
+                "published": true,
+                "marketWebPresences": [{
+                    "id": "gid://shopify/MarketWebPresence/62842765618",
+                    "subfolderSuffix": null
+                }]
+            }),
+        );
+        store
+    }
+
     fn clear_staged(&mut self) {
         self.staged = StagedState::default();
     }

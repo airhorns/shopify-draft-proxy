@@ -11,9 +11,10 @@ operations, and related store-property utility reads.
 
 ### Supported roots
 
-The current Rust operation registry does not mark any store-properties root as
-fully implemented. Registry presence is a local-model commitment only; it is
-not a supported-runtime claim for the whole store-properties domain.
+The Rust operation registry marks selected store-properties roots as locally
+handled when the proxy has a Rust dispatcher for them. Registry presence and
+`implemented: true` remain local-model commitments only; they are not a
+supported-runtime claim for the whole store-properties domain.
 
 The registry-only read roots are:
 
@@ -50,8 +51,23 @@ title, URL, migrated-HTML behavior, user-error codes, blank subscription-policy
 validation, downstream `shop.shopPolicies` reads, and generic `node(id:)` /
 `nodes(ids:)` policy dispatch.
 
-Location reads and lifecycle mutations have fixture-backed local slices for
-detail reads, unknown-ID null behavior, `locationByIdentifier` selected cases,
+`locationAdd` now has a generic Rust staging path for public Admin GraphQL
+documents, not only fixture-named parity documents. It stages a synthetic
+Location ID, deterministic timestamps, address data, Location-owned metafields,
+the captured `fulfillsOnlineOrders` default of `true`, blank/duplicate/too-long
+name userErrors, public schema-style address/country-code validation, and the
+captured 200-location create guard. Rejected adds do not append mutation-log
+entries.
+
+`locationActivate` now has a generic Rust staging path for public Admin GraphQL
+documents. Successful activations flip the local Location `isActive` state,
+stage the changed record, preserve the raw mutation for commit replay, and are
+visible through downstream location reads. Guard branches for location limit,
+ongoing relocation, and fulfillment-service managed scope return the captured
+field paths, codes, and messages without staging activation.
+
+Location reads and lifecycle mutations have local slices for detail reads,
+unknown-ID null behavior, `locationByIdentifier` selected cases,
 address/country/province derivation, create/edit validation, metafields on
 location add/edit, activate/deactivate state transitions, delete tombstones,
 idempotency directives, resource-limit validation, and selected lifecycle guard
@@ -86,9 +102,9 @@ fields only where captured.
 
 ### Boundaries
 
-- Store-properties roots remain `implemented: false` in the current operation
-  registry. Scenario-backed Rust helpers should not be described as broad root
-  support.
+- Store-properties roots that are only registry/catalog entries still remain
+  unsupported unless they have a Rust dispatcher and executable local coverage.
+  Scenario-backed Rust helpers should not be described as broad root support.
 - Location lifecycle support is bounded to the captured local state-machine and
   validation branches. Open purchase order, transfer, temporary block, retail
   subscription, external document, and fulfillment-service branches remain
