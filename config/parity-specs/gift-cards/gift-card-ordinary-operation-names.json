@@ -1,0 +1,62 @@
+{
+  "scenarioId": "gift-card-ordinary-operation-names",
+  "operationNames": ["giftCardUpdate", "giftCardCredit", "giftCardDebit", "giftCardDeactivate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["operation-name-independence", "payload-shape", "transaction-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-ordinary-operation-names.graphql",
+    "variablesCapturePath": "$.proxyVariables.lifecycle"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Replays the existing live gift-card lifecycle capture through a proxy document whose operation name is not one of the captured marker names. This keeps operation-name coupling from returning while still comparing against real Shopify-recorded lifecycle payloads.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "ordinary-name giftCardUpdate payload matches",
+        "capturePath": "$.operations.update.response.payload.data.giftCardUpdate",
+        "proxyPath": "$.data.update",
+        "selectedPaths": [
+          "$.giftCard.note",
+          "$.giftCard.templateSuffix",
+          "$.giftCard.expiresOn",
+          "$.giftCard.balance",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "ordinary-name giftCardCredit payload matches",
+        "capturePath": "$.operations.credit.response.payload.data.giftCardCredit",
+        "proxyPath": "$.data.credit",
+        "selectedPaths": [
+          "$.giftCardCreditTransaction.note",
+          "$.giftCardCreditTransaction.amount",
+          "$.giftCardCreditTransaction.giftCard.balance",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "ordinary-name giftCardDebit payload matches",
+        "capturePath": "$.operations.debit.response.payload.data.giftCardDebit",
+        "proxyPath": "$.data.debit",
+        "selectedPaths": [
+          "$.giftCardDebitTransaction.note",
+          "$.giftCardDebitTransaction.amount",
+          "$.giftCardDebitTransaction.giftCard.balance",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "ordinary-name giftCardDeactivate payload matches",
+        "capturePath": "$.operations.deactivate.response.payload.data.giftCardDeactivate",
+        "proxyPath": "$.data.deactivate",
+        "selectedPaths": ["$.giftCard.enabled", "$.giftCard.balance", "$.userErrors"]
+      }
+    ]
+  }
+}

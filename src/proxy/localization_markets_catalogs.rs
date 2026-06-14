@@ -455,7 +455,7 @@ impl DraftProxy {
         }
 
         let locale_exists = locale == "en" || self.store.staged.shop_locales.contains_key(&locale);
-        if !locale_exists && market_web_presence_ids.is_empty() {
+        if !locale_exists && published.is_some() {
             return selected_json(
                 &json!({
                     "shopLocale": null,

@@ -1,0 +1,23 @@
+mutation SavedSearchBlankNameValidation(
+  $blankEmpty: SavedSearchCreateInput!
+  $blankInvalidQuery: SavedSearchCreateInput!
+) {
+  blankEmpty: savedSearchCreate(input: $blankEmpty) {
+    savedSearch {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  blankInvalidQuery: savedSearchCreate(input: $blankInvalidQuery) {
+    savedSearch {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
