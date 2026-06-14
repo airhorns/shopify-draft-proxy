@@ -1386,6 +1386,59 @@ fn product_publication_aggregate_downstream_read_returns_captured_product_shape(
 #[test]
 fn product_publishable_mutations_return_captured_aggregate_shape() {
     let mut proxy = snapshot_proxy();
+    let restore = proxy.process_request(Request {
+        method: "POST".to_string(),
+        path: "/__meta/restore".to_string(),
+        headers: Default::default(),
+        body: json!({
+            "schema": "shopify-draft-proxy-rust-state/v1",
+            "createdAt": "2026-06-14T00:00:00.000Z",
+            "state": {
+                "baseState": {
+                    "products": {},
+                    "productOrder": [],
+                    "savedSearches": {},
+                    "savedSearchOrder": [],
+                    "shop": {
+                        "id": "gid://shopify/Shop/test-store",
+                        "name": "Seeded Test Store",
+                        "myshopifyDomain": "seeded-test-store.myshopify.com",
+                        "currencyCode": "USD"
+                    },
+                    "publicationIds": [
+                        "gid://shopify/Publication/base-a",
+                        "gid://shopify/Publication/base-b",
+                        "gid://shopify/Publication/base-c"
+                    ],
+                    "publicationCount": 3,
+                    "availableLocales": {},
+                    "shopLocales": {}
+                },
+                "stagedState": {
+                    "products": {},
+                    "productOrder": [],
+                    "deletedProductIds": [],
+                    "savedSearches": {},
+                    "savedSearchOrder": [],
+                    "deletedSavedSearchIds": [],
+                    "shippingPackages": {},
+                    "deletedShippingPackageIds": {},
+                    "delegatedAccessTokens": {},
+                    "customers": {},
+                    "deletedCustomerIds": [],
+                    "customerOrders": {},
+                    "taggableResources": {},
+                    "publicationIds": [],
+                    "createdPublicationIds": []
+                }
+            },
+            "log": { "entries": [] },
+            "nextSyntheticId": 1
+        })
+        .to_string(),
+    });
+    assert_eq!(restore.status, 200);
+
     for (root, query) in [
         (
             "publishablePublish",
@@ -1455,9 +1508,9 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
         assert_eq!(
             response.body["data"][root]["shop"],
             json!({
-                "id": "gid://shopify/Shop/92891250994",
-                "name": "harry-test-heelo",
-                "publicationCount": 5
+                "id": "gid://shopify/Shop/test-store",
+                "name": "Seeded Test Store",
+                "publicationCount": 3
             })
         );
         assert_eq!(response.body["data"][root]["userErrors"], json!([]));
@@ -1492,6 +1545,10 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
         state.body["stagedState"]["publicationIds"],
         json!(["gid://shopify/Publication/2"])
     );
+    assert_eq!(
+        state.body["stagedState"]["createdPublicationIds"],
+        json!(["gid://shopify/Publication/2"])
+    );
 
     let staged_count = proxy.process_request(json_graphql_request(
         r#"
@@ -1511,8 +1568,8 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
     assert_eq!(
         staged_count.body["data"]["publishablePublish"]["shop"],
         json!({
-            "id": "gid://shopify/Shop/92891250994",
-            "publicationCount": 6
+            "id": "gid://shopify/Shop/test-store",
+            "publicationCount": 4
         })
     );
     assert_eq!(

@@ -726,6 +726,9 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                 "productOrder": ["gid://shopify/Product/base"],
                 "savedSearches": {},
                 "savedSearchOrder": [],
+                "shop": state.body["baseState"]["shop"].clone(),
+                "publicationIds": [],
+                "publicationCount": null,
                 "availableLocales": state.body["baseState"]["availableLocales"].clone(),
                 "shopLocales": state.body["baseState"]["shopLocales"].clone()
             },
@@ -768,6 +771,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                 "locationOrder": [],
                 "locationLimitReached": false,
                 "publicationIds": [],
+                "createdPublicationIds": [],
                 "savedSearches": {
                     "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic": {
                         "id": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic",

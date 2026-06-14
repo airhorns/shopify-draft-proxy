@@ -142,39 +142,11 @@ pub(in crate::proxy) fn delegate_access_token_destroy_user_error(
 }
 
 pub(in crate::proxy) fn synthetic_shop_json() -> Value {
-    json!({
-        "id": "gid://shopify/Shop/92891250994",
-        "name": "harry-test-heelo",
-        "myshopifyDomain": "harry-test-heelo.myshopify.com",
-        "currencyCode": "USD",
-        "publicationCount": 5
-    })
-}
-
-const BASE_PUBLICATION_COUNT: usize = 5;
-const BASE_PUBLICATION_IDS: [&str; 6] = [
-    "gid://shopify/Publication/82090459369",
-    "gid://shopify/Publication/268039389490",
-    "gid://shopify/Publication/268039455026",
-    "gid://shopify/Publication/268039487794",
-    "gid://shopify/Publication/273897881906",
-    "gid://shopify/Publication/292074258738",
-];
-
-pub(in crate::proxy) fn is_base_publication_id(id: &str) -> bool {
-    BASE_PUBLICATION_IDS.contains(&id)
+    default_shop_json()
 }
 
 pub(in crate::proxy) fn effective_shop_json(store: &Store) -> Value {
-    let mut shop = synthetic_shop_json();
-    let staged_publication_count = store
-        .staged
-        .publication_ids
-        .iter()
-        .filter(|id| !is_base_publication_id(id))
-        .count();
-    shop["publicationCount"] = json!(BASE_PUBLICATION_COUNT + staged_publication_count);
-    shop
+    store.effective_shop()
 }
 
 pub(in crate::proxy) fn local_app_json() -> Value {

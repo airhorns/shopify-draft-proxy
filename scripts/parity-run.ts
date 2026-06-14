@@ -55,6 +55,12 @@ type ExpectedDifference = {
 type ParitySpec = {
   scenarioId: string;
   liveCaptureFiles?: string[];
+  setupState?: {
+    storePropertiesShopBaseline?: {
+      shopPath: string;
+      publicationsPath?: string;
+    };
+  };
   proxyRequest?: ProxyRequestSpec;
   comparison?: {
     expectedDifferences?: ExpectedDifference[];
@@ -204,6 +210,33 @@ function applyExcludedPaths(value: unknown, paths: string[] | undefined): unknow
   let out = value;
   for (const jsonPath of paths ?? []) out = deletePath(out, jsonPath);
   return out;
+}
+
+async function applySetupState(proxy: DraftProxy, spec: ParitySpec, capture: Record<string, unknown>): Promise<void> {
+  const setup = spec.setupState?.storePropertiesShopBaseline;
+  if (!setup) return;
+  const shop = getPath(capture, setup.shopPath);
+  if (!isPlainObject(shop))
+    throw new Error(`setupState.storePropertiesShopBaseline.shopPath did not resolve to an object`);
+  const publications = setup.publicationsPath === undefined ? [] : getPath(capture, setup.publicationsPath);
+  const publicationIds = Array.isArray(publications)
+    ? publications
+        .map((publication) =>
+          isPlainObject(publication) && typeof publication['id'] === 'string' ? publication['id'] : null,
+        )
+        .filter((id): id is string => id !== null)
+    : [];
+  const state = proxy.dumpState('1970-01-01T00:00:00.000Z');
+  const stateRecord = state as unknown as Record<string, unknown>;
+  const stateBody = stateRecord['state'];
+  if (!isPlainObject(stateBody)) throw new Error('proxy dumpState returned an invalid state body');
+  const baseState = stateBody['baseState'];
+  if (!isPlainObject(baseState)) throw new Error('proxy dumpState returned an invalid baseState body');
+  baseState['shop'] = shop;
+  baseState['publicationIds'] = publicationIds;
+  baseState['publicationCount'] =
+    typeof shop['publicationCount'] === 'number' ? shop['publicationCount'] : publicationIds.length;
+  proxy.restoreState(state);
 }
 
 function resolveSpecialVariables(
@@ -518,6 +551,7 @@ async function runSpec(
   const upstreamCalls = (capture['upstreamCalls'] ?? []) as RecordedUpstreamCall[];
   cassette.setCalls(upstreamCalls);
   await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
+  await applySetupState(proxy, spec, capture);
   const failures: string[] = [];
   let primaryResponse: ProxyResponse | null = null;
   const namedResponses = new Map<string, ProxyResponse>();

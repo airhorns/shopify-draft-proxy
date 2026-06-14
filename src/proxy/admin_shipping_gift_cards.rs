@@ -1,5 +1,36 @@
 use super::*;
 
+const PUBLISHABLE_SHOP_HYDRATE_QUERY: &str = r#"
+query StorePropertiesPublishablePayloadShopHydrate($id: ID!) {
+  publishable: node(id: $id) {
+    ... on Product {
+      id
+      publishedOnCurrentPublication
+      availablePublicationsCount {
+        count
+        precision
+      }
+      resourcePublicationsCount {
+        count
+        precision
+      }
+    }
+  }
+  shop {
+    id
+    name
+    myshopifyDomain
+    currencyCode
+    publicationCount
+  }
+  publications(first: 250) {
+    nodes {
+      id
+    }
+  }
+}
+"#;
+
 impl DraftProxy {
     pub(in crate::proxy) fn backup_region_update(
         &mut self,
@@ -2137,6 +2168,9 @@ impl DraftProxy {
                 return response;
             }
             let payload_selection = field.selection.clone();
+            if selected_child_selection(&payload_selection, "shop").is_some() {
+                self.hydrate_publishable_payload_shop(&product_id, request);
+            }
             let publishable_selection =
                 selected_child_selection(&payload_selection, "publishable").unwrap_or_default();
             let user_errors = publishable_publication_input_errors(
@@ -2165,15 +2199,6 @@ impl DraftProxy {
                 })
             };
             if user_errors.is_empty() {
-                if root_field == "publishablePublish" {
-                    for publication_id in
-                        publishable_publication_input_ids(field.arguments.get("input"))
-                    {
-                        if !is_base_publication_id(&publication_id) {
-                            self.store.staged.publication_ids.insert(publication_id);
-                        }
-                    }
-                }
                 self.record_mutation_log_entry(request, query, variables, root_field, vec![]);
             }
             let shop = effective_shop_json(&self.store);
@@ -2189,6 +2214,42 @@ impl DraftProxy {
             );
         }
         ok_json(json!({ "data": Value::Object(data) }))
+    }
+
+    fn hydrate_publishable_payload_shop(&mut self, publishable_id: &str, request: &Request) {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": PUBLISHABLE_SHOP_HYDRATE_QUERY,
+                "variables": { "id": publishable_id }
+            })
+            .to_string(),
+        });
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        self.hydrate_shop_state_from_response_data(&response.body["data"]);
+    }
+
+    fn hydrate_shop_state_from_response_data(&mut self, data: &Value) {
+        if let Some(shop) = data.get("shop").filter(|shop| shop.is_object()) {
+            self.store.base.shop = shop.clone();
+        }
+        if let Some(nodes) = data["publications"]["nodes"].as_array() {
+            self.store.base.publication_ids = nodes
+                .iter()
+                .filter_map(|node| node.get("id").and_then(Value::as_str).map(str::to_string))
+                .collect();
+        }
+        self.store.base.publication_count = data["shop"]["publicationCount"]
+            .as_u64()
+            .map(|count| count as usize)
+            .or(Some(self.store.base.publication_ids.len()));
     }
 
     pub(in crate::proxy) fn segment_node_read_data(
@@ -5319,22 +5380,6 @@ fn publishable_publication_input_errors(
         }
     }
     user_errors
-}
-
-fn publishable_publication_input_ids(input: Option<&ResolvedValue>) -> Vec<String> {
-    let Some(ResolvedValue::List(publications)) = input else {
-        return Vec::new();
-    };
-    publications
-        .iter()
-        .filter_map(|publication| {
-            let ResolvedValue::Object(publication) = publication else {
-                return None;
-            };
-            resolved_string_field(publication, "publicationId")
-        })
-        .filter(|id| !id.is_empty())
-        .collect()
 }
 
 fn publishable_publish_date_is_before_1970(value: &str) -> bool {

@@ -574,9 +574,7 @@ impl DraftProxy {
                 .and_then(Value::as_str)
             {
                 self.store
-                    .staged
-                    .publication_ids
-                    .insert(publication_id.to_string());
+                    .stage_created_publication_id(publication_id.to_string());
             }
         }
         selected_json(&payload, &field.selection)

@@ -6,6 +6,12 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/store-properties/publishable-publish-shop-count-parity.json"
   ],
+  "setupState": {
+    "storePropertiesShopBaseline": {
+      "shopPath": "$.mutation.response.data.publishablePublish.shop",
+      "publicationsPath": "$.seedPublications"
+    }
+  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/store-properties/publishablePublish-shop-count-parity.graphql",
     "variablesCapturePath": "$.mutation.variables"
