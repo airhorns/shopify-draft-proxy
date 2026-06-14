@@ -98,6 +98,23 @@ fn order_create_selects_payment_transaction_fields(field: &RootFieldSelection) -
     })
 }
 
+fn order_create_inventory_behaviour(field: &RootFieldSelection) -> String {
+    resolved_object_field(&field.arguments, "options")
+        .and_then(|options| resolved_string_field(&options, "inventoryBehaviour"))
+        .unwrap_or_else(|| "DECREMENT_IGNORING_POLICY".to_string())
+}
+
+fn order_line_inventory_item_id(line_item: &BTreeMap<String, ResolvedValue>) -> Option<String> {
+    resolved_string_field(line_item, "inventoryItemId").or_else(|| {
+        resolved_string_field(line_item, "variantId").map(|variant_id| {
+            format!(
+                "gid://shopify/InventoryItem/{}",
+                resource_id_tail(&variant_id)
+            )
+        })
+    })
+}
+
 fn order_read_selects_payment_transaction_fields(field: &RootFieldSelection) -> bool {
     field.selection.iter().any(|field| {
         matches!(
@@ -2018,6 +2035,14 @@ impl DraftProxy {
                 &field.selection,
             );
         }
+        if order_create_inventory_behaviour(field) != "BYPASS" {
+            for line_item in resolved_object_list_field(&order_input, "lineItems") {
+                if let Some(inventory_item_id) = order_line_inventory_item_id(&line_item) {
+                    let quantity = resolved_i64_field(&line_item, "quantity").unwrap_or(1);
+                    self.decrement_inventory_item_available(&inventory_item_id, quantity);
+                }
+            }
+        }
 
         let order_id = format!("gid://shopify/Order/{}", self.store.staged.next_order_id);
         self.store.staged.next_order_id += 1;
@@ -2562,6 +2587,13 @@ impl DraftProxy {
         }
         if root_field == "orderCreate" {
             let field = field?;
+            let order_arg = field.arguments.get("order")?;
+            if let ResolvedValue::Object(order_input) = order_arg {
+                let email = resolved_string_field(order_input, "email").unwrap_or_default();
+                if !email.is_empty() && !email.starts_with("order-customer-") {
+                    return None;
+                }
+            }
             let order = self.order_customer_paths_order_create(&field)?;
             return Some(data_response(&field.response_key, order));
         }
