@@ -8236,6 +8236,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'gift-cards',
     captureId: 'gift-card-create-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-gift-card-create-validation-conformance.ts',
     purpose:
       'Gift-card create validation for initial value, code length/format/uniqueness, missing customer, combined invalid-code plus missing-customer precedence, and generated code behavior.',

@@ -2070,6 +2070,121 @@ fn gift_card_create_validation_is_input_driven_under_ordinary_operation_name() {
 }
 
 #[test]
+fn gift_card_create_released_schema_rejects_missing_initial_value_and_initial_amount() {
+    let mut proxy = snapshot_proxy();
+
+    let inline_missing = proxy.process_request(json_graphql_request(
+        r#"mutation ReleasedMissingInline {
+          missing: giftCardCreate(input: { note: "x" }) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        inline_missing.body,
+        json!({
+            "errors": [{
+                "message": "Argument 'initialValue' on InputObject 'GiftCardCreateInput' is required. Expected type Decimal!",
+                "locations": [{ "line": 2, "column": 11 }],
+                "path": ["mutation ReleasedMissingInline", "missing", "input", "initialValue"],
+                "extensions": {
+                    "code": "missingRequiredInputObjectAttribute",
+                    "argumentName": "initialValue",
+                    "argumentType": "Decimal!",
+                    "inputObjectType": "GiftCardCreateInput"
+                }
+            }]
+        })
+    );
+
+    let variable_missing = proxy.process_request(json_graphql_request(
+        r#"mutation ReleasedMissingVariable($input: GiftCardCreateInput!) {
+          missing: giftCardCreate(input: $input) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({ "input": { "note": "x" } }),
+    ));
+    assert_eq!(
+        variable_missing.body,
+        json!({
+            "errors": [{
+                "message": "Variable $input of type GiftCardCreateInput! was provided invalid value for initialValue (Expected value to not be null)",
+                "locations": [{ "line": 2, "column": 11 }],
+                "extensions": {
+                    "code": "INVALID_VARIABLE",
+                    "value": { "note": "x" },
+                    "problems": [{ "path": ["initialValue"], "explanation": "Expected value to not be null" }]
+                }
+            }]
+        })
+    );
+
+    let variable_initial_amount = proxy.process_request(json_graphql_request(
+        r#"mutation ReleasedInitialAmount($input: GiftCardCreateInput!) {
+          money: giftCardCreate(input: $input) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({
+            "input": {
+                "initialValue": "10",
+                "initialAmount": { "amount": "10", "currencyCode": "USD" }
+            }
+        }),
+    ));
+    assert_eq!(
+        variable_initial_amount.body,
+        json!({
+            "errors": [{
+                "message": "Variable $input of type GiftCardCreateInput! was provided invalid value for initialAmount (Field is not defined on GiftCardCreateInput)",
+                "locations": [{ "line": 2, "column": 11 }],
+                "extensions": {
+                    "code": "INVALID_VARIABLE",
+                    "value": {
+                        "initialAmount": { "amount": "10", "currencyCode": "USD" },
+                        "initialValue": "10"
+                    },
+                    "problems": [{ "path": ["initialAmount"], "explanation": "Field is not defined on GiftCardCreateInput" }]
+                }
+            }]
+        })
+    );
+
+    let inline_initial_amount = proxy.process_request(json_graphql_request(
+        r#"mutation ReleasedInitialAmountInline {
+          money: giftCardCreate(input: { initialValue: "10", initialAmount: { amount: "10", currencyCode: USD } }) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        inline_initial_amount.body,
+        json!({
+            "errors": [{
+                "message": "InputObject 'GiftCardCreateInput' doesn't accept argument 'initialAmount'",
+                "locations": [{ "line": 2, "column": 11 }],
+                "path": ["mutation ReleasedInitialAmountInline", "money", "input", "initialAmount"],
+                "extensions": {
+                    "code": "argumentNotAccepted",
+                    "name": "GiftCardCreateInput",
+                    "typeName": "InputObject",
+                    "argumentName": "initialAmount"
+                }
+            }]
+        })
+    );
+
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
+#[test]
 fn gift_card_roots_accept_ordinary_operation_names_without_501s() {
     let mut proxy = snapshot_proxy();
 

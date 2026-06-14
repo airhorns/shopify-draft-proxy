@@ -3510,8 +3510,18 @@ impl DraftProxy {
     ) -> Response {
         let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
+        let operation_path = parsed_document(query, variables)
+            .map(|document| document.operation_path)
+            .unwrap_or_else(|| "mutation".to_string());
 
         for field in fields {
+            if field.name == "giftCardCreate" {
+                if let Some(error) =
+                    gift_card_create_public_schema_input_error(&operation_path, field)
+                {
+                    return ok_json(json!({ "errors": [error] }));
+                }
+            }
             if matches!(field.name.as_str(), "giftCardCreate" | "giftCardUpdate") {
                 if let Some(error) = gift_card_missing_recipient_id_error(field) {
                     return ok_json(json!({ "errors": [error] }));
@@ -4695,6 +4705,107 @@ fn gift_card_missing_recipient_id_error(field: &RootFieldSelection) -> Option<Va
             "inputObjectType": "GiftCardRecipientInput"
         }
     }))
+}
+
+fn gift_card_create_public_schema_input_error(
+    operation_path: &str,
+    field: &RootFieldSelection,
+) -> Option<Value> {
+    let input = match field.raw_arguments.get("input")? {
+        RawArgumentValue::Object(input) => input,
+        RawArgumentValue::Variable { name, value } => {
+            let ResolvedValue::Object(input) = value.as_ref()? else {
+                return None;
+            };
+            if !input.contains_key("initialValue")
+                || matches!(input.get("initialValue"), Some(ResolvedValue::Null))
+            {
+                return Some(gift_card_create_invalid_variable_error(
+                    name,
+                    input,
+                    "initialValue",
+                    "Expected value to not be null",
+                    field.location,
+                ));
+            }
+            if input.contains_key("initialAmount") {
+                return Some(gift_card_create_invalid_variable_error(
+                    name,
+                    input,
+                    "initialAmount",
+                    "Field is not defined on GiftCardCreateInput",
+                    field.location,
+                ));
+            }
+            return None;
+        }
+        _ => return None,
+    };
+
+    if !input.contains_key("initialValue")
+        || matches!(input.get("initialValue"), Some(RawArgumentValue::Null))
+    {
+        return Some(json!({
+            "message": "Argument 'initialValue' on InputObject 'GiftCardCreateInput' is required. Expected type Decimal!",
+            "locations": [{ "line": field.location.line, "column": field.location.column }],
+            "path": [
+                operation_path,
+                field.response_key.clone(),
+                "input",
+                "initialValue"
+            ],
+            "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "initialValue",
+                "argumentType": "Decimal!",
+                "inputObjectType": "GiftCardCreateInput"
+            }
+        }));
+    }
+
+    if input.contains_key("initialAmount") {
+        return Some(json!({
+            "message": "InputObject 'GiftCardCreateInput' doesn't accept argument 'initialAmount'",
+            "locations": [{ "line": field.location.line, "column": field.location.column }],
+            "path": [
+                operation_path,
+                field.response_key.clone(),
+                "input",
+                "initialAmount"
+            ],
+            "extensions": {
+                "code": "argumentNotAccepted",
+                "name": "GiftCardCreateInput",
+                "typeName": "InputObject",
+                "argumentName": "initialAmount"
+            }
+        }));
+    }
+
+    None
+}
+
+fn gift_card_create_invalid_variable_error(
+    variable_name: &str,
+    input: &BTreeMap<String, ResolvedValue>,
+    path: &str,
+    explanation: &str,
+    location: SourceLocation,
+) -> Value {
+    json!({
+        "message": format!(
+            "Variable ${variable_name} of type GiftCardCreateInput! was provided invalid value for {path} ({explanation})"
+        ),
+        "locations": [{ "line": location.line, "column": location.column }],
+        "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": resolved_value_json(&ResolvedValue::Object(input.clone())),
+            "problems": [{
+                "path": [path],
+                "explanation": explanation
+            }]
+        }
+    })
 }
 
 const LOCATION_COUNTRY_CODES: &str = "AF, AX, AL, DZ, AD, AO, AI, AG, AR, AM, AW, AC, AU, AT, AZ, BS, BH, BD, BB, BY, BE, BZ, BJ, BM, BT, BO, BA, BW, BV, BR, IO, BN, BG, BF, BI, KH, CA, CV, BQ, KY, CF, TD, CL, CN, CX, CC, CO, KM, CG, CD, CK, CR, HR, CU, CW, CY, CZ, CI, DK, DJ, DM, DO, EC, EG, SV, GQ, ER, EE, SZ, ET, FK, FO, FJ, FI, FR, GF, PF, TF, GA, GM, GE, DE, GH, GI, GR, GL, GD, GP, GT, GG, GN, GW, GY, HT, HM, VA, HN, HK, HU, IS, IN, ID, IR, IQ, IE, IM, IL, IT, JM, JP, JE, JO, KZ, KE, KI, KP, XK, KW, KG, LA, LV, LB, LS, LR, LY, LI, LT, LU, MO, MG, MW, MY, MV, ML, MT, MQ, MR, MU, YT, MX, MD, MC, MN, ME, MS, MA, MZ, MM, NA, NR, NP, NL, AN, NC, NZ, NI, NE, NG, NU, NF, MK, NO, OM, PK, PS, PA, PG, PY, PE, PH, PN, PL, PT, QA, CM, RE, RO, RU, RW, BL, SH, KN, LC, MF, PM, WS, SM, ST, SA, SN, RS, SC, SL, SG, SX, SK, SI, SB, SO, ZA, GS, KR, SS, ES, LK, VC, SD, SR, SJ, SE, CH, SY, TW, TJ, TZ, TH, TL, TG, TK, TO, TT, TA, TN, TR, TM, TC, TV, UG, UA, AE, GB, US, UM, UY, UZ, VU, VE, VN, VG, WF, EH, YE, ZM, ZW, ZZ";
