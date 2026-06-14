@@ -23,15 +23,6 @@ impl DraftProxy {
         self
     }
 
-    pub fn with_base_product_variants(mut self, variants: Vec<ProductVariantRecord>) -> Self {
-        self.store.base.product_variants.replace_ordered(
-            variants
-                .into_iter()
-                .map(|variant| (variant.id.clone(), variant)),
-        );
-        self
-    }
-
     pub fn with_commit_transport(
         mut self,
         transport: impl Fn(Request) -> Response + Send + Sync + 'static,

@@ -55,54 +55,24 @@ fn product_read_serializes_seeded_base_product_by_id() {
 
 #[test]
 fn product_variants_read_respects_connection_arguments() {
-    let variant = |id: &str, sku: &str, inventory_item_id: &str| ProductVariantRecord {
-        id: id.to_string(),
-        product_id: "gid://shopify/Product/1".to_string(),
-        title: sku.to_string(),
-        sku: sku.to_string(),
-        barcode: None,
-        price: "1.00".to_string(),
-        compare_at_price: None,
-        taxable: true,
-        inventory_policy: "DENY".to_string(),
-        inventory_quantity: 0,
-        selected_options: Vec::new(),
-        inventory_item: ProductVariantInventoryItem {
-            id: inventory_item_id.to_string(),
-            tracked: true,
-            requires_shipping: true,
-            extra_fields: Default::default(),
-        },
-        extra_fields: Default::default(),
-    };
-    let mut proxy = snapshot_proxy()
-        .with_base_products(vec![ProductRecord {
-            id: "gid://shopify/Product/1".to_string(),
-            created_at: "2024-01-01T00:00:00.000Z".to_string(),
-            updated_at: "2024-01-01T00:00:00.000Z".to_string(),
-            title: "Seeded product".to_string(),
-            handle: "seeded-product".to_string(),
-            status: "ACTIVE".to_string(),
-            description_html: String::new(),
-            vendor: String::new(),
-            product_type: String::new(),
-            tags: Vec::new(),
-            template_suffix: String::new(),
-            seo_title: String::new(),
-            seo_description: String::new(),
-        }])
-        .with_base_product_variants(vec![
-            variant(
-                "gid://shopify/ProductVariant/1",
-                "FIRST",
-                "gid://shopify/InventoryItem/1",
-            ),
-            variant(
-                "gid://shopify/ProductVariant/2",
-                "SECOND",
-                "gid://shopify/InventoryItem/2",
-            ),
-        ]);
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
+        title: "Seeded product".to_string(),
+        handle: "seeded-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
+    let first_variant =
+        create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "FIRST", "1.00");
+    create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "SECOND", "1.00");
 
     let response = proxy.process_request(graphql_request(
         "POST",
@@ -112,7 +82,7 @@ fn product_variants_read_respects_connection_arguments() {
     assert_eq!(response.status, 200);
     assert_eq!(
         response.body["data"]["product"]["variants"]["nodes"],
-        json!([{ "id": "gid://shopify/ProductVariant/1", "sku": "FIRST" }])
+        json!([{ "id": first_variant["id"], "sku": "FIRST" }])
     );
     assert_eq!(
         response.body["data"]["product"]["variants"]["pageInfo"]["hasNextPage"],
@@ -506,45 +476,26 @@ fn legacy_product_variant_update_and_delete_validate_unknown_ids() {
 
 #[test]
 fn legacy_product_variant_scalar_validation_rejects_before_staging() {
-    let mut proxy = snapshot_proxy()
-        .with_base_products(vec![ProductRecord {
-            id: "gid://shopify/Product/1".to_string(),
-            created_at: "2024-01-01T00:00:00.000Z".to_string(),
-            updated_at: "2024-01-01T00:00:00.000Z".to_string(),
-            title: "Seeded product".to_string(),
-            handle: "seeded-product".to_string(),
-            status: "ACTIVE".to_string(),
-            description_html: String::new(),
-            vendor: String::new(),
-            product_type: String::new(),
-            tags: Vec::new(),
-            template_suffix: String::new(),
-            seo_title: String::new(),
-            seo_description: String::new(),
-        }])
-        .with_base_product_variants(vec![ProductVariantRecord {
-            id: "gid://shopify/ProductVariant/1".to_string(),
-            product_id: "gid://shopify/Product/1".to_string(),
-            title: "Red".to_string(),
-            sku: "VALID-SKU".to_string(),
-            barcode: Some("123".to_string()),
-            price: "10.00".to_string(),
-            compare_at_price: None,
-            taxable: true,
-            inventory_policy: "DENY".to_string(),
-            inventory_quantity: 0,
-            selected_options: vec![ProductVariantSelectedOption {
-                name: "Color".to_string(),
-                value: "Red".to_string(),
-            }],
-            inventory_item: ProductVariantInventoryItem {
-                id: "gid://shopify/InventoryItem/1".to_string(),
-                tracked: true,
-                requires_shipping: true,
-                extra_fields: Default::default(),
-            },
-            extra_fields: Default::default(),
-        }]);
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
+        title: "Seeded product".to_string(),
+        handle: "seeded-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+    }]);
+    let seeded_variant =
+        create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "VALID-SKU", "10.00");
+    let seeded_variant_id = seeded_variant["id"]
+        .as_str()
+        .expect("setup variant should have an id");
 
     let update = proxy.process_request(json_graphql_request(
         r#"
@@ -557,7 +508,7 @@ fn legacy_product_variant_scalar_validation_rejects_before_staging() {
         "#,
         json!({
             "input": {
-                "id": "gid://shopify/ProductVariant/1",
+                "id": seeded_variant_id,
                 "price": "-1.00",
                 "sku": "S".repeat(256),
                 "inventoryItem": { "measurement": { "weight": { "value": -1, "unit": "KILOGRAMS" } } }
@@ -590,12 +541,12 @@ fn legacy_product_variant_scalar_validation_rejects_before_staging() {
           productVariant(id: $id) { id sku price }
         }
         "#,
-        json!({ "id": "gid://shopify/ProductVariant/1" }),
+        json!({ "id": seeded_variant_id }),
     ));
     assert_eq!(
         read.body["data"]["productVariant"],
         json!({
-            "id": "gid://shopify/ProductVariant/1",
+            "id": seeded_variant_id,
             "sku": "VALID-SKU",
             "price": "10.00"
         })

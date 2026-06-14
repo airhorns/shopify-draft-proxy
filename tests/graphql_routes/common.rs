@@ -6,10 +6,7 @@ pub(super) use shopify_draft_proxy::graphql::OperationType;
 pub(super) use shopify_draft_proxy::operation_registry::{
     CapabilityDomain, CapabilityExecution, OperationRegistryEntry,
 };
-pub(super) use shopify_draft_proxy::proxy::{
-    Config, DraftProxy, ProductRecord, ProductVariantInventoryItem, ProductVariantRecord,
-    ProductVariantSelectedOption, ReadMode, Request,
-};
+pub(super) use shopify_draft_proxy::proxy::{Config, DraftProxy, ProductRecord, ReadMode, Request};
 
 pub(super) fn snapshot_proxy() -> DraftProxy {
     configured_proxy(ReadMode::Snapshot, None)
@@ -55,6 +52,38 @@ pub(super) fn json_graphql_request(query: &str, variables: serde_json::Value) ->
 
 pub(super) fn product_fixture(path: &str) -> Value {
     serde_json::from_str(path).expect("product fixture must parse")
+}
+
+pub(super) fn create_legacy_variant(
+    proxy: &mut DraftProxy,
+    product_id: &str,
+    sku: &str,
+    price: &str,
+) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLegacyVariantForTest($input: ProductVariantInput!) {
+          productVariantCreate(input: $input) {
+            productVariant { id sku price inventoryItem { id } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "productId": product_id,
+                "title": sku,
+                "sku": sku,
+                "price": price
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productVariantCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["productVariantCreate"]["productVariant"].clone()
 }
 
 pub(super) fn registry_entry(
