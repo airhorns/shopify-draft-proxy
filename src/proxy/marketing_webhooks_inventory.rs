@@ -1132,7 +1132,7 @@ impl DraftProxy {
         };
         if activity["isExternal"] == json!(false) {
             return selected_json(
-                &json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_not_external_error()] }),
+                &json!({ "deletedMarketingActivityId": null, "userErrors": [marketing_activity_delete_not_external_error()] }),
                 &field.selection,
             );
         }
@@ -2602,6 +2602,14 @@ fn marketing_activity_not_external_error() -> Value {
     json!({
         "field": null,
         "message": "Marketing activity is not external.",
+        "code": "ACTIVITY_NOT_EXTERNAL"
+    })
+}
+
+fn marketing_activity_delete_not_external_error() -> Value {
+    json!({
+        "field": null,
+        "message": "The marketing activity must be an external activity.",
         "code": "ACTIVITY_NOT_EXTERNAL"
     })
 }

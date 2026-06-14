@@ -1958,14 +1958,6 @@ pub(in crate::proxy) fn marketing_activity_missing_error() -> Value {
     })
 }
 
-pub(in crate::proxy) fn marketing_activity_not_external_error() -> Value {
-    json!({
-        "field": null,
-        "message": "The marketing activity must be an external activity.",
-        "code": "ACTIVITY_NOT_EXTERNAL"
-    })
-}
-
 pub(in crate::proxy) fn marketing_activity_child_events_error() -> Value {
     json!({
         "field": null,
