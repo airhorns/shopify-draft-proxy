@@ -97,7 +97,7 @@ impl DraftProxy {
         }))
     }
 
-    fn record_mutation_log_draft(
+    pub(in crate::proxy) fn record_mutation_log_draft(
         &mut self,
         request: &Request,
         query: &str,
@@ -228,6 +228,12 @@ impl DraftProxy {
             return ok_json(data);
         }
 
+        if let Some(response) =
+            self.draft_order_invoice_send_local_response(request, &query, &variables)
+        {
+            return response;
+        }
+
         if let Some(data) = self.remaining_order_local_data(root_field, &query, &variables) {
             return ok_json(data);
         }
@@ -245,12 +251,6 @@ impl DraftProxy {
 
         if let Some(data) = self.draft_order_complete_local_data(root_field, &query, &variables) {
             return ok_json(data);
-        }
-
-        if let Some(response) =
-            self.draft_order_invoice_send_local_response(request, &query, &variables)
-        {
-            return response;
         }
 
         if let Some(data) = payment_reminder_fixture_data(
@@ -312,6 +312,38 @@ impl DraftProxy {
 
         if let Some(data) = self.draft_order_bulk_tag_local_data(&query, &variables) {
             return ok_json(data);
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "metaobject" | "metaobjectByHandle" | "metaobjects"
+                )
+            })
+        {
+            if self.config.read_mode != ReadMode::Snapshot
+                && !self.has_local_metaobject_entry_state()
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    return self.metaobject_live_hybrid_read(request, &fields);
+                }
+                return (self.upstream_transport)(request.clone());
+            }
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({"data": self.metaobject_query_data(&fields)}));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "metaobjectCreate" | "metaobjectDelete"))
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return self.metaobject_mutation(&fields, request, &query, &variables);
+            }
         }
 
         if operation.operation_type == OperationType::Query

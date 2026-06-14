@@ -1,4 +1,4 @@
-mutation BackupRegionUpdateNumericCountryCode {
+mutation BackupRegionUpdateMalformedNumeric {
   backupRegionUpdate(region: { countryCode: 42 }) {
     backupRegion {
       id

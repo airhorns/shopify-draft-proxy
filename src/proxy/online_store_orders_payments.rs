@@ -98,6 +98,23 @@ fn order_create_selects_payment_transaction_fields(field: &RootFieldSelection) -
     })
 }
 
+fn order_create_inventory_behaviour(field: &RootFieldSelection) -> String {
+    resolved_object_field(&field.arguments, "options")
+        .and_then(|options| resolved_string_field(&options, "inventoryBehaviour"))
+        .unwrap_or_else(|| "DECREMENT_IGNORING_POLICY".to_string())
+}
+
+fn order_line_inventory_item_id(line_item: &BTreeMap<String, ResolvedValue>) -> Option<String> {
+    resolved_string_field(line_item, "inventoryItemId").or_else(|| {
+        resolved_string_field(line_item, "variantId").map(|variant_id| {
+            format!(
+                "gid://shopify/InventoryItem/{}",
+                resource_id_tail(&variant_id)
+            )
+        })
+    })
+}
+
 fn order_read_selects_payment_transaction_fields(field: &RootFieldSelection) -> bool {
     field.selection.iter().any(|field| {
         matches!(
@@ -118,19 +135,6 @@ fn order_read_selects_order_edit_existing_fields(field: RootFieldSelection) -> b
             "merchantEditable" | "merchantEditableErrors" | "currentSubtotalLineItemsQuantity"
         )
     })
-}
-
-fn selected_metaobject_value(value: &Value, selection: &[SelectedField]) -> Value {
-    if let Some(values) = value.as_array() {
-        Value::Array(
-            values
-                .iter()
-                .map(|item| selected_json(item, selection))
-                .collect(),
-        )
-    } else {
-        nullable_selected_json(value, selection)
-    }
 }
 
 fn orders_empty_count_payload() -> Value {
@@ -851,620 +855,6 @@ fn mandate_payment_order_record(
 }
 
 impl DraftProxy {
-    pub(in crate::proxy) fn metaobject_query_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
-                "metaobjects" => self.metaobject_connection(field),
-                "metaobject" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.metaobject_by_id(&id)
-                        .map(|record| self.selected_metaobject(&record, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                "metaobjectByHandle" => self.metaobject_by_handle_arg(field).unwrap_or(Value::Null),
-                "metaobjectDefinition" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.metaobject_definition_by_id(&id)
-                        .map(|definition| selected_json(&definition, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                "metaobjectDefinitionByType" => {
-                    let meta_type =
-                        resolved_string_arg(&field.arguments, "type").unwrap_or_default();
-                    self.metaobject_definition_by_type(&meta_type)
-                        .map(|definition| selected_json(&definition, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                "metaobjectDefinitions" => self.metaobject_definition_connection(field),
-                _ => Value::Null,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
-    }
-
-    pub(in crate::proxy) fn metaobject_mutation(
-        &mut self,
-        fields: &[RootFieldSelection],
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let mut data = serde_json::Map::new();
-        let mut staged_ids = Vec::new();
-        for field in fields {
-            let value = match field.name.as_str() {
-                "metaobjectCreate" => self.metaobject_create(field, &mut staged_ids, request),
-                "metaobjectDelete" => self.metaobject_delete(field, &mut staged_ids),
-                "metaobjectDefinitionCreate" => {
-                    self.metaobject_definition_create(field, &mut staged_ids)
-                }
-                "metaobjectDefinitionDelete" => {
-                    self.metaobject_definition_delete(field, &mut staged_ids)
-                }
-                _ => Value::Null,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        if !staged_ids.is_empty() {
-            self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
-                fields
-                    .first()
-                    .map(|f| f.name.as_str())
-                    .unwrap_or("metaobject"),
-                staged_ids,
-            );
-        }
-        ok_json(json!({"data": Value::Object(data)}))
-    }
-
-    pub(in crate::proxy) fn metaobject_by_id(&self, id: &str) -> Option<Value> {
-        if self.store.staged.deleted_metaobject_ids.contains(id) {
-            return None;
-        }
-        if let Some(record) = self.store.staged.metaobjects.get(id) {
-            return Some(record.clone());
-        }
-        if id == "gid://shopify/Metaobject/185593102642" {
-            return Some(seed_metaobject_record());
-        }
-        None
-    }
-
-    pub(in crate::proxy) fn metaobject_by_handle_arg(
-        &self,
-        field: &RootFieldSelection,
-    ) -> Option<Value> {
-        let Some(ResolvedValue::Object(handle)) = field.arguments.get("handle") else {
-            return None;
-        };
-        let meta_type = resolved_string_field(handle, "type").unwrap_or_default();
-        let meta_handle = resolved_string_field(handle, "handle").unwrap_or_default();
-        self.metaobject_by_type_and_handle(&meta_type, &meta_handle)
-            .map(|record| self.selected_metaobject(&record, &field.selection))
-    }
-
-    pub(in crate::proxy) fn metaobject_by_type_and_handle(
-        &self,
-        meta_type: &str,
-        meta_handle: &str,
-    ) -> Option<Value> {
-        self.store
-            .staged
-            .metaobjects
-            .values()
-            .find(|record| {
-                record.get("type").and_then(Value::as_str) == Some(meta_type)
-                    && record.get("handle").and_then(Value::as_str) == Some(meta_handle)
-                    && !self
-                        .store
-                        .staged
-                        .deleted_metaobject_ids
-                        .contains(record.get("id").and_then(Value::as_str).unwrap_or_default())
-            })
-            .cloned()
-            .or_else(|| {
-                if meta_type == "codex_har_240_1777156845370"
-                    && meta_handle == "codex-har-240-1777156845370"
-                    && !self
-                        .store
-                        .staged
-                        .deleted_metaobject_ids
-                        .contains("gid://shopify/Metaobject/185593102642")
-                {
-                    Some(seed_metaobject_record())
-                } else {
-                    None
-                }
-            })
-    }
-
-    pub(in crate::proxy) fn metaobject_connection(&self, field: &RootFieldSelection) -> Value {
-        let meta_type = resolved_string_arg(&field.arguments, "type").unwrap_or_default();
-        let mut records: Vec<Value> = self
-            .store
-            .staged
-            .metaobjects
-            .values()
-            .filter(|record| {
-                record.get("type").and_then(Value::as_str) == Some(meta_type.as_str())
-                    && !self
-                        .store
-                        .staged
-                        .deleted_metaobject_ids
-                        .contains(record.get("id").and_then(Value::as_str).unwrap_or_default())
-            })
-            .cloned()
-            .collect();
-        if meta_type == "codex_har_240_1777156845370"
-            && !self
-                .store
-                .staged
-                .deleted_metaobject_ids
-                .contains("gid://shopify/Metaobject/185593102642")
-            && !records.iter().any(|record| {
-                record.get("handle").and_then(Value::as_str) == Some("codex-har-240-1777156845370")
-            })
-        {
-            records.push(seed_metaobject_record());
-        }
-        records.sort_by(|left, right| {
-            left.get("id")
-                .and_then(Value::as_str)
-                .cmp(&right.get("id").and_then(Value::as_str))
-        });
-        selected_typed_connection_with_args(
-            &records,
-            &field.arguments,
-            &field.selection,
-            |record, selection| self.selected_metaobject(record, selection),
-            metaobject_cursor,
-        )
-    }
-
-    pub(in crate::proxy) fn metaobject_create(
-        &mut self,
-        field: &RootFieldSelection,
-        staged_ids: &mut Vec<String>,
-        request: &Request,
-    ) -> Value {
-        let input = match field.arguments.get("metaobject") {
-            Some(ResolvedValue::Object(input)) => input,
-            _ => {
-                return self.selected_metaobject_payload(
-                    &json!({"metaobject": null, "userErrors": []}),
-                    &field.selection,
-                )
-            }
-        };
-        let meta_type = resolved_string_field(input, "type").unwrap_or_default();
-        let definition = self
-            .metaobject_definition_by_type(&meta_type)
-            .or_else(|| self.hydrate_metaobject_definition_by_type(request, &meta_type));
-        let Some(definition) = definition else {
-            return self.selected_metaobject_payload(
-                &json!({
-                    "metaobject": null,
-                    "userErrors": [metaobject_user_error(
-                        vec!["metaobject", "type"],
-                        &format!("No metaobject definition exists for type \"{meta_type}\""),
-                        "UNDEFINED_OBJECT_TYPE",
-                        Value::Null,
-                        Value::Null
-                    )]
-                }),
-                &field.selection,
-            );
-        };
-        if definition["access"]["admin"].as_str() == Some("MERCHANT_READ") {
-            return self.selected_metaobject_payload(
-                &json!({
-                    "metaobject": null,
-                    "userErrors": [metaobject_user_error(
-                        vec!["metaobject", "type"],
-                        "Not authorized to create metaobjects for this type.",
-                        "NOT_AUTHORIZED",
-                        Value::Null,
-                        Value::Null
-                    )]
-                }),
-                &field.selection,
-            );
-        }
-        let input_values = metaobject_create_input_values(input);
-        let validation_errors =
-            metaobject_create_validation_errors(input, &definition, &input_values);
-        if !validation_errors.is_empty() {
-            return self.selected_metaobject_payload(
-                &json!({"metaobject": null, "userErrors": validation_errors}),
-                &field.selection,
-            );
-        }
-        let id = self.next_proxy_synthetic_gid("Metaobject");
-        let display_name = metaobject_display_name(&definition, &input_values);
-        let fallback_handle = if display_name.trim().is_empty() {
-            format!("{}-{}", slugify_handle(&meta_type), resource_id_tail(&id))
-        } else {
-            slugify_handle(&display_name)
-        };
-        let requested_handle = resolved_string_field(input, "handle").unwrap_or(fallback_handle);
-        let handle = self.available_metaobject_handle(&meta_type, &requested_handle);
-        let publishable_status = metaobject_publishable_status(input, &definition);
-        let record = metaobject_record_from_definition(
-            &id,
-            &handle,
-            &definition,
-            &input_values,
-            &display_name,
-            &publishable_status,
-        );
-        self.store.staged.deleted_metaobject_ids.remove(&id);
-        self.store
-            .staged
-            .metaobjects
-            .insert(id.clone(), record.clone());
-        self.increment_metaobject_definition_count(&meta_type, 1);
-        staged_ids.push(id);
-        self.selected_metaobject_payload(
-            &json!({"metaobject": record, "userErrors": []}),
-            &field.selection,
-        )
-    }
-
-    pub(in crate::proxy) fn metaobject_delete(
-        &mut self,
-        field: &RootFieldSelection,
-        staged_ids: &mut Vec<String>,
-    ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        let Some(record) = self.metaobject_by_id(&id) else {
-            return selected_json(
-                &json!({
-                    "deletedId": null,
-                    "userErrors": [{
-                        "field": ["id"],
-                        "message": "Record not found",
-                        "code": "RECORD_NOT_FOUND",
-                        "elementKey": null,
-                        "elementIndex": null
-                    }]
-                }),
-                &field.selection,
-            );
-        };
-        self.store.staged.metaobjects.remove(&id);
-        self.store.staged.deleted_metaobject_ids.insert(id.clone());
-        if let Some(meta_type) = record.get("type").and_then(Value::as_str) {
-            self.increment_metaobject_definition_count(meta_type, -1);
-        }
-        staged_ids.push(id.clone());
-        selected_json(
-            &json!({"deletedId": id, "userErrors": []}),
-            &field.selection,
-        )
-    }
-
-    fn selected_metaobject(&self, record: &Value, selection: &[SelectedField]) -> Value {
-        selected_payload_json(selection, |field| match field.name.as_str() {
-            "field" => {
-                let key = resolved_string_arg(&field.arguments, "key").unwrap_or_default();
-                let value = record["fields"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .find(|candidate| {
-                        candidate.get("key").and_then(Value::as_str) == Some(key.as_str())
-                    })
-                    .cloned()
-                    .unwrap_or(Value::Null);
-                Some(nullable_selected_json(&value, &field.selection))
-            }
-            "definition" => {
-                let meta_type = record
-                    .get("type")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default();
-                Some(
-                    self.metaobject_definition_by_type(meta_type)
-                        .map(|definition| selected_json(&definition, &field.selection))
-                        .unwrap_or(Value::Null),
-                )
-            }
-            _ => record
-                .get(&field.name)
-                .map(|value| selected_metaobject_value(value, &field.selection)),
-        })
-    }
-
-    fn selected_metaobject_payload(&self, payload: &Value, selection: &[SelectedField]) -> Value {
-        selected_payload_json(selection, |field| match field.name.as_str() {
-            "metaobject" => {
-                let metaobject = &payload["metaobject"];
-                Some(if metaobject.is_null() {
-                    Value::Null
-                } else {
-                    self.selected_metaobject(metaobject, &field.selection)
-                })
-            }
-            _ => payload
-                .get(&field.name)
-                .map(|value| selected_metaobject_value(value, &field.selection)),
-        })
-    }
-
-    fn metaobject_definition_create(
-        &mut self,
-        field: &RootFieldSelection,
-        staged_ids: &mut Vec<String>,
-    ) -> Value {
-        let definition_input = match field.arguments.get("definition") {
-            Some(ResolvedValue::Object(input)) => input,
-            _ => {
-                return selected_json(
-                    &json!({"metaobjectDefinition": null, "userErrors": []}),
-                    &field.selection,
-                )
-            }
-        };
-        let meta_type = resolved_string_field(definition_input, "type")
-            .unwrap_or_default()
-            .to_lowercase();
-        if meta_type.is_empty() {
-            return selected_json(
-                &json!({
-                    "metaobjectDefinition": null,
-                    "userErrors": [metaobject_user_error(vec!["definition", "type"], "Type can't be blank", "BLANK", Value::Null, Value::Null)]
-                }),
-                &field.selection,
-            );
-        }
-        if self.metaobject_definition_by_type(&meta_type).is_some() {
-            return selected_json(
-                &json!({
-                    "metaobjectDefinition": null,
-                    "userErrors": [metaobject_user_error(vec!["definition", "type"], "Type has already been taken", "TAKEN", Value::Null, Value::Null)]
-                }),
-                &field.selection,
-            );
-        }
-        let id = self.next_proxy_synthetic_gid("MetaobjectDefinition");
-        let definition = metaobject_definition_record(&id, definition_input, &meta_type);
-        self.store
-            .staged
-            .metaobject_definitions
-            .insert(id.clone(), definition.clone());
-        self.store
-            .staged
-            .deleted_metaobject_definition_ids
-            .remove(&id);
-        staged_ids.push(id);
-        selected_json(
-            &json!({"metaobjectDefinition": definition, "userErrors": []}),
-            &field.selection,
-        )
-    }
-
-    fn metaobject_definition_delete(
-        &mut self,
-        field: &RootFieldSelection,
-        staged_ids: &mut Vec<String>,
-    ) -> Value {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        let Some(definition) = self.metaobject_definition_by_id(&id) else {
-            return selected_json(
-                &json!({
-                    "deletedId": null,
-                    "userErrors": [metaobject_user_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND", Value::Null, Value::Null)]
-                }),
-                &field.selection,
-            );
-        };
-        let meta_type = definition["type"].as_str().unwrap_or_default().to_string();
-        let ids_to_delete = self
-            .store
-            .staged
-            .metaobjects
-            .values()
-            .filter(|record| record.get("type").and_then(Value::as_str) == Some(meta_type.as_str()))
-            .filter_map(|record| record.get("id").and_then(Value::as_str).map(str::to_string))
-            .collect::<Vec<_>>();
-        for metaobject_id in ids_to_delete {
-            self.store.staged.metaobjects.remove(&metaobject_id);
-            self.store
-                .staged
-                .deleted_metaobject_ids
-                .insert(metaobject_id);
-        }
-        self.store.staged.metaobject_definitions.remove(&id);
-        self.store
-            .staged
-            .deleted_metaobject_definition_ids
-            .insert(id.clone());
-        staged_ids.push(id.clone());
-        selected_json(
-            &json!({"deletedId": id, "userErrors": []}),
-            &field.selection,
-        )
-    }
-
-    fn metaobject_definition_by_id(&self, id: &str) -> Option<Value> {
-        if self
-            .store
-            .staged
-            .deleted_metaobject_definition_ids
-            .contains(id)
-        {
-            return None;
-        }
-        self.store.staged.metaobject_definitions.get(id).cloned()
-    }
-
-    fn metaobject_definition_by_type(&self, meta_type: &str) -> Option<Value> {
-        self.store
-            .staged
-            .metaobject_definitions
-            .values()
-            .find(|definition| {
-                definition.get("type").and_then(Value::as_str) == Some(meta_type)
-                    && !self
-                        .store
-                        .staged
-                        .deleted_metaobject_definition_ids
-                        .contains(
-                            definition
-                                .get("id")
-                                .and_then(Value::as_str)
-                                .unwrap_or_default(),
-                        )
-            })
-            .cloned()
-            .or_else(|| {
-                (meta_type == "codex_har_240_1777156845370").then(seed_metaobject_definition_record)
-            })
-    }
-
-    fn hydrate_metaobject_definition_by_type(
-        &mut self,
-        request: &Request,
-        meta_type: &str,
-    ) -> Option<Value> {
-        if self.config.read_mode == ReadMode::Snapshot || meta_type.trim().is_empty() {
-            return None;
-        }
-        let query = "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }";
-        let body = serde_json::to_string(&json!({
-            "query": query,
-            "variables": {"type": meta_type}
-        }))
-        .ok()?;
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body,
-        });
-        if response.status < 200 || response.status >= 300 {
-            return None;
-        }
-        let definition = response
-            .body
-            .get("data")
-            .and_then(|data| data.get("metaobjectDefinitionByType"))
-            .filter(|definition| definition.is_object())?
-            .clone();
-        let id = definition
-            .get("id")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string();
-        if id.is_empty() {
-            return Some(definition);
-        }
-        self.store
-            .staged
-            .deleted_metaobject_definition_ids
-            .remove(&id);
-        self.store
-            .staged
-            .metaobject_definitions
-            .insert(id, definition.clone());
-        Some(definition)
-    }
-
-    fn metaobject_definition_connection(&self, field: &RootFieldSelection) -> Value {
-        let mut records = self
-            .store
-            .staged
-            .metaobject_definitions
-            .values()
-            .filter(|definition| {
-                !self
-                    .store
-                    .staged
-                    .deleted_metaobject_definition_ids
-                    .contains(
-                        definition
-                            .get("id")
-                            .and_then(Value::as_str)
-                            .unwrap_or_default(),
-                    )
-            })
-            .cloned()
-            .collect::<Vec<_>>();
-        records.sort_by(|left, right| {
-            left.get("type")
-                .and_then(Value::as_str)
-                .cmp(&right.get("type").and_then(Value::as_str))
-        });
-        selected_connection_json_with_args(
-            records,
-            &field.arguments,
-            &field.selection,
-            |definition| {
-                format!(
-                    "cursor:{}",
-                    definition
-                        .get("id")
-                        .and_then(Value::as_str)
-                        .unwrap_or("metaobject-definition")
-                )
-            },
-        )
-    }
-
-    fn increment_metaobject_definition_count(&mut self, meta_type: &str, delta: i64) {
-        let Some((id, mut definition)) = self
-            .store
-            .staged
-            .metaobject_definitions
-            .iter()
-            .find(|(_, definition)| {
-                definition.get("type").and_then(Value::as_str) == Some(meta_type)
-            })
-            .map(|(id, definition)| (id.clone(), definition.clone()))
-        else {
-            return;
-        };
-        let current = definition
-            .get("metaobjectsCount")
-            .and_then(Value::as_i64)
-            .unwrap_or(0);
-        definition["metaobjectsCount"] = json!((current + delta).max(0));
-        self.store
-            .staged
-            .metaobject_definitions
-            .insert(id, definition);
-    }
-
-    fn available_metaobject_handle(&self, meta_type: &str, requested: &str) -> String {
-        let base = slugify_handle(requested);
-        let base = if base.is_empty() {
-            format!("{meta_type}-{}", self.next_synthetic_id)
-        } else {
-            base
-        };
-        if self
-            .metaobject_by_type_and_handle(meta_type, &base)
-            .is_none()
-        {
-            return base;
-        }
-        for suffix in 1.. {
-            let candidate = format!("{base}-{suffix}");
-            if self
-                .metaobject_by_type_and_handle(meta_type, &candidate)
-                .is_none()
-            {
-                return candidate;
-            }
-        }
-        unreachable!("infinite suffix search must return")
-    }
-
     pub(in crate::proxy) fn online_store_query_data(&self, fields: &[RootFieldSelection]) -> Value {
         let mut data = serde_json::Map::new();
         for field in fields {
@@ -1997,6 +1387,12 @@ impl DraftProxy {
             .get("role")
             .and_then(Value::as_str)
             .unwrap_or("UNPUBLISHED");
+        if role == "DEVELOPMENT" {
+            return selected_json(
+                &json!({"theme": null, "userErrors": [{"field": ["base"], "message": "You cannot publish a development theme.", "code": null}]}),
+                &field.selection,
+            );
+        }
         if matches!(role, "DEMO" | "LOCKED" | "ARCHIVED") {
             return selected_json(
                 &json!({"theme": null, "userErrors": [{"field": ["id"], "message": format!("Theme cannot be published from role {role}")}]}),
@@ -2134,25 +1530,23 @@ impl DraftProxy {
     pub(in crate::proxy) fn theme_files_copy(&mut self, field: &RootFieldSelection) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
-        let Some(file) = files.first() else {
-            return selected_json(
-                &json!({"copiedThemeFiles": [], "userErrors": []}),
-                &field.selection,
-            );
-        };
-        let src = theme_file_arg_string(file, "srcFilename").unwrap_or_default();
-        let dst = theme_file_arg_string(file, "dstFilename").unwrap_or_default();
-        let Some(source_file) = self.find_theme_file(&theme_id, &src) else {
-            return selected_json(
-                &json!({"copiedThemeFiles": [], "userErrors": [{"field": ["files", "0", "srcFilename"], "message": "File not found", "code": "NOT_FOUND"}]}),
-                &field.selection,
-            );
-        };
-        let content = source_file["body"]["content"].as_str().unwrap_or_default();
-        let copied = theme_file_record(&dst, content);
-        self.upsert_theme_file(&theme_id, copied.clone());
+        let mut copied = Vec::new();
+        let mut errors = Vec::new();
+        for (index, file) in files.iter().enumerate() {
+            let src = theme_file_arg_string(file, "srcFilename").unwrap_or_default();
+            let dst = theme_file_arg_string(file, "dstFilename").unwrap_or_default();
+            let Some(source_file) = self.find_theme_file(&theme_id, &src) else {
+                errors.push(json!({"field": ["files", index.to_string(), "srcFilename"], "message": "File not found", "code": "NOT_FOUND"}));
+                continue;
+            };
+            let content = source_file["body"]["content"].as_str().unwrap_or_default();
+            copied.push(theme_file_record(&dst, content));
+        }
+        for file in copied.iter().cloned() {
+            self.upsert_theme_file(&theme_id, file);
+        }
         selected_json(
-            &json!({"copiedThemeFiles": [copied], "userErrors": []}),
+            &json!({"copiedThemeFiles": copied, "userErrors": errors}),
             &field.selection,
         )
     }
@@ -2640,6 +2034,14 @@ impl DraftProxy {
                 &json!({ "order": Value::Null, "userErrors": [error] }),
                 &field.selection,
             );
+        }
+        if order_create_inventory_behaviour(field) != "BYPASS" {
+            for line_item in resolved_object_list_field(&order_input, "lineItems") {
+                if let Some(inventory_item_id) = order_line_inventory_item_id(&line_item) {
+                    let quantity = resolved_i64_field(&line_item, "quantity").unwrap_or(1);
+                    self.decrement_inventory_item_available(&inventory_item_id, quantity);
+                }
+            }
         }
 
         let order_id = format!("gid://shopify/Order/{}", self.store.staged.next_order_id);
@@ -3185,6 +2587,13 @@ impl DraftProxy {
         }
         if root_field == "orderCreate" {
             let field = field?;
+            let order_arg = field.arguments.get("order")?;
+            if let ResolvedValue::Object(order_input) = order_arg {
+                let email = resolved_string_field(order_input, "email").unwrap_or_default();
+                if !email.is_empty() && !email.starts_with("order-customer-") {
+                    return None;
+                }
+            }
             let order = self.order_customer_paths_order_create(&field)?;
             return Some(data_response(&field.response_key, order));
         }
