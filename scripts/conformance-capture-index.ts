@@ -6863,6 +6863,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'payment-customization-activation-already-in-state',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-customization-activation-already-in-state-conformance.ts',
+    purpose:
+      'paymentCustomizationActivation returns a valid id when the submitted disposable payment customization is already in the requested enabled state.',
+    requiredAuthScopes: ['read_payment_customizations', 'write_payment_customizations', 'shopifyFunctions read access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-customization-activation-already-in-state.json`,
+      'config/parity-specs/payments/payment-customization-activation-already-in-state.json',
+      'config/parity-requests/payments/payment-customization-activation-already-in-state-create.graphql',
+      'config/parity-requests/payments/payment-customization-activation-already-in-state.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one enabled disposable payment customization, re-activates it with enabled:true to capture the no-op success ids payload, then deletes the payment customization.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
     captureId: 'payment-customization-create-validation-gaps',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-customization-create-validation-gaps-conformance.ts',

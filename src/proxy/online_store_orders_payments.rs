@@ -3343,15 +3343,15 @@ impl DraftProxy {
             Some(ResolvedValue::Bool(value)) => *value,
             _ => false,
         };
-        let mut toggled = Vec::new();
+        let mut valid_ids = Vec::new();
         let mut missing_ids = Vec::new();
         for id in ids {
             match self.store.staged.payment_customizations.get_mut(&id) {
                 Some(record) => {
                     if record["enabled"].as_bool() != Some(enabled) {
                         record["enabled"] = json!(enabled);
-                        toggled.push(id);
                     }
+                    valid_ids.push(id);
                 }
                 None => missing_ids.push(id),
             }
@@ -3363,7 +3363,7 @@ impl DraftProxy {
                 &missing_ids,
             )]
         };
-        payment_customization_payload(None, &field.selection, errors, Some(toggled), None)
+        payment_customization_payload(None, &field.selection, errors, Some(valid_ids), None)
     }
 
     pub(in crate::proxy) fn payment_customization_delete_payload(
