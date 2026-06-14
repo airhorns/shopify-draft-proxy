@@ -1817,6 +1817,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}metafield-definition-pin-limit-and-constraint-guard.json`,
       'config/parity-specs/metafields/metafield-definition-pin-limit-and-constraint-guard.json',
+      'config/parity-requests/metafields/metafield-definition-pin-limit-and-constraint-guard.graphql',
+      'config/parity-requests/metafields/metafield-definition-pin-limit-listing.graphql',
     ],
     cleanupBehavior:
       'Temporarily unpins existing product definitions, creates disposable product-owned definitions, deletes them, then restores original pins.',
@@ -8144,6 +8146,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}gift-card-create-validation.json`,
       'config/parity-specs/gift-cards/gift-card-create-validation.json',
+      'config/parity-specs/gift-cards/gift-card-ordinary-operation-names.json',
+      'config/parity-requests/gift-cards/gift-card-ordinary-operation-names.graphql',
     ],
     cleanupBehavior:
       'Creates two disposable gift cards for success/generated-code validation and deactivates them during cleanup.',

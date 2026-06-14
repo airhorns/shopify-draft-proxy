@@ -217,7 +217,7 @@ fn registry_entry_json_value(entry: &OperationRegistryEntry) -> Value {
     Value::Object(object)
 }
 
-const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 81] = [
+const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 92] = [
     local_query("product", CapabilityDomain::Products),
     local_query("products", CapabilityDomain::Products),
     local_query("productsCount", CapabilityDomain::Products),
@@ -329,6 +329,23 @@ const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 81] = [
     local_mutation(
         "standardMetafieldDefinitionEnable",
         CapabilityDomain::Metafields,
+    ),
+    local_query("giftCard", CapabilityDomain::GiftCards),
+    local_query("giftCards", CapabilityDomain::GiftCards),
+    local_query("giftCardsCount", CapabilityDomain::GiftCards),
+    local_query("giftCardConfiguration", CapabilityDomain::GiftCards),
+    local_mutation("giftCardCreate", CapabilityDomain::GiftCards),
+    local_mutation("giftCardUpdate", CapabilityDomain::GiftCards),
+    local_mutation("giftCardCredit", CapabilityDomain::GiftCards),
+    local_mutation("giftCardDebit", CapabilityDomain::GiftCards),
+    local_mutation("giftCardDeactivate", CapabilityDomain::GiftCards),
+    local_mutation(
+        "giftCardSendNotificationToCustomer",
+        CapabilityDomain::GiftCards,
+    ),
+    local_mutation(
+        "giftCardSendNotificationToRecipient",
+        CapabilityDomain::GiftCards,
     ),
     local_mutation("locationAdd", CapabilityDomain::StoreProperties),
     local_mutation("locationActivate", CapabilityDomain::StoreProperties),
