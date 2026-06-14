@@ -1654,6 +1654,7 @@ impl DraftProxy {
                             inventory_item_id,
                             location_id,
                             quantities,
+                            &self.store.staged.inventory_quantity_updated_at,
                             &selection.selection,
                             Some(&self.store.staged.locations),
                         )
@@ -1662,6 +1663,7 @@ impl DraftProxy {
                 "inventoryLevels" => Some(inventory_levels_connection_selected_json(
                     inventory_item_id,
                     &item_levels,
+                    &self.store.staged.inventory_quantity_updated_at,
                     &selection.arguments,
                     &selection.selection,
                     Some(&self.store.staged.locations),
@@ -1691,6 +1693,7 @@ impl DraftProxy {
             &inventory_item_id,
             &location_id,
             quantities,
+            &self.store.staged.inventory_quantity_updated_at,
             selections,
             Some(&self.store.staged.locations),
         )
@@ -1717,6 +1720,29 @@ impl DraftProxy {
             .filter(|((item_id, _), _)| item_id == inventory_item_id)
             .map(|(_, quantities)| quantities.get(name).copied().unwrap_or(0))
             .sum()
+    }
+
+    fn next_inventory_quantity_timestamp(&mut self) -> String {
+        let sequence = self.store.staged.next_inventory_quantity_timestamp;
+        self.store.staged.next_inventory_quantity_timestamp += 1;
+        format!("2024-01-01T00:00:{sequence:02}.000Z")
+    }
+
+    fn stamp_inventory_quantity(
+        &mut self,
+        inventory_item_id: &str,
+        location_id: &str,
+        name: &str,
+        updated_at: &str,
+    ) {
+        self.store.staged.inventory_quantity_updated_at.insert(
+            (
+                inventory_item_id.to_string(),
+                location_id.to_string(),
+                name.to_string(),
+            ),
+            updated_at.to_string(),
+        );
     }
 
     fn inventory_total_all(&self, name: &str) -> i64 {
@@ -1791,6 +1817,7 @@ impl DraftProxy {
         let reference = resolved_string_field(&input, "referenceDocumentUri").unwrap_or_default();
         let mut changes = Vec::new();
         let mut on_hand_changes = Vec::new();
+        let updated_at = self.next_inventory_quantity_timestamp();
         for quantity in quantities {
             let item_id = resolved_string_field(&quantity, "inventoryItemId").unwrap_or_default();
             let location_id = resolved_string_field(&quantity, "locationId").unwrap_or_default();
@@ -1802,20 +1829,25 @@ impl DraftProxy {
             level.insert(name.clone(), new_quantity);
             if name == "available" {
                 let old_on_hand = level.get("on_hand").copied().unwrap_or(0);
-                level.insert("on_hand".to_string(), old_on_hand + delta);
+                let on_hand_after_change = old_on_hand + delta;
+                level.insert("on_hand".to_string(), on_hand_after_change);
                 level.entry("damaged".to_string()).or_insert(0);
+                self.stamp_inventory_quantity(&item_id, &location_id, "on_hand", &updated_at);
                 on_hand_changes.push(inventory_change_json(
                     &item_id,
                     "on_hand",
                     delta,
+                    on_hand_after_change,
                     None,
                     &location_id,
                 ));
             }
+            self.stamp_inventory_quantity(&item_id, &location_id, &name, &updated_at);
             changes.push(inventory_change_json(
                 &item_id,
                 &name,
                 delta,
+                new_quantity,
                 None,
                 &location_id,
             ));
@@ -1864,6 +1896,7 @@ impl DraftProxy {
         let reference = resolved_string_field(&input, "referenceDocumentUri").unwrap_or_default();
         let mut changes = Vec::new();
         let mut on_hand_changes = Vec::new();
+        let updated_at = self.next_inventory_quantity_timestamp();
         for change in changes_input {
             let item_id = resolved_string_field(&change, "inventoryItemId").unwrap_or_default();
             let location_id = resolved_string_field(&change, "locationId").unwrap_or_default();
@@ -1874,22 +1907,34 @@ impl DraftProxy {
                 .inventory_levels
                 .entry((item_id.clone(), location_id.clone()))
                 .or_default();
-            *level.entry(name.clone()).or_insert(0) += delta;
+            let after_change = {
+                let quantity = level.entry(name.clone()).or_insert(0);
+                *quantity += delta;
+                *quantity
+            };
             if name == "available" {
-                *level.entry("on_hand".to_string()).or_insert(0) += delta;
+                let on_hand_after_change = {
+                    let on_hand = level.entry("on_hand".to_string()).or_insert(0);
+                    *on_hand += delta;
+                    *on_hand
+                };
                 level.entry("damaged".to_string()).or_insert(0);
+                self.stamp_inventory_quantity(&item_id, &location_id, "on_hand", &updated_at);
                 on_hand_changes.push(inventory_change_json(
                     &item_id,
                     "on_hand",
                     delta,
+                    on_hand_after_change,
                     None,
                     &location_id,
                 ));
             }
+            self.stamp_inventory_quantity(&item_id, &location_id, &name, &updated_at);
             changes.push(inventory_change_json(
                 &item_id,
                 &name,
                 delta,
+                after_change,
                 None,
                 &location_id,
             ));
@@ -1951,19 +1996,34 @@ impl DraftProxy {
             let from_name = resolved_string_field(&from, "name").unwrap_or_default();
             let to_name = resolved_string_field(&to, "name").unwrap_or_default();
             let ledger = resolved_string_field(&to, "ledgerDocumentUri");
-            let level = self
-                .store
-                .staged
-                .inventory_levels
-                .entry((item_id.clone(), location_id.clone()))
-                .or_default();
-            *level.entry(from_name.clone()).or_insert(0) -= quantity;
-            *level.entry(to_name.clone()).or_insert(0) += quantity;
-            level.entry("on_hand".to_string()).or_insert(0);
+            let updated_at = self.next_inventory_quantity_timestamp();
+            let (from_after_change, to_after_change) = {
+                let level = self
+                    .store
+                    .staged
+                    .inventory_levels
+                    .entry((item_id.clone(), location_id.clone()))
+                    .or_default();
+                let from_after_change = {
+                    let from_quantity = level.entry(from_name.clone()).or_insert(0);
+                    *from_quantity -= quantity;
+                    *from_quantity
+                };
+                let to_after_change = {
+                    let to_quantity = level.entry(to_name.clone()).or_insert(0);
+                    *to_quantity += quantity;
+                    *to_quantity
+                };
+                level.entry("on_hand".to_string()).or_insert(0);
+                (from_after_change, to_after_change)
+            };
+            self.stamp_inventory_quantity(&item_id, &location_id, &from_name, &updated_at);
+            self.stamp_inventory_quantity(&item_id, &location_id, &to_name, &updated_at);
             changes.push(inventory_change_json(
                 &item_id,
                 &from_name,
                 -quantity,
+                from_after_change,
                 None,
                 &location_id,
             ));
@@ -1971,6 +2031,7 @@ impl DraftProxy {
                 &item_id,
                 &to_name,
                 quantity,
+                to_after_change,
                 ledger.as_deref(),
                 &location_id,
             ));
