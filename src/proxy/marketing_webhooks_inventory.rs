@@ -1472,12 +1472,13 @@ impl DraftProxy {
                 "code": "IMMUTABLE_URL_PARAMETER"
             }));
         }
-        if input_utm_value(input, selector_utm, "campaign")
-            != json_string_value(&existing["utmParameters"]["campaign"])
-            || input_utm_value(input, selector_utm, "source")
-                != json_string_value(&existing["utmParameters"]["source"])
-            || input_utm_value(input, selector_utm, "medium")
-                != json_string_value(&existing["utmParameters"]["medium"])
+        if (input.contains_key("utm") || selector_utm.is_some())
+            && (input_utm_value(input, selector_utm, "campaign")
+                != json_string_value(&existing["utmParameters"]["campaign"])
+                || input_utm_value(input, selector_utm, "source")
+                    != json_string_value(&existing["utmParameters"]["source"])
+                || input_utm_value(input, selector_utm, "medium")
+                    != json_string_value(&existing["utmParameters"]["medium"]))
         {
             return Some(json!({
                 "field": ["input"],

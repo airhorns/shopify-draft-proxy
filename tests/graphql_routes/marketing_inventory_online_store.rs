@@ -590,7 +590,7 @@ fn marketing_external_activity_update_and_upsert_reject_immutable_field_changes(
     ));
     assert_eq!(
         omitted_utm.body["data"]["changed"],
-        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "UTM parameters cannot be modified.", "code": "IMMUTABLE_UTM_PARAMETERS"}]})
+        json!({"marketingActivity": {"id": seed.body["data"]["utmOnly"]["marketingActivity"]["id"], "title": "Should not stage omitted UTM"}, "userErrors": []})
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -607,7 +607,7 @@ fn marketing_external_activity_update_and_upsert_reject_immutable_field_changes(
     );
     assert_eq!(
         read.body["data"]["marketingActivities"]["nodes"][1]["title"],
-        json!("UTM only")
+        json!("Should not stage omitted UTM")
     );
 }
 
