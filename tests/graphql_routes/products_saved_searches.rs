@@ -2043,6 +2043,115 @@ fn product_publishable_mutations_return_captured_aggregate_shape() {
 }
 
 #[test]
+fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request.clone());
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            assert!(
+                body["query"].as_str().is_some_and(
+                    |query| query.contains("StorePropertiesPublishablePayloadShopHydrate")
+                ),
+                "unexpected upstream query: {}",
+                body["query"]
+            );
+            assert_eq!(
+                body["variables"],
+                json!({ "id": "gid://shopify/Product/10172067414322" })
+            );
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "publishable": {
+                            "id": "gid://shopify/Product/10172067414322",
+                            "publishedOnCurrentPublication": false,
+                            "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+                            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
+                        },
+                        "shop": {
+                            "id": "gid://shopify/Shop/upstream",
+                            "name": "Upstream Shop",
+                            "myshopifyDomain": "upstream-shop.myshopify.com",
+                            "currencyCode": "CAD",
+                            "publicationCount": 5
+                        },
+                        "publications": {
+                            "nodes": [
+                                { "id": "gid://shopify/Publication/one" },
+                                { "id": "gid://shopify/Publication/two" },
+                                { "id": "gid://shopify/Publication/three" },
+                                { "id": "gid://shopify/Publication/four" },
+                                { "id": "gid://shopify/Publication/five" }
+                            ]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PublishablePayloadShopHydrate($id: ID!, $input: [PublicationInput!]!) {
+          publishablePublish(id: $id, input: $input) {
+            publishable { ... on Product { id } }
+            shop { id name myshopifyDomain currencyCode publicationCount }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Product/10172067414322",
+            "input": [{ "publicationId": "gid://shopify/Publication/one" }]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["publishablePublish"]["shop"],
+        json!({
+            "id": "gid://shopify/Shop/upstream",
+            "name": "Upstream Shop",
+            "myshopifyDomain": "upstream-shop.myshopify.com",
+            "currencyCode": "CAD",
+            "publicationCount": 5
+        })
+    );
+    assert_eq!(
+        response.body["data"]["publishablePublish"]["userErrors"],
+        json!([])
+    );
+
+    let state = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/state".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert_eq!(
+        state.body["baseState"]["shop"]["id"],
+        json!("gid://shopify/Shop/upstream")
+    );
+    assert_eq!(state.body["baseState"]["publicationCount"], json!(5));
+    assert_eq!(
+        state.body["baseState"]["publicationIds"],
+        json!([
+            "gid://shopify/Publication/five",
+            "gid://shopify/Publication/four",
+            "gid://shopify/Publication/one",
+            "gid://shopify/Publication/three",
+            "gid://shopify/Publication/two"
+        ])
+    );
+
+    assert_eq!(forwarded.lock().unwrap().len(), 1);
+}
+
+#[test]
 fn publishable_mutations_validate_publication_input_locally() {
     let mut proxy = snapshot_proxy();
     let product_id = "gid://shopify/Product/10179659858226";

@@ -2168,7 +2168,10 @@ impl DraftProxy {
                 return response;
             }
             let payload_selection = field.selection.clone();
-            if selected_child_selection(&payload_selection, "shop").is_some() {
+            if selected_child_selection(&payload_selection, "shop")
+                .as_deref()
+                .is_some_and(|selection| self.publishable_payload_shop_needs_hydration(selection))
+            {
                 self.hydrate_publishable_payload_shop(&product_id, request);
             }
             let publishable_selection =
@@ -2214,6 +2217,15 @@ impl DraftProxy {
             );
         }
         ok_json(json!({ "data": Value::Object(data) }))
+    }
+
+    fn publishable_payload_shop_needs_hydration(&self, selection: &[SelectedField]) -> bool {
+        self.config.read_mode != ReadMode::Snapshot
+            && (self.store.base.publication_count.is_none()
+                || selection.iter().any(|field| {
+                    field.name != "publicationCount"
+                        && self.store.base.shop.get(&field.name).is_none()
+                }))
     }
 
     fn hydrate_publishable_payload_shop(&mut self, publishable_id: &str, request: &Request) {

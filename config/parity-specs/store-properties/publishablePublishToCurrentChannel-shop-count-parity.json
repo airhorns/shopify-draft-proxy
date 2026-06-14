@@ -6,18 +6,12 @@
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/store-properties/publishable-publish-current-shop-count-parity.json"
   ],
-  "setupState": {
-    "storePropertiesShopBaseline": {
-      "shopPath": "$.mutation.response.data.publishablePublishToCurrentChannel.shop",
-      "publicationsPath": "$.seedPublications"
-    }
-  },
   "proxyRequest": {
     "documentPath": "config/parity-requests/store-properties/publishablePublishToCurrentChannel-shop-count-parity.graphql",
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Direct live parity for product-scoped `publishablePublishToCurrentChannel` selecting `shop.publicationCount`. The fixture seeds Shopify's publication catalog so the local current-publication placeholder cannot inflate the shop-level publication count.",
+  "notes": "Direct live parity for product-scoped `publishablePublishToCurrentChannel` selecting `shop.publicationCount`. The local runtime hydrates the selected payload shop from the captured upstream hydrate call when the shop baseline is not already present in store state.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

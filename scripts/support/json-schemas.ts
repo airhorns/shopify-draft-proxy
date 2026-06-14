@@ -97,15 +97,6 @@ export const parityProxyUploadSpecSchema = z.strictObject({
 });
 export type ProxyUploadSpec = z.infer<typeof parityProxyUploadSpecSchema>;
 
-export const paritySetupStateSchema = z.strictObject({
-  storePropertiesShopBaseline: z
-    .strictObject({
-      shopPath: z.string().min(1),
-      publicationsPath: z.string().min(1).optional(),
-    })
-    .optional(),
-});
-
 export const matcherSchema = z.union([
   z.literal('any-string'),
   z.literal('non-empty-string'),
@@ -166,7 +157,6 @@ export const paritySpecSchema = z
     scenarioStatus: z.string().optional(),
     assertionKinds: z.array(z.string()).optional(),
     comparisonMode: parityComparisonModeSchema.optional(),
-    setupState: paritySetupStateSchema.optional(),
     proxyRequest: parityProxyRequestSpecSchema.optional(),
     comparison: comparisonContractSchema.optional(),
     liveCaptureFiles: z.array(z.string()).optional(),
