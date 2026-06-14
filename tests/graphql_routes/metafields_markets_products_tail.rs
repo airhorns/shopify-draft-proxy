@@ -2,6 +2,255 @@ use super::common::*;
 use pretty_assertions::assert_eq;
 
 #[test]
+fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_names() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalOwnerMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields {
+              id
+              namespace
+              key
+              type
+              value
+              jsonValue
+              compareDigest
+              ownerType
+              owner { __typename ... on Product { id } ... on ProductVariant { id } ... on Collection { id } }
+            }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": "gid://shopify/Product/987654321", "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Wool"},
+            {"ownerId": "gid://shopify/ProductVariant/987654322", "namespace": "custom", "key": "variant_care", "type": "single_line_text_field", "value": "Spot clean"},
+            {"ownerId": "gid://shopify/Collection/987654323", "namespace": "custom", "key": "collection_season", "type": "single_line_text_field", "value": "Winter"}
+        ]}),
+    ));
+    assert_eq!(set.status, 200);
+    assert_eq!(set.body["data"]["metafieldsSet"]["userErrors"], json!([]));
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["metafields"][0]["owner"]["__typename"],
+        json!("Product")
+    );
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["metafields"][1]["ownerType"],
+        json!("PRODUCTVARIANT")
+    );
+    assert_eq!(
+        set.body["data"]["metafieldsSet"]["metafields"][2]["ownerType"],
+        json!("COLLECTION")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query NaturalOwnerMetafieldsRead($productId: ID!, $variantId: ID!, $collectionId: ID!) {
+          product(id: $productId) {
+            id
+            material: metafield(namespace: "custom", key: "material") { key value ownerType }
+            metafields(first: 10, namespace: "custom") { nodes { key value ownerType } }
+          }
+          productVariant(id: $variantId) {
+            id
+            care: metafield(namespace: "custom", key: "variant_care") { key value ownerType }
+            metafields(first: 10, namespace: "custom") { nodes { key value ownerType } }
+          }
+          collection(id: $collectionId) {
+            id
+            season: metafield(namespace: "custom", key: "collection_season") { key value ownerType }
+            metafields(first: 10, namespace: "custom") { nodes { key value ownerType } }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/987654321",
+            "variantId": "gid://shopify/ProductVariant/987654322",
+            "collectionId": "gid://shopify/Collection/987654323"
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["product"]["material"]["value"],
+        json!("Wool")
+    );
+    assert_eq!(
+        read.body["data"]["productVariant"]["care"]["value"],
+        json!("Spot clean")
+    );
+    assert_eq!(
+        read.body["data"]["collection"]["season"]["value"],
+        json!("Winter")
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalOwnerMetafieldsDelete($metafields: [MetafieldIdentifierInput!]!) {
+          metafieldsDelete(metafields: $metafields) {
+            deletedMetafields { ownerId namespace key }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": "gid://shopify/Product/987654321", "namespace": "custom", "key": "material"},
+            {"ownerId": "gid://shopify/ProductVariant/987654322", "namespace": "custom", "key": "variant_care"},
+            {"ownerId": "gid://shopify/Collection/987654323", "namespace": "custom", "key": "collection_season"},
+            {"ownerId": "gid://shopify/Product/987654321", "namespace": "custom", "key": "missing"}
+        ]}),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["metafieldsDelete"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        delete.body["data"]["metafieldsDelete"]["deletedMetafields"][0],
+        json!({"ownerId": "gid://shopify/Product/987654321", "namespace": "custom", "key": "material"})
+    );
+    assert_eq!(
+        delete.body["data"]["metafieldsDelete"]["deletedMetafields"][3],
+        Value::Null
+    );
+
+    let post_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query NaturalOwnerMetafieldsPostDelete($productId: ID!, $variantId: ID!, $collectionId: ID!) {
+          product(id: $productId) { material: metafield(namespace: "custom", key: "material") { value } metafields(first: 10, namespace: "custom") { nodes { key } } }
+          productVariant(id: $variantId) { care: metafield(namespace: "custom", key: "variant_care") { value } metafields(first: 10, namespace: "custom") { nodes { key } } }
+          collection(id: $collectionId) { season: metafield(namespace: "custom", key: "collection_season") { value } metafields(first: 10, namespace: "custom") { nodes { key } } }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/987654321",
+            "variantId": "gid://shopify/ProductVariant/987654322",
+            "collectionId": "gid://shopify/Collection/987654323"
+        }),
+    ));
+    assert_eq!(post_delete.body["data"]["product"]["material"], Value::Null);
+    assert_eq!(
+        post_delete.body["data"]["productVariant"]["care"],
+        Value::Null
+    );
+    assert_eq!(
+        post_delete.body["data"]["collection"]["season"],
+        Value::Null
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 2);
+    assert!(log.body["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("NaturalOwnerMetafieldsSet"));
+    assert!(log.body["entries"][1]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("NaturalOwnerMetafieldsDelete"));
+}
+
+#[test]
+fn generic_product_domain_metafields_set_validates_cas_and_atomicity() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
+    let owner_id = "gid://shopify/Product/987654399";
+
+    let initial = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalCasMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key value compareDigest }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Wool"}]}),
+    ));
+    assert_eq!(
+        initial.body["data"]["metafieldsSet"]["userErrors"],
+        json!([])
+    );
+    let digest = initial.body["data"]["metafieldsSet"]["metafields"][0]["compareDigest"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let rejected = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalCasMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key value compareDigest }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [
+            {"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Linen", "compareDigest": "stale"},
+            {"ownerId": owner_id, "namespace": "custom", "key": "flag", "type": "boolean", "value": "yes"}
+        ]}),
+    ));
+    assert_eq!(rejected.status, 200);
+    assert_eq!(
+        rejected.body["data"]["metafieldsSet"]["metafields"],
+        json!([])
+    );
+    assert_eq!(
+        rejected.body["data"]["metafieldsSet"]["userErrors"][0]["code"],
+        json!("STALE_OBJECT")
+    );
+    assert_eq!(
+        rejected.body["data"]["metafieldsSet"]["userErrors"][1]["message"],
+        json!("Value must be true or false.")
+    );
+
+    let after_reject = proxy.process_request(json_graphql_request(
+        r#"
+        query NaturalCasMetafieldsRead($id: ID!) {
+          product(id: $id) { material: metafield(namespace: "custom", key: "material") { value compareDigest } flag: metafield(namespace: "custom", key: "flag") { value } }
+        }
+        "#,
+        json!({"id": owner_id}),
+    ));
+    assert_eq!(
+        after_reject.body["data"]["product"]["material"]["value"],
+        json!("Wool")
+    );
+    assert_eq!(after_reject.body["data"]["product"]["flag"], Value::Null);
+
+    let accepted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalCasMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            metafields { namespace key value compareDigest }
+            userErrors { field message code elementIndex }
+          }
+        }
+        "#,
+        json!({"metafields": [{"ownerId": owner_id, "namespace": "custom", "key": "material", "type": "single_line_text_field", "value": "Cotton", "compareDigest": digest}]}),
+    ));
+    assert_eq!(
+        accepted.body["data"]["metafieldsSet"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        accepted.body["data"]["metafieldsSet"]["metafields"][0]["value"],
+        json!("Cotton")
+    );
+}
+
+#[test]
 fn metafields_set_stages_owner_metafield_connections_for_product_and_customer_reads() {
     let mut proxy = snapshot_proxy();
 

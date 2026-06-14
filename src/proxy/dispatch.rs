@@ -801,6 +801,21 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && self.has_staged_discounts()
+            && operation.root_fields.iter().all(|field| {
+                local_dispatch_root(
+                    OperationType::Query,
+                    CapabilityDomain::Discounts,
+                    CapabilityExecution::OverlayRead,
+                    field,
+                )
+                .is_some()
+            })
+        {
+            return self.discounts_query_response(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Query
             && query.contains("DiscountTimestampsMonotonicRead")
             && operation.root_fields.iter().all(|field| {
                 matches!(
@@ -1308,11 +1323,15 @@ impl DraftProxy {
             && (is_owner_metafields_set_document(&query)
                 || !self.store.staged.metafield_definitions.is_empty())
         {
-            return self.owner_metafields_set(&query, &variables);
+            let outcome = self.owner_metafields_set(&query, &variables);
+            return self.finalize_mutation_outcome(request, &query, &variables, outcome);
         }
 
         if operation.operation_type == OperationType::Query
-            && matches!(root_field, "product" | "customer" | "order" | "company")
+            && matches!(
+                root_field,
+                "product" | "productVariant" | "collection" | "customer" | "order" | "company"
+            )
             && (is_owner_metafields_read_document(&query)
                 || !self.store.staged.owner_metafields.is_empty())
         {
@@ -1528,6 +1547,21 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation && root_field == "appUninstall" {
             return self.app_uninstall(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().all(|field| {
+                local_dispatch_root(
+                    OperationType::Mutation,
+                    CapabilityDomain::Discounts,
+                    CapabilityExecution::StageLocally,
+                    field,
+                )
+                .is_some()
+            })
+        {
+            let outcome = self.discounts_mutation(request, &query, &variables);
+            return self.finalize_mutation_outcome(request, &query, &variables, outcome);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -2128,6 +2162,22 @@ impl DraftProxy {
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && has_local_dispatch
+                    && root_field == "metafieldsSet" =>
+            {
+                let outcome = self.owner_metafields_set(&query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && root_field == "metafieldsDelete" =>
+            {
+                let outcome = self.owner_metafields_delete(&query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "inventoryAdjustQuantities"
@@ -2184,6 +2234,17 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
             {
                 self.bulk_operation_read_response(request, &query, &variables, root_field)
+            }
+            (CapabilityDomain::Discounts, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+            {
+                self.discounts_query_response(&query, &variables)
+            }
+            (CapabilityDomain::Discounts, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+            {
+                let outcome = self.discounts_mutation(request, &query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::GiftCards, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>

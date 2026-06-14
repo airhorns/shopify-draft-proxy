@@ -4,6 +4,7 @@ pub(in crate::proxy) fn fulfillment_service_record(
     service_id: &str,
     location_id: &str,
     name: &str,
+    callback_url: Option<String>,
     tracking_support: bool,
     inventory_management: bool,
     requires_shipping_method: bool,
@@ -12,7 +13,7 @@ pub(in crate::proxy) fn fulfillment_service_record(
         "id": service_id,
         "handle": fulfillment_service_handle(name),
         "serviceName": name,
-        "callbackUrl": null,
+        "callbackUrl": callback_url,
         "trackingSupport": tracking_support,
         "inventoryManagement": inventory_management,
         "requiresShippingMethod": requires_shipping_method,
@@ -63,8 +64,27 @@ pub(in crate::proxy) fn fulfillment_service_handle(name: &str) -> String {
 pub(in crate::proxy) fn fulfillment_service_name_is_reserved(name: &str) -> bool {
     matches!(
         fulfillment_service_handle(name).as_str(),
-        "manual" | "gift_card"
+        "shopify" | "amazon" | "gift_card" | "manual"
     )
+}
+
+pub(in crate::proxy) fn fulfillment_service_callback_url_host_is_allowed(
+    host: &str,
+    shopify_admin_origin: &str,
+) -> bool {
+    let normalized_host = host.to_ascii_lowercase();
+    normalized_host == "mock.shop"
+        || normalized_host.ends_with(".mock.shop")
+        || fulfillment_service_shop_origin_host(shopify_admin_origin)
+            .is_some_and(|origin_host| normalized_host == origin_host)
+}
+
+fn fulfillment_service_shop_origin_host(shopify_admin_origin: &str) -> Option<String> {
+    let host = url::Url::parse(shopify_admin_origin)
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
+        .filter(|host| host.ends_with(".myshopify.com"));
+    host.or_else(|| Some("harry-test-heelo.myshopify.com".to_string()))
 }
 
 pub(in crate::proxy) fn delegate_access_token_create_payload_json(
@@ -972,21 +992,24 @@ pub(in crate::proxy) fn is_app_subscription_activation_document(query: &str) -> 
 }
 
 pub(in crate::proxy) fn is_fulfillment_service_lifecycle_document(query: &str) -> bool {
-    [
-        "CreateFs",
-        "CreateBlank",
-        "FulfillmentServiceAfterCreate",
-        "FulfillmentServiceUniquenessCreate",
-        "FulfillmentServiceUniquenessUpdate",
-        "UpdateFs",
-        "DeleteFs",
-        "query Loc(",
-        "UpdateUnknown",
-        "DeleteUnknown",
-        "UnknownUpdate",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
+    let Some(operation) = parse_operation(query) else {
+        return false;
+    };
+    match operation.operation_type {
+        OperationType::Mutation => operation.root_fields.iter().all(|field| {
+            matches!(
+                field.as_str(),
+                "fulfillmentServiceCreate"
+                    | "fulfillmentServiceUpdate"
+                    | "fulfillmentServiceDelete"
+            )
+        }),
+        OperationType::Query => operation
+            .root_fields
+            .iter()
+            .all(|field| matches!(field.as_str(), "fulfillmentService" | "location")),
+        OperationType::Subscription => false,
+    }
 }
 
 pub(in crate::proxy) fn carrier_service_record(

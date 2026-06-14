@@ -1,0 +1,53 @@
+{
+  "scenarioId": "metafields-generic-product-owner",
+  "operationNames": ["metafieldsSet", "metafieldsDelete", "product"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-generic-product-owner.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/metafieldsSet-generic-product-owner.graphql",
+    "variablesCapturePath": "$.set.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live capture uses ordinary operation names and a disposable non-fixture product owner GID. It proves `metafieldsSet` returns a normal payload, downstream product metafield reads observe the staged value, `metafieldsDelete` returns a normal payload, and post-delete reads observe the removal without relying on scenario operation-name gates.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "set-payload",
+        "capturePath": "$.set.response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet"
+      },
+      {
+        "name": "read-after-set",
+        "capturePath": "$.readAfterSet.response.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/metafields-generic-product-owner-read.graphql",
+          "variablesCapturePath": "$.readAfterSet.variables"
+        },
+        "proxyPath": "$.data.product"
+      },
+      {
+        "name": "delete-payload",
+        "capturePath": "$.delete.response.data.metafieldsDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/metafieldsDelete-generic-product-owner.graphql",
+          "variablesCapturePath": "$.delete.variables"
+        },
+        "proxyPath": "$.data.metafieldsDelete"
+      },
+      {
+        "name": "read-after-delete",
+        "capturePath": "$.readAfterDelete.response.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/metafields-generic-product-owner-read.graphql",
+          "variablesCapturePath": "$.readAfterDelete.variables"
+        },
+        "proxyPath": "$.data.product"
+      }
+    ]
+  }
+}
