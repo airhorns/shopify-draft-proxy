@@ -65,6 +65,7 @@ fn base_product() -> ProductRecord {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }
 }
 
@@ -684,6 +685,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let create_product = proxy.process_request(graphql_request(
@@ -720,7 +722,40 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                         "productType": "Base type",
                         "tags": ["base"],
                         "templateSuffix": "",
-                        "seo": { "title": "", "description": "" }
+                        "seo": { "title": "", "description": "" },
+                        "totalInventory": 0,
+                        "tracksInventory": false,
+                        "media": {
+                            "edges": [],
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "variants": {
+                            "edges": [],
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "collections": {
+                            "edges": [],
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "extraFields": {}
                     }
                 },
                 "productOrder": ["gid://shopify/Product/base"],
@@ -745,7 +780,40 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                         "productType": "",
                         "tags": ["new"],
                         "templateSuffix": "",
-                        "seo": { "title": "", "description": "" }
+                        "seo": { "title": "", "description": "" },
+                        "totalInventory": 0,
+                        "tracksInventory": false,
+                        "media": {
+                            "edges": [],
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "variants": {
+                            "edges": [],
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "collections": {
+                            "edges": [],
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "extraFields": {}
                     }
                 },
                 "productOrder": ["gid://shopify/Product/1?shopify-draft-proxy=synthetic"],
@@ -803,6 +871,7 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
     let create_product_query =
         "mutation { productCreate(product: { title: \"Created product\", handle: \"created-product\" }) { product { id } } }";
@@ -1079,6 +1148,7 @@ fn meta_reset_clears_log_and_staged_product_overlay() {
         template_suffix: String::new(),
         seo_title: String::new(),
         seo_description: String::new(),
+        ..ProductRecord::default()
     }]);
 
     let update = proxy.process_request(graphql_request(
@@ -1129,6 +1199,7 @@ fn commit_replays_staged_mutations_in_order_and_marks_entries_committed() {
             template_suffix: String::new(),
             seo_title: String::new(),
             seo_description: String::new(),
+            ..ProductRecord::default()
         }])
         .with_commit_transport(move |request| {
             replayed_for_transport.lock().unwrap().push(request);

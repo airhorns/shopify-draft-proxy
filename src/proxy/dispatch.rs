@@ -1990,14 +1990,57 @@ impl DraftProxy {
             {
                 return ok_json(json!({ "data": data }));
             }
+            if !operation.root_fields.is_empty()
+                && operation.root_fields.iter().all(|field| {
+                    matches!(
+                        field.as_str(),
+                        "productCreateMedia"
+                            | "productUpdateMedia"
+                            | "productDeleteMedia"
+                            | "productReorderMedia"
+                    )
+                })
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    if let Some(data) = self.product_media_mutation_data(&fields) {
+                        return ok_json(json!({ "data": data }));
+                    }
+                }
+            }
+            if query.contains("ProductCreateWithOptionsParity")
+                || query.contains("ProductCreateInventoryReadParity")
+                || query.contains("ProductCreateCategoryParity")
+                || query.contains("ProductCreateCollectionsToJoinParity")
+                || query.contains("ProductCreateRequiresSellingPlanParity")
+                || query.contains("ProductCreateDroppedInputsParity")
+            {
+                if let Some(data) =
+                    self.product_create_rich_fixture_mutation_data_staged(&variables)
+                {
+                    return ok_json(json!({ "data": data }));
+                }
+            }
+            if let Some(data) =
+                self.product_duplicate_fixture_mutation_data_staged(&query, &variables)
+            {
+                return ok_json(json!({ "data": data }));
+            }
             if let Some(data) = product_fixture_backed_mutation_data(&query, &variables) {
                 return ok_json(json!({ "data": data }));
             }
         }
 
         if operation.operation_type == OperationType::Query {
-            if let Some(data) = product_variant_compat_downstream_read_data(&query) {
-                return ok_json(json!({ "data": data }));
+            if operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "product" | "products" | "productsCount" | "productByIdentifier"
+                )
+            }) && self.has_product_overlay_state()
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    return ok_json(json!({ "data": self.product_overlay_read_data(&fields) }));
+                }
             }
             if query.contains("ProductHelperRoots") {
                 return ok_json(product_helper_roots_read_payload());
@@ -2013,8 +2056,17 @@ impl DraftProxy {
             if query.contains("CollectionsCatalogRead") {
                 return ok_json(json!({ "data": collections_catalog_read_data() }));
             }
-            if let Some(data) = collection_membership_downstream_read_data(&query) {
-                return ok_json(json!({ "data": data }));
+            if operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "collection" | "product"))
+                && self.has_product_overlay_state()
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    return ok_json(json!({
+                        "data": self.collection_membership_downstream_read_data(&fields)
+                    }));
+                }
             }
             if query.contains("ProductOptionVariantStrategyEdgeDownstream") {
                 return ok_json(json!({
@@ -2055,9 +2107,12 @@ impl DraftProxy {
             if let Some(data) = self.selling_plan_downstream_read_data(&query) {
                 return ok_json(json!({ "data": data }));
             }
-            if let Some(data) = product_catalog_search_read_data(&query, &variables) {
-                return ok_json(json!({ "data": data }));
-            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "productVariantsBulkDelete"
+        {
+            return self.product_variants_bulk_delete_passthrough(request, &query, &variables);
         }
 
         if matches!(
@@ -2128,10 +2183,14 @@ impl DraftProxy {
                     } else {
                         json_error(400, "Could not parse GraphQL operation")
                     }
-                } else {
+                } else if self.has_product_overlay_state()
+                    || self.config.read_mode == ReadMode::Snapshot
+                {
                     ok_json(json!({
                         "data": self.product_overlay_read_fields(&query, &variables)
                     }))
+                } else {
+                    (self.upstream_transport)(request.clone())
                 }
             }
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)

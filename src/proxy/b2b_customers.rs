@@ -803,7 +803,18 @@ impl DraftProxy {
                         root_field,
                     );
                 }
-                (self.upstream_transport)(request.clone())
+                let response = (self.upstream_transport)(request.clone());
+                if operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "collectionAddProducts" | "collectionCreate" | "collectionReorderProducts"
+                    )
+                {
+                    self.observe_collection_passthrough_response(&response);
+                    let hydrate_ids = collection_passthrough_hydration_ids(root_field, &response);
+                    self.hydrate_product_nodes_for_observation(hydrate_ids);
+                }
+                response
             }
         }
     }

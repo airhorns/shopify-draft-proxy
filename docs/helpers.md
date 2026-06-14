@@ -71,7 +71,7 @@ Owner-specific validation and storage should stay in the owning domain branch, b
 
 Search behavior is currently domain-local where Shopify semantics differ by resource, but shared patterns already exist.
 
-- Product search helpers live around `product_catalog_search_read_data(...)`, product cursor/page-info helpers, and tag search helpers.
+- Product search helpers live around `products_connection_value(...)`, product cursor/page-info helpers, and tag search helpers.
 - Saved-search parsing and projection helpers live around `saved_search_query_tokens(...)`, `saved_search_filters(...)`, `saved_search_query_user_errors(...)`, and `canonical_saved_search_query(...)`.
 
 Before adding a new search parser, inspect these functions and `docs/hard-and-weird-notes.md` for existing Shopify query grammar decisions.

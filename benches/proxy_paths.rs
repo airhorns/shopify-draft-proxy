@@ -52,6 +52,7 @@ fn product_record(index: usize) -> ProductRecord {
         template_suffix: String::new(),
         seo_title: format!("Benchmark product {index:03}"),
         seo_description: format!("SEO description for benchmark product {index:03}"),
+        ..ProductRecord::default()
     }
 }
 

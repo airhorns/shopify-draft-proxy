@@ -9,10 +9,20 @@ mutation ProductVariantsBulkDeleteParityPlan($productId: ID!, $variantsIds: [ID!
           id
           title
           sku
+          barcode
+          price
+          compareAtPrice
+          taxable
+          inventoryPolicy
           inventoryQuantity
           selectedOptions {
             name
             value
+          }
+          inventoryItem {
+            id
+            tracked
+            requiresShipping
           }
         }
       }

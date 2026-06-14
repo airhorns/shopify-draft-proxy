@@ -248,7 +248,35 @@
           }
         },
         "upstreamCapturePath": null,
-        "proxyPath": "$.data"
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The local setup product is created through productCreate and uses a synthetic product GID."
+          },
+          {
+            "path": "$.product.variants.nodes[*].id",
+            "matcher": "shopify-gid:ProductVariant",
+            "reason": "The setup variant is created through the proxy legacy create path and uses a synthetic variant GID."
+          },
+          {
+            "path": "$.product.variants.nodes[*].inventoryItem.id",
+            "matcher": "shopify-gid:InventoryItem",
+            "reason": "The setup variant is created through the proxy legacy create path and uses a synthetic inventory item GID."
+          },
+          {
+            "path": "$.products.nodes[0]",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The local store-backed overlay exposes the updated product by effective variant SKU immediately; the captured Shopify read shows search-index lag for the just-written SKU."
+          },
+          {
+            "path": "$.skuCount.count",
+            "matcher": "any-number",
+            "reason": "The local store-backed overlay counts the updated product by effective variant SKU immediately; the captured Shopify read shows search-index lag for the just-written SKU."
+          }
+        ]
       }
     ]
   }

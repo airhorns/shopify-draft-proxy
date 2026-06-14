@@ -212,13 +212,6 @@ pub(in crate::proxy) fn media_page_info(cursor_id: Option<&str>) -> Value {
     })
 }
 
-pub(in crate::proxy) fn media_file_cursor(file: &Value) -> String {
-    file.get("id")
-        .and_then(Value::as_str)
-        .map(|id| format!("cursor:{id}"))
-        .unwrap_or_default()
-}
-
 pub(in crate::proxy) fn quantity_pricing_by_variant_update_response(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
@@ -1330,22 +1323,6 @@ pub(in crate::proxy) fn product_variants_read_data() -> Value {
         "stock": inventory_item,
         "stockBackreference": Value::Object(stock_backreference)
     })
-}
-
-pub(in crate::proxy) fn product_variant_fixture(name: &str) -> Value {
-    let fixture = match name {
-        "create" => include_str!(
-            "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-bulk-create-parity.json"
-        ),
-        "update" => include_str!(
-            "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-bulk-update-parity.json"
-        ),
-        "delete" => include_str!(
-            "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-bulk-delete-parity.json"
-        ),
-        _ => unreachable!("unknown product variant fixture"),
-    };
-    serde_json::from_str(fixture).expect("product variant parity fixture must parse")
 }
 
 pub(in crate::proxy) fn payment_customization_connection(

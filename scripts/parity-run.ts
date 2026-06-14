@@ -299,7 +299,11 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
     const parsed = JSON.parse(body) as Record<string, unknown>;
     const variablesMatch = stableJson(parsed['variables'] ?? {}) === stableJson(call.variables ?? {});
     const query = typeof parsed['query'] === 'string' ? parsed['query'] : '';
-    const canMatchSynthesizedNodeQuery = call.query?.startsWith('sha:') && /\bnode(?:s)?\s*\(/u.test(query);
+    const isSyntheticNodeCassette =
+      call.query?.startsWith('sha:') ||
+      call.query ===
+        'recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration';
+    const canMatchSynthesizedNodeQuery = isSyntheticNodeCassette && /\bnode(?:s)?\s*\(/u.test(query);
     return variablesMatch && (canMatchSynthesizedNodeQuery || parsed['query'] === call.query);
   } catch {
     return false;
