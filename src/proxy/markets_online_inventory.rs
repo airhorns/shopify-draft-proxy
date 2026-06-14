@@ -1958,12 +1958,10 @@ pub(in crate::proxy) fn marketing_activity_from_input(
     });
     let url_parameter_value = resolved_string_field(&input, "urlParameterValue")
         .or_else(|| old["urlParameterValue"].as_str().map(str::to_string));
-    let channel_handle = resolved_string_field(&input, "channelHandle").unwrap_or_else(|| {
-        old["marketingEvent"]["channelHandle"]
-            .as_str()
-            .unwrap_or("email")
-            .to_string()
-    });
+    let channel_handle = resolved_string_field(&input, "channelHandle")
+        .map(Value::String)
+        .or_else(|| old["marketingEvent"].get("channelHandle").cloned())
+        .unwrap_or(Value::Null);
     let utm = resolved_object_field(&input, "utm");
     let old_utm = &old["utmParameters"];
     let campaign = utm
