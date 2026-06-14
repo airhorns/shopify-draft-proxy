@@ -52,6 +52,7 @@ Mutation behavior:
 - `backupRegionUpdate` stages the selected fallback region in local admin-platform state and updates downstream `backupRegion` reads without mutating Shopify at runtime when the modeled caller/shop is Markets-eligible or when no stricter access model exists.
 - `backupRegionUpdate` returns the captured `ACCESS_DENIED` top-level envelope without staging when modeled app installation, delegated-token, or shop state proves Markets access is unavailable.
 - Explicit country updates require backed country evidence plus an active non-legacy region-type market covering that country. Unknown countries and uncovered countries return captured `REGION_NOT_FOUND` `MarketUserError` payloads without staging.
+- Present `region` input objects with missing, `null`, or non-enum `countryCode` fail as top-level GraphQL input coercion errors before staging; omitted or explicit `null` `region` inputs still behave as current-state reads.
 - Omitted or explicit `null` `region` inputs behave as idempotent current backup-region reads with `userErrors: []` in local parity.
 - `flowGenerateSignature` short-circuits proxy-local Flow trigger IDs, returns a deterministic local signature, stores only payload/signature SHA-256 hashes in meta state, and keeps the raw mutation in the mutation log for commit replay. Unknown Flow trigger IDs return Shopify's captured `RESOURCE_NOT_FOUND` top-level error.
 - `flowTriggerReceive` records proxy-local trigger receipts for non-blank handles, stores compact payload metadata and hashes, and does not deliver an external Flow trigger at runtime. Body-only requests must match the captured body schema and a shop-scoped Flow trigger registration model; because that registration bucket is not modeled, body-only trigger references are rejected conservatively.
@@ -82,6 +83,7 @@ Mutation behavior:
 - `config/parity-specs/admin-platform/by-id-not-found-read.json`
 - `config/parity-specs/admin-platform/admin-platform-taxonomy-hierarchy-node-reads.json`
 - `config/parity-specs/admin-platform/admin-platform-backup-region-update.json`
+- `config/parity-specs/admin-platform/admin-platform-backup-region-update-validation.json`
 - `config/parity-specs/admin-platform/admin-platform-backup-region-update-extended.json`
 - `config/parity-specs/admin-platform/admin-platform-backup-region-update-no-region-market.json`
 - `config/parity-specs/admin-platform/admin-platform-backup-region-update-access-blocker.json`
