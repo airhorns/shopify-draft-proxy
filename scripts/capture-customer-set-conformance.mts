@@ -70,6 +70,10 @@ const customerSetIdNotAllowedMutation = await readFile(
   'config/parity-requests/customers/customer-set-id-not-allowed.graphql',
   'utf8',
 );
+const customerSetUnknownIdErrorsMutation = await readFile(
+  'config/parity-requests/customers/customer-set-unknown-id-errors.graphql',
+  'utf8',
+);
 
 const downstreamReadQuery = `#graphql
   query CustomerSetDownstream($createdId: ID!, $upsertedId: ID!, $upsertedEmail: String!, $query: String!, $first: Int!) {
@@ -123,6 +127,10 @@ async function runCustomerSetIdNotAllowed(variables) {
   return runGraphql(customerSetIdNotAllowedMutation, variables);
 }
 
+async function runCustomerSetUnknownIdErrors(variables) {
+  return runGraphql(customerSetUnknownIdErrorsMutation, variables);
+}
+
 function assertIdNotAllowed(result, context) {
   assertNoTopLevelErrors(result, context);
   const userErrors = result.payload?.data?.customerSet?.userErrors;
@@ -148,9 +156,11 @@ async function main() {
   const stamp = Date.now();
   const createdEmail = `hermes-customerset-create-${stamp}@example.com`;
   const upsertedEmail = `hermes-customerset-upsert-${stamp}@example.com`;
-  const phoneUpsert = `+1${String(stamp + 2).slice(-10)}`;
-  const createdPhone = `+1${String(stamp).slice(-10)}`;
-  const updatedPhone = `+1${String(stamp + 1).slice(-10)}`;
+  const phoneSeed = stamp % 10000;
+  const phoneNumber = (offset) => `+1202555${String((phoneSeed + offset) % 10000).padStart(4, '0')}`;
+  const createdPhone = phoneNumber(0);
+  const updatedPhone = phoneNumber(1);
+  const phoneUpsert = phoneNumber(2);
   const cleanupIds = new Set();
 
   const createVariables = {
@@ -370,6 +380,8 @@ async function main() {
   };
   const unknownId = await runCustomerSet(unknownIdVariables);
   assertNoTopLevelErrors(unknownId, 'customerSet unknown id validation');
+  const unknownIdWithCode = await runCustomerSetUnknownIdErrors(unknownIdVariables);
+  assertNoTopLevelErrors(unknownIdWithCode, 'customerSet unknown id code validation');
 
   const customIdVariables = {
     identifier: { customId: { namespace: 'custom', key: 'external_id', value: `customer-set-${stamp}` } },
@@ -404,10 +416,10 @@ async function main() {
   assertIdNotAllowed(idNotAllowedByEmail, 'customerSet input.id with identifier.email validation');
 
   const idNotAllowedByPhoneVariables = {
-    identifier: { phone: `+1${String(stamp + 3).slice(-10)}` },
+    identifier: { phone: phoneNumber(3) },
     input: {
       id: inputId,
-      phone: `+1${String(stamp + 3).slice(-10)}`,
+      phone: phoneNumber(3),
       firstName: 'IdNotAllowed',
     },
   };
@@ -486,6 +498,10 @@ async function main() {
       unknownId: {
         variables: unknownIdVariables,
         response: unknownId.payload,
+      },
+      unknownIdWithCode: {
+        variables: unknownIdVariables,
+        response: unknownIdWithCode.payload,
       },
       customId: {
         variables: customIdVariables,

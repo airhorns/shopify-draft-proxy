@@ -1171,7 +1171,7 @@ fn payment_customization_local_runtime_ports_old_gleam_create_activation_update_
     assert_eq!(repeated_activation.status, 200);
     assert_eq!(
         repeated_activation.body["data"]["paymentCustomizationActivation"],
-        json!({ "ids": [], "userErrors": [] })
+        json!({ "ids": ["gid://shopify/PaymentCustomization/2"], "userErrors": [] })
     );
 
     let all_invalid_activation = proxy.process_request(json_graphql_request(

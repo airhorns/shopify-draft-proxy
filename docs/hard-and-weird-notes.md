@@ -3043,7 +3043,7 @@ Captured facts:
 - `CustomerSetIdentifiers` uses `email` and `phone`, while `customerByIdentifier` uses `emailAddress` and `phoneNumber`
 - no-identifier `customerSet` creates a customer when the input has a name, phone, or email
 - `identifier.email` upserts: a missing email identifier creates a customer, and a later call with the same identifier updates that customer
-- HAR-770 source-level evidence says unknown `identifier.id` is id-first and update-like: it returns payload `userErrors` with `field: ["input", "id"]`, `code: "INVALID"`, and message `Customer does not exist`; it must not fall back to create even when email or phone inputs are also present
+- live Admin GraphQL 2026-04 evidence says unknown `identifier.id` validates before create/update routing: it returns payload `userErrors` with `field: ["input"]`, `code: "NOT_FOUND"`, and message `Resource matching the identifier was not found.`; it must not fall back to create even when email or phone inputs are also present
 - `identifier.customId` without an id-typed unique metafield definition returns `data.customerSet: null` plus a top-level `NOT_FOUND` error
 - `input.addresses` behaves as a replacement list for an existing customer; an empty list clears the default address and downstream `addressesV2`
 - `identifier.phone` follows the same upsert/update pattern as `identifier.email`; downstream `customerByIdentifier(identifier: { phoneNumber })` observes the staged customer locally
