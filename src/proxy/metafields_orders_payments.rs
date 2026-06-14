@@ -196,7 +196,6 @@ pub(in crate::proxy) fn metafields_set_input_errors(
                 None
             }
         })
-        .into_iter()
         .collect()
 }
 

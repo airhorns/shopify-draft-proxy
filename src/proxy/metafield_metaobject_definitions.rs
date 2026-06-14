@@ -885,8 +885,6 @@ impl DraftProxy {
                         .staged
                         .metafield_definitions
                         .values()
-                        .cloned()
-                        .into_iter()
                         .filter(|definition| {
                             definition.get("ownerType").and_then(Value::as_str)
                                 == Some(owner_type.as_str())
@@ -899,6 +897,7 @@ impl DraftProxy {
                                         == Some(key.as_str())
                                 })
                         })
+                        .cloned()
                         .map(|definition| self.metafield_definition_with_derived_fields(definition))
                         .collect::<Vec<_>>();
                     definitions.sort_by(|a, b| {
