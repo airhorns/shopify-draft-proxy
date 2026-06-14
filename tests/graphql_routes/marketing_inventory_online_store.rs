@@ -616,6 +616,85 @@ fn marketing_engagement_create_validation_order_and_missing_event_reach_rust_han
 }
 
 #[test]
+fn marketing_engagements_delete_validates_selectors_and_channel_handles() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingEngagementLifecycle {
+          seedEmail: marketingActivityCreateExternal(input: { title: "Email channel", remoteId: "delete-email-channel", status: ACTIVE, remoteUrl: "https://example.com/delete-email", tactic: NEWSLETTER, marketingChannelType: EMAIL, channelHandle: "email", utm: { campaign: "delete-email-channel", source: "newsletter", medium: "email" } }) {
+            marketingActivity { id marketingEvent { channelHandle } }
+            userErrors { field message code }
+          }
+          bothSelectors: marketingEngagementsDelete(channelHandle: "email", deleteEngagementsForAllChannels: true) {
+            result
+            userErrors { field message code }
+          }
+          missingSelector: marketingEngagementsDelete {
+            result
+            userErrors { field message code }
+          }
+          unknownChannel: marketingEngagementsDelete(channelHandle: "unknown-channel") {
+            result
+            userErrors { field message code }
+          }
+          singleChannel: marketingEngagementsDelete(channelHandle: "email") {
+            result
+            userErrors { field message code }
+          }
+          allChannels: marketingEngagementsDelete(deleteEngagementsForAllChannels: true) {
+            result
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.body["data"]["seedEmail"]["userErrors"], json!([]));
+    assert_eq!(
+        response.body["data"]["bothSelectors"],
+        json!({"result": null, "userErrors": [{"field": null, "message": "Either the channel_handle or delete_engagements_for_all_channels must be provided when deleting a marketing engagement.", "code": "INVALID_DELETE_ENGAGEMENTS_ARGUMENTS"}]})
+    );
+    assert_eq!(
+        response.body["data"]["missingSelector"],
+        json!({"result": null, "userErrors": [{"field": null, "message": "Either the channel_handle or delete_engagements_for_all_channels must be provided when deleting a marketing engagement.", "code": "INVALID_DELETE_ENGAGEMENTS_ARGUMENTS"}]})
+    );
+    assert_eq!(
+        response.body["data"]["unknownChannel"],
+        json!({"result": null, "userErrors": [{"field": ["channelHandle"], "message": "The channel handle is not recognized. Please contact your partner manager for more information.", "code": "INVALID_CHANNEL_HANDLE"}]})
+    );
+    assert_eq!(
+        response.body["data"]["singleChannel"],
+        json!({"result": "Engagement data associated to channel handle 'email' marked for deletion", "userErrors": []})
+    );
+    assert_eq!(
+        response.body["data"]["allChannels"],
+        json!({"result": "Engagement data marked for deletion for 1 channel(s)", "userErrors": []})
+    );
+
+    let mut unowned_delete = json_graphql_request(
+        r#"
+        mutation MarketingEngagementLifecycle {
+          unownedChannel: marketingEngagementsDelete(channelHandle: "email") {
+            result
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    unowned_delete.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "other-app".to_string(),
+    );
+    let unowned_delete = proxy.process_request(unowned_delete);
+    assert_eq!(
+        unowned_delete.body["data"]["unownedChannel"],
+        json!({"result": null, "userErrors": [{"field": ["channelHandle"], "message": "The channel handle is not recognized. Please contact your partner manager for more information.", "code": "INVALID_CHANNEL_HANDLE"}]})
+    );
+}
+
+#[test]
 fn marketing_native_activity_lifecycle_stages_update_and_invalid_extension_error() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(

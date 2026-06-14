@@ -749,7 +749,7 @@ impl DraftProxy {
                 "marketingEngagementCreate" => {
                     self.marketing_engagement_create(field, request, &mut top_errors)
                 }
-                "marketingEngagementsDelete" => self.marketing_engagements_delete(field),
+                "marketingEngagementsDelete" => self.marketing_engagements_delete(field, request),
                 "marketingActivityCreate" => selected_json(
                     &json!({
                         "marketingActivity": null,
@@ -1334,29 +1334,83 @@ impl DraftProxy {
     pub(in crate::proxy) fn marketing_engagements_delete(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
     ) -> Value {
-        let errors = if !field.arguments.contains_key("channelHandle")
-            && !matches!(
-                field.arguments.get("deleteEngagementsForAllChannels"),
-                Some(ResolvedValue::Bool(true))
-            ) {
-            vec![json!({
-                "field": null,
-                "message": "Either the channel_handle or delete_engagements_for_all_channels must be provided when deleting a marketing engagement.",
-                "code": "INVALID_DELETE_ENGAGEMENTS_ARGUMENTS"
-            })]
+        let has_channel_handle = field.arguments.contains_key("channelHandle");
+        let delete_all_channels = matches!(
+            field.arguments.get("deleteEngagementsForAllChannels"),
+            Some(ResolvedValue::Bool(true))
+        );
+        let known_handles = self.marketing_channel_handles_for_request(request);
+        let (result, errors) = if has_channel_handle == delete_all_channels {
+            (
+                Value::Null,
+                vec![json!({
+                    "field": null,
+                    "message": "Either the channel_handle or delete_engagements_for_all_channels must be provided when deleting a marketing engagement.",
+                    "code": "INVALID_DELETE_ENGAGEMENTS_ARGUMENTS"
+                })],
+            )
+        } else if let Some(channel_handle) = resolved_string_arg(&field.arguments, "channelHandle")
+        {
+            if known_handles.contains(&channel_handle) {
+                (
+                    json!(format!(
+                        "Engagement data associated to channel handle '{channel_handle}' marked for deletion"
+                    )),
+                    Vec::new(),
+                )
+            } else {
+                (
+                    Value::Null,
+                    vec![json!({
+                        "field": ["channelHandle"],
+                        "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                        "code": "INVALID_CHANNEL_HANDLE"
+                    })],
+                )
+            }
         } else {
-            Vec::new()
-        };
-        let result = if errors.is_empty() {
-            json!("Engagement data marked for deletion for 0 channel(s)")
-        } else {
-            Value::Null
+            (
+                json!(format!(
+                    "Engagement data marked for deletion for {} channel(s)",
+                    known_handles.len()
+                )),
+                Vec::new(),
+            )
         };
         selected_json(
             &json!({ "result": result, "userErrors": errors }),
             &field.selection,
         )
+    }
+
+    fn marketing_channel_handles_for_request(&self, request: &Request) -> BTreeSet<String> {
+        let request_app = request.headers.get("x-shopify-draft-proxy-api-client-id");
+        self.store
+            .staged
+            .marketing_activities
+            .iter()
+            .filter_map(|(id, record)| {
+                if self
+                    .store
+                    .staged
+                    .deleted_marketing_activity_ids
+                    .contains(id)
+                {
+                    return None;
+                }
+                if let Some(app) = request_app {
+                    if record["apiClientId"].as_str() != Some(app.as_str()) {
+                        return None;
+                    }
+                }
+                record["marketingEvent"]["channelHandle"]
+                    .as_str()
+                    .filter(|handle| !handle.is_empty())
+                    .map(str::to_string)
+            })
+            .collect()
     }
 
     pub(in crate::proxy) fn find_marketing_activity_by_remote(
