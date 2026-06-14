@@ -48,6 +48,7 @@ App/test harness
        │    └─ commit replay
        └─ Admin GraphQL route
             ├─ parse document/root fields/arguments/selections
+            ├─ apply captured Shopify schema input-object validation for covered local roots
             ├─ classify root through operation registry
             ├─ supported read -> local state + overlay serializer
             ├─ supported mutation -> local stage + synthesized payload + log
@@ -68,6 +69,7 @@ App/test harness
 - expose `process_request(...)` as the central route boundary
 - implement meta routes: health, config, log, state, reset, dump, and restore
 - keep Shopify-like Admin GraphQL route classification and request-body parsing separate from domain handlers
+- run reusable captured-schema input validation before local mutation dispatch when a covered public Admin input object has recorded introspection evidence
 - preserve `with_upstream_transport(...)` and `with_commit_transport(...)` test seams so behavior stays deterministic
 
 ### `src/proxy/commit.rs`

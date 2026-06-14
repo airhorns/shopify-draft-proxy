@@ -865,6 +865,7 @@ mod product_helpers;
 mod resolved_values;
 mod resource_ids;
 mod routing;
+mod schema_validation;
 mod selection;
 
 #[allow(unused_imports)]
@@ -907,6 +908,8 @@ pub(in crate::proxy) use self::resolved_values::*;
 pub(in crate::proxy) use self::resource_ids::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::routing::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::schema_validation::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::selection::*;
 

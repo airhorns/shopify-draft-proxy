@@ -151,6 +151,10 @@ impl DraftProxy {
             return json_error(400, "Operation has no root field");
         };
 
+        if let Some(error) = public_admin_schema_input_error(&query, &variables) {
+            return ok_json(json!({ "errors": [error] }));
+        }
+
         if matches!(
             root_field,
             "customerCreate" | "companyCreate" | "companyAssignCustomerAsContact"
