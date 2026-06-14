@@ -1507,25 +1507,23 @@ impl DraftProxy {
     pub(in crate::proxy) fn theme_files_copy(&mut self, field: &RootFieldSelection) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
-        let Some(file) = files.first() else {
-            return selected_json(
-                &json!({"copiedThemeFiles": [], "userErrors": []}),
-                &field.selection,
-            );
-        };
-        let src = theme_file_arg_string(file, "srcFilename").unwrap_or_default();
-        let dst = theme_file_arg_string(file, "dstFilename").unwrap_or_default();
-        let Some(source_file) = self.find_theme_file(&theme_id, &src) else {
-            return selected_json(
-                &json!({"copiedThemeFiles": [], "userErrors": [{"field": ["files", "0", "srcFilename"], "message": "File not found", "code": "NOT_FOUND"}]}),
-                &field.selection,
-            );
-        };
-        let content = source_file["body"]["content"].as_str().unwrap_or_default();
-        let copied = theme_file_record(&dst, content);
-        self.upsert_theme_file(&theme_id, copied.clone());
+        let mut copied = Vec::new();
+        let mut errors = Vec::new();
+        for (index, file) in files.iter().enumerate() {
+            let src = theme_file_arg_string(file, "srcFilename").unwrap_or_default();
+            let dst = theme_file_arg_string(file, "dstFilename").unwrap_or_default();
+            let Some(source_file) = self.find_theme_file(&theme_id, &src) else {
+                errors.push(json!({"field": ["files", index.to_string(), "srcFilename"], "message": "File not found", "code": "NOT_FOUND"}));
+                continue;
+            };
+            let content = source_file["body"]["content"].as_str().unwrap_or_default();
+            copied.push(theme_file_record(&dst, content));
+        }
+        for file in copied.iter().cloned() {
+            self.upsert_theme_file(&theme_id, file);
+        }
         selected_json(
-            &json!({"copiedThemeFiles": [copied], "userErrors": []}),
+            &json!({"copiedThemeFiles": copied, "userErrors": errors}),
             &field.selection,
         )
     }
