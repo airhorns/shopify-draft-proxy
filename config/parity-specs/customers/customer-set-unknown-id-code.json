@@ -1,0 +1,33 @@
+{
+  "scenarioId": "customer-set-unknown-id-code",
+  "operationNames": ["customerSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-set-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-set-unknown-id-errors.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.validation.unknownIdWithCode.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 evidence for customerSet(identifier.id) not-found validation when the caller selects CustomerSetUserError.code. Shopify returns field [\"input\"], message \"Resource matching the identifier was not found.\", and code NOT_FOUND before create/update routing.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-id-code",
+        "capturePath": "$.validation.unknownIdWithCode.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "unknown-id-does-not-stage-customer",
+        "capturePath": "$.expectedEmptyMutationLog",
+        "proxyLogPath": "$.entries"
+      }
+    ]
+  }
+}
