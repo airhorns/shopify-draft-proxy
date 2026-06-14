@@ -217,7 +217,7 @@ fn registry_entry_json_value(entry: &OperationRegistryEntry) -> Value {
     Value::Object(object)
 }
 
-const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 56] = [
+const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_query("product", CapabilityDomain::Products),
     local_query("products", CapabilityDomain::Products),
     local_query("productsCount", CapabilityDomain::Products),
