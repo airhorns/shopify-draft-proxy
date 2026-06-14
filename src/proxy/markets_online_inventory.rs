@@ -1958,14 +1958,6 @@ pub(in crate::proxy) fn marketing_activity_missing_error() -> Value {
     })
 }
 
-pub(in crate::proxy) fn marketing_activity_not_external_error() -> Value {
-    json!({
-        "field": null,
-        "message": "The marketing activity must be an external activity.",
-        "code": "ACTIVITY_NOT_EXTERNAL"
-    })
-}
-
 pub(in crate::proxy) fn marketing_activity_child_events_error() -> Value {
     json!({
         "field": null,
@@ -2220,23 +2212,6 @@ pub(in crate::proxy) fn invalid_marketing_url_error(
         }
     }
     None
-}
-
-pub(in crate::proxy) fn input_utm_differs(
-    existing: &Value,
-    input: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    let Some(utm) = resolved_object_field(input, "utm") else {
-        return false;
-    };
-    for key in ["campaign", "source", "medium"] {
-        if resolved_string_field(&utm, key)
-            .is_some_and(|value| existing["utmParameters"][key].as_str() != Some(value.as_str()))
-        {
-            return true;
-        }
-    }
-    false
 }
 
 pub(in crate::proxy) fn marketing_status_label(
