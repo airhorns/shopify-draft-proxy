@@ -2113,7 +2113,7 @@ fn gift_card_create_released_schema_rejects_missing_initial_value_and_initial_am
         json!({
             "errors": [{
                 "message": "Variable $input of type GiftCardCreateInput! was provided invalid value for initialValue (Expected value to not be null)",
-                "locations": [{ "line": 2, "column": 11 }],
+                "locations": [{ "line": 1, "column": 34 }],
                 "extensions": {
                     "code": "INVALID_VARIABLE",
                     "value": { "note": "x" },
@@ -2142,7 +2142,7 @@ fn gift_card_create_released_schema_rejects_missing_initial_value_and_initial_am
         json!({
             "errors": [{
                 "message": "Variable $input of type GiftCardCreateInput! was provided invalid value for initialAmount (Field is not defined on GiftCardCreateInput)",
-                "locations": [{ "line": 2, "column": 11 }],
+                "locations": [{ "line": 1, "column": 32 }],
                 "extensions": {
                     "code": "INVALID_VARIABLE",
                     "value": {
@@ -2150,6 +2150,41 @@ fn gift_card_create_released_schema_rejects_missing_initial_value_and_initial_am
                         "initialValue": "10"
                     },
                     "problems": [{ "path": ["initialAmount"], "explanation": "Field is not defined on GiftCardCreateInput" }]
+                }
+            }]
+        })
+    );
+
+    let variable_multiple_errors = proxy.process_request(json_graphql_request(
+        r#"mutation ReleasedMultipleVariableErrors($input: GiftCardCreateInput!) {
+          money: giftCardCreate(input: $input) {
+            giftCard { id }
+            userErrors { field code message }
+          }
+        }"#,
+        json!({
+            "input": {
+                "note": "x",
+                "initialAmount": { "amount": "10", "currencyCode": "USD" }
+            }
+        }),
+    ));
+    assert_eq!(
+        variable_multiple_errors.body,
+        json!({
+            "errors": [{
+                "message": "Variable $input of type GiftCardCreateInput! was provided invalid value for initialAmount (Field is not defined on GiftCardCreateInput), initialValue (Expected value to not be null)",
+                "locations": [{ "line": 1, "column": 41 }],
+                "extensions": {
+                    "code": "INVALID_VARIABLE",
+                    "value": {
+                        "initialAmount": { "amount": "10", "currencyCode": "USD" },
+                        "note": "x"
+                    },
+                    "problems": [
+                        { "path": ["initialAmount"], "explanation": "Field is not defined on GiftCardCreateInput" },
+                        { "path": ["initialValue"], "explanation": "Expected value to not be null" }
+                    ]
                 }
             }]
         })

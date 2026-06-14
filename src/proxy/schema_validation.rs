@@ -37,18 +37,21 @@ struct ValidationContext<'a> {
 struct VariableValidationContext<'a> {
     variable_name: &'a str,
     variable_type: &'a str,
-    field_location: SourceLocation,
+    location: SourceLocation,
 }
 
-pub(in crate::proxy) fn public_admin_schema_input_error(
+pub(in crate::proxy) fn public_admin_schema_input_errors(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
-) -> Option<Value> {
-    let document = parsed_document(query, variables)?;
+) -> Vec<Value> {
+    let Some(document) = parsed_document(query, variables) else {
+        return Vec::new();
+    };
     if document.operation_type != OperationType::Mutation {
-        return None;
+        return Vec::new();
     }
     let schema = public_admin_input_schema();
+    let mut errors = Vec::new();
     for field in &document.root_fields {
         let Some(arguments) = schema.mutation_fields.get(&field.name) else {
             continue;
@@ -60,13 +63,14 @@ pub(in crate::proxy) fn public_admin_schema_input_error(
         };
         for (argument_name, argument_value) in &field.raw_arguments {
             let Some(argument_schema) = arguments.get(argument_name) else {
-                return Some(root_argument_not_accepted_error(
+                errors.push(root_argument_not_accepted_error(
                     field,
                     argument_name,
                     context,
                 ));
+                continue;
             };
-            if let Some(error) = validate_argument_value(
+            errors.extend(validate_argument_value(
                 argument_name,
                 &argument_schema.type_ref,
                 argument_value,
@@ -74,14 +78,12 @@ pub(in crate::proxy) fn public_admin_schema_input_error(
                 &document,
                 schema,
                 context,
-            ) {
-                return Some(error);
-            }
+            ));
         }
         for (argument_name, argument_schema) in arguments {
             if argument_schema.type_ref.non_null && !field.raw_arguments.contains_key(argument_name)
             {
-                return Some(required_root_argument_error(
+                errors.push(required_root_argument_error(
                     field,
                     argument_name,
                     &argument_schema.type_ref,
@@ -90,7 +92,7 @@ pub(in crate::proxy) fn public_admin_schema_input_error(
             }
         }
     }
-    None
+    errors
 }
 
 fn validate_argument_value(
@@ -101,8 +103,10 @@ fn validate_argument_value(
     document: &ParsedDocument,
     schema: &AdminInputSchema,
     context: ValidationContext<'_>,
-) -> Option<Value> {
-    let input_object = schema.input_objects.get(&type_ref.named_type)?;
+) -> Vec<Value> {
+    let Some(input_object) = schema.input_objects.get(&type_ref.named_type) else {
+        return Vec::new();
+    };
     match value {
         RawArgumentValue::Object(fields) => validate_raw_input_object(
             &type_ref.named_type,
@@ -113,35 +117,49 @@ fn validate_argument_value(
             context,
         ),
         RawArgumentValue::Variable { name, value } => {
-            let ResolvedValue::Object(fields) = value.as_ref()? else {
-                return None;
+            let Some(ResolvedValue::Object(fields)) = value.as_ref() else {
+                return Vec::new();
             };
             let variable_type = document
                 .variable_definitions
                 .get(name)
                 .map(|definition| definition.type_display.as_str())
                 .unwrap_or(type_ref.display.as_str());
+            let location = document
+                .variable_definitions
+                .get(name)
+                .map(|definition| definition.location)
+                .unwrap_or(field.location);
             let variable_context = VariableValidationContext {
                 variable_name: name,
                 variable_type,
-                field_location: field.location,
+                location,
             };
-            validate_resolved_input_object(
+            let problems = validate_resolved_input_object(
                 variable_context,
                 &type_ref.named_type,
                 input_object,
                 fields,
                 &[],
                 schema,
-            )
+            );
+            if problems.is_empty() {
+                Vec::new()
+            } else {
+                vec![invalid_variable_error(
+                    variable_context,
+                    &ResolvedValue::Object(fields.clone()),
+                    problems,
+                )]
+            }
         }
-        RawArgumentValue::Null if type_ref.non_null => Some(required_root_argument_error(
+        RawArgumentValue::Null if type_ref.non_null => vec![required_root_argument_error(
             field,
             argument_name,
             type_ref,
             context,
-        )),
-        _ => None,
+        )],
+        _ => Vec::new(),
     }
 }
 
@@ -152,12 +170,13 @@ fn validate_raw_input_object(
     path: &[String],
     schema: &AdminInputSchema,
     context: ValidationContext<'_>,
-) -> Option<Value> {
+) -> Vec<Value> {
+    let mut errors = Vec::new();
     for field_name in fields.keys() {
         if !input_object.contains_key(field_name)
             && !local_extension_input_field(input_type_name, field_name)
         {
-            return Some(input_object_argument_not_accepted_error(
+            errors.push(input_object_argument_not_accepted_error(
                 input_type_name,
                 field_name,
                 path,
@@ -170,7 +189,7 @@ fn validate_raw_input_object(
             && (!fields.contains_key(field_name)
                 || matches!(fields.get(field_name), Some(RawArgumentValue::Null)))
         {
-            return Some(missing_required_input_object_attribute_error(
+            errors.push(missing_required_input_object_attribute_error(
                 input_type_name,
                 field_name,
                 &field_schema.type_ref,
@@ -190,19 +209,17 @@ fn validate_raw_input_object(
         if let RawArgumentValue::Object(nested_fields) = field_value {
             let mut nested_path = path.to_vec();
             nested_path.push(field_name.clone());
-            if let Some(error) = validate_raw_input_object(
+            errors.extend(validate_raw_input_object(
                 &field_schema.type_ref.named_type,
                 nested_input_object,
                 nested_fields,
                 &nested_path,
                 schema,
                 context,
-            ) {
-                return Some(error);
-            }
+            ));
         }
     }
-    None
+    errors
 }
 
 fn validate_resolved_input_object(
@@ -212,20 +229,17 @@ fn validate_resolved_input_object(
     fields: &BTreeMap<String, ResolvedValue>,
     problem_path: &[String],
     schema: &AdminInputSchema,
-) -> Option<Value> {
+) -> Vec<Value> {
+    let mut problems = Vec::new();
     for field_name in fields.keys() {
         if !input_object.contains_key(field_name)
             && !local_extension_input_field(input_type_name, field_name)
         {
             let mut nested_path = problem_path.to_vec();
             nested_path.push(field_name.clone());
-            return Some(invalid_variable_error(
-                context.variable_name,
-                context.variable_type,
-                &ResolvedValue::Object(fields.clone()),
+            problems.push(variable_problem(
                 &nested_path,
                 &format!("Field is not defined on {input_type_name}"),
-                context.field_location,
             ));
         }
     }
@@ -236,13 +250,9 @@ fn validate_resolved_input_object(
         {
             let mut nested_path = problem_path.to_vec();
             nested_path.push(field_name.clone());
-            return Some(invalid_variable_error(
-                context.variable_name,
-                context.variable_type,
-                &ResolvedValue::Object(fields.clone()),
+            problems.push(variable_problem(
                 &nested_path,
                 "Expected value to not be null",
-                context.field_location,
             ));
         }
     }
@@ -257,19 +267,17 @@ fn validate_resolved_input_object(
         if let ResolvedValue::Object(nested_fields) = field_value {
             let mut nested_path = problem_path.to_vec();
             nested_path.push(field_name.clone());
-            if let Some(error) = validate_resolved_input_object(
+            problems.extend(validate_resolved_input_object(
                 context,
                 &field_schema.type_ref.named_type,
                 nested_input_object,
                 nested_fields,
                 &nested_path,
                 schema,
-            ) {
-                return Some(error);
-            }
+            ));
         }
     }
-    None
+    problems
 }
 
 fn root_argument_not_accepted_error(
@@ -352,27 +360,44 @@ fn missing_required_input_object_attribute_error(
 }
 
 fn invalid_variable_error(
-    variable_name: &str,
-    variable_type: &str,
+    context: VariableValidationContext<'_>,
     value: &ResolvedValue,
-    path: &[String],
-    explanation: &str,
-    location: SourceLocation,
+    problems: Vec<Value>,
 ) -> Value {
-    let path_display = path.join(".");
+    let problem_display = problems
+        .iter()
+        .filter_map(|problem| {
+            let path = problem["path"]
+                .as_array()?
+                .iter()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join(".");
+            let explanation = problem["explanation"].as_str()?;
+            Some(format!("{path} ({explanation})"))
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
     json!({
         "message": format!(
-            "Variable ${variable_name} of type {variable_type} was provided invalid value for {path_display} ({explanation})"
+            "Variable ${} of type {} was provided invalid value for {}",
+            context.variable_name,
+            context.variable_type,
+            problem_display
         ),
-        "locations": [{ "line": location.line, "column": location.column }],
+        "locations": [{ "line": context.location.line, "column": context.location.column }],
         "extensions": {
             "code": "INVALID_VARIABLE",
             "value": resolved_value_json(value),
-            "problems": [{
-                "path": path,
-                "explanation": explanation
-            }]
+            "problems": problems
         }
+    })
+}
+
+fn variable_problem(path: &[String], explanation: &str) -> Value {
+    json!({
+        "path": path,
+        "explanation": explanation
     })
 }
 

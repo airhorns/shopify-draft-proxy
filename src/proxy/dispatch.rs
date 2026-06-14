@@ -151,8 +151,9 @@ impl DraftProxy {
             return json_error(400, "Operation has no root field");
         };
 
-        if let Some(error) = public_admin_schema_input_error(&query, &variables) {
-            return ok_json(json!({ "errors": [error] }));
+        let schema_input_errors = public_admin_schema_input_errors(&query, &variables);
+        if !schema_input_errors.is_empty() {
+            return ok_json(json!({ "errors": schema_input_errors }));
         }
 
         if matches!(

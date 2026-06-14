@@ -13,7 +13,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captures and replays giftCardCreate validation behavior for initial value, code length, code format, duplicate code, missing customer, explicit success, and generated-code success. The live fixture uses a run-unique valid code because Shopify keeps gift-card code uniqueness scoped to the shop even after cleanup deactivation.",
+  "notes": "Captures and replays giftCardCreate validation behavior for initial value, code length, code format, duplicate code, missing customer, public schema coercion, explicit success, and generated-code success. The live fixture uses a run-unique valid code because Shopify keeps gift-card code uniqueness scoped to the shop even after cleanup deactivation.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -118,6 +118,16 @@
             "reason": "The proxy returns a deterministic 16-character Shopify-like generated code instead of Shopify's random generated code."
           }
         ]
+      },
+      {
+        "name": "variable input schema validation returns all errors",
+        "capturePath": "$.operations.multipleSchemaErrors.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentCapturePath": "$.operations.multipleSchemaErrors.query",
+          "variablesCapturePath": "$.proxyVariables.multipleSchemaErrors",
+          "apiVersion": "2026-04"
+        }
       }
     ]
   }
