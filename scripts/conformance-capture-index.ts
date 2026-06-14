@@ -2748,6 +2748,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}metaobject-update-error-codes.json`,
+      'config/parity-specs/metaobjects/metaobject-create-duplicate-field-input.json',
       'config/parity-specs/metaobjects/metaobject_update_error_codes.json',
       'config/parity-requests/metaobjects/metaobject-update-error-codes-display-update.graphql',
       'config/parity-requests/metaobjects/metaobject-update-error-codes-duplicate-create.graphql',

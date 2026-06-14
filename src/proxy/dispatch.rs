@@ -318,6 +318,38 @@ impl DraftProxy {
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
+                    "metaobject" | "metaobjectByHandle" | "metaobjects"
+                )
+            })
+        {
+            if self.config.read_mode != ReadMode::Snapshot
+                && !self.has_local_metaobject_entry_state()
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    return self.metaobject_live_hybrid_read(request, &fields);
+                }
+                return (self.upstream_transport)(request.clone());
+            }
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({"data": self.metaobject_query_data(&fields)}));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "metaobjectCreate" | "metaobjectDelete"))
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return self.metaobject_mutation(&fields, request, &query, &variables);
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
                     "mobilePlatformApplication"
                         | "mobilePlatformApplications"
                         | "scriptTag"
