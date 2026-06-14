@@ -1166,10 +1166,27 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
-            && matches!(root_field, "product" | "customer" | "order" | "company")
-            && is_owner_metafields_read_document(&query)
+            && (query.contains("GiftCardReadEvidence")
+                || query.contains("GiftCardReadAfterLifecycle"))
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "giftCard" | "giftCards" | "giftCardsCount" | "giftCardConfiguration"
+                )
+            })
         {
-            return self.owner_metafields_read(&query, &variables);
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.gift_card_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && query.contains("GiftCardNodeReadAfterLifecycle")
+            && operation.root_fields.iter().all(|field| field == "node")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.gift_card_node_read_data(&fields) }));
+            }
         }
 
         if operation.operation_type == OperationType::Query
@@ -1315,7 +1332,7 @@ impl DraftProxy {
                 )
             })
         {
-            return self.metafield_definition_pinning_mutation(&query, &variables);
+            return self.metafield_definition_pinning_mutation(request, &query, &variables);
         }
 
         if operation.operation_type == OperationType::Query
@@ -1325,57 +1342,9 @@ impl DraftProxy {
                     "metafieldDefinition" | "metafieldDefinitions"
                 )
             })
-            && (is_metafield_definition_pinning_read_document(&query)
-                || !self.store.staged.metafield_definitions.is_empty())
+            && !self.store.staged.metafield_definitions.is_empty()
         {
             return self.metafield_definition_pinning_read(&query, &variables);
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && root_field == "metafieldsSet"
-            && is_product_metafields_set_document(&query)
-        {
-            if let Some(response) = self.product_metafields_set_fixture_response(&query, &variables)
-            {
-                return response;
-            }
-        }
-
-        if operation.operation_type == OperationType::Query
-            && is_product_metafields_downstream_read_document(&query)
-        {
-            if let Some(response) = self.product_metafields_downstream_fixture_response(&query) {
-                return response;
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && root_field == "metafieldsDelete"
-            && is_product_metafields_delete_document(&query)
-        {
-            if let Some(response) = self.product_metafields_delete_fixture_response(&variables) {
-                return response;
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && root_field == "metafieldsSet"
-            && (is_owner_metafields_set_document(&query)
-                || !self.store.staged.metafield_definitions.is_empty())
-        {
-            let outcome = self.owner_metafields_set(&query, &variables);
-            return self.finalize_mutation_outcome(request, &query, &variables, outcome);
-        }
-
-        if operation.operation_type == OperationType::Query
-            && matches!(
-                root_field,
-                "product" | "productVariant" | "collection" | "customer" | "order" | "company"
-            )
-            && (is_owner_metafields_read_document(&query)
-                || !self.store.staged.owner_metafields.is_empty())
-        {
-            return self.owner_metafields_read(&query, &variables);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -1396,6 +1365,28 @@ impl DraftProxy {
             && query.contains("MetafieldsAppNamespaceProductRead")
         {
             return self.metafields_app_namespace_product_read(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation && root_field == "metafieldsSet" {
+            let outcome = self.owner_metafields_set(request, &query, &variables);
+            return self.finalize_mutation_outcome(request, &query, &variables, outcome);
+        }
+
+        if operation.operation_type == OperationType::Mutation && root_field == "metafieldsDelete" {
+            let outcome = self.owner_metafields_delete(request, &query, &variables);
+            return self.finalize_mutation_outcome(request, &query, &variables, outcome);
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().any(|field| {
+                matches!(
+                    field.as_str(),
+                    "product" | "productVariant" | "collection" | "customer" | "order" | "company"
+                )
+            })
+            && self.should_handle_owner_metafields_read(&query, &variables)
+        {
+            return self.owner_metafields_read(request, &query, &variables);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -2263,7 +2254,7 @@ impl DraftProxy {
                     && has_local_dispatch
                     && root_field == "metafieldsSet" =>
             {
-                let outcome = self.owner_metafields_set(&query, &variables);
+                let outcome = self.owner_metafields_set(request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
@@ -2271,7 +2262,7 @@ impl DraftProxy {
                     && has_local_dispatch
                     && root_field == "metafieldsDelete" =>
             {
-                let outcome = self.owner_metafields_delete(&query, &variables);
+                let outcome = self.owner_metafields_delete(request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)

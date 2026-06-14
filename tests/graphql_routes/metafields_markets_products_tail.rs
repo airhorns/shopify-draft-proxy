@@ -3152,7 +3152,7 @@ fn custom_data_metafield_type_matrix_sets_and_reads_product_owned_values() {
 }
 
 #[test]
-fn product_metafields_set_replays_captured_product_owned_readbacks() {
+fn product_metafields_set_stages_product_owned_readbacks() {
     let cases = [
         "metafields-set-parity.json",
         "metafields-set-cas-success-parity.json",
@@ -3189,24 +3189,103 @@ fn product_metafields_set_replays_captured_product_owned_readbacks() {
         ));
         assert_eq!(mutation.status, 200, "{case}");
         assert_eq!(
-            mutation.body["data"], fixture["mutation"]["response"]["data"],
-            "{case} mutation payload"
+            mutation.body["data"]["metafieldsSet"]["userErrors"],
+            fixture["mutation"]["response"]["data"]["metafieldsSet"]["userErrors"],
+            "{case} mutation userErrors"
         );
+        let expected_metafields = fixture["mutation"]["response"]["data"]["metafieldsSet"]
+            ["metafields"]
+            .as_array()
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
+        let actual_metafields = mutation.body["data"]["metafieldsSet"]["metafields"]
+            .as_array()
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
+        assert_eq!(
+            actual_metafields.len(),
+            expected_metafields.len(),
+            "{case} mutation metafield count"
+        );
+        for (actual, expected) in actual_metafields.iter().zip(expected_metafields) {
+            assert_eq!(
+                actual["namespace"], expected["namespace"],
+                "{case} namespace"
+            );
+            assert_eq!(actual["key"], expected["key"], "{case} key");
+            assert_eq!(actual["type"], expected["type"], "{case} type");
+            assert_eq!(actual["value"], expected["value"], "{case} value");
+        }
 
         let downstream = proxy.process_request(json_graphql_request(
             read_query,
             fixture["downstreamReadVariables"].clone(),
         ));
         assert_eq!(downstream.status, 200, "{case}");
-        assert_eq!(
-            downstream.body["data"], fixture["downstreamRead"]["data"],
-            "{case} downstream payload"
-        );
+        if actual_metafields.is_empty() {
+            let attempted_values = fixture["mutation"]["variables"]["metafields"]
+                .as_array()
+                .map(Vec::as_slice)
+                .unwrap_or(&[])
+                .iter()
+                .filter_map(|input| input["value"].as_str())
+                .collect::<Vec<_>>();
+            let nodes = downstream.body["data"]["product"]["metafields"]["nodes"]
+                .as_array()
+                .map(Vec::as_slice)
+                .unwrap_or(&[]);
+            assert!(
+                attempted_values
+                    .iter()
+                    .all(|value| !nodes.iter().any(|node| node["value"] == json!(value))),
+                "{case} validation failure should not stage attempted input values",
+            );
+        }
+        let mut expected_downstream = serde_json::Map::new();
+        for expected in actual_metafields {
+            expected_downstream.insert(
+                format!("{}:{}", expected["namespace"], expected["key"]),
+                expected.clone(),
+            );
+        }
+        for expected in expected_downstream.values() {
+            let nodes = downstream.body["data"]["product"]["metafields"]["nodes"]
+                .as_array()
+                .unwrap();
+            assert!(
+                nodes.iter().any(|node| {
+                    node["namespace"] == expected["namespace"]
+                        && node["key"] == expected["key"]
+                        && node["value"] == expected["value"]
+                }),
+                "{case} downstream contains staged metafield"
+            );
+        }
     }
 }
 
+fn owner_metafield_hydration_proxy(fixture: Value) -> DraftProxy {
+    configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+        let body: Value =
+            serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+        let query = body["query"].as_str().unwrap_or_default();
+        let response = if query.contains("OwnerMetafieldsHydrateNodes")
+            || query.contains("ProductsHydrateNodes")
+        {
+            fixture["upstreamCalls"][0]["response"]["body"].clone()
+        } else {
+            json!({"errors": [{"message": format!("unexpected upstream query: {query}")}]})
+        };
+        shopify_draft_proxy::proxy::Response {
+            status: 200,
+            headers: Default::default(),
+            body: response,
+        }
+    })
+}
+
 #[test]
-fn product_metafields_set_owner_expansion_replays_variant_and_collection_readbacks() {
+fn product_metafields_set_owner_expansion_stages_variant_and_collection_readbacks() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-owner-expansion-parity.json"
     ))
@@ -3216,7 +3295,7 @@ fn product_metafields_set_owner_expansion_replays_variant_and_collection_readbac
     let read_query = include_str!(
         "../../config/parity-requests/products/metafieldsSet-owner-expansion-downstream-read.graphql"
     );
-    let mut proxy = snapshot_proxy();
+    let mut proxy = owner_metafield_hydration_proxy(fixture.clone());
 
     let mutation = proxy.process_request(json_graphql_request(
         mutation_query,
@@ -3224,8 +3303,16 @@ fn product_metafields_set_owner_expansion_replays_variant_and_collection_readbac
     ));
     assert_eq!(mutation.status, 200);
     assert_eq!(
-        mutation.body["data"],
-        fixture["mutation"]["response"]["data"]
+        mutation.body["data"]["metafieldsSet"]["userErrors"],
+        fixture["mutation"]["response"]["data"]["metafieldsSet"]["userErrors"]
+    );
+    assert_eq!(
+        mutation.body["data"]["metafieldsSet"]["metafields"][0]["value"],
+        json!("Spot clean")
+    );
+    assert_eq!(
+        mutation.body["data"]["metafieldsSet"]["metafields"][1]["value"],
+        json!("Winter")
     );
 
     let downstream = proxy.process_request(json_graphql_request(
@@ -3233,7 +3320,6 @@ fn product_metafields_set_owner_expansion_replays_variant_and_collection_readbac
         fixture["downstreamReadVariables"].clone(),
     ));
     assert_eq!(downstream.status, 200);
-    assert_eq!(downstream.body["data"], fixture["downstreamRead"]["data"]);
     assert_eq!(
         downstream.body["data"]["product"]["variants"]["nodes"][0]["care"]["value"],
         json!("Spot clean")
@@ -3245,7 +3331,7 @@ fn product_metafields_set_owner_expansion_replays_variant_and_collection_readbac
 }
 
 #[test]
-fn product_metafields_delete_replays_captured_product_owned_readback() {
+fn product_metafields_delete_stages_product_owned_readback() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-delete-parity.json"
     ))
@@ -3254,7 +3340,7 @@ fn product_metafields_delete_replays_captured_product_owned_readback() {
         include_str!("../../config/parity-requests/products/metafieldsDelete-parity-plan.graphql");
     let read_query =
         include_str!("../../config/parity-requests/products/metafieldsSet-downstream-read.graphql");
-    let mut proxy = snapshot_proxy();
+    let mut proxy = owner_metafield_hydration_proxy(fixture.clone());
 
     let mutation = proxy.process_request(json_graphql_request(
         mutation_query,
@@ -3271,10 +3357,17 @@ fn product_metafields_delete_replays_captured_product_owned_readback() {
         fixture["downstreamReadVariables"].clone(),
     ));
     assert_eq!(downstream.status, 200);
-    assert_eq!(downstream.body["data"], fixture["downstreamRead"]["data"]);
     assert_eq!(
         downstream.body["data"]["product"]["primarySpec"],
         Value::Null
+    );
+    assert_eq!(
+        downstream.body["data"]["product"]["origin"]["value"],
+        json!("VN")
+    );
+    assert_eq!(
+        downstream.body["data"]["product"]["season"]["value"],
+        json!("Summer")
     );
 }
 

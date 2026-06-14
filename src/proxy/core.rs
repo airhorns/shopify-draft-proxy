@@ -148,7 +148,9 @@ impl DraftProxy {
                 "discounts": self.store.staged.discounts.clone(),
                 "discountCodeIndex": self.store.staged.discount_code_index.clone(),
                 "deletedDiscountIds": self.store.staged.deleted_discount_ids.iter().cloned().collect::<Vec<_>>(),
-                "discountRedeemCodeBulkCreations": self.store.staged.discount_redeem_code_bulk_creations.clone()
+                "discountRedeemCodeBulkCreations": self.store.staged.discount_redeem_code_bulk_creations.clone(),
+                "ownerMetafields": self.store.staged.owner_metafields.clone(),
+                "deletedOwnerMetafields": self.store.staged.deleted_owner_metafields.iter().map(|(owner_id, namespace, key)| json!({"ownerId": owner_id, "namespace": namespace, "key": key})).collect::<Vec<_>>()
             }
         });
         if !self.store.staged.metaobject_definitions.is_empty() {
@@ -187,6 +189,18 @@ impl DraftProxy {
         if !self.store.staged.flow_trigger_receipts.is_empty() {
             snapshot["stagedState"]["flowTriggerReceipts"] =
                 json!(self.store.staged.flow_trigger_receipts);
+        }
+        if !self.store.staged.metafield_definitions.is_empty() {
+            snapshot["stagedState"]["metafieldDefinitions"] = Value::Object(
+                self.store
+                    .staged
+                    .metafield_definitions
+                    .iter()
+                    .map(|((namespace, key), definition)| {
+                        (format!("{namespace}\u{1f}{key}"), definition.clone())
+                    })
+                    .collect::<serde_json::Map<_, _>>(),
+            );
         }
         if !self.store.staged.draft_orders.is_empty() {
             snapshot["stagedState"]["draftOrders"] = Value::Object(
@@ -524,6 +538,51 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store.staged.metafield_definitions = state["stagedState"]
+            .get("metafieldDefinitions")
+            .and_then(Value::as_object)
+            .map(|definitions| {
+                definitions
+                    .iter()
+                    .filter_map(|(encoded_key, definition)| {
+                        encoded_key.split_once('\u{1f}').map(|(namespace, key)| {
+                            ((namespace.to_string(), key.to_string()), definition.clone())
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.owner_metafields = state["stagedState"]
+            .get("ownerMetafields")
+            .and_then(Value::as_object)
+            .map(|owners| {
+                owners
+                    .iter()
+                    .map(|(owner_id, metafields)| {
+                        (
+                            owner_id.clone(),
+                            metafields.as_array().cloned().unwrap_or_default(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.deleted_owner_metafields = state["stagedState"]
+            .get("deletedOwnerMetafields")
+            .and_then(Value::as_array)
+            .map(|tombstones| {
+                tombstones
+                    .iter()
+                    .filter_map(|tombstone| {
+                        Some((
+                            tombstone.get("ownerId")?.as_str()?.to_string(),
+                            tombstone.get("namespace")?.as_str()?.to_string(),
+                            tombstone.get("key")?.as_str()?.to_string(),
+                        ))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         self.store.staged.flow_signatures = state["stagedState"]["flowSignatures"]
             .as_array()
             .cloned()

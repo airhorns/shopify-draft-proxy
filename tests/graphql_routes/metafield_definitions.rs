@@ -118,6 +118,33 @@ fn standard_enable_pin(proxy: &mut DraftProxy) -> Value {
 }
 
 #[test]
+fn metafield_definition_pin_and_unpin_require_backed_definition_records() {
+    let mut proxy = snapshot_proxy();
+
+    let pin_missing = pin_definition(&mut proxy, "missing_pin_catalog", "pin_01");
+    assert_eq!(pin_missing["pinnedDefinition"], Value::Null);
+    assert_eq!(
+        pin_missing["userErrors"],
+        json!([{
+            "field": null,
+            "message": "Definition not found.",
+            "code": "NOT_FOUND"
+        }])
+    );
+
+    let unpin_missing = unpin_definition(&mut proxy, "missing_pin_catalog", "pin_01");
+    assert_eq!(unpin_missing["unpinnedDefinition"], Value::Null);
+    assert_eq!(
+        unpin_missing["userErrors"],
+        json!([{
+            "field": null,
+            "message": "Definition not found.",
+            "code": "NOT_FOUND"
+        }])
+    );
+}
+
+#[test]
 fn metafield_definition_unpin_compacts_product_positions_across_namespaces() {
     let mut proxy = snapshot_proxy();
 
@@ -148,6 +175,15 @@ fn metafield_definition_unpin_compacts_product_positions_across_namespaces() {
 #[test]
 fn metafield_definition_pin_unpin_and_limit_reads_stage_local_positions() {
     let mut proxy = snapshot_proxy();
+    let namespace = "har1423_pin_read";
+    assert_eq!(
+        create_definition(&mut proxy, namespace, "pin_a", false)["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create_definition(&mut proxy, namespace, "pin_b", false)["userErrors"],
+        json!([])
+    );
 
     let pin_a = proxy.process_request(json_graphql_request(
         r#"
@@ -158,7 +194,7 @@ fn metafield_definition_pin_unpin_and_limit_reads_stage_local_positions() {
           }
         }
         "#,
-        json!({"identifier": {"ownerType": "PRODUCT", "namespace": "metafield_definition_pin_moyouov1", "key": "pin_a"}}),
+        json!({"identifier": {"ownerType": "PRODUCT", "namespace": namespace, "key": "pin_a"}}),
     ));
     assert_eq!(
         pin_a.body["data"]["metafieldDefinitionPin"]["userErrors"],
@@ -166,7 +202,7 @@ fn metafield_definition_pin_unpin_and_limit_reads_stage_local_positions() {
     );
     assert_eq!(
         pin_a.body["data"]["metafieldDefinitionPin"]["pinnedDefinition"]["pinnedPosition"],
-        json!(3)
+        json!(1)
     );
 
     let pin_b = proxy.process_request(json_graphql_request(
@@ -175,11 +211,11 @@ fn metafield_definition_pin_unpin_and_limit_reads_stage_local_positions() {
           metafieldDefinitionPin(identifier: $identifier) { pinnedDefinition { id key pinnedPosition } userErrors { field message code } }
         }
         "#,
-        json!({"identifier": {"ownerType": "PRODUCT", "namespace": "metafield_definition_pin_moyouov1", "key": "pin_b"}}),
+        json!({"identifier": {"ownerType": "PRODUCT", "namespace": namespace, "key": "pin_b"}}),
     ));
     assert_eq!(
         pin_b.body["data"]["metafieldDefinitionPin"]["pinnedDefinition"]["pinnedPosition"],
-        json!(4)
+        json!(2)
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -189,17 +225,17 @@ fn metafield_definition_pin_unpin_and_limit_reads_stage_local_positions() {
           pinned: metafieldDefinitions(ownerType: PRODUCT, first: 10, namespace: $namespace, sortKey: PINNED_POSITION, pinnedStatus: PINNED) { nodes { key pinnedPosition } }
         }
         "#,
-        json!({"namespace": "metafield_definition_pin_moyouov1"}),
+        json!({"namespace": namespace}),
     ));
     assert_eq!(
         read.body["data"]["byIdentifier"]["pinnedPosition"],
-        json!(3)
+        json!(1)
     );
     assert_eq!(
         read.body["data"]["pinned"]["nodes"],
         json!([
-            {"key": "pin_b", "pinnedPosition": 4},
-            {"key": "pin_a", "pinnedPosition": 3}
+            {"key": "pin_b", "pinnedPosition": 2},
+            {"key": "pin_a", "pinnedPosition": 1}
         ])
     );
 
@@ -209,7 +245,7 @@ fn metafield_definition_pin_unpin_and_limit_reads_stage_local_positions() {
           metafieldDefinitionUnpin(identifier: $identifier) { unpinnedDefinition { id key pinnedPosition } userErrors { field message code } }
         }
         "#,
-        json!({"identifier": {"ownerType": "PRODUCT", "namespace": "metafield_definition_pin_moyouov1", "key": "pin_a"}}),
+        json!({"identifier": {"ownerType": "PRODUCT", "namespace": namespace, "key": "pin_a"}}),
     ));
     assert_eq!(
         unpin_a.body["data"]["metafieldDefinitionUnpin"]["unpinnedDefinition"]["pinnedPosition"],
@@ -822,6 +858,114 @@ fn metafield_definition_validation_update_gates_later_metafields_set() {
             "value": "short"
         })
     );
+}
+
+#[test]
+fn metafield_definition_validations_gate_metafields_set_for_non_product_owners() {
+    let mut proxy = snapshot_proxy();
+    let cases = [
+        ("CUSTOMER", "gid://shopify/Customer/1", "customer"),
+        ("ORDER", "gid://shopify/Order/1", "order"),
+        ("COMPANY", "gid://shopify/Company/1", "company"),
+        ("COLLECTION", "gid://shopify/Collection/1", "collection"),
+        (
+            "PRODUCTVARIANT",
+            "gid://shopify/ProductVariant/1",
+            "variant",
+        ),
+    ];
+
+    for (owner_type, owner_id, suffix) in cases {
+        let namespace = format!("validation_non_product_{suffix}");
+        let key = "headline";
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation NonProductMetafieldDefinitionValidationCreate($definition: MetafieldDefinitionInput!) {
+              metafieldDefinitionCreate(definition: $definition) {
+                createdDefinition { namespace key ownerType validations { name value } }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({
+                "definition": {
+                    "namespace": namespace,
+                    "key": key,
+                    "ownerType": owner_type,
+                    "name": format!("{owner_type} Headline"),
+                    "type": "single_line_text_field",
+                    "validations": [{ "name": "max", "value": "5" }]
+                }
+            }),
+        ));
+        assert_eq!(
+            create.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+            json!([]),
+            "{owner_type} definition should be created"
+        );
+
+        let rejected = proxy.process_request(json_graphql_request(
+            r#"
+            mutation NonProductMetafieldDefinitionValidationSet($metafields: [MetafieldsSetInput!]!) {
+              metafieldsSet(metafields: $metafields) {
+                metafields { namespace key value }
+                userErrors { field message code elementIndex }
+              }
+            }
+            "#,
+            json!({
+                "metafields": [{
+                    "ownerId": owner_id,
+                    "namespace": namespace,
+                    "key": key,
+                    "type": "single_line_text_field",
+                    "value": "too long"
+                }]
+            }),
+        ));
+        assert_eq!(
+            rejected.body["data"]["metafieldsSet"],
+            json!({
+                "metafields": [],
+                "userErrors": [{
+                    "field": ["metafields", "0", "value"],
+                    "message": "Value is too long.",
+                    "code": "INVALID_VALUE",
+                    "elementIndex": null
+                }]
+            }),
+            "{owner_type} definition validation should reject over-limit values"
+        );
+
+        let accepted = proxy.process_request(json_graphql_request(
+            r#"
+            mutation NonProductMetafieldDefinitionValidationSet($metafields: [MetafieldsSetInput!]!) {
+              metafieldsSet(metafields: $metafields) {
+                metafields { namespace key value }
+                userErrors { field message code elementIndex }
+              }
+            }
+            "#,
+            json!({
+                "metafields": [{
+                    "ownerId": owner_id,
+                    "namespace": namespace,
+                    "key": key,
+                    "type": "single_line_text_field",
+                    "value": "short"
+                }]
+            }),
+        ));
+        assert_eq!(
+            accepted.body["data"]["metafieldsSet"]["userErrors"],
+            json!([]),
+            "{owner_type} definition validation should allow valid values"
+        );
+        assert_eq!(
+            accepted.body["data"]["metafieldsSet"]["metafields"][0]["value"],
+            json!("short")
+        );
+    }
 }
 
 #[test]
