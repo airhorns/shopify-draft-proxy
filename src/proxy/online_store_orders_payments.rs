@@ -98,6 +98,23 @@ fn order_create_selects_payment_transaction_fields(field: &RootFieldSelection) -
     })
 }
 
+fn order_create_inventory_behaviour(field: &RootFieldSelection) -> String {
+    resolved_object_field(&field.arguments, "options")
+        .and_then(|options| resolved_string_field(&options, "inventoryBehaviour"))
+        .unwrap_or_else(|| "DECREMENT_IGNORING_POLICY".to_string())
+}
+
+fn order_line_inventory_item_id(line_item: &BTreeMap<String, ResolvedValue>) -> Option<String> {
+    resolved_string_field(line_item, "inventoryItemId").or_else(|| {
+        resolved_string_field(line_item, "variantId").map(|variant_id| {
+            format!(
+                "gid://shopify/InventoryItem/{}",
+                resource_id_tail(&variant_id)
+            )
+        })
+    })
+}
+
 fn order_read_selects_payment_transaction_fields(field: &RootFieldSelection) -> bool {
     field.selection.iter().any(|field| {
         matches!(
@@ -1370,6 +1387,12 @@ impl DraftProxy {
             .get("role")
             .and_then(Value::as_str)
             .unwrap_or("UNPUBLISHED");
+        if role == "DEVELOPMENT" {
+            return selected_json(
+                &json!({"theme": null, "userErrors": [{"field": ["base"], "message": "You cannot publish a development theme.", "code": null}]}),
+                &field.selection,
+            );
+        }
         if matches!(role, "DEMO" | "LOCKED" | "ARCHIVED") {
             return selected_json(
                 &json!({"theme": null, "userErrors": [{"field": ["id"], "message": format!("Theme cannot be published from role {role}")}]}),
@@ -1507,25 +1530,23 @@ impl DraftProxy {
     pub(in crate::proxy) fn theme_files_copy(&mut self, field: &RootFieldSelection) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
-        let Some(file) = files.first() else {
-            return selected_json(
-                &json!({"copiedThemeFiles": [], "userErrors": []}),
-                &field.selection,
-            );
-        };
-        let src = theme_file_arg_string(file, "srcFilename").unwrap_or_default();
-        let dst = theme_file_arg_string(file, "dstFilename").unwrap_or_default();
-        let Some(source_file) = self.find_theme_file(&theme_id, &src) else {
-            return selected_json(
-                &json!({"copiedThemeFiles": [], "userErrors": [{"field": ["files", "0", "srcFilename"], "message": "File not found", "code": "NOT_FOUND"}]}),
-                &field.selection,
-            );
-        };
-        let content = source_file["body"]["content"].as_str().unwrap_or_default();
-        let copied = theme_file_record(&dst, content);
-        self.upsert_theme_file(&theme_id, copied.clone());
+        let mut copied = Vec::new();
+        let mut errors = Vec::new();
+        for (index, file) in files.iter().enumerate() {
+            let src = theme_file_arg_string(file, "srcFilename").unwrap_or_default();
+            let dst = theme_file_arg_string(file, "dstFilename").unwrap_or_default();
+            let Some(source_file) = self.find_theme_file(&theme_id, &src) else {
+                errors.push(json!({"field": ["files", index.to_string(), "srcFilename"], "message": "File not found", "code": "NOT_FOUND"}));
+                continue;
+            };
+            let content = source_file["body"]["content"].as_str().unwrap_or_default();
+            copied.push(theme_file_record(&dst, content));
+        }
+        for file in copied.iter().cloned() {
+            self.upsert_theme_file(&theme_id, file);
+        }
         selected_json(
-            &json!({"copiedThemeFiles": [copied], "userErrors": []}),
+            &json!({"copiedThemeFiles": copied, "userErrors": errors}),
             &field.selection,
         )
     }
@@ -2013,6 +2034,14 @@ impl DraftProxy {
                 &json!({ "order": Value::Null, "userErrors": [error] }),
                 &field.selection,
             );
+        }
+        if order_create_inventory_behaviour(field) != "BYPASS" {
+            for line_item in resolved_object_list_field(&order_input, "lineItems") {
+                if let Some(inventory_item_id) = order_line_inventory_item_id(&line_item) {
+                    let quantity = resolved_i64_field(&line_item, "quantity").unwrap_or(1);
+                    self.decrement_inventory_item_available(&inventory_item_id, quantity);
+                }
+            }
         }
 
         let order_id = format!("gid://shopify/Order/{}", self.store.staged.next_order_id);
@@ -2558,6 +2587,13 @@ impl DraftProxy {
         }
         if root_field == "orderCreate" {
             let field = field?;
+            let order_arg = field.arguments.get("order")?;
+            if let ResolvedValue::Object(order_input) = order_arg {
+                let email = resolved_string_field(order_input, "email").unwrap_or_default();
+                if !email.is_empty() && !email.starts_with("order-customer-") {
+                    return None;
+                }
+            }
             let order = self.order_customer_paths_order_create(&field)?;
             return Some(data_response(&field.response_key, order));
         }

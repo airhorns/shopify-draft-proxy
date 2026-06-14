@@ -97,7 +97,7 @@ impl DraftProxy {
         }))
     }
 
-    fn record_mutation_log_draft(
+    pub(in crate::proxy) fn record_mutation_log_draft(
         &mut self,
         request: &Request,
         query: &str,
@@ -228,6 +228,12 @@ impl DraftProxy {
             return ok_json(data);
         }
 
+        if let Some(response) =
+            self.draft_order_invoice_send_local_response(request, &query, &variables)
+        {
+            return response;
+        }
+
         if let Some(data) = self.remaining_order_local_data(root_field, &query, &variables) {
             return ok_json(data);
         }
@@ -245,12 +251,6 @@ impl DraftProxy {
 
         if let Some(data) = self.draft_order_complete_local_data(root_field, &query, &variables) {
             return ok_json(data);
-        }
-
-        if let Some(response) =
-            self.draft_order_invoice_send_local_response(request, &query, &variables)
-        {
-            return response;
         }
 
         if let Some(data) = payment_reminder_fixture_data(

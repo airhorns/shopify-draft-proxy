@@ -1167,6 +1167,188 @@ fn inventory_quantity_2026_missing_change_from_returns_graphql_error_without_sta
 }
 
 #[test]
+fn order_create_decrements_inventory_when_inventory_behaviour_is_not_bypass() {
+    let mut proxy = snapshot_proxy();
+
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/order-create-seed", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/order-create-decrement", "locationId": "gid://shopify/Location/1", "quantity": 5}
+        ]}}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrderCreateInventoryDecrement($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+          orderCreate(order: $order, options: $options) {
+            order {
+              id
+              lineItems(first: 5) {
+                nodes {
+                  id
+                  quantity
+                  variant { id }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "inventory-decrement@example.com",
+                "currency": "USD",
+                "lineItems": [{
+                    "variantId": "gid://shopify/ProductVariant/order-create-decrement",
+                    "quantity": 2,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            },
+            "options": {
+                "sendReceipt": false,
+                "sendFulfillmentReceipt": false
+            }
+        }),
+    ));
+    assert_eq!(order.body["data"]["orderCreate"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryAfterOrderCreate($id: ID!) {
+          inventoryItem(id: $id) {
+            variant { inventoryQuantity }
+            inventoryLevels(first: 5) {
+              nodes {
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/InventoryItem/order-create-decrement"}),
+    ));
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["variant"]["inventoryQuantity"],
+        json!(3)
+    );
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"],
+        json!([
+            {"name": "available", "quantity": 3},
+            {"name": "on_hand", "quantity": 3}
+        ])
+    );
+    let log = proxy.get_log_snapshot();
+    assert_eq!(
+        log["entries"][1]["interpreted"]["operationName"],
+        json!("orderCreate")
+    );
+    assert_eq!(log["entries"][1]["status"], json!("staged"));
+    assert_eq!(
+        log["entries"][1]["interpreted"]["capability"],
+        json!({
+            "operationName": "orderCreate",
+            "domain": "orders",
+            "execution": "stage-locally"
+        })
+    );
+    assert_eq!(
+        log["entries"][1]["notes"],
+        json!("Locally staged orderCreate in shopify-draft-proxy.")
+    );
+    assert_eq!(
+        log["entries"][1]["stagedResourceIds"],
+        json!(["gid://shopify/Order/1"])
+    );
+
+    let bypass_seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/order-create-bypass-seed", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/order-create-bypass", "locationId": "gid://shopify/Location/1", "quantity": 8}
+        ]}}),
+    ));
+    assert_eq!(
+        bypass_seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let bypass_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrderCreateInventoryBypass($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+          orderCreate(order: $order, options: $options) {
+            order { id lineItems(first: 5) { nodes { quantity variant { id } } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "inventory-bypass@example.com",
+                "currency": "USD",
+                "lineItems": [{
+                    "variantId": "gid://shopify/ProductVariant/order-create-bypass",
+                    "quantity": 4,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            },
+            "options": {
+                "inventoryBehaviour": "BYPASS",
+                "sendReceipt": false,
+                "sendFulfillmentReceipt": false
+            }
+        }),
+    ));
+    assert_eq!(
+        bypass_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+
+    let bypass_read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryAfterOrderCreate($id: ID!) {
+          inventoryItem(id: $id) {
+            variant { inventoryQuantity }
+            inventoryLevels(first: 5) {
+              nodes {
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/InventoryItem/order-create-bypass"}),
+    ));
+    assert_eq!(
+        bypass_read.body["data"]["inventoryItem"]["variant"]["inventoryQuantity"],
+        json!(8)
+    );
+    assert_eq!(
+        bypass_read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"],
+        json!([
+            {"name": "available", "quantity": 8},
+            {"name": "on_hand", "quantity": 8}
+        ])
+    );
+}
+
+#[test]
 fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store() {
     let mut proxy = snapshot_proxy();
 
@@ -2376,6 +2558,75 @@ fn online_store_theme_lifecycle_tail_helpers_ported_from_gleam() {
 }
 
 #[test]
+fn online_store_theme_publish_rejects_development_without_role_changes() {
+    let mut proxy = snapshot_proxy();
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeLocalRuntimeDevelopmentPublishSetup {
+          main: themeCreate(source: "https://example.com/current.zip", name: "Current main", role: MAIN) { theme { id role name } userErrors { field message code } }
+          development: themeCreate(source: "https://example.com/dev.zip", name: "Development theme", role: DEVELOPMENT) { theme { id role name } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        created.body["data"]["main"]["theme"],
+        json!({"id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "role": "MAIN", "name": "Current main"})
+    );
+    assert_eq!(
+        created.body["data"]["development"]["theme"],
+        json!({"id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic", "role": "DEVELOPMENT", "name": "Development theme"})
+    );
+
+    let publish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeLocalRuntimeDevelopmentPublish {
+          themePublish(id: "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic") {
+            theme { id role }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        publish.body["data"]["themePublish"],
+        json!({"theme": null, "userErrors": [{"field": ["base"], "message": "You cannot publish a development theme.", "code": null}]})
+    );
+
+    let read_after_publish = proxy.process_request(json_graphql_request(
+        r#"
+        query RustOnlineStoreThemeLocalRuntimeDevelopmentPublishRead {
+          main: theme(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic") { id role name }
+          development: theme(id: "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic") { id role name }
+          mains: themes(first: 10, roles: [MAIN]) { nodes { id role name } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_publish.body["data"]["main"],
+        json!({"id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "role": "MAIN", "name": "Current main"})
+    );
+    assert_eq!(
+        read_after_publish.body["data"]["development"],
+        json!({"id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic", "role": "DEVELOPMENT", "name": "Development theme"})
+    );
+    assert_eq!(
+        read_after_publish.body["data"]["mains"]["nodes"],
+        json!([{"id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "role": "MAIN", "name": "Current main"}])
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        ..Default::default()
+    });
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
 fn online_store_theme_connection_paginates_edges_nodes_and_page_info_consistently() {
     let mut proxy = snapshot_proxy();
 
@@ -2472,6 +2723,7 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
           second: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello world" } }]) { upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
           invalid: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "evil/path.liquid", body: { type: TEXT, value: "ignored" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
           app: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/app.js", body: { type: TEXT, value: "console.log(1)" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
+          theme: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/theme.js", body: { type: TEXT, value: "hello" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
         }
         "#,
         json!({}),
@@ -2494,6 +2746,8 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
         mutation RustOnlineStoreThemeFileLocalRuntimeCopyDelete {
           missingCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/missing.js", dstFilename: "assets/copy.js" }]) { copiedThemeFiles { filename } userErrors { field message code } }
           copy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/app.js", dstFilename: "assets/copy.js" }]) { copiedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          multiCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/app.js", dstFilename: "assets/app-copy.js" }, { srcFilename: "assets/theme.js", dstFilename: "assets/theme-copy.js" }]) { copiedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          mixedCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/missing.js", dstFilename: "assets/missing-copy.js" }, { srcFilename: "assets/theme.js", dstFilename: "assets/theme-copy-2.js" }]) { copiedThemeFiles { filename } userErrors { field message code } }
           requiredDelete: themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: ["config/settings_data.json", "config/settings_schema.json"]) { deletedThemeFiles { filename } userErrors { field message code } }
           deleteCopy: themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: ["assets/copy.js"]) { deletedThemeFiles { filename } userErrors { field message code } }
         }
@@ -2507,6 +2761,17 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
     assert_eq!(
         copy_delete.body["data"]["copy"]["copiedThemeFiles"][0],
         json!({"filename": "assets/copy.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}})
+    );
+    assert_eq!(
+        copy_delete.body["data"]["multiCopy"],
+        json!({"copiedThemeFiles": [
+            {"filename": "assets/app-copy.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
+            {"filename": "assets/theme-copy.js", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}}
+        ], "userErrors": []})
+    );
+    assert_eq!(
+        copy_delete.body["data"]["mixedCopy"],
+        json!({"copiedThemeFiles": [{"filename": "assets/theme-copy-2.js"}], "userErrors": [{"field": ["files", "0", "srcFilename"], "message": "File not found", "code": "NOT_FOUND"}]})
     );
     assert_eq!(
         copy_delete.body["data"]["requiredDelete"]["userErrors"],
@@ -2532,7 +2797,11 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
         read.body["data"]["theme"]["files"]["nodes"],
         json!([
             {"filename": "templates/index.json", "checksumMd5": "5eb63bbbe01eeed093cb22bb8f5acdc3", "size": 11, "body": {"content": "hello world"}},
-            {"filename": "assets/app.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}}
+            {"filename": "assets/app.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
+            {"filename": "assets/theme.js", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}},
+            {"filename": "assets/app-copy.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
+            {"filename": "assets/theme-copy.js", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}},
+            {"filename": "assets/theme-copy-2.js", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}}
         ])
     );
 }
