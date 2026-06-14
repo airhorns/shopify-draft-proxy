@@ -1,0 +1,19 @@
+query NaturalProductMetafieldsRead($id: ID!) {
+  product(id: $id) {
+    id
+    material: metafield(namespace: "custom", key: "generic_material") {
+      namespace
+      key
+      type
+      value
+    }
+    metafields(first: 10, namespace: "custom") {
+      nodes {
+        namespace
+        key
+        type
+        value
+      }
+    }
+  }
+}

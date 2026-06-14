@@ -1700,6 +1700,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'products',
+    captureId: 'metafields-generic-product-owner',
+    scriptPath: 'scripts/capture-metafields-generic-product-owner-conformance.ts',
+    purpose:
+      'Product-owner metafieldsSet/metafieldsDelete live payloads and readbacks using ordinary operation names and a disposable non-fixture product owner.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafields-generic-product-owner.json`,
+      'config/parity-specs/products/metafields-generic-product-owner.json',
+      'config/parity-requests/products/metafieldsSet-generic-product-owner.graphql',
+      'config/parity-requests/products/metafieldsDelete-generic-product-owner.graphql',
+      'config/parity-requests/products/metafields-generic-product-owner-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, records metafieldsSet/read/metafieldsDelete/read behavior, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'metafields',
     captureId: 'metafields-set-input-validation',
     scriptPath: 'scripts/capture-metafields-set-input-validation-conformance.mts',
