@@ -97,7 +97,7 @@ impl DraftProxy {
         }))
     }
 
-    fn record_mutation_log_draft(
+    pub(in crate::proxy) fn record_mutation_log_draft(
         &mut self,
         request: &Request,
         query: &str,
@@ -200,20 +200,16 @@ impl DraftProxy {
             return response;
         }
 
-        if let Some(data) = customer_payment_method_fixture_data(root_field, &query) {
+        if let Some(data) = self.customer_payment_method_local_data(request, &query, &variables) {
             return ok_json(data);
         }
 
-        if let Some(data) = money_bag_presentment_fixture_data(root_field, &query) {
+        if let Some(data) = self.money_bag_presentment_local_data(request, &query, &variables) {
             return ok_json(data);
         }
 
-        if let Some(data) = abandonment_delivery_status_fixture_data(root_field, &query, &variables)
+        if let Some(data) = self.abandonment_delivery_status_local_data(request, &query, &variables)
         {
-            return ok_json(data);
-        }
-
-        if let Some(data) = self.draft_order_complete_local_data(root_field, &query, &variables) {
             return ok_json(data);
         }
 
@@ -233,26 +229,44 @@ impl DraftProxy {
             return ok_json(data);
         }
 
-        if let Some(data) = payment_terms_fixture_data(
+        if matches!(
             root_field,
-            &query,
-            &variables,
-            &mut self.store.staged.payment_terms_ids,
+            "orderCreate" | "order" | "orders" | "ordersCount"
         ) {
+            if let Some(data) =
+                self.order_create_local_data(request, root_field, &query, &variables)
+            {
+                return ok_json(data);
+            }
+        }
+
+        if let Some(data) = self.draft_order_complete_local_data(root_field, &query, &variables) {
             return ok_json(data);
         }
 
-        if let Some(data) = payment_reminder_fixture_data(
-            root_field,
-            &query,
-            &variables,
-            &mut self.store.staged.payment_reminder_schedule_ids,
-        ) {
+        if let Some(data) = self.payment_terms_local_data(request, &query, &variables) {
             return ok_json(data);
         }
 
-        if let Some(data) = payment_customization_fixture_data(root_field, &query, &variables) {
-            return ok_json(data);
+        if root_field == "paymentReminderSend" {
+            if let Some(data) = payment_reminder_local_data(
+                &query,
+                &variables,
+                &mut self.store.staged.payment_reminder_schedule_ids,
+            ) {
+                return ok_json(data);
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "availableLocales" | "shopLocales"))
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.localization_catalog_query_data(&fields) }));
+            }
         }
 
         if operation.operation_type == OperationType::Query
@@ -262,7 +276,6 @@ impl DraftProxy {
                     "paymentCustomization" | "paymentCustomizations"
                 )
             })
-            && is_ported_payment_customization_document(&query)
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({ "data": self.payment_customization_query_data(&fields) }));
@@ -279,12 +292,24 @@ impl DraftProxy {
                         | "paymentCustomizationDelete"
                 )
             })
-            && is_ported_payment_customization_document(&query)
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(
-                    json!({ "data": self.payment_customization_mutation_data(&fields) }),
-                );
+                let data = self.payment_customization_mutation_data(&fields);
+                let staged_ids = fields
+                    .iter()
+                    .filter_map(|field| {
+                        data[field.response_key.as_str()]["paymentCustomization"]["id"]
+                            .as_str()
+                            .map(ToString::to_string)
+                            .or_else(|| {
+                                data[field.response_key.as_str()]["deletedId"]
+                                    .as_str()
+                                    .map(ToString::to_string)
+                            })
+                    })
+                    .collect();
+                self.record_mutation_log_entry(request, &query, &variables, root_field, staged_ids);
+                return ok_json(json!({ "data": data }));
             }
         }
 
@@ -299,8 +324,15 @@ impl DraftProxy {
                     "metaobject" | "metaobjectByHandle" | "metaobjects"
                 )
             })
-            && is_ported_metaobject_document(&query)
         {
+            if self.config.read_mode != ReadMode::Snapshot
+                && !self.has_local_metaobject_entry_state()
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    return self.metaobject_live_hybrid_read(request, &fields);
+                }
+                return (self.upstream_transport)(request.clone());
+            }
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({"data": self.metaobject_query_data(&fields)}));
             }
@@ -311,7 +343,6 @@ impl DraftProxy {
                 .root_fields
                 .iter()
                 .all(|field| matches!(field.as_str(), "metaobjectCreate" | "metaobjectDelete"))
-            && is_ported_metaobject_document(&query)
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return self.metaobject_mutation(&fields, request, &query, &variables);
@@ -805,6 +836,21 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && self.has_staged_discounts()
+            && operation.root_fields.iter().all(|field| {
+                local_dispatch_root(
+                    OperationType::Query,
+                    CapabilityDomain::Discounts,
+                    CapabilityExecution::OverlayRead,
+                    field,
+                )
+                .is_some()
+            })
+        {
+            return self.discounts_query_response(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Query
             && query.contains("DiscountTimestampsMonotonicRead")
             && operation.root_fields.iter().all(|field| {
                 matches!(
@@ -1047,6 +1093,16 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && matches!(root_field, "segment" | "segments" | "segmentsCount")
+            && self.segment_read_data_handles_fields(&query, &variables)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.segment_read_data(&fields) }));
+            }
+            return json_error(400, "Could not parse GraphQL operation");
+        }
+
+        if operation.operation_type == OperationType::Query
             && matches!(root_field, "node" | "nodes")
         {
             if query.contains("ProductVariantNodeRead") {
@@ -1065,6 +1121,9 @@ impl DraftProxy {
                     }
                 }
                 if let Some(data) = self.app_node_read_data(&fields) {
+                    return ok_json(json!({ "data": data }));
+                }
+                if let Some(data) = self.gift_card_node_read_data(&fields) {
                     return ok_json(json!({ "data": data }));
                 }
             }
@@ -1099,32 +1158,6 @@ impl DraftProxy {
             && is_fulfillment_order_request_lifecycle_direct_read(&query, &variables)
         {
             return self.fulfillment_order_request_lifecycle_direct_read(&query, &variables);
-        }
-
-        if operation.operation_type == OperationType::Query
-            && (query.contains("GiftCardReadEvidence")
-                || query.contains("GiftCardReadAfterLifecycle"))
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "giftCard" | "giftCards" | "giftCardsCount" | "giftCardConfiguration"
-                )
-            })
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.gift_card_lifecycle_read_data(&fields) }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Query
-            && query.contains("GiftCardNodeReadAfterLifecycle")
-            && operation.root_fields.iter().all(|field| field == "node")
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(
-                    json!({ "data": self.gift_card_lifecycle_node_read_data(&fields) }),
-                );
-            }
         }
 
         if operation.operation_type == OperationType::Query
@@ -1325,11 +1358,15 @@ impl DraftProxy {
             && (is_owner_metafields_set_document(&query)
                 || !self.store.staged.metafield_definitions.is_empty())
         {
-            return self.owner_metafields_set(&query, &variables);
+            let outcome = self.owner_metafields_set(&query, &variables);
+            return self.finalize_mutation_outcome(request, &query, &variables, outcome);
         }
 
         if operation.operation_type == OperationType::Query
-            && matches!(root_field, "product" | "customer" | "order" | "company")
+            && matches!(
+                root_field,
+                "product" | "productVariant" | "collection" | "customer" | "order" | "company"
+            )
             && (is_owner_metafields_read_document(&query)
                 || !self.store.staged.owner_metafields.is_empty())
         {
@@ -1434,7 +1471,10 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && matches!(root_field, "segmentCreate" | "segmentUpdate")
+            && matches!(
+                root_field,
+                "segmentCreate" | "segmentUpdate" | "segmentDelete"
+            )
         {
             return self.segment_mutation(root_field, &query, &variables, request);
         }
@@ -1542,6 +1582,21 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation && root_field == "appUninstall" {
             return self.app_uninstall(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().all(|field| {
+                local_dispatch_root(
+                    OperationType::Mutation,
+                    CapabilityDomain::Discounts,
+                    CapabilityExecution::StageLocally,
+                    field,
+                )
+                .is_some()
+            })
+        {
+            let outcome = self.discounts_mutation(request, &query, &variables);
+            return self.finalize_mutation_outcome(request, &query, &variables, outcome);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -1777,186 +1832,6 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && query.contains("mutation GiftCardUpdateValidation(")
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| field == "giftCardUpdate")
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({
-                    "data": gift_card_update_validation_data(&fields, &variables)
-                }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("mutation GiftCardUpdateNoop(")
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| field == "giftCardUpdate")
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({
-                    "data": gift_card_update_noop_data(&fields, &variables)
-                }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("mutation GiftCardUpdateDeactivatedMultiField(")
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| field == "giftCardUpdate")
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({
-                    "data": gift_card_update_deactivated_multi_field_data(&fields)
-                }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("mutation GiftCardTrialShopAssignment(")
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| matches!(field.as_str(), "giftCardCreate" | "giftCardUpdate"))
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({
-                    "data": gift_card_trial_shop_assignment_data(&fields)
-                }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("mutation GiftCardTransactionValidation(")
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| matches!(field.as_str(), "giftCardCredit" | "giftCardDebit"))
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({
-                    "data": gift_card_transaction_validation_data(&fields)
-                }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("mutation GiftCardRecipientValidation(")
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| matches!(field.as_str(), "giftCardCreate" | "giftCardUpdate"))
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({
-                    "data": gift_card_recipient_validation_data(&fields)
-                }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("GiftCardMutationUserErrorCodes")
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "giftCardCreate" | "giftCardUpdate" | "giftCardCredit" | "giftCardDebit"
-                )
-            })
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return self.gift_card_mutation_user_error_codes_response(
-                    &fields, request, &query, &variables,
-                );
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("GiftCardLifecycle")
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "giftCardUpdate" | "giftCardCredit" | "giftCardDebit" | "giftCardDeactivate"
-                )
-            })
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return self
-                    .gift_card_lifecycle_mutation_response(&fields, request, &query, &variables);
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("GiftCardExpiryShopTimezone")
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "giftCardCredit"
-                        | "giftCardDebit"
-                        | "giftCardSendNotificationToCustomer"
-                        | "giftCardSendNotificationToRecipient"
-                )
-            })
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": gift_card_expiry_shop_timezone_data(&fields) }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("GiftCardCreditLimitExceeded")
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| matches!(field.as_str(), "giftCardCredit" | "giftCardDebit"))
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": gift_card_credit_limit_exceeded_data(&fields) }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("GiftCardEntitlementDisabled")
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "giftCardCreate"
-                        | "giftCardUpdate"
-                        | "giftCardCredit"
-                        | "giftCardDebit"
-                        | "giftCardDeactivate"
-                        | "giftCardSendNotificationToCustomer"
-                        | "giftCardSendNotificationToRecipient"
-                )
-            })
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": gift_card_entitlement_disabled_data(&fields) }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("GiftCardCreateNotify")
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "giftCardCreate" | "giftCardSendNotificationToCustomer"
-                )
-            })
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return self.gift_card_create_notify_mutation_response(
-                    &fields, request, &query, &variables,
-                );
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
             && query.contains("validationUpdate")
             && (query.contains("validation: { functionId:")
                 || query.contains("validation: { functionHandle:"))
@@ -2164,9 +2039,7 @@ impl DraftProxy {
             }) && self.has_product_overlay_state()
             {
                 if let Some(fields) = root_fields(&query, &variables) {
-                    return ok_json(
-                        json!({ "data": self.product_variant_downstream_read_data(&fields) }),
-                    );
+                    return ok_json(json!({ "data": self.product_overlay_read_data(&fields) }));
                 }
             }
             if query.contains("ProductHelperRoots") {
@@ -2276,10 +2149,14 @@ impl DraftProxy {
                 if has_local_dispatch
                     && matches!(
                         root_field,
-                        "product" | "products" | "productsCount" | "productByIdentifier"
+                        "product"
+                            | "products"
+                            | "productsCount"
+                            | "productByIdentifier"
+                            | "productVariant"
                     ) =>
             {
-                if operation.root_fields.iter().any(|field| {
+                let has_inventory_fields = operation.root_fields.iter().any(|field| {
                     matches!(
                         field.as_str(),
                         "inventoryItem"
@@ -2289,7 +2166,18 @@ impl DraftProxy {
                             | "inventoryTransfer"
                             | "inventoryTransfers"
                     )
-                }) {
+                });
+                let has_product_overlay_fields = operation.root_fields.iter().any(|field| {
+                    matches!(
+                        field.as_str(),
+                        "product"
+                            | "products"
+                            | "productsCount"
+                            | "productByIdentifier"
+                            | "productVariant"
+                    )
+                });
+                if has_inventory_fields && !has_product_overlay_fields {
                     if let Some(fields) = root_fields(&query, &variables) {
                         ok_json(json!({ "data": self.inventory_query_data(&fields, &variables) }))
                     } else {
@@ -2356,13 +2244,29 @@ impl DraftProxy {
                         "productVariantCreate" | "productVariantUpdate" | "productVariantDelete"
                     ) =>
             {
-                let outcome = self.product_variant_compat_mutation(root_field, &query, &variables);
+                let outcome = self.product_variant_mutation(root_field, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if has_local_dispatch && matches!(root_field, "tagsAdd" | "tagsRemove") =>
             {
                 let outcome = self.product_tags_mutation(root_field, &query, &variables, request);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && root_field == "metafieldsSet" =>
+            {
+                let outcome = self.owner_metafields_set(&query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && root_field == "metafieldsDelete" =>
+            {
+                let outcome = self.owner_metafields_delete(&query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
@@ -2402,10 +2306,57 @@ impl DraftProxy {
                 let outcome = self.saved_search_mutation_fields(&query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
+            (CapabilityDomain::Metaobjects, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    ok_json(json!({ "data": self.metaobject_query_data(&fields) }))
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
+            }
+            (CapabilityDomain::Metaobjects, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    self.metaobject_mutation(&fields, request, &query, &variables)
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
+            }
             (CapabilityDomain::BulkOperations, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
             {
                 self.bulk_operation_read_response(request, &query, &variables, root_field)
+            }
+            (CapabilityDomain::Discounts, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+            {
+                self.discounts_query_response(&query, &variables)
+            }
+            (CapabilityDomain::Discounts, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+            {
+                let outcome = self.discounts_mutation(request, &query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::GiftCards, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    ok_json(json!({ "data": self.gift_card_read_data(&fields) }))
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
+            }
+            (CapabilityDomain::GiftCards, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    self.gift_card_mutation_response(&fields, request, &query, &variables)
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
             }
             (CapabilityDomain::Functions, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>

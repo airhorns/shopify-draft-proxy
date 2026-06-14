@@ -109,7 +109,7 @@ pub struct OperationCapability {
 }
 
 pub fn local_dispatch_roots() -> &'static [LocalDispatchRoot] {
-    &LOCAL_DISPATCH_ROOTS
+    LOCAL_DISPATCH_ROOTS
 }
 
 pub fn local_dispatch_root(
@@ -217,11 +217,12 @@ fn registry_entry_json_value(entry: &OperationRegistryEntry) -> Value {
     Value::Object(object)
 }
 
-const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 54] = [
+const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_query("product", CapabilityDomain::Products),
     local_query("products", CapabilityDomain::Products),
     local_query("productsCount", CapabilityDomain::Products),
     local_query("productByIdentifier", CapabilityDomain::Products),
+    local_query("productVariant", CapabilityDomain::Products),
     local_query("inventoryItem", CapabilityDomain::Products),
     local_query("inventoryItems", CapabilityDomain::Products),
     local_query("inventoryLevel", CapabilityDomain::Products),
@@ -237,6 +238,8 @@ const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 54] = [
     local_mutation("productVariantDelete", CapabilityDomain::Products),
     local_mutation("tagsAdd", CapabilityDomain::Products),
     local_mutation("tagsRemove", CapabilityDomain::Products),
+    local_mutation("metafieldsSet", CapabilityDomain::Products),
+    local_mutation("metafieldsDelete", CapabilityDomain::Products),
     local_mutation("inventoryAdjustQuantities", CapabilityDomain::Products),
     local_mutation("inventorySetQuantities", CapabilityDomain::Products),
     local_mutation("inventoryMoveQuantities", CapabilityDomain::Products),
@@ -278,12 +281,84 @@ const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 54] = [
     local_mutation("fileCreate", CapabilityDomain::Media),
     local_mutation("fileUpdate", CapabilityDomain::Media),
     local_mutation("fileDelete", CapabilityDomain::Media),
+    local_query("discountNode", CapabilityDomain::Discounts),
+    local_query("discountNodes", CapabilityDomain::Discounts),
+    local_query("discountNodesCount", CapabilityDomain::Discounts),
+    local_query("codeDiscountNode", CapabilityDomain::Discounts),
+    local_query("codeDiscountNodeByCode", CapabilityDomain::Discounts),
+    local_query("automaticDiscountNode", CapabilityDomain::Discounts),
+    local_mutation("discountCodeBasicCreate", CapabilityDomain::Discounts),
+    local_mutation("discountCodeBasicUpdate", CapabilityDomain::Discounts),
+    local_mutation("discountCodeBxgyCreate", CapabilityDomain::Discounts),
+    local_mutation("discountCodeBxgyUpdate", CapabilityDomain::Discounts),
+    local_mutation(
+        "discountCodeFreeShippingCreate",
+        CapabilityDomain::Discounts,
+    ),
+    local_mutation(
+        "discountCodeFreeShippingUpdate",
+        CapabilityDomain::Discounts,
+    ),
+    local_mutation("discountCodeActivate", CapabilityDomain::Discounts),
+    local_mutation("discountCodeDeactivate", CapabilityDomain::Discounts),
+    local_mutation("discountCodeDelete", CapabilityDomain::Discounts),
+    local_mutation("discountRedeemCodeBulkAdd", CapabilityDomain::Discounts),
+    local_mutation(
+        "discountCodeRedeemCodeBulkDelete",
+        CapabilityDomain::Discounts,
+    ),
+    local_query(
+        "discountRedeemCodeBulkCreation",
+        CapabilityDomain::Discounts,
+    ),
+    local_mutation("discountAutomaticBasicCreate", CapabilityDomain::Discounts),
+    local_mutation("discountAutomaticBasicUpdate", CapabilityDomain::Discounts),
+    local_mutation("discountAutomaticBxgyCreate", CapabilityDomain::Discounts),
+    local_mutation("discountAutomaticBxgyUpdate", CapabilityDomain::Discounts),
+    local_mutation(
+        "discountAutomaticFreeShippingCreate",
+        CapabilityDomain::Discounts,
+    ),
+    local_mutation(
+        "discountAutomaticFreeShippingUpdate",
+        CapabilityDomain::Discounts,
+    ),
+    local_mutation("discountAutomaticActivate", CapabilityDomain::Discounts),
+    local_mutation("discountAutomaticDeactivate", CapabilityDomain::Discounts),
+    local_mutation("discountAutomaticDelete", CapabilityDomain::Discounts),
+    local_query("metaobject", CapabilityDomain::Metaobjects),
+    local_query("metaobjectByHandle", CapabilityDomain::Metaobjects),
+    local_query("metaobjects", CapabilityDomain::Metaobjects),
+    local_query("metaobjectDefinition", CapabilityDomain::Metaobjects),
+    local_query("metaobjectDefinitionByType", CapabilityDomain::Metaobjects),
+    local_query("metaobjectDefinitions", CapabilityDomain::Metaobjects),
+    local_mutation("metaobjectCreate", CapabilityDomain::Metaobjects),
+    local_mutation("metaobjectDelete", CapabilityDomain::Metaobjects),
+    local_mutation("metaobjectDefinitionCreate", CapabilityDomain::Metaobjects),
+    local_mutation("metaobjectDefinitionDelete", CapabilityDomain::Metaobjects),
     local_mutation("metafieldDefinitionCreate", CapabilityDomain::Metafields),
     local_mutation("metafieldDefinitionUpdate", CapabilityDomain::Metafields),
     local_mutation("metafieldDefinitionDelete", CapabilityDomain::Metafields),
     local_mutation(
         "standardMetafieldDefinitionEnable",
         CapabilityDomain::Metafields,
+    ),
+    local_query("giftCard", CapabilityDomain::GiftCards),
+    local_query("giftCards", CapabilityDomain::GiftCards),
+    local_query("giftCardsCount", CapabilityDomain::GiftCards),
+    local_query("giftCardConfiguration", CapabilityDomain::GiftCards),
+    local_mutation("giftCardCreate", CapabilityDomain::GiftCards),
+    local_mutation("giftCardUpdate", CapabilityDomain::GiftCards),
+    local_mutation("giftCardCredit", CapabilityDomain::GiftCards),
+    local_mutation("giftCardDebit", CapabilityDomain::GiftCards),
+    local_mutation("giftCardDeactivate", CapabilityDomain::GiftCards),
+    local_mutation(
+        "giftCardSendNotificationToCustomer",
+        CapabilityDomain::GiftCards,
+    ),
+    local_mutation(
+        "giftCardSendNotificationToRecipient",
+        CapabilityDomain::GiftCards,
     ),
     local_mutation("locationAdd", CapabilityDomain::StoreProperties),
     local_mutation("locationActivate", CapabilityDomain::StoreProperties),

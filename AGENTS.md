@@ -61,6 +61,7 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
 - Do not add tests that only reassert self-evident properties of checked-in metadata. Test executable behavior, schema validation, discovery semantics, or comparison contracts instead.
 - Do not add planned-only, blocked-only, or capture-only parity scenarios as a shortcut for implementation. Checked-in parity specs must be backed by captured interactions and executable evidence.
 - Do not hand-author or synthetically generate checked-in conformance fixture data, parity fixtures, or expected payloads as Shopify fidelity evidence.
+- Do not prove parity by loading or patching internal proxy state directly. Parity setup must run through the same public request surface an agent would use: GraphQL mutations/queries, uploads, or documented meta APIs only when the scenario is specifically about those meta APIs. Internal state dumps/restores, setup-state JSON, hidden runner hooks, or fixtures that seed `baseState`/`stagedState` are test shortcuts, not Shopify fidelity evidence.
 - Protected parity evidence must not drift without explicit user approval:
   - `config/parity-specs/**`
   - `config/parity-requests/**`

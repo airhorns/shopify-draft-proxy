@@ -223,6 +223,58 @@ fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locall
         json!("MarketUserError")
     );
 
+    for (name, query, code) in [
+        (
+            "missing-country-code",
+            r#"
+            mutation FooMissingCountryCode {
+              backupRegionUpdate(region: {}) { backupRegion { id } userErrors { field code } }
+            }
+            "#,
+            "missingRequiredInputObjectAttribute",
+        ),
+        (
+            "null-country-code",
+            r#"
+            mutation FooNullCountryCode {
+              backupRegionUpdate(region: { countryCode: null }) { backupRegion { id } userErrors { field code } }
+            }
+            "#,
+            "argumentLiteralsIncompatible",
+        ),
+        (
+            "numeric-country-code",
+            r#"
+            mutation FooNumericCountryCode {
+              backupRegionUpdate(region: { countryCode: 42 }) { backupRegion { id } userErrors { field code } }
+            }
+            "#,
+            "argumentLiteralsIncompatible",
+        ),
+    ] {
+        let response = proxy.process_request(json_graphql_request(query, json!({})));
+        assert_eq!(
+            response.body["errors"][0]["extensions"]["code"],
+            json!(code),
+            "{name} should fail during GraphQL input coercion"
+        );
+        assert_eq!(
+            response.body["errors"][0]["path"][0],
+            json!(query
+                .lines()
+                .find_map(|line| line.trim().strip_prefix("mutation "))
+                .and_then(|line| line.split_whitespace().next())
+                .map(|operation| format!("mutation {operation}"))
+                .unwrap()),
+            "{name} should derive the operation path from the parsed document"
+        );
+        assert!(
+            response.body.get("data").is_none()
+                || response.body["data"]["backupRegionUpdate"].is_null(),
+            "{name} must not fabricate a successful payload"
+        );
+    }
+
     let missing_country_code = proxy.process_request(json_graphql_request(
         r#"
         mutation BackupRegionUpdateMissingCountryCode {

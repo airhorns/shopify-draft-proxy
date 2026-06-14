@@ -139,7 +139,7 @@
       "variables": {
         "ids": ["gid://shopify/Product/9259552407785", "gid://shopify/ProductVariant/50905436913897"]
       },
-      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "query": "recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration",
       "response": {
         "status": 200,
         "body": {
@@ -209,7 +209,7 @@
       "variables": {
         "ids": ["gid://shopify/ProductVariant/50905436913897"]
       },
-      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "query": "recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration",
       "response": {
         "status": 200,
         "body": {

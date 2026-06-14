@@ -1,0 +1,28 @@
+{
+  "scenarioId": "metaobject-create-duplicate-field-input",
+  "operationNames": ["metaobjectCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "mutation-field-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-update-error-codes.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-update-error-codes-duplicate-create.graphql",
+    "variablesCapturePath": "$.cases.duplicateFieldInput.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Dedicated 2026-04 parity coverage for metaobjectCreate repeated fields[].key validation. The referenced fixture was recorded by scripts/capture-metaobject-update-error-codes-conformance.ts and captures DUPLICATE_FIELD_INPUT at the second fields index plus the required-field follow-up.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "duplicate-field-input",
+        "capturePath": "$.cases.duplicateFieldInput.response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}

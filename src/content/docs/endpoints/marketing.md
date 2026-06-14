@@ -71,7 +71,9 @@ Engagement behavior:
 - Currency validation follows captured order: selector-count checks first, channel-handle checks before currency on channel paths, and input currency checks before missing activity lookup on activity/remote paths.
 - Activity-level duplicate same-day writes are accepted locally with latest metric values replacing the local engagement record.
 - Immediate downstream `marketingActivity.adSpend` reads remain `null` after captured activity-level engagement writes, so the proxy does not invent aggregate attribution.
-- `marketingEngagementsDelete` deletes known local channel-level engagement records when `deleteEngagementsForAllChannels: true`; activity-level engagement records are retained.
+- `marketingEngagementsDelete` validates the selector guard before deletion: exactly one of `channelHandle` or `deleteEngagementsForAllChannels: true` must be supplied.
+- Single-channel engagement deletion requires the handle to be present in hydrated or staged marketing event data for the calling app. Unknown or app-unowned handles return `INVALID_CHANNEL_HANDLE`; tests that need success must seed a marketing activity/event with that `channelHandle`.
+- All-channel engagement deletion reports the count of distinct locally known channel handles for the calling app. Activity-level engagement records are retained.
 
 ### Boundaries
 

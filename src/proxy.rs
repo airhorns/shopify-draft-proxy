@@ -119,6 +119,37 @@ pub struct ProductRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProductVariantRecord {
+    pub id: String,
+    pub product_id: String,
+    pub title: String,
+    pub sku: String,
+    pub barcode: Option<String>,
+    pub price: String,
+    pub compare_at_price: Option<String>,
+    pub taxable: bool,
+    pub inventory_policy: String,
+    pub inventory_quantity: i64,
+    pub selected_options: Vec<ProductVariantSelectedOption>,
+    pub inventory_item: ProductVariantInventoryItem,
+    pub extra_fields: BTreeMap<String, Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProductVariantSelectedOption {
+    pub name: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProductVariantInventoryItem {
+    pub id: String,
+    pub tracked: bool,
+    pub requires_shipping: bool,
+    pub extra_fields: BTreeMap<String, Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct SavedSearchRecord {
     id: String,
     name: String,
@@ -135,12 +166,16 @@ struct Store {
 #[derive(Clone, Default)]
 struct BaseState {
     products: OrderedRecords<ProductRecord>,
+    product_variants: OrderedRecords<ProductVariantRecord>,
     saved_searches: OrderedRecords<SavedSearchRecord>,
+    available_locales: BTreeMap<String, String>,
+    shop_locales: BTreeMap<String, Value>,
 }
 
 #[derive(Clone)]
 struct StagedState {
     products: StagedRecords<ProductRecord>,
+    product_variants: StagedRecords<ProductVariantRecord>,
     saved_searches: StagedRecords<SavedSearchRecord>,
     product_search_tags: BTreeMap<String, BTreeSet<String>>,
     shipping_packages: BTreeMap<String, Value>,
@@ -169,6 +204,10 @@ struct StagedState {
     fulfillment_order_deadlines: BTreeMap<String, String>,
     bulk_operations: BTreeMap<String, Value>,
     bulk_operation_staged_uploads: BTreeMap<String, Option<u64>>,
+    discounts: BTreeMap<String, Value>,
+    discount_code_index: BTreeMap<String, String>,
+    deleted_discount_ids: BTreeSet<String>,
+    discount_redeem_code_bulk_creations: BTreeMap<String, Value>,
     timestamp_discounts: BTreeMap<String, Value>,
     gift_cards: BTreeMap<String, Value>,
     markets: BTreeMap<String, Value>,
@@ -188,6 +227,8 @@ struct StagedState {
     inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
     next_inventory_quantity_timestamp: u64,
     inventory_transfers: BTreeMap<String, InventoryTransferRecord>,
+    metaobject_definitions: BTreeMap<String, Value>,
+    deleted_metaobject_definition_ids: BTreeSet<String>,
     metaobjects: BTreeMap<String, Value>,
     deleted_metaobject_ids: BTreeSet<String>,
     app_metafields: BTreeMap<(String, String, String), Value>,
@@ -202,9 +243,14 @@ struct StagedState {
     product_delete_operations: BTreeMap<String, String>,
     selling_plan_group_downstream_step: usize,
     mandate_payment_keys: BTreeSet<String>,
-    payment_terms_ids: BTreeSet<String>,
+    payment_terms: BTreeMap<String, Value>,
+    payment_terms_owner_index: BTreeMap<String, String>,
     payment_reminder_schedule_ids: BTreeSet<String>,
     payment_customizations: BTreeMap<String, Value>,
+    customer_payment_methods: BTreeMap<String, Value>,
+    customer_payment_method_customer_index: BTreeMap<String, Vec<String>>,
+    next_customer_payment_method_id: u64,
+    abandonments: BTreeMap<String, Value>,
     orders: BTreeMap<String, Value>,
     draft_orders: BTreeMap<String, Value>,
     returns: BTreeMap<String, Value>,
@@ -375,6 +421,7 @@ impl Default for StagedState {
     fn default() -> Self {
         Self {
             products: StagedRecords::default(),
+            product_variants: StagedRecords::default(),
             saved_searches: StagedRecords::default(),
             product_search_tags: BTreeMap::new(),
             shipping_packages: BTreeMap::new(),
@@ -403,6 +450,10 @@ impl Default for StagedState {
             fulfillment_order_deadlines: BTreeMap::new(),
             bulk_operations: BTreeMap::new(),
             bulk_operation_staged_uploads: BTreeMap::new(),
+            discounts: BTreeMap::new(),
+            discount_code_index: BTreeMap::new(),
+            deleted_discount_ids: BTreeSet::new(),
+            discount_redeem_code_bulk_creations: BTreeMap::new(),
             timestamp_discounts: BTreeMap::new(),
             gift_cards: BTreeMap::new(),
             markets: BTreeMap::new(),
@@ -422,6 +473,8 @@ impl Default for StagedState {
             inventory_quantity_updated_at: BTreeMap::new(),
             next_inventory_quantity_timestamp: 0,
             inventory_transfers: BTreeMap::new(),
+            metaobject_definitions: BTreeMap::new(),
+            deleted_metaobject_definition_ids: BTreeSet::new(),
             metaobjects: BTreeMap::new(),
             deleted_metaobject_ids: BTreeSet::new(),
             app_metafields: BTreeMap::new(),
@@ -436,9 +489,14 @@ impl Default for StagedState {
             product_delete_operations: BTreeMap::new(),
             selling_plan_group_downstream_step: 0,
             mandate_payment_keys: BTreeSet::new(),
-            payment_terms_ids: BTreeSet::new(),
+            payment_terms: BTreeMap::new(),
+            payment_terms_owner_index: BTreeMap::new(),
             payment_reminder_schedule_ids: BTreeSet::new(),
             payment_customizations: BTreeMap::new(),
+            customer_payment_methods: BTreeMap::new(),
+            customer_payment_method_customer_index: BTreeMap::new(),
+            next_customer_payment_method_id: 1,
+            abandonments: BTreeMap::new(),
             orders: BTreeMap::new(),
             draft_orders: BTreeMap::new(),
             returns: BTreeMap::new(),
@@ -555,6 +613,25 @@ where
 }
 
 impl Store {
+    fn with_default_baseline() -> Self {
+        let mut store = Self::default();
+        store.base.available_locales = default_available_locales();
+        store.base.shop_locales.insert(
+            "en".to_string(),
+            json!({
+                "locale": "en",
+                "name": "English",
+                "primary": true,
+                "published": true,
+                "marketWebPresences": [{
+                    "id": "gid://shopify/MarketWebPresence/62842765618",
+                    "subfolderSuffix": null
+                }]
+            }),
+        );
+        store
+    }
+
     fn clear_staged(&mut self) {
         self.staged = StagedState::default();
     }
@@ -575,12 +652,32 @@ impl Store {
         self.base.products.replace_with_order(products, order);
     }
 
+    fn replace_base_product_variants_map_with_order(
+        &mut self,
+        variants: BTreeMap<String, ProductVariantRecord>,
+        order: Vec<String>,
+    ) {
+        self.base
+            .product_variants
+            .replace_with_order(variants, order);
+    }
+
     fn replace_staged_products_map_with_order(
         &mut self,
         products: BTreeMap<String, ProductRecord>,
         order: Vec<String>,
     ) {
         self.staged.products.replace_with_order(products, order);
+    }
+
+    fn replace_staged_product_variants_map_with_order(
+        &mut self,
+        variants: BTreeMap<String, ProductVariantRecord>,
+        order: Vec<String>,
+    ) {
+        self.staged
+            .product_variants
+            .replace_with_order(variants, order);
     }
 
     fn replace_base_saved_searches_map_with_order(
@@ -605,6 +702,10 @@ impl Store {
 
     fn replace_product_tombstones(&mut self, ids: BTreeSet<String>) {
         self.staged.products.tombstones = ids;
+    }
+
+    fn replace_product_variant_tombstones(&mut self, ids: BTreeSet<String>) {
+        self.staged.product_variants.tombstones = ids;
     }
 
     fn replace_saved_search_tombstones(&mut self, ids: BTreeSet<String>) {
@@ -746,6 +847,61 @@ impl Store {
 
     fn product_staged_or_base(&self, id: &str) -> Option<ProductRecord> {
         self.product_by_id(id).cloned()
+    }
+
+    fn product_variant_by_id(&self, id: &str) -> Option<&ProductVariantRecord> {
+        effective_get(
+            &self.base.product_variants,
+            &self.staged.product_variants,
+            id,
+        )
+    }
+
+    fn product_variant_by_inventory_item_id(
+        &self,
+        inventory_item_id: &str,
+    ) -> Option<&ProductVariantRecord> {
+        self.staged
+            .product_variants
+            .order
+            .iter()
+            .filter(|id| !self.staged.product_variants.is_tombstoned(id))
+            .filter_map(|id| self.staged.product_variants.get(id))
+            .find(|variant| variant.inventory_item.id == inventory_item_id)
+            .or_else(|| {
+                self.base
+                    .product_variants
+                    .order
+                    .iter()
+                    .filter(|id| {
+                        !self.staged.product_variants.is_tombstoned(id)
+                            && !self.staged.product_variants.contains_staged(id)
+                    })
+                    .filter_map(|id| self.base.product_variants.get(id))
+                    .find(|variant| variant.inventory_item.id == inventory_item_id)
+            })
+    }
+
+    fn product_variants_for_product(&self, product_id: &str) -> Vec<ProductVariantRecord> {
+        effective_records(&self.base.product_variants, &self.staged.product_variants)
+            .into_iter()
+            .filter(|variant| variant.product_id == product_id)
+            .collect()
+    }
+
+    fn stage_product_variant(&mut self, variant: ProductVariantRecord) {
+        self.staged
+            .product_variants
+            .stage(variant.id.clone(), variant);
+    }
+
+    fn delete_product_variant(&mut self, id: &str) -> bool {
+        let existed = self.product_variant_by_id(id).is_some();
+        self.staged.product_variants.remove_staged(id);
+        if existed {
+            self.staged.product_variants.tombstone(id.to_string());
+        }
+        existed
     }
 
     fn saved_search_base_with_defaults(
@@ -918,6 +1074,7 @@ mod markets_online_inventory;
 mod media_products_saved_searches;
 mod metafield_metaobject_definitions;
 mod metafields_orders_payments;
+mod metaobjects;
 mod online_store_orders_payments;
 mod product_helpers;
 mod resolved_values;
@@ -953,6 +1110,8 @@ pub(in crate::proxy) use self::media_products_saved_searches::*;
 pub(in crate::proxy) use self::metafield_metaobject_definitions::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::metafields_orders_payments::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::metaobjects::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::online_store_orders_payments::*;
 #[allow(unused_imports)]
@@ -1372,6 +1531,64 @@ mod store_tests {
     fn product_variant_downstream_read_uses_staged_variant_state() {
         let mut proxy = snapshot_proxy();
 
+        let create_product = proxy.process_request(graphql_request(
+            r#"
+            mutation ProductVariantUpdateSetupProduct($product: ProductCreateInput!) {
+              productCreate(product: $product) {
+                product {
+                  id
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({
+                "product": {
+                    "title": "Store Variant Product",
+                    "status": "ACTIVE"
+                }
+            }),
+        ));
+        let product_id = create_product.body["data"]["productCreate"]["product"]["id"]
+            .as_str()
+            .expect("product create should return product id")
+            .to_string();
+
+        let create_variant = proxy.process_request(graphql_request(
+            r#"
+            mutation ProductVariantUpdateSetupVariant($input: ProductVariantInput!) {
+              productVariantCreate(input: $input) {
+                productVariant {
+                  id
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+            "#,
+            json!({
+                "input": {
+                    "productId": product_id,
+                    "title": "Store Red",
+                    "sku": "STORE-DRAFT",
+                    "inventoryItem": {
+                        "tracked": false,
+                        "requiresShipping": true
+                    }
+                }
+            }),
+        ));
+        let variant_id = create_variant.body["data"]["productVariantCreate"]["productVariant"]
+            ["id"]
+            .as_str()
+            .expect("variant create should return variant id")
+            .to_string();
+
         let update = proxy.process_request(graphql_request(
             r#"
             mutation ProductVariantUpdateParityPlan($input: ProductVariantInput!) {
@@ -1412,7 +1629,7 @@ mod store_tests {
             "#,
             json!({
                 "input": {
-                    "id": "gid://shopify/ProductVariant/50905436913897",
+                    "id": variant_id,
                     "title": "Store Red",
                     "sku": "STORE-RED",
                     "barcode": "store-barcode",
@@ -1424,10 +1641,10 @@ mod store_tests {
                 }
             }),
         ));
-        let product_id = update.body["data"]["productVariantUpdate"]["product"]["id"]
-            .as_str()
-            .expect("variant update should return product id")
-            .to_string();
+        assert_eq!(
+            update.body["data"]["productVariantUpdate"]["product"]["id"],
+            json!(product_id)
+        );
 
         let read = proxy.process_request(graphql_request(
             r#"

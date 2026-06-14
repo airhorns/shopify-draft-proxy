@@ -46,8 +46,7 @@
       {
         "name": "multiple-function-identifiers-validation",
         "capturePath": "$.response.payload.data.bothIdentifiers",
-        "proxyPath": "$.data.bothIdentifiers",
-        "selectedPaths": ["$.paymentCustomization", "$.userErrors[0].code"]
+        "proxyPath": "$.data.bothIdentifiers"
       },
       {
         "name": "missing-function-identifier-validation",

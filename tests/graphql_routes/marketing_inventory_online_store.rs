@@ -73,14 +73,14 @@ fn marketing_external_activity_lifecycle_stages_updates_engagements_and_reads_ba
 
     let update = proxy.process_request(json_graphql_request(
         r#"
-        mutation MarketingActivityLifecycleUpdate($remoteId: String!, $input: MarketingActivityUpdateExternalInput!) {
-          updateExternalByRemoteId: marketingActivityUpdateExternal(remoteId: $remoteId, input: $input) {
+        mutation MarketingActivityLifecycleUpdate($remoteId: String!, $utm: UTMInput, $input: MarketingActivityUpdateExternalInput!) {
+          updateExternalByRemoteId: marketingActivityUpdateExternal(remoteId: $remoteId, utm: $utm, input: $input) {
             marketingActivity { id title status statusLabel marketingEvent { remoteId manageUrl description } }
             userErrors { field message code }
           }
         }
         "#,
-        json!({"remoteId": "remote-1", "input": {"title": "Launch updated", "status": "PAUSED", "remoteUrl": "https://example.com/manage-2"}}),
+        json!({"remoteId": "remote-1", "utm": {"campaign": "launch", "source": "email", "medium": "newsletter"}, "input": {"title": "Launch updated", "status": "PAUSED", "remoteUrl": "https://example.com/manage-2"}}),
     ));
     assert_eq!(
         update.body["data"]["updateExternalByRemoteId"]["marketingActivity"]["title"],
@@ -132,6 +132,100 @@ fn marketing_external_activity_lifecycle_stages_updates_engagements_and_reads_ba
     assert_eq!(
         read.body["data"]["marketingActivities"]["nodes"][0]["marketingEvent"]["remoteId"],
         json!("remote-1")
+    );
+}
+
+#[test]
+fn marketing_external_activity_update_and_upsert_reject_tactic_change_from_storefront_app() {
+    let mut proxy = snapshot_proxy();
+    let setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityUpdateCurrencyAndTacticGuardsSetup(
+          $updateInput: MarketingActivityCreateExternalInput!
+          $upsertInput: MarketingActivityCreateExternalInput!
+        ) {
+          updateSeed: marketingActivityCreateExternal(input: $updateInput) {
+            marketingActivity { id title tactic remoteId }
+            userErrors { field message code }
+          }
+          upsertSeed: marketingActivityCreateExternal(input: $upsertInput) {
+            marketingActivity { id title tactic remoteId }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "updateInput": {"title": "Storefront update seed", "remoteId": "storefront-update-seed", "status": "ACTIVE", "remoteUrl": "https://example.com/storefront-update-seed", "tactic": "STOREFRONT_APP", "marketingChannelType": "EMAIL", "utm": {"campaign": "storefront-update-seed", "source": "email", "medium": "newsletter"}},
+            "upsertInput": {"title": "Storefront upsert seed", "remoteId": "storefront-upsert-seed", "status": "ACTIVE", "remoteUrl": "https://example.com/storefront-upsert-seed", "tactic": "STOREFRONT_APP", "marketingChannelType": "EMAIL", "utm": {"campaign": "storefront-upsert-seed", "source": "email", "medium": "newsletter"}}
+        }),
+    ));
+    assert_eq!(setup.body["data"]["updateSeed"]["userErrors"], json!([]));
+    assert_eq!(setup.body["data"]["upsertSeed"]["userErrors"], json!([]));
+    let update_activity_id = setup.body["data"]["updateSeed"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let upsert_activity_id = setup.body["data"]["upsertSeed"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let guards = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityUpdateCurrencyAndTacticGuardsFromStorefront(
+          $updateActivityId: ID!
+          $updateInput: MarketingActivityUpdateExternalInput!
+          $upsertInput: MarketingActivityUpsertExternalInput!
+        ) {
+          updateFromStorefront: marketingActivityUpdateExternal(marketingActivityId: $updateActivityId, input: $updateInput) {
+            marketingActivity { id title tactic }
+            userErrors { field message code }
+          }
+          upsertFromStorefront: marketingActivityUpsertExternal(input: $upsertInput) {
+            marketingActivity { id title tactic }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "updateActivityId": update_activity_id,
+            "updateInput": {"title": "Should not stage update", "tactic": "NEWSLETTER"},
+            "upsertInput": {"remoteId": "storefront-upsert-seed", "title": "Should not stage upsert", "tactic": "NEWSLETTER"}
+        }),
+    ));
+    let expected_error = json!([{
+        "field": ["input"],
+        "message": "You can not update an activity tactic from STOREFRONT_APP.",
+        "code": "CANNOT_UPDATE_TACTIC_IF_ORIGINALLY_STOREFRONT_APP"
+    }]);
+    assert_eq!(
+        guards.body["data"]["updateFromStorefront"],
+        json!({"marketingActivity": null, "userErrors": expected_error})
+    );
+    assert_eq!(
+        guards.body["data"]["upsertFromStorefront"],
+        json!({"marketingActivity": null, "userErrors": expected_error})
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingActivityRead($updateActivityId: ID!, $upsertActivityId: ID!) {
+          updateSeed: marketingActivity(id: $updateActivityId) { title tactic }
+          upsertSeed: marketingActivity(id: $upsertActivityId) { title tactic }
+        }
+        "#,
+        json!({
+            "updateActivityId": update_activity_id,
+            "upsertActivityId": upsert_activity_id
+        }),
+    ));
+    assert_eq!(
+        read.body["data"]["updateSeed"],
+        json!({"title": "Storefront update seed", "tactic": "STOREFRONT_APP"})
+    );
+    assert_eq!(
+        read.body["data"]["upsertSeed"],
+        json!({"title": "Storefront upsert seed", "tactic": "STOREFRONT_APP"})
     );
 }
 
@@ -375,6 +469,206 @@ fn marketing_external_activity_upsert_create_branch_rejects_currency_and_duplica
 }
 
 #[test]
+fn marketing_external_activity_update_and_upsert_reject_immutable_field_changes() {
+    let mut proxy = snapshot_proxy();
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle(
+          $parentInput: MarketingActivityCreateExternalInput!
+          $otherParentInput: MarketingActivityCreateExternalInput!
+          $childInput: MarketingActivityCreateExternalInput!
+          $utmOnlyInput: MarketingActivityCreateExternalInput!
+        ) {
+          parent: marketingActivityCreateExternal(input: $parentInput) { marketingActivity { id } userErrors { field message code } }
+          otherParent: marketingActivityCreateExternal(input: $otherParentInput) { marketingActivity { id } userErrors { field message code } }
+          child: marketingActivityCreateExternal(input: $childInput) { marketingActivity { id title parentRemoteId hierarchyLevel urlParameterValue utmParameters { campaign source medium } marketingEvent { channelHandle } } userErrors { field message code } }
+          utmOnly: marketingActivityCreateExternal(input: $utmOnlyInput) { marketingActivity { id } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "parentInput": {"title": "Parent", "remoteId": "guard-parent", "status": "ACTIVE", "remoteUrl": "https://example.com/parent", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "guard-parent", "source": "email", "medium": "newsletter"}, "hierarchyLevel": "CAMPAIGN"},
+            "otherParentInput": {"title": "Other parent", "remoteId": "guard-other-parent", "status": "ACTIVE", "remoteUrl": "https://example.com/other-parent", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "guard-other-parent", "source": "email", "medium": "newsletter"}, "hierarchyLevel": "CAMPAIGN"},
+            "childInput": {"title": "Child", "remoteId": "guard-child", "status": "ACTIVE", "remoteUrl": "https://example.com/child", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "urlParameterValue": "guard-child-url", "utm": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}, "parentRemoteId": "guard-parent", "hierarchyLevel": "AD"},
+            "utmOnlyInput": {"title": "UTM only", "remoteId": "guard-utm-only", "status": "ACTIVE", "remoteUrl": "https://example.com/utm-only", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "guard-utm-only", "source": "email", "medium": "newsletter"}}
+        }),
+    ));
+    assert_eq!(seed.body["data"]["parent"]["userErrors"], json!([]));
+    assert_eq!(seed.body["data"]["otherParent"]["userErrors"], json!([]));
+    assert_eq!(seed.body["data"]["child"]["userErrors"], json!([]));
+    assert_eq!(seed.body["data"]["utmOnly"]["userErrors"], json!([]));
+
+    let order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($input: MarketingActivityUpsertExternalInput!) {
+          changed: marketingActivityUpsertExternal(input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Should not stage", "remoteId": "guard-child", "status": "ACTIVE", "remoteUrl": "https://example.com/child", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "urlParameterValue": "changed-url", "utm": {"campaign": "changed-campaign", "source": "email", "medium": "newsletter"}, "channelHandle": "changed-channel"}}),
+    ));
+    assert_eq!(
+        order.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Channel handle cannot be modified.", "code": "IMMUTABLE_CHANNEL_HANDLE"}]})
+    );
+
+    let update_parent = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($remoteId: String!, $input: MarketingActivityUpdateExternalInput!) {
+          changed: marketingActivityUpdateExternal(remoteId: $remoteId, input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"remoteId": "guard-child", "input": {"title": "Should not stage parent", "urlParameterValue": "guard-child-url", "utm": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}, "parentRemoteId": "guard-other-parent", "hierarchyLevel": "AD"}}),
+    ));
+    assert_eq!(
+        update_parent.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Parent ID cannot be modified.", "code": "IMMUTABLE_PARENT_ID"}]})
+    );
+
+    let invalid_parent = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($input: MarketingActivityUpsertExternalInput!) {
+          changed: marketingActivityUpsertExternal(input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Should not stage invalid parent", "remoteId": "guard-child", "status": "ACTIVE", "remoteUrl": "https://example.com/child", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "urlParameterValue": "guard-child-url", "utm": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}, "parentRemoteId": "missing-parent", "hierarchyLevel": "AD"}}),
+    ));
+    assert_eq!(
+        invalid_parent.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Remote ID does not correspond to an activity.", "code": "INVALID_REMOTE_ID"}]})
+    );
+
+    let hierarchy = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($input: MarketingActivityUpsertExternalInput!) {
+          changed: marketingActivityUpsertExternal(input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Should not stage hierarchy", "remoteId": "guard-child", "status": "ACTIVE", "remoteUrl": "https://example.com/child", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "urlParameterValue": "guard-child-url", "utm": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}, "parentRemoteId": "guard-parent", "hierarchyLevel": "AD_GROUP"}}),
+    ));
+    assert_eq!(
+        hierarchy.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "Hierarchy level cannot be modified.", "code": "IMMUTABLE_HIERARCHY_LEVEL"}]})
+    );
+
+    let omitted_url = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($input: MarketingActivityUpsertExternalInput!) {
+          changed: marketingActivityUpsertExternal(input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Should not stage omitted URL", "remoteId": "guard-child", "status": "ACTIVE", "remoteUrl": "https://example.com/child", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}, "parentRemoteId": "guard-parent", "hierarchyLevel": "AD"}}),
+    ));
+    assert_eq!(
+        omitted_url.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": ["input"], "message": "URL parameter value cannot be modified.", "code": "IMMUTABLE_URL_PARAMETER"}]})
+    );
+
+    let omitted_utm = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($remoteId: String!, $input: MarketingActivityUpdateExternalInput!) {
+          changed: marketingActivityUpdateExternal(remoteId: $remoteId, input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"remoteId": "guard-utm-only", "input": {"title": "Should not stage omitted UTM"}}),
+    ));
+    assert_eq!(
+        omitted_utm.body["data"]["changed"],
+        json!({"marketingActivity": {"id": seed.body["data"]["utmOnly"]["marketingActivity"]["id"], "title": "Should not stage omitted UTM"}, "userErrors": []})
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingActivityLifecycleRead($remoteIds: [String!]) {
+          marketingActivities(first: 10, remoteIds: $remoteIds) { nodes { title remoteId parentRemoteId hierarchyLevel urlParameterValue utmParameters { campaign source medium } } }
+        }
+        "#,
+        json!({"remoteIds": ["guard-child", "guard-utm-only"]}),
+    ));
+    assert_eq!(
+        read.body["data"]["marketingActivities"]["nodes"][0],
+        json!({"title": "Child", "remoteId": "guard-child", "parentRemoteId": "guard-parent", "hierarchyLevel": "AD", "urlParameterValue": "guard-child-url", "utmParameters": {"campaign": "guard-child", "source": "email", "medium": "newsletter"}})
+    );
+    assert_eq!(
+        read.body["data"]["marketingActivities"]["nodes"][1]["title"],
+        json!("Should not stage omitted UTM")
+    );
+}
+
+#[test]
+fn marketing_external_activity_update_and_upsert_reject_not_external_and_missing_event_records() {
+    let mut proxy = snapshot_proxy();
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingEngagementCreateValidationOrder($activityInput: MarketingActivityUpdateInput!, $externalInput: MarketingActivityCreateExternalInput!) {
+          native: marketingActivityUpdate(input: $activityInput) { marketingActivity { id title isExternal marketingEvent { id } } userErrors { field message } }
+          external: marketingActivityCreateExternal(input: $externalInput) { marketingActivity { id title remoteId } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "activityInput": {"id": "gid://shopify/MarketingActivity/native-no-event", "title": "Native no event", "status": "ACTIVE"},
+            "externalInput": {"title": "External", "remoteId": "eventless-remote", "status": "ACTIVE", "remoteUrl": "https://example.com/eventless", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "eventless-remote", "source": "email", "medium": "newsletter"}}
+        }),
+    ));
+    assert_eq!(seed.body["data"]["native"]["userErrors"], json!([]));
+    assert_eq!(seed.body["data"]["external"]["userErrors"], json!([]));
+    let external_id = seed.body["data"]["external"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let not_external_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($marketingActivityId: ID!, $input: MarketingActivityUpdateExternalInput!) {
+          changed: marketingActivityUpdateExternal(marketingActivityId: $marketingActivityId, input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"marketingActivityId": "gid://shopify/MarketingActivity/native-no-event", "input": {"title": "Should not stage native"}}),
+    ));
+    assert_eq!(
+        not_external_update.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": null, "message": "Marketing activity is not external.", "code": "ACTIVITY_NOT_EXTERNAL"}]})
+    );
+
+    let not_external_upsert = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($input: MarketingActivityUpsertExternalInput!) {
+          changed: marketingActivityUpsertExternal(input: $input) {
+            marketingActivity { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"title": "Should not stage native upsert", "remoteId": "native-local", "status": "ACTIVE", "remoteUrl": "https://example.com/native", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "native-local", "source": "email", "medium": "newsletter"}}}),
+    ));
+    assert_eq!(
+        not_external_upsert.body["data"]["changed"],
+        json!({"marketingActivity": null, "userErrors": [{"field": null, "message": "Marketing activity is not external.", "code": "ACTIVITY_NOT_EXTERNAL"}]})
+    );
+
+    assert!(external_id.starts_with("gid://shopify/MarketingActivity/"));
+}
+
+#[test]
 fn marketing_engagement_create_validation_order_and_missing_event_reach_rust_handler() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
@@ -412,6 +706,85 @@ fn marketing_engagement_create_validation_order_and_missing_event_reach_rust_han
     assert_eq!(
         response.body["data"]["missingEvent"],
         json!({"marketingEngagement": null, "userErrors": [{"field": null, "message": "Marketing event does not exist.", "code": "MARKETING_EVENT_DOES_NOT_EXIST"}]})
+    );
+}
+
+#[test]
+fn marketing_engagements_delete_validates_selectors_and_channel_handles() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingEngagementLifecycle {
+          seedEmail: marketingActivityCreateExternal(input: { title: "Email channel", remoteId: "delete-email-channel", status: ACTIVE, remoteUrl: "https://example.com/delete-email", tactic: NEWSLETTER, marketingChannelType: EMAIL, channelHandle: "email", utm: { campaign: "delete-email-channel", source: "newsletter", medium: "email" } }) {
+            marketingActivity { id marketingEvent { channelHandle } }
+            userErrors { field message code }
+          }
+          bothSelectors: marketingEngagementsDelete(channelHandle: "email", deleteEngagementsForAllChannels: true) {
+            result
+            userErrors { field message code }
+          }
+          missingSelector: marketingEngagementsDelete {
+            result
+            userErrors { field message code }
+          }
+          unknownChannel: marketingEngagementsDelete(channelHandle: "unknown-channel") {
+            result
+            userErrors { field message code }
+          }
+          singleChannel: marketingEngagementsDelete(channelHandle: "email") {
+            result
+            userErrors { field message code }
+          }
+          allChannels: marketingEngagementsDelete(deleteEngagementsForAllChannels: true) {
+            result
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.body["data"]["seedEmail"]["userErrors"], json!([]));
+    assert_eq!(
+        response.body["data"]["bothSelectors"],
+        json!({"result": null, "userErrors": [{"field": null, "message": "Either the channel_handle or delete_engagements_for_all_channels must be provided when deleting a marketing engagement.", "code": "INVALID_DELETE_ENGAGEMENTS_ARGUMENTS"}]})
+    );
+    assert_eq!(
+        response.body["data"]["missingSelector"],
+        json!({"result": null, "userErrors": [{"field": null, "message": "Either the channel_handle or delete_engagements_for_all_channels must be provided when deleting a marketing engagement.", "code": "INVALID_DELETE_ENGAGEMENTS_ARGUMENTS"}]})
+    );
+    assert_eq!(
+        response.body["data"]["unknownChannel"],
+        json!({"result": null, "userErrors": [{"field": ["channelHandle"], "message": "The channel handle is not recognized. Please contact your partner manager for more information.", "code": "INVALID_CHANNEL_HANDLE"}]})
+    );
+    assert_eq!(
+        response.body["data"]["singleChannel"],
+        json!({"result": "Engagement data associated to channel handle 'email' marked for deletion", "userErrors": []})
+    );
+    assert_eq!(
+        response.body["data"]["allChannels"],
+        json!({"result": "Engagement data marked for deletion for 1 channel(s)", "userErrors": []})
+    );
+
+    let mut unowned_delete = json_graphql_request(
+        r#"
+        mutation MarketingEngagementLifecycle {
+          unownedChannel: marketingEngagementsDelete(channelHandle: "email") {
+            result
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    );
+    unowned_delete.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "other-app".to_string(),
+    );
+    let unowned_delete = proxy.process_request(unowned_delete);
+    assert_eq!(
+        unowned_delete.body["data"]["unownedChannel"],
+        json!({"result": null, "userErrors": [{"field": ["channelHandle"], "message": "The channel handle is not recognized. Please contact your partner manager for more information.", "code": "INVALID_CHANNEL_HANDLE"}]})
     );
 }
 
@@ -964,6 +1337,188 @@ fn inventory_quantity_2026_missing_change_from_returns_graphql_error_without_sta
         json!("InventoryChangeInput must include the following argument: changeFromQuantity.")
     );
     assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
+#[test]
+fn order_create_decrements_inventory_when_inventory_behaviour_is_not_bypass() {
+    let mut proxy = snapshot_proxy();
+
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/order-create-seed", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/order-create-decrement", "locationId": "gid://shopify/Location/1", "quantity": 5}
+        ]}}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrderCreateInventoryDecrement($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+          orderCreate(order: $order, options: $options) {
+            order {
+              id
+              lineItems(first: 5) {
+                nodes {
+                  id
+                  quantity
+                  variant { id }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "inventory-decrement@example.com",
+                "currency": "USD",
+                "lineItems": [{
+                    "variantId": "gid://shopify/ProductVariant/order-create-decrement",
+                    "quantity": 2,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            },
+            "options": {
+                "sendReceipt": false,
+                "sendFulfillmentReceipt": false
+            }
+        }),
+    ));
+    assert_eq!(order.body["data"]["orderCreate"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryAfterOrderCreate($id: ID!) {
+          inventoryItem(id: $id) {
+            variant { inventoryQuantity }
+            inventoryLevels(first: 5) {
+              nodes {
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/InventoryItem/order-create-decrement"}),
+    ));
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["variant"]["inventoryQuantity"],
+        json!(3)
+    );
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"],
+        json!([
+            {"name": "available", "quantity": 3},
+            {"name": "on_hand", "quantity": 3}
+        ])
+    );
+    let log = proxy.get_log_snapshot();
+    assert_eq!(
+        log["entries"][1]["interpreted"]["operationName"],
+        json!("orderCreate")
+    );
+    assert_eq!(log["entries"][1]["status"], json!("staged"));
+    assert_eq!(
+        log["entries"][1]["interpreted"]["capability"],
+        json!({
+            "operationName": "orderCreate",
+            "domain": "orders",
+            "execution": "stage-locally"
+        })
+    );
+    assert_eq!(
+        log["entries"][1]["notes"],
+        json!("Locally staged orderCreate in shopify-draft-proxy.")
+    );
+    assert_eq!(
+        log["entries"][1]["stagedResourceIds"],
+        json!(["gid://shopify/Order/1"])
+    );
+
+    let bypass_seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/order-create-bypass-seed", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/order-create-bypass", "locationId": "gid://shopify/Location/1", "quantity": 8}
+        ]}}),
+    ));
+    assert_eq!(
+        bypass_seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let bypass_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrderCreateInventoryBypass($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+          orderCreate(order: $order, options: $options) {
+            order { id lineItems(first: 5) { nodes { quantity variant { id } } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "inventory-bypass@example.com",
+                "currency": "USD",
+                "lineItems": [{
+                    "variantId": "gid://shopify/ProductVariant/order-create-bypass",
+                    "quantity": 4,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            },
+            "options": {
+                "inventoryBehaviour": "BYPASS",
+                "sendReceipt": false,
+                "sendFulfillmentReceipt": false
+            }
+        }),
+    ));
+    assert_eq!(
+        bypass_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+
+    let bypass_read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryAfterOrderCreate($id: ID!) {
+          inventoryItem(id: $id) {
+            variant { inventoryQuantity }
+            inventoryLevels(first: 5) {
+              nodes {
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/InventoryItem/order-create-bypass"}),
+    ));
+    assert_eq!(
+        bypass_read.body["data"]["inventoryItem"]["variant"]["inventoryQuantity"],
+        json!(8)
+    );
+    assert_eq!(
+        bypass_read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"],
+        json!([
+            {"name": "available", "quantity": 8},
+            {"name": "on_hand", "quantity": 8}
+        ])
+    );
 }
 
 #[test]
@@ -2176,6 +2731,75 @@ fn online_store_theme_lifecycle_tail_helpers_ported_from_gleam() {
 }
 
 #[test]
+fn online_store_theme_publish_rejects_development_without_role_changes() {
+    let mut proxy = snapshot_proxy();
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeLocalRuntimeDevelopmentPublishSetup {
+          main: themeCreate(source: "https://example.com/current.zip", name: "Current main", role: MAIN) { theme { id role name } userErrors { field message code } }
+          development: themeCreate(source: "https://example.com/dev.zip", name: "Development theme", role: DEVELOPMENT) { theme { id role name } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        created.body["data"]["main"]["theme"],
+        json!({"id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "role": "MAIN", "name": "Current main"})
+    );
+    assert_eq!(
+        created.body["data"]["development"]["theme"],
+        json!({"id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic", "role": "DEVELOPMENT", "name": "Development theme"})
+    );
+
+    let publish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeLocalRuntimeDevelopmentPublish {
+          themePublish(id: "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic") {
+            theme { id role }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        publish.body["data"]["themePublish"],
+        json!({"theme": null, "userErrors": [{"field": ["base"], "message": "You cannot publish a development theme.", "code": null}]})
+    );
+
+    let read_after_publish = proxy.process_request(json_graphql_request(
+        r#"
+        query RustOnlineStoreThemeLocalRuntimeDevelopmentPublishRead {
+          main: theme(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic") { id role name }
+          development: theme(id: "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic") { id role name }
+          mains: themes(first: 10, roles: [MAIN]) { nodes { id role name } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_publish.body["data"]["main"],
+        json!({"id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "role": "MAIN", "name": "Current main"})
+    );
+    assert_eq!(
+        read_after_publish.body["data"]["development"],
+        json!({"id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic", "role": "DEVELOPMENT", "name": "Development theme"})
+    );
+    assert_eq!(
+        read_after_publish.body["data"]["mains"]["nodes"],
+        json!([{"id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "role": "MAIN", "name": "Current main"}])
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        ..Default::default()
+    });
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
 fn online_store_theme_connection_paginates_edges_nodes_and_page_info_consistently() {
     let mut proxy = snapshot_proxy();
 
@@ -2272,6 +2896,7 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
           second: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello world" } }]) { upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
           invalid: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "evil/path.liquid", body: { type: TEXT, value: "ignored" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
           app: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/app.js", body: { type: TEXT, value: "console.log(1)" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
+          theme: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/theme.js", body: { type: TEXT, value: "hello" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
         }
         "#,
         json!({}),
@@ -2294,6 +2919,8 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
         mutation RustOnlineStoreThemeFileLocalRuntimeCopyDelete {
           missingCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/missing.js", dstFilename: "assets/copy.js" }]) { copiedThemeFiles { filename } userErrors { field message code } }
           copy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/app.js", dstFilename: "assets/copy.js" }]) { copiedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          multiCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/app.js", dstFilename: "assets/app-copy.js" }, { srcFilename: "assets/theme.js", dstFilename: "assets/theme-copy.js" }]) { copiedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          mixedCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/missing.js", dstFilename: "assets/missing-copy.js" }, { srcFilename: "assets/theme.js", dstFilename: "assets/theme-copy-2.js" }]) { copiedThemeFiles { filename } userErrors { field message code } }
           requiredDelete: themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: ["config/settings_data.json", "config/settings_schema.json"]) { deletedThemeFiles { filename } userErrors { field message code } }
           deleteCopy: themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: ["assets/copy.js"]) { deletedThemeFiles { filename } userErrors { field message code } }
         }
@@ -2307,6 +2934,17 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
     assert_eq!(
         copy_delete.body["data"]["copy"]["copiedThemeFiles"][0],
         json!({"filename": "assets/copy.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}})
+    );
+    assert_eq!(
+        copy_delete.body["data"]["multiCopy"],
+        json!({"copiedThemeFiles": [
+            {"filename": "assets/app-copy.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
+            {"filename": "assets/theme-copy.js", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}}
+        ], "userErrors": []})
+    );
+    assert_eq!(
+        copy_delete.body["data"]["mixedCopy"],
+        json!({"copiedThemeFiles": [{"filename": "assets/theme-copy-2.js"}], "userErrors": [{"field": ["files", "0", "srcFilename"], "message": "File not found", "code": "NOT_FOUND"}]})
     );
     assert_eq!(
         copy_delete.body["data"]["requiredDelete"]["userErrors"],
@@ -2332,83 +2970,82 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
         read.body["data"]["theme"]["files"]["nodes"],
         json!([
             {"filename": "templates/index.json", "checksumMd5": "5eb63bbbe01eeed093cb22bb8f5acdc3", "size": 11, "body": {"content": "hello world"}},
-            {"filename": "assets/app.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}}
+            {"filename": "assets/app.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
+            {"filename": "assets/theme.js", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}},
+            {"filename": "assets/app-copy.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
+            {"filename": "assets/theme-copy.js", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}},
+            {"filename": "assets/theme-copy-2.js", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}}
         ])
     );
 }
 
 #[test]
-fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
+fn metaobjects_read_empty_and_lifecycle_state_locally_for_arbitrary_documents() {
     let mut proxy = snapshot_proxy();
 
-    let seeded = proxy.process_request(json_graphql_request(
+    let empty = proxy.process_request(json_graphql_request(
         r#"
-        query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
-          catalog: metaobjects(type: $type, first: 10) { edges { cursor node { id handle type displayName updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: "title") { key type value jsonValue definition { key name required type { name category } } } } } nodes { id handle type displayName updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: "title") { key type value jsonValue definition { key name required type { name category } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
-          detail: metaobject(id: $id) { id handle type displayName updatedAt fields { key value } titleField: field(key: "title") { key value } }
-          byHandle: metaobjectByHandle(handle: $handle) { id handle type displayName updatedAt fields { key value } titleField: field(key: "title") { key value } }
-        }
-        "#,
-        json!({
-            "id": "gid://shopify/Metaobject/185593102642",
-            "handle": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370"},
-            "type": "codex_har_240_1777156845370"
-        }),
-    ));
-    assert_eq!(
-        seeded.body["data"]["catalog"]["nodes"][0]["id"],
-        json!("gid://shopify/Metaobject/185593102642")
-    );
-    assert_eq!(
-        seeded.body["data"]["detail"]["displayName"],
-        json!("HAR-240 title 1777156845370")
-    );
-    assert_eq!(
-        seeded.body["data"]["byHandle"]["titleField"]["value"],
-        json!("HAR-240 title 1777156845370")
-    );
-
-    let deleted = proxy.process_request(json_graphql_request(
-        r#"
-        mutation MetaobjectEntryLifecycleDelete($id: ID!) {
-          metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } }
-        }
-        "#,
-        json!({"id": "gid://shopify/Metaobject/185593102642"}),
-    ));
-    assert_eq!(
-        deleted.body["data"]["metaobjectDelete"],
-        json!({"deletedId": "gid://shopify/Metaobject/185593102642", "userErrors": []})
-    );
-
-    let after_delete = proxy.process_request(json_graphql_request(
-        r#"
-        query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+        query AnyMetaobjectReadName($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
           catalog: metaobjects(type: $type, first: 10) { edges { cursor node { id } } nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
           detail: metaobject(id: $id) { id }
           byHandle: metaobjectByHandle(handle: $handle) { id }
         }
         "#,
         json!({
-            "id": "gid://shopify/Metaobject/185593102642",
-            "handle": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370"},
-            "type": "codex_har_240_1777156845370"
+            "id": "gid://shopify/Metaobject/does-not-exist",
+            "handle": {"type": "local_article", "handle": "local-entry"},
+            "type": "local_article"
         }),
     ));
     assert_eq!(
-        after_delete.body["data"]["catalog"],
+        empty.body["data"]["catalog"],
         json!({"edges": [], "nodes": [], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}})
     );
-    assert_eq!(after_delete.body["data"]["detail"], Value::Null);
-    assert_eq!(after_delete.body["data"]["byHandle"], Value::Null);
+    assert_eq!(empty.body["data"]["detail"], Value::Null);
+    assert_eq!(empty.body["data"]["byHandle"], Value::Null);
+
+    let definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AnyMetaobjectDefinitionCreateName($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id type metaobjectsCount }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "local_article",
+            "name": "Local Article",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true},
+                {"key": "body", "name": "Body", "type": "multi_line_text_field", "required": false},
+                {"key": "summary", "name": "Summary", "type": "single_line_text_field", "required": false}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
 
     let created = proxy.process_request(json_graphql_request(
         r#"
-        mutation MetaobjectEntryLifecycleCreate($metaobject: MetaobjectCreateInput!) {
-          metaobjectCreate(metaobject: $metaobject) { metaobject { id handle type displayName updatedAt fields { key value } titleField: field(key: "title") { key value } } userErrors { field message code elementKey elementIndex } }
+        mutation AnyMetaobjectCreateName($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject {
+              id
+              handle
+              type
+              displayName
+              updatedAt
+              fields { key type value jsonValue definition { key name required type { name category } } }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
         }
         "#,
-        json!({"metaobject": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370", "capabilities": {"publishable": {"status": "ACTIVE"}}, "fields": [{"key": "title", "value": "HAR-240 title 1777156845370"}, {"key": "body", "value": "HAR-240 body 1777156845370"}]}}),
+        json!({"metaobject": {"type": "local_article", "handle": "local-entry", "fields": [{"key": "title", "value": "Local Title"}, {"key": "body", "value": "Local body"}, {"key": "summary", "value": "Local summary"}]}}),
     ));
     let created_id = created.body["data"]["metaobjectCreate"]["metaobject"]["id"]
         .as_str()
@@ -2417,7 +3054,41 @@ fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
     assert!(created_id.starts_with("gid://shopify/Metaobject/"));
     assert_eq!(
         created.body["data"]["metaobjectCreate"]["metaobject"]["displayName"],
-        json!("HAR-240 title 1777156845370")
+        json!("Local Title")
+    );
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"]["metaobject"]["handle"],
+        json!("local-entry")
+    );
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"]["metaobject"]["type"],
+        json!("local_article")
+    );
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"]["metaobject"]["fields"],
+        json!([
+            {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "Local Title",
+                "jsonValue": "Local Title",
+                "definition": {"key": "title", "name": "Title", "required": true, "type": {"name": "single_line_text_field", "category": "TEXT"}}
+            },
+            {
+                "key": "body",
+                "type": "multi_line_text_field",
+                "value": "Local body",
+                "jsonValue": "Local body",
+                "definition": {"key": "body", "name": "Body", "required": false, "type": {"name": "multi_line_text_field", "category": "TEXT"}}
+            },
+            {
+                "key": "summary",
+                "type": "single_line_text_field",
+                "value": "Local summary",
+                "jsonValue": "Local summary",
+                "definition": {"key": "summary", "name": "Summary", "required": false, "type": {"name": "single_line_text_field", "category": "TEXT"}}
+            }
+        ])
     );
     assert_eq!(
         created.body["data"]["metaobjectCreate"]["userErrors"],
@@ -2426,7 +3097,7 @@ fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
 
     let after_create = proxy.process_request(json_graphql_request(
         r#"
-        query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+        query AnyDownstreamMetaobjectRead($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
           catalog: metaobjects(type: $type, first: 10) { edges { cursor node { id handle type displayName updatedAt } } nodes { id handle type displayName updatedAt } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
           detail: metaobject(id: $id) { id handle type displayName updatedAt }
           byHandle: metaobjectByHandle(handle: $handle) { id handle type displayName updatedAt }
@@ -2434,8 +3105,8 @@ fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
         "#,
         json!({
             "id": created_id,
-            "handle": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370"},
-            "type": "codex_har_240_1777156845370"
+            "handle": {"type": "local_article", "handle": "local-entry"},
+            "type": "local_article"
         }),
     ));
     assert_eq!(
@@ -2444,7 +3115,344 @@ fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
     );
     assert_eq!(
         after_create.body["data"]["byHandle"]["displayName"],
-        json!("HAR-240 title 1777156845370")
+        json!("Local Title")
+    );
+
+    let deleted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AnyMetaobjectDeleteName($id: ID!) {
+          metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } }
+        }
+        "#,
+        json!({"id": created_id}),
+    ));
+    assert_eq!(
+        deleted.body["data"]["metaobjectDelete"],
+        json!({"deletedId": created.body["data"]["metaobjectCreate"]["metaobject"]["id"], "userErrors": []})
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query AnyReadAfterDelete($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+          catalog: metaobjects(type: $type, first: 10) { edges { cursor node { id } } nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          detail: metaobject(id: $id) { id }
+          byHandle: metaobjectByHandle(handle: $handle) { id }
+        }
+        "#,
+        json!({
+            "id": deleted.body["data"]["metaobjectDelete"]["deletedId"],
+            "handle": {"type": "local_article", "handle": "local-entry"},
+            "type": "local_article"
+        }),
+    ));
+    assert_eq!(
+        after_delete.body["data"]["catalog"],
+        json!({"edges": [], "nodes": [], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}})
+    );
+    assert_eq!(after_delete.body["data"]["detail"], Value::Null);
+    assert_eq!(after_delete.body["data"]["byHandle"], Value::Null);
+}
+
+#[test]
+fn metaobject_create_rejects_duplicate_field_keys() {
+    let mut proxy = snapshot_proxy();
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ArbitraryDuplicateCreateDocument($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) { metaobject { id displayName fields { key value } } userErrors { field message code elementKey elementIndex } }
+        }
+        "#,
+        json!({
+            "metaobject": {
+                "type": "codex_update_errors_1778040780683",
+                "fields": [
+                    {"key": "title", "value": "First 1778040780683"},
+                    {"key": "title", "value": ""},
+                    {"key": "body", "value": "Body 1778040780683"}
+                ]
+            }
+        }),
+    ));
+
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"],
+        json!({
+            "metaobject": null,
+            "userErrors": [
+                {
+                    "field": ["metaobject", "fields", "1"],
+                    "message": "Field \"title\" duplicates other inputs",
+                    "code": "DUPLICATE_FIELD_INPUT",
+                    "elementKey": "title",
+                    "elementIndex": null
+                },
+                {
+                    "field": ["metaobject", "fields", "1"],
+                    "message": "Title can't be blank",
+                    "code": "OBJECT_FIELD_REQUIRED",
+                    "elementKey": "title",
+                    "elementIndex": null
+                }
+            ]
+        })
+    );
+
+    let after_rejected_create = proxy.process_request(json_graphql_request(
+        r#"
+        query ArbitraryRejectedCreateRead($type: String!) {
+          metaobjects(type: $type, first: 10) { nodes { id } }
+        }
+        "#,
+        json!({"type": "codex_update_errors_1778040780683"}),
+    ));
+    assert_eq!(
+        after_rejected_create.body["data"]["metaobjects"]["nodes"],
+        json!([])
+    );
+}
+
+#[test]
+fn metaobject_entry_lifecycle_dispatches_by_root_field_and_definition_state() {
+    let mut proxy = snapshot_proxy();
+
+    let definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id type displayNameKey metaobjectsCount fieldDefinitions { key name required type { name category } } capabilities { publishable { enabled } } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "ticket_metaobject_type",
+            "name": "Ticket Metaobject",
+            "displayNameKey": "heading",
+            "capabilities": {"publishable": {"enabled": true}},
+            "fieldDefinitions": [
+                {"key": "heading", "name": "Heading", "type": "single_line_text_field", "required": true},
+                {"key": "rank", "name": "Rank", "type": "number_integer", "required": false},
+                {"key": "body", "name": "Body", "type": "multi_line_text_field", "required": false}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetaobject($metaobject: MetaobjectCreateInput!) {
+          created: metaobjectCreate(metaobject: $metaobject) {
+            metaobject {
+              id
+              handle
+              type
+              displayName
+              capabilities { publishable { status } }
+              fields { key type value jsonValue definition { key name required type { name category } } }
+              headingField: field(key: "heading") { key value jsonValue }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"metaobject": {
+            "type": "ticket_metaobject_type",
+            "values": {"heading": "Normal Operation", "rank": "7", "body": "Projected body"}
+        }}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["created"]["userErrors"], json!([]));
+    let created = &create.body["data"]["created"]["metaobject"];
+    let created_id = created["id"].as_str().unwrap().to_string();
+    assert_eq!(created["handle"], json!("normal-operation"));
+    assert_eq!(created["displayName"], json!("Normal Operation"));
+    assert_eq!(
+        created["capabilities"]["publishable"]["status"],
+        json!("DRAFT")
+    );
+    assert_eq!(created["fields"][1]["jsonValue"], json!(7));
+    assert_eq!(
+        created["headingField"],
+        json!({"key": "heading", "value": "Normal Operation", "jsonValue": "Normal Operation"})
+    );
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateAnotherMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle displayName }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"metaobject": {
+            "type": "ticket_metaobject_type",
+            "fields": [{"key": "heading", "value": "Normal Operation"}]
+        }}),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["metaobjectCreate"]["metaobject"]["handle"],
+        json!("normal-operation-1")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadMetaobject($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+          detailAlias: metaobject(id: $id) { id handle displayName definition { type metaobjectsCount } }
+          handleAlias: metaobjectByHandle(handle: $handle) { id handle displayName }
+          catalogAlias: metaobjects(type: $type, first: 10) {
+            nodes { id handle displayName }
+            edges { cursor node { id handle } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          definitionAlias: metaobjectDefinitionByType(type: $type) { type metaobjectsCount }
+        }
+        "#,
+        json!({
+            "id": created_id,
+            "handle": {"type": "ticket_metaobject_type", "handle": "normal-operation"},
+            "type": "ticket_metaobject_type"
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["detailAlias"]["displayName"],
+        json!("Normal Operation")
+    );
+    assert_eq!(read.body["data"]["handleAlias"]["id"], created["id"]);
+    assert_eq!(
+        read.body["data"]["catalogAlias"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(
+        read.body["data"]["definitionAlias"]["metaobjectsCount"],
+        json!(2)
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteMetaobject($id: ID!) {
+          removed: metaobjectDelete(id: $id) {
+            deletedId
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"id": created_id}),
+    ));
+    assert_eq!(delete.body["data"]["removed"]["deletedId"], created["id"]);
+    assert_eq!(delete.body["data"]["removed"]["userErrors"], json!([]));
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAfterDelete($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+          detail: metaobject(id: $id) { id }
+          byHandle: metaobjectByHandle(handle: $handle) { id }
+          catalog: metaobjects(type: $type, first: 10) { nodes { id } }
+          definition: metaobjectDefinitionByType(type: $type) { metaobjectsCount }
+        }
+        "#,
+        json!({
+            "id": created["id"],
+            "handle": {"type": "ticket_metaobject_type", "handle": "normal-operation"},
+            "type": "ticket_metaobject_type"
+        }),
+    ));
+    assert_eq!(after_delete.body["data"]["detail"], Value::Null);
+    assert_eq!(after_delete.body["data"]["byHandle"], Value::Null);
+    assert_eq!(
+        after_delete.body["data"]["catalog"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        after_delete.body["data"]["definition"]["metaobjectsCount"],
+        json!(1)
+    );
+}
+
+#[test]
+fn metaobject_create_validates_definition_fields_and_capabilities() {
+    let mut proxy = snapshot_proxy();
+
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateValidationDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "validation_metaobject_type",
+            "name": "Validation Metaobject",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true},
+                {"key": "quantity", "name": "Quantity", "type": "number_integer", "required": false}
+            ]
+        }}),
+    ));
+
+    let unknown_type = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMissingType($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"metaobject": {"type": "missing_metaobject_type", "fields": [{"key": "title", "value": "Missing"}]}}),
+    ));
+    assert_eq!(
+        unknown_type.body["data"]["metaobjectCreate"]["userErrors"][0]["code"],
+        json!("UNDEFINED_OBJECT_TYPE")
+    );
+
+    let invalid = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateInvalidMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"metaobject": {
+            "type": "validation_metaobject_type",
+            "capabilities": {"publishable": {"status": "ACTIVE"}},
+            "fields": [
+                {"key": "quantity", "value": "not-an-int"},
+                {"key": "quantity", "value": "2"},
+                {"key": "unknown", "value": "ignored"}
+            ]
+        }}),
+    ));
+    let codes = invalid.body["data"]["metaobjectCreate"]["userErrors"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|error| error["code"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert!(codes.contains(&"OBJECT_FIELD_REQUIRED"));
+    assert!(codes.contains(&"DUPLICATE_FIELD_INPUT"));
+    assert!(codes.contains(&"UNDEFINED_OBJECT_FIELD"));
+    assert!(codes.contains(&"INVALID_VALUE"));
+    assert!(codes.contains(&"CAPABILITY_NOT_ENABLED"));
+    assert_eq!(
+        invalid.body["data"]["metaobjectCreate"]["metaobject"],
+        Value::Null
     );
 }
 
@@ -2453,7 +3461,7 @@ fn metaobject_delete_returns_record_not_found_without_logging_noop_deletes() {
     let mut proxy = snapshot_proxy();
 
     let delete_query = r#"
-        mutation MetaobjectEntryLifecycleDelete($id: ID!) {
+        mutation ArbitraryMetaobjectDelete($id: ID!) {
           metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } }
         }
         "#;
@@ -2491,15 +3499,51 @@ fn metaobject_delete_returns_record_not_found_without_logging_noop_deletes() {
         json!({"entries": []})
     );
 
-    let seed_id = "gid://shopify/Metaobject/185593102642";
-    let deleted = proxy.process_request(json_graphql_request(delete_query, json!({"id": seed_id})));
+    let definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDeleteTargetDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "delete_test",
+            "name": "Delete Test",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDeleteTarget($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) { metaobject { id } userErrors { field message code } }
+        }
+        "#,
+        json!({"metaobject": {"type": "delete_test", "handle": "delete-test", "fields": [{"key": "title", "value": "Delete test"}]}}),
+    ));
+    let staged_id = created.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let deleted =
+        proxy.process_request(json_graphql_request(delete_query, json!({"id": staged_id})));
     assert_eq!(
         deleted.body["data"]["metaobjectDelete"],
-        json!({"deletedId": seed_id, "userErrors": []})
+        json!({"deletedId": created.body["data"]["metaobjectCreate"]["metaobject"]["id"], "userErrors": []})
     );
 
     let repeated =
-        proxy.process_request(json_graphql_request(delete_query, json!({"id": seed_id})));
+        proxy.process_request(json_graphql_request(delete_query, json!({"id": staged_id})));
     assert_eq!(repeated.body["data"]["metaobjectDelete"], record_not_found);
 
     let log = proxy.process_request(Request {
@@ -2507,10 +3551,10 @@ fn metaobject_delete_returns_record_not_found_without_logging_noop_deletes() {
         path: "/__meta/log".to_string(),
         ..Default::default()
     });
-    assert_eq!(log.body["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 3);
     assert_eq!(
-        log.body["entries"][0]["stagedResourceIds"],
-        json!([seed_id])
+        log.body["entries"][2]["stagedResourceIds"],
+        json!([created.body["data"]["metaobjectCreate"]["metaobject"]["id"]])
     );
 }
 
