@@ -1,0 +1,34 @@
+query MetafieldDefinitionLifecycleReadProductMetafield($id: ID!, $namespace: String!, $key: String!) {
+  product(id: $id) {
+    id
+    metafield(namespace: $namespace, key: $key) {
+      namespace
+      key
+      type
+      value
+    }
+    metafields(first: 10, namespace: $namespace) {
+      nodes {
+        namespace
+        key
+        type
+        value
+      }
+      edges {
+        cursor
+        node {
+          namespace
+          key
+          type
+          value
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

@@ -1701,6 +1701,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'product-metafield-owner-isolation',
+    scriptPath: 'scripts/capture-product-metafield-owner-isolation-conformance.mts',
+    purpose: 'Product owner-scoped metafield read isolation after staging metafields on a different product owner.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-owner-isolation-parity.json',
+      'config/parity-specs/products/metafieldsSet-owner-isolation.json',
+      'config/parity-requests/products/metafieldsSet-owner-isolation.graphql',
+      'config/parity-requests/products/metafieldsSet-owner-isolation-empty-owner-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable products, sets a metafield on one product, captures the other product owner empty metafield read, then deletes both products.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafields-set-input-validation',
     scriptPath: 'scripts/capture-metafields-set-input-validation-conformance.mts',
     purpose:

@@ -1,0 +1,41 @@
+{
+  "scenarioId": "metafields-set-owner-isolation",
+  "operationNames": ["metafieldsSet", "product"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "null-empty-behavior",
+    "connection-shape"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/metafields-set-owner-isolation-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/metafieldsSet-owner-isolation.graphql",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured live owner-scoped metafield isolation evidence: after staging product-owned metafields on one product, reading a different product owner with no metafields in that namespace returns a null singular metafield and an empty metafields connection.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "isolated-owner-empty-read-data",
+        "capturePath": "$.isolatedOwnerRead.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/metafieldsSet-owner-isolation-empty-owner-read.graphql",
+          "variablesCapturePath": "$.isolatedOwnerReadVariables"
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "scenarioId": "metafields-set-owner-isolation",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-06-14T01:53:35.435Z",
+  "owners": {
+    "ownerWithoutMetafields": {
+      "id": "gid://shopify/Product/10213077713202",
+      "title": "Owner metafield isolation empty mqd4rj69"
+    },
+    "ownerWithMetafields": {
+      "id": "gid://shopify/Product/10213077745970",
+      "title": "Owner metafield isolation populated mqd4rj69"
+    }
+  },
+  "mutation": {
+    "variables": {
+      "metafields": [
+        {
+          "ownerId": "gid://shopify/Product/10213077745970",
+          "namespace": "owner_isolation_mqd4rj69",
+          "key": "tier",
+          "type": "single_line_text_field",
+          "value": "gold"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "metafieldsSet": {
+          "metafields": [
+            {
+              "namespace": "owner_isolation_mqd4rj69",
+              "key": "tier",
+              "type": "single_line_text_field",
+              "value": "gold"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "isolatedOwnerReadVariables": {
+    "id": "gid://shopify/Product/10213077713202",
+    "namespace": "owner_isolation_mqd4rj69",
+    "key": "tier"
+  },
+  "isolatedOwnerRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10213077713202",
+        "metafield": null,
+        "metafields": {
+          "nodes": [],
+          "edges": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 12,
+        "actualQueryCost": 8,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1992,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
