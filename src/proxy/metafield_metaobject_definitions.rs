@@ -6,51 +6,15 @@ fn pinned_definition_limit_message() -> String {
     format!("Limit of {PINNED_DEFINITION_LIMIT} pinned definitions.")
 }
 
-fn default_metafield_definition_name(_namespace: &str, key: &str) -> String {
-    if key.starts_with("pin_") {
-        format!("HAR 699 pin {}", key.trim_start_matches("pin_"))
-    } else {
-        format!("HAR 699 {key}")
-    }
-}
-
-fn metafield_definition_id(namespace: &str, key: &str) -> String {
-    let numeric = match (namespace, key) {
-        (_, "pin_01") => "207852000001",
-        (_, "pin_02") => "207852000002",
-        (_, "pin_03") => "207852000003",
-        (_, "pin_04") => "207852000004",
-        (_, "pin_05") => "207852000005",
-        (_, "pin_06") => "207852000006",
-        (_, "pin_07") => "207852000007",
-        (_, "pin_08") => "207852000008",
-        (_, "pin_09") => "207852000009",
-        (_, "pin_10") => "207852000010",
-        (_, "pin_11") => "207852000011",
-        (_, "pin_12") => "207852000012",
-        (_, "pin_13") => "207852000013",
-        (_, "pin_14") => "207852000014",
-        (_, "pin_15") => "207852000015",
-        (_, "pin_16") => "207852000016",
-        (_, "pin_17") => "207852000017",
-        (_, "pin_18") => "207852000018",
-        (_, "pin_19") => "207852000019",
-        (_, "pin_20") => "207852000020",
-        (_, "pin_21") => "207852000021",
-        (_, "constrained") => "207852000099",
-        _ => "207852999999",
-    };
-    format!("gid://shopify/MetafieldDefinition/{numeric}")
-}
-
 fn metafield_definition_value(
     namespace: &str,
     key: &str,
     name: &str,
+    id: &str,
     pinned_position: Value,
 ) -> Value {
     json!({
-        "id": metafield_definition_id(namespace, key),
+        "id": id,
         "name": name,
         "namespace": namespace,
         "key": key,
@@ -168,19 +132,37 @@ impl DraftProxy {
                             {
                                 namespace = found_namespace;
                                 key = found_key;
+                            } else {
+                                self.hydrate_metafield_definition_by_id(request, &definition_id);
+                                if let Some((found_namespace, found_key)) =
+                                    self.metafield_definition_key_for_id(&definition_id)
+                                {
+                                    namespace = found_namespace;
+                                    key = found_key;
+                                }
                             }
                         }
                     }
                     self.hydrate_metafield_definitions_for_owner(request, &owner_type, &namespace);
                     let map_key = (namespace.clone(), key.clone());
-                    if key == "constrained"
-                        || self
-                            .store
-                            .staged
-                            .metafield_definitions
-                            .get(&map_key)
-                            .is_some_and(metafield_definition_has_constraints)
-                    {
+                    let Some(mut definition) = self
+                        .store
+                        .staged
+                        .metafield_definitions
+                        .get(&map_key)
+                        .cloned()
+                    else {
+                        let payload = json!({
+                            "pinnedDefinition": Value::Null,
+                            "userErrors": [metafield_definition_user_error("MetafieldDefinitionPinUserError", Value::Null, "Definition not found.", "NOT_FOUND")]
+                        });
+                        data.insert(
+                            field.response_key,
+                            selected_json(&payload, &field.selection),
+                        );
+                        continue;
+                    };
+                    if metafield_definition_has_constraints(&definition) {
                         let payload = json!({
                             "pinnedDefinition": Value::Null,
                             "userErrors": [metafield_definition_user_error("MetafieldDefinitionPinUserError", Value::Null, "Constrained metafield definitions do not support pinning.", "UNSUPPORTED_PINNING")]
@@ -191,12 +173,8 @@ impl DraftProxy {
                         );
                         continue;
                     }
-                    if self
-                        .store
-                        .staged
-                        .metafield_definitions
-                        .get(&map_key)
-                        .and_then(|definition| definition.get("pinnedPosition"))
+                    if definition
+                        .get("pinnedPosition")
                         .is_some_and(|position| !position.is_null())
                     {
                         let payload = json!({
@@ -209,12 +187,8 @@ impl DraftProxy {
                         );
                         continue;
                     }
-                    let definition_owner_type = self
-                        .store
-                        .staged
-                        .metafield_definitions
-                        .get(&map_key)
-                        .and_then(|definition| definition.get("ownerType"))
+                    let definition_owner_type = definition
+                        .get("ownerType")
                         .and_then(Value::as_str)
                         .unwrap_or("PRODUCT")
                         .to_string();
@@ -236,20 +210,6 @@ impl DraftProxy {
                         &namespace,
                         &key,
                     );
-                    let mut definition = self
-                        .store
-                        .staged
-                        .metafield_definitions
-                        .get(&map_key)
-                        .cloned()
-                        .unwrap_or_else(|| {
-                            metafield_definition_value(
-                                &namespace,
-                                &key,
-                                &default_metafield_definition_name(&namespace, &key),
-                                Value::Null,
-                            )
-                        });
                     if definition.get("pinnedPosition").is_none_or(Value::is_null) {
                         definition["pinnedPosition"] = json!(position);
                     }
@@ -280,38 +240,36 @@ impl DraftProxy {
                             {
                                 namespace = found_namespace;
                                 key = found_key;
-                            } else if let Some((found_namespace, found_key)) = self
-                                .store
-                                .staged
-                                .metafield_definitions
-                                .iter()
-                                .find(|(_, definition)| {
-                                    definition.get("id").and_then(Value::as_str)
-                                        == Some(definition_id.as_str())
-                                })
-                                .map(|((ns, key), _)| (ns.clone(), key.clone()))
-                            {
-                                namespace = found_namespace;
-                                key = found_key;
+                            } else {
+                                self.hydrate_metafield_definition_by_id(request, &definition_id);
+                                if let Some((found_namespace, found_key)) =
+                                    self.metafield_definition_key_for_id(&definition_id)
+                                {
+                                    namespace = found_namespace;
+                                    key = found_key;
+                                }
                             }
                         }
                     }
                     self.hydrate_metafield_definitions_for_owner(request, &owner_type, &namespace);
                     let map_key = (namespace.clone(), key.clone());
-                    let current = self
+                    let Some(current) = self
                         .store
                         .staged
                         .metafield_definitions
                         .get(&map_key)
                         .cloned()
-                        .unwrap_or_else(|| {
-                            metafield_definition_value(
-                                &namespace,
-                                &key,
-                                &default_metafield_definition_name(&namespace, &key),
-                                Value::Null,
-                            )
+                    else {
+                        let payload = json!({
+                            "unpinnedDefinition": Value::Null,
+                            "userErrors": [metafield_definition_user_error("MetafieldDefinitionUnpinUserError", Value::Null, "Definition not found.", "NOT_FOUND")]
                         });
+                        data.insert(
+                            field.response_key,
+                            selected_json(&payload, &field.selection),
+                        );
+                        continue;
+                    };
                     if current.get("pinnedPosition").is_none_or(Value::is_null) {
                         let numeric_id = current
                             .get("id")
@@ -469,20 +427,24 @@ impl DraftProxy {
             });
         }
         let map_key = (namespace.clone(), key.clone());
-        let mut definition = self
+        let Some(mut definition) = self
             .store
             .staged
             .metafield_definitions
             .get(&map_key)
             .cloned()
-            .unwrap_or_else(|| {
-                metafield_definition_value(
-                    &namespace,
-                    &key,
-                    &default_metafield_definition_name(&namespace, &key),
-                    Value::Null,
-                )
+        else {
+            return json!({
+                "updatedDefinition": Value::Null,
+                "userErrors": [metafield_definition_user_error(
+                    "MetafieldDefinitionUpdateUserError",
+                    json!(["definition"]),
+                    "Definition not found.",
+                    "NOT_FOUND"
+                )],
+                "validationJob": Value::Null
             });
+        };
         if let Some(name) = resolved_string_field(input, "name") {
             definition["name"] = json!(name);
         }
@@ -650,12 +612,12 @@ impl DraftProxy {
             .unwrap_or_default();
         let name = resolved_string_field(input, "name")
             .or_else(|| template.map(|template| template.name.to_string()))
-            .unwrap_or_else(|| default_metafield_definition_name(&namespace, &key));
+            .unwrap_or_default();
         let metafield_type = resolved_string_field(input, "type")
             .or_else(|| template.map(|template| template.metafield_type.to_string()))
             .unwrap_or_else(|| "single_line_text_field".to_string());
-        let mut definition = metafield_definition_value(&namespace, &key, &name, Value::Null);
-        definition["id"] = json!(self.next_proxy_synthetic_gid("MetafieldDefinition"));
+        let id = self.next_proxy_synthetic_gid("MetafieldDefinition");
+        let mut definition = metafield_definition_value(&namespace, &key, &name, &id, Value::Null);
         definition["ownerType"] = json!(
             resolved_string_field(input, "ownerType").unwrap_or_else(|| "PRODUCT".to_string())
         );
@@ -815,6 +777,76 @@ impl DraftProxy {
                 definition.clone(),
             );
         }
+    }
+
+    fn hydrate_metafield_definition_by_id(&mut self, request: &Request, id: &str) {
+        if self.config.read_mode == ReadMode::Snapshot || id.trim().is_empty() {
+            return;
+        }
+        let query = r#"
+            query MetafieldDefinitionHydrateById($id: ID!) {
+              metafieldDefinition(id: $id) {
+                id
+                name
+                namespace
+                key
+                ownerType
+                type { name category }
+                description
+                validations { name value }
+                access { admin storefront customerAccount }
+                capabilities {
+                  adminFilterable { enabled eligible status }
+                  smartCollectionCondition { enabled eligible }
+                  uniqueValues { enabled eligible }
+                }
+                constraints {
+                  key
+                  values(first: 50) {
+                    nodes { value }
+                    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                  }
+                }
+                pinnedPosition
+                validationStatus
+              }
+            }
+        "#;
+        let Ok(body) = serde_json::to_string(&json!({
+            "query": query,
+            "operationName": "MetafieldDefinitionHydrateById",
+            "variables": {"id": id}
+        })) else {
+            return;
+        };
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body,
+        });
+        if response.status < 200 || response.status >= 300 {
+            return;
+        }
+        let definition = response.body["data"]["metafieldDefinition"].clone();
+        if !definition.is_object() {
+            return;
+        }
+        let namespace = definition
+            .get("namespace")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let key = definition
+            .get("key")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if namespace.is_empty() || key.is_empty() {
+            return;
+        }
+        self.store
+            .staged
+            .metafield_definitions
+            .insert((namespace.to_string(), key.to_string()), definition);
     }
 
     fn metafield_definition_with_derived_fields(&self, mut definition: Value) -> Value {

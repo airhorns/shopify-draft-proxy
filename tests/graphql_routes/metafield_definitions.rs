@@ -118,6 +118,33 @@ fn standard_enable_pin(proxy: &mut DraftProxy) -> Value {
 }
 
 #[test]
+fn metafield_definition_pin_and_unpin_require_backed_definition_records() {
+    let mut proxy = snapshot_proxy();
+
+    let pin_missing = pin_definition(&mut proxy, "missing_pin_catalog", "pin_01");
+    assert_eq!(pin_missing["pinnedDefinition"], Value::Null);
+    assert_eq!(
+        pin_missing["userErrors"],
+        json!([{
+            "field": null,
+            "message": "Definition not found.",
+            "code": "NOT_FOUND"
+        }])
+    );
+
+    let unpin_missing = unpin_definition(&mut proxy, "missing_pin_catalog", "pin_01");
+    assert_eq!(unpin_missing["unpinnedDefinition"], Value::Null);
+    assert_eq!(
+        unpin_missing["userErrors"],
+        json!([{
+            "field": null,
+            "message": "Definition not found.",
+            "code": "NOT_FOUND"
+        }])
+    );
+}
+
+#[test]
 fn metafield_definition_unpin_compacts_product_positions_across_namespaces() {
     let mut proxy = snapshot_proxy();
 
