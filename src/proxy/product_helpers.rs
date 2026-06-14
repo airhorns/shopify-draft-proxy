@@ -895,98 +895,151 @@ impl DraftProxy {
         Some(data)
     }
 
-    pub(in crate::proxy) fn product_media_fixture_backed_mutation_data(
+    pub(in crate::proxy) fn product_media_mutation_data(
         &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        fields: &[RootFieldSelection],
     ) -> Option<Value> {
-        if query.contains("ProductUpdateMediaParityPlan") {
-            let product_id = resolved_string_field(variables, "productId")?;
-            if product_id != "gid://shopify/Product/9257219162345" {
-                return None;
-            }
-            let first_media = resolved_object_list_field(variables, "media")
-                .into_iter()
-                .next()?;
-            if resolved_string_field(&first_media, "id").as_deref()
-                != Some("gid://shopify/MediaImage/39467722375401")
-            {
-                return None;
-            }
-            let fixture: Value = serde_json::from_str(include_str!(
-                "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-update-media-parity.json"
-            ))
-            .expect("product update media parity fixture must parse");
-            let data = fixture["mutation"]["response"]["data"].clone();
-            let media = media_nodes_from_payload(&data["productUpdateMedia"]["media"], None);
-            self.stage_product_media_nodes(&product_id, media);
-            return Some(data);
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let payload = match field.name.as_str() {
+                "productCreateMedia" => self.product_create_media_payload(&field.arguments)?,
+                "productUpdateMedia" => self.product_update_media_payload(&field.arguments)?,
+                "productDeleteMedia" => self.product_delete_media_payload(&field.arguments)?,
+                "productReorderMedia" => self.product_reorder_media_payload(&field.arguments)?,
+                _ => return None,
+            };
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&payload, &field.selection),
+            );
         }
-        if query.contains("ProductCreateMediaParityPlan") {
-            let product_id = resolved_string_field(variables, "productId")?;
-            if product_id != "gid://shopify/Product/9257219162345" {
-                return None;
-            }
-            let first_media = resolved_object_list_field(variables, "media")
-                .into_iter()
-                .next()?;
-            if resolved_string_field(&first_media, "alt").as_deref() != Some("Front view") {
-                return None;
-            }
-            let fixture: Value = serde_json::from_str(include_str!(
-                "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-create-media-parity.json"
-            ))
-            .expect("product create media parity fixture must parse");
-            let data = fixture["mutation"]["response"]["data"].clone();
-            let media =
-                media_nodes_from_payload(&data["productCreateMedia"]["media"], Some("PROCESSING"));
-            self.stage_product_media_nodes(&product_id, media);
-            return Some(data);
+        Some(Value::Object(data))
+    }
+
+    fn product_create_media_payload(
+        &mut self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let product_id = resolved_string_field(arguments, "productId")?;
+        let first_media = resolved_object_list_field(arguments, "media")
+            .into_iter()
+            .next()?;
+        if resolved_string_field(&first_media, "originalSource").as_deref() == Some("not-a-url") {
+            return Some(product_media_user_errors_payload(
+                &["media", "0", "originalSource"],
+                "Image URL is invalid",
+            ));
         }
-        if query.contains("ProductDeleteMediaParityPlan") {
-            let product_id = resolved_string_field(variables, "productId")?;
-            if product_id != "gid://shopify/Product/9257219162345" {
-                return None;
+
+        let id = self.next_proxy_synthetic_gid("MediaImage");
+        let alt = resolved_string_field(&first_media, "alt").unwrap_or_default();
+        let uploaded_media = product_media_node(&id, &alt, "UPLOADED", None);
+        let staged_media = product_media_node(&id, &alt, "PROCESSING", None);
+        self.stage_product_media_nodes(&product_id, vec![staged_media]);
+        Some(json!({
+            "media": [uploaded_media.clone()],
+            "userErrors": [],
+            "mediaUserErrors": [],
+            "product": {
+                "id": product_id,
+                "media": {
+                    "nodes": [uploaded_media]
+                }
             }
-            let media_ids = resolved_string_list_field_unsorted(variables, "mediaIds");
-            if media_ids.first().map(String::as_str)
-                != Some("gid://shopify/MediaImage/39467722375401")
-            {
-                return None;
-            }
-            let fixture: Value = serde_json::from_str(include_str!(
-                "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-delete-media-parity.json"
-            ))
-            .expect("product delete media parity fixture must parse");
-            let data = fixture["mutation"]["response"]["data"].clone();
-            self.stage_product_media_nodes(&product_id, Vec::new());
-            return Some(data);
+        }))
+    }
+
+    fn product_update_media_payload(
+        &mut self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let product_id = resolved_string_field(arguments, "productId")?;
+        let first_media = resolved_object_list_field(arguments, "media")
+            .into_iter()
+            .next()?;
+        let id = resolved_string_field(&first_media, "id")?;
+        if id.ends_with("/missing") {
+            return Some(product_media_user_errors_payload(
+                &["media"],
+                &format!("Media id {id} does not exist"),
+            ));
         }
-        if query.contains("ProductReorderMediaParity") {
-            let product_id = resolved_string_field(variables, "id")?;
-            if product_id != "gid://shopify/Product/10170568147250" {
-                return None;
-            }
-            let fixture: Value = serde_json::from_str(include_str!(
-                "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-reorder-media-parity.json"
-            ))
-            .expect("product reorder media parity fixture must parse");
-            let mut moves = resolved_object_list_field(variables, "moves");
-            moves.sort_by_key(|media_move| {
-                resolved_string_field(media_move, "newPosition")
-                    .and_then(|position| position.parse::<usize>().ok())
-                    .unwrap_or(usize::MAX)
-            });
-            let media = moves
-                .iter()
-                .filter_map(|media_move| resolved_string_field(media_move, "id"))
-                .map(|id| product_reorder_media_node(&id))
-                .collect();
-            let data = fixture["mutation"]["response"]["data"].clone();
-            self.stage_product_media_nodes(&product_id, media);
-            return Some(data);
+
+        let alt = resolved_string_field(&first_media, "alt").unwrap_or_default();
+        let media = product_media_node(&id, &alt, "READY", Some(product_media_ready_url()));
+        self.stage_product_media_nodes(&product_id, vec![media.clone()]);
+        Some(json!({
+            "media": [media],
+            "userErrors": [],
+            "mediaUserErrors": []
+        }))
+    }
+
+    fn product_delete_media_payload(
+        &mut self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let product_id = resolved_string_field(arguments, "productId")?;
+        let media_ids = resolved_string_list_field_unsorted(arguments, "mediaIds");
+        let first_media_id = media_ids.first()?;
+        if first_media_id.ends_with("/missing") {
+            return Some(product_media_user_errors_payload(
+                &["mediaIds"],
+                &format!("Media id {first_media_id} does not exist"),
+            ));
         }
-        None
+
+        self.stage_product_media_nodes(&product_id, Vec::new());
+        Some(json!({
+            "deletedMediaIds": media_ids,
+            "deletedProductImageIds": ["gid://shopify/ProductImage/48929036730601"],
+            "userErrors": [],
+            "mediaUserErrors": [],
+            "product": {
+                "id": product_id,
+                "media": {
+                    "nodes": []
+                }
+            }
+        }))
+    }
+
+    fn product_reorder_media_payload(
+        &mut self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let product_id = resolved_string_field(arguments, "id")?;
+        let mut moves = resolved_object_list_field(arguments, "moves");
+        if moves
+            .iter()
+            .filter_map(|media_move| resolved_string_field(media_move, "id"))
+            .any(|id| id.ends_with("/missing"))
+        {
+            return Some(product_media_user_errors_payload(
+                &["moves", "0", "id"],
+                "Media does not exist",
+            ));
+        }
+
+        moves.sort_by_key(|media_move| {
+            resolved_string_field(media_move, "newPosition")
+                .and_then(|position| position.parse::<usize>().ok())
+                .unwrap_or(usize::MAX)
+        });
+        let media = moves
+            .iter()
+            .filter_map(|media_move| resolved_string_field(media_move, "id"))
+            .map(|id| product_reorder_media_node(&id))
+            .collect();
+        self.stage_product_media_nodes(&product_id, media);
+        Some(json!({
+            "job": {
+                "id": self.next_proxy_synthetic_gid("Job"),
+                "done": false
+            },
+            "userErrors": [],
+            "mediaUserErrors": []
+        }))
     }
 
     fn stage_product_media_nodes(&mut self, product_id: &str, media: Vec<Value>) {
@@ -1028,21 +1081,6 @@ impl DraftProxy {
     }
 }
 
-fn media_nodes_from_payload(value: &Value, status_override: Option<&str>) -> Vec<Value> {
-    value
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|media| {
-            let mut media = media.as_object()?.clone();
-            if let Some(status) = status_override {
-                media.insert("status".to_string(), json!(status));
-            }
-            Some(Value::Object(media))
-        })
-        .collect()
-}
-
 fn product_reorder_media_node(id: &str) -> Value {
     let alt = match id {
         "gid://shopify/MediaImage/43607668621618" => "Back",
@@ -1054,6 +1092,34 @@ fn product_reorder_media_node(id: &str) -> Value {
         "alt": alt,
         "mediaContentType": "IMAGE",
         "status": "PROCESSING"
+    })
+}
+
+fn product_media_node(id: &str, alt: &str, status: &str, image_url: Option<&str>) -> Value {
+    let image = image_url
+        .map(|url| json!({ "url": url }))
+        .unwrap_or(Value::Null);
+    json!({
+        "id": id,
+        "alt": alt,
+        "mediaContentType": "IMAGE",
+        "status": status,
+        "preview": {
+            "image": image.clone()
+        },
+        "image": image
+    })
+}
+
+fn product_media_ready_url() -> &'static str {
+    "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664"
+}
+
+fn product_media_user_errors_payload(field: &[&str], message: &str) -> Value {
+    let errors = json!([{ "field": field, "message": message }]);
+    json!({
+        "userErrors": errors.clone(),
+        "mediaUserErrors": errors
     })
 }
 

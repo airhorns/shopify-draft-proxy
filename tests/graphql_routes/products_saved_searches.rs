@@ -1186,10 +1186,16 @@ fn product_create_and_delete_media_replay_captured_mutations_and_downstream_read
         }),
     ));
     assert_eq!(create.status, 200);
+    let created_media_id = create.body["data"]["productCreateMedia"]["media"][0]["id"]
+        .as_str()
+        .expect("productCreateMedia media id should be a string")
+        .to_string();
+    assert!(created_media_id.starts_with("gid://shopify/MediaImage/"));
+    assert!(created_media_id.contains("shopify-draft-proxy=synthetic"));
     assert_eq!(
         create.body["data"]["productCreateMedia"]["media"][0],
         json!({
-            "id": "gid://shopify/MediaImage/39467722375401",
+            "id": created_media_id,
             "alt": "Front view",
             "mediaContentType": "IMAGE",
             "status": "UPLOADED",
@@ -1200,6 +1206,10 @@ fn product_create_and_delete_media_replay_captured_mutations_and_downstream_read
     assert_eq!(
         create.body["data"]["productCreateMedia"]["product"]["media"]["nodes"][0]["status"],
         json!("UPLOADED")
+    );
+    assert_eq!(
+        create.body["data"]["productCreateMedia"]["product"]["media"]["nodes"][0]["id"],
+        json!(created_media_id)
     );
 
     let create_read = proxy.process_request(json_graphql_request(
@@ -1214,7 +1224,7 @@ fn product_create_and_delete_media_replay_captured_mutations_and_downstream_read
     assert_eq!(
         create_read.body["data"]["product"]["media"]["nodes"][0],
         json!({
-            "id": "gid://shopify/MediaImage/39467722375401",
+            "id": created_media_id,
             "alt": "Front view",
             "mediaContentType": "IMAGE",
             "status": "PROCESSING",
