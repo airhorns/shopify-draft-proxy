@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["user-errors-parity", "runtime-staging", "no-upstream-passthrough", "local-runtime-backed"],
   "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/customers/customer-set-unknown-id-errors.json"],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/customers_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customers/customer-set-unknown-id-errors.graphql",
     "apiVersion": "2026-04",
@@ -34,5 +34,5 @@
       }
     ]
   },
-  "notes": "Unknown identifier.id guard. Presence of identifier.id is id-first and update-like; a missing row returns the captured INVALID not-found userError and leaves local customer state/log empty."
+  "notes": "Unknown identifier.id guard local-runtime control. Presence of identifier.id validates before create/update routing; a missing row returns the fixture-backed NOT_FOUND userError and leaves local customer state/log empty."
 }

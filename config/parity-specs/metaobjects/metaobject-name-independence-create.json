@@ -1,0 +1,148 @@
+{
+  "scenarioId": "metaobject-name-independence-create",
+  "operationNames": [
+    "metaobjectDefinitionCreate",
+    "metaobjectCreate",
+    "metaobject",
+    "metaobjectByHandle",
+    "metaobjects",
+    "metaobjectDefinitionByType"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["operation-name-independence", "runtime-staging", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-name-independence-create.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-name-independence-definition-create.graphql",
+    "variablesCapturePath": "$.definitionCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2026-04 evidence that metaobjectCreate resolves by root field and arguments, not by the captured MetaobjectEntryLifecycleCreate operation name. The create request intentionally uses operation name CreateMetaobject and aliases the payload as createdNormally.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "definition-create-setup",
+        "capturePath": "$.definitionCreate.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "selectedPaths": [
+          "$.metaobjectDefinition.type",
+          "$.metaobjectDefinition.name",
+          "$.metaobjectDefinition.displayNameKey",
+          "$.metaobjectDefinition.metaobjectsCount",
+          "$.metaobjectDefinition.fieldDefinitions",
+          "$.metaobjectDefinition.capabilities",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "normal-operation-create-payload",
+        "capturePath": "$.entryCreate.response.data.createdNormally",
+        "proxyPath": "$.data.createdNormally",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-name-independence-create.graphql",
+          "variablesCapturePath": "$.entryCreate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy stages a synthetic metaobject ID while Shopify returns the captured live-store ID."
+          },
+          {
+            "path": "$.metaobject.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time while Shopify returned the captured write timestamp."
+          }
+        ]
+      },
+      {
+        "name": "read-after-normal-create",
+        "capturePath": "$.readAfterCreate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-name-independence-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "normal-operation-create-payload",
+              "path": "$.data.createdNormally.metaobject.id"
+            },
+            "handle": {
+              "type": {
+                "fromCapturePath": "$.seed.type"
+              },
+              "handle": {
+                "fromCapturePath": "$.seed.handle"
+              }
+            },
+            "type": {
+              "fromCapturePath": "$.seed.type"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.detail.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy stages a synthetic metaobject ID while Shopify returns the captured live-store ID."
+          },
+          {
+            "path": "$.detail.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time while Shopify returned the captured write timestamp."
+          },
+          {
+            "path": "$.byHandle.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy stages a synthetic metaobject ID while Shopify returns the captured live-store ID."
+          },
+          {
+            "path": "$.byHandle.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time while Shopify returned the captured write timestamp."
+          },
+          {
+            "path": "$.catalog.nodes[0].id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy stages a synthetic metaobject ID while Shopify returns the captured live-store ID."
+          },
+          {
+            "path": "$.catalog.nodes[0].updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time while Shopify returned the captured write timestamp."
+          },
+          {
+            "path": "$.catalog.edges[0].cursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.catalog.edges[0].node.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy stages a synthetic metaobject ID while Shopify returns the captured live-store ID."
+          },
+          {
+            "path": "$.catalog.edges[0].node.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time while Shopify returned the captured write timestamp."
+          },
+          {
+            "path": "$.catalog.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          },
+          {
+            "path": "$.catalog.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque; the local proxy intentionally emits stable synthetic cursors."
+          }
+        ]
+      }
+    ]
+  }
+}

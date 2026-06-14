@@ -241,24 +241,19 @@ impl DraftProxy {
         } else if query.contains("LocalizationTranslationsMarketScopedRead") {
             localization_market_scoped_read_data()
         } else {
-            localization_baseline_read_data()
+            Value::Object(serde_json::Map::new())
         };
         for field in fields {
             match field.name.as_str() {
+                "availableLocales" => {
+                    data[field.response_key.as_str()] = Value::Array(
+                        self.localization_available_locales()
+                            .iter()
+                            .map(|locale| selected_json(locale, &field.selection))
+                            .collect(),
+                    );
+                }
                 "shopLocales" => {
-                    if let Some(locales) = data[field.response_key.as_str()].as_array() {
-                        for locale in locales {
-                            if locale["primary"].as_bool() == Some(false) {
-                                if let Some(code) = locale["locale"].as_str() {
-                                    self.store
-                                        .staged
-                                        .shop_locales
-                                        .entry(code.to_string())
-                                        .or_insert_with(|| locale.clone());
-                                }
-                            }
-                        }
-                    }
                     let published_filter = resolved_bool_field(&field.arguments, "published");
                     data[field.response_key.as_str()] = Value::Array(
                         self.localization_shop_locales(published_filter)
@@ -299,6 +294,35 @@ impl DraftProxy {
         data
     }
 
+    pub(in crate::proxy) fn localization_catalog_query_data(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "availableLocales" => Value::Array(
+                    self.localization_available_locales()
+                        .iter()
+                        .map(|locale| selected_json(locale, &field.selection))
+                        .collect(),
+                ),
+                "shopLocales" => {
+                    let published_filter = resolved_bool_field(&field.arguments, "published");
+                    Value::Array(
+                        self.localization_shop_locales(published_filter)
+                            .iter()
+                            .map(|locale| selected_json(locale, &field.selection))
+                            .collect(),
+                    )
+                }
+                _ => Value::Null,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
     pub(in crate::proxy) fn localization_mutation_data(
         &mut self,
         fields: &[RootFieldSelection],
@@ -318,11 +342,42 @@ impl DraftProxy {
         Value::Object(data)
     }
 
+    pub(in crate::proxy) fn localization_available_locales(&self) -> Vec<Value> {
+        self.store
+            .base
+            .available_locales
+            .iter()
+            .map(|(iso_code, name)| {
+                json!({
+                    "isoCode": iso_code,
+                    "name": name
+                })
+            })
+            .collect()
+    }
+
+    pub(in crate::proxy) fn localization_available_locale_name(
+        &self,
+        locale: &str,
+    ) -> Option<&str> {
+        self.store
+            .base
+            .available_locales
+            .get(locale)
+            .map(String::as_str)
+    }
+
     pub(in crate::proxy) fn localization_shop_locales(
         &self,
         published_filter: Option<bool>,
     ) -> Vec<Value> {
-        let mut locales = vec![shop_locale_record("en", true)];
+        let mut locales = self
+            .store
+            .base
+            .shop_locales
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
         locales.extend(self.store.staged.shop_locales.values().cloned());
         locales.sort_by_key(|locale| locale["locale"].as_str().unwrap_or_default().to_string());
         if let Some(published) = published_filter {
@@ -342,7 +397,7 @@ impl DraftProxy {
                 "shopLocale": null,
                 "userErrors": [shop_locale_user_error(vec!["locale"], "The primary locale of your store can't be changed through this endpoint.", "CAN_NOT_MUTATE_PRIMARY_LOCALE")]
             })
-        } else if !is_valid_shop_locale(&locale) {
+        } else if self.localization_available_locale_name(&locale).is_none() {
             json!({
                 "shopLocale": null,
                 "userErrors": [shop_locale_user_error(vec!["locale"], "Locale is invalid", "INVALID")]
@@ -359,13 +414,16 @@ impl DraftProxy {
                     "field": null,
                     "message": format!(
                         "Your store has reached its 20 language limit. To add {}, delete one of your other languages.",
-                        localization_available_locale_name(&locale).unwrap_or_else(|| locale.clone())
+                        self.localization_available_locale_name(&locale).unwrap_or(locale.as_str())
                     ),
                     "code": "SHOP_LOCALE_LIMIT_REACHED"
                 }]
             })
         } else {
-            let record = shop_locale_record(&locale, false);
+            let name = self
+                .localization_available_locale_name(&locale)
+                .unwrap_or(locale.as_str());
+            let record = shop_locale_record(&locale, name, false);
             self.store
                 .staged
                 .shop_locales
@@ -397,7 +455,7 @@ impl DraftProxy {
         }
 
         let locale_exists = locale == "en" || self.store.staged.shop_locales.contains_key(&locale);
-        if !locale_exists && market_web_presence_ids.is_empty() {
+        if !locale_exists && published.is_some() {
             return selected_json(
                 &json!({
                     "shopLocale": null,
@@ -413,7 +471,12 @@ impl DraftProxy {
             .shop_locales
             .get(&locale)
             .cloned()
-            .unwrap_or_else(|| shop_locale_record(&locale, false));
+            .unwrap_or_else(|| {
+                let name = self
+                    .localization_available_locale_name(&locale)
+                    .unwrap_or(locale.as_str());
+                shop_locale_record(&locale, name, false)
+            });
         if let Some(published) = published {
             record["published"] = json!(published);
         }
