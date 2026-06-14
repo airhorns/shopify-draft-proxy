@@ -1167,6 +1167,188 @@ fn inventory_quantity_2026_missing_change_from_returns_graphql_error_without_sta
 }
 
 #[test]
+fn order_create_decrements_inventory_when_inventory_behaviour_is_not_bypass() {
+    let mut proxy = snapshot_proxy();
+
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/order-create-seed", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/order-create-decrement", "locationId": "gid://shopify/Location/1", "quantity": 5}
+        ]}}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrderCreateInventoryDecrement($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+          orderCreate(order: $order, options: $options) {
+            order {
+              id
+              lineItems(first: 5) {
+                nodes {
+                  id
+                  quantity
+                  variant { id }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "inventory-decrement@example.com",
+                "currency": "USD",
+                "lineItems": [{
+                    "variantId": "gid://shopify/ProductVariant/order-create-decrement",
+                    "quantity": 2,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            },
+            "options": {
+                "sendReceipt": false,
+                "sendFulfillmentReceipt": false
+            }
+        }),
+    ));
+    assert_eq!(order.body["data"]["orderCreate"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryAfterOrderCreate($id: ID!) {
+          inventoryItem(id: $id) {
+            variant { inventoryQuantity }
+            inventoryLevels(first: 5) {
+              nodes {
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/InventoryItem/order-create-decrement"}),
+    ));
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["variant"]["inventoryQuantity"],
+        json!(3)
+    );
+    assert_eq!(
+        read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"],
+        json!([
+            {"name": "available", "quantity": 3},
+            {"name": "on_hand", "quantity": 3}
+        ])
+    );
+    let log = proxy.get_log_snapshot();
+    assert_eq!(
+        log["entries"][1]["interpreted"]["operationName"],
+        json!("orderCreate")
+    );
+    assert_eq!(log["entries"][1]["status"], json!("staged"));
+    assert_eq!(
+        log["entries"][1]["interpreted"]["capability"],
+        json!({
+            "operationName": "orderCreate",
+            "domain": "orders",
+            "execution": "stage-locally"
+        })
+    );
+    assert_eq!(
+        log["entries"][1]["notes"],
+        json!("Locally staged orderCreate in shopify-draft-proxy.")
+    );
+    assert_eq!(
+        log["entries"][1]["stagedResourceIds"],
+        json!(["gid://shopify/Order/1"])
+    );
+
+    let bypass_seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/order-create-bypass-seed", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/order-create-bypass", "locationId": "gid://shopify/Location/1", "quantity": 8}
+        ]}}),
+    ));
+    assert_eq!(
+        bypass_seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let bypass_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrderCreateInventoryBypass($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+          orderCreate(order: $order, options: $options) {
+            order { id lineItems(first: 5) { nodes { quantity variant { id } } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "inventory-bypass@example.com",
+                "currency": "USD",
+                "lineItems": [{
+                    "variantId": "gid://shopify/ProductVariant/order-create-bypass",
+                    "quantity": 4,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            },
+            "options": {
+                "inventoryBehaviour": "BYPASS",
+                "sendReceipt": false,
+                "sendFulfillmentReceipt": false
+            }
+        }),
+    ));
+    assert_eq!(
+        bypass_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+
+    let bypass_read = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryAfterOrderCreate($id: ID!) {
+          inventoryItem(id: $id) {
+            variant { inventoryQuantity }
+            inventoryLevels(first: 5) {
+              nodes {
+                quantities(names: ["available", "on_hand"]) { name quantity }
+              }
+            }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/InventoryItem/order-create-bypass"}),
+    ));
+    assert_eq!(
+        bypass_read.body["data"]["inventoryItem"]["variant"]["inventoryQuantity"],
+        json!(8)
+    );
+    assert_eq!(
+        bypass_read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"][0]["quantities"],
+        json!([
+            {"name": "available", "quantity": 8},
+            {"name": "on_hand", "quantity": 8}
+        ])
+    );
+}
+
+#[test]
 fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store() {
     let mut proxy = snapshot_proxy();
 
@@ -2376,6 +2558,75 @@ fn online_store_theme_lifecycle_tail_helpers_ported_from_gleam() {
 }
 
 #[test]
+fn online_store_theme_publish_rejects_development_without_role_changes() {
+    let mut proxy = snapshot_proxy();
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeLocalRuntimeDevelopmentPublishSetup {
+          main: themeCreate(source: "https://example.com/current.zip", name: "Current main", role: MAIN) { theme { id role name } userErrors { field message code } }
+          development: themeCreate(source: "https://example.com/dev.zip", name: "Development theme", role: DEVELOPMENT) { theme { id role name } userErrors { field message code } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        created.body["data"]["main"]["theme"],
+        json!({"id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "role": "MAIN", "name": "Current main"})
+    );
+    assert_eq!(
+        created.body["data"]["development"]["theme"],
+        json!({"id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic", "role": "DEVELOPMENT", "name": "Development theme"})
+    );
+
+    let publish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustOnlineStoreThemeLocalRuntimeDevelopmentPublish {
+          themePublish(id: "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic") {
+            theme { id role }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        publish.body["data"]["themePublish"],
+        json!({"theme": null, "userErrors": [{"field": ["base"], "message": "You cannot publish a development theme.", "code": null}]})
+    );
+
+    let read_after_publish = proxy.process_request(json_graphql_request(
+        r#"
+        query RustOnlineStoreThemeLocalRuntimeDevelopmentPublishRead {
+          main: theme(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic") { id role name }
+          development: theme(id: "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic") { id role name }
+          mains: themes(first: 10, roles: [MAIN]) { nodes { id role name } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_publish.body["data"]["main"],
+        json!({"id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "role": "MAIN", "name": "Current main"})
+    );
+    assert_eq!(
+        read_after_publish.body["data"]["development"],
+        json!({"id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic", "role": "DEVELOPMENT", "name": "Development theme"})
+    );
+    assert_eq!(
+        read_after_publish.body["data"]["mains"]["nodes"],
+        json!([{"id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", "role": "MAIN", "name": "Current main"}])
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        ..Default::default()
+    });
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
 fn online_store_theme_connection_paginates_edges_nodes_and_page_info_consistently() {
     let mut proxy = snapshot_proxy();
 
@@ -2472,6 +2723,7 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
           second: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello world" } }]) { upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
           invalid: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "evil/path.liquid", body: { type: TEXT, value: "ignored" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
           app: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/app.js", body: { type: TEXT, value: "console.log(1)" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
+          theme: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/theme.js", body: { type: TEXT, value: "hello" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
         }
         "#,
         json!({}),
@@ -2494,6 +2746,8 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
         mutation RustOnlineStoreThemeFileLocalRuntimeCopyDelete {
           missingCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/missing.js", dstFilename: "assets/copy.js" }]) { copiedThemeFiles { filename } userErrors { field message code } }
           copy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/app.js", dstFilename: "assets/copy.js" }]) { copiedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          multiCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/app.js", dstFilename: "assets/app-copy.js" }, { srcFilename: "assets/theme.js", dstFilename: "assets/theme-copy.js" }]) { copiedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          mixedCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/missing.js", dstFilename: "assets/missing-copy.js" }, { srcFilename: "assets/theme.js", dstFilename: "assets/theme-copy-2.js" }]) { copiedThemeFiles { filename } userErrors { field message code } }
           requiredDelete: themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: ["config/settings_data.json", "config/settings_schema.json"]) { deletedThemeFiles { filename } userErrors { field message code } }
           deleteCopy: themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: ["assets/copy.js"]) { deletedThemeFiles { filename } userErrors { field message code } }
         }
@@ -2507,6 +2761,17 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
     assert_eq!(
         copy_delete.body["data"]["copy"]["copiedThemeFiles"][0],
         json!({"filename": "assets/copy.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}})
+    );
+    assert_eq!(
+        copy_delete.body["data"]["multiCopy"],
+        json!({"copiedThemeFiles": [
+            {"filename": "assets/app-copy.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
+            {"filename": "assets/theme-copy.js", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}}
+        ], "userErrors": []})
+    );
+    assert_eq!(
+        copy_delete.body["data"]["mixedCopy"],
+        json!({"copiedThemeFiles": [{"filename": "assets/theme-copy-2.js"}], "userErrors": [{"field": ["files", "0", "srcFilename"], "message": "File not found", "code": "NOT_FOUND"}]})
     );
     assert_eq!(
         copy_delete.body["data"]["requiredDelete"]["userErrors"],
@@ -2532,83 +2797,82 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
         read.body["data"]["theme"]["files"]["nodes"],
         json!([
             {"filename": "templates/index.json", "checksumMd5": "5eb63bbbe01eeed093cb22bb8f5acdc3", "size": 11, "body": {"content": "hello world"}},
-            {"filename": "assets/app.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}}
+            {"filename": "assets/app.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
+            {"filename": "assets/theme.js", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}},
+            {"filename": "assets/app-copy.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
+            {"filename": "assets/theme-copy.js", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}},
+            {"filename": "assets/theme-copy-2.js", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}}
         ])
     );
 }
 
 #[test]
-fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
+fn metaobjects_read_empty_and_lifecycle_state_locally_for_arbitrary_documents() {
     let mut proxy = snapshot_proxy();
 
-    let seeded = proxy.process_request(json_graphql_request(
+    let empty = proxy.process_request(json_graphql_request(
         r#"
-        query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
-          catalog: metaobjects(type: $type, first: 10) { edges { cursor node { id handle type displayName updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: "title") { key type value jsonValue definition { key name required type { name category } } } } } nodes { id handle type displayName updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: "title") { key type value jsonValue definition { key name required type { name category } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
-          detail: metaobject(id: $id) { id handle type displayName updatedAt fields { key value } titleField: field(key: "title") { key value } }
-          byHandle: metaobjectByHandle(handle: $handle) { id handle type displayName updatedAt fields { key value } titleField: field(key: "title") { key value } }
-        }
-        "#,
-        json!({
-            "id": "gid://shopify/Metaobject/185593102642",
-            "handle": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370"},
-            "type": "codex_har_240_1777156845370"
-        }),
-    ));
-    assert_eq!(
-        seeded.body["data"]["catalog"]["nodes"][0]["id"],
-        json!("gid://shopify/Metaobject/185593102642")
-    );
-    assert_eq!(
-        seeded.body["data"]["detail"]["displayName"],
-        json!("HAR-240 title 1777156845370")
-    );
-    assert_eq!(
-        seeded.body["data"]["byHandle"]["titleField"]["value"],
-        json!("HAR-240 title 1777156845370")
-    );
-
-    let deleted = proxy.process_request(json_graphql_request(
-        r#"
-        mutation MetaobjectEntryLifecycleDelete($id: ID!) {
-          metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } }
-        }
-        "#,
-        json!({"id": "gid://shopify/Metaobject/185593102642"}),
-    ));
-    assert_eq!(
-        deleted.body["data"]["metaobjectDelete"],
-        json!({"deletedId": "gid://shopify/Metaobject/185593102642", "userErrors": []})
-    );
-
-    let after_delete = proxy.process_request(json_graphql_request(
-        r#"
-        query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+        query AnyMetaobjectReadName($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
           catalog: metaobjects(type: $type, first: 10) { edges { cursor node { id } } nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
           detail: metaobject(id: $id) { id }
           byHandle: metaobjectByHandle(handle: $handle) { id }
         }
         "#,
         json!({
-            "id": "gid://shopify/Metaobject/185593102642",
-            "handle": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370"},
-            "type": "codex_har_240_1777156845370"
+            "id": "gid://shopify/Metaobject/does-not-exist",
+            "handle": {"type": "local_article", "handle": "local-entry"},
+            "type": "local_article"
         }),
     ));
     assert_eq!(
-        after_delete.body["data"]["catalog"],
+        empty.body["data"]["catalog"],
         json!({"edges": [], "nodes": [], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}})
     );
-    assert_eq!(after_delete.body["data"]["detail"], Value::Null);
-    assert_eq!(after_delete.body["data"]["byHandle"], Value::Null);
+    assert_eq!(empty.body["data"]["detail"], Value::Null);
+    assert_eq!(empty.body["data"]["byHandle"], Value::Null);
+
+    let definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AnyMetaobjectDefinitionCreateName($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id type metaobjectsCount }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "local_article",
+            "name": "Local Article",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true},
+                {"key": "body", "name": "Body", "type": "multi_line_text_field", "required": false},
+                {"key": "summary", "name": "Summary", "type": "single_line_text_field", "required": false}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
 
     let created = proxy.process_request(json_graphql_request(
         r#"
-        mutation MetaobjectEntryLifecycleCreate($metaobject: MetaobjectCreateInput!) {
-          metaobjectCreate(metaobject: $metaobject) { metaobject { id handle type displayName updatedAt fields { key value } titleField: field(key: "title") { key value } } userErrors { field message code elementKey elementIndex } }
+        mutation AnyMetaobjectCreateName($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject {
+              id
+              handle
+              type
+              displayName
+              updatedAt
+              fields { key type value jsonValue definition { key name required type { name category } } }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
         }
         "#,
-        json!({"metaobject": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370", "capabilities": {"publishable": {"status": "ACTIVE"}}, "fields": [{"key": "title", "value": "HAR-240 title 1777156845370"}, {"key": "body", "value": "HAR-240 body 1777156845370"}]}}),
+        json!({"metaobject": {"type": "local_article", "handle": "local-entry", "fields": [{"key": "title", "value": "Local Title"}, {"key": "body", "value": "Local body"}, {"key": "summary", "value": "Local summary"}]}}),
     ));
     let created_id = created.body["data"]["metaobjectCreate"]["metaobject"]["id"]
         .as_str()
@@ -2617,7 +2881,41 @@ fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
     assert!(created_id.starts_with("gid://shopify/Metaobject/"));
     assert_eq!(
         created.body["data"]["metaobjectCreate"]["metaobject"]["displayName"],
-        json!("HAR-240 title 1777156845370")
+        json!("Local Title")
+    );
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"]["metaobject"]["handle"],
+        json!("local-entry")
+    );
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"]["metaobject"]["type"],
+        json!("local_article")
+    );
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"]["metaobject"]["fields"],
+        json!([
+            {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "Local Title",
+                "jsonValue": "Local Title",
+                "definition": {"key": "title", "name": "Title", "required": true, "type": {"name": "single_line_text_field", "category": "TEXT"}}
+            },
+            {
+                "key": "body",
+                "type": "multi_line_text_field",
+                "value": "Local body",
+                "jsonValue": "Local body",
+                "definition": {"key": "body", "name": "Body", "required": false, "type": {"name": "multi_line_text_field", "category": "TEXT"}}
+            },
+            {
+                "key": "summary",
+                "type": "single_line_text_field",
+                "value": "Local summary",
+                "jsonValue": "Local summary",
+                "definition": {"key": "summary", "name": "Summary", "required": false, "type": {"name": "single_line_text_field", "category": "TEXT"}}
+            }
+        ])
     );
     assert_eq!(
         created.body["data"]["metaobjectCreate"]["userErrors"],
@@ -2626,7 +2924,7 @@ fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
 
     let after_create = proxy.process_request(json_graphql_request(
         r#"
-        query MetaobjectsReadParity($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+        query AnyDownstreamMetaobjectRead($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
           catalog: metaobjects(type: $type, first: 10) { edges { cursor node { id handle type displayName updatedAt } } nodes { id handle type displayName updatedAt } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
           detail: metaobject(id: $id) { id handle type displayName updatedAt }
           byHandle: metaobjectByHandle(handle: $handle) { id handle type displayName updatedAt }
@@ -2634,8 +2932,8 @@ fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
         "#,
         json!({
             "id": created_id,
-            "handle": {"type": "codex_har_240_1777156845370", "handle": "codex-har-240-1777156845370"},
-            "type": "codex_har_240_1777156845370"
+            "handle": {"type": "local_article", "handle": "local-entry"},
+            "type": "local_article"
         }),
     ));
     assert_eq!(
@@ -2644,7 +2942,100 @@ fn metaobjects_read_seeded_empty_and_lifecycle_state_locally() {
     );
     assert_eq!(
         after_create.body["data"]["byHandle"]["displayName"],
-        json!("HAR-240 title 1777156845370")
+        json!("Local Title")
+    );
+
+    let deleted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AnyMetaobjectDeleteName($id: ID!) {
+          metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } }
+        }
+        "#,
+        json!({"id": created_id}),
+    ));
+    assert_eq!(
+        deleted.body["data"]["metaobjectDelete"],
+        json!({"deletedId": created.body["data"]["metaobjectCreate"]["metaobject"]["id"], "userErrors": []})
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query AnyReadAfterDelete($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+          catalog: metaobjects(type: $type, first: 10) { edges { cursor node { id } } nodes { id } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          detail: metaobject(id: $id) { id }
+          byHandle: metaobjectByHandle(handle: $handle) { id }
+        }
+        "#,
+        json!({
+            "id": deleted.body["data"]["metaobjectDelete"]["deletedId"],
+            "handle": {"type": "local_article", "handle": "local-entry"},
+            "type": "local_article"
+        }),
+    ));
+    assert_eq!(
+        after_delete.body["data"]["catalog"],
+        json!({"edges": [], "nodes": [], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}})
+    );
+    assert_eq!(after_delete.body["data"]["detail"], Value::Null);
+    assert_eq!(after_delete.body["data"]["byHandle"], Value::Null);
+}
+
+#[test]
+fn metaobject_create_rejects_duplicate_field_keys() {
+    let mut proxy = snapshot_proxy();
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ArbitraryDuplicateCreateDocument($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) { metaobject { id displayName fields { key value } } userErrors { field message code elementKey elementIndex } }
+        }
+        "#,
+        json!({
+            "metaobject": {
+                "type": "codex_update_errors_1778040780683",
+                "fields": [
+                    {"key": "title", "value": "First 1778040780683"},
+                    {"key": "title", "value": ""},
+                    {"key": "body", "value": "Body 1778040780683"}
+                ]
+            }
+        }),
+    ));
+
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"],
+        json!({
+            "metaobject": null,
+            "userErrors": [
+                {
+                    "field": ["metaobject", "fields", "1"],
+                    "message": "Field \"title\" duplicates other inputs",
+                    "code": "DUPLICATE_FIELD_INPUT",
+                    "elementKey": "title",
+                    "elementIndex": null
+                },
+                {
+                    "field": ["metaobject", "fields", "1"],
+                    "message": "Title can't be blank",
+                    "code": "OBJECT_FIELD_REQUIRED",
+                    "elementKey": "title",
+                    "elementIndex": null
+                }
+            ]
+        })
+    );
+
+    let after_rejected_create = proxy.process_request(json_graphql_request(
+        r#"
+        query ArbitraryRejectedCreateRead($type: String!) {
+          metaobjects(type: $type, first: 10) { nodes { id } }
+        }
+        "#,
+        json!({"type": "codex_update_errors_1778040780683"}),
+    ));
+    assert_eq!(
+        after_rejected_create.body["data"]["metaobjects"]["nodes"],
+        json!([])
     );
 }
 
@@ -2897,7 +3288,7 @@ fn metaobject_delete_returns_record_not_found_without_logging_noop_deletes() {
     let mut proxy = snapshot_proxy();
 
     let delete_query = r#"
-        mutation MetaobjectEntryLifecycleDelete($id: ID!) {
+        mutation ArbitraryMetaobjectDelete($id: ID!) {
           metaobjectDelete(id: $id) { deletedId userErrors { field message code elementKey elementIndex } }
         }
         "#;
@@ -2935,15 +3326,51 @@ fn metaobject_delete_returns_record_not_found_without_logging_noop_deletes() {
         json!({"entries": []})
     );
 
-    let seed_id = "gid://shopify/Metaobject/185593102642";
-    let deleted = proxy.process_request(json_graphql_request(delete_query, json!({"id": seed_id})));
+    let definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDeleteTargetDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "delete_test",
+            "name": "Delete Test",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDeleteTarget($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) { metaobject { id } userErrors { field message code } }
+        }
+        "#,
+        json!({"metaobject": {"type": "delete_test", "handle": "delete-test", "fields": [{"key": "title", "value": "Delete test"}]}}),
+    ));
+    let staged_id = created.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let deleted =
+        proxy.process_request(json_graphql_request(delete_query, json!({"id": staged_id})));
     assert_eq!(
         deleted.body["data"]["metaobjectDelete"],
-        json!({"deletedId": seed_id, "userErrors": []})
+        json!({"deletedId": created.body["data"]["metaobjectCreate"]["metaobject"]["id"], "userErrors": []})
     );
 
     let repeated =
-        proxy.process_request(json_graphql_request(delete_query, json!({"id": seed_id})));
+        proxy.process_request(json_graphql_request(delete_query, json!({"id": staged_id})));
     assert_eq!(repeated.body["data"]["metaobjectDelete"], record_not_found);
 
     let log = proxy.process_request(Request {
@@ -2951,10 +3378,10 @@ fn metaobject_delete_returns_record_not_found_without_logging_noop_deletes() {
         path: "/__meta/log".to_string(),
         ..Default::default()
     });
-    assert_eq!(log.body["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 3);
     assert_eq!(
-        log.body["entries"][0]["stagedResourceIds"],
-        json!([seed_id])
+        log.body["entries"][2]["stagedResourceIds"],
+        json!([created.body["data"]["metaobjectCreate"]["metaobject"]["id"]])
     );
 }
 

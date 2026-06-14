@@ -98,11 +98,7 @@
           }
         },
         "proxyPath": "$.data.productVariantCreate.product",
-        "selectedPaths": [
-          "$.id",
-          "$.totalInventory",
-          "$.tracksInventory"
-        ],
+        "selectedPaths": ["$.id", "$.totalInventory", "$.tracksInventory"],
         "expectedDifferences": [
           {
             "path": "$.id",
@@ -155,11 +151,7 @@
         },
         "upstreamCapturePath": "$.downstreamRead",
         "proxyPath": "$.data.product",
-        "selectedPaths": [
-          "$.id",
-          "$.totalInventory",
-          "$.tracksInventory"
-        ],
+        "selectedPaths": ["$.id", "$.totalInventory", "$.tracksInventory"],
         "expectedDifferences": [
           {
             "path": "$.id",

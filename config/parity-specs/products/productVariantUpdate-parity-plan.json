@@ -59,11 +59,7 @@
           }
         },
         "proxyPath": "$.data.productVariantCreate.productVariant",
-        "excludedPaths": [
-          "$.taxable",
-          "$.inventoryItem.tracked",
-          "$.inventoryItem.requiresShipping"
-        ],
+        "excludedPaths": ["$.taxable", "$.inventoryItem.tracked", "$.inventoryItem.requiresShipping"],
         "expectedDifferences": [
           {
             "path": "$.id",

@@ -1,4 +1,4 @@
-mutation BackupRegionUpdateNullCountryCode {
+mutation BackupRegionUpdateMalformedNull {
   backupRegionUpdate(region: { countryCode: null }) {
     backupRegion {
       id
