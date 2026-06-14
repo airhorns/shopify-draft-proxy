@@ -1323,11 +1323,15 @@ impl DraftProxy {
             && (is_owner_metafields_set_document(&query)
                 || !self.store.staged.metafield_definitions.is_empty())
         {
-            return self.owner_metafields_set(&query, &variables);
+            let outcome = self.owner_metafields_set(&query, &variables);
+            return self.finalize_mutation_outcome(request, &query, &variables, outcome);
         }
 
         if operation.operation_type == OperationType::Query
-            && matches!(root_field, "product" | "customer" | "order" | "company")
+            && matches!(
+                root_field,
+                "product" | "productVariant" | "collection" | "customer" | "order" | "company"
+            )
             && (is_owner_metafields_read_document(&query)
                 || !self.store.staged.owner_metafields.is_empty())
         {
@@ -2143,6 +2147,22 @@ impl DraftProxy {
                 if has_local_dispatch && matches!(root_field, "tagsAdd" | "tagsRemove") =>
             {
                 let outcome = self.product_tags_mutation(root_field, &query, &variables, request);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && root_field == "metafieldsSet" =>
+            {
+                let outcome = self.owner_metafields_set(&query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && root_field == "metafieldsDelete" =>
+            {
+                let outcome = self.owner_metafields_delete(&query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)

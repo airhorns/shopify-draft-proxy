@@ -166,6 +166,8 @@ pub(in crate::proxy) fn resolved_value_string(value: &ResolvedValue) -> Option<S
 
 pub(in crate::proxy) fn owner_type_from_gid(id: &str) -> &'static str {
     match shopify_gid_resource_type(id) {
+        Some("ProductVariant") => "PRODUCTVARIANT",
+        Some("Collection") => "COLLECTION",
         Some("Customer") => "CUSTOMER",
         Some("Order") => "ORDER",
         Some("Company") => "COMPANY",
