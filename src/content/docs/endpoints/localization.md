@@ -44,9 +44,10 @@ Supported staged shop-locale mutations append replay-ready mutation-log entries
 with the original raw GraphQL request.
 
 The staged shop-locale slice rejects primary-locale mutation attempts,
-unsupported locale codes, duplicate enables, missing locales for published
-updates, enables beyond Shopify's captured 20-language shop limit, and disables
-for non-enabled locales with captured Shopify-like `userErrors`.
+unsupported locale codes, duplicate enables, missing locales whenever
+`shopLocaleUpdate` supplies `published`, enables beyond Shopify's captured
+20-language shop limit, and disables for non-enabled locales with captured
+Shopify-like `userErrors`.
 Market-web-presence IDs are filtered to known local or captured WebPresence IDs,
 and accepted rows project selected
 `marketWebPresences`, `defaultLocale`, and locale scalar fields.

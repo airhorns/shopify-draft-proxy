@@ -217,7 +217,7 @@ fn registry_entry_json_value(entry: &OperationRegistryEntry) -> Value {
     Value::Object(object)
 }
 
-const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 92] = [
+const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 102] = [
     local_query("product", CapabilityDomain::Products),
     local_query("products", CapabilityDomain::Products),
     local_query("productsCount", CapabilityDomain::Products),
@@ -323,6 +323,16 @@ const LOCAL_DISPATCH_ROOTS: [LocalDispatchRoot; 92] = [
     local_mutation("discountAutomaticActivate", CapabilityDomain::Discounts),
     local_mutation("discountAutomaticDeactivate", CapabilityDomain::Discounts),
     local_mutation("discountAutomaticDelete", CapabilityDomain::Discounts),
+    local_query("metaobject", CapabilityDomain::Metaobjects),
+    local_query("metaobjectByHandle", CapabilityDomain::Metaobjects),
+    local_query("metaobjects", CapabilityDomain::Metaobjects),
+    local_query("metaobjectDefinition", CapabilityDomain::Metaobjects),
+    local_query("metaobjectDefinitionByType", CapabilityDomain::Metaobjects),
+    local_query("metaobjectDefinitions", CapabilityDomain::Metaobjects),
+    local_mutation("metaobjectCreate", CapabilityDomain::Metaobjects),
+    local_mutation("metaobjectDelete", CapabilityDomain::Metaobjects),
+    local_mutation("metaobjectDefinitionCreate", CapabilityDomain::Metaobjects),
+    local_mutation("metaobjectDefinitionDelete", CapabilityDomain::Metaobjects),
     local_mutation("metafieldDefinitionCreate", CapabilityDomain::Metafields),
     local_mutation("metafieldDefinitionUpdate", CapabilityDomain::Metafields),
     local_mutation("metafieldDefinitionDelete", CapabilityDomain::Metafields),

@@ -1,0 +1,549 @@
+{
+  "capturedAt": "2026-06-13T22:50:34.786Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "adminOrigin": "https://harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "source": "scripts/capture-metaobject-name-independence-conformance.ts",
+  "seed": {
+    "runId": "1781391033524",
+    "type": "name_independence_1781391033524",
+    "handle": "normal-operation-1781391033524",
+    "title": "Normal Operation 1781391033524",
+    "definitionId": "gid://shopify/MetaobjectDefinition/18994561330",
+    "metaobjectId": "gid://shopify/Metaobject/198687818034"
+  },
+  "definitionCreate": {
+    "name": "definition-create",
+    "request": {
+      "query": "mutation MetaobjectNameIndependenceDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      displayNameKey\n      metaobjectsCount\n      fieldDefinitions {\n        key\n        name\n        required\n        type {\n          name\n          category\n        }\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "name_independence_1781391033524",
+          "name": "Name Independence 1781391033524",
+          "displayNameKey": "title",
+          "capabilities": {
+            "publishable": {
+              "enabled": true
+            }
+          },
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "Title",
+              "type": "single_line_text_field",
+              "required": true
+            },
+            {
+              "key": "body",
+              "name": "Body",
+              "type": "multi_line_text_field",
+              "required": false
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/18994561330",
+            "type": "name_independence_1781391033524",
+            "name": "Name Independence 1781391033524",
+            "displayNameKey": "title",
+            "metaobjectsCount": 0,
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                }
+              },
+              {
+                "key": "body",
+                "name": "Body",
+                "required": false,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            ],
+            "capabilities": {
+              "publishable": {
+                "enabled": true
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 14,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "entryCreate": {
+    "name": "entry-create-normal-operation-name",
+    "request": {
+      "query": "fragment MetaobjectNameIndependenceFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation CreateMetaobject($metaobject: MetaobjectCreateInput!) {\n  createdNormally: metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectNameIndependenceFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "metaobject": {
+          "type": "name_independence_1781391033524",
+          "handle": "normal-operation-1781391033524",
+          "fields": [
+            {
+              "key": "title",
+              "value": "Normal Operation 1781391033524"
+            },
+            {
+              "key": "body",
+              "value": "Captured through mutation CreateMetaobject 1781391033524"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "createdNormally": {
+          "metaobject": {
+            "id": "gid://shopify/Metaobject/198687818034",
+            "handle": "normal-operation-1781391033524",
+            "type": "name_independence_1781391033524",
+            "displayName": "Normal Operation 1781391033524",
+            "updatedAt": "2026-06-13T22:50:34Z",
+            "capabilities": {
+              "publishable": {
+                "status": "DRAFT"
+              },
+              "onlineStore": null
+            },
+            "fields": [
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "Normal Operation 1781391033524",
+                "jsonValue": "Normal Operation 1781391033524",
+                "definition": {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              },
+              {
+                "key": "body",
+                "type": "multi_line_text_field",
+                "value": "Captured through mutation CreateMetaobject 1781391033524",
+                "jsonValue": "Captured through mutation CreateMetaobject 1781391033524",
+                "definition": {
+                  "key": "body",
+                  "name": "Body",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            ],
+            "titleField": {
+              "key": "title",
+              "type": "single_line_text_field",
+              "value": "Normal Operation 1781391033524",
+              "jsonValue": "Normal Operation 1781391033524",
+              "definition": {
+                "key": "title",
+                "name": "Title",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 19,
+          "actualQueryCost": 19,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1981,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterCreate": {
+    "name": "read-after-create",
+    "request": {
+      "query": "fragment MetaobjectNameIndependenceReadFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nquery MetaobjectNameIndependenceRead($id: ID!, $handle: MetaobjectHandleInput!, $type: String!) {\n  detail: metaobject(id: $id) {\n    ...MetaobjectNameIndependenceReadFields\n  }\n  byHandle: metaobjectByHandle(handle: $handle) {\n    ...MetaobjectNameIndependenceReadFields\n  }\n  catalog: metaobjects(type: $type, first: 10) {\n    nodes {\n      ...MetaobjectNameIndependenceReadFields\n    }\n    edges {\n      cursor\n      node {\n        ...MetaobjectNameIndependenceReadFields\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  definition: metaobjectDefinitionByType(type: $type) {\n    type\n    metaobjectsCount\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Metaobject/198687818034",
+        "handle": {
+          "type": "name_independence_1781391033524",
+          "handle": "normal-operation-1781391033524"
+        },
+        "type": "name_independence_1781391033524"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "detail": {
+          "id": "gid://shopify/Metaobject/198687818034",
+          "handle": "normal-operation-1781391033524",
+          "type": "name_independence_1781391033524",
+          "displayName": "Normal Operation 1781391033524",
+          "updatedAt": "2026-06-13T22:50:34Z",
+          "capabilities": {
+            "publishable": {
+              "status": "DRAFT"
+            },
+            "onlineStore": null
+          },
+          "fields": [
+            {
+              "key": "title",
+              "type": "single_line_text_field",
+              "value": "Normal Operation 1781391033524",
+              "jsonValue": "Normal Operation 1781391033524",
+              "definition": {
+                "key": "title",
+                "name": "Title",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            },
+            {
+              "key": "body",
+              "type": "multi_line_text_field",
+              "value": "Captured through mutation CreateMetaobject 1781391033524",
+              "jsonValue": "Captured through mutation CreateMetaobject 1781391033524",
+              "definition": {
+                "key": "body",
+                "name": "Body",
+                "required": false,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            }
+          ],
+          "titleField": {
+            "key": "title",
+            "type": "single_line_text_field",
+            "value": "Normal Operation 1781391033524",
+            "jsonValue": "Normal Operation 1781391033524",
+            "definition": {
+              "key": "title",
+              "name": "Title",
+              "required": true,
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              }
+            }
+          }
+        },
+        "byHandle": {
+          "id": "gid://shopify/Metaobject/198687818034",
+          "handle": "normal-operation-1781391033524",
+          "type": "name_independence_1781391033524",
+          "displayName": "Normal Operation 1781391033524",
+          "updatedAt": "2026-06-13T22:50:34Z",
+          "capabilities": {
+            "publishable": {
+              "status": "DRAFT"
+            },
+            "onlineStore": null
+          },
+          "fields": [
+            {
+              "key": "title",
+              "type": "single_line_text_field",
+              "value": "Normal Operation 1781391033524",
+              "jsonValue": "Normal Operation 1781391033524",
+              "definition": {
+                "key": "title",
+                "name": "Title",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            },
+            {
+              "key": "body",
+              "type": "multi_line_text_field",
+              "value": "Captured through mutation CreateMetaobject 1781391033524",
+              "jsonValue": "Captured through mutation CreateMetaobject 1781391033524",
+              "definition": {
+                "key": "body",
+                "name": "Body",
+                "required": false,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                }
+              }
+            }
+          ],
+          "titleField": {
+            "key": "title",
+            "type": "single_line_text_field",
+            "value": "Normal Operation 1781391033524",
+            "jsonValue": "Normal Operation 1781391033524",
+            "definition": {
+              "key": "title",
+              "name": "Title",
+              "required": true,
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              }
+            }
+          }
+        },
+        "catalog": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Metaobject/198687818034",
+              "handle": "normal-operation-1781391033524",
+              "type": "name_independence_1781391033524",
+              "displayName": "Normal Operation 1781391033524",
+              "updatedAt": "2026-06-13T22:50:34Z",
+              "capabilities": {
+                "publishable": {
+                  "status": "DRAFT"
+                },
+                "onlineStore": null
+              },
+              "fields": [
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "Normal Operation 1781391033524",
+                  "jsonValue": "Normal Operation 1781391033524",
+                  "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "body",
+                  "type": "multi_line_text_field",
+                  "value": "Captured through mutation CreateMetaobject 1781391033524",
+                  "jsonValue": "Captured through mutation CreateMetaobject 1781391033524",
+                  "definition": {
+                    "key": "body",
+                    "name": "Body",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ],
+              "titleField": {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "Normal Operation 1781391033524",
+                "jsonValue": "Normal Operation 1781391033524",
+                "definition": {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            }
+          ],
+          "edges": [
+            {
+              "cursor": "eyJsYXN0X2lkIjoxOTg2ODc4MTgwMzQsImxhc3RfdmFsdWUiOiIxOTg2ODc4MTgwMzQifQ==",
+              "node": {
+                "id": "gid://shopify/Metaobject/198687818034",
+                "handle": "normal-operation-1781391033524",
+                "type": "name_independence_1781391033524",
+                "displayName": "Normal Operation 1781391033524",
+                "updatedAt": "2026-06-13T22:50:34Z",
+                "capabilities": {
+                  "publishable": {
+                    "status": "DRAFT"
+                  },
+                  "onlineStore": null
+                },
+                "fields": [
+                  {
+                    "key": "title",
+                    "type": "single_line_text_field",
+                    "value": "Normal Operation 1781391033524",
+                    "jsonValue": "Normal Operation 1781391033524",
+                    "definition": {
+                      "key": "title",
+                      "name": "Title",
+                      "required": true,
+                      "type": {
+                        "name": "single_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  },
+                  {
+                    "key": "body",
+                    "type": "multi_line_text_field",
+                    "value": "Captured through mutation CreateMetaobject 1781391033524",
+                    "jsonValue": "Captured through mutation CreateMetaobject 1781391033524",
+                    "definition": {
+                      "key": "body",
+                      "name": "Body",
+                      "required": false,
+                      "type": {
+                        "name": "multi_line_text_field",
+                        "category": "TEXT"
+                      }
+                    }
+                  }
+                ],
+                "titleField": {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "Normal Operation 1781391033524",
+                  "jsonValue": "Normal Operation 1781391033524",
+                  "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoxOTg2ODc4MTgwMzQsImxhc3RfdmFsdWUiOiIxOTg2ODc4MTgwMzQifQ==",
+            "endCursor": "eyJsYXN0X2lkIjoxOTg2ODc4MTgwMzQsImxhc3RfdmFsdWUiOiIxOTg2ODc4MTgwMzQifQ=="
+          }
+        },
+        "definition": {
+          "type": "name_independence_1781391033524",
+          "metaobjectsCount": 1
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 103,
+          "actualQueryCost": 34,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1966,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectNameIndependenceCleanupDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/198687818034"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/198687818034",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1968,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectNameIndependenceDefinitionCleanupDelete($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/18994561330"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/18994561330",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1971,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

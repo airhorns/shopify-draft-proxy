@@ -2169,6 +2169,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'saved-searches',
+    captureId: 'saved-search-blank-name-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-saved-search-blank-name-validation-conformance.ts',
+    purpose:
+      'savedSearchCreate empty-name validation returns schema-shaped UserError field/message payloads and aggregates query validation errors.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-blank-name-validation.json`,
+      'config/parity-specs/saved-searches/saved-search-blank-name-validation.json',
+      'config/parity-requests/saved-searches/saved-search-blank-name-validation-create.graphql',
+    ],
+    cleanupBehavior: 'No Shopify writes are committed because both savedSearchCreate aliases fail validation.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'saved-searches',
     captureId: 'saved-search-delete-shop-payload',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-saved-search-delete-shop-payload-conformance.ts',
@@ -2474,6 +2490,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Deletes remaining seeded metaobject rows and definition after the schema-change lifecycle capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'metaobject-name-independence-create',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-name-independence-conformance.ts',
+    purpose:
+      'metaobjectCreate payload and read-after-write behavior when the client operation name is CreateMetaobject instead of the captured lifecycle fixture name.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-name-independence-create.json`,
+      'config/parity-specs/metaobjects/metaobject-name-independence-create.json',
+      'config/parity-requests/metaobjects/metaobject-name-independence-definition-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-name-independence-create.graphql',
+      'config/parity-requests/metaobjects/metaobject-name-independence-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable metaobject definition and one row, records normal-name create/read behavior, then deletes the row and definition.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -3068,8 +3103,16 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'localization',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-conformance.mts',
-    purpose: 'Shop locale lifecycle and translation read-after-write cleanup behavior.',
-    requiredAuthScopes: ['read_products', 'read_translations', 'write_translations', 'read_locales', 'write_locales'],
+    purpose:
+      'Shop locale lifecycle, primary/missing-locale validation guards, and translation read-after-write cleanup behavior.',
+    requiredAuthScopes: [
+      'read_products',
+      'read_translations',
+      'write_translations',
+      'read_locales',
+      'write_locales',
+      'read_markets',
+    ],
     fixtureOutputs: [
       `${CAPTURE_ROOT}localization-disable-clears-translations.json`,
       `${CAPTURE_ROOT}localization-shop-locale-primary-guards.json`,
@@ -3077,7 +3120,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/localization/localization-shop-locale-primary-guards.json',
     ],
     cleanupBehavior:
-      'Enables the French shop locale, registers one product-title translation, disables the locale, and leaves the locale/translation state cleaned up.',
+      'Enables the French shop locale, registers one product-title translation, disables the locale, captures validation-only primary/missing-locale guard branches, and leaves the locale/translation state cleaned up.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -6880,6 +6923,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'payment-customization-activation-already-in-state',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-customization-activation-already-in-state-conformance.ts',
+    purpose:
+      'paymentCustomizationActivation returns a valid id when the submitted disposable payment customization is already in the requested enabled state.',
+    requiredAuthScopes: ['read_payment_customizations', 'write_payment_customizations', 'shopifyFunctions read access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-customization-activation-already-in-state.json`,
+      'config/parity-specs/payments/payment-customization-activation-already-in-state.json',
+      'config/parity-requests/payments/payment-customization-activation-already-in-state-create.graphql',
+      'config/parity-requests/payments/payment-customization-activation-already-in-state.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one enabled disposable payment customization, re-activates it with enabled:true to capture the no-op success ids payload, then deletes the payment customization.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
     captureId: 'payment-customization-create-validation-gaps',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-customization-create-validation-gaps-conformance.ts',
@@ -8697,7 +8758,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-customer-set-conformance.mts',
     purpose: 'customerSet upsert/identifier semantics.',
     requiredAuthScopes: ['read_customers', 'write_customers'],
-    fixtureOutputs: ['fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-set-parity.json'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-set-parity.json',
+      'fixtures/conformance/local-runtime/2026-04/customers/customer-set-unknown-id-errors.json',
+      'config/parity-specs/customers/customer-set-unknown-id-code.json',
+      'config/parity-specs/customers/customer_set_unknown_id_errors.json',
+    ],
     cleanupBehavior: 'Tracks all created/upserted customer IDs and deletes remaining records.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },

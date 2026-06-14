@@ -1341,6 +1341,8 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
           enableFr: shopLocaleEnable(locale: "fr") { shopLocale { locale published } userErrors { field message code } }
           publishFr: shopLocaleUpdate(locale: "fr", shopLocale: { published: true, marketWebPresenceIds: [$known, $unknown] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } }
           attachMissing: shopLocaleUpdate(locale: "tr", shopLocale: { marketWebPresenceIds: [$known] }) { shopLocale { locale name published marketWebPresences { id __typename defaultLocale { locale } } } userErrors { field message code } }
+          missingWithPresenceUnpublish: shopLocaleUpdate(locale: "zz", shopLocale: { published: false, marketWebPresenceIds: [$known] }) { shopLocale { locale } userErrors { field message code } }
+          missingWithPresencePublish: shopLocaleUpdate(locale: "zz", shopLocale: { published: true, marketWebPresenceIds: [$known] }) { shopLocale { locale } userErrors { field message code } }
           missingNoPresence: shopLocaleUpdate(locale: "de", shopLocale: { published: true }) { shopLocale { locale } userErrors { field message code } }
           primaryPublish: shopLocaleUpdate(locale: "en", shopLocale: { published: true }) { shopLocale { locale } userErrors { field message code } }
           primaryUnpublish: shopLocaleUpdate(locale: "en", shopLocale: { published: false }) { shopLocale { locale } userErrors { field message code } }
@@ -1396,6 +1398,22 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
                 "code": "SHOP_LOCALE_DOES_NOT_EXIST"
             }]
         })
+    );
+    let missing_locale_error = json!({
+        "shopLocale": null,
+        "userErrors": [{
+            "field": ["locale"],
+            "message": "The locale doesn't exist.",
+            "code": "SHOP_LOCALE_DOES_NOT_EXIST"
+        }]
+    });
+    assert_eq!(
+        lifecycle.body["data"]["missingWithPresenceUnpublish"],
+        missing_locale_error
+    );
+    assert_eq!(
+        lifecycle.body["data"]["missingWithPresencePublish"],
+        missing_locale_error
     );
     assert_eq!(
         lifecycle.body["data"]["primaryUnpublish"],
@@ -1462,6 +1480,9 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
     assert!(all_locales
         .iter()
         .any(|locale| locale["locale"] == json!("tr")));
+    assert!(!all_locales
+        .iter()
+        .any(|locale| locale["locale"] == json!("zz")));
     assert!(read.body["data"]["publishedLocales"]
         .as_array()
         .unwrap()
