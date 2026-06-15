@@ -204,6 +204,8 @@ struct StagedState {
     location_limit_reached: bool,
     segments: BTreeMap<String, Value>,
     collections: BTreeMap<String, Value>,
+    deleted_collection_ids: BTreeSet<String>,
+    collection_jobs: BTreeMap<String, Value>,
     fulfillment_order_deadlines: BTreeMap<String, String>,
     bulk_operations: BTreeMap<String, Value>,
     bulk_operation_staged_uploads: BTreeMap<String, Option<u64>>,
@@ -452,6 +454,8 @@ impl Default for StagedState {
             location_limit_reached: false,
             segments: BTreeMap::new(),
             collections: BTreeMap::new(),
+            deleted_collection_ids: BTreeSet::new(),
+            collection_jobs: BTreeMap::new(),
             fulfillment_order_deadlines: BTreeMap::new(),
             bulk_operations: BTreeMap::new(),
             bulk_operation_staged_uploads: BTreeMap::new(),
@@ -794,6 +798,12 @@ impl Store {
             || !self.staged.products.tombstones.is_empty()
     }
 
+    fn has_collection_state(&self) -> bool {
+        !self.staged.collections.is_empty()
+            || !self.staged.deleted_collection_ids.is_empty()
+            || !self.staged.collection_jobs.is_empty()
+    }
+
     fn has_product(&self, id: &str) -> bool {
         self.product_by_id(id).is_some()
     }
@@ -824,6 +834,7 @@ impl Store {
         else {
             return;
         };
+        self.staged.deleted_collection_ids.remove(&collection_id);
 
         let mut normalized_products = Vec::new();
         for mut product in products {
@@ -880,6 +891,41 @@ impl Store {
         for product in normalized_products {
             self.stage_observed_product(product);
         }
+    }
+
+    fn collection_by_id(&self, id: &str) -> Option<&Value> {
+        if self.staged.deleted_collection_ids.contains(id) {
+            return None;
+        }
+        self.staged.collections.get(id)
+    }
+
+    fn stage_collection(&mut self, collection: Value) {
+        if let Some(id) = collection.get("id").and_then(Value::as_str) {
+            self.staged.deleted_collection_ids.remove(id);
+            self.staged.collections.insert(id.to_string(), collection);
+        }
+    }
+
+    fn delete_collection(&mut self, id: &str) -> bool {
+        let existed = self.staged.collections.remove(id).is_some();
+        if existed {
+            self.staged.deleted_collection_ids.insert(id.to_string());
+        }
+        for product in self.products() {
+            if product
+                .collections
+                .iter()
+                .any(|collection| collection.get("id").and_then(Value::as_str) == Some(id))
+            {
+                let mut updated = product;
+                updated
+                    .collections
+                    .retain(|collection| collection.get("id").and_then(Value::as_str) != Some(id));
+                self.stage_product(updated);
+            }
+        }
+        existed
     }
 
     fn delete_product(&mut self, id: &str) {
@@ -1758,48 +1804,54 @@ mod store_tests {
 
     #[test]
     fn collection_downstream_read_uses_observed_passthrough_membership_state() {
-        let upstream_body = json!({
-            "data": {
-                "collectionAddProducts": {
-                    "collection": {
-                        "id": "gid://shopify/Collection/store-backed",
-                        "title": "Store Backed Collection",
-                        "handle": "store-backed-collection",
-                        "products": {
-                            "nodes": [
-                                {
-                                    "id": "gid://shopify/Product/first",
-                                    "title": "First Product",
-                                    "handle": "first-product"
-                                },
-                                {
-                                    "id": "gid://shopify/Product/second",
-                                    "title": "Second Product",
-                                    "handle": "second-product"
-                                }
-                            ],
-                            "pageInfo": {
-                                "hasNextPage": false,
-                                "hasPreviousPage": false
-                            }
-                        }
-                    },
-                    "userErrors": []
+        let mut proxy = snapshot_proxy().with_base_products(vec![
+            ProductRecord {
+                id: "gid://shopify/Product/first".to_string(),
+                title: "First Product".to_string(),
+                handle: "first-product".to_string(),
+                status: "ACTIVE".to_string(),
+                ..ProductRecord::default()
+            },
+            ProductRecord {
+                id: "gid://shopify/Product/second".to_string(),
+                title: "Second Product".to_string(),
+                handle: "second-product".to_string(),
+                status: "ACTIVE".to_string(),
+                ..ProductRecord::default()
+            },
+        ]);
+
+        let create = proxy.process_request(graphql_request(
+            r#"
+            mutation CollectionCreateForDownstreamRead($input: CollectionInput!) {
+              collectionCreate(input: $input) {
+                collection {
+                  id
                 }
+                userErrors {
+                  field
+                  message
+                }
+              }
             }
-        });
-        let mut proxy = DraftProxy::new(Config {
-            read_mode: ReadMode::LiveHybrid,
-            unsupported_mutation_mode: Some(UnsupportedMutationMode::Passthrough),
-            bulk_operation_run_mutation_max_input_file_size_bytes: None,
-            port: 0,
-            shopify_admin_origin: "https://shopify.com".to_string(),
-            snapshot_path: None,
-        })
-        .with_upstream_transport({
-            let upstream_body = upstream_body.clone();
-            move |_| ok_json(upstream_body.clone())
-        });
+            "#,
+            json!({
+                "input": {
+                    "title": "Store Backed Collection",
+                    "handle": "store-backed-collection",
+                    "sortOrder": "MANUAL"
+                }
+            }),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(
+            create.body["data"]["collectionCreate"]["userErrors"],
+            json!([])
+        );
+        let collection_id = create.body["data"]["collectionCreate"]["collection"]["id"]
+            .as_str()
+            .expect("collection create should return id")
+            .to_string();
 
         let mutation = proxy.process_request(graphql_request(
             r#"
@@ -1829,7 +1881,7 @@ mod store_tests {
             }
             "#,
             json!({
-                "id": "gid://shopify/Collection/store-backed",
+                "id": collection_id,
                 "productIds": ["gid://shopify/Product/first", "gid://shopify/Product/second"]
             }),
         ));
@@ -1877,7 +1929,7 @@ mod store_tests {
             }
             "#,
             json!({
-                "collectionId": "gid://shopify/Collection/store-backed",
+                "collectionId": collection_id,
                 "firstProductId": "gid://shopify/Product/first",
                 "secondProductId": "gid://shopify/Product/second"
             }),
@@ -1903,7 +1955,7 @@ mod store_tests {
             read.body["data"]["first"]["collections"]["nodes"],
             json!([
                 {
-                    "id": "gid://shopify/Collection/store-backed",
+                    "id": collection_id,
                     "title": "Store Backed Collection",
                     "handle": "store-backed-collection"
                 }

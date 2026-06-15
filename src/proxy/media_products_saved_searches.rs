@@ -2307,6 +2307,10 @@ impl DraftProxy {
         self.store.has_product_state()
     }
 
+    pub(in crate::proxy) fn has_collection_overlay_state(&self) -> bool {
+        self.store.has_collection_state()
+    }
+
     pub(in crate::proxy) fn products_connection_value(
         &self,
         arguments: &BTreeMap<String, ResolvedValue>,

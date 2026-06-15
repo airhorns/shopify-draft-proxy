@@ -5067,89 +5067,194 @@ fn product_relationship_options_reads_replay_captured_reorder_downstreams() {
 
 #[test]
 fn collection_membership_downstream_reads_replay_captured_shapes() {
-    fn passthrough_observation_proxy(fixture: Value) -> DraftProxy {
-        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
-            let body: Value =
-                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
-            let query = body["query"]
-                .as_str()
-                .expect("upstream GraphQL query is a string");
-            let response = if query.contains("ProductsHydrateNodes") {
-                fixture["upstreamCalls"][0]["response"]["body"].clone()
-            } else {
-                fixture["mutation"]["response"].clone()
-            };
-            shopify_draft_proxy::proxy::Response {
-                status: 200,
-                headers: Default::default(),
-                body: response,
-            }
-        })
+    fn product_from_node(node: &Value) -> ProductRecord {
+        ProductRecord {
+            id: node["id"].as_str().unwrap().to_string(),
+            title: node["title"].as_str().unwrap().to_string(),
+            handle: node["handle"].as_str().unwrap().to_string(),
+            status: "ACTIVE".to_string(),
+            collections: node
+                .get("collections")
+                .and_then(|connection| connection.get("nodes"))
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default(),
+            ..ProductRecord::default()
+        }
     }
 
     let add_fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-add-products-parity.json"
     ))
     .unwrap();
-    let mut proxy = passthrough_observation_proxy(add_fixture.clone());
+    let add_collection =
+        &add_fixture["mutation"]["response"]["data"]["collectionAddProducts"]["collection"];
+    let add_products = add_collection["products"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(product_from_node)
+        .collect::<Vec<_>>();
+    let mut proxy = snapshot_proxy().with_base_products(add_products);
+    let create_add_collection = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocalCollectionForAdd($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": add_collection["title"],
+                "handle": add_collection["handle"],
+                "sortOrder": "MANUAL"
+            }
+        }),
+    ));
+    let add_collection_id = create_add_collection.body["data"]["collectionCreate"]["collection"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
     let add_mutation = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/products/collectionAddProducts-parity-plan.graphql"
         ),
-        add_fixture["mutation"]["variables"].clone(),
+        json!({
+            "id": add_collection_id,
+            "productIds": add_fixture["mutation"]["variables"]["productIds"]
+        }),
     ));
     assert_eq!(add_mutation.status, 200);
     let add_response = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/products/collectionAddProducts-downstream-read.graphql"
         ),
-        add_fixture["downstreamReadVariables"].clone(),
+        json!({
+            "collectionId": add_collection_id,
+            "firstProductId": add_fixture["downstreamReadVariables"]["firstProductId"],
+            "secondProductId": add_fixture["downstreamReadVariables"]["secondProductId"]
+        }),
     ));
+    assert_eq!(add_response.status, 200);
     assert_eq!(
-        add_response.body,
-        json!({ "data": add_fixture["downstreamRead"]["data"] })
+        add_response.body["data"]["collection"]["products"]["nodes"],
+        add_fixture["downstreamRead"]["data"]["collection"]["products"]["nodes"]
+    );
+    assert_eq!(
+        add_response.body["data"]["first"]["collections"]["nodes"][0]["id"],
+        json!(add_collection_id)
     );
 
     let create_fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/collection-create-initial-products-parity.json"
     ))
     .unwrap();
-    let mut proxy = passthrough_observation_proxy(create_fixture.clone());
+    let create_products = create_fixture["mutation"]["response"]["data"]["collectionCreate"]
+        ["collection"]["products"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(product_from_node)
+        .collect::<Vec<_>>();
+    let mut proxy = snapshot_proxy().with_base_products(create_products);
     let create_mutation = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/products/collectionCreate-initial-products-parity.graphql"),
         create_fixture["mutation"]["variables"].clone(),
     ));
     assert_eq!(create_mutation.status, 200);
+    let create_collection_id = create_mutation.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
     let create_response = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/products/collectionCreate-initial-products-downstream-read.graphql"),
-        create_fixture["downstreamReadVariables"].clone(),
+        json!({
+            "collectionId": create_collection_id,
+            "firstProductId": create_fixture["downstreamReadVariables"]["firstProductId"],
+            "secondProductId": create_fixture["downstreamReadVariables"]["secondProductId"]
+        }),
     ));
     assert_eq!(
-        create_response.body,
-        json!({ "data": create_fixture["downstreamRead"]["data"] })
+        create_response.body["data"]["collection"]["products"]["nodes"],
+        create_fixture["downstreamRead"]["data"]["collection"]["products"]["nodes"]
+    );
+    assert_eq!(
+        create_response.body["data"]["collection"]["productsCount"],
+        json!({ "count": 2, "precision": "EXACT" })
     );
 
     let reorder_fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collection-reorder-products-parity.json"
     ))
     .unwrap();
-    let mut proxy = passthrough_observation_proxy(reorder_fixture.clone());
+    let reorder_products = reorder_fixture["downstreamRead"]["data"]["collection"]
+        ["manualProducts"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .rev()
+        .map(product_from_node)
+        .collect::<Vec<_>>();
+    let mut proxy = snapshot_proxy().with_base_products(reorder_products);
+    let reorder_collection = &reorder_fixture["downstreamRead"]["data"]["collection"];
+    let create_reorder_collection = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocalCollectionForReorder($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": reorder_collection["title"],
+                "handle": reorder_collection["handle"],
+                "sortOrder": "MANUAL",
+                    "products": reorder_fixture["downstreamRead"]["data"]["collection"]["manualProducts"]["nodes"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .rev()
+                    .map(|node| node["id"].clone())
+                    .collect::<Vec<_>>()
+            }
+        }),
+    ));
+    let reorder_collection_id = create_reorder_collection.body["data"]["collectionCreate"]
+        ["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
     let reorder_mutation = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/products/collectionReorderProducts-parity-plan.graphql"
         ),
-        reorder_fixture["mutation"]["variables"].clone(),
+        json!({
+                "id": reorder_collection_id,
+                "moves": [{
+                    "id": reorder_fixture["downstreamRead"]["data"]["collection"]["manualProducts"]["nodes"][0]["id"],
+                    "newPosition": "0"
+                }]
+        }),
     ));
     assert_eq!(reorder_mutation.status, 200);
     let reorder_response = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/products/collectionReorderProducts-downstream-read.graphql"
         ),
-        reorder_fixture["downstreamReadVariables"].clone(),
+        json!({
+            "collectionId": reorder_collection_id,
+            "firstProductId": reorder_fixture["downstreamReadVariables"]["firstProductId"],
+            "secondProductId": reorder_fixture["downstreamReadVariables"]["secondProductId"]
+        }),
     ));
     assert_eq!(
-        reorder_response.body,
-        json!({ "data": reorder_fixture["downstreamRead"]["data"] })
+        reorder_response.body["data"]["collection"]["manualProducts"]["nodes"],
+        reorder_fixture["downstreamRead"]["data"]["collection"]["manualProducts"]["nodes"]
     );
 }
 
