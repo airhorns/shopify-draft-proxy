@@ -1232,6 +1232,22 @@ pub(in crate::proxy) fn theme_file_record(filename: &str, content: &str) -> Valu
     })
 }
 
+pub(in crate::proxy) fn theme_file_operation_result(record: &Value) -> Value {
+    json!({
+        "filename": record["filename"],
+        "createdAt": record
+            .get("createdAt")
+            .cloned()
+            .unwrap_or_else(|| json!("2024-01-01T00:00:00.000Z")),
+        "updatedAt": record
+            .get("updatedAt")
+            .cloned()
+            .unwrap_or_else(|| json!("2024-01-01T00:00:00.000Z")),
+        "checksumMd5": record["checksumMd5"],
+        "size": record["size"]
+    })
+}
+
 pub(in crate::proxy) fn theme_file_checksum_md5(content: &str) -> &str {
     match content {
         "hello" => "5d41402abc4b2a76b9719d911017c592",

@@ -1,0 +1,162 @@
+{
+  "fixtureKind": "local-runtime-theme-file-operation-result-shape",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-06-15T00:00:00.000Z",
+  "storeDomain": "local-runtime.myshopify.com",
+  "expected": {
+    "primary": {
+      "variables": {},
+      "data": {
+        "copy": {
+          "copiedThemeFiles": [
+            {
+              "checksumMd5": "6114f5adc373accd7b2051bd87078f62",
+              "createdAt": "2024-01-01T00:00:00.000Z",
+              "filename": "assets/app-copy.js",
+              "size": 14,
+              "updatedAt": "2024-01-01T00:00:00.000Z"
+            }
+          ],
+          "userErrors": []
+        },
+        "delete": {
+          "deletedThemeFiles": [
+            {
+              "checksumMd5": "6114f5adc373accd7b2051bd87078f62",
+              "createdAt": "2024-01-01T00:00:00.000Z",
+              "filename": "assets/app-copy.js",
+              "size": 14,
+              "updatedAt": "2024-01-01T00:00:00.000Z"
+            }
+          ],
+          "userErrors": []
+        },
+        "themeCreate": {
+          "theme": {
+            "id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+          },
+          "userErrors": []
+        },
+        "upsert": {
+          "upsertedThemeFiles": [
+            {
+              "checksumMd5": "6114f5adc373accd7b2051bd87078f62",
+              "createdAt": "2024-01-01T00:00:00.000Z",
+              "filename": "assets/app.js",
+              "size": 14,
+              "updatedAt": "2024-01-01T00:00:00.000Z"
+            }
+          ],
+          "userErrors": []
+        }
+      }
+    },
+    "mutationLog": [
+      {
+        "id": "log-1",
+        "interpreted": {
+          "operationType": "mutation",
+          "primaryRootField": "themeCreate",
+          "rootFields": ["themeCreate", "themeFilesUpsert", "themeFilesCopy", "themeFilesDelete"]
+        },
+        "operationName": null,
+        "path": "/admin/api/2026-04/graphql.json",
+        "query": "mutation RustOnlineStoreThemeFileLocalRuntimeResultShape {\n  themeCreate(source: \"https://example.com/theme-file-result-shape.zip\", name: \"Theme file result shape\") {\n    theme {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  upsert: themeFilesUpsert(\n    themeId: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\"\n    files: [{ filename: \"assets/app.js\", body: { type: TEXT, value: \"console.log(1)\" } }]\n  ) {\n    upsertedThemeFiles {\n      filename\n      createdAt\n      updatedAt\n      size\n      checksumMd5\n      body {\n        ... on OnlineStoreThemeFileBodyText {\n          content\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  copy: themeFilesCopy(\n    themeId: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\"\n    files: [{ srcFilename: \"assets/app.js\", dstFilename: \"assets/app-copy.js\" }]\n  ) {\n    copiedThemeFiles {\n      filename\n      createdAt\n      updatedAt\n      size\n      checksumMd5\n      body {\n        ... on OnlineStoreThemeFileBodyText {\n          content\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  delete: themeFilesDelete(\n    themeId: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\"\n    files: [\"assets/app-copy.js\"]\n  ) {\n    deletedThemeFiles {\n      filename\n      createdAt\n      updatedAt\n      size\n      checksumMd5\n      body {\n        ... on OnlineStoreThemeFileBodyText {\n          content\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "rawBody": "{\"query\":\"mutation RustOnlineStoreThemeFileLocalRuntimeResultShape {\\n  themeCreate(source: \\\"https://example.com/theme-file-result-shape.zip\\\", name: \\\"Theme file result shape\\\") {\\n    theme {\\n      id\\n    }\\n    userErrors {\\n      field\\n      message\\n      code\\n    }\\n  }\\n  upsert: themeFilesUpsert(\\n    themeId: \\\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\\\"\\n    files: [{ filename: \\\"assets/app.js\\\", body: { type: TEXT, value: \\\"console.log(1)\\\" } }]\\n  ) {\\n    upsertedThemeFiles {\\n      filename\\n      createdAt\\n      updatedAt\\n      size\\n      checksumMd5\\n      body {\\n        ... on OnlineStoreThemeFileBodyText {\\n          content\\n        }\\n      }\\n    }\\n    userErrors {\\n      field\\n      message\\n      code\\n    }\\n  }\\n  copy: themeFilesCopy(\\n    themeId: \\\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\\\"\\n    files: [{ srcFilename: \\\"assets/app.js\\\", dstFilename: \\\"assets/app-copy.js\\\" }]\\n  ) {\\n    copiedThemeFiles {\\n      filename\\n      createdAt\\n      updatedAt\\n      size\\n      checksumMd5\\n      body {\\n        ... on OnlineStoreThemeFileBodyText {\\n          content\\n        }\\n      }\\n    }\\n    userErrors {\\n      field\\n      message\\n      code\\n    }\\n  }\\n  delete: themeFilesDelete(\\n    themeId: \\\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\\\"\\n    files: [\\\"assets/app-copy.js\\\"]\\n  ) {\\n    deletedThemeFiles {\\n      filename\\n      createdAt\\n      updatedAt\\n      size\\n      checksumMd5\\n      body {\\n        ... on OnlineStoreThemeFileBodyText {\\n          content\\n        }\\n      }\\n    }\\n    userErrors {\\n      field\\n      message\\n      code\\n    }\\n  }\\n}\\n\",\"variables\":{}}",
+        "stagedResourceIds": [
+          "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic",
+          "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic",
+          "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic",
+          "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+        ],
+        "status": "staged",
+        "variables": {}
+      }
+    ]
+  },
+  "evidence": {
+    "source": "local-runtime-backed with live no-side-effect schema introspection",
+    "liveTypeShape": {
+      "storeDomain": "harry-test-heelo.myshopify.com",
+      "apiVersion": "2026-04",
+      "capturedAt": "2026-06-15T01:52:13.439Z",
+      "response": {
+        "data": {
+          "operationResult": {
+            "fields": [
+              {
+                "name": "checksumMd5",
+                "type": {
+                  "kind": "SCALAR",
+                  "name": "String",
+                  "ofType": null
+                }
+              },
+              {
+                "name": "createdAt",
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "DateTime"
+                  }
+                }
+              },
+              {
+                "name": "filename",
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "String"
+                  }
+                }
+              },
+              {
+                "name": "size",
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "UnsignedInt64"
+                  }
+                }
+              },
+              {
+                "name": "updatedAt",
+                "type": {
+                  "kind": "NON_NULL",
+                  "name": null,
+                  "ofType": {
+                    "kind": "SCALAR",
+                    "name": "DateTime"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 4,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "notes": [
+      "Live Shopify writes for theme file mutations require theme-write authorization and can mutate storefront theme assets, so this executable fixture proves proxy-local result payload shape without runtime Shopify writes.",
+      "The live no-side-effect introspection records the public OnlineStoreThemeFileOperationResult field names exposed to the conformance credential when available.",
+      "The request intentionally selects body on mutation result objects; the local response omits it because body belongs to read-side OnlineStoreThemeFile, not OnlineStoreThemeFileOperationResult."
+    ]
+  },
+  "upstreamCalls": []
+}
