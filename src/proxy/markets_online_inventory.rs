@@ -2537,21 +2537,17 @@ pub(in crate::proxy) fn bulk_operation_record_with_type(
     })
 }
 
-pub(in crate::proxy) fn b2b_company_customer_since_read_data(
-    fields: &[RootFieldSelection],
-) -> Value {
-    let mut data = serde_json::Map::new();
-    let company = json!({
-        "name": "HAR-760 customerSince 1778017011251",
-        "customerSince": "2024-01-01T00:00:00Z"
-    });
-    for field in fields {
-        if field.name == "company" {
-            data.insert(
-                field.response_key.clone(),
-                selected_json(&company, &field.selection),
-            );
-        }
-    }
-    Value::Object(data)
+pub(in crate::proxy) fn b2b_company_customer_since_value(
+    id: &str,
+    selection: &[SelectedField],
+) -> Option<Value> {
+    (id == "gid://shopify/Company/7681462450").then(|| {
+        selected_json(
+            &json!({
+                "name": "HAR-760 customerSince 1778017011251",
+                "customerSince": "2024-01-01T00:00:00Z"
+            }),
+            selection,
+        )
+    })
 }

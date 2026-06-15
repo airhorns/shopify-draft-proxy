@@ -314,16 +314,6 @@ fn is_shopify_date_time(value: &str) -> bool {
         })
 }
 
-pub(in crate::proxy) fn media_page_info(cursor_id: Option<&str>) -> Value {
-    let cursor = cursor_id.map(|id| format!("cursor:{}", id));
-    json!({
-        "hasNextPage": false,
-        "hasPreviousPage": false,
-        "startCursor": cursor,
-        "endCursor": cursor
-    })
-}
-
 pub(in crate::proxy) fn quantity_pricing_by_variant_update_response(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
@@ -1012,82 +1002,6 @@ pub(in crate::proxy) fn market_web_presence_helper_record(draft: &WebPresenceDra
     })
 }
 
-pub(in crate::proxy) fn is_web_presence_local_document(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    if !query.contains("MarketWebPresenceLifecycleCreate") || !query.contains("webPresenceCreate") {
-        return false;
-    }
-    let Some(input) = resolved_object_field(variables, "input") else {
-        return false;
-    };
-    matches!(
-        resolved_string_field(&input, "subfolderSuffix").as_deref(),
-        Some("fr") | Some("intl")
-    )
-}
-
-pub(in crate::proxy) fn web_presence_create_response(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Response {
-    let response_key =
-        root_field_response_key(query).unwrap_or_else(|| "webPresenceCreate".to_string());
-    let payload_selection = root_field_selection(query).unwrap_or_default();
-    let input = resolved_object_field(variables, "input").unwrap_or_default();
-    let suffix = resolved_string_field(&input, "subfolderSuffix").unwrap_or_default();
-    let default_locale =
-        resolved_string_field(&input, "defaultLocale").unwrap_or_else(|| "en".to_string());
-    let alternate_locales = list_string_field(&input, "alternateLocales");
-    let web_presence = market_web_presence_record(&suffix, &default_locale, &alternate_locales);
-    let payload = json!({"webPresence": web_presence, "userErrors": []});
-    ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
-}
-
-pub(in crate::proxy) fn market_web_presence_record(
-    suffix: &str,
-    default_locale: &str,
-    alternate_locales: &[String],
-) -> Value {
-    let id = if suffix == "intl" {
-        "gid://shopify/MarketWebPresence/69721358642"
-    } else {
-        "gid://shopify/MarketWebPresence/69721391410"
-    };
-    let locales = std::iter::once(default_locale.to_string())
-        .chain(alternate_locales.iter().cloned())
-        .collect::<Vec<_>>();
-    let root_urls = locales
-        .iter()
-        .enumerate()
-        .map(|(index, locale)| {
-            let url = if suffix == "intl" {
-                if index == 0 {
-                    "https://harry-test-heelo.myshopify.com/intl/".to_string()
-                } else {
-                    format!("https://harry-test-heelo.myshopify.com/intl/{}/", locale)
-                }
-            } else {
-                format!(
-                    "https://harry-test-heelo.myshopify.com/{}-{}/",
-                    locale, suffix
-                )
-            };
-            json!({"locale": locale, "url": url})
-        })
-        .collect::<Vec<_>>();
-    json!({
-        "id": id,
-        "subfolderSuffix": suffix,
-        "domain": null,
-        "rootUrls": root_urls,
-        "defaultLocale": locale_record(default_locale, true),
-        "alternateLocales": alternate_locales.iter().map(|locale| locale_record(locale, false)).collect::<Vec<_>>(),
-        "markets": {"nodes": []}
-    })
-}
-
 pub(in crate::proxy) fn locale_record(locale: &str, primary: bool) -> Value {
     json!({
         "locale": locale,
@@ -1180,62 +1094,6 @@ pub(in crate::proxy) fn resolved_number_field(
         Some(ResolvedValue::Float(value)) => Some(*value),
         _ => None,
     }
-}
-
-pub(in crate::proxy) fn is_local_customer_create_document(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    let arguments = root_field_arguments(query, variables).unwrap_or_default();
-    resolved_object_field(&arguments, "input").is_some()
-        || resolved_object_field(variables, "input").is_some()
-}
-
-pub(in crate::proxy) fn is_local_customer_delete_document(query: &str) -> bool {
-    query.contains("CustomerDeleteParityPlan")
-        || query.contains("CustomerDeleteOrderPreconditionDelete")
-}
-
-pub(in crate::proxy) fn is_customer_input_validation_update_success(
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    let Some(input) = resolved_object_field(variables, "input") else {
-        return false;
-    };
-    matches!(
-        resolved_string_field(&input, "id").as_deref(),
-        Some("gid://shopify/Customer/10541053706546")
-            | Some("gid://shopify/Customer/10541053772082")
-    )
-}
-
-pub(in crate::proxy) fn is_local_customer_update_document(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    if query.contains("CustomerUpdateParityPlan")
-        || is_customer_input_validation_update_success(variables)
-    {
-        return true;
-    }
-    let arguments = root_field_arguments(query, variables).unwrap_or_default();
-    let Some(input) = resolved_object_field(&arguments, "input") else {
-        return false;
-    };
-    input.contains_key("emailMarketingConsent")
-        || input.contains_key("smsMarketingConsent")
-        || [
-            "firstName",
-            "lastName",
-            "note",
-            "tags",
-            "taxExempt",
-            "taxExemptions",
-            "metafields",
-            "phone",
-        ]
-        .iter()
-        .any(|field| input.contains_key(*field))
 }
 
 pub(in crate::proxy) fn normalize_customer_tags(tags: Vec<String>) -> Vec<String> {
