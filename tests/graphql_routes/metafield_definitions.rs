@@ -581,6 +581,218 @@ fn metafield_definition_lifecycle_mutations_validate_and_stage_real_inputs() {
 }
 
 #[test]
+fn metafield_definition_delete_enforces_type_guards_without_associated_values() {
+    let mut proxy = snapshot_proxy();
+
+    let cases = [
+        (
+            "id_no_values",
+            "uid",
+            "id",
+            false,
+            "ID_TYPE_DELETION_ERROR",
+            "Deleting an id type metafield definition requires deletion of its associated metafields.",
+        ),
+        (
+            "reference_no_values",
+            "target",
+            "product_reference",
+            true,
+            "REFERENCE_TYPE_DELETION_ERROR",
+            "Deleting a reference type metafield definition requires deletion of its associated metafields.",
+        ),
+        (
+            "list_reference_no_values",
+            "targets",
+            "list.product_reference",
+            false,
+            "REFERENCE_TYPE_DELETION_ERROR",
+            "Deleting a reference type metafield definition requires deletion of its associated metafields.",
+        ),
+    ];
+
+    for (namespace, key, metafield_type, include_false_flag, expected_code, expected_message) in
+        cases
+    {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CreateDefinition($definition: MetafieldDefinitionInput!) {
+              metafieldDefinitionCreate(definition: $definition) {
+                createdDefinition { id namespace key type { name } }
+                userErrors { __typename field message code }
+              }
+            }
+            "#,
+            json!({
+                "definition": {
+                    "name": format!("Delete guard {key}"),
+                    "namespace": namespace,
+                    "key": key,
+                    "ownerType": "PRODUCT",
+                    "type": metafield_type
+                }
+            }),
+        ));
+        assert_eq!(
+            create.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+            json!([])
+        );
+
+        let delete_query = if include_false_flag {
+            r#"
+            mutation DeleteDefinition($namespace: String!, $key: String!) {
+              metafieldDefinitionDelete(
+                identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }
+                deleteAllAssociatedMetafields: false
+              ) {
+                deletedDefinitionId
+                deletedDefinition { ownerType namespace key }
+                userErrors { __typename field message code }
+              }
+            }
+            "#
+        } else {
+            r#"
+            mutation DeleteDefinition($namespace: String!, $key: String!) {
+              metafieldDefinitionDelete(
+                identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }
+              ) {
+                deletedDefinitionId
+                deletedDefinition { ownerType namespace key }
+                userErrors { __typename field message code }
+              }
+            }
+            "#
+        };
+        let guarded_delete = proxy.process_request(json_graphql_request(
+            delete_query,
+            json!({ "namespace": namespace, "key": key }),
+        ));
+        assert_eq!(
+            guarded_delete.body["data"]["metafieldDefinitionDelete"],
+            json!({
+                "deletedDefinitionId": null,
+                "deletedDefinition": null,
+                "userErrors": [{
+                    "__typename": "MetafieldDefinitionDeleteUserError",
+                    "field": null,
+                    "message": expected_message,
+                    "code": expected_code
+                }]
+            })
+        );
+    }
+}
+
+#[test]
+fn metafield_definition_delete_keeps_type_guard_exceptions_without_associated_values() {
+    let mut proxy = snapshot_proxy();
+
+    let text_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateTextDefinition {
+          metafieldDefinitionCreate(
+            definition: {
+              name: "Delete text target"
+              namespace: "delete_text_no_values"
+              key: "label"
+              ownerType: PRODUCT
+              type: "single_line_text_field"
+            }
+          ) {
+            createdDefinition { id namespace key type { name } }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        text_create.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let text_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteTextDefinition {
+          metafieldDefinitionDelete(
+            identifier: { ownerType: PRODUCT, namespace: "delete_text_no_values", key: "label" }
+          ) {
+            deletedDefinitionId
+            deletedDefinition { ownerType namespace key }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        text_delete.body["data"]["metafieldDefinitionDelete"]["deletedDefinition"],
+        json!({
+            "ownerType": "PRODUCT",
+            "namespace": "delete_text_no_values",
+            "key": "label"
+        })
+    );
+    assert_eq!(
+        text_delete.body["data"]["metafieldDefinitionDelete"]["userErrors"],
+        json!([])
+    );
+
+    let reference_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReferenceDefinition {
+          metafieldDefinitionCreate(
+            definition: {
+              name: "Delete reference with flag"
+              namespace: "delete_reference_no_values_with_flag"
+              key: "target"
+              ownerType: PRODUCT
+              type: "product_reference"
+            }
+          ) {
+            createdDefinition { id namespace key type { name } }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        reference_create.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let reference_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteReferenceDefinition {
+          metafieldDefinitionDelete(
+            identifier: { ownerType: PRODUCT, namespace: "delete_reference_no_values_with_flag", key: "target" }
+            deleteAllAssociatedMetafields: true
+          ) {
+            deletedDefinitionId
+            deletedDefinition { ownerType namespace key }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        reference_delete.body["data"]["metafieldDefinitionDelete"]["deletedDefinition"],
+        json!({
+            "ownerType": "PRODUCT",
+            "namespace": "delete_reference_no_values_with_flag",
+            "key": "target"
+        })
+    );
+    assert_eq!(
+        reference_delete.body["data"]["metafieldDefinitionDelete"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
 fn metafield_definition_delete_enforces_reference_guards_and_removes_associated_values() {
     let mut proxy = snapshot_proxy();
     let namespace = "delete_reference_guard";

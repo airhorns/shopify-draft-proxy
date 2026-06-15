@@ -1912,6 +1912,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-delete-type-guard-no-metafields',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-delete-type-guard-no-metafields-conformance.mts',
+    purpose:
+      'metafieldDefinitionDelete id/reference type guards for product-owned definitions with no associated metafields.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-delete-type-guard-no-metafields.json`,
+      'config/parity-specs/metafields/metafield-definition-delete-type-guard-no-metafields.json',
+      'config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-create.graphql',
+      'config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-delete-no-flag.graphql',
+      'config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-delete-with-flag.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable product-owned id and reference definitions without setting metafields, captures guarded deletes, then deletes any remaining definitions with deleteAllAssociatedMetafields.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-update-constraints',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metafield-definition-update-constraints.mts',
