@@ -11,6 +11,8 @@ struct OrdersLocalLogEntry<'a> {
 
 const MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH: usize = 100;
 const MOBILE_PLATFORM_APP_CLIP_APPLICATION_ID_MAX_LENGTH: usize = 255;
+const ORDERS_FULFILLMENT_ORDER_HYDRATE_QUERY: &str = "query OrdersFulfillmentOrderHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}";
+const ORDERS_FULFILLMENT_HYDRATE_QUERY: &str = "query OrdersFulfillmentHydrate($id: ID!) { fulfillment(id: $id) { id order { id name email phone createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus note tags fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } } } }";
 
 fn mobile_application_id_too_long_error<const N: usize>(field: [&str; N]) -> Value {
     mobile_app_error(
@@ -446,6 +448,45 @@ fn order_create_line_item_record(
     (line, unit_amount * quantity as f64, tax_total)
 }
 
+fn order_fulfillment_order_line_item_record(line_item: &Value, index: usize) -> Value {
+    let order_line_item_id = line_item
+        .get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let id_tail = if order_line_item_id.is_empty() {
+        (index + 1).to_string()
+    } else {
+        resource_id_tail(order_line_item_id).to_string()
+    };
+    let quantity = line_item
+        .get("quantity")
+        .and_then(Value::as_i64)
+        .unwrap_or(1)
+        .max(0);
+    json!({
+        "id": format!("gid://shopify/FulfillmentOrderLineItem/{id_tail}"),
+        "totalQuantity": quantity,
+        "remainingQuantity": quantity,
+        "lineItem": line_item
+    })
+}
+
+fn order_default_fulfillment_order(order_id: &str, line_items: &[Value]) -> Value {
+    let tail = resource_id_tail(order_id);
+    let fulfillment_order_line_items = line_items
+        .iter()
+        .enumerate()
+        .map(|(index, line_item)| order_fulfillment_order_line_item_record(line_item, index))
+        .collect::<Vec<_>>();
+    json!({
+        "id": format!("gid://shopify/FulfillmentOrder/{tail}"),
+        "status": "OPEN",
+        "requestStatus": "UNSUBMITTED",
+        "supportedActions": [],
+        "lineItems": order_connection(fulfillment_order_line_items)
+    })
+}
+
 fn order_create_transaction_record(
     input: &BTreeMap<String, ResolvedValue>,
     index: usize,
@@ -719,6 +760,237 @@ fn data_response(response_key: &str, value: Value) -> Value {
     let mut data = serde_json::Map::new();
     data.insert(response_key.to_string(), value);
     json!({ "data": Value::Object(data) })
+}
+
+fn fulfillment_tracking_info(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+    let company = resolved_string_field(input, "company")
+        .or_else(|| resolved_string_field(input, "trackingCompany"));
+    let numbers = resolved_string_list_field_unsorted(input, "numbers");
+    let urls = resolved_string_list_field_unsorted(input, "urls");
+    if !numbers.is_empty() || !urls.is_empty() {
+        let len = numbers.len().max(urls.len());
+        return (0..len)
+            .map(|index| {
+                json!({
+                    "number": numbers.get(index).cloned().unwrap_or_default(),
+                    "url": urls.get(index).cloned(),
+                    "company": company.clone()
+                })
+            })
+            .collect();
+    }
+    let number = resolved_string_field(input, "number")
+        .or_else(|| resolved_string_field(input, "trackingNumber"))
+        .unwrap_or_default();
+    let url =
+        resolved_string_field(input, "url").or_else(|| resolved_string_field(input, "trackingUrl"));
+    if number.is_empty() && url.is_none() && company.is_none() {
+        return Vec::new();
+    }
+    vec![json!({
+        "number": number,
+        "url": url,
+        "company": company
+    })]
+}
+
+fn fulfillment_order_nodes_mut(order: &mut Value) -> Option<&mut Vec<Value>> {
+    order
+        .get_mut("fulfillmentOrders")?
+        .get_mut("nodes")?
+        .as_array_mut()
+}
+
+fn order_fulfillments_mut(order: &mut Value) -> Option<&mut Vec<Value>> {
+    order.get_mut("fulfillments")?.as_array_mut()
+}
+
+fn normalize_hydrated_order(order: &mut Value) {
+    if order
+        .get("fulfillments")
+        .is_some_and(|fulfillments| fulfillments.is_null())
+    {
+        order["fulfillments"] = json!([]);
+    }
+    if let Some(nodes) = order
+        .get("fulfillments")
+        .and_then(|fulfillments| fulfillments.get("nodes"))
+        .and_then(Value::as_array)
+        .cloned()
+    {
+        order["fulfillments"] = Value::Array(nodes);
+    }
+    if !order
+        .get("fulfillments")
+        .is_some_and(|fulfillments| fulfillments.is_array())
+    {
+        order["fulfillments"] = json!([]);
+    }
+    if !order
+        .get("fulfillmentOrders")
+        .and_then(|connection| connection.get("nodes"))
+        .is_some_and(|nodes| nodes.is_array())
+    {
+        order["fulfillmentOrders"] = order_connection(Vec::new());
+    }
+}
+
+fn fulfillment_line_item_record(line: &Value, quantity: i64) -> Value {
+    let line_id = line.get("id").and_then(Value::as_str).unwrap_or_default();
+    let fulfillment_line_item_id = if line_id.is_empty() {
+        "gid://shopify/FulfillmentLineItem/1".to_string()
+    } else {
+        format!(
+            "gid://shopify/FulfillmentLineItem/{}",
+            resource_id_tail(line_id)
+        )
+    };
+    json!({
+        "id": fulfillment_line_item_id,
+        "quantity": quantity,
+        "lineItem": line.get("lineItem").cloned().unwrap_or(Value::Null)
+    })
+}
+
+fn fulfillment_group_line_items(
+    order: &Value,
+    group: &BTreeMap<String, ResolvedValue>,
+) -> Vec<Value> {
+    let group_id = resolved_string_field(group, "fulfillmentOrderId").unwrap_or_default();
+    let requested_line_items = resolved_object_list_field(group, "fulfillmentOrderLineItems");
+    let Some(fulfillment_order) = order["fulfillmentOrders"]["nodes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|node| node["id"].as_str() == Some(group_id.as_str()))
+    else {
+        return Vec::new();
+    };
+    let line_nodes = fulfillment_order["lineItems"]["nodes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    if requested_line_items.is_empty() {
+        return line_nodes
+            .iter()
+            .map(|line| {
+                let quantity = line["remainingQuantity"]
+                    .as_i64()
+                    .or_else(|| line["totalQuantity"].as_i64())
+                    .unwrap_or(0)
+                    .max(0);
+                fulfillment_line_item_record(line, quantity)
+            })
+            .collect();
+    }
+    requested_line_items
+        .iter()
+        .filter_map(|requested| {
+            let requested_id = resolved_string_field(requested, "id")?;
+            let quantity = resolved_i64_field(requested, "quantity")
+                .unwrap_or(0)
+                .max(0);
+            line_nodes
+                .iter()
+                .find(|line| line["id"].as_str() == Some(requested_id.as_str()))
+                .map(|line| fulfillment_line_item_record(line, quantity))
+        })
+        .collect()
+}
+
+fn fulfillment_create_closed_order_error(fulfillment_order_id: &str) -> Value {
+    json!({
+        "field": ["fulfillment"],
+        "message": format!(
+            "Fulfillment order {} has an unfulfillable status= closed.",
+            resource_id_tail(fulfillment_order_id)
+        )
+    })
+}
+
+fn fulfillment_create_invalid_quantity_error() -> Value {
+    json!({
+        "field": ["fulfillment"],
+        "message": "Invalid fulfillment order line item quantity requested."
+    })
+}
+
+fn fulfillment_create_precondition_error(
+    order: &Value,
+    groups: &[BTreeMap<String, ResolvedValue>],
+) -> Option<Value> {
+    for group in groups {
+        let group_id = resolved_string_field(group, "fulfillmentOrderId").unwrap_or_default();
+        let fulfillment_order = order["fulfillmentOrders"]["nodes"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|node| node["id"].as_str() == Some(group_id.as_str()))?;
+        let status = fulfillment_order["status"].as_str().unwrap_or_default();
+        if status.eq_ignore_ascii_case("CLOSED") || status.eq_ignore_ascii_case("CANCELLED") {
+            return Some(fulfillment_create_closed_order_error(&group_id));
+        }
+        let line_nodes = fulfillment_order["lineItems"]["nodes"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        for requested in resolved_object_list_field(group, "fulfillmentOrderLineItems") {
+            let Some(requested_id) = resolved_string_field(&requested, "id") else {
+                return Some(fulfillment_create_invalid_quantity_error());
+            };
+            let requested_quantity = resolved_i64_field(&requested, "quantity").unwrap_or(0);
+            let Some(line) = line_nodes
+                .iter()
+                .find(|line| line["id"].as_str() == Some(requested_id.as_str()))
+            else {
+                return Some(fulfillment_create_invalid_quantity_error());
+            };
+            let remaining = line["remainingQuantity"].as_i64().unwrap_or(0);
+            if requested_quantity <= 0 || requested_quantity > remaining {
+                return Some(fulfillment_create_invalid_quantity_error());
+            }
+        }
+    }
+    None
+}
+
+fn update_order_fulfillment_status(order: &mut Value) {
+    let fulfillment_count = order["fulfillments"]
+        .as_array()
+        .map(Vec::len)
+        .unwrap_or_default();
+    if fulfillment_count == 0 {
+        return;
+    }
+    let nodes = order["fulfillmentOrders"]["nodes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    if nodes.is_empty() {
+        return;
+    }
+    let all_closed = nodes.iter().all(|node| {
+        node["status"]
+            .as_str()
+            .is_some_and(|status| status.eq_ignore_ascii_case("CLOSED"))
+    });
+    order["displayFulfillmentStatus"] = json!(if all_closed {
+        "FULFILLED"
+    } else {
+        "PARTIALLY_FULFILLED"
+    });
+}
+
+fn fulfillment_status_is(fulfillment: &Value, expected: &str) -> bool {
+    fulfillment["status"]
+        .as_str()
+        .is_some_and(|status| status.eq_ignore_ascii_case(expected))
+}
+
+fn fulfillment_display_status_is(fulfillment: &Value, expected: &str) -> bool {
+    fulfillment["displayStatus"]
+        .as_str()
+        .is_some_and(|status| status.eq_ignore_ascii_case(expected))
 }
 
 fn draft_order_total_amount(field: &RootFieldSelection) -> String {
@@ -2072,6 +2344,399 @@ impl DraftProxy {
         )
     }
 
+    fn staged_order_id_for_fulfillment_order(&self, fulfillment_order_id: &str) -> Option<String> {
+        self.store
+            .staged
+            .orders
+            .iter()
+            .find_map(|(order_id, order)| {
+                order["fulfillmentOrders"]["nodes"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .any(|node| node["id"].as_str() == Some(fulfillment_order_id))
+                    .then(|| order_id.clone())
+            })
+    }
+
+    fn staged_order_id_for_fulfillment(&self, fulfillment_id: &str) -> Option<String> {
+        self.store
+            .staged
+            .orders
+            .iter()
+            .find_map(|(order_id, order)| {
+                order["fulfillments"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .any(|fulfillment| fulfillment["id"].as_str() == Some(fulfillment_id))
+                    .then(|| order_id.clone())
+            })
+    }
+
+    fn stage_hydrated_order(&mut self, mut order: Value) -> Option<String> {
+        normalize_hydrated_order(&mut order);
+        let id = order.get("id").and_then(Value::as_str)?.to_string();
+        self.store.staged.orders.insert(id.clone(), order);
+        Some(id)
+    }
+
+    fn hydrate_order_for_fulfillment_order(
+        &mut self,
+        fulfillment_order_id: &str,
+        request: &Request,
+    ) -> Option<String> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": ORDERS_FULFILLMENT_ORDER_HYDRATE_QUERY,
+                "variables": { "id": fulfillment_order_id }
+            })
+            .to_string(),
+        });
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        let order = response.body["data"]["fulfillmentOrder"]["order"].clone();
+        if !order.is_object() {
+            return None;
+        }
+        self.stage_hydrated_order(order)
+    }
+
+    fn hydrate_order_for_fulfillment(
+        &mut self,
+        fulfillment_id: &str,
+        request: &Request,
+    ) -> Option<String> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": ORDERS_FULFILLMENT_HYDRATE_QUERY,
+                "variables": { "id": fulfillment_id }
+            })
+            .to_string(),
+        });
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        let fulfillment = response.body["data"]["fulfillment"].clone();
+        let mut order = fulfillment["order"].clone();
+        if !order.is_object() {
+            return None;
+        }
+        if !order["fulfillments"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|record| record["id"].as_str() == Some(fulfillment_id))
+            && fulfillment.is_object()
+        {
+            let mut fulfillment_record = fulfillment.clone();
+            if let Some(object) = fulfillment_record.as_object_mut() {
+                object.remove("order");
+            }
+            normalize_hydrated_order(&mut order);
+            if let Some(fulfillments) = order_fulfillments_mut(&mut order) {
+                fulfillments.push(fulfillment_record);
+            }
+        }
+        self.stage_hydrated_order(order)
+    }
+
+    fn staged_fulfillment_payload(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let Some(fulfillment_input) = resolved_object_field(&field.arguments, "fulfillment") else {
+            return selected_json(
+                &json!({
+                    "fulfillment": Value::Null,
+                    "userErrors": [orders_error(&["fulfillment"], "Fulfillment is required", "INVALID")]
+                }),
+                &field.selection,
+            );
+        };
+        let groups = resolved_object_list_field(&fulfillment_input, "lineItemsByFulfillmentOrder");
+        let Some(first_group) = groups.first() else {
+            return selected_json(
+                &json!({
+                    "fulfillment": Value::Null,
+                    "userErrors": [orders_error(&["fulfillment"], "Line items by fulfillment order must be specified", "INVALID")]
+                }),
+                &field.selection,
+            );
+        };
+        let Some(fulfillment_order_id) = resolved_string_field(first_group, "fulfillmentOrderId")
+        else {
+            return selected_json(
+                &json!({
+                    "fulfillment": Value::Null,
+                    "userErrors": [orders_error(&["fulfillment"], "Fulfillment order must be specified", "INVALID")]
+                }),
+                &field.selection,
+            );
+        };
+        let Some(order_id) = self
+            .staged_order_id_for_fulfillment_order(&fulfillment_order_id)
+            .or_else(|| self.hydrate_order_for_fulfillment_order(&fulfillment_order_id, request))
+        else {
+            return selected_json(
+                &json!({
+                    "fulfillment": Value::Null,
+                    "userErrors": [orders_error(&["fulfillment"], "Fulfillment order could not be found.", "NOT_FOUND")]
+                }),
+                &field.selection,
+            );
+        };
+        let Some(order_before) = self.store.staged.orders.get(&order_id).cloned() else {
+            return selected_json(
+                &json!({
+                    "fulfillment": Value::Null,
+                    "userErrors": [orders_error(&["fulfillment"], "Fulfillment order could not be found.", "NOT_FOUND")]
+                }),
+                &field.selection,
+            );
+        };
+        if let Some(error) = fulfillment_create_precondition_error(&order_before, &groups) {
+            return selected_json(
+                &json!({
+                    "fulfillment": Value::Null,
+                    "userErrors": [error]
+                }),
+                &field.selection,
+            );
+        }
+
+        let tracking_info = resolved_object_field(&fulfillment_input, "trackingInfo")
+            .map(|tracking| fulfillment_tracking_info(&tracking))
+            .unwrap_or_default();
+        let fulfillment_id = self.next_proxy_synthetic_gid("Fulfillment");
+        let fulfillment_line_items = groups
+            .iter()
+            .flat_map(|group| fulfillment_group_line_items(&order_before, group))
+            .collect::<Vec<_>>();
+        let fulfillment = json!({
+            "id": fulfillment_id,
+            "status": "SUCCESS",
+            "displayStatus": "FULFILLED",
+            "createdAt": "2024-01-01T00:00:00.000Z",
+            "updatedAt": "2024-01-01T00:00:00.000Z",
+            "trackingInfo": tracking_info,
+            "fulfillmentLineItems": order_connection(fulfillment_line_items),
+            "__draftProxyFulfillmentOrderIds": groups
+                .iter()
+                .filter_map(|group| resolved_string_field(group, "fulfillmentOrderId"))
+                .collect::<Vec<_>>()
+        });
+
+        let mut order = self
+            .store
+            .staged
+            .orders
+            .get(&order_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        for group in groups {
+            let group_id = resolved_string_field(&group, "fulfillmentOrderId").unwrap_or_default();
+            let requested_line_items =
+                resolved_object_list_field(&group, "fulfillmentOrderLineItems");
+            if let Some(nodes) = fulfillment_order_nodes_mut(&mut order) {
+                if let Some(fulfillment_order) = nodes
+                    .iter_mut()
+                    .find(|node| node["id"].as_str() == Some(group_id.as_str()))
+                {
+                    if let Some(line_nodes) = fulfillment_order["lineItems"]["nodes"].as_array_mut()
+                    {
+                        if requested_line_items.is_empty() {
+                            for line in &mut *line_nodes {
+                                line["remainingQuantity"] = json!(0);
+                            }
+                        } else {
+                            for requested in &requested_line_items {
+                                let requested_id =
+                                    resolved_string_field(requested, "id").unwrap_or_default();
+                                let quantity = resolved_i64_field(requested, "quantity")
+                                    .unwrap_or(0)
+                                    .max(0);
+                                if let Some(line) = line_nodes
+                                    .iter_mut()
+                                    .find(|line| line["id"].as_str() == Some(requested_id.as_str()))
+                                {
+                                    let remaining = line["remainingQuantity"]
+                                        .as_i64()
+                                        .unwrap_or(0)
+                                        .saturating_sub(quantity);
+                                    line["remainingQuantity"] = json!(remaining);
+                                }
+                            }
+                        }
+                        let remaining_total = line_nodes
+                            .iter()
+                            .filter_map(|line| line["remainingQuantity"].as_i64())
+                            .sum::<i64>();
+                        fulfillment_order["status"] = json!(if remaining_total == 0 {
+                            "CLOSED"
+                        } else {
+                            "OPEN"
+                        });
+                    }
+                }
+            }
+        }
+        if let Some(fulfillments) = order_fulfillments_mut(&mut order) {
+            fulfillments.push(fulfillment.clone());
+        } else {
+            order["fulfillments"] = json!([fulfillment.clone()]);
+        }
+        update_order_fulfillment_status(&mut order);
+        self.store
+            .staged
+            .orders
+            .insert(order_id.clone(), order.clone());
+        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            request,
+            query,
+            variables,
+            root_field: "fulfillmentCreate",
+            staged_resource_ids: vec![order_id, fulfillment_id],
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally staged fulfillmentCreate in shopify-draft-proxy.",
+            },
+        });
+
+        selected_json(
+            &json!({ "fulfillment": fulfillment, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn update_staged_fulfillment_tracking_payload(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        field: &RootFieldSelection,
+    ) -> Option<Value> {
+        let fulfillment_id = resolved_string_arg(&field.arguments, "fulfillmentId")?;
+        let order_id = self
+            .staged_order_id_for_fulfillment(&fulfillment_id)
+            .or_else(|| self.hydrate_order_for_fulfillment(&fulfillment_id, request))?;
+        let tracking_input = resolved_object_field(&field.arguments, "trackingInfoInput")
+            .or_else(|| resolved_object_field(&field.arguments, "trackingInfo"))
+            .unwrap_or_default();
+        let tracking_info = fulfillment_tracking_info(&tracking_input);
+        let mut order = self.store.staged.orders.get(&order_id)?.clone();
+        let fulfillment = order_fulfillments_mut(&mut order)?
+            .iter_mut()
+            .find(|fulfillment| fulfillment["id"].as_str() == Some(fulfillment_id.as_str()))?;
+        if fulfillment_status_is(fulfillment, "CANCELLED") {
+            return Some(selected_json(
+                &json!({
+                    "fulfillment": Value::Null,
+                    "userErrors": [orders_error(&["fulfillmentId"], "fulfillment_is_cancelled", "INVALID")]
+                }),
+                &field.selection,
+            ));
+        }
+        fulfillment["trackingInfo"] = json!(tracking_info);
+        fulfillment["status"] = json!("SUCCESS");
+        fulfillment["displayStatus"] = json!("FULFILLED");
+        fulfillment["updatedAt"] = json!("2024-01-01T00:00:01.000Z");
+        let updated = fulfillment.clone();
+        self.store
+            .staged
+            .orders
+            .insert(order_id.clone(), order.clone());
+        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            request,
+            query,
+            variables,
+            root_field: "fulfillmentTrackingInfoUpdate",
+            staged_resource_ids: vec![order_id, fulfillment_id],
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally staged fulfillmentTrackingInfoUpdate in shopify-draft-proxy.",
+            },
+        });
+        Some(selected_json(
+            &json!({ "fulfillment": updated, "userErrors": [] }),
+            &field.selection,
+        ))
+    }
+
+    fn cancel_staged_fulfillment_payload(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        field: &RootFieldSelection,
+    ) -> Option<Value> {
+        let fulfillment_id = resolved_string_arg(&field.arguments, "id")?;
+        let order_id = self
+            .staged_order_id_for_fulfillment(&fulfillment_id)
+            .or_else(|| self.hydrate_order_for_fulfillment(&fulfillment_id, request))?;
+        let mut order = self.store.staged.orders.get(&order_id)?.clone();
+        let fulfillment = order_fulfillments_mut(&mut order)?
+            .iter_mut()
+            .find(|fulfillment| fulfillment["id"].as_str() == Some(fulfillment_id.as_str()))?;
+        if fulfillment_status_is(fulfillment, "CANCELLED") {
+            return Some(selected_json(
+                &json!({
+                    "fulfillment": Value::Null,
+                    "userErrors": [orders_error(&["id"], "fulfillment_cannot_be_cancelled", "INVALID")]
+                }),
+                &field.selection,
+            ));
+        }
+        if fulfillment_display_status_is(fulfillment, "DELIVERED") {
+            return Some(selected_json(
+                &json!({
+                    "fulfillment": Value::Null,
+                    "userErrors": [orders_error(&["id"], "fulfillment_already_delivered", "INVALID")]
+                }),
+                &field.selection,
+            ));
+        }
+        fulfillment["status"] = json!("CANCELLED");
+        fulfillment["displayStatus"] = json!("CANCELED");
+        fulfillment["updatedAt"] = json!("2024-01-01T00:00:02.000Z");
+        let cancelled = fulfillment.clone();
+        self.store
+            .staged
+            .orders
+            .insert(order_id.clone(), order.clone());
+        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            request,
+            query,
+            variables,
+            root_field: "fulfillmentCancel",
+            staged_resource_ids: vec![order_id, fulfillment_id],
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally staged fulfillmentCancel in shopify-draft-proxy.",
+            },
+        });
+        Some(selected_json(
+            &json!({ "fulfillment": cancelled, "userErrors": [] }),
+            &field.selection,
+        ))
+    }
+
     fn build_order_create_record(
         &self,
         order_id: &str,
@@ -2100,6 +2765,11 @@ impl DraftProxy {
                 line
             })
             .collect::<Vec<_>>();
+        let fulfillment_orders = if line_items.is_empty() {
+            Vec::new()
+        } else {
+            vec![order_default_fulfillment_order(order_id, &line_items)]
+        };
         let shipping_lines = resolved_object_list_field(order_input, "shippingLines")
             .into_iter()
             .map(|shipping_line| {
@@ -2170,6 +2840,8 @@ impl DraftProxy {
             "discountCodes": discount_codes,
             "shippingLines": order_connection(shipping_lines),
             "lineItems": order_connection(line_items),
+            "fulfillments": [],
+            "fulfillmentOrders": order_connection(fulfillment_orders),
             "transactions": transactions
         });
         if let Some(object) = order.as_object_mut() {
@@ -2528,14 +3200,27 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn remaining_order_local_data(
         &mut self,
+        request: &Request,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
         let field = root_fields(query, variables)
             .and_then(|fields| fields.into_iter().find(|field| field.name == root_field));
+        if root_field == "fulfillmentCreate" {
+            let field = field?;
+            return Some(data_response(
+                &field.response_key,
+                self.staged_fulfillment_payload(request, query, variables, &field),
+            ));
+        }
         if root_field == "fulfillmentCancel" {
             let field = field?;
+            if let Some(payload) =
+                self.cancel_staged_fulfillment_payload(request, query, variables, &field)
+            {
+                return Some(data_response(&field.response_key, payload));
+            }
             let payload = match resolved_string_arg(&field.arguments, "id")?.as_str() {
                 "gid://shopify/Fulfillment/6189145325801" => json!({
                     "fulfillment": Value::Null,
@@ -2554,22 +3239,15 @@ impl DraftProxy {
         }
         if root_field == "fulfillmentTrackingInfoUpdate" {
             let field = field?;
+            if let Some(payload) =
+                self.update_staged_fulfillment_tracking_payload(request, query, variables, &field)
+            {
+                return Some(data_response(&field.response_key, payload));
+            }
             let payload = match resolved_string_arg(&field.arguments, "fulfillmentId")?.as_str() {
                 "gid://shopify/Fulfillment/6189145325801" => json!({
                     "fulfillment": Value::Null,
                     "userErrors": [orders_error(&["fulfillmentId"], "fulfillment_is_cancelled", "INVALID")]
-                }),
-                "gid://shopify/Fulfillment/6189151518953" => json!({
-                    "fulfillment": {
-                        "id": "gid://shopify/Fulfillment/6189151518953",
-                        "status": "SUCCESS",
-                        "trackingInfo": [{
-                            "number": "PRECONDITION-HAPPY-TRACK",
-                            "url": "https://example.com/track/PRECONDITION-HAPPY-TRACK",
-                            "company": "Hermes"
-                        }]
-                    },
-                    "userErrors": []
                 }),
                 _ => return None,
             };
