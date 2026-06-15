@@ -2700,27 +2700,14 @@ impl DraftProxy {
         self.store.staged.carrier_services.insert(id, carrier);
     }
 
-    fn stage_observed_shipping_location(&mut self, mut location: Value) {
-        let Some(id) = location
-            .get("id")
-            .and_then(Value::as_str)
-            .map(str::to_string)
-        else {
-            return;
-        };
-        location["isActive"] = location
-            .get("isActive")
-            .cloned()
-            .unwrap_or(Value::Bool(true));
-        location["isFulfillmentService"] = location
-            .get("isFulfillmentService")
-            .cloned()
-            .unwrap_or(Value::Bool(false));
-        if location.get("localPickupSettings").is_none() {
-            location["localPickupSettings"] = location
-                .get("localPickupSettingsV2")
-                .cloned()
-                .unwrap_or(Value::Null);
+    pub(in crate::proxy) fn hydrate_shop_state_from_response_data(&mut self, data: &Value) {
+        if let Some(shop) = data.get("shop").filter(|shop| shop.is_object()) {
+            let (policies, order) = shop_policy_state_from_shop(shop);
+            if !policies.is_empty() {
+                self.store
+                    .replace_base_shop_policies_map_with_order(policies, order);
+            }
+            self.store.base.shop = shop.clone();
         }
         if !self
             .store
