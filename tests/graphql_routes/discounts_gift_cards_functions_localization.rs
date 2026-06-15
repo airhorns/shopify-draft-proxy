@@ -224,6 +224,293 @@ fn discount_generic_handler_validates_input_and_handles_lifecycle_by_arguments()
     );
 }
 
+fn discount_minimum_requirement_conflict_input(code: Option<&str>) -> Value {
+    let mut input = json!({
+        "title": "Minimum requirement conflict",
+        "startsAt": "2026-04-27T19:31:14Z",
+        "context": { "all": "ALL" },
+        "customerGets": {
+            "value": { "percentage": 0.1 },
+            "items": { "all": true }
+        },
+        "minimumRequirement": {
+            "quantity": { "greaterThanOrEqualToQuantity": "2" },
+            "subtotal": { "greaterThanOrEqualToSubtotal": "10.00" }
+        }
+    });
+    if let Some(code) = code {
+        input
+            .as_object_mut()
+            .unwrap()
+            .insert("code".to_string(), json!(code));
+    }
+    input
+}
+
+fn discount_minimum_requirement_conflict_errors(input_arg: &str) -> Value {
+    json!([
+        {
+            "field": [
+                input_arg,
+                "minimumRequirement",
+                "subtotal",
+                "greaterThanOrEqualToSubtotal"
+            ],
+            "message": "Minimum subtotal cannot be defined when minimum quantity is.",
+            "code": "CONFLICT",
+            "extraInfo": null
+        },
+        {
+            "field": [
+                input_arg,
+                "minimumRequirement",
+                "quantity",
+                "greaterThanOrEqualToQuantity"
+            ],
+            "message": "Minimum quantity cannot be defined when minimum subtotal is.",
+            "code": "CONFLICT",
+            "extraInfo": null
+        }
+    ])
+}
+
+fn discount_minimum_requirement_bound_error(
+    input_arg: &str,
+    requirement: &str,
+    value_field: &str,
+    message: &str,
+) -> Value {
+    json!([{
+        "field": [input_arg, "minimumRequirement", requirement, value_field],
+        "message": message,
+        "code": "LESS_THAN",
+        "extraInfo": null
+    }])
+}
+
+#[test]
+fn discount_minimum_requirement_conflict_errors_use_concrete_paths() {
+    let mut proxy = snapshot_proxy();
+
+    let setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MinimumRequirementConflictSetup(
+          $codeInput: DiscountCodeBasicInput!
+          $automaticInput: DiscountAutomaticBasicInput!
+        ) {
+          codeSetup: discountCodeBasicCreate(basicCodeDiscount: $codeInput) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          automaticSetup: discountAutomaticBasicCreate(automaticBasicDiscount: $automaticInput) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "codeInput": {
+                "title": "Minimum requirement code setup",
+                "code": "MINREQSETUP",
+                "startsAt": "2026-04-27T19:31:14Z",
+                "context": { "all": "ALL" },
+                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+            },
+            "automaticInput": {
+                "title": "Minimum requirement automatic setup",
+                "startsAt": "2026-04-27T19:31:14Z",
+                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+            }
+        }),
+    ));
+    assert_eq!(setup.status, 200);
+    assert_eq!(setup.body["data"]["codeSetup"]["userErrors"], json!([]));
+    assert_eq!(
+        setup.body["data"]["automaticSetup"]["userErrors"],
+        json!([])
+    );
+    let code_id = setup.body["data"]["codeSetup"]["codeDiscountNode"]["id"]
+        .as_str()
+        .unwrap();
+    let automatic_id = setup.body["data"]["automaticSetup"]["automaticDiscountNode"]["id"]
+        .as_str()
+        .unwrap();
+
+    let invalid = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MinimumRequirementConflicts(
+          $codeId: ID!
+          $automaticId: ID!
+          $codeCreateInput: DiscountCodeBasicInput!
+          $codeUpdateInput: DiscountCodeBasicInput!
+          $automaticCreateInput: DiscountAutomaticBasicInput!
+          $automaticUpdateInput: DiscountAutomaticBasicInput!
+        ) {
+          codeCreate: discountCodeBasicCreate(basicCodeDiscount: $codeCreateInput) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          codeUpdate: discountCodeBasicUpdate(id: $codeId, basicCodeDiscount: $codeUpdateInput) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          automaticCreate: discountAutomaticBasicCreate(automaticBasicDiscount: $automaticCreateInput) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          automaticUpdate: discountAutomaticBasicUpdate(id: $automaticId, automaticBasicDiscount: $automaticUpdateInput) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "codeId": code_id,
+            "automaticId": automatic_id,
+            "codeCreateInput": discount_minimum_requirement_conflict_input(Some("MINREQCREATE")),
+            "codeUpdateInput": discount_minimum_requirement_conflict_input(Some("MINREQUPDATE")),
+            "automaticCreateInput": discount_minimum_requirement_conflict_input(None),
+            "automaticUpdateInput": discount_minimum_requirement_conflict_input(None)
+        }),
+    ));
+    assert_eq!(invalid.status, 200);
+
+    let basic_errors = discount_minimum_requirement_conflict_errors("basicCodeDiscount");
+    let automatic_errors = discount_minimum_requirement_conflict_errors("automaticBasicDiscount");
+    assert_eq!(
+        invalid.body["data"]["codeCreate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        invalid.body["data"]["codeCreate"]["userErrors"],
+        basic_errors
+    );
+    assert_eq!(
+        invalid.body["data"]["codeUpdate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        invalid.body["data"]["codeUpdate"]["userErrors"],
+        basic_errors
+    );
+    assert_eq!(
+        invalid.body["data"]["automaticCreate"]["automaticDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        invalid.body["data"]["automaticCreate"]["userErrors"],
+        automatic_errors
+    );
+    assert_eq!(
+        invalid.body["data"]["automaticUpdate"]["automaticDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        invalid.body["data"]["automaticUpdate"]["userErrors"],
+        automatic_errors
+    );
+}
+
+#[test]
+fn discount_minimum_requirement_bounds_use_concrete_paths() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MinimumRequirementBounds(
+          $quantityLimit: DiscountCodeBasicInput!
+          $subtotalLimit: DiscountCodeBasicInput!
+          $automaticQuantityLimit: DiscountAutomaticBasicInput!
+        ) {
+          quantityLimit: discountCodeBasicCreate(basicCodeDiscount: $quantityLimit) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          subtotalLimit: discountCodeBasicCreate(basicCodeDiscount: $subtotalLimit) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          automaticQuantityLimit: discountAutomaticBasicCreate(automaticBasicDiscount: $automaticQuantityLimit) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "quantityLimit": {
+                "title": "Minimum quantity limit",
+                "code": "MINREQQTY",
+                "startsAt": "2026-04-27T19:31:14Z",
+                "context": { "all": "ALL" },
+                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } },
+                "minimumRequirement": {
+                    "quantity": { "greaterThanOrEqualToQuantity": "9999999999" }
+                }
+            },
+            "subtotalLimit": {
+                "title": "Minimum subtotal limit",
+                "code": "MINREQSUB",
+                "startsAt": "2026-04-27T19:31:14Z",
+                "context": { "all": "ALL" },
+                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } },
+                "minimumRequirement": {
+                    "subtotal": {
+                        "greaterThanOrEqualToSubtotal": "1000000000000000001.00"
+                    }
+                }
+            },
+            "automaticQuantityLimit": {
+                "title": "Automatic minimum quantity limit",
+                "startsAt": "2026-04-27T19:31:14Z",
+                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } },
+                "minimumRequirement": {
+                    "quantity": { "greaterThanOrEqualToQuantity": "9999999999" }
+                }
+            }
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["quantityLimit"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        response.body["data"]["quantityLimit"]["userErrors"],
+        discount_minimum_requirement_bound_error(
+            "basicCodeDiscount",
+            "quantity",
+            "greaterThanOrEqualToQuantity",
+            "Minimum quantity must be less than 2147483647"
+        )
+    );
+    assert_eq!(
+        response.body["data"]["subtotalLimit"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        response.body["data"]["subtotalLimit"]["userErrors"],
+        discount_minimum_requirement_bound_error(
+            "basicCodeDiscount",
+            "subtotal",
+            "greaterThanOrEqualToSubtotal",
+            "Minimum subtotal must be less than 1000000000000000000"
+        )
+    );
+    assert_eq!(
+        response.body["data"]["automaticQuantityLimit"]["automaticDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        response.body["data"]["automaticQuantityLimit"]["userErrors"],
+        discount_minimum_requirement_bound_error(
+            "automaticBasicDiscount",
+            "quantity",
+            "greaterThanOrEqualToQuantity",
+            "Minimum quantity must be less than 2147483647"
+        )
+    );
+}
+
 #[test]
 fn discount_basic_customer_gets_value_bounds_match_captured_shopify_behavior() {
     let mut proxy = snapshot_proxy();
