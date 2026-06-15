@@ -1,0 +1,819 @@
+{
+  "capturedAt": "2026-06-15T02:47:18.866Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "requestingApiClientId": "347082227713",
+  "notes": [
+    "Captures Shopify GCP Pub/Sub project/topic character validation for dedicated Pub/Sub and unified webhookSubscription roots.",
+    "Project numbers made only of digits are accepted in addition to project IDs that follow the lowercase alpha-start rule.",
+    "Topic IDs must start with an ASCII letter, reject digit-leading topics, and allow percent signs in the topic charset.",
+    "Temporary webhook subscriptions are deleted during cleanup and the script does not trigger webhook delivery."
+  ],
+  "setup": {
+    "apiClientProbe": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "https://example.com/hermes-gcp-char-rules-probe-1781491631965",
+          "format": "JSON",
+          "metafieldNamespaces": ["$app:gcpCharRulesProbe"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1955206857010",
+                "topic": "SHOP_UPDATE",
+                "format": "JSON",
+                "includeFields": [],
+                "metafieldNamespaces": ["app--347082227713--gcpCharRulesProbe"],
+                "filter": null,
+                "createdAt": "2026-06-15T02:47:12Z",
+                "updatedAt": "2026-06-15T02:47:12Z",
+                "endpoint": {
+                  "__typename": "WebhookHttpEndpoint",
+                  "callbackUrl": "https://example.com/hermes-gcp-char-rules-probe-1781491631965"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "dedicatedCreateNumericProjectAccepted": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "pubSubProject": "123456789012",
+          "pubSubTopic": "valid-topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "pubSubWebhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1955206889778",
+                "topic": "SHOP_UPDATE",
+                "uri": "pubsub://123456789012:valid-topic",
+                "format": "JSON",
+                "includeFields": [],
+                "metafieldNamespaces": [],
+                "filter": null,
+                "createdAt": "2026-06-15T02:47:13Z",
+                "updatedAt": "2026-06-15T02:47:13Z",
+                "endpoint": {
+                  "__typename": "WebhookPubSubEndpoint",
+                  "pubSubProject": "123456789012",
+                  "pubSubTopic": "valid-topic"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "dedicatedCreateDigitLeadingTopicRejected": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "pubSubProject": "valid-project",
+          "pubSubTopic": "1topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "pubSubWebhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "pubSubTopic"],
+                  "message": "Google Cloud Pub/Sub topic ID is not valid"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "dedicatedCreatePercentTopicAccepted": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "pubSubProject": "valid-project",
+          "pubSubTopic": "dedicated%25topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "pubSubWebhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1955206922546",
+                "topic": "SHOP_UPDATE",
+                "uri": "pubsub://valid-project:dedicated%25topic",
+                "format": "JSON",
+                "includeFields": [],
+                "metafieldNamespaces": [],
+                "filter": null,
+                "createdAt": "2026-06-15T02:47:13Z",
+                "updatedAt": "2026-06-15T02:47:13Z",
+                "endpoint": {
+                  "__typename": "WebhookPubSubEndpoint",
+                  "pubSubProject": "valid-project",
+                  "pubSubTopic": "dedicated%25topic"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "dedicatedUpdateNumericProjectAccepted": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1955206889778",
+        "webhookSubscription": {
+          "pubSubProject": "123456789012",
+          "pubSubTopic": "dedicated-next%25topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "pubSubWebhookSubscriptionUpdate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1955206889778",
+                "topic": "SHOP_UPDATE",
+                "uri": "pubsub://123456789012:dedicated-next%25topic",
+                "format": "JSON",
+                "includeFields": [],
+                "metafieldNamespaces": [],
+                "filter": null,
+                "createdAt": "2026-06-15T02:47:13Z",
+                "updatedAt": "2026-06-15T02:47:14Z",
+                "endpoint": {
+                  "__typename": "WebhookPubSubEndpoint",
+                  "pubSubProject": "123456789012",
+                  "pubSubTopic": "dedicated-next%25topic"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "dedicatedUpdateDigitLeadingTopicRejected": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1955206889778",
+        "webhookSubscription": {
+          "pubSubProject": "valid-project",
+          "pubSubTopic": "1topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "pubSubWebhookSubscriptionUpdate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "pubSubTopic"],
+                  "message": "Google Cloud Pub/Sub topic ID is not valid"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "dedicatedUpdatePercentTopicAccepted": {
+      "documentPath": "config/parity-requests/webhooks/pubSubWebhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1955206889778",
+        "webhookSubscription": {
+          "pubSubProject": "123456789012",
+          "pubSubTopic": "dedicated%25topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "pubSubWebhookSubscriptionUpdate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1955206889778",
+                "topic": "SHOP_UPDATE",
+                "uri": "pubsub://123456789012:dedicated%25topic",
+                "format": "JSON",
+                "includeFields": [],
+                "metafieldNamespaces": [],
+                "filter": null,
+                "createdAt": "2026-06-15T02:47:13Z",
+                "updatedAt": "2026-06-15T02:47:14Z",
+                "endpoint": {
+                  "__typename": "WebhookPubSubEndpoint",
+                  "pubSubProject": "123456789012",
+                  "pubSubTopic": "dedicated%25topic"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "dedicatedDetailAfterNumericProjectUpdate": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-dedicated-cloud-detail-read.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1955206889778"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscription": {
+              "id": "gid://shopify/WebhookSubscription/1955206889778",
+              "topic": "SHOP_UPDATE",
+              "uri": "pubsub://123456789012:dedicated%25topic",
+              "format": "JSON",
+              "includeFields": [],
+              "metafieldNamespaces": [],
+              "filter": null,
+              "createdAt": "2026-06-15T02:47:13Z",
+              "updatedAt": "2026-06-15T02:47:14Z",
+              "endpoint": {
+                "__typename": "WebhookPubSubEndpoint",
+                "pubSubProject": "123456789012",
+                "pubSubTopic": "dedicated%25topic"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unifiedCreateNumericProjectAccepted": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "pubsub://123456789012:valid-topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1955206955314",
+                "topic": "SHOP_UPDATE",
+                "format": "JSON",
+                "includeFields": [],
+                "metafieldNamespaces": [],
+                "filter": null,
+                "createdAt": "2026-06-15T02:47:15Z",
+                "updatedAt": "2026-06-15T02:47:15Z",
+                "endpoint": {
+                  "__typename": "WebhookPubSubEndpoint",
+                  "pubSubProject": "123456789012",
+                  "pubSubTopic": "valid-topic"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unifiedCreateDigitLeadingTopicRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "pubsub://valid-project:1topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is invalid"
+                },
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is not a valid GCP topic id."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unifiedCreatePercentTopicAccepted": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "pubsub://valid-project:unified%25topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1955206988082",
+                "topic": "SHOP_UPDATE",
+                "format": "JSON",
+                "includeFields": [],
+                "metafieldNamespaces": [],
+                "filter": null,
+                "createdAt": "2026-06-15T02:47:16Z",
+                "updatedAt": "2026-06-15T02:47:16Z",
+                "endpoint": {
+                  "__typename": "WebhookPubSubEndpoint",
+                  "pubSubProject": "valid-project",
+                  "pubSubTopic": "unified%25topic"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unifiedUpdateNumericProjectAccepted": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1955206955314",
+        "webhookSubscription": {
+          "uri": "pubsub://123456789012:unified-next%25topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionUpdate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1955206955314",
+                "topic": "SHOP_UPDATE",
+                "format": "JSON",
+                "includeFields": [],
+                "metafieldNamespaces": [],
+                "filter": null,
+                "createdAt": "2026-06-15T02:47:15Z",
+                "updatedAt": "2026-06-15T02:47:17Z",
+                "endpoint": {
+                  "__typename": "WebhookPubSubEndpoint",
+                  "pubSubProject": "123456789012",
+                  "pubSubTopic": "unified-next%25topic"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unifiedUpdateDigitLeadingTopicRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1955206955314",
+        "webhookSubscription": {
+          "uri": "pubsub://valid-project:1topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionUpdate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is invalid"
+                },
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is not a valid GCP topic id."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unifiedUpdatePercentTopicAccepted": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1955206988082",
+        "webhookSubscription": {
+          "uri": "pubsub://123456789012:unified-final%25topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionUpdate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1955206988082",
+                "topic": "SHOP_UPDATE",
+                "format": "JSON",
+                "includeFields": [],
+                "metafieldNamespaces": [],
+                "filter": null,
+                "createdAt": "2026-06-15T02:47:16Z",
+                "updatedAt": "2026-06-15T02:47:18Z",
+                "endpoint": {
+                  "__typename": "WebhookPubSubEndpoint",
+                  "pubSubProject": "123456789012",
+                  "pubSubTopic": "unified-final%25topic"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unifiedDetailAfterPercentTopicUpdate": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-dedicated-cloud-detail-read.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1955206988082"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscription": {
+              "id": "gid://shopify/WebhookSubscription/1955206988082",
+              "topic": "SHOP_UPDATE",
+              "uri": "pubsub://123456789012:unified-final%25topic",
+              "format": "JSON",
+              "includeFields": [],
+              "metafieldNamespaces": [],
+              "filter": null,
+              "createdAt": "2026-06-15T02:47:16Z",
+              "updatedAt": "2026-06-15T02:47:18Z",
+              "endpoint": {
+                "__typename": "WebhookPubSubEndpoint",
+                "pubSubProject": "123456789012",
+                "pubSubTopic": "unified-final%25topic"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "gid://shopify/WebhookSubscription/1955206988082": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1955206988082"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1955206988082",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "gid://shopify/WebhookSubscription/1955206955314": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1955206955314"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1955206955314",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "gid://shopify/WebhookSubscription/1955206922546": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1955206922546"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1955206922546",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "gid://shopify/WebhookSubscription/1955206889778": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1955206889778"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1955206889778",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "gid://shopify/WebhookSubscription/1955206857010": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1955206857010"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1955206857010",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
