@@ -6605,6 +6605,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'functions',
+    captureId: 'functions-validation-update-rebind-variable',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-validation-update-rebind-variable-conformance.ts',
+    purpose:
+      'validationUpdate variable-bound functionId/functionHandle rebind input is rejected by GraphQL variable coercion before resolver execution.',
+    requiredAuthScopes: ['write_validations schema access; request is rejected before resolver execution'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-validation-update-rebind-variable.json`,
+      'config/parity-specs/functions/functions-validation-update-rebind-variable.json',
+      'config/parity-requests/functions/functions-validation-update-rebind-variable.graphql',
+    ],
+    cleanupBehavior:
+      'No resources are created or mutated; both requests contain invalid ValidationUpdateInput fields and are rejected before validationUpdate resolver execution.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'functions',
     captureId: 'functions-delete-error-shape',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-functions-delete-error-shape-conformance.ts',
