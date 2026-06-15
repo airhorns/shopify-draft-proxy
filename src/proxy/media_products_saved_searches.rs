@@ -9,6 +9,7 @@ const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str = "query CustomerHydrate($id: ID!) {
 const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
 const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n    }\n  }\n}";
 const OWNER_METAFIELD_HYDRATE_QUERY: &str = "query OwnerMetafieldsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Collection { id title handle metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Customer { id displayName email metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Order { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Company { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } }";
+const BULK_OPERATION_HYDRATE_QUERY: &str = "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }";
 
 impl DraftProxy {
     pub(in crate::proxy) fn bulk_operation_read_response(
@@ -387,12 +388,16 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let id = resolved_string_arg(variables, "id")
-            .unwrap_or_else(|| "gid://shopify/BulkOperation/7689772990770".to_string());
+        let id = resolved_string_arg(variables, "id").unwrap_or_default();
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "bulkOperationCancel".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
-        if id == "gid://shopify/BulkOperation/0" {
+
+        if self.bulk_operation_by_id(&id).is_none() {
+            self.hydrate_bulk_operation_for_cancel(request, &id);
+        }
+
+        let Some(existing_operation) = self.bulk_operation_by_id(&id).cloned() else {
             let payload = json!({
                 "bulkOperation": null,
                 "userErrors": [{ "field": ["id"], "message": "Bulk operation does not exist" }]
@@ -400,68 +405,77 @@ impl DraftProxy {
             return ok_json(
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
             );
-        }
-        if id == "gid://shopify/BulkOperation/7689772204338" {
-            let mut operation = bulk_operation_record_with(
-                &id,
-                "COMPLETED",
-                "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}",
-                "1424",
-                "2026-04-27T20:34:58Z",
-                "112704",
-            );
-            operation["url"] = json!("https://storage.googleapis.com/shopify-tiers-assets-prod-us-east1/bulk-operation-outputs/dfwen19dqhxkr127kitwoz3ou0m5-final?GoogleAccessId=assets-us-prod%40shopify-tiers.iam.gserviceaccount.com&Expires=1777926898&Signature=OWHhjOQf7dZKxvtuSbRGNVgXct69zLGpqgTyBCZKe6DSSGLW05Wa%2BCE6zLoNPzwxiSIzEp6JctUQUCwOE%2FUL7Wo9EzTCj2Hfr4D2YHmUwQEOfj603pP3B353oTUcaDLtSivkapvtmj2lhA4399t8u02Sc1K08kH5Q2EM55RW4h5uzjw0%2BtXZYSi36GjdMqsSov2rpBgq82%2FZjUhQz47pA6%2F7r8zDWVr%2FWS4x%2BeCSZuQwlM4F4DNsl4kn7fGvPkOSwTMDssAFJjBT7lagJ9iEai8bEsoe9lrmGY6%2BxwvTH9x270UIcxJhdYgp7e0qI%2FcA6qRtvdeMGLQpE9jROo4%2B0w%3D%3D&response-content-disposition=attachment%3B+filename%3D%22bulk-7689772204338.jsonl%22%3B+filename%2A%3DUTF-8%27%27bulk-7689772204338.jsonl&response-content-type=application%2Fjsonl");
+        };
+
+        let status = existing_operation
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        if bulk_operation_status_is_terminal(status) {
             let payload = json!({
-                "bulkOperation": operation,
-                "userErrors": [{ "field": null, "message": "A bulk operation cannot be canceled when it is completed" }]
+                "bulkOperation": existing_operation,
+                "userErrors": [{
+                    "field": null,
+                    "message": format!(
+                        "A bulk operation cannot be canceled when it is {}",
+                        status.to_ascii_lowercase()
+                    )
+                }]
             });
             return ok_json(
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
             );
         }
-        let (query_text, created_at, operation_type) =
-            Self::bulk_operation_cancel_nonterminal_seed(request, &id);
-        let operation = bulk_operation_record_with_type(
-            &id,
-            "CANCELING",
-            operation_type,
-            query_text,
-            "0",
-            created_at,
-            "113499",
-        );
+
+        let mut operation = existing_operation;
+        operation["status"] = json!("CANCELING");
+        operation["completedAt"] = Value::Null;
+        operation["objectCount"] = json!("0");
+        operation["rootObjectCount"] = json!("0");
+        operation["fileSize"] = Value::Null;
+        operation["url"] = Value::Null;
         self.store
             .staged
             .bulk_operations
             .insert(id.clone(), operation.clone());
+        self.record_mutation_log_entry(request, query, variables, "bulkOperationCancel", vec![id]);
         let payload = json!({ "bulkOperation": operation, "userErrors": [] });
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
 
-    fn bulk_operation_cancel_nonterminal_seed(
-        request: &Request,
-        id: &str,
-    ) -> (&'static str, &'static str, &'static str) {
-        if admin_graphql_version(&request.path) == Some("2025-01")
-            && id == "gid://shopify/BulkOperation/7749099127090"
-        {
-            return (
-                "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
-                "2026-05-05T20:34:00Z",
-                "MUTATION",
-            );
+    fn hydrate_bulk_operation_for_cancel(&mut self, request: &Request, id: &str) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
         }
-        match admin_graphql_version(&request.path) {
-            Some("2025-01") => (
-                "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}",
-                "2026-05-05T20:33:59Z",
-                "QUERY",
-            ),
-            _ => (
-                "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}",
-                "2026-04-27T20:35:00Z",
-                "QUERY",
-            ),
+        let hydrate_request = Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "operationName": "BulkOperationHydrate",
+                "query": BULK_OPERATION_HYDRATE_QUERY,
+                "variables": { "id": id }
+            })
+            .to_string(),
+        };
+        let response = (self.upstream_transport)(hydrate_request);
+        if response.status != 200 {
+            return;
+        }
+        let Some(operation) = response
+            .body
+            .get("data")
+            .and_then(|data| data.get("bulkOperation"))
+            .filter(|operation| operation.is_object())
+            .cloned()
+        else {
+            return;
+        };
+        if operation.get("id").and_then(Value::as_str) == Some(id) {
+            self.store
+                .staged
+                .bulk_operations
+                .insert(id.to_string(), operation);
         }
     }
 
@@ -5314,6 +5328,10 @@ fn bulk_operation_sort_value(operation: &Value, sort_key: &str) -> String {
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string()
+}
+
+fn bulk_operation_status_is_terminal(status: &str) -> bool {
+    matches!(status, "COMPLETED" | "CANCELED" | "FAILED" | "EXPIRED")
 }
 
 fn bulk_operation_matches_query(

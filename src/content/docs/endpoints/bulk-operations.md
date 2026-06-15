@@ -55,10 +55,11 @@ Mutation import behavior:
 
 Cancel behavior:
 
-- `bulkOperationCancel(id:)` stages non-terminal local jobs as `CANCELING` and returns selected job payloads with empty userErrors.
-- LiveHybrid can hydrate a cold known job before staging a local cancellation overlay.
-- Unknown IDs return `bulkOperation: null` with `field: ["id"]` userErrors. Terminal jobs return the existing job plus a `field: null` userError.
-- Cancel attempts append original raw mutation bodies and staged BulkOperation IDs to the mutation log for observability.
+- `bulkOperationCancel(id:)` looks up the target job from effective BulkOperation state before deciding the response.
+- Unknown valid BulkOperation GIDs return `bulkOperation: null` with `field: ["id"]` userErrors and do not stage a record or append a mutation-log entry.
+- Terminal jobs (`COMPLETED`, `CANCELED`, `FAILED`, and `EXPIRED`) return the existing job unchanged plus a `field: null` userError and do not append a mutation-log entry.
+- Non-terminal jobs stage a `CANCELING` overlay, return selected job payloads with empty `userErrors`, and append the original raw mutation body plus the staged BulkOperation ID to the mutation log for commit replay and observability.
+- LiveHybrid can hydrate a cold known job before applying the same stored-status cancel decision locally.
 
 Meta API behavior:
 
@@ -92,6 +93,7 @@ Meta API behavior:
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-client-identifier-validation.json`
 - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
 - `config/parity-specs/bulk-operations/bulk-operation-status-catalog-cancel.json`
+- `config/parity-specs/bulk-operations/bulk-operation-cancel-status-branches.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-query-created-status.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-query-schema-roots.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-query-validators.json`
@@ -110,6 +112,7 @@ Meta API behavior:
 ### Validation
 
 - `corepack pnpm parity -- bulk-operation-status-catalog-cancel`
+- `corepack pnpm parity -- bulk-operation-cancel-status-branches`
 - `corepack pnpm parity -- bulk-operation-run-query-schema-roots`
 - `corepack pnpm parity -- bulk-operation-name-independent-run-roots`
 - `corepack pnpm parity -- bulk-operation-run-mutation-user-errors`
