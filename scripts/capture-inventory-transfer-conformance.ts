@@ -344,6 +344,94 @@ const inventoryTransferMarkReadyMutation = `#graphql
   }
 `;
 
+const inventoryTransferEditMutation = `#graphql
+  mutation InventoryTransferEditParity($id: ID!, $input: InventoryTransferEditInput!) {
+    inventoryTransferEdit(id: $id, input: $input) {
+      inventoryTransfer {
+        id
+        name
+        status
+        totalQuantity
+        lineItems(first: 10) {
+          nodes {
+            id
+            totalQuantity
+            shippableQuantity
+            shippedQuantity
+            processableQuantity
+            pickedForShipmentQuantity
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const inventoryTransferDuplicateMutation = `#graphql
+  mutation InventoryTransferDuplicateParity($id: ID!) {
+    inventoryTransferDuplicate(id: $id) {
+      inventoryTransfer {
+        id
+        name
+        status
+        totalQuantity
+        lineItems(first: 10) {
+          nodes {
+            id
+            totalQuantity
+            shippableQuantity
+            shippedQuantity
+            processableQuantity
+            pickedForShipmentQuantity
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const inventoryTransferSetItemsMutation = `#graphql
+  mutation InventoryTransferSetItemsParity($input: InventoryTransferSetItemsInput!) {
+    inventoryTransferSetItems(input: $input) {
+      inventoryTransfer {
+        id
+        status
+        totalQuantity
+        lineItems(first: 10) {
+          nodes {
+            id
+            totalQuantity
+            shippableQuantity
+            shippedQuantity
+            processableQuantity
+            pickedForShipmentQuantity
+          }
+        }
+      }
+      updatedLineItems {
+        inventoryItemId
+        newQuantity
+        deltaQuantity
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
 const inventoryTransferInventoryReadQuery = `#graphql
   query InventoryTransferInventoryReadParity($id: ID!) {
     inventoryItem(id: $id) {
@@ -691,6 +779,9 @@ async function captureLifecycle(setup: ProductSetup): Promise<{
   workflow: JsonRecord;
   beforeReadyInventoryRead: GraphqlPayload;
   draftCreate: GraphqlPayload;
+  draftEdit: GraphqlPayload;
+  draftSetItems: GraphqlPayload;
+  draftDuplicate: GraphqlPayload;
   readyTransition: GraphqlPayload;
   readyInventoryReadAfterWriteGraphql: GraphqlPayload;
   cancelReadyTransfer: GraphqlPayload;
@@ -706,6 +797,30 @@ async function captureLifecycle(setup: ProductSetup): Promise<{
   })) as GraphqlPayload;
   const draftCreate = await runGraphqlAllowGraphqlErrors(inventoryTransferCreateMutation, createVariables);
   transferId = readTransferId(draftCreate, ['data', 'inventoryTransferCreate', 'inventoryTransfer', 'id']);
+  const editVariables = {
+    id: transferId,
+    input: {
+      originId: setup.originLocation.id,
+      destinationId: setup.destinationLocation.id,
+      note: 'inventory transfer conformance edited',
+      tags: ['inventory-transfer-conformance', 'edited'],
+      referenceName: `inventory-transfer-conformance-edit-${Date.now()}`,
+    },
+  };
+  const draftEdit = await runGraphqlAllowGraphqlErrors(inventoryTransferEditMutation, editVariables);
+  const setItemsVariables = {
+    input: {
+      id: transferId,
+      lineItems: [
+        {
+          inventoryItemId: setup.inventoryItemId,
+          quantity: 3,
+        },
+      ],
+    },
+  };
+  const draftSetItems = await runGraphqlAllowGraphqlErrors(inventoryTransferSetItemsMutation, setItemsVariables);
+  const draftDuplicate = await runGraphqlAllowGraphqlErrors(inventoryTransferDuplicateMutation, { id: transferId });
   const readyTransition = await runGraphqlAllowGraphqlErrors(inventoryTransferMarkReadyMutation, { id: transferId });
   const readyInventoryReadAfterWriteGraphql = (await runGraphql(inventoryTransferInventoryReadQuery, {
     id: setup.inventoryItemId,
@@ -720,6 +835,17 @@ async function captureLifecycle(setup: ProductSetup): Promise<{
       createDraft: {
         variables: createVariables,
       },
+      editDraft: {
+        variables: editVariables,
+      },
+      setDraftItems: {
+        variables: setItemsVariables,
+      },
+      duplicateDraft: {
+        variables: {
+          id: transferId,
+        },
+      },
       afterReadyInventoryRead: {
         variables: {
           id: setup.inventoryItemId,
@@ -728,6 +854,9 @@ async function captureLifecycle(setup: ProductSetup): Promise<{
     },
     beforeReadyInventoryRead,
     draftCreate,
+    draftEdit,
+    draftSetItems,
+    draftDuplicate,
     readyTransition,
     readyInventoryReadAfterWriteGraphql,
     cancelReadyTransfer,

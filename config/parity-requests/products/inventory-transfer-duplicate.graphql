@@ -1,0 +1,25 @@
+mutation InventoryTransferDuplicateParity($id: ID!) {
+  inventoryTransferDuplicate(id: $id) {
+    inventoryTransfer {
+      id
+      name
+      status
+      totalQuantity
+      lineItems(first: 10) {
+        nodes {
+          id
+          totalQuantity
+          shippableQuantity
+          shippedQuantity
+          processableQuantity
+          pickedForShipmentQuantity
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

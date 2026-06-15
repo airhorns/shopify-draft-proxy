@@ -2276,8 +2276,10 @@ impl DraftProxy {
                             | "inventoryTransferCreate"
                             | "inventoryTransferCreateAsReadyToShip"
                             | "inventoryTransferMarkAsReadyToShip"
+                            | "inventoryTransferEdit"
                             | "inventoryTransferSetItems"
                             | "inventoryTransferRemoveItems"
+                            | "inventoryTransferDuplicate"
                             | "inventoryTransferCancel"
                             | "inventoryTransferDelete"
                     ) =>
