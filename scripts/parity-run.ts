@@ -333,7 +333,7 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
     return (
       variablesMatch &&
       (canMatchSynthesizedNodeQuery ||
-        canMatchSynthesizedShopPolicyHydrate ||
+        canMatchSynthesizedCustomerQuery ||
         parsed['query'] === call.query ||
         (call.query === undefined && call.operationName === operationName && operationName.length > 0))
     );

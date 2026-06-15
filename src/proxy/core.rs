@@ -234,6 +234,9 @@ impl DraftProxy {
             snapshot["stagedState"]["metaobjectDefinitions"] =
                 json!(self.store.staged.metaobject_definitions);
         }
+        if let Some(count) = &self.store.staged.customers_count {
+            snapshot["stagedState"]["customersCount"] = count.clone();
+        }
         if !self
             .store
             .staged
@@ -483,6 +486,11 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.customers_count = if state["stagedState"]["customersCount"].is_null() {
+            None
+        } else {
+            Some(state["stagedState"]["customersCount"].clone())
+        };
         self.store.staged.deleted_customer_ids = state["stagedState"]["deletedCustomerIds"]
             .as_array()
             .into_iter()
