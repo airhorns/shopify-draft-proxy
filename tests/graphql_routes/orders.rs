@@ -2398,13 +2398,129 @@ fn draft_order_complete_dispatches_by_root_for_ordinary_operation_names() {
 }
 
 #[test]
-fn registered_orders_stage_locally_gap_returns_shopify_shaped_200_and_logs_raw_body() {
+fn refund_create_stages_refund_and_downstream_order_reads() {
     let mut proxy = snapshot_proxy();
-    let query = r#"
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateRefundableOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              displayFinancialStatus
+              lineItems(first: 5) {
+                nodes {
+                  id
+                  title
+                  quantity
+                }
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "refund-create@example.test",
+                "currency": "CAD",
+                "lineItems": [{
+                    "title": "Refundable order item",
+                    "quantity": 2,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "CAD" } }
+                }],
+                "transactions": [{
+                    "kind": "SALE",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": { "shopMoney": { "amount": "20.00", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let line_item_id =
+        create.body["data"]["orderCreate"]["order"]["lineItems"]["nodes"][0]["id"].clone();
+    let payment_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadRefundParentTransaction($id: ID!) {
+          order(id: $id) {
+            transactions {
+              id
+              kind
+              status
+              gateway
+            }
+          }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    let parent_transaction_id = payment_read.body["data"]["order"]["transactions"][0]["id"].clone();
+
+    let refund_query = r#"
         mutation CreateRefund($input: RefundInput!) {
           refundCreate(input: $input) {
             refund {
               id
+              note
+              totalRefundedSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+              refundLineItems(first: 5) {
+                nodes {
+                  id
+                  quantity
+                  restockType
+                  lineItem {
+                    id
+                    title
+                  }
+                  subtotalSet {
+                    shopMoney {
+                      amount
+                      currencyCode
+                    }
+                  }
+                }
+              }
+              transactions(first: 5) {
+                nodes {
+                  id
+                  kind
+                  status
+                  gateway
+                  amountSet {
+                    shopMoney {
+                      amount
+                      currencyCode
+                    }
+                  }
+                }
+              }
+            }
+            order {
+              id
+              displayFinancialStatus
+              totalRefundedSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+              totalRefundedShippingSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
             }
             userErrors {
               field
@@ -2416,34 +2532,333 @@ fn registered_orders_stage_locally_gap_returns_shopify_shaped_200_and_logs_raw_b
     "#;
     let variables = json!({
         "input": {
-            "orderId": "gid://shopify/Order/not-modeled"
+            "orderId": order_id,
+            "note": "Customer returned one item",
+            "refundLineItems": [{
+                "lineItemId": line_item_id,
+                "quantity": 1,
+                "restockType": "RETURN"
+            }],
+            "shipping": {
+                "amount": "5.00"
+            },
+            "transactions": [{
+                "parentId": parent_transaction_id,
+                "kind": "REFUND",
+                "amount": "15.00"
+            }]
         }
     });
 
-    let response = proxy.process_request(json_graphql_request(query, variables));
+    let response = proxy.process_request(json_graphql_request(refund_query, variables));
 
     assert_eq!(response.status, 200);
     assert_eq!(response.body["errors"], Value::Null);
-    assert_eq!(response.body["data"]["refundCreate"]["refund"], Value::Null);
     assert_eq!(
-        response.body["data"]["refundCreate"]["userErrors"][0]["message"],
-        json!("Local staging for refundCreate is not implemented for this request shape")
+        response.body["data"]["refundCreate"]["userErrors"],
+        json!([])
+    );
+    let payload = &response.body["data"]["refundCreate"];
+    assert_eq!(payload["refund"]["id"], json!("gid://shopify/Refund/1"));
+    assert_eq!(
+        payload["refund"]["note"],
+        json!("Customer returned one item")
+    );
+    assert_eq!(
+        payload["refund"]["totalRefundedSet"]["shopMoney"],
+        json!({ "amount": "15.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        payload["refund"]["refundLineItems"]["nodes"][0]["quantity"],
+        json!(1)
+    );
+    assert_eq!(
+        payload["refund"]["refundLineItems"]["nodes"][0]["restockType"],
+        json!("RETURN")
+    );
+    assert_eq!(
+        payload["refund"]["refundLineItems"]["nodes"][0]["lineItem"]["title"],
+        json!("Refundable order item")
+    );
+    assert_eq!(
+        payload["refund"]["transactions"]["nodes"][0]["kind"],
+        json!("REFUND")
+    );
+    assert_eq!(
+        payload["refund"]["transactions"]["nodes"][0]["status"],
+        json!("SUCCESS")
+    );
+    assert_eq!(
+        payload["refund"]["transactions"]["nodes"][0]["gateway"],
+        json!("manual")
+    );
+    assert_eq!(
+        payload["order"]["displayFinancialStatus"],
+        json!("PARTIALLY_REFUNDED")
+    );
+    assert_eq!(
+        payload["order"]["totalRefundedSet"]["shopMoney"],
+        json!({ "amount": "15.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        payload["order"]["totalRefundedShippingSet"]["shopMoney"],
+        json!({ "amount": "5.0", "currencyCode": "CAD" })
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadRefundedOrder($id: ID!) {
+          order(id: $id) {
+            id
+            displayFinancialStatus
+            refunds {
+              id
+              note
+              totalRefundedSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+            returns(first: 5) {
+              nodes {
+                id
+                status
+              }
+              pageInfo {
+                hasNextPage
+                hasPreviousPage
+                startCursor
+                endCursor
+              }
+            }
+            transactions {
+              id
+              kind
+              status
+              gateway
+              amountSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+            totalRefundedSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+            totalRefundedShippingSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": payload["order"]["id"].clone() }),
+    ));
+    let order = &downstream.body["data"]["order"];
+    assert_eq!(order["refunds"][0]["id"], payload["refund"]["id"]);
+    assert_eq!(
+        order["refunds"][0]["note"],
+        json!("Customer returned one item")
+    );
+    assert_eq!(
+        order["returns"],
+        json!({
+            "nodes": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": Value::Null,
+                "endCursor": Value::Null
+            }
+        })
+    );
+    assert_eq!(order["transactions"][1]["kind"], json!("REFUND"));
+    assert_eq!(
+        order["totalRefundedSet"]["shopMoney"],
+        json!({ "amount": "15.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        order["totalRefundedShippingSet"]["shopMoney"],
+        json!({ "amount": "5.0", "currencyCode": "CAD" })
     );
 
     let log = proxy.get_log_snapshot();
-    assert_eq!(log["entries"][0]["operationName"], Value::Null);
-    assert_eq!(log["entries"][0]["status"], json!("failed"));
+    assert_eq!(log["entries"][1]["operationName"], json!("refundCreate"));
+    assert_eq!(log["entries"][1]["status"], json!("staged"));
     assert_eq!(
-        log["entries"][0]["interpreted"]["capability"],
+        log["entries"][1]["interpreted"]["capability"],
         json!({
             "operationName": "refundCreate",
             "domain": "orders",
             "execution": "stage-locally"
         })
     );
-    assert!(log["entries"][0]["rawBody"]
+    assert!(log["entries"][1]["rawBody"]
         .as_str()
         .is_some_and(|body| body.contains("CreateRefund")));
+}
+
+#[test]
+fn refund_create_user_errors_do_not_fall_back_to_not_implemented_or_stage_state() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateRefundableOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              lineItems(first: 5) {
+                nodes {
+                  id
+                }
+              }
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "refund-guardrail@example.test",
+                "currency": "CAD",
+                "lineItems": [{
+                    "title": "Refund guardrail item",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "CAD" } }
+                }],
+                "transactions": [{
+                    "kind": "SALE",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": { "shopMoney": { "amount": "10.00", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let line_item_id =
+        create.body["data"]["orderCreate"]["order"]["lineItems"]["nodes"][0]["id"].clone();
+    let payment_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadRefundParentTransaction($id: ID!) {
+          order(id: $id) {
+            transactions {
+              id
+            }
+          }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    let parent_transaction_id = payment_read.body["data"]["order"]["transactions"][0]["id"].clone();
+
+    let refund_query = r#"
+        mutation CreateRefund($input: RefundInput!) {
+          refundCreate(input: $input) {
+            refund {
+              id
+            }
+            order {
+              id
+              displayFinancialStatus
+              totalRefundedSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+              refunds {
+                id
+              }
+            }
+            userErrors {
+              field
+              message
+              code
+            }
+          }
+        }
+    "#;
+
+    let over_refund = proxy.process_request(json_graphql_request(
+        refund_query,
+        json!({
+            "input": {
+                "orderId": order_id.clone(),
+                "transactions": [{
+                    "parentId": parent_transaction_id.clone(),
+                    "kind": "REFUND",
+                    "amount": "15.00"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        over_refund.body["data"]["refundCreate"]["refund"],
+        Value::Null
+    );
+    assert_eq!(
+        over_refund.body["data"]["refundCreate"]["userErrors"][0]["message"],
+        json!("Refund amount $15.00 is greater than net payment received $10.00")
+    );
+    assert_eq!(
+        over_refund.body["data"]["refundCreate"]["userErrors"][0]["code"],
+        json!("OVER_REFUND")
+    );
+    assert_ne!(
+        over_refund.body["data"]["refundCreate"]["userErrors"][0]["message"],
+        json!("Local staging for refundCreate is not implemented for this request shape")
+    );
+    assert_eq!(
+        over_refund.body["data"]["refundCreate"]["order"]["refunds"],
+        json!([])
+    );
+
+    let over_quantity = proxy.process_request(json_graphql_request(
+        refund_query,
+        json!({
+            "input": {
+                "orderId": order_id.clone(),
+                "refundLineItems": [{
+                    "lineItemId": line_item_id,
+                    "quantity": 2,
+                    "restockType": "RETURN"
+                }],
+                "transactions": [{
+                    "parentId": parent_transaction_id,
+                    "kind": "REFUND",
+                    "amount": "10.00"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        over_quantity.body["data"]["refundCreate"]["refund"],
+        Value::Null
+    );
+    assert_eq!(
+        over_quantity.body["data"]["refundCreate"]["userErrors"][0]["field"],
+        json!(["refundLineItems", "0", "quantity"])
+    );
+    assert_eq!(
+        over_quantity.body["data"]["refundCreate"]["userErrors"][0]["message"],
+        json!("Quantity cannot refund more items than were purchased")
+    );
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"].as_array().expect("log entries").len(), 1);
+    assert_eq!(log["entries"][0]["operationName"], json!("orderCreate"));
 }
 
 #[test]

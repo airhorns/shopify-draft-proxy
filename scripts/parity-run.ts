@@ -306,10 +306,16 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
         'hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration' ||
       call.query ===
         'recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration';
+    const isSyntheticRefundOrderHydration =
+      typeof call.query === 'string' &&
+      (call.query.startsWith('hand-synthesized from checked-in setup orderCreate response for refundCreate') ||
+        call.query.includes('order hydrate for refundCreate'));
     const canMatchSynthesizedNodeQuery = isSyntheticNodeCassette && /\bnode(?:s)?\s*\(/u.test(query);
+    const canMatchSynthesizedRefundOrderQuery = isSyntheticRefundOrderHydration && /\border\s*\(\s*id\s*:/u.test(query);
     return (
       variablesMatch &&
       (canMatchSynthesizedNodeQuery ||
+        canMatchSynthesizedRefundOrderQuery ||
         parsed['query'] === call.query ||
         (call.query === undefined && call.operationName === operationName && operationName.length > 0))
     );
