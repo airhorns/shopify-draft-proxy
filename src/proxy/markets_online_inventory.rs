@@ -1410,6 +1410,10 @@ pub(in crate::proxy) fn webhook_subscription_string_field(record: &Value, field:
 }
 
 pub(in crate::proxy) fn valid_gcp_project_id(project: &str) -> bool {
+    if project.chars().all(|ch| ch.is_ascii_digit()) {
+        return !project.is_empty();
+    }
+
     let len = project.len();
     (6..=30).contains(&len)
         && project
@@ -1426,12 +1430,51 @@ pub(in crate::proxy) fn valid_gcp_project_id(project: &str) -> bool {
 }
 
 pub(in crate::proxy) fn valid_gcp_pubsub_topic_id(topic: &str) -> bool {
-    let len = topic.len();
+    let Some(decoded_topic) = percent_decode_ascii_topic(topic) else {
+        return false;
+    };
+
+    let len = decoded_topic.len();
     (3..=255).contains(&len)
-        && !topic.starts_with("goog")
-        && topic
+        && !decoded_topic.starts_with("goog")
+        && decoded_topic
             .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '~'))
+            .next()
+            .is_some_and(|ch| ch.is_ascii_alphabetic())
+        && decoded_topic
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '~' | '%'))
+}
+
+fn percent_decode_ascii_topic(topic: &str) -> Option<String> {
+    let bytes = topic.as_bytes();
+    let mut decoded = String::with_capacity(topic.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = bytes.get(index + 1).copied().and_then(hex_value)?;
+            let low = bytes.get(index + 2).copied().and_then(hex_value)?;
+            let byte = high * 16 + low;
+            if !byte.is_ascii() {
+                return None;
+            }
+            decoded.push(char::from(byte));
+            index += 3;
+        } else {
+            decoded.push(char::from(bytes[index]));
+            index += 1;
+        }
+    }
+    Some(decoded)
+}
+
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
 }
 
 pub(in crate::proxy) fn eventbridge_arn_api_client_id(uri: &str) -> Option<&str> {

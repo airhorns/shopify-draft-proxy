@@ -887,7 +887,7 @@ HAR-237 live probes against Admin GraphQL 2026-04 on `harry-test-heelo.myshopify
 - an empty store returns an empty `carrierServices` connection with empty `nodes`/`edges`, false page booleans, and null cursors
 - `carrierServiceCreate` accepted an inactive app service with `callbackUrl: "https://mock.shop/..."`, returned `formattedName: "<name> (Rates provided by app)"`, and did not need any associated `Location` modeling
 - `carrierServiceUpdate` can change `name`, `callbackUrl`, `active`, and `supportsServiceDiscovery`; immediate downstream detail reads and `carrierServices(query: "active:true")` / `carrierServices(query: "id:<numeric id>")` reflected the update
-- blank create name returned `userErrors[{ field: null, message: "Shipping rate provider name can't be blank", code: "CARRIER_SERVICE_CREATE_FAILED" }]`
+- blank create name returned `userErrors[{ field: null, message: "Shipping rate provider name can't be blank", code: "CARRIER_SERVICE_CREATE_FAILED" }]`; a present blank update name similarly returns `field: null`, message `"Shipping rate provider name can't be blank"`, and code `CARRIER_SERVICE_UPDATE_FAILED` while leaving the existing name unchanged
 - `http://` callback URLs returned `message: "Shipping rate provider callback url must use HTTPS"`, while banned hosts such as `https://shopify.com/...` returned `message: "Shipping rate provider callback url invalid host"`; create/update use the corresponding `CARRIER_SERVICE_CREATE_FAILED` / `CARRIER_SERVICE_UPDATE_FAILED` code
 - unknown update returned `userErrors[{ field: null, message: "The carrier or app could not be found.", code: "CARRIER_SERVICE_UPDATE_FAILED" }]`, while unknown delete returned the same message with `field: ["id"]` and `code: "CARRIER_SERVICE_DELETE_FAILED"`
 - `carrierServiceDelete` is present in the 2026-04 schema and returned `deletedId` as the full `DeliveryCarrierService` GID; downstream detail and id-filtered catalog reads were empty after cleanup
@@ -2838,6 +2838,12 @@ Captured mutation-scoped `DiscountUserError` branches:
   `discountAmount.amount: "0"` by creating native code discounts, so do
   not reject zero values locally without a newer capture proving Shopify
   changed that behavior
+- simultaneous `minimumRequirement.subtotal` and `minimumRequirement.quantity`
+  branches return two `CONFLICT` entries on the concrete subtotal and quantity
+  value paths, not one input-level error
+- oversized `minimumRequirement.quantity.greaterThanOrEqualToQuantity` and
+  `minimumRequirement.subtotal.greaterThanOrEqualToSubtotal` values return
+  `LESS_THAN` on the concrete value paths
 - combining collection entitlements with product/product-variant entitlements returns a `CONFLICT` error on `['basicCodeDiscount', 'customerGets', 'items', 'collections', 'add']`, while invalid product and variant GIDs also return separate `INVALID` entries
 - BXGY roots reject all-items customer-get/customer-buy payloads and blank titles with root-specific field prefixes (`bxgyCodeDiscount` vs `automaticBxgyDiscount`)
 - free-shipping roots reject all discount-class combinesWith flags; code free shipping also reported blank title, while the captured automatic free-shipping branch only reported invalid combinesWith for the same blank-title payload

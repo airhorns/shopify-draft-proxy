@@ -1696,17 +1696,13 @@ impl DraftProxy {
                 ResolvedValue::Object(o) => o.get("settings"),
                 _ => None,
             })
-            .and_then(web_pixel_settings_from_resolved);
-        let status = if settings.is_some() {
-            "CONNECTED"
-        } else {
-            "NEEDS_CONFIGURATION"
-        };
+            .and_then(web_pixel_settings_from_resolved)
+            .unwrap_or_else(|| json!({}));
         let record = json!({
             "__typename": "WebPixel",
             "id": id,
-            "settings": settings.unwrap_or(Value::Null),
-            "status": status,
+            "settings": settings,
+            "status": "CONNECTED",
             "webhookEndpointAddress": null
         });
         self.store

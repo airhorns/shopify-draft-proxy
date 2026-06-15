@@ -1,0 +1,58 @@
+{
+  "scenarioId": "price-list-update-catalog-does-not-exist",
+  "operationNames": ["priceListCreate", "priceListUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-catalog-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price-list-create-catalog-validation.graphql",
+    "variablesCapturePath": "$.cases[5].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2026-04 capture proves priceListUpdate with a never-created MarketCatalog gid returns CATALOG_DOES_NOT_EXIST at field [\"input\", \"catalogId\"]. Shopify returns priceList: null for this catalogId validation branch, while the existing price list remains unchanged.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "price-list-update-setup",
+        "capturePath": "$.cases[5].response.payload.data.priceListCreate",
+        "proxyPath": "$.data.priceListCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-create-catalog-validation.graphql",
+          "variablesCapturePath": "$.cases[5].variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy stages a synthetic local price-list id instead of replaying Shopify's captured id."
+          }
+        ]
+      },
+      {
+        "name": "price-list-update-catalog-does-not-exist",
+        "capturePath": "$.cases[6].response.payload.data.priceListUpdate",
+        "proxyPath": "$.data.priceListUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-update-input-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "price-list-update-setup",
+              "path": "$.data.priceListCreate.priceList.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases[6].variables.input"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

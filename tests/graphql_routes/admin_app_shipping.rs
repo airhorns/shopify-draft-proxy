@@ -3516,6 +3516,223 @@ fn fulfillment_service_lifecycle_stages_location_reads_deletes_and_validates() {
 }
 
 #[test]
+fn fulfillment_service_create_rejects_removed_public_schema_arguments_before_staging() {
+    for removed_argument in [
+        "permitsSkuSharing",
+        "inventorySyncEnabled",
+        "fulfillmentOrdersOptIn",
+    ] {
+        let mut proxy = snapshot_proxy();
+        let mutation = format!(
+            "mutation FulfillmentServiceRemovedArgumentValidation($name: String!) {{\n  fulfillmentServiceCreate(\n    name: $name\n    {removed_argument}: false\n    trackingSupport: true\n    inventoryManagement: true\n    requiresShippingMethod: true\n  ) {{\n    fulfillmentService {{\n      id\n      serviceName\n      inventoryManagement\n      requiresShippingMethod\n      trackingSupport\n    }}\n    userErrors {{ field message }}\n  }}\n}}\n"
+        );
+
+        let response = proxy.process_request(json_graphql_request(
+            &mutation,
+            json!({ "name": format!("FS Removed Arg {removed_argument}") }),
+        ));
+        assert_eq!(response.status, 200);
+        assert!(response.body.get("data").is_none(), "{removed_argument}");
+        assert_eq!(
+            response.body["errors"],
+            json!([{
+                "message": format!(
+                    "Field 'fulfillmentServiceCreate' doesn't accept argument '{removed_argument}'"
+                ),
+                "locations": [{ "line": 4, "column": 5 }],
+                "path": [
+                    "mutation FulfillmentServiceRemovedArgumentValidation",
+                    "fulfillmentServiceCreate",
+                    removed_argument
+                ],
+                "extensions": {
+                    "code": "argumentNotAccepted",
+                    "name": "fulfillmentServiceCreate",
+                    "typeName": "Field",
+                    "argumentName": removed_argument
+                }
+            }]),
+            "{removed_argument}"
+        );
+
+        let log = proxy.process_request(Request {
+            method: "GET".to_string(),
+            path: "/__meta/log".to_string(),
+            headers: Default::default(),
+            body: String::new(),
+        });
+        assert_eq!(log.body["entries"], json!([]), "{removed_argument}");
+
+        let state = proxy.process_request(Request {
+            method: "GET".to_string(),
+            path: "/__meta/state".to_string(),
+            headers: Default::default(),
+            body: String::new(),
+        });
+        assert_eq!(
+            state.body["stagedState"]["locations"],
+            json!({}),
+            "{removed_argument}"
+        );
+    }
+}
+
+#[test]
+fn fulfillment_service_name_whitespace_validation_rejects_without_staging_or_logging() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation FulfillmentServiceNameWhitespaceCreate($name: String!) {
+          fulfillmentServiceCreate(
+            name: $name
+            trackingSupport: true
+            inventoryManagement: true
+            requiresShippingMethod: true
+          ) {
+            fulfillmentService { id serviceName location { id name } }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation FulfillmentServiceNameWhitespaceUpdate($id: ID!, $name: String!) {
+          fulfillmentServiceUpdate(id: $id, name: $name) {
+            fulfillmentService { id serviceName location { id name } }
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    let padded_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "  FS Whitespace rejected  " }),
+    ));
+    assert_eq!(
+        padded_create.body["data"]["fulfillmentServiceCreate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [
+                { "field": ["name"], "message": "Name cannot begin with a whitespace character" },
+                { "field": ["name"], "message": "Name cannot end with a whitespace character" }
+            ]
+        })
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        0
+    );
+    let leading_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "\tFS Leading Whitespace rejected" }),
+    ));
+    assert_eq!(
+        leading_create.body["data"]["fulfillmentServiceCreate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [
+                { "field": ["name"], "message": "Name cannot begin with a whitespace character" }
+            ]
+        })
+    );
+
+    let trailing_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "FS Trailing Whitespace rejected\n" }),
+    ));
+    assert_eq!(
+        trailing_create.body["data"]["fulfillmentServiceCreate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [
+                { "field": ["name"], "message": "Name cannot end with a whitespace character" }
+            ]
+        })
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        0
+    );
+
+    let valid_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "name": "FS Whitespace Update Source" }),
+    ));
+    let service_id = valid_create.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let location_id = valid_create.body["data"]["fulfillmentServiceCreate"]["fulfillmentService"]
+        ["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(service_id.starts_with("gid://shopify/FulfillmentService/1"));
+    assert!(location_id.starts_with("gid://shopify/Location/2"));
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let update_log_len_before = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .unwrap()
+        .len();
+    let update_state_before = proxy.get_state_snapshot();
+    let leading_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": service_id, "name": " FS Whitespace Update Rejected" }),
+    ));
+    assert_eq!(
+        leading_update.body["data"]["fulfillmentServiceUpdate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [
+                { "field": ["name"], "message": "Name cannot begin with a whitespace character" }
+            ]
+        })
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        update_log_len_before
+    );
+    assert_eq!(proxy.get_state_snapshot(), update_state_before);
+
+    let trailing_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": service_id, "name": "FS Whitespace Update Rejected " }),
+    ));
+    assert_eq!(
+        trailing_update.body["data"]["fulfillmentServiceUpdate"],
+        json!({
+            "fulfillmentService": null,
+            "userErrors": [
+                { "field": ["name"], "message": "Name cannot end with a whitespace character" }
+            ]
+        })
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        update_log_len_before
+    );
+    assert_eq!(proxy.get_state_snapshot(), update_state_before);
+}
+
+#[test]
 fn fulfillment_service_callback_url_validation_matches_captured_shopify_behavior() {
     let mut proxy = DraftProxy::new(Config {
         read_mode: ReadMode::Snapshot,
@@ -4165,6 +4382,56 @@ fn carrier_service_update_validates_changed_callback_url_and_codes_unknowns() {
         .unwrap()
         .to_string();
 
+    let log_len_after_create = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .unwrap()
+        .len();
+
+    let blank_name_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceUpdateProbe($input: DeliveryCarrierServiceUpdateInput!) {
+          carrierServiceUpdate(input: $input) {
+            carrierService { id name callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "id": id,
+            "name": ""
+        }}),
+    ));
+    assert_eq!(
+        blank_name_update.body["data"]["carrierServiceUpdate"],
+        json!({
+            "carrierService": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Shipping rate provider name can't be blank",
+                "code": "CARRIER_SERVICE_UPDATE_FAILED"
+            }]
+        })
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        log_len_after_create
+    );
+    let after_blank_name_update = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServiceAfterUpdate($id: ID!) {
+          carrierService(id: $id) { id name callbackUrl }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+    assert_eq!(
+        after_blank_name_update.body["data"]["carrierService"]["name"],
+        json!("Hermes Carrier Local")
+    );
+
     let unchanged_callback = proxy.process_request(json_graphql_request(
         r#"
         mutation CarrierServiceUpdateProbe($input: DeliveryCarrierServiceUpdateInput!) {
@@ -4186,6 +4453,33 @@ fn carrier_service_update_validates_changed_callback_url_and_codes_unknowns() {
     );
     assert_eq!(
         unchanged_callback.body["data"]["carrierServiceUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let omitted_name = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceUpdateProbe($input: DeliveryCarrierServiceUpdateInput!) {
+          carrierServiceUpdate(input: $input) {
+            carrierService { id name callbackUrl active }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "id": id,
+            "active": true
+        }}),
+    ));
+    assert_eq!(
+        omitted_name.body["data"]["carrierServiceUpdate"]["carrierService"]["name"],
+        json!("Hermes Carrier Renamed")
+    );
+    assert_eq!(
+        omitted_name.body["data"]["carrierServiceUpdate"]["carrierService"]["active"],
+        json!(true)
+    );
+    assert_eq!(
+        omitted_name.body["data"]["carrierServiceUpdate"]["userErrors"],
         json!([])
     );
 
