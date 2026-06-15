@@ -258,6 +258,11 @@ fn validate_resolved_input_object(
         let Some(field_schema) = input_object.get(field_name) else {
             continue;
         };
+        if let Some(problem) = validate_resolved_scalar(field_value, &field_schema.type_ref) {
+            let mut nested_path = problem_path.to_vec();
+            nested_path.push(field_name.clone());
+            problems.push(variable_problem_with_message(&nested_path, &problem));
+        }
         let Some(nested_input_object) = schema.input_objects.get(&field_schema.type_ref.named_type)
         else {
             continue;
@@ -275,6 +280,18 @@ fn validate_resolved_input_object(
         }
     }
     problems
+}
+
+fn validate_resolved_scalar(value: &ResolvedValue, type_ref: &SchemaTypeRef) -> Option<String> {
+    if type_ref.named_type != "Decimal" {
+        return None;
+    }
+    let ResolvedValue::String(raw) = value else {
+        return None;
+    };
+    raw.parse::<f64>()
+        .err()
+        .map(|_| format!("invalid decimal '{raw}'"))
 }
 
 fn root_argument_not_accepted_error(
@@ -398,6 +415,14 @@ fn variable_problem(path: &[String], explanation: &str) -> Value {
     })
 }
 
+fn variable_problem_with_message(path: &[String], explanation: &str) -> Value {
+    json!({
+        "path": path,
+        "explanation": explanation,
+        "message": explanation
+    })
+}
+
 fn input_error_path(context: ValidationContext<'_>, path: &[String], argument_name: &str) -> Value {
     let mut segments = vec![
         Value::String(context.operation_path.to_string()),
@@ -419,37 +444,346 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
     static SCHEMA: OnceLock<AdminInputSchema> = OnceLock::new();
     SCHEMA.get_or_init(|| {
         let mut schema = AdminInputSchema::default();
-
-        schema.input_objects.insert(
-            "GiftCardCreateInput".to_string(),
-            BTreeMap::from([
-                ("initialValue".to_string(), input_field(non_null("Decimal"))),
-                ("code".to_string(), input_field(named("String"))),
-                ("customerId".to_string(), input_field(named("ID"))),
-                ("expiresOn".to_string(), input_field(named("Date"))),
-                ("note".to_string(), input_field(named("String"))),
-                (
-                    "recipientAttributes".to_string(),
-                    input_field(named("GiftCardRecipientInput")),
-                ),
-                ("templateSuffix".to_string(), input_field(named("String"))),
-            ]),
-        );
-        schema.mutation_fields.insert(
-            "giftCardCreate".to_string(),
-            BTreeMap::from([(
-                "input".to_string(),
-                SchemaArgument {
-                    type_ref: non_null("GiftCardCreateInput"),
-                },
-            )]),
-        );
+        extend_gift_card_input_schema(&mut schema);
+        extend_discount_basic_input_schema(&mut schema);
         schema
     })
 }
 
 fn input_field(type_ref: SchemaTypeRef) -> SchemaInputField {
     SchemaInputField { type_ref }
+}
+
+fn mutation_arg(type_ref: SchemaTypeRef) -> SchemaArgument {
+    SchemaArgument { type_ref }
+}
+
+fn extend_gift_card_input_schema(schema: &mut AdminInputSchema) {
+    schema.input_objects.insert(
+        "GiftCardCreateInput".to_string(),
+        BTreeMap::from([
+            ("initialValue".to_string(), input_field(non_null("Decimal"))),
+            ("code".to_string(), input_field(named("String"))),
+            ("customerId".to_string(), input_field(named("ID"))),
+            ("expiresOn".to_string(), input_field(named("Date"))),
+            ("note".to_string(), input_field(named("String"))),
+            (
+                "recipientAttributes".to_string(),
+                input_field(named("GiftCardRecipientInput")),
+            ),
+            ("templateSuffix".to_string(), input_field(named("String"))),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "giftCardCreate".to_string(),
+        BTreeMap::from([(
+            "input".to_string(),
+            mutation_arg(non_null("GiftCardCreateInput")),
+        )]),
+    );
+}
+
+fn extend_discount_basic_input_schema(schema: &mut AdminInputSchema) {
+    schema.input_objects.insert(
+        "DiscountCodeBasicInput".to_string(),
+        BTreeMap::from([
+            (
+                "combinesWith".to_string(),
+                input_field(named("DiscountCombinesWithInput")),
+            ),
+            ("title".to_string(), input_field(named("String"))),
+            ("startsAt".to_string(), input_field(named("DateTime"))),
+            ("endsAt".to_string(), input_field(named("DateTime"))),
+            (
+                "appliesOncePerCustomer".to_string(),
+                input_field(named("Boolean")),
+            ),
+            ("code".to_string(), input_field(named("String"))),
+            (
+                "customerSelection".to_string(),
+                input_field(named("DiscountCustomerSelectionInput")),
+            ),
+            ("usageLimit".to_string(), input_field(named("Int"))),
+            (
+                "context".to_string(),
+                input_field(named("DiscountContextInput")),
+            ),
+            ("tags".to_string(), input_field(list_of_non_null("String"))),
+            (
+                "minimumRequirement".to_string(),
+                input_field(named("DiscountMinimumRequirementInput")),
+            ),
+            (
+                "customerGets".to_string(),
+                input_field(named("DiscountCustomerGetsInput")),
+            ),
+            ("recurringCycleLimit".to_string(), input_field(named("Int"))),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountAutomaticBasicInput".to_string(),
+        BTreeMap::from([
+            (
+                "combinesWith".to_string(),
+                input_field(named("DiscountCombinesWithInput")),
+            ),
+            ("title".to_string(), input_field(named("String"))),
+            ("startsAt".to_string(), input_field(named("DateTime"))),
+            ("endsAt".to_string(), input_field(named("DateTime"))),
+            (
+                "context".to_string(),
+                input_field(named("DiscountContextInput")),
+            ),
+            ("tags".to_string(), input_field(list_of_non_null("String"))),
+            (
+                "minimumRequirement".to_string(),
+                input_field(named("DiscountMinimumRequirementInput")),
+            ),
+            (
+                "customerGets".to_string(),
+                input_field(named("DiscountCustomerGetsInput")),
+            ),
+            ("recurringCycleLimit".to_string(), input_field(named("Int"))),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountCombinesWithInput".to_string(),
+        BTreeMap::from([
+            (
+                "productDiscounts".to_string(),
+                input_field(named("Boolean")),
+            ),
+            ("orderDiscounts".to_string(), input_field(named("Boolean"))),
+            (
+                "shippingDiscounts".to_string(),
+                input_field(named("Boolean")),
+            ),
+            (
+                "productDiscountsWithTagsOnSameCartLine".to_string(),
+                input_field(named("ProductDiscountsWithTagsOnSameCartLineInput")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "ProductDiscountsWithTagsOnSameCartLineInput".to_string(),
+        BTreeMap::from([
+            ("add".to_string(), input_field(list_of_non_null("String"))),
+            (
+                "remove".to_string(),
+                input_field(list_of_non_null("String")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountCustomerSelectionInput".to_string(),
+        BTreeMap::from([
+            ("all".to_string(), input_field(named("Boolean"))),
+            (
+                "customers".to_string(),
+                input_field(named("DiscountCustomersInput")),
+            ),
+            (
+                "customerSegments".to_string(),
+                input_field(named("DiscountCustomerSegmentsInput")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountContextInput".to_string(),
+        BTreeMap::from([
+            (
+                "all".to_string(),
+                input_field(named("DiscountBuyerSelection")),
+            ),
+            (
+                "customers".to_string(),
+                input_field(named("DiscountCustomersInput")),
+            ),
+            (
+                "customerSegments".to_string(),
+                input_field(named("DiscountCustomerSegmentsInput")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountCustomersInput".to_string(),
+        BTreeMap::from([
+            ("add".to_string(), input_field(list_of_non_null("ID"))),
+            ("remove".to_string(), input_field(list_of_non_null("ID"))),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountCustomerSegmentsInput".to_string(),
+        BTreeMap::from([
+            ("add".to_string(), input_field(list_of_non_null("ID"))),
+            ("remove".to_string(), input_field(list_of_non_null("ID"))),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountMinimumRequirementInput".to_string(),
+        BTreeMap::from([
+            (
+                "quantity".to_string(),
+                input_field(named("DiscountMinimumQuantityInput")),
+            ),
+            (
+                "subtotal".to_string(),
+                input_field(named("DiscountMinimumSubtotalInput")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountMinimumQuantityInput".to_string(),
+        BTreeMap::from([(
+            "greaterThanOrEqualToQuantity".to_string(),
+            input_field(named("UnsignedInt64")),
+        )]),
+    );
+    schema.input_objects.insert(
+        "DiscountMinimumSubtotalInput".to_string(),
+        BTreeMap::from([(
+            "greaterThanOrEqualToSubtotal".to_string(),
+            input_field(named("Decimal")),
+        )]),
+    );
+    schema.input_objects.insert(
+        "DiscountCustomerGetsInput".to_string(),
+        BTreeMap::from([
+            (
+                "value".to_string(),
+                input_field(named("DiscountCustomerGetsValueInput")),
+            ),
+            (
+                "items".to_string(),
+                input_field(named("DiscountItemsInput")),
+            ),
+            (
+                "appliesOnOneTimePurchase".to_string(),
+                input_field(named("Boolean")),
+            ),
+            (
+                "appliesOnSubscription".to_string(),
+                input_field(named("Boolean")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountCustomerGetsValueInput".to_string(),
+        BTreeMap::from([
+            (
+                "discountOnQuantity".to_string(),
+                input_field(named("DiscountOnQuantityInput")),
+            ),
+            ("percentage".to_string(), input_field(named("Float"))),
+            (
+                "discountAmount".to_string(),
+                input_field(named("DiscountAmountInput")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountItemsInput".to_string(),
+        BTreeMap::from([
+            (
+                "products".to_string(),
+                input_field(named("DiscountProductsInput")),
+            ),
+            (
+                "collections".to_string(),
+                input_field(named("DiscountCollectionsInput")),
+            ),
+            ("all".to_string(), input_field(named("Boolean"))),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountProductsInput".to_string(),
+        BTreeMap::from([
+            (
+                "productsToAdd".to_string(),
+                input_field(list_of_non_null("ID")),
+            ),
+            (
+                "productsToRemove".to_string(),
+                input_field(list_of_non_null("ID")),
+            ),
+            (
+                "productVariantsToAdd".to_string(),
+                input_field(list_of_non_null("ID")),
+            ),
+            (
+                "productVariantsToRemove".to_string(),
+                input_field(list_of_non_null("ID")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountCollectionsInput".to_string(),
+        BTreeMap::from([
+            ("add".to_string(), input_field(list_of_non_null("ID"))),
+            ("remove".to_string(), input_field(list_of_non_null("ID"))),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountOnQuantityInput".to_string(),
+        BTreeMap::from([
+            ("quantity".to_string(), input_field(named("UnsignedInt64"))),
+            (
+                "effect".to_string(),
+                input_field(named("DiscountEffectInput")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountEffectInput".to_string(),
+        BTreeMap::from([
+            ("percentage".to_string(), input_field(named("Float"))),
+            ("amount".to_string(), input_field(named("Decimal"))),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountAmountInput".to_string(),
+        BTreeMap::from([
+            ("amount".to_string(), input_field(named("Decimal"))),
+            (
+                "appliesOnEachItem".to_string(),
+                input_field(named("Boolean")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "discountCodeBasicCreate".to_string(),
+        BTreeMap::from([(
+            "basicCodeDiscount".to_string(),
+            mutation_arg(non_null("DiscountCodeBasicInput")),
+        )]),
+    );
+    schema.mutation_fields.insert(
+        "discountCodeBasicUpdate".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "basicCodeDiscount".to_string(),
+                mutation_arg(non_null("DiscountCodeBasicInput")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "discountAutomaticBasicCreate".to_string(),
+        BTreeMap::from([(
+            "automaticBasicDiscount".to_string(),
+            mutation_arg(non_null("DiscountAutomaticBasicInput")),
+        )]),
+    );
+    schema.mutation_fields.insert(
+        "discountAutomaticBasicUpdate".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "automaticBasicDiscount".to_string(),
+                mutation_arg(non_null("DiscountAutomaticBasicInput")),
+            ),
+        ]),
+    );
 }
 
 fn named(name: &str) -> SchemaTypeRef {
@@ -465,5 +799,13 @@ fn non_null(name: &str) -> SchemaTypeRef {
         display: format!("{name}!"),
         named_type: name.to_string(),
         non_null: true,
+    }
+}
+
+fn list_of_non_null(name: &str) -> SchemaTypeRef {
+    SchemaTypeRef {
+        display: format!("[{name}!]"),
+        named_type: name.to_string(),
+        non_null: false,
     }
 }

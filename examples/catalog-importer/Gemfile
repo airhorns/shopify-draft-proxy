@@ -1,0 +1,20 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+# The example consumes the draft proxy exactly as a real embedder would: as a
+# dependency. We point at the in-repo gem via a relative path so the example
+# always runs against the current source tree.
+gem "shopify-draft-proxy", path: "../../ruby"
+
+# A real Shopify app talks to the Admin API through the official client. The
+# whole point of this example is to drive *that* client end to end.
+gem "shopify_api", "~> 16.2"
+
+group :test do
+  gem "minitest", "~> 5.0"
+  gem "rake", "~> 13.0"
+  # WebMock lets the test suite intercept the official client's real HTTP
+  # request at the Net::HTTP boundary and hand it to the in-process proxy.
+  gem "webmock", "~> 3.0"
+end

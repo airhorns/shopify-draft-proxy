@@ -1,0 +1,103 @@
+{
+  "scenarioId": "price-list-create-catalog-taken",
+  "operationNames": ["priceListCreate", "catalogCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/price-list-catalog-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/metafields_markets_products_tail.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/price-list-input-validation-markets-read.graphql",
+    "variablesCapturePath": "$.cases[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Admin GraphQL 2026-04 capture creates a disposable price list and MarketCatalog attachment, then proves priceListCreate with that catalogId returns CATALOG_TAKEN at field [\"input\", \"catalogId\"], with priceList: null and no second price list.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "price-list-setup",
+        "capturePath": "$.cases[2].response.payload.data.priceListCreate",
+        "proxyPath": "$.data.priceListCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-create-catalog-validation.graphql",
+          "variablesCapturePath": "$.cases[2].variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.priceList.id",
+            "matcher": "shopify-gid:PriceList",
+            "reason": "The proxy stages a synthetic local price-list id instead of replaying Shopify's captured id."
+          }
+        ]
+      },
+      {
+        "name": "catalog-with-price-list-setup",
+        "capturePath": "$.cases[3].response.payload.data.catalogCreate",
+        "proxyPath": "$.data.catalogCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-create-relation-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "title": {
+                "fromCapturePath": "$.cases[3].variables.input.title"
+              },
+              "status": {
+                "fromCapturePath": "$.cases[3].variables.input.status"
+              },
+              "context": {
+                "marketIds": [
+                  {
+                    "fromPrimaryProxyPath": "$.data.markets.nodes[0].id"
+                  }
+                ]
+              },
+              "priceListId": {
+                "fromProxyResponse": "price-list-setup",
+                "path": "$.data.priceListCreate.priceList.id"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.catalog.id",
+            "matcher": "shopify-gid:MarketCatalog",
+            "reason": "The proxy stages a synthetic local catalog id instead of replaying Shopify's captured id."
+          }
+        ]
+      },
+      {
+        "name": "price-list-create-catalog-taken",
+        "capturePath": "$.cases[4].response.payload.data.priceListCreate",
+        "proxyPath": "$.data.priceListCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/price-list-create-catalog-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "name": {
+                "fromCapturePath": "$.cases[4].variables.input.name"
+              },
+              "currency": {
+                "fromCapturePath": "$.cases[4].variables.input.currency"
+              },
+              "parent": {
+                "fromCapturePath": "$.cases[4].variables.input.parent"
+              },
+              "catalogId": {
+                "fromProxyResponse": "catalog-with-price-list-setup",
+                "path": "$.data.catalogCreate.catalog.id"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

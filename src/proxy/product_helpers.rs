@@ -1952,14 +1952,25 @@ pub(in crate::proxy) fn saved_search_input_from_field(
     }
 }
 
+#[derive(Clone, Copy)]
+pub(in crate::proxy) enum SavedSearchQueryValidationOperation {
+    Create,
+    Update,
+}
+
 pub(in crate::proxy) fn saved_search_query_user_errors(
+    operation: SavedSearchQueryValidationOperation,
     resource_type: &str,
     query: &str,
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     if resource_type == "ORDER" && query.contains("reference_location_id:") {
+        let field = match operation {
+            SavedSearchQueryValidationOperation::Create => json!(["input", "query"]),
+            SavedSearchQueryValidationOperation::Update => json!(["input", "searchTerms"]),
+        };
         errors.push(json!({
-            "field": ["input", "query"],
+            "field": field,
             "message": "Search terms is invalid, 'reference_location_id' is a reserved filter name"
         }));
     }

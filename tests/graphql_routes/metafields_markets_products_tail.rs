@@ -2427,6 +2427,143 @@ fn price_list_create_update_delete_ported_gleam_helpers_stage_and_validate() {
 }
 
 #[test]
+fn price_list_catalog_id_validation_rejects_missing_and_taken_catalogs() {
+    let create_query = r#"
+        mutation RustPriceListLocalRuntimeCreate($input: PriceListCreateInput!) {
+          priceListCreate(input: $input) {
+            priceList { id name catalog { id } }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation RustPriceListLocalRuntimeUpdate($id: ID!, $input: PriceListUpdateInput!) {
+          priceListUpdate(id: $id, input: $input) {
+            priceList { id name catalog { id } }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+
+    let missing_catalog_id = "gid://shopify/MarketCatalog/99999999";
+    let mut missing_proxy = snapshot_proxy();
+    let missing_create = missing_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Missing Catalog", "currency": "USD", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalogId": missing_catalog_id}}),
+    ));
+    assert_eq!(missing_create.status, 200);
+    assert_eq!(
+        missing_create.body["data"]["priceListCreate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog does not exist.", "code": "CATALOG_DOES_NOT_EXIST"}]})
+    );
+    let read_after_missing_create = missing_proxy.process_request(json_graphql_request(
+        r#"
+        query RustPriceListLocalRuntimeRead {
+          priceLists(first: 10) { nodes { id } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_missing_create.body["data"]["priceLists"]["nodes"],
+        json!([])
+    );
+
+    let mut proxy = snapshot_proxy();
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustMarketCreateLocalRuntimeSeed($input: MarketCreateInput!) {
+          marketCreate(input: $input) { market { id } userErrors { field message code } }
+        }
+        "#,
+        json!({"input": {"name": "Europe", "regions": [{"countryCode": "DK"}]}}),
+    ));
+    let first_catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCatalogLocalRuntimeSeed($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) { catalog { id } userErrors { field message code } }
+        }
+        "#,
+        json!({"input": {"title": "EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}}}),
+    ));
+    let first_catalog_id = first_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_catalog = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustCatalogLocalRuntimeSeed($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) { catalog { id } userErrors { field message code } }
+        }
+        "#,
+        json!({"input": {"title": "Second EU Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": ["gid://shopify/Market/1"]}}}),
+    ));
+    let second_catalog_id = second_catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let first_price_list = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "First Catalog PL", "currency": "DKK", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalogId": first_catalog_id}}),
+    ));
+    let first_price_list_id = first_price_list.body["data"]["priceListCreate"]["priceList"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second_price_list = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Second Catalog PL", "currency": "DKK", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalogId": second_catalog_id}}),
+    ));
+    assert_eq!(second_price_list.status, 200);
+
+    let taken_create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Third Catalog PL", "currency": "DKK", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}, "catalogId": first_catalog_id}}),
+    ));
+    assert_eq!(
+        taken_create.body["data"]["priceListCreate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog has a price list already assigned.", "code": "CATALOG_TAKEN"}]})
+    );
+
+    let missing_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": first_price_list_id, "input": {"catalogId": missing_catalog_id}}),
+    ));
+    assert_eq!(
+        missing_update.body["data"]["priceListUpdate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog does not exist.", "code": "CATALOG_DOES_NOT_EXIST"}]})
+    );
+
+    let taken_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({"id": first_price_list_id, "input": {"catalogId": second_catalog_id}}),
+    ));
+    assert_eq!(
+        taken_update.body["data"]["priceListUpdate"],
+        json!({"priceList": null, "userErrors": [{"__typename": "PriceListUserError", "field": ["input", "catalogId"], "message": "Catalog has a price list already assigned.", "code": "CATALOG_TAKEN"}]})
+    );
+
+    let read_after_failed_updates = proxy.process_request(json_graphql_request(
+        r#"
+        query RustPriceListLocalRuntimeRead($priceListId: ID!, $catalogId: ID!) {
+          priceList(id: $priceListId) { id catalog { id } }
+          catalog(id: $catalogId) { id priceList { id } }
+        }
+        "#,
+        json!({"priceListId": first_price_list_id, "catalogId": first_catalog_id}),
+    ));
+    assert_eq!(
+        read_after_failed_updates.body["data"]["priceList"]["catalog"],
+        json!({"id": first_catalog_id})
+    );
+    assert_eq!(
+        read_after_failed_updates.body["data"]["catalog"]["priceList"]["id"],
+        json!(first_price_list_id)
+    );
+}
+
+#[test]
 fn market_localizations_register_remove_ported_gleam_helpers_stage_and_validate() {
     // Ports old Gleam proxy tests:
     // - market_localizations_register_rejects_more_than_100_keys_test

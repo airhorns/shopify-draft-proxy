@@ -1435,8 +1435,17 @@ impl DraftProxy {
             );
         }
 
-        let id = self.next_price_list_id();
         let catalog_id = resolved_string_field(&input, "catalogId");
+        if let Some(catalog_id) = catalog_id.as_deref() {
+            if let Some(error) = self.price_list_catalog_validation_error(catalog_id, None) {
+                return selected_json(
+                    &json!({"priceList": null, "userErrors": [error]}),
+                    &field.selection,
+                );
+            }
+        }
+
+        let id = self.next_price_list_id();
         let price_list = price_list_record(
             &id,
             &name,
@@ -1526,6 +1535,18 @@ impl DraftProxy {
                     &json!({"priceList": existing.clone(), "userErrors": [price_list_user_error(vec!["input", "parent", "adjustment", "value"], PRICE_LIST_INVALID_ADJUSTMENT_MESSAGE, "INVALID_ADJUSTMENT_VALUE")]}),
                     &field.selection,
                 );
+            }
+        }
+        if input.get("catalogId") != Some(&ResolvedValue::Null) {
+            if let Some(catalog_id) = resolved_string_field(&input, "catalogId") {
+                if let Some(error) =
+                    self.price_list_catalog_validation_error(&catalog_id, Some(&id))
+                {
+                    return selected_json(
+                        &json!({"priceList": null, "userErrors": [error]}),
+                        &field.selection,
+                    );
+                }
             }
         }
 
@@ -2202,6 +2223,34 @@ impl DraftProxy {
                 set_price_list_catalog_relation(price_list, None);
             }
         }
+    }
+
+    pub(in crate::proxy) fn price_list_catalog_validation_error(
+        &self,
+        catalog_id: &str,
+        current_price_list_id: Option<&str>,
+    ) -> Option<Value> {
+        let Some(catalog) = self.store.staged.catalogs.get(catalog_id) else {
+            return Some(price_list_user_error(
+                vec!["input", "catalogId"],
+                "Catalog does not exist.",
+                "CATALOG_DOES_NOT_EXIST",
+            ));
+        };
+        let price_list_id = catalog_relation_id(catalog, "priceListId", "priceList")?;
+        if current_price_list_id == Some(price_list_id.as_str()) {
+            return None;
+        }
+        if self.catalog_relation_price_list_exists(&price_list_id)
+            && self.catalog_price_list_taken(&price_list_id, None)
+        {
+            return Some(price_list_user_error(
+                vec!["input", "catalogId"],
+                "Catalog has a price list already assigned.",
+                "CATALOG_TAKEN",
+            ));
+        }
+        None
     }
 
     pub(in crate::proxy) fn catalog_relation_price_list_exists(&self, price_list_id: &str) -> bool {

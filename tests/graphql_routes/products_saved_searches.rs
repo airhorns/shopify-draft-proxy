@@ -4158,11 +4158,58 @@ fn saved_search_query_validation_paths_sorting_deduping_and_allowlists_match_cor
                 "id": update_id,
                 "name": "Update Unknown Seed",
                 "query": "zzz_filter:1 aaa_filter:2 aaa_filter:3",
-            "resourceType": "PRODUCT"
+                "resourceType": "PRODUCT"
             },
             "userErrors": [
                 { "field": ["input", "query"], "message": "Query is invalid, 'aaa_filter' is not a valid filter" },
                 { "field": ["input", "query"], "message": "Query is invalid, 'zzz_filter' is not a valid filter" }
+            ]
+        })
+    );
+
+    let incompatible_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchIncompatibleFilterUpdate($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": update_id, "query": "collection_id:\"123\" tag:\"AAA\"" } }),
+    ));
+    assert_eq!(
+        incompatible_update.body["data"]["savedSearchUpdate"],
+        json!({
+            "savedSearch": {
+                "id": update_id,
+                "name": "Update Unknown Seed",
+                "query": "collection_id:\"123\" tag:\"AAA\"",
+                "resourceType": "PRODUCT"
+            },
+            "userErrors": [
+                { "field": ["input", "query"], "message": "Query has incompatible filters: collection_id, tag" }
+            ]
+        })
+    );
+
+    let order_reserved_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchOrderReservedUpdate($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) { savedSearch { id name query resourceType } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/SavedSearch/3634391515442", "query": "reference_location_id:42 made_up_filter:foo" } }),
+    ));
+    assert_eq!(
+        order_reserved_update.body["data"]["savedSearchUpdate"],
+        json!({
+            "savedSearch": {
+                "id": "gid://shopify/SavedSearch/3634391515442",
+                "name": "Unfulfilled",
+                "query": "reference_location_id:42 made_up_filter:foo",
+                "resourceType": "ORDER"
+            },
+            "userErrors": [
+                { "field": ["input", "searchTerms"], "message": "Search terms is invalid, 'reference_location_id' is a reserved filter name" },
+                { "field": ["input", "query"], "message": "Query is invalid, 'made_up_filter' is not a valid filter" }
             ]
         })
     );

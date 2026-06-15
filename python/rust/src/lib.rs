@@ -1,7 +1,7 @@
 #![allow(clippy::useless_conversion)]
 
 use std::collections::BTreeMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
@@ -10,7 +10,9 @@ use serde_json::{json, Map, Value};
 use shopify_draft_proxy::proxy::{
     Config, DraftProxy as RustDraftProxy, ReadMode, Request, Response, UnsupportedMutationMode,
 };
-use shopify_draft_proxy::upstream::HttpUpstreamClient;
+use shopify_draft_proxy::upstream::{
+    parse_upstream_body, prepare_upstream_request, upstream_error_response,
+};
 
 const DEFAULT_API_VERSION: &str = "2025-01";
 const STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
@@ -20,17 +22,85 @@ struct PyDraftProxy {
     inner: Mutex<RustDraftProxy>,
 }
 
+/// Bridges the Rust commit/upstream transport seam into a host-language (Python)
+/// callable. The actual HTTP request runs in Python — typically `urllib` in the
+/// default transport — so Python releases the GIL during socket IO and
+/// Python-level instrumentation (OpenTelemetry, responses, requests-mock, ...)
+/// observes the request. Embedders can supply their own callable.
+#[derive(Clone)]
+struct PyTransport {
+    origin: String,
+    callable: Arc<Py<PyAny>>,
+}
+
+impl PyTransport {
+    fn call(&self, request: Request) -> Response {
+        Python::with_gil(|py| match self.invoke(py, request) {
+            Ok(response) => response,
+            Err(error) => upstream_error_response(&error.to_string()),
+        })
+    }
+
+    fn invoke(&self, py: Python<'_>, request: Request) -> PyResult<Response> {
+        let prepared = prepare_upstream_request(&self.origin, request)
+            .map_err(|error| PyRuntimeError::new_err(error.to_string()))?;
+        let dict = PyDict::new_bound(py);
+        dict.set_item("method", &prepared.method)?;
+        dict.set_item("url", &prepared.url)?;
+        let headers = PyDict::new_bound(py);
+        for (name, value) in &prepared.headers {
+            headers.set_item(name, value)?;
+        }
+        dict.set_item("headers", headers)?;
+        dict.set_item("body", &prepared.body)?;
+
+        let result = self.callable.bind(py).call1((dict,))?;
+        response_from_py(&result)
+    }
+}
+
+fn response_from_py(value: &Bound<'_, PyAny>) -> PyResult<Response> {
+    let status: u16 = value
+        .get_item("status")
+        .map_err(|_| PyRuntimeError::new_err("transport response is missing 'status'"))?
+        .extract()?;
+    let headers = match value.get_item("headers") {
+        Ok(headers) if !headers.is_none() => {
+            let dict = headers
+                .downcast::<PyDict>()
+                .map_err(|_| PyRuntimeError::new_err("transport 'headers' must be a dict"))?;
+            py_headers_to_map(Some(dict))?
+        }
+        _ => BTreeMap::new(),
+    };
+    let body = match value.get_item("body") {
+        Ok(body) if !body.is_none() => match body.extract::<String>() {
+            Ok(text) => parse_upstream_body(text),
+            Err(_) => py_to_json(&body)?,
+        },
+        _ => Value::Null,
+    };
+    Ok(Response {
+        status,
+        headers,
+        body,
+    })
+}
+
 #[pymethods]
 impl PyDraftProxy {
     #[new]
-    #[pyo3(signature = (read_mode = "snapshot", shopify_admin_origin = "https://shopify.com", port = 4000, snapshot_path = None, unsupported_mutation_mode = "passthrough", state = None))]
+    #[pyo3(signature = (read_mode = "snapshot", shopify_admin_origin = "https://shopify.com", port = 4000, snapshot_path = None, unsupported_mutation_mode = "passthrough", state = None, transport = None))]
+    #[allow(clippy::too_many_arguments)]
     fn new(
+        py: Python<'_>,
         read_mode: &str,
         shopify_admin_origin: &str,
         port: u16,
         snapshot_path: Option<String>,
         unsupported_mutation_mode: &str,
         state: Option<&Bound<'_, PyAny>>,
+        transport: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         let config = Config {
             read_mode: parse_read_mode(read_mode)?,
@@ -42,11 +112,15 @@ impl PyDraftProxy {
             shopify_admin_origin: shopify_admin_origin.to_string(),
             snapshot_path,
         };
-        let upstream_client = HttpUpstreamClient::new(config.shopify_admin_origin.clone());
-        let commit_client = upstream_client.clone();
+        let callable = resolve_transport(py, transport)?;
+        let transport = PyTransport {
+            origin: config.shopify_admin_origin.clone(),
+            callable: Arc::new(callable),
+        };
+        let commit_transport = transport.clone();
         let mut proxy = RustDraftProxy::new(config)
-            .with_upstream_transport(move |request| upstream_client.send(request))
-            .with_commit_transport(move |request| commit_client.send(request));
+            .with_upstream_transport(move |request| transport.call(request))
+            .with_commit_transport(move |request| commit_transport.call(request));
         if let Some(state) = state {
             restore_native_state(&mut proxy, state)?;
         }
@@ -200,7 +274,10 @@ impl PyDraftProxy {
 
 #[pyfunction]
 #[pyo3(signature = (**kwargs))]
-fn create_draft_proxy(kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<PyDraftProxy> {
+fn create_draft_proxy(
+    py: Python<'_>,
+    kwargs: Option<&Bound<'_, PyDict>>,
+) -> PyResult<PyDraftProxy> {
     let read_mode = optional_string(kwargs, "read_mode")?.unwrap_or_else(|| "snapshot".to_string());
     let shopify_admin_origin = optional_string(kwargs, "shopify_admin_origin")?
         .unwrap_or_else(|| "https://shopify.com".to_string());
@@ -211,14 +288,19 @@ fn create_draft_proxy(kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<PyDraftPro
     let state = kwargs
         .and_then(|dict| dict.get_item("state").transpose())
         .transpose()?;
+    let transport = kwargs
+        .and_then(|dict| dict.get_item("transport").transpose())
+        .transpose()?;
 
     PyDraftProxy::new(
+        py,
         &read_mode,
         &shopify_admin_origin,
         port,
         snapshot_path,
         &unsupported_mutation_mode,
         state.as_ref(),
+        transport.as_ref(),
     )
 }
 
@@ -245,6 +327,23 @@ fn restore_native_state(proxy: &mut RustDraftProxy, state: &Bound<'_, PyAny>) ->
         )));
     }
     Ok(())
+}
+
+/// Resolve the transport callable to install. When the embedder passes one we
+/// use it verbatim; otherwise we fall back to the stdlib `urllib` transport
+/// exported from the Python package.
+fn resolve_transport(py: Python<'_>, transport: Option<&Bound<'_, PyAny>>) -> PyResult<Py<PyAny>> {
+    match transport {
+        Some(callable) if !callable.is_none() => Ok(callable.clone().unbind()),
+        _ => default_transport(py),
+    }
+}
+
+fn default_transport(py: Python<'_>) -> PyResult<Py<PyAny>> {
+    Ok(py
+        .import_bound("shopify_draft_proxy")?
+        .getattr("default_http_transport")?
+        .unbind())
 }
 
 fn parse_read_mode(value: &str) -> PyResult<ReadMode> {
