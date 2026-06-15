@@ -1,6 +1,9 @@
 use super::*;
 
 impl DraftProxy {
+    const CUSTOMER_COUNT_HYDRATE_QUERY: &'static str =
+        "query CustomerCountHydrate { customersCount { count precision } }";
+
     pub(in crate::proxy) fn b2b_tax_settings_tail_helper_response(
         &mut self,
         request: &Request,
@@ -860,10 +863,7 @@ impl DraftProxy {
                 "customer" => Some(self.customer_read_field(field)),
                 "customerByIdentifier" => Some(self.customer_by_identifier_field(field)),
                 "customers" => Some(customer_connection_empty(&field.selection)),
-                "customersCount" => Some(selected_json(
-                    &json!({ "count": 177, "precision": "EXACT" }),
-                    &field.selection,
-                )),
+                "customersCount" => Some(self.customers_count_field(field)),
                 _ => None,
             };
             if let Some(value) = value {
@@ -871,6 +871,43 @@ impl DraftProxy {
             }
         }
         Value::Object(data)
+    }
+
+    fn customers_count_field(&self, field: &RootFieldSelection) -> Value {
+        let count = self
+            .store
+            .staged
+            .customers_count
+            .as_ref()
+            .cloned()
+            .unwrap_or_else(|| json!({ "count": 177, "precision": "EXACT" }));
+        selected_json(&count, &field.selection)
+    }
+
+    pub(in crate::proxy) fn hydrate_customers_count_for_overlay_read(&mut self, request: &Request) {
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || self.store.staged.customers_count.is_some()
+        {
+            return;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": Self::CUSTOMER_COUNT_HYDRATE_QUERY,
+                "operationName": "CustomerCountHydrate",
+                "variables": {},
+            })
+            .to_string(),
+        });
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        let count = response.body["data"]["customersCount"].clone();
+        if !count.is_null() {
+            self.store.staged.customers_count = Some(count);
+        }
     }
 
     pub(in crate::proxy) fn customer_read_field(&self, field: &RootFieldSelection) -> Value {
@@ -942,6 +979,93 @@ impl DraftProxy {
         customer
             .map(|customer| selected_json(customer, &field.selection))
             .unwrap_or(Value::Null)
+    }
+
+    pub(in crate::proxy) fn customer_tax_exemptions_mutation_response(
+        &mut self,
+        fields: &[RootFieldSelection],
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let (payload, staged_id) = self.customer_tax_exemptions_payload(field, request);
+            if let Some(id) = staged_id {
+                self.record_mutation_log_entry(request, query, variables, &field.name, vec![id]);
+            }
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&payload, &field.selection),
+            );
+        }
+        ok_json(json!({ "data": Value::Object(data) }))
+    }
+
+    fn customer_tax_exemptions_payload(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> (Value, Option<String>) {
+        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        if customer_id.is_empty()
+            || self
+                .store
+                .staged
+                .deleted_customer_ids
+                .contains(&customer_id)
+        {
+            return (
+                customer_tax_exemptions_payload(
+                    Value::Null,
+                    vec![customer_tax_exemptions_user_error()],
+                ),
+                None,
+            );
+        }
+        if !self.store.staged.customers.contains_key(&customer_id) {
+            self.taggable_resource_staged_or_hydrated("Customer", &customer_id, request);
+        }
+        if !self.store.staged.customers.contains_key(&customer_id) {
+            return (
+                customer_tax_exemptions_payload(
+                    Value::Null,
+                    vec![customer_tax_exemptions_user_error()],
+                ),
+                None,
+            );
+        }
+
+        let tax_exemptions = normalize_customer_tax_exemptions(
+            resolved_string_list_field_unsorted(&field.arguments, "taxExemptions"),
+        );
+        let mut customer = self
+            .store
+            .staged
+            .customers
+            .get(&customer_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        let existing = customer_tax_exemptions(&customer);
+        let next = match field.name.as_str() {
+            "customerAddTaxExemptions" => add_customer_tax_exemptions(existing, tax_exemptions),
+            "customerRemoveTaxExemptions" => {
+                remove_customer_tax_exemptions(existing, tax_exemptions)
+            }
+            "customerReplaceTaxExemptions" => tax_exemptions,
+            _ => existing,
+        };
+        customer["taxExemptions"] = json!(next);
+        customer["updatedAt"] = json!("2026-04-25T01:41:06Z");
+        self.store
+            .staged
+            .customers
+            .insert(customer_id.clone(), customer.clone());
+
+        (
+            customer_tax_exemptions_payload(customer, Vec::new()),
+            Some(customer_id),
+        )
     }
 
     pub(in crate::proxy) fn customer_create(
@@ -1290,4 +1414,62 @@ fn customer_update_inline_consent_error(field: &str, mutation: &str) -> Value {
         "field": [field],
         "message": format!("To update {field}, please use the {mutation} Mutation instead")
     })
+}
+
+fn customer_tax_exemptions_payload(customer: Value, user_errors: Vec<Value>) -> Value {
+    json!({
+        "customer": customer,
+        "userErrors": user_errors
+    })
+}
+
+fn customer_tax_exemptions_user_error() -> Value {
+    json!({
+        "field": ["customerId"],
+        "message": "Customer does not exist."
+    })
+}
+
+fn customer_tax_exemptions(customer: &Value) -> Vec<String> {
+    customer
+        .get("taxExemptions")
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn normalize_customer_tax_exemptions(exemptions: Vec<String>) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut normalized = Vec::new();
+    for exemption in exemptions {
+        if seen.insert(exemption.clone()) {
+            normalized.push(exemption);
+        }
+    }
+    normalized
+}
+
+fn add_customer_tax_exemptions(existing: Vec<String>, additions: Vec<String>) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut merged = Vec::new();
+    for exemption in existing.into_iter().chain(additions) {
+        if seen.insert(exemption.clone()) {
+            merged.push(exemption);
+        }
+    }
+    merged
+}
+
+fn remove_customer_tax_exemptions(existing: Vec<String>, removals: Vec<String>) -> Vec<String> {
+    let removals = removals.into_iter().collect::<BTreeSet<_>>();
+    existing
+        .into_iter()
+        .filter(|exemption| !removals.contains(exemption))
+        .collect()
 }
