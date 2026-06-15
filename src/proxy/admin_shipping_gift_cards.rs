@@ -3270,6 +3270,21 @@ impl DraftProxy {
                 "CARRIER_SERVICE_UPDATE_FAILED",
             );
         };
+        if matches!(
+            resolved_string_field(&input, "name").as_deref(),
+            Some(name) if name.trim().is_empty()
+        ) {
+            return carrier_service_payload_json(
+                Value::Null,
+                &field.selection,
+                &carrier_selection,
+                vec![carrier_service_user_error(
+                    Value::Null,
+                    "Shipping rate provider name can't be blank",
+                    "CARRIER_SERVICE_UPDATE_FAILED",
+                )],
+            );
+        }
         let existing_callback_url = existing
             .get("callbackUrl")
             .and_then(Value::as_str)

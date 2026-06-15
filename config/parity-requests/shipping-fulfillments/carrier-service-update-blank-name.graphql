@@ -1,0 +1,14 @@
+mutation CarrierServiceUpdateBlankName($input: DeliveryCarrierServiceUpdateInput!) {
+  carrierServiceUpdate(input: $input) {
+    carrierService {
+      id
+      name
+      callbackUrl
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
