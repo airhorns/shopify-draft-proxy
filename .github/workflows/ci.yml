@@ -25,6 +25,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Cache Rust build and cargo registry
+        uses: Swatinem/rust-cache@v2
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -138,6 +141,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # The native extension is built by `rake smoke`; cache its cargo registry
+      # and the target/ruby-native build dir the Rakefile compiles into.
+      - name: Cache Rust build and cargo registry
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: . -> target/ruby-native
+
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
@@ -148,3 +158,61 @@ jobs:
       - name: Ruby Minitest smoke
         working-directory: ruby
         run: bundle exec rake smoke
+
+      # The catalog-importer example consumes the gem the way a real embedder
+      # would (official shopify_api client → intercepted HTTP → in-process
+      # proxy). `rake smoke` above already built the native extension into
+      # ruby/lib, which the example loads via its path-gem dependency.
+      - name: Cache catalog importer example gems
+        uses: actions/cache@v4
+        with:
+          path: examples/catalog-importer/vendor/bundle
+          key: ${{ runner.os }}-rb-${{ env.RUBY_VERSION }}-example-${{ hashFiles('examples/catalog-importer/Gemfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-rb-${{ env.RUBY_VERSION }}-example-
+
+      - name: Install catalog importer example dependencies
+        working-directory: examples/catalog-importer
+        run: |
+          bundle config set --local path vendor/bundle
+          bundle install --jobs 4
+
+      - name: Catalog importer example end-to-end tests
+        working-directory: examples/catalog-importer
+        run: bundle exec rake test
+
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+    env:
+      PYTHON_VERSION: '3.11'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # `uv run` builds the maturin/PyO3 extension via cargo; cache the registry
+      # and build artifacts (the crate compiles into python/target).
+      - name: Cache Rust build and cargo registry
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: python
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            python/uv.lock
+            python/pyproject.toml
+
+      # `uv run` builds the maturin/PyO3 extension from the in-repo Rust crate
+      # (Rust is preinstalled on the runner) and runs the binding test suite:
+      # the host-language transport smoke tests plus the existing round-trips.
+      - name: Python tests
+        run: uv run --project python --extra test pytest

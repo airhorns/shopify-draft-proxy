@@ -1,0 +1,4 @@
+# Bundler's local config can contain machine-specific build flags (e.g. the
+# macOS OpenSSL path needed to compile the openssl gem). Never commit it.
+/.bundle/
+/vendor/bundle/

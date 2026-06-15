@@ -1,0 +1,68 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# A runnable demonstration of the catalog importer driving the official Shopify
+# GraphQL client against an in-process draft proxy. Run it with:
+#
+#   bundle exec ruby bin/import
+#
+# No real Shopify store is touched: the client's HTTP calls are intercepted and
+# served by the proxy, and the staged mutations are printed at the end.
+
+require "logger"
+require "json"
+require "shopify_api"
+require "webmock"
+require "shopify_draft_proxy"
+
+require_relative "../lib/catalog_importer"
+
+SHOP = "catalog-importer-demo.myshopify.com"
+API_VERSION = "2025-01"
+
+# 1. An in-process draft proxy stands in for the real Admin API.
+proxy = ShopifyDraftProxy.create(read_mode: "snapshot", shopify_admin_origin: "https://shopify.example")
+
+# 2. Route the official client's real HTTP requests into the proxy.
+WebMock.enable!
+WebMock.disable_net_connect!
+WebMock.stub_request(:post, %r{\Ahttps://#{Regexp.escape(SHOP)}/admin/api/[^/]+/graphql\.json\z}).to_return do |request|
+  response = proxy.process_request(
+    method: "POST",
+    path: request.uri.path,
+    headers: request.headers,
+    body: request.body,
+  )
+  { status: response.status, headers: { "Content-Type" => "application/json" }, body: JSON.generate(response.body) }
+end
+
+# 3. Configure the client exactly as a real private app would.
+ShopifyAPI::Context.setup(
+  api_key: "draft-proxy-example-key",
+  api_secret_key: "draft-proxy-example-secret",
+  api_version: API_VERSION,
+  host_name: "localhost",
+  scope: ["read_products", "write_products"],
+  is_embedded: false,
+  is_private: true,
+  logger: Logger.new(IO::NULL),
+)
+session = ShopifyAPI::Auth::Session.new(shop: SHOP, access_token: "shpat_draft_proxy_example")
+client = ShopifyAPI::Clients::Graphql::Admin.new(session: session)
+
+# 4. Run the importer against the sample catalog.
+catalog = JSON.parse(File.read(File.expand_path("../data/catalog.json", __dir__)))
+importer = CatalogImporter.new(client: client, logger: Logger.new($stdout))
+imported = importer.import(catalog)
+
+puts "\nImported #{imported.length} products:"
+imported.each { |p| puts "  - #{p.title} (#{p.id})" }
+
+puts "\nRead-after-write — products by vendor Northwind:"
+importer.search("vendor:Northwind").each { |p| puts "  - #{p["title"]} [#{p["status"]}] tags=#{p["tags"].inspect}" }
+
+puts "\nStaged mutation log (nothing has touched the real store):"
+proxy.get_log.fetch("entries").each do |entry|
+  operation = entry.dig("interpreted", "primaryRootField") || "(unknown)"
+  puts "  - #{operation} -> #{entry["status"]}"
+end

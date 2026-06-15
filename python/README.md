@@ -44,6 +44,43 @@ Each `DraftProxy` owns an independent native Rust `DraftProxy` instance. Multipl
 objects in one Python process do not share staged state, mutation logs, or
 synthetic ID counters.
 
+## Transports (outbound HTTP)
+
+The proxy's _outbound_ HTTP — the `commit` replay and any live-hybrid
+passthrough reads — runs in Python, not Rust. The Rust core hands a Python
+**transport** callable a request `dict` and expects a response `dict` back:
+
+```python
+# request  -> {"method", "url", "headers", "body"}
+# response <- {"status", "headers", "body"}
+```
+
+Doing the IO in Python means the GIL is released during the socket wait (so
+other threads keep running) and Python-level instrumentation — OpenTelemetry,
+`responses`, `requests-mock` — observes the request like any other `urllib`
+call.
+
+The default transport (`shopify_draft_proxy.default_http_transport`) is a plain
+`urllib` round-trip. Supply your own to add tracing, retries, or a pooled
+connection:
+
+```python
+from shopify_draft_proxy import create_draft_proxy, default_http_transport
+
+def traced(request):
+    with tracer.start_as_current_span("shopify.commit") as span:
+        span.set_attribute("http.url", request["url"])
+        return default_http_transport(request)
+
+proxy = create_draft_proxy(
+    shopify_admin_origin="https://example.myshopify.com",
+    transport=traced,
+)
+```
+
+A transport is any callable taking the request `dict`. When omitted, the default
+`urllib` transport is installed.
+
 ## Dump and restore
 
 The Python API uses the Rust runtime's existing state dump schema:
@@ -63,7 +100,10 @@ Restore accepts the same dictionary shape returned by `dump_state`.
 
 - `create_draft_proxy(**kwargs)` creates a `DraftProxy`.
 - `DraftProxy(...)` accepts `read_mode`, `shopify_admin_origin`, `port`,
-  `snapshot_path`, `unsupported_mutation_mode`, and optional `state`.
+  `snapshot_path`, `unsupported_mutation_mode`, optional `state`, and an
+  optional `transport` callable (see [Transports](#transports-outbound-http)).
+- `default_http_transport(request)` is the stdlib `urllib` transport used when
+  no `transport` is supplied; call it directly to delegate from a wrapper.
 - `process_request(method, path, body=None, headers=None)` returns
   `{ "status": int, "body": object, "headers": dict? }`.
 - `process_graphql_request(body, api_version="2025-01", path=None, headers=None)`

@@ -26,6 +26,42 @@ puts graphql.body
 proxy.dispose
 ```
 
+## Transports (outbound HTTP)
+
+The proxy's _outbound_ HTTP — the `commit` replay and any live-hybrid
+passthrough reads — runs in Ruby, not Rust. The Rust core hands a Ruby
+**transport** callable a request hash and expects a response hash back:
+
+```ruby
+# request  → { "method", "url", "headers", "body" }
+# response ← { "status", "headers", "body" }
+```
+
+Doing the IO in Ruby means the GVL is released during the socket wait (so other
+threads keep running) and Ruby-level instrumentation — OpenTelemetry, WebMock,
+VCR — observes the request like any other `Net::HTTP` call.
+
+The default transport (`ShopifyDraftProxy::Transports::DEFAULT`) is a plain
+`Net::HTTP` round-trip. Supply your own to add tracing, retries, or a pooled
+connection:
+
+```ruby
+traced = lambda do |request|
+  span = tracer.start_span("shopify.commit", attributes: { "http.url" => request["url"] })
+  ShopifyDraftProxy::Transports::DEFAULT.call(request)
+ensure
+  span&.finish
+end
+
+proxy = ShopifyDraftProxy.create(
+  shopify_admin_origin: "https://example.myshopify.com",
+  transport: traced,
+)
+```
+
+A transport is anything responding to `#call`. When omitted, the default
+`Net::HTTP` transport is installed.
+
 ## Native Extension Build
 
 The native extension lives in `native/` and compiles to:

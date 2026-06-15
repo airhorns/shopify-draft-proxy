@@ -2,27 +2,128 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 
 use magnus::{
-    function, method, prelude::*, r_hash::ForEach, wrap, Error, RArray, RHash, RModule, RString,
-    Ruby, Value,
+    function, method, prelude::*, r_hash::ForEach, value::Opaque, wrap, Error, RArray, RHash,
+    RModule, RString, Ruby, Value,
 };
 use serde_json::{json, Map, Number};
 use shopify_draft_proxy::proxy::{
-    Config, DraftProxy, ReadMode, Request, UnsupportedMutationMode,
+    Config, DraftProxy, ReadMode, Request, Response, UnsupportedMutationMode,
     DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES,
 };
-use shopify_draft_proxy::upstream::HttpUpstreamClient;
+use shopify_draft_proxy::upstream::{
+    parse_upstream_body, prepare_upstream_request, upstream_error_response,
+};
 
 #[wrap(class = "ShopifyDraftProxy::DraftProxy")]
 struct NativeDraftProxy(RefCell<DraftProxy>);
 
+/// Bridges the Rust commit/upstream transport seam back into a host-language
+/// (Ruby) callable. The actual HTTP request is performed in Ruby — typically by
+/// `Net::HTTP` in the default transport — which means Ruby releases the GVL
+/// during socket IO and Ruby-level instrumentation (tracing, mocking) sees the
+/// request. The embedding app can supply its own callable instead.
+///
+/// `Opaque<Value>` makes the callable `Send + Sync` so it satisfies the
+/// transport bound; it is only ever dereferenced via `Ruby::get()` on the
+/// GVL-holding thread that drives the proxy, and it is GC-pinned for the
+/// process lifetime when the proxy is constructed.
+#[derive(Clone)]
+struct RubyTransport {
+    origin: String,
+    callable: Opaque<Value>,
+}
+
+impl RubyTransport {
+    fn call(&self, request: Request) -> Response {
+        match self.invoke(request) {
+            Ok(response) => response,
+            Err(message) => upstream_error_response(&message),
+        }
+    }
+
+    fn invoke(&self, request: Request) -> Result<Response, String> {
+        let prepared =
+            prepare_upstream_request(&self.origin, request).map_err(|error| error.to_string())?;
+        let ruby = Ruby::get().map_err(|_| "transport invoked without the GVL".to_string())?;
+        let callable = ruby.get_inner(self.callable);
+
+        let request_hash = ruby.hash_new();
+        let assign = |key: &str, value: Value| -> Result<(), String> {
+            request_hash
+                .aset(key, value)
+                .map_err(|error| error.to_string())
+        };
+        assign("method", ruby.str_new(&prepared.method).as_value())?;
+        assign("url", ruby.str_new(&prepared.url).as_value())?;
+        let headers = ruby.hash_new();
+        for (name, value) in &prepared.headers {
+            headers
+                .aset(name.as_str(), value.as_str())
+                .map_err(|error| error.to_string())?;
+        }
+        assign("headers", headers.as_value())?;
+        assign("body", ruby.str_new(&prepared.body).as_value())?;
+
+        let result: Value = callable
+            .funcall("call", (request_hash,))
+            .map_err(|error| error.to_string())?;
+        response_from_ruby(result)
+    }
+}
+
+fn response_from_ruby(value: Value) -> Result<Response, String> {
+    let hash = RHash::from_value(value)
+        .ok_or_else(|| "transport must return a Hash with :status and :body".to_string())?;
+    let status = ruby_hash_get(hash, "status")
+        .map_err(|error| error.to_string())?
+        .and_then(value_to_optional_u64)
+        .ok_or_else(|| "transport response is missing an integer :status".to_string())?
+        as u16;
+    let headers = ruby_hash_get(hash, "headers")
+        .map_err(|error| error.to_string())?
+        .map(headers_from_value)
+        .transpose()
+        .map_err(|error| error.to_string())?
+        .unwrap_or_default();
+    let body = match ruby_hash_get(hash, "body").map_err(|error| error.to_string())? {
+        None => serde_json::Value::Null,
+        Some(value) => match RString::from_value(value) {
+            Some(string) => parse_upstream_body(string.to_string().map_err(|e| e.to_string())?),
+            None => ruby_to_json(value).map_err(|error| error.to_string())?,
+        },
+    };
+    Ok(Response {
+        status,
+        headers,
+        body,
+    })
+}
+
 impl NativeDraftProxy {
     fn new(options: RHash) -> Result<Self, Error> {
+        let ruby = Ruby::get().expect("Ruby should be available on extension thread");
         let config = config_from_options(options)?;
-        let upstream_client = HttpUpstreamClient::new(config.shopify_admin_origin.clone());
-        let commit_client = upstream_client.clone();
+        let origin = config.shopify_admin_origin.clone();
+
+        let callable = ruby_hash_get(options, "transport")?.filter(|value| !value.is_nil());
+        let callable = callable.ok_or_else(|| {
+            Error::new(
+                ruby.exception_arg_error(),
+                "ShopifyDraftProxy requires a `transport` callable (responding to #call)",
+            )
+        })?;
+        // Pin the callable so the transport closure can resurrect it across GC
+        // cycles; the closure only stores a Send+Sync Opaque handle to it.
+        magnus::gc::register_mark_object(callable);
+
+        let transport = RubyTransport {
+            origin,
+            callable: Opaque::from(callable),
+        };
+        let commit_transport = transport.clone();
         let proxy = DraftProxy::new(config)
-            .with_upstream_transport(move |request| upstream_client.send(request))
-            .with_commit_transport(move |request| commit_client.send(request));
+            .with_upstream_transport(move |request| transport.call(request))
+            .with_commit_transport(move |request| commit_transport.call(request));
         let native = Self(RefCell::new(proxy));
 
         if let Some(state) = ruby_hash_get(options, "state")? {
