@@ -2581,14 +2581,20 @@ impl DraftProxy {
         Value::Object(fields)
     }
 
-    fn effective_shipping_locations(&self) -> Vec<Value> {
-        let mut locations = Vec::new();
-        let mut seen = BTreeSet::new();
-        for id in &self.store.staged.observed_shipping_location_order {
-            if let Some(location) = self.location_for_read(id) {
-                seen.insert(id.clone());
-                locations.push(location);
+    pub(in crate::proxy) fn hydrate_shop_state_from_response_data(&mut self, data: &Value) {
+        if let Some(shop) = data.get("shop").filter(|shop| shop.is_object()) {
+            let (policies, order) = shop_policy_state_from_shop(shop);
+            if !policies.is_empty() {
+                self.store
+                    .replace_base_shop_policies_map_with_order(policies, order);
             }
+            self.store.base.shop = shop.clone();
+        }
+        if let Some(nodes) = data["publications"]["nodes"].as_array() {
+            self.store.base.publication_ids = nodes
+                .iter()
+                .filter_map(|node| node.get("id").and_then(Value::as_str).map(str::to_string))
+                .collect();
         }
         for id in &self.store.staged.location_order {
             if seen.contains(id) {

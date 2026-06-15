@@ -157,6 +157,8 @@ describe('Rust HTTP adapter route surface', () => {
             productVariantOrder: [],
             savedSearches: {},
             savedSearchOrder: [],
+            shopPolicies: {},
+            shopPolicyOrder: [],
             shop: {
               id: 'gid://shopify/Shop/92891250994',
               name: 'harry-test-heelo',
@@ -192,6 +194,9 @@ describe('Rust HTTP adapter route surface', () => {
             savedSearches: {},
             savedSearchOrder: [],
             deletedSavedSearchIds: [],
+            shopPolicies: {},
+            shopPolicyOrder: [],
+            deletedShopPolicyIds: [],
             shippingPackages: {},
             deletedShippingPackageIds: {},
             delegatedAccessTokens: {},

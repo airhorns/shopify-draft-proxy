@@ -3,6 +3,7 @@
   "operationNames": ["shopPolicyUpdate", "shop"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "runtimeTestFiles": ["tests/graphql_routes.rs"],
   "liveCaptureFiles": [
     "fixtures/conformance/very-big-test-store.myshopify.com/2026-04/store-properties/shop-policy-update-parity.json"
   ],

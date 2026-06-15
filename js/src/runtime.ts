@@ -107,31 +107,23 @@ function fetchJsonSync(origin: string, request: DraftProxyRequest, timeoutMs = 1
   // E2BIG failures when the body is large (e.g. dumpState/restoreState with
   // hundreds of staged variants).
   const script = `
-    const chunks = [];
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk) => chunks.push(chunk));
-    process.stdin.on('end', () => {
-      const request = JSON.parse(chunks.join(''));
-      const timeoutMs = Number(process.env.DRAFT_PROXY_FETCH_TIMEOUT_MS || 10000);
-      const signal = AbortSignal.timeout(timeoutMs);
-      fetch(process.env.DRAFT_PROXY_URL + request.path, {
-        method: request.method,
-        headers: request.headers,
-        body: request.body.length === 0 ? undefined : request.body,
-        signal,
-      }).then(async (response) => {
-        const text = await response.text();
-        let body = text;
-        if (text.length > 0) {
-          try { body = JSON.parse(text); } catch {}
-        }
-        console.log(JSON.stringify({ status: response.status, headers: Object.fromEntries(response.headers.entries()), body }));
-      }).catch((error) => {
-        console.error(error && error.stack ? error.stack : String(error));
-        process.exit(1);
-      });
-    });
-    process.stdin.on('error', (error) => {
+    const fs = require('node:fs');
+    const request = JSON.parse(fs.readFileSync(0, 'utf8'));
+    const timeoutMs = Number(process.env.DRAFT_PROXY_FETCH_TIMEOUT_MS || 10000);
+    const signal = AbortSignal.timeout(timeoutMs);
+    fetch(process.env.DRAFT_PROXY_URL + request.path, {
+      method: request.method,
+      headers: request.headers,
+      body: request.body.length === 0 ? undefined : request.body,
+      signal,
+    }).then(async (response) => {
+      const text = await response.text();
+      let body = text;
+      if (text.length > 0) {
+        try { body = JSON.parse(text); } catch {}
+      }
+      console.log(JSON.stringify({ status: response.status, headers: Object.fromEntries(response.headers.entries()), body }));
+    }).catch((error) => {
       console.error(error && error.stack ? error.stack : String(error));
       process.exit(1);
     });
@@ -145,17 +137,22 @@ function fetchJsonSync(origin: string, request: DraftProxyRequest, timeoutMs = 1
   const result = spawnSync(process.execPath, ['-e', script], {
     input,
     encoding: 'utf8',
-    input: requestJson,
-    maxBuffer: 64 * 1024 * 1024, // 64MB — large enough for dumpState/restoreState with many variants
+    input: JSON.stringify({
+      method: request.method,
+      path: request.path,
+      headers: normalizeHeaders(request.headers),
+      body: bodyToString(request.body),
+    }),
     env: {
       ...process.env,
       DRAFT_PROXY_URL: origin,
       DRAFT_PROXY_FETCH_TIMEOUT_MS: String(timeoutMs),
     },
-    timeout: 15_000,
+    maxBuffer: 128 * 1024 * 1024,
+    timeout: 10_000,
   });
   if (result.status !== 0) {
-    throw new Error(`Rust DraftProxy sync request failed: ${result.stderr || result.stdout}`);
+    throw new Error(`Rust DraftProxy sync request failed: ${result.error?.message || result.stderr || result.stdout}`);
   }
   return JSON.parse(result.stdout) as DraftProxyHttpResponse;
 }

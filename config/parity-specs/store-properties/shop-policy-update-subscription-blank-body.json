@@ -3,6 +3,7 @@
   "operationNames": ["shopPolicyUpdate", "shop"],
   "scenarioStatus": "captured",
   "assertionKinds": ["user-errors-parity", "downstream-read-parity"],
+  "runtimeTestFiles": ["tests/graphql_routes.rs"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/store-properties/shop-policy-update-subscription-blank-body.json"
   ],

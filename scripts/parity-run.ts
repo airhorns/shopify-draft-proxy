@@ -4,13 +4,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createDraftProxy, type DraftProxy } from '../js/src/index.js';
-import {
-  formatRecordedCallMismatch,
-  recordedCallMatchesBody,
-  stableJson,
-  type RecordedUpstreamCall,
-} from './parity-cassette.js';
+import { createDraftProxy, type DraftProxy, type DraftProxyStateDump } from '../js/src/index.js';
 
 type CliArgs = {
   all: boolean;
@@ -332,10 +326,14 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
       call.query ===
         'recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration';
     const canMatchSynthesizedNodeQuery = isSyntheticNodeCassette && /\bnode(?:s)?\s*\(/u.test(query);
+    const canMatchSynthesizedShopPolicyHydrate =
+      call.query === 'sha:hand-synthesized-StorePropertiesShopBaselineHydrate' &&
+      /\bshop\s*\{/u.test(query) &&
+      /\bshopPolicies\b/u.test(query);
     return (
       variablesMatch &&
       (canMatchSynthesizedNodeQuery ||
-        canMatchSynthesizedCustomerQuery ||
+        canMatchSynthesizedShopPolicyHydrate ||
         parsed['query'] === call.query ||
         (call.query === undefined && call.operationName === operationName && operationName.length > 0))
     );
@@ -577,6 +575,7 @@ async function runSpec(
   debug: boolean,
   proxy: DraftProxy,
   cassette: CassetteServer,
+  cleanState: DraftProxyStateDump,
 ): Promise<string[]> {
   const relativeSpecPath = path.relative(repoRoot, specPath);
   const spec = await readJsonFile<ParitySpec>(specPath);
@@ -585,6 +584,7 @@ async function runSpec(
   const capture = await readJsonFile<Record<string, unknown>>(path.resolve(repoRoot, capturePath));
   const upstreamCalls = (capture['upstreamCalls'] ?? []) as RecordedUpstreamCall[];
   cassette.setCalls(upstreamCalls);
+  proxy.restoreState(cleanState);
   await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
   const failures: string[] = [];
   let primaryResponse: ProxyResponse | null = null;
@@ -704,11 +704,12 @@ async function main(): Promise<void> {
     shopifyAdminOrigin: cassette.origin,
     port: 0,
   });
+  const cleanState = proxy.dumpState('1970-01-01T00:00:00.000Z');
 
   let failures = 0;
   try {
     for (const specPath of specPaths) {
-      const errors = await runSpec(specPath, args.debug, proxy, cassette);
+      const errors = await runSpec(specPath, args.debug, proxy, cassette, cleanState);
       if (errors.length > 0) {
         failures += 1;
         for (const error of errors) logError(`[parity] ${error}`);

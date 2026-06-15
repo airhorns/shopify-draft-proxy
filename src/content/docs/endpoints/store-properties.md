@@ -41,55 +41,67 @@ read-after-write effects described below and backed by executable evidence.
 
 ### Local behavior
 
-Shop reads return modeled metadata for selected shop fields, including shop
-policies, publication aggregates, primary domain, and Shopify-like empty or null
-fallbacks. `shopPolicyUpdate` stages policy body, title, URL, migrated HTML,
-blank subscription-policy validation, user-error payloads, downstream
-`shop.shopPolicies` reads, and generic `node(id:)` / `nodes(ids:)` policy
-dispatch.
+The Rust runtime has scenario-backed store-properties slices for ported parity
+requests and runtime tests. These slices are not general registry support for
+every store-property document.
 
-Location reads resolve staged and observed local locations through `location`,
-`locationByIdentifier(identifier: { id })`, and `locations(first:)`. Deleted
-locations are tombstoned so those reads return `null` or omit the node, and
-inventory-level projections also hide deleted locations.
+Shop reads have a local store-backed slice for selected shop metadata,
+including staged shop policies, publication aggregates, primary domain, and safe
+empty or null shapes. `shopPolicyUpdate` is dispatched by root field, stages
+policy body/title/URL/timestamps in the Rust store, preserves the original raw
+mutation for commit replay, and exposes read-after-write behavior through
+`shop.shopPolicies` plus generic `node(id:)` / `nodes(ids:)` policy dispatch.
+The local model uses Shopify's deprecated policy title map (`Privacy Policy`,
+`Refund Policy`, `Terms of Service`, `Shipping Policy`, `Subscription Policy`,
+`Contact Information`, `Legal Notice`, and `Terms of Sale`), derives URLs from
+the effective shop domain fallback, accepts bodies up to 524,287 bytes, returns
+`TOO_BIG` above that cap, rejects blank subscription-policy bodies with
+`field: ["shopPolicy", "body"]`, and returns top-level `INVALID_VARIABLE`
+errors for invalid policy enum values or missing/null required bodies.
 
-`locationAdd` stages synthetic Location records with deterministic timestamps,
-address data, Location-owned metafields, the captured `fulfillsOnlineOrders`
-default of `true`, blank/duplicate/too-long name userErrors, public schema-style
-address and country-code validation, and the captured 200-location create guard.
-Rejected adds do not append mutation-log entries.
+`locationAdd` now has a generic Rust staging path for public Admin GraphQL
+documents, not only fixture-named parity documents. It stages a synthetic
+Location ID, deterministic timestamps, address data, Location-owned metafields,
+the captured `fulfillsOnlineOrders` default of `true`, blank/duplicate/too-long
+name userErrors, public schema-style address/country-code validation, and the
+captured 200-location create guard. Rejected adds do not append mutation-log
+entries.
 
-`locationEdit` stages edits for generic public Admin GraphQL documents by root
-field. Successful edits update the local Location record, preserve the original
-raw mutation for commit replay, and are visible through downstream
-`location`, `locationByIdentifier`, `locations`, and inventory location
-projections. The modeled validation surface includes unknown ID, duplicate,
-blank, and too-long names; invalid address country codes; too-long city and ZIP
-values; unsupported metafield types; and the only-online-fulfillment guard.
+`locationActivate` now has a generic Rust staging path for public Admin GraphQL
+documents. Successful activations flip the local Location `isActive` state,
+stage the changed record, preserve the raw mutation for commit replay, and are
+visible through downstream location reads. Guard branches for location limit,
+ongoing relocation, and fulfillment-service managed scope return the captured
+field paths, codes, and messages without staging activation.
 
-`locationActivate` and `locationDeactivate` stage local state-machine changes
-and preserve successful raw mutations for commit replay. Activation guard
-branches cover location limit, ongoing relocation, and fulfillment-service
-managed scope. Deactivation with a destination relocates source-location
-inventory into the destination in the modeled slice, merges same-name quantity
-rows when needed, removes source levels from downstream inventory reads, and
-leaves guard/userError branches unstaged.
+Location reads and lifecycle mutations have local slices for detail reads,
+unknown-ID null behavior, `locationByIdentifier` selected cases,
+address/country/province derivation, create/edit validation, metafields on
+location add/edit, activate/deactivate state transitions, delete tombstones,
+idempotency directives, resource-limit validation, and selected lifecycle guard
+errors. Successful location mutation slices stage local state, preserve the raw
+GraphQL request for commit replay, and expose read-after-write behavior through
+`location`, `locationByIdentifier`, `locations`, inventory-level location
+projection, and meta state/log inspection when those surfaces are part of the
+checked-in scenario. Successful `locationDeactivate` calls with a
+`destinationLocationId` relocate source-location inventory levels into the
+destination in the modeled slice, merge same-name quantity rows when a
+destination level already exists, remove the source level from downstream
+inventory reads, and leave guard/userError branches without relocation.
+Captured guard slices include same-destination rejection, inactive-destination
+rejection, active-inventory relocation requirements, only-online-fulfillment
+protection, and permanent deactivation blocks with Shopify field paths and
+codes.
 
-`locationDelete` stages successful deletes by tombstoning the Location record,
-removing observed and fulfillment-service location overlays, and cascading
-dependent inventory levels and quantity timestamps. It returns
-`locationDeleteUserErrors` with the modeled Core code set, including
-`LOCATION_NOT_FOUND`, `LOCATION_IS_ACTIVE`, `LOCATION_HAS_INVENTORY`,
-`LOCATION_HAS_PENDING_ORDERS`, and `LOCATION_NOT_DELETABLE`. It does not return
-a synthetic `LOCATION_IS_PRIMARY` code. Successful deletes preserve the original
-raw mutation for commit replay.
-
-Generic publishable mutation slices cover Product and Collection publish and
-unpublish behavior where backed by parity specs. Product-scoped
-`PublicationInput` validation locally rejects duplicate publication IDs, blank
-or empty `publicationId`, unknown publication IDs, and pre-1970 `publishDate`
-values with captured Shopify field paths and messages. Current-channel helpers
-update modeled publication aggregates such as `shop.publicationCount`.
+Generic publishable mutation slices cover Product and Collection publish/unpublish
+behavior where backed by parity specs. Product-scoped `PublicationInput`
+validation locally rejects duplicate publication IDs, blank or empty
+`publicationId`, unknown publication IDs, and pre-1970 `publishDate` values with
+the captured Shopify field paths/messages. Product current-channel helpers
+update publication aggregates such as `shop.publicationCount` for the modeled
+publication catalog. Unsupported publishable target types return local
+userErrors in the documented scenarios instead of being treated as full support
+for every publishable object.
 
 Business entity reads have safe fixture-backed catalog and fallback behavior,
 including ordered `businessEntities`, primary `businessEntity` fallback,
