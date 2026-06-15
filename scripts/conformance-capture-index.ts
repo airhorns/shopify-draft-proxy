@@ -4073,6 +4073,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'marketing',
+    captureId: 'marketing-activity-create-external-read-after-write',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-marketing-activity-create-external-read-after-write-conformance.mts',
+    purpose:
+      'External marketing activity create/update read-after-write for activity adSpend and event scheduled end preservation when update omits those fields.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}marketing-activity-create-external-read-after-write.json`,
+      'config/parity-specs/marketing/marketing-activity-create-external-read-after-write.json',
+      'config/parity-requests/marketing/marketing-activity-create-external-read-after-write.graphql',
+      'config/parity-requests/marketing/marketing-activity-create-external-read-after-write-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable external marketing activity with adSpend, scheduledStart, scheduledEnd, and referringDomain, updates it while omitting those fields, captures readback, then deletes by remote ID and ID.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Admin GraphQL 2026-04 exposes the scheduled-end readback on nested MarketingEvent.scheduledToEndAt; MarketingActivity itself does not expose scheduled/referring-domain output fields on the current public schema.',
+  },
+  {
+    domain: 'marketing',
     captureId: 'marketing-activity-delete-external-guards',
     scriptPath: 'scripts/capture-marketing-activity-delete-external-guards-conformance.mts',
     purpose:

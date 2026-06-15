@@ -1986,11 +1986,6 @@ pub(in crate::proxy) fn marketing_activity_from_input(
         .as_ref()
         .and_then(|u| resolved_string_field(u, "medium"))
         .unwrap_or_else(|| old_utm["medium"].as_str().unwrap_or("email").to_string());
-    let source_medium = marketing_source_and_medium(
-        &channel_type,
-        &tactic,
-        resolved_string_field(&input, "referringDomain").as_deref(),
-    );
     let numeric = resource_id_path_tail(id);
     let event_id = old["marketingEvent"]["id"]
         .as_str()
@@ -2005,7 +2000,44 @@ pub(in crate::proxy) fn marketing_activity_from_input(
     let budget = resolved_object_field(&input, "budget")
         .map(marketing_budget_json)
         .unwrap_or_else(|| old.get("budget").cloned().unwrap_or(Value::Null));
-    let ad_spend = old.get("adSpend").cloned().unwrap_or(Value::Null);
+    let ad_spend = resolved_object_field(&input, "adSpend")
+        .map(marketing_money_json_from_object)
+        .unwrap_or_else(|| old.get("adSpend").cloned().unwrap_or(Value::Null));
+    let scheduled_to_start_at = resolved_string_field(&input, "scheduledToStartAt")
+        .or_else(|| resolved_string_field(&input, "scheduledStart"))
+        .map(Value::String)
+        .unwrap_or_else(|| {
+            old.get("scheduledToStartAt")
+                .cloned()
+                .unwrap_or(Value::Null)
+        });
+    let scheduled_to_end_at = resolved_string_field(&input, "scheduledToEndAt")
+        .or_else(|| resolved_string_field(&input, "scheduledEnd"))
+        .map(Value::String)
+        .unwrap_or_else(|| old.get("scheduledToEndAt").cloned().unwrap_or(Value::Null));
+    let referring_domain = resolved_string_field(&input, "referringDomain")
+        .map(Value::String)
+        .unwrap_or_else(|| old.get("referringDomain").cloned().unwrap_or(Value::Null));
+    let source_medium =
+        marketing_source_and_medium(&channel_type, &tactic, referring_domain.as_str());
+    let marketing_event = json!({
+        "__typename": "MarketingEvent",
+        "id": event_id,
+        "type": tactic,
+        "remoteId": remote_id,
+        "channelHandle": channel_handle,
+        "startedAt": "2026-05-05T00:00:00Z",
+        "endedAt": if matches!(status.as_str(), "INACTIVE" | "DELETED_EXTERNALLY") { json!("2026-05-05T00:00:00Z") } else { Value::Null },
+        "scheduledToEndAt": scheduled_to_end_at.clone(),
+        "manageUrl": remote_url,
+        "previewUrl": preview_url,
+        "utmCampaign": campaign,
+        "utmMedium": medium,
+        "utmSource": source,
+        "description": title,
+        "marketingChannelType": channel_type,
+        "sourceAndMedium": source_medium
+    });
     json!({
         "__typename": "MarketingActivity",
         "id": id,
@@ -2028,26 +2060,38 @@ pub(in crate::proxy) fn marketing_activity_from_input(
         "utmParameters": { "campaign": campaign, "source": source, "medium": medium },
         "budget": budget,
         "adSpend": ad_spend,
+        "scheduledToStartAt": scheduled_to_start_at,
+        "scheduledToEndAt": scheduled_to_end_at,
+        "referringDomain": referring_domain,
         "app": { "id": "gid://shopify/App/1", "title": "Draft proxy app" },
-        "marketingEvent": {
-            "__typename": "MarketingEvent",
-            "id": event_id,
-            "type": tactic,
-            "remoteId": remote_id,
-            "channelHandle": channel_handle,
-            "startedAt": "2026-05-05T00:00:00Z",
-            "endedAt": if matches!(status.as_str(), "INACTIVE" | "DELETED_EXTERNALLY") { json!("2026-05-05T00:00:00Z") } else { Value::Null },
-            "scheduledToEndAt": null,
-            "manageUrl": remote_url,
-            "previewUrl": preview_url,
-            "utmCampaign": campaign,
-            "utmMedium": medium,
-            "utmSource": source,
-            "description": title,
-            "marketingChannelType": channel_type,
-            "sourceAndMedium": source_medium
-        }
+        "marketingEvent": marketing_event
     })
+}
+
+pub(in crate::proxy) fn marketing_money_json_from_object(
+    input: BTreeMap<String, ResolvedValue>,
+) -> Value {
+    json!({
+        "amount": resolved_string_field(&input, "amount")
+            .map(marketing_money_amount_json_string)
+            .unwrap_or_default(),
+        "currencyCode": resolved_string_field(&input, "currencyCode").unwrap_or_else(|| "USD".to_string())
+    })
+}
+
+fn marketing_money_amount_json_string(amount: String) -> String {
+    let Some((whole, fractional)) = amount.split_once('.') else {
+        return amount;
+    };
+    if fractional.is_empty() {
+        return amount;
+    }
+    let trimmed = fractional.trim_end_matches('0');
+    if trimmed.is_empty() {
+        format!("{whole}.0")
+    } else {
+        format!("{whole}.{trimmed}")
+    }
 }
 
 pub(in crate::proxy) fn marketing_budget_json(input: BTreeMap<String, ResolvedValue>) -> Value {
@@ -2093,10 +2137,7 @@ pub(in crate::proxy) fn marketing_money_json(
     let Some(obj) = resolved_object_field(input, key) else {
         return Value::Null;
     };
-    json!({
-        "amount": resolved_string_field(&obj, "amount").unwrap_or_default(),
-        "currencyCode": resolved_string_field(&obj, "currencyCode").unwrap_or_else(|| "USD".to_string())
-    })
+    marketing_money_json_from_object(obj)
 }
 
 pub(in crate::proxy) fn marketing_money_currency(
