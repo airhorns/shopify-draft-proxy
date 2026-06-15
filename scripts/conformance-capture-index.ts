@@ -8166,6 +8166,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'webhooks',
+    captureId: 'gcp-project-topic-char-rules',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-gcp-project-topic-char-rules-conformance.ts',
+    purpose:
+      'GCP Pub/Sub project/topic character validation for dedicated Pub/Sub and unified webhook subscription create/update roots.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gcp-project-topic-char-rules.json`,
+      'config/parity-specs/webhooks/gcp-project-topic-char-rules.json',
+    ],
+    cleanupBehavior:
+      'Creates temporary Pub/Sub webhook subscriptions for accepted create/update branches, records validation failures, then deletes temporary subscriptions during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Records numeric project-number acceptance, digit-leading topic rejection, and percent-topic acceptance for both dedicated and unified webhook roots.',
+  },
+  {
+    domain: 'webhooks',
     captureId: 'webhook-subscription-pub-sub-required-fields',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-pub-sub-required-fields-conformance.ts',
