@@ -1220,10 +1220,125 @@ fn localization_translations_register_multi_row_round_trip_and_indexed_errors() 
         json!([
             { "key": "title", "value": "Titre local", "locale": "fr", "outdated": false, "market": null },
             { "key": "body_html", "value": "Description locale", "locale": "fr", "outdated": false, "market": null },
-            { "key": "seo_title", "value": "Titre SEO", "locale": "fr", "outdated": false, "market": null },
-            { "key": "title", "value": "Titulo local", "locale": "es", "outdated": false, "market": null }
+            { "key": "seo_title", "value": "Titre SEO", "locale": "fr", "outdated": false, "market": null }
         ])
     );
+}
+
+#[test]
+fn localization_translatable_roots_are_store_backed_without_operation_markers() {
+    let mut proxy = snapshot_proxy();
+    let product_id = "gid://shopify/Product/9801098789170";
+    let collection_id = "gid://shopify/Collection/9801098789170";
+
+    let enable = proxy.process_request(json_graphql_request(
+        r#"mutation EnableLocale($locale: String!) {
+          shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+        }"#,
+        json!({ "locale": "fr" }),
+    ));
+    assert_eq!(
+        enable.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+
+    let product_register = proxy.process_request(json_graphql_request(
+        r#"mutation RegisterProductTranslation($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": product_id,
+            "translations": [
+                { "locale": "fr", "key": "title", "value": "Titre produit", "translatableContentDigest": "digest" },
+                { "locale": "fr", "key": "product_type", "value": "Produit", "translatableContentDigest": "digest", "marketId": "gid://shopify/Market/123" }
+            ]
+        }),
+    ));
+    assert_eq!(
+        product_register.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+
+    let collection_register = proxy.process_request(json_graphql_request(
+        r#"mutation RegisterCollectionTranslation($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": collection_id,
+            "translations": [
+                { "locale": "fr", "key": "title", "value": "Titre collection", "translatableContentDigest": "digest" }
+            ]
+        }),
+    ));
+    assert_eq!(
+        collection_register.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query ArbitraryLocalizationRead($productId: ID!, $collectionId: ID!, $ids: [ID!]!) {
+          direct: translatableResource(resourceId: $productId) {
+            resourceId
+            allFr: translations(locale: "fr") { key value locale market { id } }
+            marketFr: translations(locale: "fr", marketId: "gid://shopify/Market/123") { key value locale market { id } }
+          }
+          byType: translatableResources(first: 2, resourceType: PRODUCT) {
+            aliasedNodes: nodes { resourceId translations(locale: "fr") { key value } }
+            aliasedEdges: edges { aliasedCursor: cursor node { resourceId } }
+            aliasedPage: pageInfo { next: hasNextPage previous: hasPreviousPage }
+          }
+          byIds: translatableResourcesByIds(first: 3, resourceIds: $ids) {
+            nodes { resourceId translations(locale: "fr") { key value } }
+            edges { cursor node { resourceId } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+          missing: translatableResource(resourceId: "gid://shopify/Product/999999999999999") { resourceId }
+        }"#,
+        json!({ "productId": product_id, "collectionId": collection_id, "ids": [collection_id, product_id] }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["direct"]["allFr"],
+        json!([
+            { "key": "title", "value": "Titre produit", "locale": "fr", "market": null },
+            { "key": "product_type", "value": "Produit", "locale": "fr", "market": { "id": "gid://shopify/Market/123" } }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["direct"]["marketFr"],
+        json!([{ "key": "product_type", "value": "Produit", "locale": "fr", "market": { "id": "gid://shopify/Market/123" } }])
+    );
+    assert_eq!(
+        read.body["data"]["byType"]["aliasedNodes"][0]["translations"],
+        json!([
+            { "key": "title", "value": "Titre produit" },
+            { "key": "product_type", "value": "Produit" }
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["byType"]["aliasedEdges"][0]["node"]["resourceId"],
+        json!(product_id)
+    );
+    assert_eq!(
+        read.body["data"]["byType"]["aliasedPage"],
+        json!({ "next": false, "previous": false })
+    );
+    assert_eq!(
+        read.body["data"]["byIds"]["nodes"][0]["resourceId"],
+        json!(collection_id)
+    );
+    assert_eq!(
+        read.body["data"]["byIds"]["nodes"][0]["translations"],
+        json!([{ "key": "title", "value": "Titre collection" }])
+    );
+    assert_eq!(read.body["data"]["missing"], Value::Null);
 }
 
 #[test]

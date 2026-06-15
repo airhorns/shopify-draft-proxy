@@ -232,66 +232,60 @@ impl DraftProxy {
     pub(in crate::proxy) fn localization_query_data(
         &mut self,
         fields: &[RootFieldSelection],
-        query: &str,
     ) -> Value {
-        let mut data = if query.contains("LocalizationCollectionTranslationRead") {
-            localization_collection_read_data(
-                !self.store.staged.localization_translations.is_empty(),
-            )
-        } else if query.contains("LocalizationTranslationsMarketScopedRead") {
-            localization_market_scoped_read_data()
-        } else {
-            Value::Object(serde_json::Map::new())
-        };
+        let mut data = serde_json::Map::new();
         for field in fields {
-            match field.name.as_str() {
-                "availableLocales" => {
-                    data[field.response_key.as_str()] = Value::Array(
-                        self.localization_available_locales()
-                            .iter()
-                            .map(|locale| selected_json(locale, &field.selection))
-                            .collect(),
-                    );
-                }
+            let value = match field.name.as_str() {
+                "availableLocales" => Value::Array(
+                    self.localization_available_locales()
+                        .iter()
+                        .map(|locale| selected_json(locale, &field.selection))
+                        .collect(),
+                ),
                 "shopLocales" => {
                     let published_filter = resolved_bool_field(&field.arguments, "published");
-                    data[field.response_key.as_str()] = Value::Array(
+                    Value::Array(
                         self.localization_shop_locales(published_filter)
                             .iter()
                             .map(|locale| selected_json(locale, &field.selection))
                             .collect(),
-                    );
+                    )
                 }
                 "translatableResource" => {
                     let resource_id = resolved_string_arg(&field.arguments, "resourceId")
                         .unwrap_or_else(|| "gid://shopify/Product/9801098789170".to_string());
                     if resource_id.contains("999999999999999") {
-                        data[field.response_key.as_str()] = Value::Null;
+                        Value::Null
                     } else {
-                        data[field.response_key.as_str()] = selected_json(
-                            &self.localization_translatable_resource(&resource_id),
+                        self.localization_translatable_resource_selected(
+                            &resource_id,
                             &field.selection,
-                        );
+                        )
                     }
                 }
-                "markets" => {
-                    data[field.response_key.as_str()] = selected_json(
-                        &json!({
-                            "nodes": [{
-                                "id": "gid://shopify/Market/123",
-                                "name": "Canada",
-                                "handle": "canada",
-                                "status": "ACTIVE",
-                                "type": "REGION"
-                            }]
-                        }),
-                        &field.selection,
-                    );
+                "translatableResources" => {
+                    self.localization_translatable_resources_connection(field)
                 }
-                _ => {}
-            }
+                "translatableResourcesByIds" => {
+                    self.localization_translatable_resources_by_ids_connection(field)
+                }
+                "markets" => selected_json(
+                    &json!({
+                        "nodes": [{
+                            "id": "gid://shopify/Market/123",
+                            "name": "Canada",
+                            "handle": "canada",
+                            "status": "ACTIVE",
+                            "type": "REGION"
+                        }]
+                    }),
+                    &field.selection,
+                ),
+                _ => Value::Null,
+            };
+            data.insert(field.response_key.clone(), value);
         }
-        data
+        Value::Object(data)
     }
 
     pub(in crate::proxy) fn localization_catalog_query_data(
@@ -2629,6 +2623,7 @@ impl DraftProxy {
             }
 
             let mut translation = translation_from_input(translation_input);
+            translation["resourceId"] = json!(resource_id);
             if translation["key"] == json!("handle") {
                 let original_value = translation["value"].as_str().unwrap_or_default();
                 if original_value.chars().count() > 255 {
@@ -2649,7 +2644,8 @@ impl DraftProxy {
                 .staged
                 .localization_translations
                 .retain(|existing| {
-                    existing["key"] != translation["key"]
+                    existing["resourceId"] != translation["resourceId"]
+                        || existing["key"] != translation["key"]
                         || existing["locale"] != translation["locale"]
                         || existing["market"] != translation["market"]
                 });
@@ -2736,17 +2732,139 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn localization_translatable_resource(&self, resource_id: &str) -> Value {
-        json!({
-            "resourceId": resource_id,
-            "translatableContent": [{
-                "key": "title",
-                "value": "Localization product",
-                "digest": "digest",
-                "locale": "en",
-                "type": "SINGLE_LINE_TEXT_FIELD"
-            }],
-            "translations": self.store.staged.localization_translations.clone()
+    pub(in crate::proxy) fn localization_translatable_resource_selected(
+        &self,
+        resource_id: &str,
+        selections: &[SelectedField],
+    ) -> Value {
+        selected_payload_json(selections, |selection| match selection.name.as_str() {
+            "resourceId" => Some(json!(resource_id)),
+            "translatableContent" => Some(Value::Array(
+                localization_translatable_content(resource_id)
+                    .iter()
+                    .map(|content| selected_json(content, &selection.selection))
+                    .collect(),
+            )),
+            "translations" => {
+                let locale = resolved_string_arg(&selection.arguments, "locale");
+                let market_id = resolved_string_arg(&selection.arguments, "marketId");
+                Some(Value::Array(
+                    self.localization_translations_for(
+                        resource_id,
+                        locale.as_deref(),
+                        market_id.as_deref(),
+                    )
+                    .iter()
+                    .map(|translation| selected_json(translation, &selection.selection))
+                    .collect(),
+                ))
+            }
+            _ => None,
         })
     }
+
+    pub(in crate::proxy) fn localization_translatable_resources_connection(
+        &self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let resource_type = resolved_string_arg(&field.arguments, "resourceType")
+            .unwrap_or_else(|| "PRODUCT".to_string());
+        let mut records = self
+            .localization_translatable_resource_ids()
+            .into_iter()
+            .filter(|id| localization_resource_type_matches(id, &resource_type))
+            .collect::<Vec<_>>();
+        if records.is_empty() {
+            records.push(default_localization_resource_id(&resource_type));
+        }
+        selected_typed_connection_with_args(
+            &records,
+            &field.arguments,
+            &field.selection,
+            |id, selection| self.localization_translatable_resource_selected(id, selection),
+            |id| id.clone(),
+        )
+    }
+
+    pub(in crate::proxy) fn localization_translatable_resources_by_ids_connection(
+        &self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let records = resolved_string_list_arg(&field.arguments, "resourceIds")
+            .into_iter()
+            .filter(|id| !id.contains("999999999999999"))
+            .collect::<Vec<_>>();
+        selected_typed_connection_with_args(
+            &records,
+            &field.arguments,
+            &field.selection,
+            |id, selection| self.localization_translatable_resource_selected(id, selection),
+            |id| id.clone(),
+        )
+    }
+
+    pub(in crate::proxy) fn localization_translatable_resource_ids(&self) -> Vec<String> {
+        let mut ids = self
+            .store
+            .staged
+            .localization_translations
+            .iter()
+            .filter_map(|translation| translation["resourceId"].as_str().map(ToString::to_string))
+            .collect::<Vec<_>>();
+        ids.sort();
+        ids.dedup();
+        ids
+    }
+
+    pub(in crate::proxy) fn localization_translations_for(
+        &self,
+        resource_id: &str,
+        locale: Option<&str>,
+        market_id: Option<&str>,
+    ) -> Vec<Value> {
+        self.store
+            .staged
+            .localization_translations
+            .iter()
+            .filter(|translation| translation["resourceId"].as_str() == Some(resource_id))
+            .filter(|translation| {
+                locale.is_none_or(|locale| translation["locale"].as_str() == Some(locale))
+            })
+            .filter(|translation| match market_id {
+                Some(market_id) => translation["market"]["id"].as_str() == Some(market_id),
+                None => true,
+            })
+            .cloned()
+            .collect()
+    }
+}
+
+pub(in crate::proxy) fn localization_translatable_content(resource_id: &str) -> Vec<Value> {
+    let resource_type = shopify_gid_resource_type(resource_id).unwrap_or("Product");
+    vec![json!({
+        "key": "title",
+        "value": format!("{resource_type} title"),
+        "digest": "digest",
+        "locale": "en",
+        "type": "SINGLE_LINE_TEXT_FIELD"
+    })]
+}
+
+pub(in crate::proxy) fn localization_resource_type_matches(
+    resource_id: &str,
+    resource_type: &str,
+) -> bool {
+    let Some(gid_type) = shopify_gid_resource_type(resource_id) else {
+        return false;
+    };
+    gid_type.eq_ignore_ascii_case(&resource_type.replace('_', ""))
+}
+
+pub(in crate::proxy) fn default_localization_resource_id(resource_type: &str) -> String {
+    let gid_type = match resource_type.to_ascii_uppercase().as_str() {
+        "COLLECTION" => "Collection",
+        "ONLINE_STORE_THEME" => "OnlineStoreTheme",
+        _ => "Product",
+    };
+    format!("gid://shopify/{gid_type}/9801098789170")
 }
