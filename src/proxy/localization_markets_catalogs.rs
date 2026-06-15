@@ -2642,7 +2642,7 @@ impl DraftProxy {
             if !self.store.staged.shop_locales.contains_key(&locale) {
                 user_errors.push(json!({
                     "field": ["translations", field_index, "locale"],
-                    "message": "Locale is not enabled for this shop",
+                    "message": "Locale is not a valid locale for the shop",
                     "code": "INVALID_LOCALE_FOR_SHOP"
                 }));
                 continue;

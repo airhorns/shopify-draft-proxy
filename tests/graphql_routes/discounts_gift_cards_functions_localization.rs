@@ -2164,7 +2164,7 @@ fn localization_locale_cap_register_guards_and_remove_combinations_match_capture
             "translations": [],
             "userErrors": [{
                 "field": ["translations", "0", "locale"],
-                "message": "Locale is not enabled for this shop",
+                "message": "Locale is not a valid locale for the shop",
                 "code": "INVALID_LOCALE_FOR_SHOP"
             }]
         })
