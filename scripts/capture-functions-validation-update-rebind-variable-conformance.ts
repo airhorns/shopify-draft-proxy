@@ -65,7 +65,9 @@ function assertInvalidVariable(captureResult: Capture, fieldName: string): void 
     firstProblem?.['explanation'] !== 'Field is not defined on ValidationUpdateInput' ||
     'data' in captureResult.response
   ) {
-    throw new Error(`Unexpected validationUpdate ${fieldName} variable coercion shape: ${JSON.stringify(captureResult, null, 2)}`);
+    throw new Error(
+      `Unexpected validationUpdate ${fieldName} variable coercion shape: ${JSON.stringify(captureResult, null, 2)}`,
+    );
   }
 }
 

@@ -32,9 +32,7 @@
             },
             "problems": [
               {
-                "path": [
-                  "functionId"
-                ],
+                "path": ["functionId"],
                 "explanation": "Field is not defined on ValidationUpdateInput"
               }
             ]
@@ -71,9 +69,7 @@
             },
             "problems": [
               {
-                "path": [
-                  "functionHandle"
-                ],
+                "path": ["functionHandle"],
                 "explanation": "Field is not defined on ValidationUpdateInput"
               }
             ]
