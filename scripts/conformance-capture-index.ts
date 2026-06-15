@@ -3194,6 +3194,31 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'localization',
+    captureId: 'localization-translations-unknown-resource',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-translations-unknown-resource-conformance.mts',
+    purpose:
+      'translationsRegister/translationsRemove RESOURCE_NOT_FOUND behavior for a well-formed absent Product GID plus known Product translation lifecycle anchor.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_translations',
+      'write_translations',
+      'read_locales',
+      'write_locales',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-translations-unknown-resource.json`,
+      'config/parity-specs/localization/localization-translations-unknown-resource.json',
+      'config/parity-requests/localization/localization-translations-known-resource-product-create.graphql',
+      'config/parity-requests/localization/localization-translations-unknown-resource.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, enables French only when needed, records unknown-resource register/remove validation and known-resource register/remove success, deletes the product, and restores the locale when the script enabled it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
     captureId: 'localization-handle-translation-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-handle-translation-validation-conformance.mts',

@@ -767,7 +767,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                 "publicationIds": [],
                 "publicationCount": null,
                 "availableLocales": state.body["baseState"]["availableLocales"].clone(),
-                "shopLocales": state.body["baseState"]["shopLocales"].clone()
+                "shopLocales": state.body["baseState"]["shopLocales"].clone(),
+                "localizationProductIds": ["gid://shopify/Product/9801098789170"]
             },
             "stagedState": {
                 "products": {

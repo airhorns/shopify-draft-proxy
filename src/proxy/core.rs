@@ -116,7 +116,8 @@ impl DraftProxy {
                 "publicationIds": self.store.base.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publicationCount": self.store.base.publication_count,
                 "availableLocales": self.store.base.available_locales.iter().map(|(locale, name)| (locale.clone(), json!(name))).collect::<serde_json::Map<_, _>>(),
-                "shopLocales": self.store.base.shop_locales.clone()
+                "shopLocales": self.store.base.shop_locales.clone(),
+                "localizationProductIds": self.store.base.localization_product_ids.iter().cloned().collect::<Vec<_>>()
             },
             "stagedState": {
                 "products": product_state_map_json(&self.store.staged.products.records),
@@ -366,6 +367,12 @@ impl DraftProxy {
                     }),
                 )])
             });
+        self.store.base.localization_product_ids = state["baseState"]
+            .get("localizationProductIds")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| vec![LOCALIZATION_BASELINE_PRODUCT_ID.to_string()])
+            .into_iter()
+            .collect();
         self.store.staged.publication_ids =
             string_array_from_json(&state["stagedState"]["publicationIds"])
                 .into_iter()

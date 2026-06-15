@@ -265,7 +265,7 @@ impl DraftProxy {
                 "translatableResource" => {
                     let resource_id = resolved_string_arg(&field.arguments, "resourceId")
                         .unwrap_or_else(|| "gid://shopify/Product/9801098789170".to_string());
-                    if resource_id.contains("999999999999999") {
+                    if !self.localization_translatable_resource_exists(&resource_id) {
                         data[field.response_key.as_str()] = Value::Null;
                     } else {
                         data[field.response_key.as_str()] = selected_json(
@@ -2582,7 +2582,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let resource_id = resolved_string_arg(&field.arguments, "resourceId").unwrap_or_default();
-        if resource_id.contains("999999999999999") {
+        if !self.localization_translatable_resource_exists(&resource_id) {
             return selected_json(
                 &json!({
                     "translations": null,
@@ -2724,7 +2724,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let resource_id = resolved_string_arg(&field.arguments, "resourceId").unwrap_or_default();
-        if resource_id.contains("999999999999999") {
+        if !self.localization_translatable_resource_exists(&resource_id) {
             return selected_json(
                 &json!({
                     "translations": null,
@@ -2783,6 +2783,17 @@ impl DraftProxy {
             &json!({ "translations": removed, "userErrors": [] }),
             &field.selection,
         )
+    }
+
+    pub(in crate::proxy) fn localization_translatable_resource_exists(
+        &self,
+        resource_id: &str,
+    ) -> bool {
+        if resource_id.starts_with("gid://shopify/Product/") {
+            return self.store.has_localization_product(resource_id);
+        }
+
+        true
     }
 
     pub(in crate::proxy) fn localization_translatable_resource(&self, resource_id: &str) -> Value {
