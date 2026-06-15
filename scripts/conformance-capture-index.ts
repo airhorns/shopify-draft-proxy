@@ -4816,49 +4816,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
-    captureId: 'online-store-theme-publish-local-runtime',
-    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
-    scriptPath: 'scripts/capture-online-store-theme-publish-local-runtime.ts',
-    purpose:
-      'Local-runtime guard that themePublish promotes the target theme and demotes the previous MAIN theme without upstream writes.',
-    requiredAuthScopes: ['local-runtime'],
-    fixtureOutputs: [
-      `${LOCAL_RUNTIME_ROOT}theme-publish-demotes-previous-main.json`,
-      'config/parity-specs/online-store/theme-publish-demotes-previous-main.json',
-      'config/parity-requests/online-store/theme-publish-create-main.graphql',
-      'config/parity-requests/online-store/theme-publish-create-unpublished.graphql',
-      'config/parity-requests/online-store/theme-publish-publish.graphql',
-      'config/parity-requests/online-store/theme-publish-read.graphql',
-    ],
-    cleanupBehavior:
-      'Local-runtime theme create/publish scenario only; proxy reset during parity replay clears synthetic themes and no Shopify cleanup is required.',
-    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
-    notes:
-      'This is executable local-runtime evidence because themePublish changes storefront presentation on a live shop; endpoint docs record that real Shopify effects belong to explicit commit replay or deliberate conformance setup.',
-  },
-  {
-    domain: 'online-store',
-    captureId: 'online-store-integration-root-dispatch-local-runtime',
-    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
-    scriptPath: 'scripts/capture-online-store-integration-root-dispatch-local-runtime.ts',
-    purpose:
-      'Local-runtime guard that Online Store integration roots dispatch by root field for neutral operation names and aliases without upstream passthrough.',
-    requiredAuthScopes: ['local-runtime'],
-    fixtureOutputs: [
-      `${LOCAL_RUNTIME_ROOT}online-store-integration-root-dispatch-local-runtime.json`,
-      'config/parity-specs/online-store/online-store-integration-root-dispatch-local-runtime.json',
-      'config/parity-requests/online-store/online-store-integration-root-dispatch-local-runtime.graphql',
-      'config/parity-requests/online-store/online-store-integration-root-dispatch-delete-local-runtime.graphql',
-      'config/parity-requests/online-store/online-store-integration-root-dispatch-read-local-runtime.graphql',
-    ],
-    cleanupBehavior:
-      'Local-runtime create/delete scenario only; proxy reset during parity replay clears synthetic Online Store integration records and no Shopify cleanup is required.',
-    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
-    notes:
-      'This is executable local-runtime evidence for dispatch/staging, not live Shopify write evidence. Existing Online Store fixtures and endpoint docs record the live scope blockers and safe-read evidence for these externally visible roots.',
-  },
-  {
-    domain: 'online-store',
     captureId: 'online-store-mobile-platform-application-model-validation-local-runtime',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-online-store-mobile-platform-application-model-validation-local-runtime.ts',
