@@ -864,7 +864,7 @@ impl DraftProxy {
             })
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.localization_query_data(&fields) }));
+                return ok_json(json!({ "data": self.localization_query_data(&fields, request) }));
             }
         }
 
@@ -1001,7 +1001,9 @@ impl DraftProxy {
             && is_ported_market_localization_document(&query)
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.market_localization_query_data(&fields) }));
+                return ok_json(
+                    json!({ "data": self.market_localization_query_data(&fields, request) }),
+                );
             }
         }
 
