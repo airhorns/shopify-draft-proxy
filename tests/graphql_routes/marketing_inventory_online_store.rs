@@ -2892,8 +2892,8 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
     let upserts = proxy.process_request(json_graphql_request(
         r#"
         mutation RustOnlineStoreThemeFileLocalRuntimeUpsert {
-          first: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello" } }]) { upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
-          second: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello world" } }]) { upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          first: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello" } }]) { upsertedThemeFiles { filename createdAt updatedAt checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          second: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello world" } }]) { upsertedThemeFiles { filename createdAt updatedAt checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
           invalid: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "evil/path.liquid", body: { type: TEXT, value: "ignored" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
           app: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/app.js", body: { type: TEXT, value: "console.log(1)" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
           theme: themeFilesUpsert(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ filename: "assets/theme.js", body: { type: TEXT, value: "hello" } }]) { upsertedThemeFiles { filename } userErrors { field message code } }
@@ -2903,11 +2903,11 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
     ));
     assert_eq!(
         upserts.body["data"]["first"]["upsertedThemeFiles"][0],
-        json!({"filename": "templates/index.json", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}})
+        json!({"filename": "templates/index.json", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5})
     );
     assert_eq!(
         upserts.body["data"]["second"]["upsertedThemeFiles"][0],
-        json!({"filename": "templates/index.json", "checksumMd5": "5eb63bbbe01eeed093cb22bb8f5acdc3", "size": 11, "body": {"content": "hello world"}})
+        json!({"filename": "templates/index.json", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:01.000Z", "checksumMd5": "5eb63bbbe01eeed093cb22bb8f5acdc3", "size": 11})
     );
     assert_eq!(
         upserts.body["data"]["invalid"],
@@ -2918,11 +2918,11 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
         r#"
         mutation RustOnlineStoreThemeFileLocalRuntimeCopyDelete {
           missingCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/missing.js", dstFilename: "assets/copy.js" }]) { copiedThemeFiles { filename } userErrors { field message code } }
-          copy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/app.js", dstFilename: "assets/copy.js" }]) { copiedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
-          multiCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/app.js", dstFilename: "assets/app-copy.js" }, { srcFilename: "assets/theme.js", dstFilename: "assets/theme-copy.js" }]) { copiedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          copy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/app.js", dstFilename: "assets/copy.js" }]) { copiedThemeFiles { filename createdAt updatedAt checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
+          multiCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/app.js", dstFilename: "assets/app-copy.js" }, { srcFilename: "assets/theme.js", dstFilename: "assets/theme-copy.js" }]) { copiedThemeFiles { filename createdAt updatedAt checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
           mixedCopy: themeFilesCopy(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: [{ srcFilename: "assets/missing.js", dstFilename: "assets/missing-copy.js" }, { srcFilename: "assets/theme.js", dstFilename: "assets/theme-copy-2.js" }]) { copiedThemeFiles { filename } userErrors { field message code } }
           requiredDelete: themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: ["config/settings_data.json", "config/settings_schema.json"]) { deletedThemeFiles { filename } userErrors { field message code } }
-          deleteCopy: themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: ["assets/copy.js"]) { deletedThemeFiles { filename } userErrors { field message code } }
+          deleteCopy: themeFilesDelete(themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic", files: ["assets/copy.js"]) { deletedThemeFiles { filename createdAt updatedAt checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } }
         }
         "#,
         json!({}),
@@ -2933,13 +2933,13 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
     );
     assert_eq!(
         copy_delete.body["data"]["copy"]["copiedThemeFiles"][0],
-        json!({"filename": "assets/copy.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}})
+        json!({"filename": "assets/copy.js", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14})
     );
     assert_eq!(
         copy_delete.body["data"]["multiCopy"],
         json!({"copiedThemeFiles": [
-            {"filename": "assets/app-copy.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
-            {"filename": "assets/theme-copy.js", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}}
+            {"filename": "assets/app-copy.js", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14},
+            {"filename": "assets/theme-copy.js", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5}
         ], "userErrors": []})
     );
     assert_eq!(
@@ -2955,13 +2955,13 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
     );
     assert_eq!(
         copy_delete.body["data"]["deleteCopy"],
-        json!({"deletedThemeFiles": [{"filename": "assets/copy.js"}], "userErrors": []})
+        json!({"deletedThemeFiles": [{"filename": "assets/copy.js", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14}], "userErrors": []})
     );
 
     let read = proxy.process_request(json_graphql_request(
         r#"
         query RustOnlineStoreThemeFileLocalRuntimeRead {
-          theme(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic") { files(first: 10) { nodes { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } } }
+          theme(id: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic") { files(first: 10) { nodes { filename createdAt updatedAt checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } } }
         }
         "#,
         json!({}),
@@ -2969,14 +2969,29 @@ fn online_store_theme_file_lifecycle_tail_helpers_ported_from_gleam() {
     assert_eq!(
         read.body["data"]["theme"]["files"]["nodes"],
         json!([
-            {"filename": "templates/index.json", "checksumMd5": "5eb63bbbe01eeed093cb22bb8f5acdc3", "size": 11, "body": {"content": "hello world"}},
-            {"filename": "assets/app.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
-            {"filename": "assets/theme.js", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}},
-            {"filename": "assets/app-copy.js", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
-            {"filename": "assets/theme-copy.js", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}},
-            {"filename": "assets/theme-copy-2.js", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}}
+            {"filename": "templates/index.json", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:01.000Z", "checksumMd5": "5eb63bbbe01eeed093cb22bb8f5acdc3", "size": 11, "body": {"content": "hello world"}},
+            {"filename": "assets/app.js", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
+            {"filename": "assets/theme.js", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}},
+            {"filename": "assets/app-copy.js", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "6114f5adc373accd7b2051bd87078f62", "size": 14, "body": {"content": "console.log(1)"}},
+            {"filename": "assets/theme-copy.js", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}},
+            {"filename": "assets/theme-copy-2.js", "createdAt": "2024-01-01T00:00:00.000Z", "updatedAt": "2024-01-01T00:00:00.000Z", "checksumMd5": "5d41402abc4b2a76b9719d911017c592", "size": 5, "body": {"content": "hello"}}
         ])
     );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        ..Default::default()
+    });
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 3);
+    assert!(log.body["entries"][1]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("RustOnlineStoreThemeFileLocalRuntimeUpsert"));
+    assert!(log.body["entries"][2]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("RustOnlineStoreThemeFileLocalRuntimeCopyDelete"));
 }
 
 #[test]

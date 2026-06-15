@@ -1,0 +1,78 @@
+mutation RustOnlineStoreThemeFileLocalRuntimeResultShape {
+  themeCreate(source: "https://example.com/theme-file-result-shape.zip", name: "Theme file result shape") {
+    theme {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  upsert: themeFilesUpsert(
+    themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+    files: [{ filename: "assets/app.js", body: { type: TEXT, value: "console.log(1)" } }]
+  ) {
+    upsertedThemeFiles {
+      filename
+      createdAt
+      updatedAt
+      size
+      checksumMd5
+      body {
+        ... on OnlineStoreThemeFileBodyText {
+          content
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  copy: themeFilesCopy(
+    themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+    files: [{ srcFilename: "assets/app.js", dstFilename: "assets/app-copy.js" }]
+  ) {
+    copiedThemeFiles {
+      filename
+      createdAt
+      updatedAt
+      size
+      checksumMd5
+      body {
+        ... on OnlineStoreThemeFileBodyText {
+          content
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  delete: themeFilesDelete(
+    themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+    files: ["assets/app-copy.js"]
+  ) {
+    deletedThemeFiles {
+      filename
+      createdAt
+      updatedAt
+      size
+      checksumMd5
+      body {
+        ... on OnlineStoreThemeFileBodyText {
+          content
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

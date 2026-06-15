@@ -948,9 +948,9 @@ impl DraftProxy {
                 "themePublish" => self.theme_publish(field, &mut staged_ids),
                 "themeUpdate" => self.theme_update(field, &mut staged_ids),
                 "themeDelete" => self.theme_delete(field, &mut staged_ids),
-                "themeFilesUpsert" => self.theme_files_upsert(field),
-                "themeFilesCopy" => self.theme_files_copy(field),
-                "themeFilesDelete" => self.theme_files_delete(field),
+                "themeFilesUpsert" => self.theme_files_upsert(field, &mut staged_ids),
+                "themeFilesCopy" => self.theme_files_copy(field, &mut staged_ids),
+                "themeFilesDelete" => self.theme_files_delete(field, &mut staged_ids),
                 "webPixelCreate" => self.web_pixel_create(field, &mut staged_ids),
                 "webPixelUpdate" => self.web_pixel_update(
                     field,
@@ -1505,7 +1505,11 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn theme_files_upsert(&mut self, field: &RootFieldSelection) -> Value {
+    pub(in crate::proxy) fn theme_files_upsert(
+        &mut self,
+        field: &RootFieldSelection,
+        staged_ids: &mut Vec<String>,
+    ) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
         if files.iter().any(|file| {
@@ -1515,11 +1519,17 @@ impl DraftProxy {
             return selected_json(&payload, &field.selection);
         }
         let mut upserted = Vec::new();
+        let mut staged = false;
         for file in files {
             if let Some(record) = theme_file_record_from_input(&file) {
-                self.upsert_theme_file(&theme_id, record.clone());
-                upserted.push(record);
+                let persisted = self.upsert_theme_file(&theme_id, record.clone());
+                staged |= persisted.is_some();
+                let record = persisted.unwrap_or(record);
+                upserted.push(theme_file_operation_result(&record));
             }
+        }
+        if staged {
+            staged_ids.push(theme_id);
         }
         selected_json(
             &json!({"upsertedThemeFiles": upserted, "userErrors": []}),
@@ -1527,7 +1537,11 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn theme_files_copy(&mut self, field: &RootFieldSelection) -> Value {
+    pub(in crate::proxy) fn theme_files_copy(
+        &mut self,
+        field: &RootFieldSelection,
+        staged_ids: &mut Vec<String>,
+    ) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
         let mut copied = Vec::new();
@@ -1540,18 +1554,28 @@ impl DraftProxy {
                 continue;
             };
             let content = source_file["body"]["content"].as_str().unwrap_or_default();
-            copied.push(theme_file_record(&dst, content));
+            let record = theme_file_record(&dst, content);
+            copied.push(record);
         }
-        for file in copied.iter().cloned() {
-            self.upsert_theme_file(&theme_id, file);
+        let copied_results = copied
+            .iter()
+            .filter_map(|file| self.upsert_theme_file(&theme_id, file.clone()))
+            .map(|file| theme_file_operation_result(&file))
+            .collect::<Vec<_>>();
+        if !copied_results.is_empty() {
+            staged_ids.push(theme_id);
         }
         selected_json(
-            &json!({"copiedThemeFiles": copied, "userErrors": errors}),
+            &json!({"copiedThemeFiles": copied_results, "userErrors": errors}),
             &field.selection,
         )
     }
 
-    pub(in crate::proxy) fn theme_files_delete(&mut self, field: &RootFieldSelection) -> Value {
+    pub(in crate::proxy) fn theme_files_delete(
+        &mut self,
+        field: &RootFieldSelection,
+        staged_ids: &mut Vec<String>,
+    ) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_string_list_arg(&field.arguments, "files");
         let required = ["config/settings_data.json", "config/settings_schema.json"];
@@ -1582,11 +1606,14 @@ impl DraftProxy {
                     .iter()
                     .position(|file| file["filename"].as_str() == Some(filename.as_str()))
                 {
-                    nodes.remove(index);
-                    deleted.push(json!({"filename": filename}));
+                    let removed = nodes.remove(index);
+                    deleted.push(theme_file_operation_result(&removed));
                 }
             }
             set_theme_file_nodes(theme, nodes);
+        }
+        if !deleted.is_empty() {
+            staged_ids.push(theme_id);
         }
         selected_json(
             &json!({"deletedThemeFiles": deleted, "userErrors": []}),
@@ -1594,26 +1621,38 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn upsert_theme_file(&mut self, theme_id: &str, file: Value) {
-        let Some(theme) = self
+    pub(in crate::proxy) fn upsert_theme_file(
+        &mut self,
+        theme_id: &str,
+        mut file: Value,
+    ) -> Option<Value> {
+        let theme = self
             .store
             .staged
             .online_store_integrations
-            .get_mut(theme_id)
-        else {
-            return;
-        };
+            .get_mut(theme_id)?;
         let filename = file["filename"].as_str().unwrap_or_default().to_string();
         let mut nodes = theme_file_nodes(theme);
-        if let Some(index) = nodes
+        let persisted = if let Some(index) = nodes
             .iter()
             .position(|existing| existing["filename"].as_str() == Some(filename.as_str()))
         {
+            let created_at = nodes[index]
+                .get("createdAt")
+                .cloned()
+                .unwrap_or_else(|| json!("2024-01-01T00:00:00.000Z"));
+            file["createdAt"] = created_at;
+            file["updatedAt"] = json!("2024-01-01T00:00:01.000Z");
             nodes[index] = file;
+            nodes[index].clone()
         } else {
+            file["createdAt"] = json!("2024-01-01T00:00:00.000Z");
+            file["updatedAt"] = json!("2024-01-01T00:00:00.000Z");
             nodes.push(file);
-        }
+            nodes.last().cloned().unwrap_or(Value::Null)
+        };
         set_theme_file_nodes(theme, nodes);
+        Some(persisted)
     }
 
     pub(in crate::proxy) fn find_theme_file(
