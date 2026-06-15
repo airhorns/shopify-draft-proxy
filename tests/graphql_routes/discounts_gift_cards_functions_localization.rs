@@ -2087,7 +2087,7 @@ fn gift_card_create_released_schema_rejects_missing_initial_value_and_initial_am
         json!({
             "errors": [{
                 "message": "Argument 'initialValue' on InputObject 'GiftCardCreateInput' is required. Expected type Decimal!",
-                "locations": [{ "line": 2, "column": 11 }],
+                "locations": [{ "line": 2, "column": 42 }],
                 "path": ["mutation ReleasedMissingInline", "missing", "input", "initialValue"],
                 "extensions": {
                     "code": "missingRequiredInputObjectAttribute",

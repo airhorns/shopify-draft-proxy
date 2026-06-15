@@ -28,6 +28,7 @@ struct AdminInputSchema {
 
 #[derive(Debug, Clone, Copy)]
 struct ValidationContext<'a> {
+    query: &'a str,
     operation_path: &'a str,
     response_key: &'a str,
     field_location: SourceLocation,
@@ -57,6 +58,7 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
             continue;
         };
         let context = ValidationContext {
+            query,
             operation_path: &document.operation_path,
             response_key: &field.response_key,
             field_location: field.location,
@@ -115,6 +117,7 @@ fn validate_argument_value(
             &[argument_name.to_string()],
             schema,
             context,
+            inline_argument_value_location(context.query, field, argument_name),
         ),
         RawArgumentValue::Variable { name, value } => {
             let Some(ResolvedValue::Object(fields)) = value.as_ref() else {
@@ -169,6 +172,7 @@ fn validate_raw_input_object(
     path: &[String],
     schema: &AdminInputSchema,
     context: ValidationContext<'_>,
+    location: Option<SourceLocation>,
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     for field_name in fields.keys() {
@@ -194,6 +198,7 @@ fn validate_raw_input_object(
                 &field_schema.type_ref,
                 path,
                 context,
+                location.unwrap_or(context.field_location),
             ));
         }
     }
@@ -215,6 +220,7 @@ fn validate_raw_input_object(
                 &nested_path,
                 schema,
                 context,
+                None,
             ));
         }
     }
@@ -339,13 +345,14 @@ fn missing_required_input_object_attribute_error(
     type_ref: &SchemaTypeRef,
     path: &[String],
     context: ValidationContext<'_>,
+    location: SourceLocation,
 ) -> Value {
     json!({
         "message": format!(
             "Argument '{argument_name}' on InputObject '{input_type_name}' is required. Expected type {}",
             type_ref.display
         ),
-        "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
+        "locations": [{ "line": location.line, "column": location.column }],
         "path": input_error_path(context, path, argument_name),
         "extensions": {
             "code": "missingRequiredInputObjectAttribute",
@@ -354,6 +361,81 @@ fn missing_required_input_object_attribute_error(
             "inputObjectType": input_type_name
         }
     })
+}
+
+fn inline_argument_value_location(
+    query: &str,
+    field: &RootFieldSelection,
+    argument_name: &str,
+) -> Option<SourceLocation> {
+    let start = byte_offset_for_location(query, field.location)?;
+    let haystack = &query[start..];
+    let argument_start = find_argument_name_with_colon(haystack, argument_name)?;
+    let after_name = start + argument_start + argument_name.len();
+    let after_colon = query[after_name..].find(':')? + after_name + 1;
+    let value_offset = query[after_colon..]
+        .char_indices()
+        .find_map(|(offset, ch)| (!ch.is_whitespace()).then_some(after_colon + offset))?;
+    source_location_for_offset(query, value_offset)
+}
+
+fn find_argument_name_with_colon(haystack: &str, argument_name: &str) -> Option<usize> {
+    let mut search_start = 0;
+    while search_start < haystack.len() {
+        let relative = haystack[search_start..].find(argument_name)?;
+        let candidate = search_start + relative;
+        let before_ok = haystack[..candidate]
+            .chars()
+            .next_back()
+            .is_none_or(|ch| !is_graphql_name_char(ch));
+        let after_name = candidate + argument_name.len();
+        let followed_by_colon = haystack[after_name..]
+            .chars()
+            .find(|ch| !ch.is_whitespace())
+            .is_some_and(|ch| ch == ':');
+        if before_ok && followed_by_colon {
+            return Some(candidate);
+        }
+        search_start = after_name;
+    }
+    None
+}
+
+fn is_graphql_name_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || ch == '_'
+}
+
+fn source_location_for_offset(query: &str, byte_index: usize) -> Option<SourceLocation> {
+    if byte_index > query.len() {
+        return None;
+    }
+    let line = query[..byte_index]
+        .bytes()
+        .filter(|byte| *byte == b'\n')
+        .count()
+        + 1;
+    let line_start = query[..byte_index].rfind('\n').map_or(0, |index| index + 1);
+    Some(SourceLocation {
+        line,
+        column: byte_index - line_start + 1,
+    })
+}
+
+fn byte_offset_for_location(query: &str, location: SourceLocation) -> Option<usize> {
+    let mut line = 1;
+    let mut column = 1;
+    for (offset, ch) in query.char_indices() {
+        if line == location.line && column == location.column {
+            return Some(offset);
+        }
+        if ch == '\n' {
+            line += 1;
+            column = 1;
+        } else {
+            column += 1;
+        }
+    }
+    (line == location.line && column == location.column).then_some(query.len())
 }
 
 fn invalid_variable_error(
@@ -422,30 +504,47 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
             "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/gift-cards/gift-card-create-validation.json"
         ))
         .unwrap_or_else(|_| json!({}));
-        schema_from_fixture(&fixture).unwrap_or_default()
+        let mut schema = schema_from_fixture_schema_payload(
+            &fixture["operations"]["schema"]["response"]["payload"]["data"],
+            &["GiftCardCreateInput"],
+        )
+        .unwrap_or_default();
+
+        let marketing_schema: Value = serde_json::from_str(include_str!(
+            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-engagement-create-response-shape.json"
+        ))
+        .unwrap_or_else(|_| json!({}));
+        merge_input_schema(
+            &mut schema,
+            schema_from_marketing_response_shape_fixture(&marketing_schema).unwrap_or_default(),
+        );
+        schema
     })
 }
 
-fn schema_from_fixture(fixture: &Value) -> Option<AdminInputSchema> {
-    let data = &fixture["operations"]["schema"]["response"]["payload"]["data"];
+fn schema_from_fixture_schema_payload(
+    data: &Value,
+    input_type_names: &[&str],
+) -> Option<AdminInputSchema> {
     let mut schema = AdminInputSchema::default();
 
-    let type_name = "GiftCardCreateInput";
-    let fields = data[uncapitalize_type_alias(type_name)]["inputFields"].as_array()?;
-    schema.input_objects.insert(
-        type_name.to_string(),
-        fields
-            .iter()
-            .filter_map(|field| {
-                Some((
-                    field["name"].as_str()?.to_string(),
-                    SchemaInputField {
-                        type_ref: schema_type_ref(&field["type"])?,
-                    },
-                ))
-            })
-            .collect(),
-    );
+    for type_name in input_type_names {
+        let fields = data[uncapitalize_type_alias(type_name)]["inputFields"].as_array()?;
+        schema.input_objects.insert(
+            (*type_name).to_string(),
+            fields
+                .iter()
+                .filter_map(|field| {
+                    Some((
+                        field["name"].as_str()?.to_string(),
+                        SchemaInputField {
+                            type_ref: schema_type_ref(&field["type"])?,
+                        },
+                    ))
+                })
+                .collect(),
+        );
+    }
 
     let mutation_fields = data["mutationRoot"]["fields"].as_array()?;
     for mutation_field in mutation_fields {
@@ -478,6 +577,40 @@ fn schema_from_fixture(fixture: &Value) -> Option<AdminInputSchema> {
     }
 
     Some(schema)
+}
+
+fn schema_from_marketing_response_shape_fixture(fixture: &Value) -> Option<AdminInputSchema> {
+    let mutation_schema: Value = serde_json::from_str(include_str!(
+        "../../config/admin-graphql-mutation-schema.json"
+    ))
+    .ok()?;
+    let mut data = serde_json::Map::new();
+    data.insert(
+        "mutationRoot".to_string(),
+        json!({
+            "fields": mutation_schema["mutations"]
+                .as_array()?
+                .iter()
+                .filter(|entry| {
+                    matches!(
+                        entry["name"].as_str(),
+                        Some("marketingEngagementCreate")
+                    )
+                })
+                .cloned()
+                .collect::<Vec<_>>()
+        }),
+    );
+    data.insert(
+        uncapitalize_type_alias("MarketingEngagementInput"),
+        fixture["schema"]["marketingEngagementInput"].clone(),
+    );
+    schema_from_fixture_schema_payload(&Value::Object(data), &["MarketingEngagementInput"])
+}
+
+fn merge_input_schema(target: &mut AdminInputSchema, source: AdminInputSchema) {
+    target.mutation_fields.extend(source.mutation_fields);
+    target.input_objects.extend(source.input_objects);
 }
 
 fn uncapitalize_type_alias(type_name: &str) -> String {

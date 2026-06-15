@@ -69,6 +69,7 @@ Engagement behavior:
 - `marketingEngagementCreate` accepts activity-level selectors by `marketingActivityId` or external activity `remoteId`, validates selector count, and stages engagement records in meta state for supported branches.
 - Channel-handle engagement succeeds only when the handle is known from hydrated marketing event data. Unknown handles return `INVALID_CHANNEL_HANDLE`.
 - Currency validation follows captured order: selector-count checks first, channel-handle checks before currency on channel paths, and input currency checks before missing activity lookup on activity/remote paths.
+- On Admin API 2026-04, `MarketingEngagementInput.occurredOn`, `utcOffset`, and `isCumulative` are required schema fields. Omitting any of them returns top-level GraphQL coercion errors before the local handler stages an engagement; successful responses echo the supplied literals without synthesized defaults.
 - Activity-level duplicate same-day writes are accepted locally with latest metric values replacing the local engagement record.
 - Immediate downstream `marketingActivity.adSpend` reads remain `null` after captured activity-level engagement writes, so the proxy does not invent aggregate attribution.
 - `marketingEngagementsDelete` validates the selector guard before deletion: exactly one of `channelHandle` or `deleteEngagementsForAllChannels: true` must be supplied.
