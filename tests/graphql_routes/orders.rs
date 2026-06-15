@@ -3199,6 +3199,50 @@ fn order_return_lifecycle_and_reverse_logistics_replay_local_runtime_shapes() {
     let reverse_delivery_id = reverse_delivery.body["data"]["reverseDeliveryCreateWithShipping"]
         ["reverseDelivery"]["id"]
         .clone();
+
+    let reverse_delivery_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/reverse-delivery-shipping-update-local-staging.graphql"
+        ),
+        json!({
+            "reverseDeliveryId": reverse_delivery_id.clone(),
+            "trackingInput": {
+                "number": "TRACK-2",
+                "url": "https://tracking.example/2",
+                "company": "Updated Carrier"
+            }
+        }),
+    ));
+    assert_eq!(
+        reverse_delivery_update.body["data"]["reverseDeliveryShippingUpdate"]["reverseDelivery"]
+            ["deliverable"]["tracking"]["number"],
+        json!("TRACK-2")
+    );
+
+    let dispose = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/reverse-fulfillment-order-dispose-local-staging.graphql"
+        ),
+        json!({
+            "dispositionInputs": [{
+                "reverseFulfillmentOrderLineItemId": reverse_fulfillment_order_line_item_id,
+                "quantity": 1,
+                "dispositionType": "RESTOCKED",
+                "locationId": "gid://shopify/Location/return-flow"
+            }]
+        }),
+    ));
+    assert_eq!(
+        dispose.body["data"]["reverseFulfillmentOrderDispose"]["reverseFulfillmentOrderLineItems"]
+            [0]["remainingQuantity"],
+        json!(0)
+    );
+    assert_eq!(
+        dispose.body["data"]["reverseFulfillmentOrderDispose"]["reverseFulfillmentOrderLineItems"]
+            [0]["dispositionType"],
+        json!("RESTOCKED")
+    );
+
     let downstream = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/orders/return-reverse-logistics-read-local-staging.graphql"
@@ -3214,6 +3258,38 @@ fn order_return_lifecycle_and_reverse_logistics_replay_local_runtime_shapes() {
         downstream.body["data"]["reverseFulfillmentOrder"]["reverseDeliveries"]["nodes"][0]["id"],
         reverse_delivery_id
     );
+    assert_eq!(
+        downstream.body["data"]["reverseDelivery"]["deliverable"]["tracking"]["number"],
+        json!("TRACK-2")
+    );
+    assert_eq!(
+        downstream.body["data"]["reverseFulfillmentOrder"]["lineItems"]["nodes"][0]
+            ["remainingQuantity"],
+        json!(0)
+    );
+    assert_eq!(
+        downstream.body["data"]["reverseFulfillmentOrder"]["lineItems"]["nodes"][0]
+            ["dispositionType"],
+        json!("RESTOCKED")
+    );
+
+    let log_roots: Vec<Value> = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .expect("mutation log entries should be an array")
+        .iter()
+        .map(|entry| entry["interpreted"]["primaryRootField"].clone())
+        .collect();
+    assert_eq!(
+        log_roots,
+        vec![
+            json!("reverseDeliveryCreateWithShipping"),
+            json!("reverseDeliveryShippingUpdate"),
+            json!("reverseFulfillmentOrderDispose")
+        ]
+    );
+    assert!(proxy.get_log_snapshot()["entries"][0]["rawBody"]
+        .as_str()
+        .is_some_and(|body| body.contains("ReverseDeliveryCreateWithShipping")));
 }
 
 #[test]

@@ -138,7 +138,8 @@ impl DraftProxy {
                 "orders": self.store.staged.orders.clone(),
                 "returns": self.store.staged.returns.clone(),
                 "returnsByOrder": self.store.staged.returns_by_order.clone(),
-               "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
+                "orderReturnHydratedOrders": self.store.staged.order_return_hydrated_orders.clone(),
+                "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
                 "reverseFulfillmentOrders": self.store.staged.reverse_fulfillment_orders.clone(),
                 "locations": self.store.staged.locations.clone(),
                 "locationOrder": self.store.staged.location_order.clone(),
@@ -466,6 +467,16 @@ impl DraftProxy {
                                 .collect(),
                         )
                     })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.order_return_hydrated_orders = state["stagedState"]
+            ["orderReturnHydratedOrders"]
+            .as_object()
+            .map(|orders| {
+                orders
+                    .iter()
+                    .map(|(id, order)| (id.clone(), order.clone()))
                     .collect()
             })
             .unwrap_or_default();

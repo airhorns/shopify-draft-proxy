@@ -362,6 +362,18 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     ),
     local_mutation("locationAdd", CapabilityDomain::StoreProperties),
     local_mutation("locationActivate", CapabilityDomain::StoreProperties),
+    local_mutation(
+        "reverseDeliveryCreateWithShipping",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "reverseDeliveryShippingUpdate",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "reverseFulfillmentOrderDispose",
+        CapabilityDomain::ShippingFulfillments,
+    ),
 ];
 
 const fn local_query(name: &'static str, domain: CapabilityDomain) -> LocalDispatchRoot {

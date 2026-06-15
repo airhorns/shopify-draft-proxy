@@ -3717,6 +3717,7 @@ impl DraftProxy {
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
     ) -> Option<Value> {
         let fields = root_fields(query, variables)?;
         if matches!(
@@ -3732,7 +3733,8 @@ impl DraftProxy {
         let field = fields.iter().find(|field| field.name == root_field)?;
         match root_field {
             "returnCreate" => {
-                let return_record = self.stage_return_from_input(field, "returnInput", "OPEN");
+                let return_record =
+                    self.stage_return_from_input(field, "returnInput", "OPEN", request);
                 Some(orders_payments_data_response(
                     &field.response_key,
                     selected_json(
@@ -3742,7 +3744,8 @@ impl DraftProxy {
                 ))
             }
             "returnRequest" => {
-                let return_record = self.stage_return_from_input(field, "input", "REQUESTED");
+                let return_record =
+                    self.stage_return_from_input(field, "input", "REQUESTED", request);
                 Some(orders_payments_data_response(
                     &field.response_key,
                     selected_json(
@@ -3878,10 +3881,12 @@ impl DraftProxy {
         field: &RootFieldSelection,
         input_name: &str,
         status: &str,
+        request: &Request,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
         let order_id = resolved_string_field(&input, "orderId")
             .unwrap_or_else(|| "gid://shopify/Order/return-flow".to_string());
+        self.ensure_order_return_hydrated_order(&order_id, request);
         let items = resolved_object_list_field(&input, "returnLineItems");
         let first_item = items.first().cloned().unwrap_or_default();
         let quantity = resolved_i64_field(&first_item, "quantity").unwrap_or(1);
@@ -3894,13 +3899,22 @@ impl DraftProxy {
         self.store.staged.next_return_line_item_id += 1;
         let fulfillment_line_item_id = resolved_string_field(&first_item, "fulfillmentLineItemId")
             .unwrap_or_else(|| "gid://shopify/FulfillmentLineItem/return-flow".to_string());
+        let line_item = self.return_fulfillment_line_item_record(&fulfillment_line_item_id);
         let reason = resolved_string_field(&first_item, "returnReason")
             .unwrap_or_else(|| "OTHER".to_string());
         let reason_note =
             resolved_string_field(&first_item, "returnReasonNote").unwrap_or_default();
+        let return_index = self
+            .store
+            .staged
+            .returns_by_order
+            .get(&order_id)
+            .map(|ids| ids.len() + 1)
+            .unwrap_or(1);
+        let order_name = self.return_order_name(&order_id);
         let mut return_record = json!({
             "id": return_id,
-            "name": format!("#R{}", self.store.staged.returns.len() + 1),
+            "name": format!("{order_name}-R{return_index}"),
             "status": status,
             "closedAt": Value::Null,
             "totalQuantity": quantity,
@@ -3918,10 +3932,7 @@ impl DraftProxy {
                     "returnReasonNote": reason_note,
                     "fulfillmentLineItem": {
                         "id": fulfillment_line_item_id,
-                        "lineItem": {
-                            "id": "gid://shopify/LineItem/return-flow",
-                            "title": "Return flow item"
-                        }
+                        "lineItem": line_item
                     }
                 }]
             },
@@ -3956,6 +3967,89 @@ impl DraftProxy {
         self.store.staged.returns.values().next().cloned()
     }
 
+    fn return_order_name(&self, order_id: &str) -> String {
+        self.store
+            .staged
+            .orders
+            .get(order_id)
+            .and_then(|order| order["name"].as_str())
+            .or_else(|| {
+                self.store
+                    .staged
+                    .order_return_hydrated_orders
+                    .get(order_id)
+                    .and_then(|order| order["name"].as_str())
+            })
+            .map(str::to_string)
+            .unwrap_or_else(|| "#1".to_string())
+    }
+
+    fn return_fulfillment_line_item_record(&self, fulfillment_line_item_id: &str) -> Value {
+        self.store
+            .staged
+            .order_return_hydrated_orders
+            .values()
+            .find_map(|order| {
+                order["fulfillments"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .flat_map(|fulfillment| {
+                        fulfillment["fulfillmentLineItems"]["nodes"]
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                    })
+                    .find(|line| line["id"] == fulfillment_line_item_id)
+                    .and_then(|line| line.get("lineItem").cloned())
+            })
+            .unwrap_or_else(|| match fulfillment_line_item_id {
+                "gid://shopify/FulfillmentLineItem/return-flow" => json!({
+                    "id": "gid://shopify/LineItem/return-flow",
+                    "title": "Return flow item"
+                }),
+                _ => Value::Null,
+            })
+    }
+
+    fn ensure_order_return_hydrated_order(&mut self, order_id: &str, request: &Request) {
+        if self
+            .store
+            .staged
+            .order_return_hydrated_orders
+            .contains_key(order_id)
+            || self.config.read_mode == ReadMode::Snapshot
+        {
+            return;
+        }
+        let request = Request {
+            method: "POST".to_string(),
+            path: if request.path.is_empty() {
+                "/admin/api/2026-04/graphql.json".to_string()
+            } else {
+                request.path.clone()
+            },
+            headers: request.headers.clone(),
+            body: json!({
+                "operationName": "OrdersOrderHydrate",
+                "query": "query OrdersOrderHydrate($id: ID!) { order(id: $id) { id name createdAt updatedAt displayFinancialStatus displayFulfillmentStatus totalPriceSet { shopMoney { amount currencyCode } } currentTotalPriceSet { shopMoney { amount currencyCode } } totalRefundedSet { shopMoney { amount currencyCode } } tags lineItems(first: 5) { nodes { id title quantity currentQuantity } } fulfillments(first: 5) { id status displayStatus createdAt updatedAt fulfillmentLineItems(first: 5) { nodes { id quantity lineItem { id title } } } } fulfillmentOrders(first: 5) { nodes { id status requestStatus assignedLocation { name location { id } } lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { id title } } } } } returns(first: 5) { nodes { id name status totalQuantity } } } }",
+                "variables": { "id": order_id }
+            })
+            .to_string(),
+        };
+        let response = (self.upstream_transport)(request);
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        let order = response.body["data"]["order"].clone();
+        if !order.is_null() {
+            self.store
+                .staged
+                .order_return_hydrated_orders
+                .insert(order_id.to_string(), order);
+        }
+    }
+
     fn selected_return_order(&self, order_id: &str, selection: &[SelectedField]) -> Value {
         let returns = self
             .store
@@ -3970,7 +4064,7 @@ impl DraftProxy {
         selected_json(
             &json!({
                 "id": order_id,
-                "name": "#1",
+                "name": self.return_order_name(order_id),
                 "updatedAt": "2024-01-01T00:00:03.000Z",
                 "returns": return_connection(returns)
             }),
@@ -4117,6 +4211,8 @@ impl DraftProxy {
             .staged
             .next_reverse_fulfillment_order_line_item_id += 1;
         let return_line_item_id = return_record["returnLineItems"]["nodes"][0]["id"].clone();
+        let fulfillment_line_item =
+            return_record["returnLineItems"]["nodes"][0]["fulfillmentLineItem"].clone();
         let quantity = return_record["totalQuantity"].as_i64().unwrap_or(1);
         let reverse_order = json!({
             "id": id,
@@ -4128,6 +4224,7 @@ impl DraftProxy {
                     "remainingQuantity": quantity,
                     "dispositionType": Value::Null,
                     "returnLineItem": { "id": return_line_item_id },
+                    "fulfillmentLineItem": fulfillment_line_item,
                     "dispositions": []
                 }]
             },
@@ -4169,6 +4266,7 @@ impl DraftProxy {
                     "quantity": 1,
                     "reverseFulfillmentOrderLineItem": {
                         "id": self.first_reverse_fulfillment_order_line_id(&reverse_order_id),
+                        "totalQuantity": self.first_reverse_fulfillment_order_line_total_quantity(&reverse_order_id),
                         "remainingQuantity": self.first_reverse_fulfillment_order_line_remaining_quantity(&reverse_order_id)
                     }
                 }]
@@ -4179,7 +4277,7 @@ impl DraftProxy {
                     "number": resolved_string_field(&tracking, "number").unwrap_or_default(),
                     "url": resolved_string_field(&tracking, "url").unwrap_or_default(),
                     "company": resolved_string_field(&tracking, "company").unwrap_or_default(),
-                    "carrierName": resolved_string_field(&tracking, "company").unwrap_or_default()
+                    "carrierName": resolved_string_field(&tracking, "company")
                 },
                 "label": {
                     "publicFileUrl": resolved_string_field(&label, "fileUrl").unwrap_or_default()
@@ -4226,6 +4324,17 @@ impl DraftProxy {
             .and_then(|order| order["lineItems"]["nodes"].as_array())
             .and_then(|nodes| nodes.first())
             .map(|node| node["remainingQuantity"].clone())
+            .unwrap_or(Value::Null)
+    }
+
+    fn first_reverse_fulfillment_order_line_total_quantity(&self, reverse_order_id: &str) -> Value {
+        self.store
+            .staged
+            .reverse_fulfillment_orders
+            .get(reverse_order_id)
+            .and_then(|order| order["lineItems"]["nodes"].as_array())
+            .and_then(|nodes| nodes.first())
+            .map(|node| node["totalQuantity"].clone())
             .unwrap_or(Value::Null)
     }
 

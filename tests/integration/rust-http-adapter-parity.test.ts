@@ -204,6 +204,7 @@ describe('Rust HTTP adapter route surface', () => {
             orders: {},
             returns: {},
             returnsByOrder: {},
+            orderReturnHydratedOrders: {},
             reverseDeliveries: {},
             reverseFulfillmentOrders: {},
             locations: {},
