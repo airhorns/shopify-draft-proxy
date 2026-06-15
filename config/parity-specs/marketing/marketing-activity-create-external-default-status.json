@@ -1,0 +1,68 @@
+{
+  "scenarioId": "marketing-activity-create-external-default-status",
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "local-staging", "downstream-read-parity"],
+  "operationNames": ["marketingActivityCreateExternal", "marketingActivity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-activity-create-external-default-status.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-activity-create-external-default-status.graphql",
+    "variablesCapturePath": "$.operations.primary.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-omitted-status-defaults-undefined",
+        "capturePath": "$.operations.primary.response.payload.data.createNoStatus.marketingActivity",
+        "proxyPath": "$.data.createNoStatus.marketingActivity",
+        "selectedPaths": ["$.status", "$.statusLabel"]
+      },
+      {
+        "name": "create-omitted-status-user-errors",
+        "capturePath": "$.operations.primary.response.payload.data.createNoStatus.userErrors",
+        "proxyPath": "$.data.createNoStatus.userErrors"
+      },
+      {
+        "name": "create-explicit-active-status-control",
+        "capturePath": "$.operations.primary.response.payload.data.createActive.marketingActivity",
+        "proxyPath": "$.data.createActive.marketingActivity",
+        "selectedPaths": ["$.status", "$.statusLabel"]
+      },
+      {
+        "name": "create-explicit-active-user-errors",
+        "capturePath": "$.operations.primary.response.payload.data.createActive.userErrors",
+        "proxyPath": "$.data.createActive.userErrors"
+      },
+      {
+        "name": "read-after-write-default-statuses",
+        "capturePath": "$.operations.read.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.createNoStatus.status",
+          "$.createNoStatus.statusLabel",
+          "$.createActive.status",
+          "$.createActive.statusLabel"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-create-external-default-status-read.graphql",
+          "variables": {
+            "createNoStatusId": {
+              "fromPrimaryProxyPath": "$.data.createNoStatus.marketingActivity.id"
+            },
+            "createActiveId": {
+              "fromPrimaryProxyPath": "$.data.createActive.marketingActivity.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Captures Admin GraphQL 2026-04 read-after-write behavior for marketingActivityCreateExternal when `status` is omitted. Real Shopify defaults create to status UNDEFINED with statusLabel Undefined, while an explicit ACTIVE control still derives Sending. The capture fixture also records that 2026-04 public GraphQL rejects omitted `status` for MarketingActivityUpsertExternalInput during input coercion, so the proxy's upsert-create local default is covered by runtime tests rather than a read-back parity target."
+}

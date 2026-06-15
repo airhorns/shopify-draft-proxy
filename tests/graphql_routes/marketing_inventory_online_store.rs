@@ -136,6 +136,157 @@ fn marketing_external_activity_lifecycle_stages_updates_engagements_and_reads_ba
 }
 
 #[test]
+fn marketing_external_activity_create_and_upsert_default_omitted_status_to_undefined() {
+    let mut proxy = snapshot_proxy();
+    let mutation = r#"
+        mutation MarketingActivityLifecycle(
+          $noStatusInput: MarketingActivityCreateExternalInput!
+          $activeInput: MarketingActivityCreateExternalInput!
+          $upsertInput: MarketingActivityUpsertExternalInput!
+        ) {
+          noStatus: marketingActivityCreateExternal(input: $noStatusInput) {
+            marketingActivity { id remoteId status statusLabel }
+            userErrors { field message code }
+          }
+          active: marketingActivityCreateExternal(input: $activeInput) {
+            marketingActivity { id remoteId status statusLabel }
+            userErrors { field message code }
+          }
+          upsertNoStatus: marketingActivityUpsertExternal(input: $upsertInput) {
+            marketingActivity { id remoteId status statusLabel }
+            userErrors { field message code }
+          }
+        }
+        "#;
+    let variables = json!({
+        "noStatusInput": {
+            "title": "No-status promo",
+            "remoteId": "default-status-create",
+            "utm": {
+                "campaign": "default-status-create",
+                "source": "newsletter",
+                "medium": "email"
+            }
+        },
+        "activeInput": {
+            "title": "Explicit active promo",
+            "remoteId": "default-status-active-control",
+            "status": "ACTIVE",
+            "utm": {
+                "campaign": "default-status-active-control",
+                "source": "newsletter",
+                "medium": "email"
+            }
+        },
+        "upsertInput": {
+            "title": "No-status upsert promo",
+            "remoteId": "default-status-upsert-create",
+            "utm": {
+                "campaign": "default-status-upsert-create",
+                "source": "newsletter",
+                "medium": "email"
+            }
+        }
+    });
+    let expected_raw_body =
+        json!({ "query": mutation, "variables": variables.clone() }).to_string();
+    let response = proxy.process_request(json_graphql_request(mutation, variables));
+    assert_eq!(response.status, 200);
+
+    for response_key in ["noStatus", "active", "upsertNoStatus"] {
+        assert_eq!(
+            response.body["data"][response_key]["userErrors"],
+            json!([]),
+            "{response_key} should stage without user errors"
+        );
+    }
+    assert_eq!(
+        response.body["data"]["noStatus"]["marketingActivity"]["status"],
+        json!("UNDEFINED")
+    );
+    assert_eq!(
+        response.body["data"]["noStatus"]["marketingActivity"]["statusLabel"],
+        json!("Undefined")
+    );
+    assert_eq!(
+        response.body["data"]["upsertNoStatus"]["marketingActivity"]["status"],
+        json!("UNDEFINED")
+    );
+    assert_eq!(
+        response.body["data"]["upsertNoStatus"]["marketingActivity"]["statusLabel"],
+        json!("Undefined")
+    );
+    assert_eq!(
+        response.body["data"]["active"]["marketingActivity"]["status"],
+        json!("ACTIVE")
+    );
+    assert_eq!(
+        response.body["data"]["active"]["marketingActivity"]["statusLabel"],
+        json!("Sending")
+    );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().expect("log entries should exist");
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0]["rawBody"], json!(expected_raw_body));
+    assert!(
+        entries[0]["variables"]["noStatusInput"]
+            .get("status")
+            .is_none(),
+        "omitted status should not be injected into retained raw variables"
+    );
+    assert!(
+        entries[0]["variables"]["upsertInput"]
+            .get("status")
+            .is_none(),
+        "omitted upsert status should not be injected into retained raw variables"
+    );
+
+    let no_status_id = response.body["data"]["noStatus"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let active_id = response.body["data"]["active"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let upsert_id = response.body["data"]["upsertNoStatus"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingActivityLifecycleRead($noStatusId: ID!, $activeId: ID!, $upsertId: ID!) {
+          noStatus: marketingActivity(id: $noStatusId) { id remoteId status statusLabel }
+          active: marketingActivity(id: $activeId) { id remoteId status statusLabel }
+          upsertNoStatus: marketingActivity(id: $upsertId) { id remoteId status statusLabel }
+        }
+        "#,
+        json!({
+            "noStatusId": no_status_id,
+            "activeId": active_id,
+            "upsertId": upsert_id
+        }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["noStatus"]["status"], json!("UNDEFINED"));
+    assert_eq!(
+        read.body["data"]["noStatus"]["statusLabel"],
+        json!("Undefined")
+    );
+    assert_eq!(
+        read.body["data"]["upsertNoStatus"]["status"],
+        json!("UNDEFINED")
+    );
+    assert_eq!(
+        read.body["data"]["upsertNoStatus"]["statusLabel"],
+        json!("Undefined")
+    );
+    assert_eq!(read.body["data"]["active"]["status"], json!("ACTIVE"));
+    assert_eq!(read.body["data"]["active"]["statusLabel"], json!("Sending"));
+}
+
+#[test]
 fn marketing_external_activity_update_and_upsert_reject_tactic_change_from_storefront_app() {
     let mut proxy = snapshot_proxy();
     let setup = proxy.process_request(json_graphql_request(
