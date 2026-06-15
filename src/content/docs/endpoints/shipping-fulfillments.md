@@ -111,6 +111,11 @@ creates a service-managed location in local state, update preserves service and
 location identity, and delete applies the captured local location disposition
 for the scenario. Successful service mutations keep original raw GraphQL input
 for commit replay.
+The captured 2026-04 public schema does not expose `permitsSkuSharing`,
+`inventorySyncEnabled`, or `fulfillmentOrdersOptIn` on
+`fulfillmentServiceCreate`; those arguments return top-level
+`argumentNotAccepted` GraphQL errors before resolver execution and do not stage
+or log a service mutation.
 
 Carrier-service slices cover create, update, delete, downstream
 `carrierService(id:)`, `carrierServices(...)`, active filters, unknown-id

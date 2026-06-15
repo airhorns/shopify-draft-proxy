@@ -3516,6 +3516,68 @@ fn fulfillment_service_lifecycle_stages_location_reads_deletes_and_validates() {
 }
 
 #[test]
+fn fulfillment_service_create_rejects_removed_public_schema_arguments_before_staging() {
+    for removed_argument in [
+        "permitsSkuSharing",
+        "inventorySyncEnabled",
+        "fulfillmentOrdersOptIn",
+    ] {
+        let mut proxy = snapshot_proxy();
+        let mutation = format!(
+            "mutation FulfillmentServiceRemovedArgumentValidation($name: String!) {{\n  fulfillmentServiceCreate(\n    name: $name\n    {removed_argument}: false\n    trackingSupport: true\n    inventoryManagement: true\n    requiresShippingMethod: true\n  ) {{\n    fulfillmentService {{\n      id\n      serviceName\n      inventoryManagement\n      requiresShippingMethod\n      trackingSupport\n    }}\n    userErrors {{ field message }}\n  }}\n}}\n"
+        );
+
+        let response = proxy.process_request(json_graphql_request(
+            &mutation,
+            json!({ "name": format!("FS Removed Arg {removed_argument}") }),
+        ));
+        assert_eq!(response.status, 200);
+        assert!(response.body.get("data").is_none(), "{removed_argument}");
+        assert_eq!(
+            response.body["errors"],
+            json!([{
+                "message": format!(
+                    "Field 'fulfillmentServiceCreate' doesn't accept argument '{removed_argument}'"
+                ),
+                "locations": [{ "line": 4, "column": 5 }],
+                "path": [
+                    "mutation FulfillmentServiceRemovedArgumentValidation",
+                    "fulfillmentServiceCreate",
+                    removed_argument
+                ],
+                "extensions": {
+                    "code": "argumentNotAccepted",
+                    "name": "fulfillmentServiceCreate",
+                    "typeName": "Field",
+                    "argumentName": removed_argument
+                }
+            }]),
+            "{removed_argument}"
+        );
+
+        let log = proxy.process_request(Request {
+            method: "GET".to_string(),
+            path: "/__meta/log".to_string(),
+            headers: Default::default(),
+            body: String::new(),
+        });
+        assert_eq!(log.body["entries"], json!([]), "{removed_argument}");
+
+        let state = proxy.process_request(Request {
+            method: "GET".to_string(),
+            path: "/__meta/state".to_string(),
+            headers: Default::default(),
+            body: String::new(),
+        });
+        assert_eq!(
+            state.body["stagedState"]["locations"],
+            json!({}),
+            "{removed_argument}"
+        );
+    }
+}
+
+#[test]
 fn fulfillment_service_name_whitespace_validation_rejects_without_staging_or_logging() {
     let mut proxy = snapshot_proxy();
     let create_query = r#"
