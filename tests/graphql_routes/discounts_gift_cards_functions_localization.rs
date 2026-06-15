@@ -1644,6 +1644,257 @@ fn localization_catalog_reads_are_store_backed_without_ported_document_marker() 
 }
 
 #[test]
+fn localization_markets_read_returns_empty_connection_without_source_data() {
+    let mut proxy = snapshot_proxy();
+
+    let localization_read = proxy.process_request(json_graphql_request(
+        r#"query LocalizationMarketsNoData {
+          markets(first: 5) {
+            nodes { id name handle status type }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(localization_read.status, 200);
+    assert_eq!(
+        localization_read.body["data"]["markets"],
+        json!({
+            "nodes": [],
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+            }
+        })
+    );
+    let serialized = serde_json::to_string(&localization_read.body).unwrap();
+    assert!(!serialized.contains("gid://shopify/Market/123"));
+    assert!(!serialized.contains("gid://shopify/Market/ca"));
+
+    let market_localization_read = proxy.process_request(json_graphql_request(
+        r#"query RustMarketLocalizationsLocalRuntimeSourceEmpty {
+          markets(first: 5) { nodes { id name handle status type } }
+          marketLocalizableResource(resourceId: "gid://shopify/Metafield/localizable") { resourceId }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(market_localization_read.status, 200);
+    assert_eq!(
+        market_localization_read.body["data"]["markets"]["nodes"],
+        json!([])
+    );
+    let serialized = serde_json::to_string(&market_localization_read.body).unwrap();
+    assert!(!serialized.contains("gid://shopify/Market/123"));
+    assert!(!serialized.contains("gid://shopify/Market/ca"));
+}
+
+#[test]
+fn localization_markets_read_hydrates_from_live_source_and_reuses_observed_market() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body =
+                serde_json::from_str::<Value>(&request.body).expect("upstream GraphQL body parses");
+            assert_eq!(body["operationName"], json!("LocalizationMarketsHydrate"));
+            captured_requests.lock().unwrap().push(request.clone());
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "markets": {
+                            "nodes": [{
+                                "id": "gid://shopify/Market/97997685042",
+                                "name": "Source Market",
+                                "handle": "source-market",
+                                "status": "DRAFT",
+                                "type": "NONE"
+                            }]
+                        }
+                    }
+                }),
+            }
+        });
+
+    let mut request = json_graphql_request(
+        r#"query LocalizationMarketsFromSource($first: Int!) {
+          markets(first: $first) { nodes { id name handle status type } }
+        }"#,
+        json!({ "first": 1 }),
+    );
+    request.path = "/admin/api/2026-04/graphql.json".to_string();
+    request.headers.insert(
+        "x-shopify-access-token".to_string(),
+        "source-token".to_string(),
+    );
+    let hydrated = proxy.process_request(request.clone());
+
+    assert_eq!(hydrated.status, 200);
+    assert_eq!(
+        hydrated.body["data"]["markets"]["nodes"],
+        json!([{
+            "id": "gid://shopify/Market/97997685042",
+            "name": "Source Market",
+            "handle": "source-market",
+            "status": "DRAFT",
+            "type": "NONE"
+        }])
+    );
+    {
+        let requests = upstream_requests.lock().unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].path, "/admin/api/2026-04/graphql.json");
+        assert_eq!(
+            requests[0]
+                .headers
+                .get("x-shopify-access-token")
+                .map(String::as_str),
+            Some("source-token")
+        );
+    }
+
+    let cached = proxy.process_request(request);
+    assert_eq!(
+        cached.body["data"]["markets"]["nodes"][0]["id"],
+        json!("gid://shopify/Market/97997685042")
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn localization_source_read_stages_observed_markets_and_shop_locales_for_translation_replay() {
+    let upstream_requests = Arc::new(Mutex::new(Vec::new()));
+    let captured_requests = Arc::clone(&upstream_requests);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        move |request| {
+            let body = serde_json::from_str::<Value>(&request.body)
+                .expect("upstream GraphQL body parses");
+            captured_requests.lock().unwrap().push(request.clone());
+            if body["operationName"] == json!("LocalizationMarketsHydrate") {
+                return shopify_draft_proxy::proxy::Response {
+                    status: 500,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "hydrate query not in cassette" }] }),
+                };
+            }
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "markets": {
+                            "nodes": [{
+                                "id": "gid://shopify/Market/97997685042",
+                                "name": "Captured Market",
+                                "handle": "captured-market",
+                                "status": "ACTIVE",
+                                "type": "REGION"
+                            }]
+                        },
+                        "allShopLocales": [
+                            { "locale": "en", "name": "English", "primary": true, "published": true, "marketWebPresences": [] },
+                            { "locale": "es", "name": "Spanish", "primary": false, "published": false, "marketWebPresences": [] }
+                        ]
+                    }
+                }),
+            }
+        },
+    );
+
+    let source_read = proxy.process_request(json_graphql_request(
+        r#"query LocalizationTranslationsMarketScopedRead($marketsFirst: Int!) {
+          markets(first: $marketsFirst) { nodes { id name handle status type } }
+          allShopLocales: shopLocales { locale name primary published marketWebPresences { id } }
+        }"#,
+        json!({ "marketsFirst": 1 }),
+    ));
+    assert_eq!(source_read.status, 200);
+    assert_eq!(
+        source_read.body["data"]["markets"]["nodes"][0]["id"],
+        json!("gid://shopify/Market/97997685042")
+    );
+    assert_eq!(upstream_requests.lock().unwrap().len(), 2);
+
+    let registered = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": "gid://shopify/Product/9801098789170",
+            "translations": [{
+                "locale": "es",
+                "key": "title",
+                "value": "Titulo de mercado",
+                "marketId": "gid://shopify/Market/97997685042",
+                "translatableContentDigest": "digest"
+            }]
+        }),
+    ));
+    assert_eq!(registered.status, 200);
+    assert_eq!(
+        registered.body["data"]["translationsRegister"]["translations"],
+        json!([{
+            "key": "title",
+            "value": "Titulo de mercado",
+            "locale": "es",
+            "market": { "id": "gid://shopify/Market/97997685042" }
+        }])
+    );
+    assert_eq!(
+        registered.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn localization_markets_read_uses_locally_staged_markets_before_upstream() {
+    let upstream_hits = Arc::new(Mutex::new(0usize));
+    let captured_hits = Arc::clone(&upstream_hits);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        move |_request| {
+            *captured_hits.lock().unwrap() += 1;
+            shopify_draft_proxy::proxy::Response {
+                status: 500,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "staged market read should not hit upstream" }] }),
+            }
+        },
+    );
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"mutation RustMarketCreateLocalRuntimeSourceBacked($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id name handle status }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({ "input": { "name": "Canada", "regions": [{ "countryCode": "CA" }] } }),
+    ));
+    assert_eq!(created.status, 200);
+    assert_eq!(
+        created.body["data"]["marketCreate"]["userErrors"],
+        json!([])
+    );
+    let market = created.body["data"]["marketCreate"]["market"].clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query LocalizationMarketsStagedRead {
+          markets(first: 5) { nodes { id name handle status } }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["markets"]["nodes"], json!([market]));
+    assert_eq!(*upstream_hits.lock().unwrap(), 0);
+}
+
+#[test]
 fn localization_translations_register_multi_row_round_trip_and_indexed_errors() {
     let mut proxy = snapshot_proxy();
     let resource_id = "gid://shopify/Product/9801098789170";

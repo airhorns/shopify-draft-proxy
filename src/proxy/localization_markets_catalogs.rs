@@ -232,6 +232,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn localization_query_data(
         &mut self,
         fields: &[RootFieldSelection],
+        request: &Request,
     ) -> Value {
         let mut data = serde_json::Map::new();
         for field in fields {
@@ -269,18 +270,7 @@ impl DraftProxy {
                 "translatableResourcesByIds" => {
                     self.localization_translatable_resources_by_ids_connection(field)
                 }
-                "markets" => selected_json(
-                    &json!({
-                        "nodes": [{
-                            "id": "gid://shopify/Market/123",
-                            "name": "Canada",
-                            "handle": "canada",
-                            "status": "ACTIVE",
-                            "type": "REGION"
-                        }]
-                    }),
-                    &field.selection,
-                ),
+                "markets" => self.localization_markets_connection(field, request),
                 _ => Value::Null,
             };
             data.insert(field.response_key.clone(), value);
@@ -2332,8 +2322,9 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn market_localization_query_data(
-        &self,
+        &mut self,
         fields: &[RootFieldSelection],
+        request: &Request,
     ) -> Value {
         let mut data = serde_json::Map::new();
         for field in fields {
@@ -2361,18 +2352,7 @@ impl DraftProxy {
                     }),
                     &field.selection,
                 ),
-                "markets" => selected_json(
-                    &json!({
-                        "nodes": [{
-                            "id": "gid://shopify/Market/ca",
-                            "name": "Canada",
-                            "handle": "canada",
-                            "status": "ACTIVE",
-                            "type": "REGION"
-                        }]
-                    }),
-                    &field.selection,
-                ),
+                "markets" => self.localization_markets_connection(field, request),
                 _ => Value::Null,
             };
             data.insert(field.response_key.clone(), value);
@@ -2850,6 +2830,149 @@ impl DraftProxy {
             |id, selection| self.localization_translatable_resource_selected(id, selection),
             |id| id.clone(),
         )
+    }
+
+    pub(in crate::proxy) fn localization_markets_connection(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> Value {
+        let mut records = self
+            .store
+            .staged
+            .markets
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        if records.is_empty() {
+            records = self.hydrate_localization_markets(field, request);
+        }
+        selected_typed_connection_with_args(
+            &records,
+            &field.arguments,
+            &field.selection,
+            selected_json,
+            value_id_cursor,
+        )
+    }
+
+    fn hydrate_localization_markets(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> Vec<Value> {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return Vec::new();
+        }
+        let first = resolved_int_field(&field.arguments, "first")
+            .unwrap_or(50)
+            .max(0);
+        if first == 0 {
+            return Vec::new();
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: serde_json::to_string(&json!({
+                "query": "query LocalizationMarketsHydrate($first: Int!) { markets(first: $first) { nodes { id name handle status type } } }",
+                "operationName": "LocalizationMarketsHydrate",
+                "variables": { "first": first }
+            }))
+            .unwrap_or_default(),
+        });
+        self.stage_observed_localization_source_data(&response.body["data"]);
+        if response.status >= 400 {
+            return self.hydrate_localization_markets_from_original_request(field, request);
+        }
+        let records = response.body["data"]["markets"]["nodes"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        if records.is_empty() && response.body["data"]["markets"].is_null() {
+            return self.hydrate_localization_markets_from_original_request(field, request);
+        }
+        self.stage_observed_localization_markets(&records);
+        records
+    }
+
+    fn hydrate_localization_markets_from_original_request(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> Vec<Value> {
+        let response = (self.upstream_transport)(request.clone());
+        self.stage_observed_localization_source_data(&response.body["data"]);
+        if response.status >= 400 {
+            return Vec::new();
+        }
+        let market_connection = &response.body["data"][&field.response_key];
+        let mut records = market_connection["nodes"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        if records.is_empty() {
+            records = market_connection["edges"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|edge| edge.get("node").cloned())
+                .collect();
+        }
+        self.stage_observed_localization_markets(&records);
+        records
+    }
+
+    fn stage_observed_localization_source_data(&mut self, data: &Value) {
+        let Some(data) = data.as_object() else {
+            return;
+        };
+        for value in data.values() {
+            if let Some(locales) = value.as_array() {
+                self.stage_observed_shop_locales(locales);
+            }
+            if let Some(nodes) = value.get("nodes").and_then(Value::as_array) {
+                self.stage_observed_localization_markets(nodes);
+            }
+        }
+    }
+
+    fn stage_observed_shop_locales(&mut self, locales: &[Value]) {
+        for locale in locales {
+            let Some(locale_code) = locale.get("locale").and_then(Value::as_str) else {
+                continue;
+            };
+            if locale_code == "en"
+                || !locale.get("name").is_some_and(Value::is_string)
+                || !locale.get("primary").is_some_and(Value::is_boolean)
+                || !locale.get("published").is_some_and(Value::is_boolean)
+            {
+                continue;
+            }
+            self.store
+                .staged
+                .shop_locales
+                .insert(locale_code.to_string(), locale.clone());
+        }
+    }
+
+    fn stage_observed_localization_markets(&mut self, records: &[Value]) {
+        for market in records {
+            let Some(id) = market.get("id").and_then(Value::as_str) else {
+                continue;
+            };
+            if !id.starts_with("gid://shopify/Market/")
+                || !market.get("name").is_some_and(Value::is_string)
+                || !market.get("handle").is_some_and(Value::is_string)
+                || !market.get("status").is_some_and(Value::is_string)
+            {
+                continue;
+            }
+            self.store
+                .staged
+                .markets
+                .insert(id.to_string(), market.clone());
+        }
     }
 
     pub(in crate::proxy) fn localization_translatable_resource_ids(&self) -> Vec<String> {
