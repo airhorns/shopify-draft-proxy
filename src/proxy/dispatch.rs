@@ -339,7 +339,7 @@ impl DraftProxy {
                 return (self.upstream_transport)(request.clone());
             }
             if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({"data": self.metaobject_query_data(&fields)}));
+                return ok_json(json!({"data": self.metaobject_query_data(&fields, request)}));
             }
         }
 
@@ -351,6 +351,22 @@ impl DraftProxy {
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return self.metaobject_mutation(&fields, request, &query, &variables);
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "metaobjectDefinitionUpdate")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                if fields
+                    .iter()
+                    .all(|field| self.metaobject_definition_update_targets_local_definition(field))
+                {
+                    return self.metaobject_mutation(&fields, request, &query, &variables);
+                }
             }
         }
 
@@ -2306,7 +2322,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
             {
                 if let Some(fields) = root_fields(&query, &variables) {
-                    ok_json(json!({ "data": self.metaobject_query_data(&fields) }))
+                    ok_json(json!({ "data": self.metaobject_query_data(&fields, request) }))
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
                 }
