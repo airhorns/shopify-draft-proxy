@@ -1,0 +1,76 @@
+{
+  "scenarioId": "carrier-service-update-blank-name",
+  "operationNames": ["carrierService", "carrierServiceCreate", "carrierServiceUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-state-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/carrier-service-update-blank-name.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-update-blank-name-create.graphql",
+    "variablesCapturePath": "$.create.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 evidence that carrierServiceUpdate with a present blank name returns CARRIER_SERVICE_UPDATE_FAILED and leaves the existing carrier service name unchanged. The setup create is disposable and is replayed through the public proxy request surface.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-create-payload",
+        "capturePath": "$.create.response.payload.data.carrierServiceCreate",
+        "proxyPath": "$.data.carrierServiceCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.carrierService.id",
+            "matcher": "shopify-gid:DeliveryCarrierService",
+            "reason": "The proxy creates a stable synthetic carrier-service ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "blank-name-update-user-errors",
+        "capturePath": "$.blankNameUpdate.response.payload.data.carrierServiceUpdate",
+        "proxyPath": "$.data.carrierServiceUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-update-blank-name.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.carrierServiceCreate.carrierService.id"
+              },
+              "name": ""
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "read-after-blank-name-reject",
+        "capturePath": "$.afterRejectedUpdateRead.response.payload.data.carrierService",
+        "proxyPath": "$.data.carrierService",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-update-blank-name-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.carrierServiceCreate.carrierService.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:DeliveryCarrierService",
+            "reason": "The downstream read targets the proxy-created synthetic carrier-service ID."
+          }
+        ]
+      }
+    ]
+  }
+}
