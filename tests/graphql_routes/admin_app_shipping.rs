@@ -4320,6 +4320,56 @@ fn carrier_service_update_validates_changed_callback_url_and_codes_unknowns() {
         .unwrap()
         .to_string();
 
+    let log_len_after_create = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .unwrap()
+        .len();
+
+    let blank_name_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceUpdateProbe($input: DeliveryCarrierServiceUpdateInput!) {
+          carrierServiceUpdate(input: $input) {
+            carrierService { id name callbackUrl }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "id": id,
+            "name": ""
+        }}),
+    ));
+    assert_eq!(
+        blank_name_update.body["data"]["carrierServiceUpdate"],
+        json!({
+            "carrierService": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Shipping rate provider name can't be blank",
+                "code": "CARRIER_SERVICE_UPDATE_FAILED"
+            }]
+        })
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        log_len_after_create
+    );
+    let after_blank_name_update = proxy.process_request(json_graphql_request(
+        r#"
+        query CarrierServiceAfterUpdate($id: ID!) {
+          carrierService(id: $id) { id name callbackUrl }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+    assert_eq!(
+        after_blank_name_update.body["data"]["carrierService"]["name"],
+        json!("Hermes Carrier Local")
+    );
+
     let unchanged_callback = proxy.process_request(json_graphql_request(
         r#"
         mutation CarrierServiceUpdateProbe($input: DeliveryCarrierServiceUpdateInput!) {
@@ -4341,6 +4391,33 @@ fn carrier_service_update_validates_changed_callback_url_and_codes_unknowns() {
     );
     assert_eq!(
         unchanged_callback.body["data"]["carrierServiceUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let omitted_name = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CarrierServiceUpdateProbe($input: DeliveryCarrierServiceUpdateInput!) {
+          carrierServiceUpdate(input: $input) {
+            carrierService { id name callbackUrl active }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "id": id,
+            "active": true
+        }}),
+    ));
+    assert_eq!(
+        omitted_name.body["data"]["carrierServiceUpdate"]["carrierService"]["name"],
+        json!("Hermes Carrier Renamed")
+    );
+    assert_eq!(
+        omitted_name.body["data"]["carrierServiceUpdate"]["carrierService"]["active"],
+        json!(true)
+    );
+    assert_eq!(
+        omitted_name.body["data"]["carrierServiceUpdate"]["userErrors"],
         json!([])
     );
 

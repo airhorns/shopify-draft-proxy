@@ -1,0 +1,16 @@
+mutation CarrierServiceUpdateBlankNameCreate($input: DeliveryCarrierServiceCreateInput!) {
+  carrierServiceCreate(input: $input) {
+    carrierService {
+      id
+      name
+      callbackUrl
+      active
+      supportsServiceDiscovery
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
