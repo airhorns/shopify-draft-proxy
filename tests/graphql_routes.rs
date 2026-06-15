@@ -22,3 +22,5 @@ mod platform;
 mod products_intro;
 #[path = "graphql_routes/products_saved_searches.rs"]
 mod products_saved_searches;
+#[path = "graphql_routes/selling_plans.rs"]
+mod selling_plans;

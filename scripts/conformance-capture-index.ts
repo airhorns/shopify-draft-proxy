@@ -2318,6 +2318,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}product-relationship-roots.json`,
       'config/parity-specs/products/product-relationship-roots-live-parity.json',
+      'config/parity-specs/products/selling-plan-product-variant-associations.json',
     ],
     cleanupBehavior:
       'Creates disposable products, collection, media, and selling-plan group, then deletes them during cleanup.',
