@@ -1311,6 +1311,178 @@ fn inventory_adjust_quantities_stages_levels_logs_and_reads_back_by_root_field()
 }
 
 #[test]
+fn inventory_quantity_name_validation_rejects_invalid_names_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let public_name_message = "The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock.";
+
+    let adjust = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidAdjustName($input: InventoryAdjustQuantitiesInput!, $idempotencyKey: String!) {
+          inventoryAdjustQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { reason }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "invalid-adjust-name", "input": {"name": "on_hand", "reason": "correction", "referenceDocumentUri": "logistics://inventory/name/adjust", "changes": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/name-validation", "locationId": "gid://shopify/Location/1", "delta": 1, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        adjust.body["data"]["inventoryAdjustQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "name"],
+                "message": public_name_message,
+                "code": "INVALID_QUANTITY_NAME"
+            }]
+        })
+    );
+
+    let set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidSetName($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { reason }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "invalid-set-name", "input": {"name": "committed", "reason": "correction", "referenceDocumentUri": "logistics://inventory/name/set", "quantities": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/name-validation", "locationId": "gid://shopify/Location/1", "quantity": 5, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        set.body["data"]["inventorySetQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "name"],
+                "message": "The quantity name must be either 'available' or 'on_hand'.",
+                "code": "INVALID_NAME"
+            }]
+        })
+    );
+
+    let set_too_high = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidSetQuantity($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { reason }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "invalid-set-quantity", "input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/name/set-too-high", "quantities": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/name-validation", "locationId": "gid://shopify/Location/1", "quantity": 1000000001, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        set_too_high.body["data"]["inventorySetQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "quantities", "0", "quantity"],
+                "message": "The quantity can't be higher than 1,000,000,000.",
+                "code": "INVALID_QUANTITY_TOO_HIGH"
+            }]
+        })
+    );
+
+    let set_duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidSetDuplicate($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+          inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+            inventoryAdjustmentGroup { reason }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"idempotencyKey": "invalid-set-duplicate", "input": {"name": "available", "reason": "correction", "referenceDocumentUri": "logistics://inventory/name/set-duplicate", "quantities": [
+            {"inventoryItemId": "gid://shopify/InventoryItem/name-validation", "locationId": "gid://shopify/Location/1", "quantity": 2, "changeFromQuantity": 0},
+            {"inventoryItemId": "gid://shopify/InventoryItem/name-validation", "locationId": "gid://shopify/Location/1", "quantity": 3, "changeFromQuantity": 0}
+        ]}}),
+    ));
+    assert_eq!(
+        set_duplicate.body["data"]["inventorySetQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [
+                {
+                    "field": ["input", "quantities", "0", "locationId"],
+                    "message": "The combination of inventoryItemId and locationId must be unique.",
+                    "code": "NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR"
+                },
+                {
+                    "field": ["input", "quantities", "1", "locationId"],
+                    "message": "The combination of inventoryItemId and locationId must be unique.",
+                    "code": "NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR"
+                }
+            ]
+        })
+    );
+
+    let move_from = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidMoveFromName($input: InventoryMoveQuantitiesInput!) {
+          inventoryMoveQuantities(input: $input) {
+            inventoryAdjustmentGroup { reason }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"reason": "correction", "referenceDocumentUri": "logistics://inventory/name/move-from", "changes": [{
+            "inventoryItemId": "gid://shopify/InventoryItem/name-validation",
+            "quantity": 1,
+            "from": {"locationId": "gid://shopify/Location/1", "name": "on_hand"},
+            "to": {"locationId": "gid://shopify/Location/1", "name": "damaged", "ledgerDocumentUri": "ledger://inventory/name/move-from"}
+        }]}}),
+    ));
+    assert_eq!(
+        move_from.body["data"]["inventoryMoveQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "changes", "0", "from", "name"],
+                "message": public_name_message,
+                "code": "INVALID_QUANTITY_NAME"
+            }]
+        })
+    );
+
+    let move_to = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidMoveToName($input: InventoryMoveQuantitiesInput!) {
+          inventoryMoveQuantities(input: $input) {
+            inventoryAdjustmentGroup { reason }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {"reason": "correction", "referenceDocumentUri": "logistics://inventory/name/move-to", "changes": [{
+            "inventoryItemId": "gid://shopify/InventoryItem/name-validation",
+            "quantity": 1,
+            "from": {"locationId": "gid://shopify/Location/1", "name": "available"},
+            "to": {"locationId": "gid://shopify/Location/1", "name": "committed", "ledgerDocumentUri": "ledger://inventory/name/move-to"}
+        }]}}),
+    ));
+    assert_eq!(
+        move_to.body["data"]["inventoryMoveQuantities"],
+        json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "changes", "0", "to", "name"],
+                "message": public_name_message,
+                "code": "INVALID_QUANTITY_NAME"
+            }]
+        })
+    );
+
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
+#[test]
 fn inventory_quantity_2026_missing_change_from_returns_graphql_error_without_staging() {
     let mut proxy = snapshot_proxy();
 
