@@ -824,6 +824,21 @@ impl DraftProxy {
                     let hydrate_ids = collection_passthrough_hydration_ids(root_field, &response);
                     self.hydrate_product_nodes_for_observation(hydrate_ids);
                 }
+                if operation_type == OperationType::Mutation
+                    && matches!(
+                        root_field,
+                        "fulfillmentOrderSubmitFulfillmentRequest"
+                            | "fulfillmentOrderAcceptFulfillmentRequest"
+                            | "fulfillmentOrderRejectFulfillmentRequest"
+                            | "fulfillmentOrderSubmitCancellationRequest"
+                            | "fulfillmentOrderAcceptCancellationRequest"
+                            | "fulfillmentOrderRejectCancellationRequest"
+                    )
+                {
+                    self.observe_shipping_fulfillment_order_passthrough_response(
+                        root_field, &response,
+                    );
+                }
                 response
             }
         }

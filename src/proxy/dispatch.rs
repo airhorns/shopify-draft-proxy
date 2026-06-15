@@ -218,6 +218,13 @@ impl DraftProxy {
             return ok_json(data);
         }
 
+        if operation.operation_type == OperationType::Query
+            && root_field == "order"
+            && self.should_handle_shipping_fulfillment_order_local_order_read(&query, &variables)
+        {
+            return self.shipping_fulfillment_order_local_order_read(&query, &variables);
+        }
+
         if let Some(data) =
             self.order_payment_transaction_local_data(root_field, &query, &variables)
         {
@@ -2353,6 +2360,18 @@ impl DraftProxy {
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
                 }
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+            {
+                self.shipping_fulfillment_order_read_response(request, &query, &variables)
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+            {
+                self.shipping_fulfillment_order_mutation_response(
+                    root_field, request, &query, &variables,
+                )
             }
             (CapabilityDomain::Functions, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>

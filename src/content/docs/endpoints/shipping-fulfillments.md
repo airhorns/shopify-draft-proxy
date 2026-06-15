@@ -12,20 +12,23 @@ order-editing shipping-line roots.
 
 ### Supported roots
 
-The current Rust operation registry does not mark any shipping/fulfillments root
-as fully implemented. Registry presence is a local-model commitment only; it is
-not a claim that the whole shipping/fulfillments domain is supported for
-arbitrary documents.
+The Rust runtime implements bounded shipping/fulfillments slices for the roots
+below. Registry presence remains a local-model commitment only; it is not a
+claim that the whole shipping/fulfillments domain is supported for arbitrary
+documents.
 
-The registry-only read roots are:
+The locally handled fulfillment-order read roots are:
+
+- `fulfillmentOrder`
+- `fulfillmentOrders`
+- `manualHoldsFulfillmentOrders`
+
+Other registry-tracked read roots include:
 
 - `reverseDelivery`
 - `reverseFulfillmentOrder`
 - `fulfillment`
 - `assignedFulfillmentOrders`
-- `fulfillmentOrder`
-- `fulfillmentOrders`
-- `manualHoldsFulfillmentOrders`
 - `fulfillmentService`
 - `availableCarrierServices`
 - `carrierService`
@@ -41,7 +44,20 @@ The registry-only read roots are:
 - `locationsAvailableForDeliveryProfilesConnection`
 - `fulfillmentConstraintRules`
 
-The registry-only mutation roots are:
+The locally handled fulfillment-order lifecycle mutation roots are:
+
+- `fulfillmentOrderCancel`
+- `fulfillmentOrderClose`
+- `fulfillmentOrderHold`
+- `fulfillmentOrderMove`
+- `fulfillmentOrderOpen`
+- `fulfillmentOrderReleaseHold`
+- `fulfillmentOrderReportProgress`
+- `fulfillmentOrderReschedule`
+- `fulfillmentOrdersReroute`
+- `fulfillmentOrdersSetFulfillmentDeadline`
+
+Other registry-tracked mutation roots include:
 
 - `fulfillmentCreate`
 - `fulfillmentEventCreate`
@@ -49,20 +65,10 @@ The registry-only mutation roots are:
 - `fulfillmentCancel`
 - `fulfillmentOrderAcceptCancellationRequest`
 - `fulfillmentOrderAcceptFulfillmentRequest`
-- `fulfillmentOrderCancel`
-- `fulfillmentOrderClose`
-- `fulfillmentOrderHold`
 - `fulfillmentOrderLineItemsPreparedForPickup`
 - `fulfillmentOrderMerge`
-- `fulfillmentOrderMove`
-- `fulfillmentOrderOpen`
 - `fulfillmentOrderRejectCancellationRequest`
 - `fulfillmentOrderRejectFulfillmentRequest`
-- `fulfillmentOrderReleaseHold`
-- `fulfillmentOrderReportProgress`
-- `fulfillmentOrderReschedule`
-- `fulfillmentOrdersReroute`
-- `fulfillmentOrdersSetFulfillmentDeadline`
 - `fulfillmentOrderSplit`
 - `fulfillmentOrderSubmitCancellationRequest`
 - `fulfillmentOrderSubmitFulfillmentRequest`
@@ -128,11 +134,25 @@ name, formatted name, callback URL, active flag, service-discovery flag, and
 stable synthetic IDs for parity replay.
 
 Fulfillment and fulfillment-order slices cover fixture-backed top-level reads,
-detail/event reads, hold/release, move, open/report-progress, close,
-reschedule guardrails, request/cancellation request transitions, split, merge,
-deadline setting, assigned-order filtering, and selected validation branches.
-These slices operate on local order-backed fulfillment records and are not a
-general fulfillment-service execution engine.
+detail/event reads, hold/release, move, open/report-progress, cancel, deadline
+setting, accepted-request close, reschedule/reroute guardrails,
+request/cancellation request transitions, split, merge, assigned-order filtering,
+and selected validation
+branches. Fulfillment-order lifecycle mutations hydrate an order-owned
+fulfillment-order graph when a real numeric `gid://shopify/FulfillmentOrder/...`
+is first touched, stage supported effects locally, retain the original raw
+GraphQL mutation for commit replay, and expose read-after-write effects through
+`fulfillmentOrder`, `fulfillmentOrders`, `manualHoldsFulfillmentOrders`, and
+nested `order.fulfillmentOrders` reads. Partial hold and move operations split
+line item quantities into synthetic fulfillment orders; release restores held
+quantities, cancel closes the original fulfillment order and creates a local
+replacement, report-progress moves open orders to `IN_PROGRESS`, open can return
+scheduled or in-progress orders to `OPEN`, set-deadline updates `fulfillBy` for
+open fulfillment orders, and close can move an accepted fulfillment request to
+`INCOMPLETE`/`CLOSED` when captured request state is available. Other close
+states return the same guardrail userError as the lifecycle capture. These
+slices operate on local order-backed fulfillment records and are not a general
+fulfillment-service execution engine.
 
 Delivery settings and delivery promise settings are read-only in the captured
 empty/no-feature branch. Delivery profiles have fixture-backed read and bounded
@@ -153,9 +173,13 @@ caller-visible order and return effects should be read with
 
 ### Boundaries
 
-- Shipping/fulfillments roots remain `implemented: false` in the current
-  operation registry. Scenario-backed Rust helpers should not be described as
-  broad root support.
+- The operation registry's `implemented` flag means the proxy answers the root
+  locally; it is not a broad fidelity claim for the whole root.
+- `fulfillmentOrderClose` stages only the captured accepted-request close path;
+  non-accepted close requests, `fulfillmentOrderReschedule`, and
+  `fulfillmentOrdersReroute` return typed guardrail `userErrors` for this local
+  lifecycle slice. Full success-path staging for reschedule/reroute remains
+  outside the supported runtime behavior.
 - Delivery customization and delivery promise mutations are Shopify
   Function-backed or provider-backed and remain unsupported until function
   ownership, activation eligibility, metafields, provider state, validation,

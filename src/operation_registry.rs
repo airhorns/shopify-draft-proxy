@@ -362,6 +362,60 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     ),
     local_mutation("locationAdd", CapabilityDomain::StoreProperties),
     local_mutation("locationActivate", CapabilityDomain::StoreProperties),
+    local_query("fulfillmentOrder", CapabilityDomain::ShippingFulfillments),
+    local_query("fulfillmentOrders", CapabilityDomain::ShippingFulfillments),
+    local_query(
+        "manualHoldsFulfillmentOrders",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderHold",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderReleaseHold",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderMove",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderOpen",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderCancel",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderReportProgress",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrdersSetFulfillmentDeadline",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderSplit",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderMerge",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderClose",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderReschedule",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrdersReroute",
+        CapabilityDomain::ShippingFulfillments,
+    ),
 ];
 
 const fn local_query(name: &'static str, domain: CapabilityDomain) -> LocalDispatchRoot {
