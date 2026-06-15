@@ -542,6 +542,459 @@ fn draft_order_bulk_tags_validation_replays_captured_stateful_shapes() {
 }
 
 #[test]
+fn draft_order_lifecycle_family_stages_and_reads_from_store() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDraft($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              name
+              status
+              ready
+              email
+              tags
+              invoiceUrl
+              subtotalPriceSet { shopMoney { amount currencyCode } }
+              totalShippingPriceSet { shopMoney { amount currencyCode } }
+              totalPriceSet { shopMoney { amount currencyCode } }
+              totalQuantityOfLineItems
+              lineItems(first: 5) {
+                nodes {
+                  id
+                  title
+                  name
+                  quantity
+                  sku
+                  custom
+                  requiresShipping
+                  taxable
+                  originalUnitPriceSet { shopMoney { amount currencyCode } }
+                  originalTotalSet { shopMoney { amount currencyCode } }
+                  discountedTotalSet { shopMoney { amount currencyCode } }
+                  totalDiscountSet { shopMoney { amount currencyCode } }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "ordinary-draft@example.test",
+                "tags": ["initial", "draft"],
+                "shippingLine": {
+                    "title": "Courier",
+                    "priceWithCurrency": { "amount": "4.25", "currencyCode": "CAD" }
+                },
+                "lineItems": [{
+                    "title": "Ordinary staged item",
+                    "quantity": 2,
+                    "originalUnitPrice": "12.50",
+                    "sku": "ORD-STAGED",
+                    "requiresShipping": false,
+                    "taxable": false
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["draftOrderCreate"]["userErrors"],
+        json!([])
+    );
+    let draft = &create.body["data"]["draftOrderCreate"]["draftOrder"];
+    let draft_id = draft["id"].clone();
+    assert_ne!(
+        draft["id"],
+        json!("gid://shopify/DraftOrder/1?shopify-draft-proxy=synthetic")
+    );
+    assert_eq!(draft["email"], json!("ordinary-draft@example.test"));
+    assert_eq!(draft["tags"], json!(["draft", "initial"]));
+    assert_eq!(draft["status"], json!("OPEN"));
+    assert_eq!(draft["ready"], json!(true));
+    assert_eq!(draft["totalQuantityOfLineItems"], json!(2));
+    assert_eq!(
+        draft["lineItems"]["nodes"][0]["title"],
+        json!("Ordinary staged item")
+    );
+    assert_eq!(
+        draft["subtotalPriceSet"]["shopMoney"],
+        json!({ "amount": "25.0", "currencyCode": "CAD" })
+    );
+    assert_eq!(
+        draft["totalPriceSet"]["shopMoney"],
+        json!({ "amount": "29.25", "currencyCode": "CAD" })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadDraft($id: ID!) {
+          byId: draftOrder(id: $id) { id email tags totalPriceSet { shopMoney { amount currencyCode } } }
+          draftOrders(first: 5) { nodes { id email tags } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          draftOrdersCount { count precision }
+        }
+        "#,
+        json!({ "id": draft_id.clone() }),
+    ));
+    assert_eq!(read.body["data"]["byId"]["id"], draft_id);
+    assert_eq!(
+        read.body["data"]["draftOrders"]["nodes"][0]["email"],
+        json!("ordinary-draft@example.test")
+    );
+    assert_eq!(
+        read.body["data"]["draftOrdersCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateDraft($id: ID!, $input: DraftOrderInput!) {
+          draftOrderUpdate(id: $id, input: $input) {
+            draftOrder {
+              id
+              email
+              tags
+              shippingLine { title originalPriceSet { shopMoney { amount currencyCode } } }
+              totalPriceSet { shopMoney { amount currencyCode } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": draft_id.clone(),
+            "input": {
+                "email": "updated-draft@example.test",
+                "tags": ["updated"],
+                "shippingLine": {
+                    "title": "Express",
+                    "priceWithCurrency": { "amount": "6.00", "currencyCode": "CAD" }
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["draftOrderUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["draftOrderUpdate"]["draftOrder"]["email"],
+        json!("updated-draft@example.test")
+    );
+    assert_eq!(
+        update.body["data"]["draftOrderUpdate"]["draftOrder"]["tags"],
+        json!(["updated"])
+    );
+    assert_eq!(
+        update.body["data"]["draftOrderUpdate"]["draftOrder"]["shippingLine"]["title"],
+        json!("Express")
+    );
+    assert_eq!(
+        update.body["data"]["draftOrderUpdate"]["draftOrder"]["totalPriceSet"]["shopMoney"]
+            ["amount"],
+        json!("31.0")
+    );
+
+    let calculate = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draft-order-residual-helper-calculate.graphql"
+        ),
+        json!({
+            "input": {
+                "lineItems": [{
+                    "title": "Calculated item",
+                    "quantity": 3,
+                    "originalUnitPrice": "2.50",
+                    "requiresShipping": false
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        calculate.body["data"]["draftOrderCalculate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        calculate.body["data"]["draftOrderCalculate"]["calculatedDraftOrder"]["totalPriceSet"]
+            ["shopMoney"],
+        json!({ "amount": "7.5", "currencyCode": "CAD" })
+    );
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DuplicateDraft($id: ID!) {
+          draftOrderDuplicate(id: $id) {
+            draftOrder { id name status ready email tags totalPriceSet { shopMoney { amount currencyCode } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": draft_id.clone() }),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["draftOrderDuplicate"]["userErrors"],
+        json!([])
+    );
+    let duplicated_id = duplicate.body["data"]["draftOrderDuplicate"]["draftOrder"]["id"].clone();
+    assert_ne!(duplicated_id, draft_id);
+    assert_eq!(
+        duplicate.body["data"]["draftOrderDuplicate"]["draftOrder"]["status"],
+        json!("OPEN")
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draftOrderDelete-parity-plan.graphql"),
+        json!({ "input": { "id": draft_id.clone() } }),
+    ));
+    assert_eq!(
+        delete.body["data"]["draftOrderDelete"],
+        json!({ "deletedId": draft_id, "userErrors": [] })
+    );
+
+    let after_delete = proxy.process_request(json_graphql_request(
+        "query ReadDeletedDraft($id: ID!) { draftOrder(id: $id) { id } draftOrdersCount { count precision } }",
+        json!({ "id": delete.body["data"]["draftOrderDelete"]["deletedId"].clone() }),
+    ));
+    assert_eq!(after_delete.body["data"]["draftOrder"], Value::Null);
+    assert_eq!(
+        after_delete.body["data"]["draftOrdersCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+
+    let bulk_delete = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draft-order-residual-helper-bulk-delete.graphql"
+        ),
+        json!({ "ids": [duplicated_id.clone()] }),
+    ));
+    assert_eq!(
+        bulk_delete.body["data"]["draftOrderBulkDelete"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        bulk_delete.body["data"]["draftOrderBulkDelete"]["job"]["done"],
+        json!(false)
+    );
+    let after_bulk_delete = proxy.process_request(json_graphql_request(
+        "query ReadBulkDeletedDraft($id: ID!) { draftOrder(id: $id) { id } draftOrdersCount { count precision } }",
+        json!({ "id": duplicated_id }),
+    ));
+    assert_eq!(after_bulk_delete.body["data"]["draftOrder"], Value::Null);
+    assert_eq!(
+        after_bulk_delete.body["data"]["draftOrdersCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+}
+
+#[test]
+fn draft_order_create_from_order_and_invoice_preview_stage_locally() {
+    let mut proxy = snapshot_proxy();
+    let order_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOrderForDraft($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id email tags lineItems(first: 5) { nodes { title quantity sku originalUnitPriceSet { shopMoney { amount currencyCode } } } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "currency": "CAD",
+                "email": "order-backed-draft@example.test",
+                "tags": ["source-order"],
+                "lineItems": [{
+                    "title": "Order backed item",
+                    "quantity": 1,
+                    "sku": "ORDER-BACKED",
+                    "priceSet": { "shopMoney": { "amount": "9.00", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+    let order_id = order_create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let create_from_order = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrderCreateFromOrder-parity-plan.graphql"
+        ),
+        json!({ "orderId": order_id }),
+    ));
+    assert_eq!(
+        create_from_order.body["data"]["draftOrderCreateFromOrder"]["userErrors"],
+        json!([])
+    );
+    let draft_id =
+        create_from_order.body["data"]["draftOrderCreateFromOrder"]["draftOrder"]["id"].clone();
+    assert_eq!(
+        create_from_order.body["data"]["draftOrderCreateFromOrder"]["draftOrder"]["email"],
+        json!("order-backed-draft@example.test")
+    );
+
+    let preview = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draft-order-residual-helper-invoice-preview.graphql"),
+        json!({
+            "id": draft_id,
+            "email": {
+                "subject": "Custom draft subject",
+                "customMessage": "Custom invoice note"
+            }
+        }),
+    ));
+    assert_eq!(
+        preview.body["data"]["draftOrderInvoicePreview"]["previewSubject"],
+        json!("Custom draft subject")
+    );
+    assert!(
+        preview.body["data"]["draftOrderInvoicePreview"]["previewHtml"]
+            .as_str()
+            .is_some_and(|html| html.contains("Custom invoice note"))
+    );
+    assert_eq!(
+        preview.body["data"]["draftOrderInvoicePreview"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn draft_order_validations_return_captured_error_shapes_without_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let line_items: Vec<Value> = (0..500)
+        .map(|index| {
+            json!({
+                "title": format!("Bulk item {index}"),
+                "quantity": 1,
+                "originalUnitPrice": "1.00"
+            })
+        })
+        .collect();
+    let line_items_max = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draftOrder-line-items-max.graphql"),
+        json!({
+            "createInput": { "lineItems": line_items.clone() },
+            "updateInput": { "lineItems": line_items.clone() },
+            "calculateInput": { "lineItems": line_items }
+        }),
+    ));
+    assert_eq!(line_items_max.status, 200);
+    assert_eq!(line_items_max.body["data"], Value::Null);
+    assert_eq!(line_items_max.body["errors"].as_array().unwrap().len(), 3);
+    assert!(line_items_max.body["errors"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|error| {
+            error["message"]
+                == json!("The input array size of 500 is greater than the maximum allowed of 499.")
+                && error["extensions"]["code"] == json!("MAX_INPUT_SIZE_EXCEEDED")
+        }));
+
+    let too_many_tags: Vec<Value> = (0..251)
+        .map(|index| json!(format!("tag-{index}")))
+        .collect();
+    let too_many_tags_response = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draftOrder-tag-validation-create.graphql"),
+        json!({
+            "input": {
+                "lineItems": [{ "title": "Tagged item", "quantity": 1, "originalUnitPrice": "1.00" }],
+                "tags": too_many_tags
+            }
+        }),
+    ));
+    assert_eq!(too_many_tags_response.body["data"], Value::Null);
+    assert_eq!(
+        too_many_tags_response.body["errors"][0]["path"],
+        json!(["draftOrderCreate", "input", "tags"])
+    );
+    assert_eq!(
+        too_many_tags_response.body["errors"][0]["extensions"]["code"],
+        json!("MAX_INPUT_SIZE_EXCEEDED")
+    );
+
+    let long_tag = "x".repeat(41);
+    let long_create = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draftOrder-tag-validation-create.graphql"),
+        json!({
+            "input": {
+                "lineItems": [{ "title": "Tagged item", "quantity": 1, "originalUnitPrice": "1.00" }],
+                "tags": [long_tag.clone()]
+            }
+        }),
+    ));
+    assert_eq!(
+        long_create.body["data"]["draftOrderCreate"],
+        json!({
+            "draftOrder": Value::Null,
+            "userErrors": [{
+                "field": ["tags", "0"],
+                "message": "Title Tag exceeds the maximum length of 40 characters"
+            }]
+        })
+    );
+
+    let setup = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draftOrder-tag-validation-create.graphql"),
+        json!({
+            "input": {
+                "lineItems": [{ "title": "Tagged item", "quantity": 1, "originalUnitPrice": "1.00" }],
+                "tags": ["initial"]
+            }
+        }),
+    ));
+    let draft_id = setup.body["data"]["draftOrderCreate"]["draftOrder"]["id"].clone();
+    let long_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/draftOrder-tag-validation-update.graphql"
+        ),
+        json!({ "id": draft_id.clone(), "input": { "tags": [long_tag.clone()] } }),
+    ));
+    assert_eq!(
+        long_update.body["data"]["draftOrderUpdate"],
+        json!({
+            "draftOrder": Value::Null,
+            "userErrors": [{
+                "field": ["input", "tags", "1"],
+                "message": "Title Tag exceeds the maximum length of 40 characters"
+            }]
+        })
+    );
+    let read_after_reject = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draftOrder-tag-validation-read.graphql"),
+        json!({ "id": draft_id }),
+    ));
+    assert_eq!(
+        read_after_reject.body["data"]["draftOrder"]["tags"],
+        json!(["initial"])
+    );
+
+    let long_calculate = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/draftOrder-tag-validation-calculate.graphql"),
+        json!({
+            "input": {
+                "lineItems": [{ "title": "Tagged item", "quantity": 1, "originalUnitPrice": "1.00" }],
+                "tags": [long_tag]
+            }
+        }),
+    ));
+    assert_eq!(
+        long_calculate.body["data"]["draftOrderCalculate"],
+        json!({
+            "calculatedDraftOrder": Value::Null,
+            "userErrors": [{
+                "field": ["tags", "0"],
+                "message": "Title Tag exceeds the maximum length of 40 characters"
+            }]
+        })
+    );
+}
+
+#[test]
 fn payment_reminder_send_malformed_gid_and_invalid_selection_ports_old_gleam_guards() {
     let malformed_fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-malformed-gid.json"
