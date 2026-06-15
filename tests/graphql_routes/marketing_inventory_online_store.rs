@@ -3723,6 +3723,285 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
 }
 
 #[test]
+fn media_file_create_omitted_content_type_infers_source_extension_and_reads_back() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileCreateContentTypeInference($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files {
+              __typename
+              id
+              alt
+              filename
+              mimeType
+              fileStatus
+              ... on MediaImage {
+                image { url }
+                preview { image { url } }
+              }
+              ... on Video {
+                preview { image { url } }
+              }
+              ... on GenericFile {
+                url
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [
+            {"alt": "Image", "originalSource": "https://cdn.example.com/source.png"},
+            {"alt": "Video", "originalSource": "https://cdn.example.com/source.mp4"},
+            {"alt": "Document", "originalSource": "https://cdn.example.com/spec-sheet.pdf"},
+            {"alt": "Unknown", "filename": "extensionless", "originalSource": "https://cdn.example.com/download"}
+        ]}),
+    ));
+    assert_eq!(
+        create.body["data"]["fileCreate"],
+        json!({
+            "files": [
+                {
+                    "__typename": "MediaImage",
+                    "id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic",
+                    "alt": "Image",
+                    "filename": "source.png",
+                    "mimeType": "image/png",
+                    "fileStatus": "UPLOADED",
+                    "image": {"url": "https://cdn.example.com/source.png"},
+                    "preview": {"image": {"url": "https://cdn.example.com/source.png"}}
+                },
+                {
+                    "__typename": "Video",
+                    "id": "gid://shopify/Video/2?shopify-draft-proxy=synthetic",
+                    "alt": "Video",
+                    "filename": "source.mp4",
+                    "mimeType": "video/mp4",
+                    "fileStatus": "UPLOADED",
+                    "preview": {"image": null}
+                },
+                {
+                    "__typename": "GenericFile",
+                    "id": "gid://shopify/GenericFile/3?shopify-draft-proxy=synthetic",
+                    "alt": "Document",
+                    "filename": "spec-sheet.pdf",
+                    "mimeType": "application/pdf",
+                    "fileStatus": "UPLOADED",
+                    "url": "https://cdn.example.com/spec-sheet.pdf"
+                },
+                {
+                    "__typename": "GenericFile",
+                    "id": "gid://shopify/GenericFile/4?shopify-draft-proxy=synthetic",
+                    "alt": "Unknown",
+                    "filename": "extensionless",
+                    "mimeType": "application/octet-stream",
+                    "fileStatus": "UPLOADED",
+                    "url": "https://cdn.example.com/download"
+                }
+            ],
+            "userErrors": []
+        })
+    );
+
+    let files_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FileCreateContentTypeInferenceFilesRead {
+          files(first: 10) {
+            nodes {
+              __typename
+              id
+              filename
+              mimeType
+              ... on MediaImage { image { url } }
+              ... on Video { preview { image { url } } }
+              ... on GenericFile { url }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        files_read.body["data"]["files"]["nodes"],
+        json!([
+            {
+                "__typename": "MediaImage",
+                "id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic",
+                "filename": "source.png",
+                "mimeType": "image/png",
+                "image": {"url": "https://cdn.example.com/source.png"}
+            },
+            {
+                "__typename": "Video",
+                "id": "gid://shopify/Video/2?shopify-draft-proxy=synthetic",
+                "filename": "source.mp4",
+                "mimeType": "video/mp4",
+                "preview": {"image": null}
+            },
+            {
+                "__typename": "GenericFile",
+                "id": "gid://shopify/GenericFile/3?shopify-draft-proxy=synthetic",
+                "filename": "spec-sheet.pdf",
+                "mimeType": "application/pdf",
+                "url": "https://cdn.example.com/spec-sheet.pdf"
+            },
+            {
+                "__typename": "GenericFile",
+                "id": "gid://shopify/GenericFile/4?shopify-draft-proxy=synthetic",
+                "filename": "extensionless",
+                "mimeType": "application/octet-stream",
+                "url": "https://cdn.example.com/download"
+            }
+        ])
+    );
+
+    let video_node = proxy.process_request(json_graphql_request(
+        r#"
+        query FileCreateContentTypeInferenceVideoNode($id: ID!) {
+          node(id: $id) {
+            __typename
+            id
+            ... on Video {
+              filename
+              mimeType
+              preview { image { url } }
+            }
+            ... on GenericFile {
+              url
+            }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/Video/2?shopify-draft-proxy=synthetic"}),
+    ));
+    assert_eq!(
+        video_node.body["data"]["node"],
+        json!({
+            "__typename": "Video",
+            "id": "gid://shopify/Video/2?shopify-draft-proxy=synthetic",
+            "filename": "source.mp4",
+            "mimeType": "video/mp4",
+            "preview": {"image": null}
+        })
+    );
+
+    let nodes_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FileCreateContentTypeInferenceNodes($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            id
+            ... on GenericFile {
+              filename
+              mimeType
+              url
+            }
+            ... on MediaImage {
+              image { url }
+            }
+          }
+        }
+        "#,
+        json!({"ids": [
+            "gid://shopify/GenericFile/3?shopify-draft-proxy=synthetic",
+            "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic"
+        ]}),
+    ));
+    assert_eq!(
+        nodes_read.body["data"]["nodes"],
+        json!([
+            {
+                "__typename": "GenericFile",
+                "id": "gid://shopify/GenericFile/3?shopify-draft-proxy=synthetic",
+                "filename": "spec-sheet.pdf",
+                "mimeType": "application/pdf",
+                "url": "https://cdn.example.com/spec-sheet.pdf"
+            },
+            {
+                "__typename": "MediaImage",
+                "id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic",
+                "image": {"url": "https://cdn.example.com/source.png"}
+            }
+        ])
+    );
+}
+
+#[test]
+fn media_file_create_explicit_content_type_takes_precedence_over_source_extension() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileCreateExplicitContentTypePrecedence($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files {
+              __typename
+              id
+              filename
+              mimeType
+              ... on MediaImage { image { url } }
+              ... on Video { preview { image { url } } }
+              ... on GenericFile { url }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [
+            {"contentType": "IMAGE", "filename": "forced.jpg", "originalSource": "https://cdn.example.com/forced.jpg"},
+            {"contentType": "FILE", "filename": "forced.pdf", "originalSource": "https://cdn.example.com/forced.pdf"},
+            {"contentType": "VIDEO", "filename": "forced.mp4", "originalSource": "https://cdn.example.com/forced.mp4"},
+            {"contentType": "MODEL_3D", "filename": "forced.glb", "originalSource": "https://cdn.example.com/forced.glb"},
+            {"contentType": "EXTERNAL_VIDEO", "filename": "forced.youtube", "originalSource": "https://cdn.example.com/forced.youtube"}
+        ]}),
+    ));
+
+    assert_eq!(
+        create.body["data"]["fileCreate"],
+        json!({
+            "files": [
+                {
+                    "__typename": "MediaImage",
+                    "id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic",
+                    "filename": "forced.jpg",
+                    "mimeType": "image/jpeg",
+                    "image": {"url": "https://cdn.example.com/forced.jpg"}
+                },
+                {
+                    "__typename": "GenericFile",
+                    "id": "gid://shopify/GenericFile/2?shopify-draft-proxy=synthetic",
+                    "filename": "forced.pdf",
+                    "mimeType": "application/pdf",
+                    "url": "https://cdn.example.com/forced.pdf"
+                },
+                {
+                    "__typename": "Video",
+                    "id": "gid://shopify/Video/3?shopify-draft-proxy=synthetic",
+                    "filename": "forced.mp4",
+                    "mimeType": "video/mp4",
+                    "preview": {"image": null}
+                },
+                {
+                    "__typename": "Model3d",
+                    "id": "gid://shopify/Model3d/4?shopify-draft-proxy=synthetic",
+                    "filename": "forced.glb",
+                    "mimeType": "model/gltf-binary"
+                },
+                {
+                    "__typename": "ExternalVideo",
+                    "id": "gid://shopify/ExternalVideo/5?shopify-draft-proxy=synthetic",
+                    "filename": "forced.youtube",
+                    "mimeType": "application/octet-stream"
+                }
+            ],
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
 fn media_files_connection_paginates_edges_nodes_and_page_info_consistently() {
     let mut proxy = snapshot_proxy();
 

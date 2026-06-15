@@ -595,12 +595,11 @@ impl DraftProxy {
             .into_iter()
             .enumerate()
             .map(|(index, input)| {
-                let content_type = resolved_string_field(&input, "contentType")
-                    .unwrap_or_else(|| "IMAGE".to_string());
-                let resource_type = media_file_gid_type(&content_type);
-                let id = self.next_proxy_synthetic_gid(resource_type);
                 let original_source =
                     resolved_string_field(&input, "originalSource").unwrap_or_default();
+                let content_type = media_file_create_content_type(&input, &original_source);
+                let resource_type = media_file_gid_type(&content_type);
+                let id = self.next_proxy_synthetic_gid(resource_type);
                 let filename = resolved_string_field(&input, "filename")
                     .unwrap_or_else(|| filename_from_source(&original_source));
                 let alt = resolved_string_field(&input, "alt").unwrap_or_default();
@@ -1047,12 +1046,13 @@ impl DraftProxy {
                 .filter(|(id, _)| !self.store.staged.deleted_media_file_ids.contains(*id))
                 .map(|(_, file)| file.clone())
                 .collect::<Vec<_>>();
-            files.sort_by_key(|file| {
-                file.get("id")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string()
-            });
+            files.sort_by_key(media_file_sort_id);
+            if matches!(
+                field.arguments.get("reverse"),
+                Some(ResolvedValue::Bool(true))
+            ) {
+                files.reverse();
+            }
             data.insert(
                 field.response_key,
                 selected_connection_json_with_args(
@@ -1064,6 +1064,51 @@ impl DraftProxy {
             );
         }
         ok_json(json!({"data": Value::Object(data)}))
+    }
+
+    pub(in crate::proxy) fn media_file_node_read_data(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Option<Value> {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "node" => {
+                    let id = resolved_string_arg(&field.arguments, "id")?;
+                    self.media_file_node_value(&id, &field.selection)?
+                }
+                "nodes" => {
+                    let ids = match field.arguments.get("ids")? {
+                        ResolvedValue::List(ids) => ids,
+                        _ => return None,
+                    };
+                    Value::Array(
+                        ids.iter()
+                            .map(|id| match id {
+                                ResolvedValue::String(id) => {
+                                    self.media_file_node_value(id, &field.selection)
+                                }
+                                _ => None,
+                            })
+                            .collect::<Option<Vec<_>>>()?,
+                    )
+                }
+                _ => return None,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Some(Value::Object(data))
+    }
+
+    fn media_file_node_value(&self, id: &str, selection: &[SelectedField]) -> Option<Value> {
+        if self.store.staged.deleted_media_file_ids.contains(id) {
+            return Some(Value::Null);
+        }
+        self.store
+            .staged
+            .media_files
+            .get(id)
+            .map(|file| selected_json(file, selection))
     }
 
     pub(in crate::proxy) fn media_product_read(
@@ -3940,6 +3985,13 @@ impl DraftProxy {
     }
 }
 
+fn media_file_sort_id(file: &Value) -> u64 {
+    file.get("id")
+        .and_then(Value::as_str)
+        .and_then(|id| resource_id_tail(id).parse::<u64>().ok())
+        .unwrap_or_default()
+}
+
 fn taggable_record_tags(record: &Value) -> Vec<String> {
     record
         .get("tags")
@@ -4510,8 +4562,9 @@ fn media_quota_errors(request: &Request, inputs: &[BTreeMap<String, ResolvedValu
         .iter()
         .enumerate()
         .filter_map(|(index, input)| {
-            let content_type =
-                resolved_string_field(input, "contentType").unwrap_or_else(|| "IMAGE".to_string());
+            let original_source =
+                resolved_string_field(input, "originalSource").unwrap_or_default();
+            let content_type = media_file_create_content_type(input, &original_source);
             let code = if content_type == "VIDEO" && requested.contains("VIDEO_THROTTLE_EXCEEDED") {
                 Some("VIDEO_THROTTLE_EXCEEDED")
             } else if content_type == "MODEL_3D" && requested.contains("MODEL3D_THROTTLE_EXCEEDED")
@@ -4878,6 +4931,7 @@ fn media_file_record(
 ) -> Value {
     let typename = media_file_gid_type(content_type);
     let mime_type = mime_type_for_filename(filename, content_type);
+    let media_content_type = media_file_media_content_type(content_type);
     let mut file = json!({
         "__typename": typename,
         "id": id,
@@ -4891,7 +4945,9 @@ fn media_file_record(
         "displayName": filename,
         "fileErrors": [],
         "fileWarnings": [],
-        "mimeType": mime_type
+        "mimeType": mime_type,
+        "mediaContentType": media_content_type,
+        "status": file_status
     });
     match typename {
         "MediaImage" => {
@@ -4965,6 +5021,33 @@ fn media_file_gid_type(content_type: &str) -> &'static str {
     }
 }
 
+fn media_file_media_content_type(content_type: &str) -> &'static str {
+    match content_type {
+        "IMAGE" => "IMAGE",
+        "VIDEO" => "VIDEO",
+        "EXTERNAL_VIDEO" => "EXTERNAL_VIDEO",
+        "MODEL_3D" => "MODEL_3D",
+        "FILE" => "GENERIC_FILE",
+        _ => "IMAGE",
+    }
+}
+
+fn media_file_create_content_type(
+    input: &BTreeMap<String, ResolvedValue>,
+    original_source: &str,
+) -> String {
+    resolved_string_field(input, "contentType")
+        .unwrap_or_else(|| inferred_media_file_create_content_type(original_source).to_string())
+}
+
+fn inferred_media_file_create_content_type(source: &str) -> &'static str {
+    match file_extension(source).as_str() {
+        "gif" | "heic" | "heif" | "jpeg" | "jpg" | "png" | "webp" => "IMAGE",
+        "m4v" | "mov" | "mp4" | "mpeg" | "mpg" | "ogv" | "webm" => "VIDEO",
+        _ => "FILE",
+    }
+}
+
 fn duplicate_mode_allowed(mode: &str, content_type: Option<&str>) -> bool {
     matches!(
         (mode, content_type),
@@ -4993,13 +5076,17 @@ fn filename_from_source(source: &str) -> String {
 }
 
 fn file_extension(value: &str) -> String {
-    value
-        .split('?')
+    let path_tail = value
+        .split(['?', '#'])
         .next()
         .unwrap_or(value)
+        .rsplit('/')
+        .next()
+        .unwrap_or(value);
+    path_tail
         .rsplit('.')
         .next()
-        .filter(|extension| *extension != value)
+        .filter(|extension| *extension != path_tail)
         .unwrap_or_default()
         .to_ascii_lowercase()
 }
@@ -5008,12 +5095,24 @@ fn mime_type_for_filename(filename: &str, content_type: &str) -> &'static str {
     match (content_type, file_extension(filename).as_str()) {
         ("IMAGE", "png") => "image/png",
         ("IMAGE", "gif") => "image/gif",
+        ("IMAGE", "heic") => "image/heic",
+        ("IMAGE", "heif") => "image/heif",
         ("IMAGE", "webp") => "image/webp",
         ("IMAGE", _) => "image/jpeg",
+        ("VIDEO", "m4v") => "video/x-m4v",
         ("VIDEO", "mov") => "video/quicktime",
+        ("VIDEO", "mpeg") | ("VIDEO", "mpg") => "video/mpeg",
+        ("VIDEO", "ogv") => "video/ogg",
+        ("VIDEO", "webm") => "video/webm",
         ("VIDEO", _) => "video/mp4",
         ("MODEL_3D", "glb") => "model/gltf-binary",
         ("MODEL_3D", "usdz") => "model/vnd.usdz+zip",
+        ("FILE", "csv") => "text/csv",
+        ("FILE", "json") => "application/json",
+        ("FILE", "jsonl") => "application/jsonl",
+        ("FILE", "pdf") => "application/pdf",
+        ("FILE", "txt") => "text/plain",
+        ("FILE", "zip") => "application/zip",
         _ => "application/octet-stream",
     }
 }
