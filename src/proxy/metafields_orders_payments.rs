@@ -1191,6 +1191,9 @@ pub(in crate::proxy) fn is_local_customer_create_document(
     {
         return true;
     }
+    if is_store_credit_customer_create_setup_document(query, variables) {
+        return true;
+    }
     if !query.contains("CustomerInputInlineConsentCreate") {
         return false;
     }
@@ -1198,6 +1201,25 @@ pub(in crate::proxy) fn is_local_customer_create_document(
         return false;
     };
     !input.contains_key("emailMarketingConsent") && !input.contains_key("smsMarketingConsent")
+}
+
+fn is_store_credit_customer_create_setup_document(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    let Some(input) = resolved_object_field(variables, "input") else {
+        return false;
+    };
+    if input.keys().any(|key| {
+        !matches!(
+            key.as_str(),
+            "email" | "firstName" | "lastName" | "locale" | "note" | "phone" | "tags" | "taxExempt"
+        )
+    }) {
+        return false;
+    }
+    root_field_selection(query)
+        .is_some_and(|selection| selection_contains_any(&selection, &["storeCreditAccounts"]))
 }
 
 pub(in crate::proxy) fn is_local_customer_delete_document(query: &str) -> bool {

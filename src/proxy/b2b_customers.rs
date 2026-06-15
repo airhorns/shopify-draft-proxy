@@ -842,6 +842,7 @@ impl DraftProxy {
                 Some(ResolvedValue::String(id)) => {
                     self.store.staged.customers.contains_key(id)
                         || self.store.staged.deleted_customer_ids.contains(id)
+                        || self.store_credit_owner_has_accounts(id)
                 }
                 _ => false,
             },
@@ -907,6 +908,11 @@ impl DraftProxy {
                 &field.arguments,
                 &field.selection,
                 value_id_cursor,
+            )),
+            "storeCreditAccounts" => Some(self.store_credit_accounts_connection_for_owner(
+                id,
+                &field.arguments,
+                &field.selection,
             )),
             _ => selected_json(customer, std::slice::from_ref(field))
                 .as_object()
@@ -1022,9 +1028,24 @@ impl DraftProxy {
             .staged
             .customers
             .insert(id.clone(), customer.clone());
-        self.record_mutation_log_entry(request, query, variables, "customerCreate", vec![id]);
+        self.record_mutation_log_entry(
+            request,
+            query,
+            variables,
+            "customerCreate",
+            vec![id.clone()],
+        );
         let payload = json!({ "customer": customer, "userErrors": [] });
-        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+        let selected_payload =
+            selected_payload_json(&payload_selection, |field| match field.name.as_str() {
+                "customer" => {
+                    Some(self.customer_with_order_connection(&id, &customer, &field.selection))
+                }
+                _ => selected_json(&payload, std::slice::from_ref(field))
+                    .as_object()
+                    .and_then(|object| object.get(&field.response_key).cloned()),
+            });
+        ok_json(json!({ "data": { response_key: selected_payload } }))
     }
 
     pub(in crate::proxy) fn customer_update(
@@ -1266,6 +1287,534 @@ impl DraftProxy {
             "data": { response_key: selected_json(&payload, &payload_selection) }
         })))
     }
+
+    pub(in crate::proxy) fn store_credit_account_read_fields(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name != "storeCreditAccount" {
+                continue;
+            }
+            let value = resolved_string_arg(&field.arguments, "id")
+                .and_then(|id| self.store.staged.store_credit_accounts.get(&id))
+                .map(|account| self.selected_store_credit_account(account, &field.selection))
+                .unwrap_or(Value::Null);
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    pub(in crate::proxy) fn store_credit_account_mutation(
+        &mut self,
+        root_field: &str,
+        _request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        let Some(fields) = root_fields(query, variables) else {
+            return MutationOutcome::response(json_error(400, "Could not parse GraphQL operation"));
+        };
+        let mut data = serde_json::Map::new();
+        let mut log_drafts = Vec::new();
+        for field in fields {
+            if !matches!(
+                field.name.as_str(),
+                "storeCreditAccountCredit" | "storeCreditAccountDebit"
+            ) {
+                continue;
+            }
+            let outcome = self.store_credit_account_mutation_field(&field);
+            if let Some(log_draft) = outcome.log_draft {
+                log_drafts.push(log_draft);
+            }
+            data.insert(field.response_key.clone(), outcome.value);
+        }
+        if data.is_empty() {
+            return MutationOutcome::response(json_error(501, "Unsupported store credit mutation"));
+        }
+        let response = ok_json(json!({ "data": Value::Object(data) }));
+        if log_drafts.is_empty() {
+            MutationOutcome::response(response)
+        } else if root_field == "storeCreditAccountCredit"
+            || root_field == "storeCreditAccountDebit"
+        {
+            MutationOutcome::with_log_drafts(response, log_drafts)
+        } else {
+            MutationOutcome::response(response)
+        }
+    }
+
+    fn store_credit_account_mutation_field(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> MutationFieldOutcome {
+        let is_credit = field.name == "storeCreditAccountCredit";
+        let input_name = if is_credit {
+            "creditInput"
+        } else {
+            "debitInput"
+        };
+        let amount_name = if is_credit {
+            "creditAmount"
+        } else {
+            "debitAmount"
+        };
+        let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
+        let amount_input = resolved_object_field(&input, amount_name).unwrap_or_default();
+        let currency = resolved_string_field(&amount_input, "currencyCode").unwrap_or_default();
+        let amount_text = resolved_money_amount_text(&amount_input, "amount");
+        let amount = amount_text
+            .as_deref()
+            .and_then(|value| value.parse::<f64>().ok())
+            .unwrap_or(0.0);
+
+        if amount <= 0.0 {
+            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
+                &field.selection,
+                &field.name,
+                None,
+                vec![store_credit_user_error(
+                    &[input_name, amount_name, "amount"],
+                    if is_credit {
+                        "A positive amount must be used to credit a store credit account"
+                    } else {
+                        "A positive amount must be used to debit a store credit account"
+                    },
+                    "NEGATIVE_OR_ZERO_AMOUNT",
+                )],
+            ));
+        }
+        if !store_credit_supported_currency(&currency) {
+            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
+                &field.selection,
+                &field.name,
+                None,
+                vec![store_credit_user_error(
+                    &[input_name, amount_name, "currencyCode"],
+                    "Currency is not supported",
+                    "UNSUPPORTED_CURRENCY",
+                )],
+            ));
+        }
+        if is_credit
+            && resolved_string_field(&input, "expiresAt")
+                .as_deref()
+                .map(store_credit_expires_at_in_past)
+                .unwrap_or(false)
+        {
+            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
+                &field.selection,
+                &field.name,
+                None,
+                vec![store_credit_user_error(
+                    &[input_name, "expiresAt"],
+                    "The expiry date must be in the future",
+                    "EXPIRES_AT_IN_PAST",
+                )],
+            ));
+        }
+
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(account_id) =
+            self.resolve_store_credit_account_id_for_mutation(&id, &currency, is_credit)
+        else {
+            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
+                &field.selection,
+                &field.name,
+                None,
+                vec![store_credit_user_error(
+                    &["id"],
+                    if shopify_gid_resource_type(&id) == Some("StoreCreditAccount") {
+                        "Store credit account does not exist"
+                    } else {
+                        "Owner does not exist"
+                    },
+                    "NOT_FOUND",
+                )],
+            ));
+        };
+
+        let Some(existing) = self
+            .store
+            .staged
+            .store_credit_accounts
+            .get(&account_id)
+            .cloned()
+        else {
+            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
+                &field.selection,
+                &field.name,
+                None,
+                vec![store_credit_user_error(
+                    &["id"],
+                    "Store credit account does not exist",
+                    "NOT_FOUND",
+                )],
+            ));
+        };
+        let account_currency = existing["balance"]["currencyCode"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        if currency != account_currency {
+            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
+                &field.selection,
+                &field.name,
+                None,
+                vec![store_credit_user_error(
+                    &[input_name, amount_name, "currencyCode"],
+                    "The currency provided does not match the currency of the store credit account",
+                    "MISMATCHING_CURRENCY",
+                )],
+            ));
+        }
+
+        let current_balance = existing["balance"]["amount"]
+            .as_str()
+            .and_then(|value| value.parse::<f64>().ok())
+            .unwrap_or(0.0);
+        if is_credit && current_balance + amount >= STORE_CREDIT_LIMIT {
+            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
+                &field.selection,
+                &field.name,
+                None,
+                vec![store_credit_user_error(
+                    &[input_name, amount_name, "amount"],
+                    "The operation would cause the account's credit limit to be exceeded",
+                    "CREDIT_LIMIT_EXCEEDED",
+                )],
+            ));
+        }
+        if !is_credit && amount > current_balance {
+            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
+                &field.selection,
+                &field.name,
+                None,
+                vec![store_credit_user_error(
+                    &[input_name, amount_name, "amount"],
+                    "The store credit account does not have sufficient funds to satisfy the request",
+                    "INSUFFICIENT_FUNDS",
+                )],
+            ));
+        }
+
+        let delta = if is_credit { amount } else { -amount };
+        let balance_after = current_balance + delta;
+        let amount_display = shopify_decimal_text(delta);
+        let balance_display = shopify_decimal_text(balance_after);
+        let transaction_id = self.next_store_credit_transaction_gid();
+        let mut account = existing;
+        account["balance"] = store_credit_money(&balance_display, &currency);
+        let transaction = json!({
+            "id": transaction_id,
+            "__typename": if is_credit { "StoreCreditAccountCreditTransaction" } else { "StoreCreditAccountDebitTransaction" },
+            "amount": store_credit_money(&amount_display, &currency),
+            "balanceAfterTransaction": store_credit_money(&balance_display, &currency),
+            "createdAt": "2026-04-25T01:41:06Z",
+            "event": "ADJUSTMENT",
+            "origin": Value::Null,
+            "notify": resolved_bool_field(&input, "notify").unwrap_or(false),
+            "account": account.clone()
+        });
+        let transaction_order_id = transaction["id"].as_str().unwrap_or_default().to_string();
+        if !self
+            .store
+            .staged
+            .store_credit_transaction_order
+            .iter()
+            .any(|id| id == &transaction_order_id)
+        {
+            self.store
+                .staged
+                .store_credit_transaction_order
+                .push(transaction_order_id.clone());
+        }
+        self.store
+            .staged
+            .store_credit_transactions
+            .insert(transaction_order_id, transaction.clone());
+        self.store
+            .staged
+            .store_credit_accounts
+            .insert(account_id.clone(), account);
+
+        let payload = self.store_credit_payload_for_selection(
+            &field.selection,
+            &field.name,
+            Some(&transaction),
+            Vec::new(),
+        );
+        MutationFieldOutcome::staged(
+            payload,
+            LogDraft::staged(&field.name, "customers", vec![account_id]),
+        )
+    }
+
+    fn resolve_store_credit_account_id_for_mutation(
+        &mut self,
+        id: &str,
+        currency: &str,
+        allow_create: bool,
+    ) -> Option<String> {
+        match shopify_gid_resource_type(id) {
+            Some("StoreCreditAccount") => self
+                .store
+                .staged
+                .store_credit_accounts
+                .contains_key(id)
+                .then(|| id.to_string()),
+            Some("Customer") | Some("CompanyLocation") => {
+                if !self.store_credit_owner_exists(id) {
+                    return None;
+                }
+                if let Some(account_id) =
+                    self.store_credit_account_id_for_owner_currency(id, currency)
+                {
+                    return Some(account_id);
+                }
+                if allow_create {
+                    Some(self.create_store_credit_account_for_owner(id, currency))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn create_store_credit_account_for_owner(&mut self, owner_id: &str, currency: &str) -> String {
+        let account_id = self.next_store_credit_account_gid();
+        let owner = self.store_credit_owner_json(owner_id);
+        let account = json!({
+            "id": account_id,
+            "balance": store_credit_money("0.0", currency),
+            "owner": owner,
+            "transactions": connection_json(Vec::new())
+        });
+        self.store
+            .staged
+            .store_credit_account_order
+            .push(account_id.clone());
+        self.store
+            .staged
+            .store_credit_accounts
+            .insert(account_id.clone(), account);
+        account_id
+    }
+
+    fn store_credit_payload_for_selection(
+        &self,
+        selection: &[SelectedField],
+        root_field: &str,
+        transaction: Option<&Value>,
+        user_errors: Vec<Value>,
+    ) -> Value {
+        let payload = json!({
+            "__typename": if root_field == "storeCreditAccountCredit" {
+                "StoreCreditAccountCreditPayload"
+            } else {
+                "StoreCreditAccountDebitPayload"
+            },
+            "storeCreditAccountTransaction": transaction.cloned().unwrap_or(Value::Null),
+            "userErrors": user_errors
+        });
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "storeCreditAccountTransaction" => Some(
+                transaction
+                    .map(|transaction| {
+                        self.selected_store_credit_transaction(transaction, &field.selection)
+                    })
+                    .unwrap_or(Value::Null),
+            ),
+            _ => selected_json(&payload, std::slice::from_ref(field))
+                .as_object()
+                .and_then(|object| object.get(&field.response_key).cloned()),
+        })
+    }
+
+    fn selected_store_credit_transaction(
+        &self,
+        transaction: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "account" => transaction
+                .get("account")
+                .map(|account| self.selected_store_credit_account(account, &field.selection)),
+            _ => selected_json(transaction, std::slice::from_ref(field))
+                .as_object()
+                .and_then(|object| object.get(&field.response_key).cloned()),
+        })
+    }
+
+    fn selected_store_credit_account(&self, account: &Value, selection: &[SelectedField]) -> Value {
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "transactions" => {
+                let account_id = account
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let transactions = self
+                    .store
+                    .staged
+                    .store_credit_transaction_order
+                    .iter()
+                    .filter_map(|id| self.store.staged.store_credit_transactions.get(id))
+                    .filter(|transaction| transaction["account"]["id"].as_str() == Some(account_id))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                Some(selected_connection_json_with_args(
+                    transactions,
+                    &field.arguments,
+                    &field.selection,
+                    value_id_cursor,
+                ))
+            }
+            _ => selected_json(account, std::slice::from_ref(field))
+                .as_object()
+                .and_then(|object| object.get(&field.response_key).cloned()),
+        })
+    }
+
+    fn store_credit_accounts_connection_for_owner(
+        &self,
+        owner_id: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selection: &[SelectedField],
+    ) -> Value {
+        let accounts = self
+            .store
+            .staged
+            .store_credit_account_order
+            .iter()
+            .filter_map(|id| self.store.staged.store_credit_accounts.get(id))
+            .filter(|account| account["owner"]["id"].as_str() == Some(owner_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        selected_connection_json_with_args(accounts, arguments, selection, value_id_cursor)
+    }
+
+    fn store_credit_account_id_for_owner_currency(
+        &self,
+        owner_id: &str,
+        currency: &str,
+    ) -> Option<String> {
+        self.store
+            .staged
+            .store_credit_account_order
+            .iter()
+            .filter_map(|id| self.store.staged.store_credit_accounts.get(id))
+            .find(|account| {
+                account["owner"]["id"].as_str() == Some(owner_id)
+                    && account["balance"]["currencyCode"].as_str() == Some(currency)
+            })
+            .and_then(|account| account["id"].as_str().map(str::to_string))
+    }
+
+    fn store_credit_owner_has_accounts(&self, owner_id: &str) -> bool {
+        self.store
+            .staged
+            .store_credit_accounts
+            .values()
+            .any(|account| account["owner"]["id"].as_str() == Some(owner_id))
+    }
+
+    fn store_credit_owner_exists(&self, owner_id: &str) -> bool {
+        match shopify_gid_resource_type(owner_id) {
+            Some("Customer") => {
+                self.store.staged.customers.contains_key(owner_id)
+                    && !self.store.staged.deleted_customer_ids.contains(owner_id)
+            }
+            Some("CompanyLocation") => {
+                b2b_company_location_exists(&self.store.staged.b2b_locations, owner_id)
+            }
+            _ => false,
+        }
+    }
+
+    fn store_credit_owner_json(&self, owner_id: &str) -> Value {
+        match shopify_gid_resource_type(owner_id) {
+            Some("Customer") => self
+                .store
+                .staged
+                .customers
+                .get(owner_id)
+                .cloned()
+                .unwrap_or_else(|| json!({ "id": owner_id })),
+            Some("CompanyLocation") => self
+                .store
+                .staged
+                .b2b_locations
+                .get(owner_id)
+                .cloned()
+                .unwrap_or_else(|| b2b_synthetic_seed_company_location(owner_id)),
+            _ => json!({ "id": owner_id }),
+        }
+    }
+
+    fn next_store_credit_account_gid(&mut self) -> String {
+        let id = self.store.staged.next_store_credit_account_id;
+        self.store.staged.next_store_credit_account_id += 1;
+        format!("gid://shopify/StoreCreditAccount/{id}?shopify-draft-proxy=synthetic")
+    }
+
+    fn next_store_credit_transaction_gid(&mut self) -> String {
+        let id = self.store.staged.next_store_credit_transaction_id;
+        self.store.staged.next_store_credit_transaction_id += 1;
+        format!("gid://shopify/StoreCreditAccountTransaction/{id}?shopify-draft-proxy=synthetic")
+    }
+}
+
+const STORE_CREDIT_LIMIT: f64 = 100000.0;
+
+fn store_credit_user_error(field: &[&str], message: &str, code: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+fn store_credit_money(amount: &str, currency: &str) -> Value {
+    json!({
+        "amount": amount,
+        "currencyCode": currency
+    })
+}
+
+fn resolved_money_amount_text(
+    input: &BTreeMap<String, ResolvedValue>,
+    field: &str,
+) -> Option<String> {
+    match input.get(field) {
+        Some(ResolvedValue::String(value)) => Some(value.clone()),
+        Some(ResolvedValue::Int(value)) => Some(value.to_string()),
+        Some(ResolvedValue::Float(value)) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
+fn shopify_decimal_text(value: f64) -> String {
+    let rounded = (value * 100.0).round() / 100.0;
+    if rounded.fract().abs() < f64::EPSILON {
+        format!("{rounded:.1}")
+    } else {
+        let text = format!("{rounded:.2}");
+        text.trim_end_matches('0').to_string()
+    }
+}
+
+fn store_credit_supported_currency(currency: &str) -> bool {
+    matches!(
+        currency,
+        "USD" | "CAD" | "AUD" | "EUR" | "GBP" | "JPY" | "NZD"
+    )
+}
+
+fn store_credit_expires_at_in_past(expires_at: &str) -> bool {
+    !expires_at.is_empty() && expires_at < "2026-06-15T00:00:00Z"
 }
 
 fn customer_update_inline_consent_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {

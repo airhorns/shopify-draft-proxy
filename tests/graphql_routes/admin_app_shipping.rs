@@ -4897,3 +4897,515 @@ fn shipping_package_update_rejects_flat_rate_packages_without_staging_state() {
         json!({})
     );
 }
+
+#[test]
+fn store_credit_credit_debit_stage_account_transactions_and_readbacks() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_store_credit_customer(&mut proxy);
+
+    let credit_query = r#"
+        mutation StoreCreditNonRecordingCredit($id: ID!, $amt: MoneyInput!, $notify: Boolean!) {
+          storeCreditAccountCredit(id: $id, creditInput: { creditAmount: $amt, notify: $notify }) {
+            storeCreditAccountTransaction {
+              id
+              amount { amount currencyCode }
+              balanceAfterTransaction { amount currencyCode }
+              event
+              origin
+              account {
+                id
+                balance { amount currencyCode }
+                owner { ... on Customer { id email displayName } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let credit_variables = json!({
+        "id": customer_id,
+        "amt": { "amount": "7.23", "currencyCode": "USD" },
+        "notify": true
+    });
+    let credit =
+        proxy.process_request(json_graphql_request(credit_query, credit_variables.clone()));
+    assert_eq!(credit.status, 200);
+    assert_eq!(
+        credit.body["data"]["storeCreditAccountCredit"]["userErrors"],
+        json!([])
+    );
+    let credit_transaction =
+        &credit.body["data"]["storeCreditAccountCredit"]["storeCreditAccountTransaction"];
+    let account_id = credit_transaction["account"]["id"].as_str().unwrap();
+    assert!(account_id.starts_with("gid://shopify/StoreCreditAccount/"));
+    assert_eq!(
+        credit_transaction["amount"],
+        json!({ "amount": "7.23", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        credit_transaction["balanceAfterTransaction"],
+        json!({ "amount": "7.23", "currencyCode": "USD" })
+    );
+    assert_eq!(credit_transaction["event"], json!("ADJUSTMENT"));
+    assert_eq!(credit_transaction["origin"], Value::Null);
+    assert_eq!(
+        credit_transaction["account"]["owner"]["id"],
+        json!(customer_id)
+    );
+
+    let debit_query = r#"
+        mutation StoreCreditNonRecordingDebit($accountId: ID!, $amt: MoneyInput!) {
+          spend: storeCreditAccountDebit(id: $accountId, debitInput: { debitAmount: $amt }) {
+            storeCreditAccountTransaction {
+              id
+              amount { amount currencyCode }
+              balanceAfterTransaction { amount currencyCode }
+              account {
+                id
+                balance { amount currencyCode }
+                transactions(first: 5) {
+                  nodes { id amount { amount currencyCode } balanceAfterTransaction { amount currencyCode } }
+                  pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let debit_variables = json!({
+        "accountId": account_id,
+        "amt": { "amount": "2.22", "currencyCode": "USD" }
+    });
+    let debit = proxy.process_request(json_graphql_request(debit_query, debit_variables.clone()));
+    assert_eq!(debit.status, 200);
+    assert_eq!(debit.body["data"]["spend"]["userErrors"], json!([]));
+    let debit_transaction = &debit.body["data"]["spend"]["storeCreditAccountTransaction"];
+    assert_eq!(
+        debit_transaction["amount"],
+        json!({ "amount": "-2.22", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        debit_transaction["balanceAfterTransaction"],
+        json!({ "amount": "5.01", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        debit_transaction["account"]["transactions"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query StoreCreditReadback($customerId: ID!, $accountId: ID!) {
+          customer(id: $customerId) {
+            id
+            storeCreditAccounts(first: 5) {
+              nodes { id balance { amount currencyCode } owner { ... on Customer { id email } } }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+          storeCreditAccount(id: $accountId) {
+            id
+            balance { amount currencyCode }
+            transactions(first: 5) { nodes { amount { amount currencyCode } } }
+          }
+        }
+        "#,
+        json!({ "customerId": customer_id, "accountId": account_id }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["customer"]["storeCreditAccounts"]["nodes"][0]["balance"],
+        json!({ "amount": "5.01", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        read.body["data"]["storeCreditAccount"]["balance"],
+        json!({ "amount": "5.01", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        read.body["data"]["storeCreditAccount"]["transactions"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 3);
+    assert_eq!(entries[1]["status"], json!("staged"));
+    assert_eq!(
+        entries[1]["interpreted"]["primaryRootField"],
+        json!("storeCreditAccountCredit")
+    );
+    assert_eq!(entries[1]["stagedResourceIds"], json!([account_id]));
+    assert_eq!(
+        entries[1]["rawBody"],
+        json!({ "query": credit_query, "variables": credit_variables }).to_string()
+    );
+    assert_eq!(entries[2]["status"], json!("staged"));
+    assert_eq!(
+        entries[2]["interpreted"]["primaryRootField"],
+        json!("storeCreditAccountDebit")
+    );
+    assert_eq!(entries[2]["stagedResourceIds"], json!([account_id]));
+    assert_eq!(
+        entries[2]["rawBody"],
+        json!({ "query": debit_query, "variables": debit_variables }).to_string()
+    );
+}
+
+#[test]
+fn store_credit_validations_match_shopify_user_error_shapes_without_staging_failures() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_store_credit_customer(&mut proxy);
+    let account_id = store_credit_account_id_from_credit(&mut proxy, &customer_id, "10.00", "USD");
+
+    let zero_credit = store_credit_credit_error(
+        &mut proxy,
+        &customer_id,
+        json!({ "amount": "0", "currencyCode": "USD" }),
+        None,
+    );
+    assert_eq!(
+        zero_credit,
+        json!([{
+            "field": ["creditInput", "creditAmount", "amount"],
+            "message": "A positive amount must be used to credit a store credit account",
+            "code": "NEGATIVE_OR_ZERO_AMOUNT"
+        }])
+    );
+
+    let zero_debit = store_credit_debit_error(
+        &mut proxy,
+        &account_id,
+        json!({ "amount": "0", "currencyCode": "USD" }),
+    );
+    assert_eq!(
+        zero_debit,
+        json!([{
+            "field": ["debitInput", "debitAmount", "amount"],
+            "message": "A positive amount must be used to debit a store credit account",
+            "code": "NEGATIVE_OR_ZERO_AMOUNT"
+        }])
+    );
+
+    let mismatch = store_credit_credit_error(
+        &mut proxy,
+        &account_id,
+        json!({ "amount": "1.00", "currencyCode": "CAD" }),
+        None,
+    );
+    assert_eq!(
+        mismatch,
+        json!([{
+            "field": ["creditInput", "creditAmount", "currencyCode"],
+            "message": "The currency provided does not match the currency of the store credit account",
+            "code": "MISMATCHING_CURRENCY"
+        }])
+    );
+
+    let overdraw = store_credit_debit_error(
+        &mut proxy,
+        &account_id,
+        json!({ "amount": "11.00", "currencyCode": "USD" }),
+    );
+    assert_eq!(
+        overdraw,
+        json!([{
+            "field": ["debitInput", "debitAmount", "amount"],
+            "message": "The store credit account does not have sufficient funds to satisfy the request",
+            "code": "INSUFFICIENT_FUNDS"
+        }])
+    );
+
+    let past_expiry = store_credit_credit_error(
+        &mut proxy,
+        &customer_id,
+        json!({ "amount": "1.00", "currencyCode": "USD" }),
+        Some("2024-01-01T00:00:00Z"),
+    );
+    assert_eq!(
+        past_expiry,
+        json!([{
+            "field": ["creditInput", "expiresAt"],
+            "message": "The expiry date must be in the future",
+            "code": "EXPIRES_AT_IN_PAST"
+        }])
+    );
+
+    let unsupported_currency = store_credit_credit_error(
+        &mut proxy,
+        &customer_id,
+        json!({ "amount": "1.00", "currencyCode": "XXX" }),
+        None,
+    );
+    assert_eq!(
+        unsupported_currency,
+        json!([{
+            "field": ["creditInput", "creditAmount", "currencyCode"],
+            "message": "Currency is not supported",
+            "code": "UNSUPPORTED_CURRENCY"
+        }])
+    );
+
+    let credit_limit = store_credit_credit_error(
+        &mut proxy,
+        &account_id,
+        json!({ "amount": "99990.00", "currencyCode": "USD" }),
+        None,
+    );
+    assert_eq!(
+        credit_limit,
+        json!([{
+            "field": ["creditInput", "creditAmount", "amount"],
+            "message": "The operation would cause the account's credit limit to be exceeded",
+            "code": "CREDIT_LIMIT_EXCEEDED"
+        }])
+    );
+
+    let missing_account = store_credit_debit_error(
+        &mut proxy,
+        "gid://shopify/StoreCreditAccount/999",
+        json!({ "amount": "1.00", "currencyCode": "USD" }),
+    );
+    assert_eq!(
+        missing_account,
+        json!([{
+            "field": ["id"],
+            "message": "Store credit account does not exist",
+            "code": "NOT_FOUND"
+        }])
+    );
+
+    let missing_owner = store_credit_credit_error(
+        &mut proxy,
+        "gid://shopify/Customer/999",
+        json!({ "amount": "1.00", "currencyCode": "USD" }),
+        None,
+    );
+    assert_eq!(
+        missing_owner,
+        json!([{
+            "field": ["id"],
+            "message": "Owner does not exist",
+            "code": "NOT_FOUND"
+        }])
+    );
+
+    let entries = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .unwrap()
+        .len();
+    assert_eq!(
+        entries, 2,
+        "only customerCreate and the successful setup credit should be staged"
+    );
+}
+
+#[test]
+fn store_credit_credit_creates_company_location_account() {
+    let mut proxy = snapshot_proxy();
+    let location_id = "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic";
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CompanyLocationStoreCredit($id: ID!) {
+          storeCreditAccountCredit(id: $id, creditInput: { creditAmount: { amount: "3.00", currencyCode: USD } }) {
+            storeCreditAccountTransaction {
+              account {
+                id
+                balance { amount currencyCode }
+                owner { ... on CompanyLocation { id name } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["storeCreditAccountCredit"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["storeCreditAccountCredit"]["storeCreditAccountTransaction"]
+            ["account"]["balance"],
+        json!({ "amount": "3.0", "currencyCode": "USD" })
+    );
+    assert_eq!(
+        response.body["data"]["storeCreditAccountCredit"]["storeCreditAccountTransaction"]
+            ["account"]["owner"]["id"],
+        json!(location_id)
+    );
+}
+
+#[test]
+fn store_credit_schema_rejects_non_public_variable_fields() {
+    let mut proxy = snapshot_proxy();
+    let customer_id = create_store_credit_customer(&mut proxy);
+
+    let invalid_credit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StoreCreditInvalidCredit($id: ID!, $input: StoreCreditAccountCreditInput!) {
+          storeCreditAccountCredit(id: $id, creditInput: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": customer_id,
+            "input": {
+                "creditAmount": { "amount": "1.00", "currencyCode": "USD" },
+                "attribution": { "app": "draft-proxy" }
+            }
+        }),
+    ));
+    assert_eq!(invalid_credit.status, 200);
+    assert_eq!(
+        invalid_credit.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert!(invalid_credit.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("attribution")));
+
+    let invalid_debit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StoreCreditInvalidDebit($id: ID!, $input: StoreCreditAccountDebitInput!) {
+          storeCreditAccountDebit(id: $id, debitInput: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/StoreCreditAccount/999",
+            "input": {
+                "debitAmount": { "amount": "1.00", "currencyCode": "USD" },
+                "notify": true,
+                "attribution": { "app": "draft-proxy" }
+            }
+        }),
+    ));
+    assert_eq!(invalid_debit.status, 200);
+    assert_eq!(
+        invalid_debit.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    let message = invalid_debit.body["errors"][0]["message"].as_str().unwrap();
+    assert!(message.contains("notify"));
+    assert!(message.contains("attribution"));
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+        "invalid schema variables should not stage store-credit mutations"
+    );
+}
+
+fn create_store_credit_customer(proxy: &mut DraftProxy) -> String {
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateParityPlan($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email displayName }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "store-credit@example.test",
+                "firstName": "Store",
+                "lastName": "Credit"
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+fn store_credit_account_id_from_credit(
+    proxy: &mut DraftProxy,
+    owner_id: &str,
+    amount: &str,
+    currency: &str,
+) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StoreCreditSetupCredit($id: ID!, $amt: MoneyInput!) {
+          storeCreditAccountCredit(id: $id, creditInput: { creditAmount: $amt }) {
+            storeCreditAccountTransaction { account { id } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": owner_id, "amt": { "amount": amount, "currencyCode": currency } }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["storeCreditAccountCredit"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["storeCreditAccountCredit"]["storeCreditAccountTransaction"]["account"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string()
+}
+
+fn store_credit_credit_error(
+    proxy: &mut DraftProxy,
+    id: &str,
+    amount: Value,
+    expires_at: Option<&str>,
+) -> Value {
+    let mut credit_input = json!({ "creditAmount": amount });
+    if let Some(expires_at) = expires_at {
+        credit_input["expiresAt"] = json!(expires_at);
+    }
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StoreCreditValidationCredit($id: ID!, $input: StoreCreditAccountCreditInput!) {
+          storeCreditAccountCredit(id: $id, creditInput: $input) {
+            storeCreditAccountTransaction { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": id, "input": credit_input }),
+    ));
+    assert_eq!(response.status, 200);
+    response.body["data"]["storeCreditAccountCredit"]["userErrors"].clone()
+}
+
+fn store_credit_debit_error(proxy: &mut DraftProxy, id: &str, amount: Value) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StoreCreditValidationDebit($id: ID!, $input: StoreCreditAccountDebitInput!) {
+          storeCreditAccountDebit(id: $id, debitInput: $input) {
+            storeCreditAccountTransaction { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": id, "input": { "debitAmount": amount } }),
+    ));
+    assert_eq!(response.status, 200);
+    response.body["data"]["storeCreditAccountDebit"]["userErrors"].clone()
+}

@@ -153,6 +153,18 @@ impl DraftProxy {
                 "deletedOwnerMetafields": self.store.staged.deleted_owner_metafields.iter().map(|(owner_id, namespace, key)| json!({"ownerId": owner_id, "namespace": namespace, "key": key})).collect::<Vec<_>>()
             }
         });
+        snapshot["stagedState"]["storeCreditAccounts"] =
+            json!(self.store.staged.store_credit_accounts);
+        snapshot["stagedState"]["storeCreditAccountOrder"] =
+            json!(self.store.staged.store_credit_account_order);
+        snapshot["stagedState"]["storeCreditTransactions"] =
+            json!(self.store.staged.store_credit_transactions);
+        snapshot["stagedState"]["storeCreditTransactionOrder"] =
+            json!(self.store.staged.store_credit_transaction_order);
+        snapshot["stagedState"]["nextStoreCreditAccountId"] =
+            json!(self.store.staged.next_store_credit_account_id);
+        snapshot["stagedState"]["nextStoreCreditTransactionId"] =
+            json!(self.store.staged.next_store_credit_transaction_id);
         if !self.store.staged.metaobject_definitions.is_empty() {
             snapshot["stagedState"]["metaobjectDefinitions"] =
                 json!(self.store.staged.metaobject_definitions);
@@ -423,6 +435,58 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.store_credit_accounts = state["stagedState"]
+            .get("storeCreditAccounts")
+            .and_then(Value::as_object)
+            .map(|accounts| {
+                accounts
+                    .iter()
+                    .map(|(id, account)| (id.clone(), account.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.store_credit_account_order = state["stagedState"]
+            .get("storeCreditAccountOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .store_credit_accounts
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
+        self.store.staged.store_credit_transactions = state["stagedState"]
+            .get("storeCreditTransactions")
+            .and_then(Value::as_object)
+            .map(|transactions| {
+                transactions
+                    .iter()
+                    .map(|(id, transaction)| (id.clone(), transaction.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.store_credit_transaction_order = state["stagedState"]
+            .get("storeCreditTransactionOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .store_credit_transactions
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
+        self.store.staged.next_store_credit_account_id = state["stagedState"]
+            .get("nextStoreCreditAccountId")
+            .and_then(Value::as_u64)
+            .filter(|id| *id > 0)
+            .unwrap_or(1);
+        self.store.staged.next_store_credit_transaction_id = state["stagedState"]
+            .get("nextStoreCreditTransactionId")
+            .and_then(Value::as_u64)
+            .filter(|id| *id > 0)
+            .unwrap_or(1);
         self.store.staged.taggable_resources = state["stagedState"]["taggableResources"]
             .as_object()
             .map(|resources| {

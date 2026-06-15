@@ -1210,13 +1210,35 @@ impl DraftProxy {
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
-                    "customer" | "customers" | "customersCount" | "customerByIdentifier"
+                    "customer"
+                        | "customers"
+                        | "customersCount"
+                        | "customerByIdentifier"
+                        | "storeCreditAccount"
                 )
             })
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                if self.should_handle_customer_overlay_read(&query, &fields) {
-                    return ok_json(json!({ "data": self.customer_overlay_read_fields(&fields) }));
+                let should_handle_customers =
+                    self.should_handle_customer_overlay_read(&query, &fields);
+                let should_handle_store_credit = fields
+                    .iter()
+                    .any(|field| field.name == "storeCreditAccount");
+                if should_handle_customers || should_handle_store_credit {
+                    let mut data = serde_json::Map::new();
+                    if should_handle_customers {
+                        if let Value::Object(fields) = self.customer_overlay_read_fields(&fields) {
+                            data.extend(fields);
+                        }
+                    }
+                    if should_handle_store_credit {
+                        if let Value::Object(fields) =
+                            self.store_credit_account_read_fields(&fields)
+                        {
+                            data.extend(fields);
+                        }
+                    }
+                    return ok_json(json!({ "data": Value::Object(data) }));
                 }
             }
         }
@@ -2324,6 +2346,29 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
             {
                 self.bulk_operation_read_response(request, &query, &variables, root_field)
+            }
+            (CapabilityDomain::Customers, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query
+                    && has_local_dispatch
+                    && root_field == "storeCreditAccount" =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    ok_json(json!({ "data": self.store_credit_account_read_fields(&fields) }))
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
+            }
+            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "storeCreditAccountCredit" | "storeCreditAccountDebit"
+                    ) =>
+            {
+                let outcome =
+                    self.store_credit_account_mutation(root_field, request, &query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Discounts, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
