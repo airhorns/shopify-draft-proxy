@@ -750,7 +750,6 @@ impl DraftProxy {
                         | "marketingEvents"
                 )
             })
-            && is_ported_marketing_document(&query)
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({ "data": self.marketing_query_data(&fields) }));
@@ -772,7 +771,6 @@ impl DraftProxy {
                         | "marketingActivityUpdate"
                 )
             })
-            && (is_ported_marketing_document(&query) || is_log_draft_enforcement_document(&query))
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 let response = self.marketing_mutation(&fields, request);
@@ -864,10 +862,9 @@ impl DraftProxy {
                         | "markets"
                 )
             })
-            && is_ported_localization_document(&query)
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.localization_query_data(&fields, &query) }));
+                return ok_json(json!({ "data": self.localization_query_data(&fields) }));
             }
         }
 
@@ -882,8 +879,6 @@ impl DraftProxy {
                         | "translationsRemove"
                 )
             })
-            && (is_ported_localization_document(&query)
-                || is_log_draft_enforcement_document(&query))
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 let data = self.localization_mutation_data(&fields);

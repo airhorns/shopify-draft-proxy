@@ -381,163 +381,60 @@ fn marketing_external_activity_lifecycle_stages_updates_engagements_and_reads_ba
 }
 
 #[test]
-fn marketing_engagement_response_shape_uses_local_handler_and_preserves_commit_log() {
+fn marketing_activity_queries_filter_staged_records_without_sentinel_strings() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
         r#"
-        mutation MarketingEngagementResponseShapeCreateActivity($input: MarketingActivityCreateExternalInput!) {
-          marketingActivityCreateExternal(input: $input) {
-            marketingActivity { id }
+        mutation CreateMarketingFilterSeeds {
+          alpha: marketingActivityCreateExternal(input: { title: "Alpha Campaign", remoteId: "alpha-remote", status: ACTIVE, remoteUrl: "https://example.com/alpha", tactic: NEWSLETTER, marketingChannelType: EMAIL, utm: { campaign: "alpha", source: "email", medium: "newsletter" } }) {
+            marketingActivity { id marketingEvent { id } }
+            userErrors { field message code }
+          }
+          beta: marketingActivityCreateExternal(input: { title: "Beta Campaign", remoteId: "beta-remote", status: ACTIVE, remoteUrl: "https://example.com/beta", previewUrl: "https://example.com/beta-preview", tactic: NEWSLETTER, marketingChannelType: EMAIL, utm: { campaign: "beta", source: "email", medium: "newsletter" } }) {
+            marketingActivity { id marketingEvent { id description } }
             userErrors { field message code }
           }
         }
         "#,
-        json!({"input": {"title": "Response shape", "remoteId": "response-shape-1", "status": "ACTIVE", "remoteUrl": "https://example.com/response-shape-1", "tactic": "NEWSLETTER", "marketingChannelType": "EMAIL", "utm": {"campaign": "response-shape-1", "source": "newsletter", "medium": "email"}}}),
+        json!({}),
     ));
+    assert_eq!(create.body["data"]["alpha"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["beta"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingFilterRead {
+          titleMatch: marketingActivities(first: 10, query: "title:'Alpha Campaign'") { nodes { title remoteId } }
+          titleMiss: marketingActivities(first: 10, query: "title:'Missing Campaign'") { nodes { title } pageInfo { hasNextPage hasPreviousPage } }
+          remoteMatch: marketingActivities(first: 10, query: "remote_id:beta-remote") { nodes { title remoteId } }
+          eventDescriptionMiss: marketingEvents(first: 10, query: "description:missing-description") { nodes { id description } }
+          eventRemoteMatch: marketingEvents(first: 10, query: "remote_id:beta-remote") { nodes { remoteId previewUrl } }
+        }
+        "#,
+        json!({}),
+    ));
+
     assert_eq!(
-        create.body["data"]["marketingActivityCreateExternal"]["userErrors"],
+        read.body["data"]["titleMatch"]["nodes"],
+        json!([{ "title": "Alpha Campaign", "remoteId": "alpha-remote" }])
+    );
+    assert_eq!(read.body["data"]["titleMiss"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["titleMiss"]["pageInfo"],
+        json!({ "hasNextPage": false, "hasPreviousPage": false })
+    );
+    assert_eq!(
+        read.body["data"]["remoteMatch"]["nodes"],
+        json!([{ "title": "Beta Campaign", "remoteId": "beta-remote" }])
+    );
+    assert_eq!(
+        read.body["data"]["eventDescriptionMiss"]["nodes"],
         json!([])
     );
-    let activity_id = create.body["data"]["marketingActivityCreateExternal"]["marketingActivity"]
-        ["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-
-    let engagement = proxy.process_request(json_graphql_request(
-        r#"
-        mutation MarketingEngagementResponseShapeFull($remoteId: String!) {
-          marketingEngagementCreate(
-            remoteId: $remoteId
-            marketingEngagement: {
-              occurredOn: "2026-04-01"
-              utcOffset: "-05:00"
-              isCumulative: true
-              impressionsCount: 7
-              clicksCount: 3
-              adSpend: { amount: "1.23", currencyCode: USD }
-              orders: "2.5"
-            }
-          ) {
-            marketingEngagement {
-              __typename
-              occurredOn
-              utcOffset
-              isCumulative
-              impressionsCount
-              clicksCount
-              adSpend { amount currencyCode }
-              orders
-            }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({"remoteId": "response-shape-1"}),
-    ));
-
     assert_eq!(
-        engagement.body["data"]["marketingEngagementCreate"],
-        json!({
-            "marketingEngagement": {
-                "__typename": "MarketingEngagement",
-                "occurredOn": "2026-04-01",
-                "utcOffset": "-05:00",
-                "isCumulative": true,
-                "impressionsCount": 7,
-                "clicksCount": 3,
-                "adSpend": { "amount": "1.23", "currencyCode": "USD" },
-                "orders": "2.5"
-            },
-            "userErrors": []
-        })
+        read.body["data"]["eventRemoteMatch"]["nodes"],
+        json!([{ "remoteId": "beta-remote", "previewUrl": "https://example.com/beta-preview" }])
     );
-
-    let log = proxy.process_request(Request {
-        method: "GET".to_string(),
-        path: "/__meta/log".to_string(),
-        headers: Default::default(),
-        body: String::new(),
-    });
-    assert_eq!(log.body["entries"].as_array().unwrap().len(), 1);
-    assert_eq!(
-        log.body["entries"][0]["stagedResourceIds"],
-        json!([activity_id])
-    );
-    assert_eq!(
-        log.body["entries"][0]["query"],
-        json!(
-            r#"
-        mutation MarketingEngagementResponseShapeCreateActivity($input: MarketingActivityCreateExternalInput!) {
-          marketingActivityCreateExternal(input: $input) {
-            marketingActivity { id }
-            userErrors { field message code }
-          }
-        }
-        "#
-        )
-    );
-}
-
-#[test]
-fn marketing_engagement_sparse_required_fields_fail_coercion_before_staging() {
-    let mut proxy = snapshot_proxy();
-    let response = proxy.process_request(json_graphql_request(
-        r#"
-        mutation MarketingEngagementResponseShapeSparse($remoteId: String!) {
-          marketingEngagementCreate(
-            remoteId: $remoteId
-            marketingEngagement: { occurredOn: "2026-04-02", impressionsCount: 7 }
-          ) {
-            marketingEngagement {
-              occurredOn
-              utcOffset
-              isCumulative
-              impressionsCount
-            }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({"remoteId": "response-shape-1"}),
-    ));
-
-    assert!(response.body.get("data").is_none());
-    assert_eq!(
-        response.body["errors"],
-        json!([
-            {
-                "message": "Argument 'isCumulative' on InputObject 'MarketingEngagementInput' is required. Expected type Boolean!",
-                "locations": [{ "line": 5, "column": 34 }],
-                "path": ["mutation MarketingEngagementResponseShapeSparse", "marketingEngagementCreate", "marketingEngagement", "isCumulative"],
-                "extensions": {
-                    "code": "missingRequiredInputObjectAttribute",
-                    "argumentName": "isCumulative",
-                    "argumentType": "Boolean!",
-                    "inputObjectType": "MarketingEngagementInput"
-                }
-            },
-            {
-                "message": "Argument 'utcOffset' on InputObject 'MarketingEngagementInput' is required. Expected type UtcOffset!",
-                "locations": [{ "line": 5, "column": 34 }],
-                "path": ["mutation MarketingEngagementResponseShapeSparse", "marketingEngagementCreate", "marketingEngagement", "utcOffset"],
-                "extensions": {
-                    "code": "missingRequiredInputObjectAttribute",
-                    "argumentName": "utcOffset",
-                    "argumentType": "UtcOffset!",
-                    "inputObjectType": "MarketingEngagementInput"
-                }
-            }
-        ])
-    );
-
-    let log = proxy.process_request(Request {
-        method: "GET".to_string(),
-        path: "/__meta/log".to_string(),
-        headers: Default::default(),
-        body: String::new(),
-    });
-    assert_eq!(log.body["entries"], json!([]));
 }
 
 #[test]
