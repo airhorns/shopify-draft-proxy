@@ -2621,14 +2621,6 @@ impl DraftProxy {
         let mut has_null_translation_error = false;
         for (index, translation_input) in translations.iter().enumerate() {
             let field_index = index.to_string();
-            if resolved_object_string(translation_input, "value").as_deref() == Some("") {
-                user_errors.push(json!({
-                    "field": ["translations", field_index, "value"],
-                    "message": "Value can't be blank",
-                    "code": "FAILS_RESOURCE_VALIDATION"
-                }));
-                continue;
-            }
             let locale = resolved_object_string(translation_input, "locale")
                 .unwrap_or_else(|| "fr".to_string());
             if locale == "en" {
@@ -2642,18 +2634,8 @@ impl DraftProxy {
             if !self.store.staged.shop_locales.contains_key(&locale) {
                 user_errors.push(json!({
                     "field": ["translations", field_index, "locale"],
-                    "message": "Locale is not enabled for this shop",
+                    "message": "Locale is not a valid locale for the shop",
                     "code": "INVALID_LOCALE_FOR_SHOP"
-                }));
-                continue;
-            }
-            if resolved_object_string(translation_input, "translatableContentDigest")
-                .is_some_and(|digest| digest.starts_with("invalid-"))
-            {
-                user_errors.push(json!({
-                    "field": ["translations", field_index, "translatableContentDigest"],
-                    "message": "Translatable content hash is invalid",
-                    "code": "INVALID_TRANSLATABLE_CONTENT"
                 }));
                 continue;
             }
@@ -2664,6 +2646,24 @@ impl DraftProxy {
                     "field": ["translations", field_index, "marketId"],
                     "message": "The market corresponding to the `marketId` argument doesn't exist",
                     "code": "MARKET_DOES_NOT_EXIST"
+                }));
+                continue;
+            }
+            if resolved_object_string(translation_input, "value").as_deref() == Some("") {
+                user_errors.push(json!({
+                    "field": ["translations", field_index, "value"],
+                    "message": "Value can't be blank",
+                    "code": "FAILS_RESOURCE_VALIDATION"
+                }));
+                continue;
+            }
+            if resolved_object_string(translation_input, "translatableContentDigest")
+                .is_some_and(|digest| digest.starts_with("invalid-"))
+            {
+                user_errors.push(json!({
+                    "field": ["translations", field_index, "translatableContentDigest"],
+                    "message": "Translatable content hash is invalid",
+                    "code": "INVALID_TRANSLATABLE_CONTENT"
                 }));
                 continue;
             }

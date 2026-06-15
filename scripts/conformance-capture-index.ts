@@ -3258,6 +3258,29 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'localization',
+    captureId: 'localization-translations-validation-order',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-translations-validation-order-conformance.mts',
+    purpose:
+      'translationsRegister first-error precedence for rows that violate locale and blank-value validation at the same time.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_translations',
+      'write_translations',
+      'read_locales',
+      'write_locales',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-translations-validation-order.json`,
+      'config/parity-specs/localization/localization-translations-validation-order.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, disables Italian for the validation capture when needed, captures non-enabled and primary-locale first-error branches, deletes the product, and restores Italian only if it was enabled before capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
     captureId: 'localization-market-translations',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-market-translations-conformance.mts',
