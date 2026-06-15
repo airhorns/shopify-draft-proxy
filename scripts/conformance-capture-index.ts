@@ -6757,7 +6757,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Local-runtime order payment parity robustness coverage that replays captured order payment staging evidence through unrelated client operation names.',
     requiredAuthScopes: ['local-runtime fixture evidence; no live Shopify write required'],
     fixtureOutputs: [
+      'config/parity-specs/orders/order-payment-transaction-local-staging.json',
       'config/parity-specs/orders/order-payment-transaction-non-recording-operation-name.json',
+      'config/parity-specs/orders/order-payment-transaction-void-local-staging.json',
       'config/parity-requests/orders/order-payment-non-recording-capture.graphql',
       'config/parity-requests/orders/order-payment-non-recording-create.graphql',
       'config/parity-requests/orders/order-payment-non-recording-mandate.graphql',
