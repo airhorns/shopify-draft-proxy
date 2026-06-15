@@ -154,14 +154,15 @@ fn admin_graphql_routes_by_root_field_not_alias_or_fragment_definition() {
 fn live_hybrid_forwards_unknown_queries_to_upstream_transport() {
     let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
     let captured = Arc::clone(&forwarded);
-    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
-        captured.lock().unwrap().push(request);
-        shopify_draft_proxy::proxy::Response {
-            status: 202,
-            headers: [("x-test-upstream".to_string(), "domain-read".to_string())].into(),
-            body: json!({ "data": { "currentAppInstallation": { "id": "gid://shopify/AppInstallation/42" } } }),
-        }
-    });
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request);
+            shopify_draft_proxy::proxy::Response {
+                status: 202,
+                headers: [("x-test-upstream".to_string(), "domain-read".to_string())].into(),
+                body: json!({ "data": { "shop": { "id": "gid://shopify/Shop/42" } } }),
+            }
+        });
 
     let response = proxy.process_request(Request {
         method: "POST".to_string(),
@@ -171,13 +172,13 @@ fn live_hybrid_forwards_unknown_queries_to_upstream_transport() {
             "Bearer passthrough-token".to_string(),
         )]
         .into(),
-        body: json!({ "query": "{ currentAppInstallation { id } }" }).to_string(),
+        body: json!({ "query": "{ shop { id } }" }).to_string(),
     });
 
     assert_eq!(response.status, 202);
     assert_eq!(
         response.body,
-        json!({ "data": { "currentAppInstallation": { "id": "gid://shopify/AppInstallation/42" } } })
+        json!({ "data": { "shop": { "id": "gid://shopify/Shop/42" } } })
     );
     assert_eq!(
         response.headers.get("x-test-upstream"),
@@ -191,7 +192,7 @@ fn live_hybrid_forwards_unknown_queries_to_upstream_transport() {
     );
     assert_eq!(
         forwarded[0].body,
-        json!({ "query": "{ currentAppInstallation { id } }" }).to_string()
+        json!({ "query": "{ shop { id } }" }).to_string()
     );
 }
 

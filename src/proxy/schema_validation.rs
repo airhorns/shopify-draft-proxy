@@ -418,104 +418,52 @@ fn local_extension_input_field(input_type_name: &str, field_name: &str) -> bool 
 fn public_admin_input_schema() -> &'static AdminInputSchema {
     static SCHEMA: OnceLock<AdminInputSchema> = OnceLock::new();
     SCHEMA.get_or_init(|| {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/gift-cards/gift-card-create-validation.json"
-        ))
-        .unwrap_or_else(|_| json!({}));
-        schema_from_fixture(&fixture).unwrap_or_default()
+        let mut schema = AdminInputSchema::default();
+
+        schema.input_objects.insert(
+            "GiftCardCreateInput".to_string(),
+            BTreeMap::from([
+                ("initialValue".to_string(), input_field(non_null("Decimal"))),
+                ("code".to_string(), input_field(named("String"))),
+                ("customerId".to_string(), input_field(named("ID"))),
+                ("expiresOn".to_string(), input_field(named("Date"))),
+                ("note".to_string(), input_field(named("String"))),
+                (
+                    "recipientAttributes".to_string(),
+                    input_field(named("GiftCardRecipientInput")),
+                ),
+                ("templateSuffix".to_string(), input_field(named("String"))),
+            ]),
+        );
+        schema.mutation_fields.insert(
+            "giftCardCreate".to_string(),
+            BTreeMap::from([(
+                "input".to_string(),
+                SchemaArgument {
+                    type_ref: non_null("GiftCardCreateInput"),
+                },
+            )]),
+        );
+        schema
     })
 }
 
-fn schema_from_fixture(fixture: &Value) -> Option<AdminInputSchema> {
-    let data = &fixture["operations"]["schema"]["response"]["payload"]["data"];
-    let mut schema = AdminInputSchema::default();
+fn input_field(type_ref: SchemaTypeRef) -> SchemaInputField {
+    SchemaInputField { type_ref }
+}
 
-    let type_name = "GiftCardCreateInput";
-    let fields = data[uncapitalize_type_alias(type_name)]["inputFields"].as_array()?;
-    schema.input_objects.insert(
-        type_name.to_string(),
-        fields
-            .iter()
-            .filter_map(|field| {
-                Some((
-                    field["name"].as_str()?.to_string(),
-                    SchemaInputField {
-                        type_ref: schema_type_ref(&field["type"])?,
-                    },
-                ))
-            })
-            .collect(),
-    );
-
-    let mutation_fields = data["mutationRoot"]["fields"].as_array()?;
-    for mutation_field in mutation_fields {
-        let Some(field_name) = mutation_field["name"].as_str() else {
-            continue;
-        };
-        let Some(args) = mutation_field["args"].as_array() else {
-            continue;
-        };
-        let parsed_args = args
-            .iter()
-            .filter_map(|arg| {
-                Some((
-                    arg["name"].as_str()?.to_string(),
-                    SchemaArgument {
-                        type_ref: schema_type_ref(&arg["type"])?,
-                    },
-                ))
-            })
-            .collect::<BTreeMap<_, _>>();
-        if !parsed_args
-            .values()
-            .any(|arg| schema.input_objects.contains_key(&arg.type_ref.named_type))
-        {
-            continue;
-        }
-        schema
-            .mutation_fields
-            .insert(field_name.to_string(), parsed_args);
+fn named(name: &str) -> SchemaTypeRef {
+    SchemaTypeRef {
+        display: name.to_string(),
+        named_type: name.to_string(),
+        non_null: false,
     }
-
-    Some(schema)
 }
 
-fn uncapitalize_type_alias(type_name: &str) -> String {
-    let mut chars = type_name.chars();
-    let Some(first) = chars.next() else {
-        return String::new();
-    };
-    format!(
-        "{}{}",
-        first.to_ascii_lowercase(),
-        chars.collect::<String>()
-    )
-}
-
-fn schema_type_ref(type_value: &Value) -> Option<SchemaTypeRef> {
-    let kind = type_value["kind"].as_str()?;
-    match kind {
-        "NON_NULL" => {
-            let mut inner = schema_type_ref(&type_value["ofType"])?;
-            inner.display.push('!');
-            inner.non_null = true;
-            Some(inner)
-        }
-        "LIST" => {
-            let inner = schema_type_ref(&type_value["ofType"])?;
-            Some(SchemaTypeRef {
-                display: format!("[{}]", inner.display),
-                named_type: inner.named_type,
-                non_null: false,
-            })
-        }
-        _ => {
-            let name = type_value["name"].as_str()?.to_string();
-            Some(SchemaTypeRef {
-                display: name.clone(),
-                named_type: name,
-                non_null: false,
-            })
-        }
+fn non_null(name: &str) -> SchemaTypeRef {
+    SchemaTypeRef {
+        display: format!("{name}!"),
+        named_type: name.to_string(),
+        non_null: true,
     }
 }

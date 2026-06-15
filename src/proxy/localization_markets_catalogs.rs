@@ -232,17 +232,9 @@ impl DraftProxy {
     pub(in crate::proxy) fn localization_query_data(
         &mut self,
         fields: &[RootFieldSelection],
-        query: &str,
+        _query: &str,
     ) -> Value {
-        let mut data = if query.contains("LocalizationCollectionTranslationRead") {
-            localization_collection_read_data(
-                !self.store.staged.localization_translations.is_empty(),
-            )
-        } else if query.contains("LocalizationTranslationsMarketScopedRead") {
-            localization_market_scoped_read_data()
-        } else {
-            Value::Object(serde_json::Map::new())
-        };
+        let mut data = Value::Object(serde_json::Map::new());
         for field in fields {
             match field.name.as_str() {
                 "availableLocales" => {
@@ -292,35 +284,6 @@ impl DraftProxy {
             }
         }
         data
-    }
-
-    pub(in crate::proxy) fn localization_catalog_query_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
-                "availableLocales" => Value::Array(
-                    self.localization_available_locales()
-                        .iter()
-                        .map(|locale| selected_json(locale, &field.selection))
-                        .collect(),
-                ),
-                "shopLocales" => {
-                    let published_filter = resolved_bool_field(&field.arguments, "published");
-                    Value::Array(
-                        self.localization_shop_locales(published_filter)
-                            .iter()
-                            .map(|locale| selected_json(locale, &field.selection))
-                            .collect(),
-                    )
-                }
-                _ => Value::Null,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
     }
 
     pub(in crate::proxy) fn localization_mutation_data(

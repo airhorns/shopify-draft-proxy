@@ -9,13 +9,14 @@ and market-localized content.
 
 ## Current support and limitations
 
-### Supported roots
+### Implemented local roots
 
-The current Rust operation registry does not mark any Markets root as fully
-implemented. Registry presence is a local-model commitment only; it is not a
-claim that the whole Markets domain is supported for arbitrary documents.
+The Rust operation registry marks the Markets roots below as locally
+implemented: they route through `LOCAL_DISPATCH_ROOTS` and are answered without
+runtime Shopify writes. Registry implementation is still narrower than support
+for arbitrary Markets documents.
 
-The registry-only read roots are:
+Implemented read roots:
 
 - `market`
 - `markets`
@@ -28,13 +29,11 @@ The registry-only read roots are:
 - `marketsResolvedValues`
 - `marketLocalizableResource`
 - `marketLocalizableResources`
-- `marketLocalizableResourcesByIds`
 
-The registry-only mutation roots are:
+Implemented mutation roots:
 
 - `marketCreate`
 - `marketUpdate`
-- `marketDelete`
 - `catalogCreate`
 - `catalogUpdate`
 - `catalogContextUpdate`
@@ -54,6 +53,9 @@ The registry-only mutation roots are:
 - `webPresenceDelete`
 - `marketLocalizationsRegister`
 - `marketLocalizationsRemove`
+
+Other Markets roots remain registry-known but unsupported until the proxy has
+local lifecycle/read models and executable evidence for those roots.
 
 ### Local behavior
 
@@ -107,9 +109,9 @@ derivations are not synthesized beyond the checked-in evidence.
 
 ### Boundaries
 
-- Markets roots remain `implemented: false` in the current operation registry.
-  Scenario-backed local staging is limited to the ported request documents and
-  runtime tests.
+- Implemented Markets roots are local-runtime slices, not broad support for the
+  whole Markets domain. Unsupported root shapes must still fall through the
+  configured unsupported path and stay visible in logs/observability.
 - Catalog membership and price-list semantics outside the modeled
   market-catalog and fixed-price/quantity-pricing slices remain unsupported.
 - Validation-only Markets specs prove guardrail payloads and no-stage behavior

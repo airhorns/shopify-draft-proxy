@@ -952,11 +952,11 @@ impl DraftProxy {
                 "themeFilesCopy" => self.theme_files_copy(field),
                 "themeFilesDelete" => self.theme_files_delete(field),
                 "webPixelCreate" => self.web_pixel_create(field, &mut staged_ids),
-                "webPixelUpdate" => self.web_pixel_update(
-                    field,
-                    query.contains("WebPixelUpdateValidationLocalRuntime"),
-                    &mut staged_ids,
-                ),
+                "webPixelUpdate" => {
+                    let allow_missing_upsert = resolved_string_arg(&field.arguments, "id")
+                        .is_some_and(|id| id.contains("?shopify-draft-proxy=synthetic"));
+                    self.web_pixel_update(field, allow_missing_upsert, &mut staged_ids)
+                }
                 "serverPixelCreate" => self.server_pixel_create(field, &mut staged_ids),
                 "eventBridgeServerPixelUpdate" => self.server_pixel_endpoint_update(field, "arn"),
                 "pubSubServerPixelUpdate" => self.server_pixel_endpoint_update(field, "pubsub"),

@@ -9,59 +9,34 @@ company-location tax settings, and B2B address behavior.
 
 ## Current support and limitations
 
-### Supported roots
+### Implemented local roots
 
-The current Rust operation registry does not mark any B2B root as fully
-implemented. Registry presence is a local-model commitment only; it is not a
-supported-runtime claim for the whole B2B domain.
+The Rust operation registry marks the B2B roots below as locally implemented:
+they route through `LOCAL_DISPATCH_ROOTS` and are answered without runtime
+Shopify writes. This is not a support claim for the whole B2B domain.
 
-The registry-only read roots are:
+Implemented read roots:
 
-- `companies`
-- `companiesCount`
 - `company`
-- `companyContact`
-- `companyContactRole`
 - `companyLocation`
-- `companyLocations`
 
-The registry-only mutation roots are:
+Implemented mutation roots:
 
-- `companiesDelete`
-- `companyAddressDelete`
 - `companyAssignCustomerAsContact`
-- `companyAssignMainContact`
-- `companyContactAssignRole`
-- `companyContactAssignRoles`
-- `companyContactCreate`
-- `companyContactDelete`
-- `companyContactRemoveFromCompany`
-- `companyContactRevokeRole`
-- `companyContactRevokeRoles`
-- `companyContactsDelete`
-- `companyContactSendWelcomeEmail`
-- `companyContactUpdate`
 - `companyCreate`
-- `companyDelete`
-- `companyLocationAssignAddress`
-- `companyLocationAssignRoles`
-- `companyLocationAssignStaffMembers`
-- `companyLocationCreate`
-- `companyLocationDelete`
-- `companyLocationRemoveStaffMembers`
-- `companyLocationRevokeRoles`
-- `companyLocationsDelete`
 - `companyLocationTaxSettingsUpdate`
 - `companyLocationUpdate`
-- `companyRevokeMainContact`
 - `companyUpdate`
+
+Other B2B roots remain registry-known but unsupported until the proxy has
+local lifecycle/read models and executable evidence for those roots.
 
 ### Local behavior
 
-The Rust runtime keeps selected B2B behavior as scenario-backed local slices for
-ported parity and runtime coverage. These slices stage only the root and shape
-covered by their checked-in request documents and tests; they do not promote the
-entire B2B root family to implemented registry support.
+The Rust runtime keeps selected B2B behavior as local slices for ported parity
+and runtime coverage. These slices stage only the modeled root and shape covered
+by their checked-in request documents and tests; they do not promote the entire
+B2B root family to supported status.
 
 `companyCreate` and `companyUpdate` have a Rust-tail local slice for company
 identity fields. That slice stages synthetic company records, preserves
@@ -94,8 +69,8 @@ Older parity specs still describe rich B2B lifecycle behavior captured from
 Shopify, including company/contact/location lifecycle, role-assignment cleanup,
 address management, deletion blockers, bulk field paths, and staff-assignment
 guardrails. Until the Rust registry and dispatcher expose those behaviors as
-general local staging roots, endpoint consumers should treat them as captured
-evidence and porting targets rather than full current-domain support.
+local staging roots, endpoint consumers should treat them as captured evidence
+and porting targets rather than full current-domain support.
 
 ### Boundaries
 
@@ -110,10 +85,9 @@ evidence and porting targets rather than full current-domain support.
 - Generic `node(id:)` / `nodes(ids:)` dispatch for B2B-only IDs is limited to
   fixture-backed or tail-helper evidence. Do not infer complete Node support for
   companies, contacts, locations, addresses, staff assignments, or catalogs.
-- The Rust operation registry currently keeps all B2B roots
-  `implemented: false`. Unsupported mutation handling must remain visible as
-  passthrough or reject behavior according to runtime configuration unless a
-  request matches a documented local runtime slice.
+- Unsupported B2B mutation handling must remain visible as passthrough or
+  reject behavior according to runtime configuration unless a request matches a
+  documented local runtime slice.
 
 ### Evidence
 

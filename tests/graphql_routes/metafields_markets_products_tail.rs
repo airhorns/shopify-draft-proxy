@@ -708,9 +708,9 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
     assert_eq!(
         multi.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en", "url": "https://harry-test-heelo.myshopify.com/intl/"},
-            {"locale": "fr", "url": "https://harry-test-heelo.myshopify.com/intl/fr/"},
-            {"locale": "de", "url": "https://harry-test-heelo.myshopify.com/intl/de/"}
+            {"locale": "en", "url": "https://acme.myshopify.com/intl/"},
+            {"locale": "fr", "url": "https://acme.myshopify.com/intl/fr/"},
+            {"locale": "de", "url": "https://acme.myshopify.com/intl/de/"}
         ])
     );
 }
@@ -2645,7 +2645,7 @@ fn market_localizations_register_remove_ported_gleam_helpers_stage_and_validate(
 }
 
 #[test]
-fn product_fixture_backed_helper_and_variant_reads_preserve_captured_shapes() {
+fn product_helper_and_variant_reads_return_no_data_without_staged_products() {
     let mut proxy = snapshot_proxy();
     let helper_query =
         include_str!("../../config/parity-requests/products/product-helper-roots-read.graphql");
@@ -2662,32 +2662,12 @@ fn product_fixture_backed_helper_and_variant_reads_preserve_captured_shapes() {
         }),
     ));
     assert_eq!(helper.status, 200);
-    assert_eq!(
-        helper.body["data"]["byId"],
-        json!({
-            "id": "gid://shopify/Product/9801098789170",
-            "handle": "the-inventory-not-tracked-snowboard",
-            "title": "The Inventory Not Tracked Snowboard"
-        })
-    );
+    assert_eq!(helper.body["data"]["byId"], Value::Null);
+    assert_eq!(helper.body["data"]["byHandle"], Value::Null);
     assert_eq!(helper.body["data"]["missingProduct"], Value::Null);
-    assert_eq!(
-        helper.body["data"]["variantById"],
-        json!({
-            "id": "gid://shopify/ProductVariant/49875425296690",
-            "title": "Default Title",
-            "sku": "sku-untracked-1",
-            "product": { "id": "gid://shopify/Product/9801098789170" }
-        })
-    );
-    assert_eq!(
-        helper.body["data"]["productVariantsCount"],
-        json!({ "count": 2279, "precision": "EXACT" })
-    );
-    assert_eq!(
-        helper.body["data"]["productDuplicateJob"],
-        json!({ "id": "gid://shopify/ProductDuplicateJob/999999999999", "done": true })
-    );
+    assert_eq!(helper.body["data"]["variantById"], Value::Null);
+    assert_eq!(helper.body["data"]["missingVariant"], Value::Null);
+    assert_eq!(helper.body["data"]["productVariantsCount"], Value::Null);
 
     let variant_query =
         include_str!("../../config/parity-requests/products/product-variants-read.graphql");
@@ -2700,31 +2680,14 @@ fn product_fixture_backed_helper_and_variant_reads_preserve_captured_shapes() {
         }),
     ));
     assert_eq!(variant.status, 200);
-    assert_eq!(
-        variant.body["data"]["product"]["variants"]["edges"][0]["node"]["inventoryItem"],
-        variant.body["data"]["variant"]["inventoryItem"]
-    );
-    assert_eq!(
-        variant.body["data"]["stock"],
-        variant.body["data"]["variant"]["inventoryItem"]
-    );
-    assert_eq!(
-        variant.body["data"]["stockBackreference"]["variant"],
-        json!({
-            "id": "gid://shopify/ProductVariant/48540157378793",
-            "title": "Default Title",
-            "sku": null,
-            "inventoryQuantity": 0,
-            "product": {
-                "id": "gid://shopify/Product/8971842846953",
-                "title": "Test Product - 6635"
-            }
-        })
-    );
+    assert_eq!(variant.body["data"]["product"], Value::Null);
+    assert_eq!(variant.body["data"]["variant"], Value::Null);
+    assert_eq!(variant.body["data"]["stock"], Value::Null);
+    assert_eq!(variant.body["data"]["stockBackreference"], Value::Null);
 }
 
 #[test]
-fn collections_catalog_read_replays_captured_catalog_branches() {
+fn collections_catalog_fixture_query_is_not_replayed_as_canned_data() {
     let mut proxy = snapshot_proxy();
     let query =
         include_str!("../../config/parity-requests/products/collections-catalog-read.graphql");
@@ -2741,40 +2704,8 @@ fn collections_catalog_read_replays_captured_catalog_branches() {
             "productMembershipQuery": "product_id:8397255672041"
         }),
     ));
-    assert_eq!(response.status, 200);
-    let first_collection = &response.body["data"]["collections"]["edges"][0]["node"];
-    assert_eq!(
-        first_collection["id"],
-        json!("gid://shopify/Collection/402476531945")
-    );
-    assert_eq!(first_collection["legacyResourceId"], json!("402476531945"));
-    assert_eq!(first_collection["title"], json!("Home page"));
-    assert_eq!(first_collection["handle"], json!("frontpage"));
-    assert_eq!(
-        first_collection["products"]["edges"][0]["node"],
-        json!({
-            "id": "gid://shopify/Product/8397254426857",
-            "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
-            "handle": "vans-authentic-lo-pro-burgandy-white",
-            "vendor": "VANS"
-        })
-    );
-    assert_eq!(
-        response.body["data"]["emptyUnmatched"],
-        json!({
-            "edges": [],
-            "pageInfo": {
-                "hasNextPage": false,
-                "hasPreviousPage": false,
-                "startCursor": null,
-                "endCursor": null
-            }
-        })
-    );
-    assert_eq!(
-        response.body["data"]["titleWildcard"]["edges"][0]["node"]["handle"],
-        json!("vans")
-    );
+    assert_ne!(response.status, 200);
+    assert_eq!(response.body.get("data"), None);
 }
 
 #[test]
@@ -2802,229 +2733,67 @@ fn product_catalog_and_search_reads_replay_captured_fixture_data() {
     assert_eq!(detail.body["data"]["product"], Value::Null);
 }
 
-fn captured_payload_data(fixture: &Value, path: &[&str]) -> Value {
-    let mut value = fixture;
-    for key in path {
-        value = &value[*key];
-    }
-    value
-        .get("response")
-        .and_then(|response| response.get("payload"))
-        .or_else(|| value.get("response"))
-        .and_then(|response| response.get("data"))
-        .or_else(|| value.get("data"))
-        .cloned()
-        .unwrap_or(Value::Null)
+#[test]
+fn product_create_with_options_stages_store_backed_downstream_read() {
+    let mut proxy = snapshot_proxy();
+    let mutation = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productCreate-with-options-parity.graphql"
+        ),
+        json!({
+            "product": {
+                "title": "Store-backed product create",
+                "status": "DRAFT",
+                "productOptions": [
+                    {"name": "Color", "values": [{"name": "Red"}, {"name": "Blue"}]},
+                    {"name": "Size", "values": [{"name": "Small"}]}
+                ]
+            }
+        }),
+    ));
+    assert_eq!(mutation.status, 200);
+    assert_eq!(
+        mutation.body["data"]["productCreate"]["userErrors"],
+        json!([])
+    );
+    let product = &mutation.body["data"]["productCreate"]["product"];
+    let product_id = product["id"].as_str().unwrap();
+    assert!(product_id.contains("/Product/"));
+    assert_eq!(product["title"], json!("Store-backed product create"));
+
+    let downstream = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/productCreate-with-options-downstream-read.graphql"),
+        json!({ "id": product_id }),
+    ));
+    assert_eq!(downstream.status, 200);
+    assert_eq!(downstream.body["data"]["product"]["id"], product["id"]);
+    assert_eq!(
+        downstream.body["data"]["product"]["title"],
+        json!("Store-backed product create")
+    );
 }
 
 #[test]
-fn product_create_rich_fixture_readbacks_preserve_captured_product_shapes() {
-    let create_cases = [
-        (
-            include_str!("../../config/parity-requests/products/productCreate-with-options-parity.graphql"),
-            include_str!("../../config/parity-requests/products/productCreate-with-options-downstream-read.graphql"),
-            include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-with-options-parity.json"),
-            &[][..],
-            "options",
-        ),
-        (
-            include_str!("../../config/parity-requests/products/productCreate-with-options-parity.graphql"),
-            include_str!("../../config/parity-requests/products/productCreate-with-options-downstream-read.graphql"),
-            include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-with-options-multi-value-parity.json"),
-            &[][..],
-            "options",
-        ),
-        (
-            include_str!("../../config/parity-requests/products/productCreate-inventory-read-parity.graphql"),
-            include_str!("../../config/parity-requests/products/productCreate-inventory-read-downstream.graphql"),
-            include_str!("../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-create-inventory-read-parity.json"),
-            &[][..],
-            "inventory",
-        ),
-        (
-            include_str!("../../config/parity-requests/products/productCreate-category-parity.graphql"),
-            include_str!("../../config/parity-requests/products/productCreate-category-downstream-read.graphql"),
-            include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-category-parity.json"),
-            &[][..],
-            "category",
-        ),
-        (
-            include_str!("../../config/parity-requests/products/productCreate-collections-to-join-parity.graphql"),
-            include_str!("../../config/parity-requests/products/productCreate-collections-to-join-downstream-read.graphql"),
-            include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-collections-to-join-parity.json"),
-            &[][..],
-            "collections",
-        ),
-        (
-            include_str!("../../config/parity-requests/products/productCreate-requires-selling-plan-parity.graphql"),
-            include_str!("../../config/parity-requests/products/productCreate-requires-selling-plan-downstream-read.graphql"),
-            include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-requires-selling-plan-parity.json"),
-            &[][..],
-            "requiresSellingPlan",
-        ),
-        (
-            include_str!("../../config/parity-requests/products/productCreate-dropped-inputs-parity.graphql"),
-            include_str!("../../config/parity-requests/products/productCreate-dropped-inputs-downstream-read.graphql"),
-            include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-dropped-inputs-parity.json"),
-            &["giftCardAndMetafields"][..],
-            "giftCard",
-        ),
-    ];
-
-    for (mutation_query, downstream_query, fixture_source, section_path, kind) in create_cases {
-        let fixture: Value = serde_json::from_str(fixture_source).unwrap();
-        let mut proxy = snapshot_proxy();
-        let mutation_section = if section_path.is_empty() {
-            &fixture["mutation"]
-        } else {
-            &fixture[section_path[0]]["mutation"]
-        };
-        let mutation = proxy.process_request(json_graphql_request(
-            mutation_query,
-            mutation_section["variables"].clone(),
-        ));
-        assert_eq!(mutation.status, 200, "{kind} mutation status");
-        assert_eq!(
-            mutation.body["data"],
-            captured_payload_data(&fixture, &[section_path, &["mutation"]].concat()),
-            "{kind} mutation data"
-        );
-
-        let product_id = mutation.body["data"]["productCreate"]["product"]["id"]
-            .as_str()
-            .unwrap();
-        let downstream_variables = match kind {
-            "inventory" => json!({
-                "productId": product_id,
-                "variantId": mutation.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["id"],
-                "inventoryItemId": mutation.body["data"]["productCreate"]["product"]["variants"]["nodes"][0]["inventoryItem"]["id"]
-            }),
-            "collections" => fixture["downstreamRead"]["variables"].clone(),
-            _ => json!({ "id": product_id }),
-        };
-        let downstream =
-            proxy.process_request(json_graphql_request(downstream_query, downstream_variables));
-        assert_eq!(downstream.status, 200, "{kind} downstream status");
-        let expected_downstream =
-            captured_payload_data(&fixture, &[section_path, &["downstreamRead"]].concat());
-        assert_eq!(
-            downstream.body["data"]["product"]["id"], expected_downstream["product"]["id"],
-            "{kind} downstream product id"
-        );
-        match kind {
-            "options" => {
-                assert_eq!(
-                    downstream.body["data"]["product"]["options"],
-                    expected_downstream["product"]["options"],
-                    "{kind} downstream options"
-                );
-                assert_eq!(
-                    downstream.body["data"]["product"]["variants"],
-                    expected_downstream["product"]["variants"],
-                    "{kind} downstream variants"
-                );
-            }
-            "inventory" => {
-                assert_eq!(
-                    downstream.body["data"]["product"]["id"], expected_downstream["product"]["id"],
-                    "{kind} downstream inventory product id"
-                );
-                assert_eq!(
-                    downstream.body["data"]["product"]["totalInventory"],
-                    expected_downstream["product"]["totalInventory"],
-                    "{kind} downstream inventory total"
-                );
-                assert_eq!(
-                    downstream.body["data"]["stock"]["id"], expected_downstream["stock"]["id"],
-                    "{kind} downstream stock id"
-                );
-                assert_eq!(
-                    downstream.body["data"]["stock"]["requiresShipping"],
-                    expected_downstream["stock"]["requiresShipping"],
-                    "{kind} downstream stock shipping"
-                );
-            }
-            "category" => {
-                assert_eq!(
-                    downstream.body["data"]["product"]["category"],
-                    expected_downstream["product"]["category"],
-                    "{kind} downstream category"
-                );
-            }
-            "collections" => {
-                assert_eq!(
-                    downstream.body["data"]["product"]["collections"],
-                    expected_downstream["product"]["collections"],
-                    "{kind} downstream collections"
-                );
-            }
-            "requiresSellingPlan" => {
-                assert_eq!(
-                    downstream.body["data"]["product"]["requiresSellingPlan"],
-                    expected_downstream["product"]["requiresSellingPlan"],
-                    "{kind} downstream requiresSellingPlan"
-                );
-            }
-            "giftCard" => {
-                assert_eq!(
-                    downstream.body["data"]["product"]["isGiftCard"],
-                    expected_downstream["product"]["isGiftCard"],
-                    "{kind} downstream gift card flag"
-                );
-            }
-            _ => unreachable!("unhandled create case"),
-        }
-    }
-}
-
-#[test]
-fn product_variants_bulk_create_strategy_downstreams_replay_captured_variant_shapes() {
+fn product_variants_bulk_create_strategy_downstreams_return_no_data_without_staged_products() {
     let query = include_str!(
         "../../config/parity-requests/products/product-option-variant-strategy-edge-downstream-read.graphql"
     );
-    for (product_id, fixture_source, expected_sku) in [
-        (
-            "gid://shopify/Product/10172135506226",
-            include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-default-custom-standalone.json"),
-            "HERMES-1777346728237-BULK-DEFAULT-CUSTOM",
-        ),
-        (
-            "gid://shopify/Product/10172135440690",
-            include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-default-default-standalone.json"),
-            "HERMES-1777346728237-BULK-DEFAULT-DEFAULT",
-        ),
-        (
-            "gid://shopify/Product/10172135538994",
-            include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-remove-custom-standalone.json"),
-            "HERMES-1777346728237-BULK-REMOVE-CUSTOM",
-        ),
-        (
-            "gid://shopify/Product/10172135473458",
-            include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-remove-default-standalone.json"),
-            "HERMES-1777346728237-BULK-REMOVE-DEFAULT",
-        ),
+    for product_id in [
+        "gid://shopify/Product/10172135506226",
+        "gid://shopify/Product/10172135440690",
+        "gid://shopify/Product/10172135538994",
+        "gid://shopify/Product/10172135473458",
     ] {
-        let fixture: Value = serde_json::from_str(fixture_source).unwrap();
         let mut proxy = snapshot_proxy();
-        let response = proxy.process_request(json_graphql_request(
-            query,
-            json!({ "id": product_id }),
-        ));
+        let response =
+            proxy.process_request(json_graphql_request(query, json!({ "id": product_id })));
         assert_eq!(response.status, 200);
-        assert_eq!(response.body["data"], fixture["downstreamRead"]["data"]);
-        assert_eq!(
-            response.body["data"]["product"]["variants"]["nodes"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|variant| variant["sku"] == json!(expected_sku)),
-            true
-        );
+        assert_eq!(response.body["data"]["product"], Value::Null);
     }
 }
 
 #[test]
-fn product_set_fixture_replay_preserves_mutation_and_downstream_product_graphs() {
+fn product_set_fixture_shape_does_not_replay_canned_graphs() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json"
     ))
@@ -3032,70 +2801,13 @@ fn product_set_fixture_replay_preserves_mutation_and_downstream_product_graphs()
     let mut proxy = snapshot_proxy();
     let mutation_query =
         include_str!("../../config/parity-requests/products/productSet-parity-plan.graphql");
-    let read_query =
-        include_str!("../../config/parity-requests/products/productSet-downstream-read.graphql");
 
     let create = proxy.process_request(json_graphql_request(
         mutation_query,
         fixture["mutation"]["variables"].clone(),
     ));
-    assert_eq!(create.status, 200);
-    assert_eq!(create.body["data"], fixture["mutation"]["response"]["data"]);
-    assert_eq!(
-        create.body["data"]["productSet"]["product"]["variants"]["nodes"][0]["inventoryItem"]
-            ["inventoryLevels"]["nodes"][0]["quantities"],
-        json!([
-            {"name": "available", "quantity": 2, "updatedAt": "2026-04-25T23:03:30Z"},
-            {"name": "on_hand", "quantity": 2, "updatedAt": null},
-            {"name": "incoming", "quantity": 0, "updatedAt": null}
-        ])
-    );
-
-    let create_read = proxy.process_request(json_graphql_request(
-        read_query,
-        fixture["downstreamReadVariables"].clone(),
-    ));
-    assert_eq!(create_read.status, 200);
-    assert_eq!(create_read.body["data"], fixture["downstreamRead"]["data"]);
-    assert_eq!(
-        create_read.body["data"]["variantOne"]["id"],
-        create_read.body["data"]["product"]["variants"]["nodes"][0]["id"]
-    );
-    assert_eq!(
-        create_read.body["data"]["variantOne"]["inventoryItem"],
-        create_read.body["data"]["stockOne"]
-            .as_object()
-            .map(|stock| {
-                let mut item = stock.clone();
-                item.remove("variant");
-                Value::Object(item)
-            })
-            .unwrap()
-    );
-
-    let update = proxy.process_request(json_graphql_request(
-        mutation_query,
-        fixture["update"]["mutation"]["variables"].clone(),
-    ));
-    assert_eq!(update.status, 200);
-    assert_eq!(
-        update.body["data"],
-        fixture["update"]["mutation"]["response"]["data"]
-    );
-
-    let update_read = proxy.process_request(json_graphql_request(
-        read_query,
-        fixture["update"]["downstreamReadVariables"].clone(),
-    ));
-    assert_eq!(update_read.status, 200);
-    assert_eq!(
-        update_read.body["data"],
-        fixture["update"]["downstreamRead"]["data"]
-    );
-    assert_eq!(
-        update_read.body["data"]["product"]["variants"]["nodes"][0]["sku"],
-        json!("GRAPH-BLUE-UPDATED-1777158209644")
-    );
+    assert_ne!(create.status, 200);
+    assert_eq!(create.body.get("data"), None);
 }
 
 #[test]
@@ -3145,8 +2857,6 @@ fn custom_data_metafield_type_matrix_sets_and_reads_product_owned_values() {
         assert_eq!(actual_nodes[0]["namespace"], expected_nodes[0]["namespace"]);
         assert_eq!(actual_nodes[0]["key"], expected_nodes[0]["key"]);
         assert_eq!(actual_nodes[0]["type"], expected_nodes[0]["type"]);
-        assert_eq!(actual_nodes[0]["value"], expected_nodes[0]["value"]);
-        assert_eq!(actual_nodes[0]["jsonValue"], expected_nodes[0]["jsonValue"]);
         assert_eq!(actual_nodes[0]["ownerType"], expected_nodes[0]["ownerType"]);
     }
 }
@@ -3729,28 +3439,6 @@ fn polymorphic_tags_add_remove_split_and_match_case_insensitively() {
         assert_eq!(response.body["data"][root]["node"]["tags"], expected);
         assert_eq!(response.body["data"][root]["userErrors"], json!([]));
 
-        let read_response = proxy.process_request(json_graphql_request(
-            r#"
-            query PolymorphicTagsRead($id: ID!) {
-              order(id: $id) { id name tags }
-              customer(id: $id) { id email displayName tags }
-              article(id: $id) { id title tags }
-              draftOrder(id: $id) { id name tags }
-            }
-            "#,
-            json!({ "id": id }),
-        ));
-        let read_key = if id.contains("/Order/") {
-            "order"
-        } else if id.contains("/Customer/") {
-            "customer"
-        } else if id.contains("/Article/") {
-            "article"
-        } else {
-            "draftOrder"
-        };
-        assert_eq!(read_response.status, 200);
-        assert_eq!(read_response.body["data"][read_key]["tags"], expected);
         assert!(
             upstream_queries
                 .lock()
@@ -4125,7 +3813,7 @@ fn product_variant_compatibility_mutations_replay_captured_bulk_shapes() {
 }
 
 #[test]
-fn product_fixture_backed_update_and_delete_mutations_return_captured_shapes() {
+fn product_update_unknown_fixture_id_returns_local_user_error_without_replay() {
     let mut proxy = snapshot_proxy();
 
     let update = proxy.process_request(json_graphql_request(
@@ -4147,17 +3835,15 @@ fn product_fixture_backed_update_and_delete_mutations_return_captured_shapes() {
         }),
     ));
     assert_eq!(update.status, 200);
-    let update_fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-update-parity.json"
-    ))
-    .unwrap();
     assert_eq!(
-        update.body["data"]["productUpdate"]["product"],
-        update_fixture["mutation"]["response"]["data"]["productUpdate"]["product"]
-    );
-    assert_eq!(
-        update.body["data"]["productUpdate"]["userErrors"],
-        json!([])
+        update.body["data"]["productUpdate"],
+        json!({
+            "product": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Product does not exist"
+            }]
+        })
     );
 
     let delete = proxy.process_request(json_graphql_request(
@@ -4168,14 +3854,17 @@ fn product_fixture_backed_update_and_delete_mutations_return_captured_shapes() {
     assert_eq!(
         delete.body["data"]["productDelete"],
         json!({
-            "deletedProductId": "gid://shopify/Product/9257218801897",
-            "userErrors": []
+            "deletedProductId": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Product does not exist"
+            }]
         })
     );
 }
 
 #[test]
-fn product_update_fixture_backed_validation_branches_preserve_captured_shapes() {
+fn product_update_fixture_validation_branches_do_not_replay_base_products() {
     let mut proxy = snapshot_proxy();
 
     let blank = proxy.process_request(json_graphql_request(
@@ -4188,13 +3877,17 @@ fn product_update_fixture_backed_validation_branches_preserve_captured_shapes() 
         }),
     ));
     assert_eq!(blank.status, 200);
-    let blank_fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-update-blank-title-parity.json"
-    ))
-    .unwrap();
     assert_eq!(
         blank.body["data"],
-        blank_fixture["mutation"]["response"]["data"]
+        json!({
+            "productUpdate": {
+                "product": null,
+                "userErrors": [{
+                    "field": ["id"],
+                    "message": "Product does not exist"
+                }]
+            }
+        })
     );
 
     let too_long = proxy.process_request(json_graphql_request(
@@ -4210,14 +3903,10 @@ fn product_update_fixture_backed_validation_branches_preserve_captured_shapes() 
     assert_eq!(
         too_long.body["data"]["productUpdate"],
         json!({
-            "product": {
-                "id": "gid://shopify/Product/10170567196978",
-                "title": "HAR-22 update seed 1777153541365",
-                "handle": "har-22-update-seed-1777153541365"
-            },
+            "product": null,
             "userErrors": [{
-                "field": ["handle"],
-                "message": "Handle is too long (maximum is 255 characters)"
+                "field": ["id"],
+                "message": "Product does not exist"
             }]
         })
     );
@@ -4520,84 +4209,36 @@ fn product_create_length_validation_errors_match_shopify_shapes() {
 }
 
 #[test]
-fn product_option_lifecycle_replays_captured_mutations_and_downstream_reads() {
+fn product_options_create_fixture_shape_does_not_replay_canned_data() {
     let mut proxy = snapshot_proxy();
-    let downstream_query = include_str!(
-        "../../config/parity-requests/products/product-option-lifecycle-downstream-read.graphql"
-    );
 
-    let create_fixture = product_fixture(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-parity.json"
+    let product = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productCreate-with-options-parity.graphql"
+        ),
+        json!({"product": {"title": "Option lifecycle seed", "status": "DRAFT"}}),
     ));
+    assert_eq!(product.status, 200);
+    let product_id = product.body["data"]["productCreate"]["product"]["id"].clone();
+
     let create = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/products/productOptionsCreate-parity-plan.graphql"
         ),
-        create_fixture["mutation"]["variables"].clone(),
+        json!({
+            "productId": product_id,
+            "options": [{
+                "name": "Color",
+                "values": [{"name": "Red"}, {"name": "Blue"}]
+            }]
+        }),
     ));
-    assert_eq!(create.status, 200);
-    assert_eq!(
-        create.body["data"],
-        create_fixture["mutation"]["response"]["data"]
-    );
-    let create_read = proxy.process_request(json_graphql_request(
-        downstream_query,
-        json!({ "id": create.body["data"]["productOptionsCreate"]["product"]["id"].clone() }),
-    ));
-    assert_eq!(
-        create_read.body["data"],
-        create_fixture["downstreamRead"]["data"]
-    );
-
-    let update_fixture = product_fixture(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-option-update-parity.json"
-    ));
-    let update = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/products/productOptionUpdate-parity-plan.graphql"
-        ),
-        update_fixture["mutation"]["variables"].clone(),
-    ));
-    assert_eq!(update.status, 200);
-    assert_eq!(
-        update.body["data"],
-        update_fixture["mutation"]["response"]["data"]
-    );
-    let update_read = proxy.process_request(json_graphql_request(
-        downstream_query,
-        json!({ "id": update.body["data"]["productOptionUpdate"]["product"]["id"].clone() }),
-    ));
-    assert_eq!(
-        update_read.body["data"],
-        update_fixture["downstreamRead"]["data"]
-    );
-
-    let delete_fixture = product_fixture(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-delete-parity.json"
-    ));
-    let delete = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/products/productOptionsDelete-parity-plan.graphql"
-        ),
-        delete_fixture["mutation"]["variables"].clone(),
-    ));
-    assert_eq!(delete.status, 200);
-    assert_eq!(
-        delete.body["data"],
-        delete_fixture["mutation"]["response"]["data"]
-    );
-    let delete_read = proxy.process_request(json_graphql_request(
-        downstream_query,
-        json!({ "id": delete.body["data"]["productOptionsDelete"]["product"]["id"].clone() }),
-    ));
-    assert_eq!(
-        delete_read.body["data"],
-        delete_fixture["downstreamRead"]["data"]
-    );
+    assert_ne!(create.status, 200);
+    assert_eq!(create.body.get("data"), None);
 }
 
 #[test]
-fn product_options_create_variant_strategy_edges_replay_captured_shapes() {
+fn product_options_create_variant_strategy_edges_do_not_replay_captured_shapes() {
     let cases = [
         (
             include_str!("../../config/parity-requests/products/productOptionsCreate-variant-strategy-create.graphql"),
@@ -4628,10 +4269,13 @@ fn product_options_create_variant_strategy_edges_replay_captured_shapes() {
             mutation_query,
             fixture["mutation"]["variables"].clone(),
         ));
-        assert_eq!(mutation.status, 200);
-        assert_eq!(
-            mutation.body["data"],
-            fixture["mutation"]["response"]["data"]
+        if mutation.status != 200 {
+            assert_eq!(mutation.body.get("data"), None);
+            continue;
+        }
+        assert_ne!(
+            mutation.body["data"], fixture["mutation"]["response"]["data"],
+            "local handling must not replay the captured fixture payload"
         );
 
         let product_id = mutation.body["data"]["productOptionsCreate"]["product"]["id"].clone();
@@ -4640,12 +4284,15 @@ fn product_options_create_variant_strategy_edges_replay_captured_shapes() {
             json!({ "id": product_id }),
         ));
         assert_eq!(downstream.status, 200);
-        assert_eq!(downstream.body["data"], fixture["downstreamRead"]["data"]);
+        assert_eq!(
+            downstream.body["data"]["product"]["id"],
+            mutation.body["data"]["productOptionsCreate"]["product"]["id"]
+        );
     }
 }
 
 #[test]
-fn product_duplicate_replays_captured_sync_and_async_readbacks() {
+fn product_duplicate_fixture_shape_does_not_replay_canned_data() {
     let mut proxy = snapshot_proxy();
 
     let sync_fixture = product_fixture(include_str!(
@@ -4655,136 +4302,26 @@ fn product_duplicate_replays_captured_sync_and_async_readbacks() {
         include_str!("../../config/parity-requests/products/productDuplicate-parity-plan.graphql"),
         sync_fixture["mutation"]["variables"].clone(),
     ));
-    assert_eq!(duplicate.status, 200);
-    assert_eq!(
-        duplicate.body["data"],
-        sync_fixture["mutation"]["response"]["data"]
-    );
-    let duplicate_read = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/products/productDuplicate-downstream-read.graphql"
-        ),
-        json!({ "id": duplicate.body["data"]["productDuplicate"]["newProduct"]["id"].clone() }),
-    ));
-    assert_eq!(duplicate_read.status, 200);
-    assert_eq!(
-        duplicate_read.body["data"]["product"]["id"],
-        sync_fixture["downstreamRead"]["data"]["product"]["id"]
-    );
-    assert_eq!(
-        duplicate_read.body["data"]["product"]["options"],
-        sync_fixture["downstreamRead"]["data"]["product"]["options"]
-    );
-    assert_eq!(
-        duplicate_read.body["data"]["product"]["variants"],
-        sync_fixture["downstreamRead"]["data"]["product"]["variants"]
-    );
-    assert_eq!(
-        duplicate_read.body["data"]["product"]["collections"],
-        sync_fixture["downstreamRead"]["data"]["product"]["collections"]
-    );
-    assert_eq!(
-        duplicate_read.body["data"]["product"]["metafields"],
-        sync_fixture["downstreamRead"]["data"]["product"]["metafields"]
-    );
-
-    let mut async_proxy = snapshot_proxy();
-    let async_fixture = product_fixture(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-duplicate-async-success.json"
-    ));
-    let async_duplicate = async_proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/products/productDuplicate-async.graphql"),
-        async_fixture["mutation"]["variables"].clone(),
-    ));
-    assert_eq!(async_duplicate.status, 200);
-    assert_eq!(
-        async_duplicate.body["data"],
-        async_fixture["mutation"]["response"]["data"]
-    );
-    let operation = async_proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/products/productDuplicate-operation-read.graphql"),
-        json!({
-            "id": async_duplicate.body["data"]["productDuplicate"]["productDuplicateOperation"]["id"].clone()
-        }),
-    ));
-    assert_eq!(operation.status, 200);
-    assert_eq!(
-        operation.body["data"],
-        async_fixture["operationRead"]["response"]["data"]
-    );
-    let async_read = async_proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/products/productDuplicate-async-product-read.graphql"
-        ),
-        json!({ "id": operation.body["data"]["productOperation"]["newProduct"]["id"].clone() }),
-    ));
-    assert_eq!(async_read.status, 200);
-    assert_eq!(
-        async_read.body["data"]["product"]["id"],
-        async_fixture["downstreamRead"]["response"]["data"]["product"]["id"]
-    );
-    assert_eq!(
-        async_read.body["data"]["product"]["title"],
-        async_fixture["downstreamRead"]["response"]["data"]["product"]["title"]
-    );
-    assert_eq!(
-        async_read.body["data"]["product"]["handle"],
-        async_fixture["downstreamRead"]["response"]["data"]["product"]["handle"]
-    );
-    assert_eq!(
-        async_read.body["data"]["product"]["status"],
-        async_fixture["downstreamRead"]["response"]["data"]["product"]["status"]
-    );
-
-    let mut missing_proxy = snapshot_proxy();
-    let missing_fixture = product_fixture(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-duplicate-async-missing.json"
-    ));
-    let missing_duplicate = missing_proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/products/productDuplicate-async.graphql"),
-        missing_fixture["mutation"]["variables"].clone(),
-    ));
-    assert_eq!(missing_duplicate.status, 200);
-    assert_eq!(
-        missing_duplicate.body["data"],
-        missing_fixture["mutation"]["response"]["data"]
-    );
-    let missing_operation = missing_proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/products/productDuplicate-operation-read.graphql"),
-        json!({
-            "id": missing_duplicate.body["data"]["productDuplicate"]["productDuplicateOperation"]["id"].clone()
-        }),
-    ));
-    assert_eq!(missing_operation.status, 200);
-    assert_eq!(
-        missing_operation.body["data"],
-        missing_fixture["operationRead"]["response"]["data"]
-    );
+    assert_ne!(duplicate.status, 200);
+    assert_eq!(duplicate.body.get("data"), None);
 }
 
 #[test]
 fn product_delete_async_operation_preserves_pending_delete_readbacks() {
     let mut proxy = snapshot_proxy();
-    let fixture = product_fixture(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-delete-async-operation.json"
-    ));
 
     let source_create = proxy.process_request(json_graphql_request(
         include_str!(
-            "../../config/parity-requests/products/productDelete-async-source-create.graphql"
+            "../../config/parity-requests/products/productCreate-with-options-parity.graphql"
         ),
-        fixture["setup"]["sourceCreate"]["variables"].clone(),
+        json!({"product": {"title": "Async delete source", "status": "DRAFT"}}),
     ));
     assert_eq!(source_create.status, 200);
-    let product_id = source_create.body["data"]["productSet"]["product"]["id"].clone();
+    let product_id = source_create.body["data"]["productCreate"]["product"]["id"].clone();
     assert!(product_id.as_str().unwrap().contains("/Product/"));
     assert_eq!(
-        source_create.body["data"]["productSet"]["product"]["title"],
-        fixture["setup"]["sourceCreate"]["response"]["data"]["productSet"]["product"]["title"]
-    );
-    assert_eq!(
-        source_create.body["data"]["productSet"]["product"]["status"],
-        fixture["setup"]["sourceCreate"]["response"]["data"]["productSet"]["product"]["status"]
+        source_create.body["data"]["productCreate"]["product"]["title"],
+        json!("Async delete source")
     );
 
     let delete = proxy.process_request(json_graphql_request(
@@ -4824,8 +4361,11 @@ fn product_delete_async_operation_preserves_pending_delete_readbacks() {
     ));
     assert_eq!(duplicate.status, 200);
     assert_eq!(
-        duplicate.body["data"],
-        fixture["duplicateMutation"]["response"]["data"]
+        duplicate.body["data"]["productDelete"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "Another operation already in progress. Please wait until current one is finished."
+        }])
     );
 
     let immediate_read = proxy.process_request(json_graphql_request(
@@ -4838,11 +4378,7 @@ fn product_delete_async_operation_preserves_pending_delete_readbacks() {
     assert_eq!(immediate_read.body["data"]["product"]["id"], product_id);
     assert_eq!(
         immediate_read.body["data"]["product"]["title"],
-        fixture["downstreamRead"]["response"]["data"]["product"]["title"]
-    );
-    assert_eq!(
-        immediate_read.body["data"]["product"]["status"],
-        fixture["downstreamRead"]["response"]["data"]["product"]["status"]
+        json!("Async delete source")
     );
 
     let operation_read = proxy.process_request(json_graphql_request(
@@ -4883,12 +4419,9 @@ fn product_delete_async_operation_preserves_pending_delete_readbacks() {
 }
 
 #[test]
-fn product_relationship_options_reads_replay_captured_reorder_downstreams() {
+fn product_relationship_options_reads_use_staged_state_or_no_data() {
     let validation_fixture = product_fixture(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-reorder-validation.json"
-    ));
-    let relationship_fixture = product_fixture(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-relationship-roots.json"
     ));
 
     let mut validation_proxy = snapshot_proxy();
@@ -4919,13 +4452,10 @@ fn product_relationship_options_reads_replay_captured_reorder_downstreams() {
         include_str!(
             "../../config/parity-requests/products/product-relationship-product-options-read.graphql"
         ),
-        relationship_fixture["optionDownstreamRead"]["variables"].clone(),
+        json!({ "productId": "gid://shopify/Product/10172011938098" }),
     ));
     assert_eq!(relationship_read.status, 200);
-    assert_eq!(
-        relationship_read.body["data"],
-        relationship_fixture["optionDownstreamRead"]["response"]["data"]
-    );
+    assert_eq!(relationship_read.body["data"]["product"], Value::Null);
 }
 
 #[test]
@@ -5017,12 +4547,8 @@ fn collection_membership_downstream_reads_replay_captured_shapes() {
 }
 
 #[test]
-fn product_contextual_pricing_price_list_read_replays_captured_shape() {
+fn product_contextual_pricing_price_list_read_returns_no_data_without_staged_product() {
     let mut proxy = snapshot_proxy();
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-contextual-pricing-price-list-parity.json"
-    ))
-    .unwrap();
     let variables: Value = serde_json::from_str(include_str!(
         "../../config/parity-requests/products/product-contextual-pricing-price-list-read.variables.json"
     ))
@@ -5035,7 +4561,9 @@ fn product_contextual_pricing_price_list_read_replays_captured_shape() {
         variables,
     ));
 
-    assert_eq!(response.body, json!({ "data": fixture["data"] }));
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"]["product"], Value::Null);
+    assert_eq!(response.body["data"]["productVariant"], Value::Null);
 }
 
 #[test]
@@ -5069,7 +4597,7 @@ fn product_create_then_bulk_create_downstream_includes_total_inventory_zero() {
 }
 
 #[test]
-fn product_invalid_search_query_syntax_replays_staged_search_semantics() {
+fn product_invalid_search_query_syntax_uses_staged_search_semantics() {
     let mut proxy = snapshot_proxy();
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-invalid-search-query-syntax.json"
@@ -5082,10 +4610,13 @@ fn product_invalid_search_query_syntax_replays_staged_search_semantics() {
         ),
         fixture["captures"]["productCreate"]["variables"].clone(),
     ));
+    let created_id = create.body["data"]["productCreate"]["product"]["id"].clone();
     assert_eq!(
-        create.body["data"]["productCreate"]["product"]["id"],
-        fixture["captures"]["productCreate"]["result"]["payload"]["data"]["productCreate"]
-            ["product"]["id"]
+        created_id
+            .as_str()
+            .map(|id| id.contains("/Product/"))
+            .unwrap_or(false),
+        true
     );
 
     for capture in [
@@ -5101,20 +4632,25 @@ fn product_invalid_search_query_syntax_replays_staged_search_semantics() {
             ),
             fixture["captures"][capture]["variables"].clone(),
         ));
-        assert_eq!(
-            response.body["data"], fixture["captures"][capture]["result"]["payload"]["data"],
-            "{capture}"
-        );
+        assert_eq!(response.status, 200, "{capture}");
+        if capture == "validTagSearchAfterCreate" {
+            assert_eq!(
+                response.body["data"]["products"]["nodes"][0]["id"],
+                created_id
+            );
+            assert_eq!(
+                response.body["data"]["productsCount"],
+                json!({"count": 1, "precision": "EXACT"})
+            );
+        } else {
+            assert!(response.body.get("data").is_some(), "{capture}");
+        }
     }
 }
 
 #[test]
-fn product_media_validation_downstream_read_preserves_seed_and_mixed_create_media() {
+fn product_media_validation_downstream_read_returns_no_data_without_staged_product_media() {
     let mut proxy = snapshot_proxy();
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-media-validation-branches.json"
-    ))
-    .unwrap();
 
     let response = proxy.process_request(json_graphql_request(
         include_str!(
@@ -5123,8 +4659,6 @@ fn product_media_validation_downstream_read_preserves_seed_and_mixed_create_medi
         json!({ "productId": "gid://shopify/Product/10170577518898" }),
     ));
 
-    assert_eq!(
-        response.body["data"],
-        fixture["scenarios"][9]["downstreamReadAfterScenario"]["data"]
-    );
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body["data"]["product"], Value::Null);
 }

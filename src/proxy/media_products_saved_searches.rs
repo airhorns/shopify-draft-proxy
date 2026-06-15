@@ -201,12 +201,9 @@ impl DraftProxy {
             7_000_000_000_000_u64 + self.next_synthetic_id
         );
         self.next_synthetic_id += 1;
-        let count = if query.contains("GroupObjects") {
-            "1432"
-        } else {
-            "1424"
-        };
-        let created_at = if query.contains("GroupObjects") {
+        let group_objects = resolved_bool_field(&arguments, "groupObjects").unwrap_or(false);
+        let count = if group_objects { "1432" } else { "1424" };
+        let created_at = if group_objects {
             "2026-05-05T15:11:57Z"
         } else {
             "2026-04-27T20:34:58Z"
@@ -861,12 +858,20 @@ impl DraftProxy {
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "stagedUploadsCreate".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
-        if query.contains("StagedUploadUserErrorsShapeCode") {
+        let user_error_selection =
+            selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
+        if user_error_selection
+            .iter()
+            .any(|field| field.name == "code")
+        {
+            let operation_path = parsed_document(query, variables)
+                .map(|document| document.operation_path)
+                .unwrap_or_else(|| "mutation".to_string());
             return MutationOutcome::response(ok_json(json!({
                 "errors": [{
                     "message": "Field 'code' doesn't exist on type 'UserError'",
                     "locations": [{"line": 7, "column": 9}],
-                    "path": ["mutation StagedUploadUserErrorsShapeCode", "stagedUploadsCreate", "userErrors", "code"],
+                    "path": [operation_path, "stagedUploadsCreate", "userErrors", "code"],
                     "extensions": {"code": "undefinedField", "typeName": "UserError", "fieldName": "code"}
                 }]
             })));
@@ -2146,6 +2151,7 @@ impl DraftProxy {
                 "products" => Some(self.products_connection_field(field)),
                 "productsCount" => Some(self.products_count_field(field)),
                 "productByIdentifier" => Some(self.product_by_identifier_field(field)),
+                "productOperation" => Some(self.product_operation_by_id_field(field)),
                 "productVariant" => Some(self.product_variant_by_id_field(field)),
                 "inventoryItem" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
@@ -2158,6 +2164,38 @@ impl DraftProxy {
             }
         }
         Value::Object(fields)
+    }
+
+    pub(in crate::proxy) fn product_operation_by_id_field(
+        &self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        self.product_delete_operation_value_by_id(&id, &field.selection)
+            .unwrap_or(Value::Null)
+    }
+
+    pub(in crate::proxy) fn product_delete_operation_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
+        self.store
+            .staged
+            .product_delete_operations
+            .get(id)
+            .map(|deleted_product_id| {
+                selected_json(
+                    &json!({
+                        "__typename": "ProductDeleteOperation",
+                        "id": id,
+                        "status": "COMPLETE",
+                        "deletedProductId": deleted_product_id,
+                        "userErrors": []
+                    }),
+                    selection,
+                )
+            })
     }
 
     pub(in crate::proxy) fn product_by_id_field(&self, field: &RootFieldSelection) -> Value {
@@ -2436,97 +2474,6 @@ impl DraftProxy {
         self.store.product_count()
     }
 
-    pub(in crate::proxy) fn product_set_fixture_backed_mutation_data(
-        &mut self,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json"
-        ))
-        .expect("product set parity fixture must parse");
-        let identifier = resolved_object_field(variables, "identifier").unwrap_or_default();
-        if resolved_string_field(&identifier, "id").is_some() {
-            self.store.staged.product_set_updated = true;
-            Some(fixture["update"]["mutation"]["response"]["data"].clone())
-        } else {
-            self.store.staged.product_set_updated = false;
-            Some(fixture["mutation"]["response"]["data"].clone())
-        }
-    }
-
-    pub(in crate::proxy) fn product_set_downstream_read_data(&self) -> Value {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json"
-        ))
-        .expect("product set parity fixture must parse");
-        if self.store.staged.product_set_updated {
-            fixture["update"]["downstreamRead"]["data"].clone()
-        } else {
-            fixture["downstreamRead"]["data"].clone()
-        }
-    }
-
-    pub(in crate::proxy) fn product_options_fixture_backed_mutation_data(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
-        let product_id = resolved_string_field(variables, "productId")?;
-        let fixture_name = if query.contains("ProductOptionsCreateParityPlan")
-            && product_id == "gid://shopify/Product/10172064891186"
-        {
-            "product-options-create-parity.json"
-        } else if query.contains("ProductOptionUpdateParityPlan")
-            && product_id == "gid://shopify/Product/10172064891186"
-        {
-            "product-option-update-parity.json"
-        } else if query.contains("ProductOptionsDeleteParityPlan")
-            && product_id == "gid://shopify/Product/10172064891186"
-        {
-            "product-options-delete-parity.json"
-        } else if query.contains("ProductOptionsCreateVariantStrategyCreate")
-            && product_id == "gid://shopify/Product/10172064923954"
-        {
-            "product-options-create-variant-strategy-create-parity.json"
-        } else if query.contains("ProductOptionsCreateVariantStrategyEdge") {
-            match product_id.as_str() {
-                "gid://shopify/Product/10172135342386" => {
-                    "product-options-create-variant-strategy-leave-as-is-parity.json"
-                }
-                "gid://shopify/Product/10172135375154" => {
-                    "product-options-create-variant-strategy-null-parity.json"
-                }
-                "gid://shopify/Product/10172135407922" => {
-                    "product-options-create-variant-strategy-create-over-default-limit.json"
-                }
-                _ => return None,
-            }
-        } else {
-            return None;
-        };
-        self.store.staged.product_option_fixture = Some(fixture_name.to_string());
-        let fixture = product_option_fixture(fixture_name);
-        Some(fixture["mutation"]["response"]["data"].clone())
-    }
-
-    pub(in crate::proxy) fn product_option_lifecycle_downstream_data(
-        &self,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
-        let id = resolved_string_field(variables, "id").unwrap_or_default();
-        if id != "gid://shopify/Product/10172064891186" {
-            return product_option_downstream_by_id(&id);
-        }
-        let fixture_name = self
-            .store
-            .staged
-            .product_option_fixture
-            .as_deref()
-            .unwrap_or("product-options-create-parity.json");
-        let fixture = product_option_fixture(fixture_name);
-        fixture["downstreamRead"]["data"].clone()
-    }
-
     pub(in crate::proxy) fn product_create(
         &mut self,
         request: &Request,
@@ -2552,7 +2499,7 @@ impl DraftProxy {
                 }
             })));
         };
-        if query.contains("ProductCreateNoKeyOnCreate") && input.contains_key("variants") {
+        if input.contains_key("variants") {
             return MutationOutcome::response(ok_json(json!({
                 "errors": [{
                     "message": "Variable $input of type ProductInput! was provided invalid value for variants (Field is not defined on ProductInput)",
@@ -2569,7 +2516,7 @@ impl DraftProxy {
             })));
         }
 
-        if query.contains("ProductCreateNoKeyOnCreate") && input.contains_key("id") {
+        if input.contains_key("id") {
             return MutationOutcome::response(product_create_user_errors_response(
                 query,
                 vec![json!({
@@ -2577,10 +2524,6 @@ impl DraftProxy {
                     "message": "id cannot be specified during creation"
                 })],
             ));
-        }
-
-        if let Some(data) = combined_listing_product_create_data(query, &input) {
-            return MutationOutcome::response(ok_json(json!({ "data": data })));
         }
 
         let Some(title) =
@@ -2649,16 +2592,15 @@ impl DraftProxy {
             }
         }
 
-        let id = if query.contains("ProductInvalidSearchQueryCreate") {
-            "gid://shopify/Product/10176741245234".to_string()
-        } else {
-            self.next_proxy_synthetic_gid("Product")
-        };
+        let id = self.next_proxy_synthetic_gid("Product");
         let handle =
             resolved_string_field(&input, "handle").unwrap_or_else(|| slugify_handle(&title));
         let status =
             resolved_string_field(&input, "status").unwrap_or_else(|| "ACTIVE".to_string());
         let timestamp = self.next_product_timestamp();
+        let extra_fields = resolved_string_field(&input, "combinedListingRole")
+            .map(|role| BTreeMap::from([("combinedListingRole".to_string(), json!(role))]))
+            .unwrap_or_default();
         let product = ProductRecord {
             id: id.clone(),
             created_at: timestamp.clone(),
@@ -2679,7 +2621,7 @@ impl DraftProxy {
             media: Vec::new(),
             variants: Vec::new(),
             collections: Vec::new(),
-            extra_fields: BTreeMap::new(),
+            extra_fields,
         };
         self.store.stage_product(product.clone());
 
@@ -3142,98 +3084,6 @@ impl DraftProxy {
             })),
             LogDraft::staged("productDelete", "products", vec![id.clone()]),
         )
-    }
-
-    pub(in crate::proxy) fn product_relationship_options_read_data(
-        &self,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
-        let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
-        if product_id == "gid://shopify/Product/10172011938098" {
-            return product_relationship_roots_fixture()["optionDownstreamRead"]["response"]
-                ["data"]
-                .clone();
-        }
-        if self
-            .store
-            .product_by_id(&product_id)
-            .map(|product| product.title.contains("product-options-reorder-validation"))
-            .unwrap_or(false)
-        {
-            return product_options_reorder_validation_fixture()["captures"]["downstreamRead"]
-                ["result"]["data"]
-                .clone();
-        }
-        json!({ "product": null })
-    }
-
-    pub(in crate::proxy) fn product_delete_async_source_create(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let Some(input) = product_input(query, variables) else {
-            return MutationOutcome::response(json_error(400, "productSet requires input"));
-        };
-        let title = resolved_string_field(&input, "title").unwrap_or_default();
-        let id = self.next_proxy_synthetic_gid("Product");
-        let timestamp = self.next_product_timestamp();
-        let product = ProductRecord {
-            id: id.clone(),
-            created_at: timestamp.clone(),
-            updated_at: timestamp,
-            title,
-            handle: resolved_string_field(&input, "handle")
-                .unwrap_or_else(|| "async-delete-source-1778096279651".to_string()),
-            status: resolved_string_field(&input, "status").unwrap_or_else(|| "DRAFT".to_string()),
-            description_html: String::new(),
-            vendor: String::new(),
-            product_type: String::new(),
-            tags: Vec::new(),
-            template_suffix: String::new(),
-            seo_title: String::new(),
-            seo_description: String::new(),
-            total_inventory: 0,
-            tracks_inventory: false,
-            media: Vec::new(),
-            variants: Vec::new(),
-            collections: Vec::new(),
-            extra_fields: BTreeMap::new(),
-        };
-        self.store.stage_product(product.clone());
-
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
-        MutationOutcome::staged(
-            ok_json(json!({
-                "data": {
-                    root_field_response_key(query).unwrap_or_else(|| "productSet".to_string()): product_mutation_payload_json(&product, &payload_selection, &product_selection)
-                }
-            })),
-            LogDraft::staged("productSet", "products", vec![id]),
-        )
-    }
-
-    pub(in crate::proxy) fn product_delete_operation_read_data(&self, node: bool) -> Value {
-        let product_id = self
-            .store
-            .staged
-            .product_delete_operations
-            .get("gid://shopify/ProductDeleteOperation/80067887410")
-            .cloned()
-            .unwrap_or_else(|| "gid://shopify/Product/10178931687730".to_string());
-        let operation = json!({
-            "__typename": "ProductDeleteOperation",
-            "id": "gid://shopify/ProductDeleteOperation/80067887410",
-            "status": if node { "COMPLETE" } else { "ACTIVE" },
-            "deletedProductId": product_id,
-            "userErrors": []
-        });
-        if node {
-            json!({ "node": operation })
-        } else {
-            json!({ "productOperation": operation })
-        }
     }
 
     pub(in crate::proxy) fn product_change_status(

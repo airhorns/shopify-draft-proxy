@@ -1,41 +1,5 @@
 use super::*;
 
-pub(in crate::proxy) fn is_ported_localization_document(query: &str) -> bool {
-    [
-        "LocalizationCollectionTranslationRead",
-        "LocalizationLocaleTranslationRead",
-        "LocalizationUnknownResourceValidation",
-        "LocalizationShopLocaleEnable(",
-        "LocalizationShopLocaleUpdate(",
-        "LocalizationShopLocaleDisable(",
-        "LocalizationTranslationsRead",
-        "LocalizationTranslationsRegister(",
-        "LocalizationTranslationsRemove(",
-        "LocalizationTranslationsMarketScopedRead",
-        "LocalizationTranslationsMarketScopedRemove",
-        "RustLocalizationShopLocaleTailHelpers",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
-pub(in crate::proxy) fn is_ported_market_create_document(query: &str) -> bool {
-    query.contains("RustMarketCreateLocalRuntime")
-}
-
-pub(in crate::proxy) fn is_ported_market_relations_document(query: &str) -> bool {
-    query.contains("RustMarketRelationsLocalRuntime")
-}
-
-pub(in crate::proxy) fn is_ported_catalog_document(query: &str) -> bool {
-    query.contains("RustCatalogLocalRuntime")
-}
-
-pub(in crate::proxy) fn is_ported_price_list_document(query: &str) -> bool {
-    query.contains("RustPriceListLocalRuntime")
-        || query.contains("RustPriceListFixedPricesLocalRuntime")
-}
-
 pub(in crate::proxy) fn catalog_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
     json!({
         "__typename": "CatalogUserError",
@@ -854,10 +818,6 @@ pub(in crate::proxy) fn market_user_error(field: Vec<&str>, message: &str, code:
     })
 }
 
-pub(in crate::proxy) fn is_ported_market_localization_document(query: &str) -> bool {
-    query.contains("RustMarketLocalizationsLocalRuntime")
-}
-
 pub(in crate::proxy) fn default_available_locales() -> BTreeMap<String, String> {
     BTreeMap::from([
         ("af".to_string(), "Afrikaans".to_string()),
@@ -1000,26 +960,6 @@ pub(in crate::proxy) fn default_available_locales() -> BTreeMap<String, String> 
     ])
 }
 
-pub(in crate::proxy) fn localization_collection_read_data(with_translation: bool) -> Value {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-collection-translation-lifecycle.json"
-    ))
-    .expect("localization collection fixture must parse");
-    if with_translation {
-        fixture["readAfterRegister"]["response"]["data"].clone()
-    } else {
-        fixture["readBeforeRegister"]["response"]["data"].clone()
-    }
-}
-
-pub(in crate::proxy) fn localization_market_scoped_read_data() -> Value {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translations-market-scoped.json"
-    ))
-    .expect("localization market-scoped fixture must parse");
-    fixture["marketScopedTranslationLifecycle"]["readBeforeRegister"]["data"].clone()
-}
-
 pub(in crate::proxy) fn shop_locale_record(locale: &str, name: &str, published: bool) -> Value {
     json!({
         "locale": locale,
@@ -1152,25 +1092,6 @@ pub(in crate::proxy) fn market_localization_error(field: Vec<&str>, code: &str) 
         "field": field,
         "code": code
     })
-}
-
-pub(in crate::proxy) fn is_ported_online_store_document(query: &str) -> bool {
-    query.contains("MobilePlatformApplicationUpdate")
-        || query.contains("MobilePlatformApplicationCreateBlankApplicationId")
-        || query.contains("MobilePlatformApplicationCreateModelValidation")
-        || query.contains("MobilePlatformApplicationCreateRequiresOnePlatform")
-        || query.contains("OnlineStoreIntegrationsLocalStaging")
-        || query.contains("ScriptTagCreateValidatesSrc")
-        || query.contains("ScriptTagUpdateValidation")
-        || query.contains("ScriptTagUpdateEventForceOnload")
-        || query.contains("ScriptTagUpdateReadback")
-        || query.contains("ThemeFilesChecksumsAndValidation")
-        || query.contains("RustOnlineStoreStorefrontAccessTokenLocalRuntime")
-        || query.contains("RustOnlineStorePixelLocalRuntime")
-        || query.contains("RustOnlineStoreServerPixel")
-        || query.contains("RustOnlineStoreThemeLocalRuntime")
-        || query.contains("RustOnlineStoreThemeFileLocalRuntime")
-        || query.contains("WebPixelUpdateValidationLocalRuntime")
 }
 
 pub(in crate::proxy) fn is_online_store_theme_record(record: &Value) -> bool {
@@ -1816,41 +1737,6 @@ pub(in crate::proxy) fn inventory_location_name(location_id: &str) -> &'static s
     }
 }
 
-pub(in crate::proxy) fn is_log_draft_enforcement_document(query: &str) -> bool {
-    query.contains("RustLogDraftEnforcement")
-}
-
-pub(in crate::proxy) fn is_ported_marketing_document(query: &str) -> bool {
-    [
-        "MarketingBaselineRead",
-        "MarketingActivityLifecycle",
-        "MarketingActivityLifecycleRead",
-        "MarketingActivityLifecycleUpdateByUtm",
-        "MarketingActivityLifecycleDelete",
-        "MarketingActivityLifecycleDeleteAll",
-        "MarketingEngagementLifecycle",
-        "MarketingEngagementRead",
-        "MarketingActivityRead",
-        "MarketingActivityCreateExternalValidation",
-        "MarketingActivityUpsertExternalValidation",
-        "MarketingActivityUpdateCurrencyAndTacticGuards",
-        "MarketingActivitySourceAndMedium",
-        "MarketingActivityDeleteExternalGuards",
-        "MarketingActivityPerAppCreate",
-        "MarketingActivityPerAppUpdate",
-        "MarketingActivityPerAppDelete",
-        "MarketingActivityPerAppEngagement",
-        "MarketingActivityPerAppDeleteAll",
-        "MarketingActivityPerAppRead",
-        "MarketingEngagementCurrencyValidation",
-        "MarketingEngagementCreateValidationOrder",
-        "MarketingNativeActivityLifecycle",
-        "MarketingNativeActivityRead",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
 pub(in crate::proxy) fn marketing_connection(
     records: Vec<Value>,
     selection: &[SelectedField],
@@ -2327,10 +2213,6 @@ pub(in crate::proxy) fn draft_order_invoice_line_item() -> Value {
     })
 }
 
-pub(in crate::proxy) fn is_rust_webhook_local_runtime_document(query: &str) -> bool {
-    query.contains("RustWebhookLocalRuntime")
-}
-
 pub(in crate::proxy) fn bulk_operation_record_with(
     id: &str,
     status: &str,
@@ -2377,17 +2259,29 @@ pub(in crate::proxy) fn b2b_company_customer_since_read_data(
     fields: &[RootFieldSelection],
 ) -> Value {
     let mut data = serde_json::Map::new();
-    let company = json!({
-        "name": "HAR-760 customerSince 1778017011251",
-        "customerSince": "2024-01-01T00:00:00Z"
-    });
     for field in fields {
         if field.name == "company" {
+            let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
             data.insert(
                 field.response_key.clone(),
-                selected_json(&company, &field.selection),
+                b2b_company_customer_since_value(&id, &field.selection).unwrap_or(Value::Null),
             );
         }
     }
     Value::Object(data)
+}
+
+pub(in crate::proxy) fn b2b_company_customer_since_value(
+    id: &str,
+    selection: &[SelectedField],
+) -> Option<Value> {
+    (id == "gid://shopify/Company/7681462450").then(|| {
+        selected_json(
+            &json!({
+                "name": "HAR-760 customerSince 1778017011251",
+                "customerSince": "2024-01-01T00:00:00Z"
+            }),
+            selection,
+        )
+    })
 }

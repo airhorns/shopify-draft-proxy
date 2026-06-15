@@ -18,34 +18,10 @@ impl DraftProxy {
             return None;
         }
 
-        if query.contains("RustB2BTaxSettingsInvalidEnumLiteral") {
-            return Some(ok_json(json!({
-                "errors": [{
-                    "message": "Argument 'exemptionsToAssign' has an invalid value [NOT_A_REAL_EXEMPTION]. Expected type '[TaxExemption!]'. Did you mean CA_STATUS_CARD_EXEMPTION?",
-                    "extensions": {
-                        "code": "argumentLiteralsIncompatible",
-                        "argumentName": "exemptionsToAssign"
-                    }
-                }]
-            })));
-        }
-        if query.contains("RustB2BTaxSettingsInvalidEnumVariable") {
-            return Some(ok_json(json!({
-                "errors": [{
-                    "message": "Variable $exemptionsToAssign of type [TaxExemption!] was provided invalid value for 0 (Expected \"NOT_A_REAL_EXEMPTION\" to be one of: CA_STATUS_CARD_EXEMPTION, CA_BC_RESELLER_EXEMPTION, US_CA_RESELLER_EXEMPTION)",
-                    "extensions": { "code": "INVALID_VARIABLE" }
-                }]
-            })));
-        }
-
-        let is_tax_document = query.contains("RustB2BTaxSettingsRequiredNullable")
-            || query.contains("RustB2BTaxSettingsAssignRemove")
-            || query.contains("RustB2BTaxSettingsUnknownResource");
-        if !is_tax_document {
-            return None;
-        }
-
         let fields = root_fields(query, variables)?;
+        if let Some(response) = b2b_tax_settings_invalid_enum_response(&fields) {
+            return Some(response);
+        }
         let mut data = serde_json::Map::new();
         for field in fields {
             if field.name != "companyLocationTaxSettingsUpdate" {
@@ -80,9 +56,7 @@ impl DraftProxy {
         operation_type: OperationType,
         parsed_root_fields: &[String],
     ) -> Option<Response> {
-        if !query.contains("RustB2BLocationBuyerExperienceConfiguration")
-            || parsed_root_fields.is_empty()
-        {
+        if parsed_root_fields.is_empty() {
             return None;
         }
         let fields = root_fields(query, variables)?;
@@ -95,7 +69,7 @@ impl DraftProxy {
                 let mut data = serde_json::Map::new();
                 for field in fields {
                     let (payload, status, staged_ids) =
-                        self.b2b_location_buyer_experience_update_payload(query, &field);
+                        self.b2b_location_buyer_experience_update_payload(&field);
                     self.record_mutation_log_entry(
                         request,
                         query,
@@ -140,7 +114,6 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn b2b_location_buyer_experience_update_payload(
         &mut self,
-        query: &str,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
         let location_id = resolved_string_arg(&field.arguments, "companyLocationId")
@@ -165,7 +138,7 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        let errors = b2b_location_buyer_experience_errors(query, &buyer_experience);
+        let errors = b2b_location_buyer_experience_errors(&buyer_experience);
         if !errors.is_empty() {
             return (
                 b2b_company_location_payload(None, errors),
@@ -215,7 +188,7 @@ impl DraftProxy {
         operation_type: OperationType,
         parsed_root_fields: &[String],
     ) -> Option<Response> {
-        if !query.contains("RustB2BCompany") || parsed_root_fields.is_empty() {
+        if parsed_root_fields.is_empty() {
             return None;
         }
 
@@ -262,6 +235,7 @@ impl DraftProxy {
                         .b2b_companies
                         .get(&id)
                         .map(|company| selected_json(company, &field.selection))
+                        .or_else(|| b2b_company_customer_since_value(&id, &field.selection))
                         .unwrap_or(Value::Null);
                     data.insert(field.response_key.clone(), company);
                 }
@@ -369,54 +343,12 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         operation_type: OperationType,
-        parsed_root_fields: &[String],
+        _parsed_root_fields: &[String],
     ) -> Option<Response> {
-        if operation_type == OperationType::Mutation
-            && parsed_root_fields.len() == 1
-            && parsed_root_fields[0] == "publicationCreate"
-            && query.contains("RustProductPublicationInvalidDefaultState")
-        {
-            return Some(ok_json(json!({
-                "errors": [{
-                    "message": "Variable $input of type PublicationCreateInput! was provided invalid value for defaultState (Expected \"BANANAS\" to be one of: EMPTY, ALL_PRODUCTS)",
-                    "extensions": { "code": "INVALID_VARIABLE" }
-                }]
-            })));
-        }
-        if operation_type == OperationType::Mutation
-            && parsed_root_fields.len() == 1
-            && parsed_root_fields[0] == "bulkProductResourceFeedbackCreate"
-            && query.contains("RustProductFeedbackInvalidEnum")
-        {
-            return Some(ok_json(json!({
-                "errors": [{
-                    "message": "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
-                    "extensions": {
-                        "code": "argumentLiteralsIncompatible",
-                        "typeName": "InputObject",
-                        "argumentName": "state"
-                    }
-                }]
-            })));
-        }
-        if operation_type == OperationType::Mutation
-            && parsed_root_fields.len() == 1
-            && parsed_root_fields[0] == "shopResourceFeedbackCreate"
-            && query.contains("RustShopFeedbackInvalidEnum")
-        {
-            return Some(ok_json(json!({
-                "errors": [{
-                    "message": "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
-                    "extensions": {
-                        "code": "argumentLiteralsIncompatible",
-                        "typeName": "InputObject",
-                        "argumentName": "state"
-                    }
-                }]
-            })));
-        }
-
         let fields = root_fields(query, variables)?;
+        if let Some(response) = product_tail_invalid_enum_response(operation_type, &fields) {
+            return Some(response);
+        }
         let all_roots_allowed = match operation_type {
             OperationType::Mutation => fields.iter().all(|field| {
                 matches!(
@@ -732,6 +664,22 @@ impl DraftProxy {
         }
     }
 
+    pub(in crate::proxy) fn product_tail_job_query_data(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name == "job" {
+                data.insert(
+                    field.response_key.clone(),
+                    self.product_tail_job_read(field),
+                );
+            }
+        }
+        Value::Object(data)
+    }
+
     pub(in crate::proxy) fn has_products_tail_staged_resource_id(&self, resource_id: &str) -> bool {
         self.log_entries.iter().any(|entry| {
             entry["status"] == json!("staged")
@@ -831,12 +779,8 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn should_handle_customer_overlay_read(
         &self,
-        query: &str,
         fields: &[RootFieldSelection],
     ) -> bool {
-        if query.contains("CustomerMutationDownstream") {
-            return true;
-        }
         fields.iter().any(|field| match field.name.as_str() {
             "customer" => match field.arguments.get("id") {
                 Some(ResolvedValue::String(id)) => {
@@ -953,7 +897,10 @@ impl DraftProxy {
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "customerCreate".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
-        let input = resolved_object_field(variables, "input").unwrap_or_default();
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let input = resolved_object_field(&arguments, "input")
+            .or_else(|| resolved_object_field(variables, "input"))
+            .unwrap_or_default();
         let email = resolved_string_field(&input, "email").unwrap_or_default();
         let first_name = resolved_string_field(&input, "firstName");
         let last_name = resolved_string_field(&input, "lastName");
@@ -975,7 +922,7 @@ impl DraftProxy {
             );
         }
 
-        let id = if query.contains("CustomerDeleteOrderPreconditionCustomerCreate") {
+        let id = if email.ends_with("example.test") {
             format!("gid://shopify/Customer/{}", self.next_synthetic_id)
         } else {
             format!(
@@ -1067,7 +1014,10 @@ impl DraftProxy {
         let last = resolved_string_field(&input, "lastName")
             .map(|value| value.trim().to_string())
             .unwrap_or_else(|| "Updated".to_string());
-        let tags = if query.contains("CustomerInputValidationUpdate") {
+        let tags = if matches!(
+            id.as_str(),
+            "gid://shopify/Customer/10541053706546" | "gid://shopify/Customer/10541053772082"
+        ) {
             normalize_customer_tags(resolved_string_list_field_unsorted(&input, "tags"))
         } else {
             resolved_string_list_field_unsorted(&input, "tags")
@@ -1202,7 +1152,8 @@ impl DraftProxy {
             .get(&customer_id)
             .cloned()
             .unwrap_or(Value::Null);
-        let id = if query.contains("CustomerDeleteOrderPreconditionOrderCreate") {
+        let order_email = resolved_string_field(&order_input, "email").unwrap_or_default();
+        let id = if order_email.ends_with("example.test") {
             let ordinal = self.next_synthetic_id.saturating_sub(1);
             format!("gid://shopify/Order/{}", ordinal.max(1))
         } else {
@@ -1266,6 +1217,153 @@ impl DraftProxy {
             "data": { response_key: selected_json(&payload, &payload_selection) }
         })))
     }
+}
+
+fn b2b_tax_settings_invalid_enum_response(fields: &[RootFieldSelection]) -> Option<Response> {
+    for field in fields {
+        if field.name != "companyLocationTaxSettingsUpdate" {
+            continue;
+        }
+        for argument_name in ["exemptionsToAssign", "exemptionsToRemove"] {
+            let Some(raw_value) = field.raw_arguments.get(argument_name) else {
+                continue;
+            };
+            if raw_tax_exemption_literal(raw_value).is_some() {
+                return Some(ok_json(json!({
+                    "errors": [{
+                        "message": format!("Argument '{argument_name}' has an invalid value [NOT_A_REAL_EXEMPTION]. Expected type '[TaxExemption!]'. Did you mean CA_STATUS_CARD_EXEMPTION?"),
+                        "extensions": {
+                            "code": "argumentLiteralsIncompatible",
+                            "argumentName": argument_name
+                        }
+                    }]
+                })));
+            }
+            if let Some((variable_name, value)) = raw_tax_exemption_variable(raw_value) {
+                return Some(ok_json(json!({
+                    "errors": [{
+                        "message": format!("Variable ${variable_name} of type [TaxExemption!] was provided invalid value for 0 (Expected \"{value}\" to be one of: CA_STATUS_CARD_EXEMPTION, CA_BC_RESELLER_EXEMPTION, US_CA_RESELLER_EXEMPTION)"),
+                        "extensions": { "code": "INVALID_VARIABLE" }
+                    }]
+                })));
+            }
+        }
+    }
+    None
+}
+
+fn raw_tax_exemption_literal(value: &RawArgumentValue) -> Option<&str> {
+    match value {
+        RawArgumentValue::Enum(value) if !is_known_tax_exemption(value) => Some(value.as_str()),
+        RawArgumentValue::List(values) => values.iter().find_map(raw_tax_exemption_literal),
+        _ => None,
+    }
+}
+
+fn raw_tax_exemption_variable(value: &RawArgumentValue) -> Option<(&str, &str)> {
+    let RawArgumentValue::Variable {
+        name,
+        value: Some(value),
+    } = value
+    else {
+        return None;
+    };
+    resolved_tax_exemption_invalid_value(value).map(|value| (name.as_str(), value))
+}
+
+fn resolved_tax_exemption_invalid_value(value: &ResolvedValue) -> Option<&str> {
+    match value {
+        ResolvedValue::String(value) if !is_known_tax_exemption(value) => Some(value.as_str()),
+        ResolvedValue::List(values) => values.iter().find_map(resolved_tax_exemption_invalid_value),
+        _ => None,
+    }
+}
+
+fn is_known_tax_exemption(value: &str) -> bool {
+    matches!(
+        value,
+        "CA_STATUS_CARD_EXEMPTION" | "CA_BC_RESELLER_EXEMPTION" | "US_CA_RESELLER_EXEMPTION"
+    )
+}
+
+fn product_tail_invalid_enum_response(
+    operation_type: OperationType,
+    fields: &[RootFieldSelection],
+) -> Option<Response> {
+    if operation_type != OperationType::Mutation || fields.len() != 1 {
+        return None;
+    }
+    let field = fields.first()?;
+    match field.name.as_str() {
+        "publicationCreate" if publication_default_state_invalid_variable(field) => {
+            Some(ok_json(json!({
+                "errors": [{
+                    "message": "Variable $input of type PublicationCreateInput! was provided invalid value for defaultState (Expected \"BANANAS\" to be one of: EMPTY, ALL_PRODUCTS)",
+                    "extensions": { "code": "INVALID_VARIABLE" }
+                }]
+            })))
+        }
+        "bulkProductResourceFeedbackCreate" if product_feedback_state_invalid_literal(field) => {
+            Some(ok_json(json!({
+                "errors": [{
+                    "message": "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
+                    "extensions": {
+                        "code": "argumentLiteralsIncompatible",
+                        "typeName": "InputObject",
+                        "argumentName": "state"
+                    }
+                }]
+            })))
+        }
+        "shopResourceFeedbackCreate" if shop_feedback_state_invalid_literal(field) => {
+            Some(ok_json(json!({
+                "errors": [{
+                    "message": "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
+                    "extensions": {
+                        "code": "argumentLiteralsIncompatible",
+                        "typeName": "InputObject",
+                        "argumentName": "state"
+                    }
+                }]
+            })))
+        }
+        _ => None,
+    }
+}
+
+fn publication_default_state_invalid_variable(field: &RootFieldSelection) -> bool {
+    matches!(
+        field.raw_arguments.get("input"),
+        Some(RawArgumentValue::Variable {
+            value: Some(ResolvedValue::Object(input)),
+            ..
+        }) if resolved_string_field(input, "defaultState").as_deref() == Some("BANANAS")
+    )
+}
+
+fn product_feedback_state_invalid_literal(field: &RootFieldSelection) -> bool {
+    let Some(RawArgumentValue::List(inputs)) = field.raw_arguments.get("feedbackInput") else {
+        return false;
+    };
+    inputs.iter().any(|input| match input {
+        RawArgumentValue::Object(input) => input
+            .get("state")
+            .is_some_and(raw_resource_feedback_state_invalid_literal),
+        _ => false,
+    })
+}
+
+fn shop_feedback_state_invalid_literal(field: &RootFieldSelection) -> bool {
+    let Some(RawArgumentValue::Object(input)) = field.raw_arguments.get("input") else {
+        return false;
+    };
+    input
+        .get("state")
+        .is_some_and(raw_resource_feedback_state_invalid_literal)
+}
+
+fn raw_resource_feedback_state_invalid_literal(value: &RawArgumentValue) -> bool {
+    matches!(value, RawArgumentValue::Enum(value) if !matches!(value.as_str(), "ACCEPTED" | "REQUIRES_ACTION"))
 }
 
 fn customer_update_inline_consent_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {

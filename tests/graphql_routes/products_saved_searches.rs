@@ -869,139 +869,49 @@ fn product_variant_bulk_fixture_downstream_reads_return_captured_shapes() {
     assert_eq!(node.status, 200);
     assert_eq!(
         node.body["data"]["node"],
-        json!({
-            "id": "gid://shopify/ProductVariant/51098748059954",
-            "title": "Blue",
-            "selectedOptions": [{ "name": "Color", "value": "Blue" }]
-        })
+        Value::Null,
+        "unobserved variant node reads should not replay a baked bulk-reorder downstream fixture"
     );
 }
 
 #[test]
-fn product_media_deprecated_user_errors_and_variant_media_guards_port_old_gleam_helpers() {
+fn product_media_roots_without_store_backed_handlers_fail_closed() {
     let mut proxy = snapshot_proxy();
 
-    let deprecated = proxy.process_request(json_graphql_request(
-        r#"
-        mutation RustProductMediaDeprecatedUserErrors {
-          create: productCreateMedia(productId: "gid://shopify/Product/optioned", media: [{ originalSource: "not-a-url", mediaContentType: IMAGE }]) {
-            userErrors { field message }
-            mediaUserErrors { field message }
-          }
-          update: productUpdateMedia(productId: "gid://shopify/Product/optioned", media: [{ id: "gid://shopify/MediaImage/missing", alt: "Missing" }]) {
-            userErrors { field message }
-            mediaUserErrors { field message }
-          }
-          delete: productDeleteMedia(productId: "gid://shopify/Product/optioned", mediaIds: ["gid://shopify/MediaImage/missing"]) {
-            userErrors { field message }
-            mediaUserErrors { field message }
-          }
-          reorder: productReorderMedia(id: "gid://shopify/Product/optioned", moves: [{ id: "gid://shopify/MediaImage/missing", newPosition: "0" }]) {
-            userErrors { field message }
-            mediaUserErrors { field message }
-          }
-        }
-        "#,
-        json!({}),
-    ));
-    assert_eq!(deprecated.status, 200);
-    assert_eq!(
-        deprecated.body["data"]["create"],
-        json!({
-            "userErrors": [{ "field": ["media", "0", "originalSource"], "message": "Image URL is invalid" }],
-            "mediaUserErrors": [{ "field": ["media", "0", "originalSource"], "message": "Image URL is invalid" }]
-        })
-    );
-    assert_eq!(
-        deprecated.body["data"]["update"],
-        json!({
-            "userErrors": [{ "field": ["media"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }],
-            "mediaUserErrors": [{ "field": ["media"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }]
-        })
-    );
-    assert_eq!(
-        deprecated.body["data"]["delete"],
-        json!({
-            "userErrors": [{ "field": ["mediaIds"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }],
-            "mediaUserErrors": [{ "field": ["mediaIds"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }]
-        })
-    );
-    assert_eq!(
-        deprecated.body["data"]["reorder"],
-        json!({
-            "userErrors": [{ "field": ["moves", "0", "id"], "message": "Media does not exist" }],
-            "mediaUserErrors": [{ "field": ["moves", "0", "id"], "message": "Media does not exist" }]
-        })
-    );
-
-    let variant_guards = proxy.process_request(json_graphql_request(
-        r#"
-        mutation RustProductVariantMediaValidationTailHelpers {
-          variantFromOtherProduct: productVariantAppendMedia(
-            productId: "gid://shopify/Product/optioned"
-            variantMedia: [{ variantId: "gid://shopify/ProductVariant/child", mediaIds: ["gid://shopify/MediaImage/ready"] }]
-          ) { productVariants { id } userErrors { field message code } }
-          mediaFromOtherProduct: productVariantAppendMedia(
-            productId: "gid://shopify/Product/optioned"
-            variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/child"] }]
-          ) { productVariants { id } userErrors { field message code } }
-          processingMedia: productVariantAppendMedia(
-            productId: "gid://shopify/Product/optioned"
-            variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/processing"] }]
-          ) { productVariants { id } userErrors { field message code } }
-          detachUnattached: productVariantDetachMedia(
-            productId: "gid://shopify/Product/optioned"
-            variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/ready"] }]
-          ) { productVariants { id } userErrors { field message code } }
-        }
-        "#,
-        json!({}),
-    ));
-    assert_eq!(variant_guards.status, 200);
-    assert_eq!(
-        variant_guards.body["data"]["variantFromOtherProduct"],
-        json!({
-            "productVariants": Value::Null,
-            "userErrors": [{
-                "field": ["variantMedia", "0", "variantId"],
-                "message": "Variant does not exist on the specified product.",
-                "code": "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT"
-            }]
-        })
-    );
-    assert_eq!(
-        variant_guards.body["data"]["mediaFromOtherProduct"],
-        json!({
-            "productVariants": Value::Null,
-            "userErrors": [{
-                "field": ["variantMedia", "0", "mediaIds"],
-                "message": "Media does not exist on the specified product.",
-                "code": "MEDIA_DOES_NOT_EXIST_ON_PRODUCT"
-            }]
-        })
-    );
-    assert_eq!(
-        variant_guards.body["data"]["processingMedia"],
-        json!({
-            "productVariants": Value::Null,
-            "userErrors": [{
-                "field": ["variantMedia", "0", "mediaIds"],
-                "message": "Non-ready media cannot be attached to variants.",
-                "code": "NON_READY_MEDIA"
-            }]
-        })
-    );
-    assert_eq!(
-        variant_guards.body["data"]["detachUnattached"],
-        json!({
-            "productVariants": Value::Null,
-            "userErrors": [{
-                "field": ["variantMedia", "0", "variantId"],
-                "message": "The specified media is not attached to the specified variant.",
-                "code": "MEDIA_IS_NOT_ATTACHED_TO_VARIANT"
-            }]
-        })
-    );
+    for (root, query) in [
+        (
+            "productCreateMedia",
+            r#"mutation { productCreateMedia(productId: "gid://shopify/Product/optioned", media: [{ originalSource: "not-a-url", mediaContentType: IMAGE }]) { media { id } mediaUserErrors { message } } }"#,
+        ),
+        (
+            "productUpdateMedia",
+            r#"mutation { productUpdateMedia(productId: "gid://shopify/Product/optioned", media: [{ id: "gid://shopify/MediaImage/missing", alt: "Missing" }]) { media { id } mediaUserErrors { message } } }"#,
+        ),
+        (
+            "productDeleteMedia",
+            r#"mutation { productDeleteMedia(productId: "gid://shopify/Product/optioned", mediaIds: ["gid://shopify/MediaImage/missing"]) { deletedMediaIds mediaUserErrors { message } } }"#,
+        ),
+        (
+            "productReorderMedia",
+            r#"mutation { productReorderMedia(id: "gid://shopify/Product/optioned", moves: [{ id: "gid://shopify/MediaImage/missing", newPosition: "0" }]) { job { id } mediaUserErrors { message } } }"#,
+        ),
+        (
+            "productVariantAppendMedia",
+            r#"mutation { productVariantAppendMedia(productId: "gid://shopify/Product/optioned", variantMedia: [{ variantId: "gid://shopify/ProductVariant/child", mediaIds: ["gid://shopify/MediaImage/ready"] }]) { productVariants { id } userErrors { message } } }"#,
+        ),
+        (
+            "productVariantDetachMedia",
+            r#"mutation { productVariantDetachMedia(productId: "gid://shopify/Product/optioned", variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/ready"] }]) { productVariants { id } userErrors { message } } }"#,
+        ),
+    ] {
+        let response = proxy.process_request(json_graphql_request(query, json!({})));
+        assert_eq!(response.status, 400, "{root} should fail closed");
+        assert_eq!(
+            response.body,
+            json!({ "errors": [{ "message": format!("No mutation dispatcher implemented for root field: {root}") }] })
+        );
+    }
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
 }
 
 #[test]
@@ -1588,7 +1498,7 @@ fn product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log() {
 }
 
 #[test]
-fn product_reorder_media_replays_captured_job_and_downstream_order() {
+fn product_reorder_media_without_store_backed_handler_fails_closed() {
     let mut proxy = snapshot_proxy();
 
     let mutation = proxy.process_request(json_graphql_request(
@@ -1608,14 +1518,10 @@ fn product_reorder_media_replays_captured_job_and_downstream_order() {
             ]
         }),
     ));
-    assert_eq!(mutation.status, 200);
+    assert_eq!(mutation.status, 400);
     assert_eq!(
-        mutation.body["data"]["productReorderMedia"]["job"]["done"],
-        json!(false)
-    );
-    assert_eq!(
-        mutation.body["data"]["productReorderMedia"]["mediaUserErrors"],
-        json!([])
+        mutation.body,
+        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: productReorderMedia" }] })
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -1632,27 +1538,15 @@ fn product_reorder_media_replays_captured_job_and_downstream_order() {
     ));
     assert_eq!(read.status, 200);
     assert_eq!(
-        read.body["data"]["product"]["media"]["nodes"],
-        json!([
-            {
-                "id": "gid://shopify/MediaImage/43607668621618",
-                "alt": "Back",
-                "mediaContentType": "IMAGE",
-                "status": "PROCESSING"
-            },
-            {
-                "id": "gid://shopify/MediaImage/43607668588850",
-                "alt": "Front",
-                "mediaContentType": "IMAGE",
-                "status": "PROCESSING"
-            }
-        ])
+        read.body["data"]["product"],
+        Value::Null,
+        "unobserved product reads should not replay a baked reorder-media fixture"
     );
-    assert_eq!(read.body["data"]["product"]["images"]["nodes"], json!([]));
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
 }
 
 #[test]
-fn product_create_and_delete_media_replay_captured_mutations_and_downstream_reads() {
+fn product_create_and_delete_media_without_store_backed_handlers_fail_closed() {
     let mut proxy = snapshot_proxy();
 
     let create = proxy.process_request(json_graphql_request(
@@ -1674,31 +1568,10 @@ fn product_create_and_delete_media_replay_captured_mutations_and_downstream_read
             }]
         }),
     ));
-    assert_eq!(create.status, 200);
-    let created_media_id = create.body["data"]["productCreateMedia"]["media"][0]["id"]
-        .as_str()
-        .expect("productCreateMedia media id should be a string")
-        .to_string();
-    assert!(created_media_id.starts_with("gid://shopify/MediaImage/"));
-    assert!(created_media_id.contains("shopify-draft-proxy=synthetic"));
+    assert_eq!(create.status, 400);
     assert_eq!(
-        create.body["data"]["productCreateMedia"]["media"][0],
-        json!({
-            "id": created_media_id,
-            "alt": "Front view",
-            "mediaContentType": "IMAGE",
-            "status": "UPLOADED",
-            "preview": { "image": null },
-            "image": null
-        })
-    );
-    assert_eq!(
-        create.body["data"]["productCreateMedia"]["product"]["media"]["nodes"][0]["status"],
-        json!("UPLOADED")
-    );
-    assert_eq!(
-        create.body["data"]["productCreateMedia"]["product"]["media"]["nodes"][0]["id"],
-        json!(created_media_id)
+        create.body,
+        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: productCreateMedia" }] })
     );
 
     let create_read = proxy.process_request(json_graphql_request(
@@ -1711,15 +1584,9 @@ fn product_create_and_delete_media_replay_captured_mutations_and_downstream_read
     ));
     assert_eq!(create_read.status, 200);
     assert_eq!(
-        create_read.body["data"]["product"]["media"]["nodes"][0],
-        json!({
-            "id": created_media_id,
-            "alt": "Front view",
-            "mediaContentType": "IMAGE",
-            "status": "PROCESSING",
-            "preview": { "image": null },
-            "image": null
-        })
+        create_read.body["data"]["product"],
+        Value::Null,
+        "unobserved product reads should not replay a baked create-media fixture"
     );
 
     let delete = proxy.process_request(json_graphql_request(
@@ -1738,18 +1605,10 @@ fn product_create_and_delete_media_replay_captured_mutations_and_downstream_read
             "mediaIds": ["gid://shopify/MediaImage/39467722375401"]
         }),
     ));
-    assert_eq!(delete.status, 200);
+    assert_eq!(delete.status, 400);
     assert_eq!(
-        delete.body["data"]["productDeleteMedia"],
-        json!({
-            "deletedMediaIds": ["gid://shopify/MediaImage/39467722375401"],
-            "deletedProductImageIds": ["gid://shopify/ProductImage/48929036730601"],
-            "mediaUserErrors": [],
-            "product": {
-                "id": "gid://shopify/Product/9257219162345",
-                "media": { "nodes": [] }
-            }
-        })
+        delete.body,
+        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: productDeleteMedia" }] })
     );
 
     let delete_read = proxy.process_request(json_graphql_request(
@@ -1763,15 +1622,14 @@ fn product_create_and_delete_media_replay_captured_mutations_and_downstream_read
     assert_eq!(delete_read.status, 200);
     assert_eq!(
         delete_read.body["data"]["product"],
-        json!({
-            "id": "gid://shopify/Product/9257219162345",
-            "media": { "nodes": [] }
-        })
+        Value::Null,
+        "unobserved product reads should not replay a baked delete-media fixture"
     );
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
 }
 
 #[test]
-fn product_update_media_replays_captured_mutation_and_downstream_product_media() {
+fn product_update_media_without_store_backed_handler_fails_closed() {
     let mut proxy = snapshot_proxy();
 
     let mutation = proxy.process_request(json_graphql_request(
@@ -1798,20 +1656,10 @@ fn product_update_media_replays_captured_mutation_and_downstream_product_media()
             }]
         }),
     ));
-    assert_eq!(mutation.status, 200);
+    assert_eq!(mutation.status, 400);
     assert_eq!(
-        mutation.body["data"]["productUpdateMedia"],
-        json!({
-            "media": [{
-                "id": "gid://shopify/MediaImage/39467722375401",
-                "alt": "Updated front view",
-                "mediaContentType": "IMAGE",
-                "status": "READY",
-                "preview": { "image": { "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664" } },
-                "image": { "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664" }
-            }],
-            "mediaUserErrors": []
-        })
+        mutation.body,
+        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: productUpdateMedia" }] })
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -1837,22 +1685,14 @@ fn product_update_media_replays_captured_mutation_and_downstream_product_media()
     assert_eq!(read.status, 200);
     assert_eq!(
         read.body["data"]["product"],
-        json!({
-            "id": "gid://shopify/Product/9257219162345",
-            "media": { "nodes": [{
-                "id": "gid://shopify/MediaImage/39467722375401",
-                "alt": "Updated front view",
-                "mediaContentType": "IMAGE",
-                "status": "READY",
-                "preview": { "image": { "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664" } },
-                "image": { "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664" }
-            }] }
-        })
+        Value::Null,
+        "unobserved product reads should not replay a baked update-media fixture"
     );
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
 }
 
 #[test]
-fn product_publication_aggregate_downstream_read_returns_captured_product_shape() {
+fn product_publication_aggregate_unobserved_read_returns_no_data() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
         r#"
@@ -1871,12 +1711,8 @@ fn product_publication_aggregate_downstream_read_returns_captured_product_shape(
     assert_eq!(response.status, 200);
     assert_eq!(
         response.body["data"]["product"],
-        json!({
-            "id": "gid://shopify/Product/9264105488617",
-            "publishedOnCurrentPublication": false,
-            "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
-            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
-        })
+        Value::Null,
+        "unobserved product reads should not replay a baked publication aggregate fixture"
     );
 }
 
@@ -5037,10 +4873,9 @@ fn product_change_status_rejects_invalid_status_without_staging() {
 
 #[test]
 fn admin_graphql_capability_classification_requires_local_dispatch_root() {
-    // Table-dispatch classification keys on LOCAL_DISPATCH_ROOTS, not on the registry's
-    // `implemented` flag. None of these synthetic roots is a dispatch root, so all three fall
-    // through to passthrough regardless of `implemented` — and crucially never 501. (In snapshot
-    // mode there is no upstream, so passthrough surfaces as a 400 "no dispatcher" error.)
+    // Table-dispatch classification keys on LOCAL_DISPATCH_ROOTS. Synthetic registry entries
+    // with no dispatch-root entry are not locally routable, even if a test registry marks them
+    // implemented.
     let mut proxy = snapshot_proxy().with_registry(vec![
         registry_entry(
             "knownProducts",
@@ -5116,11 +4951,7 @@ fn local_dispatch_root_without_registry_classification_fails_closed() {
 }
 
 #[test]
-fn implemented_registry_entry_without_local_dispatch_passes_through_never_501() {
-    // An implemented registry entry that is not a LOCAL_DISPATCH_ROOT must NOT be hard-failed by
-    // the table dispatch: an implemented operation never 501s. It resolves to Unknown/Passthrough
-    // and passes through upstream (surfaced as a 400 "no dispatcher" in snapshot mode, where no
-    // upstream exists). In production these entries are handled earlier in the special-case chain.
+fn implemented_registry_entry_without_local_dispatch_is_not_locally_routable() {
     let mut proxy = snapshot_proxy().with_registry(vec![OperationRegistryEntry {
         name: "unknownSavedSearches".to_string(),
         operation_type: OperationType::Query,
@@ -5137,7 +4968,6 @@ fn implemented_registry_entry_without_local_dispatch_passes_through_never_501() 
         r#"{"query":"query { unknownSavedSearches(first: 1) { nodes { id } } }"}"#,
     ));
 
-    assert_ne!(response.status, 501);
     assert_eq!(response.status, 400);
     assert_eq!(
         response.body,
