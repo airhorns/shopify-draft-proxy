@@ -1,8 +1,8 @@
 {
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "capturedAt": "2026-05-08T12:44:17.871Z",
-  "token": "fsws-mowwpuft",
+  "capturedAt": "2026-06-15T02:18:56.482Z",
+  "token": "fsws-mqel4003",
   "notes": [
     "Live fulfillmentService name whitespace validation capture.",
     "The primary mutation records Shopify rejecting a create name with both leading and trailing whitespace, then creating one disposable fulfillment service used for update validation.",
@@ -12,8 +12,8 @@
   "primary": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-name-whitespace-primary.graphql",
     "variables": {
-      "createName": "  FS Whitespace fsws-mowwpuft  ",
-      "setupName": "FS Whitespace Setup fsws-mowwpuft"
+      "createName": "  FS Whitespace fsws-mqel4003  ",
+      "setupName": "FS Whitespace Setup fsws-mqel4003"
     },
     "response": {
       "status": 200,
@@ -34,17 +34,17 @@
           },
           "setupUpdateSource": {
             "fulfillmentService": {
-              "id": "gid://shopify/FulfillmentService/71930839346?id=true",
-              "handle": "fs-whitespace-setup-fsws-mowwpuft",
-              "serviceName": "FS Whitespace Setup fsws-mowwpuft",
+              "id": "gid://shopify/FulfillmentService/72027832626?id=true",
+              "handle": "fs-whitespace-setup-fsws-mqel4003",
+              "serviceName": "FS Whitespace Setup fsws-mqel4003",
               "callbackUrl": null,
               "trackingSupport": true,
               "inventoryManagement": true,
               "requiresShippingMethod": true,
               "type": "THIRD_PARTY",
               "location": {
-                "id": "gid://shopify/Location/112892543282",
-                "name": "FS Whitespace Setup fsws-mowwpuft",
+                "id": "gid://shopify/Location/113479450930",
+                "name": "FS Whitespace Setup fsws-mqel4003",
                 "isFulfillmentService": true,
                 "fulfillsOnlineOrders": true,
                 "shipsInventory": false
@@ -70,8 +70,8 @@
   "updatePrefix": {
     "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-name-whitespace-update.graphql",
     "variables": {
-      "id": "gid://shopify/FulfillmentService/71930839346?id=true",
-      "name": " FS Whitespace Setup fsws-mowwpuft Updated"
+      "id": "gid://shopify/FulfillmentService/72027832626?id=true",
+      "name": " FS Whitespace Setup fsws-mqel4003 Updated"
     },
     "response": {
       "status": 200,

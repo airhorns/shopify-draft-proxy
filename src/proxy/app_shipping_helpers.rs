@@ -68,6 +68,23 @@ pub(in crate::proxy) fn fulfillment_service_name_is_reserved(name: &str) -> bool
     )
 }
 
+pub(in crate::proxy) fn fulfillment_service_name_whitespace_errors(name: &str) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if name.starts_with(char::is_whitespace) {
+        errors.push(json!({
+            "field": ["name"],
+            "message": "Name cannot begin with a whitespace character"
+        }));
+    }
+    if name.ends_with(char::is_whitespace) {
+        errors.push(json!({
+            "field": ["name"],
+            "message": "Name cannot end with a whitespace character"
+        }));
+    }
+    errors
+}
+
 pub(in crate::proxy) fn fulfillment_service_callback_url_host_is_allowed(
     host: &str,
     shopify_admin_origin: &str,

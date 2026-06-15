@@ -2885,6 +2885,8 @@ impl DraftProxy {
         let mut user_errors = Vec::new();
         if name.trim().is_empty() {
             user_errors.push(json!({ "field": ["name"], "message": "Name can't be blank" }));
+        } else {
+            user_errors.extend(fulfillment_service_name_whitespace_errors(&name));
         }
         if let Some(error) = self.fulfillment_service_callback_url_error(callback_url.as_deref()) {
             user_errors.push(error);
@@ -2976,6 +2978,26 @@ impl DraftProxy {
                 .and_then(Value::as_str)
                 .map(str::to_string)
         };
+        let name_user_errors = if field.arguments.contains_key("name") {
+            if name.trim().is_empty() {
+                vec![json!({ "field": ["name"], "message": "Name can't be blank" })]
+            } else {
+                fulfillment_service_name_whitespace_errors(&name)
+            }
+        } else {
+            vec![]
+        };
+        if !name_user_errors.is_empty() {
+            return (
+                fulfillment_service_payload_json(
+                    Value::Null,
+                    &field.selection,
+                    &service_selection,
+                    name_user_errors,
+                ),
+                vec![],
+            );
+        }
         if fulfillment_service_name_is_reserved(&name) {
             return (
                 fulfillment_service_payload_json(
