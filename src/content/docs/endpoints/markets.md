@@ -90,9 +90,13 @@ Price-list and quantity-pricing slices stage selected price list records,
 fixed-price rows, quantity rules, and quantity price breaks for captured
 product and variant IDs. Downstream `priceList` / `priceLists` reads expose the
 staged rows in the checked-in scenarios. Validation covers name, currency,
-parent adjustment, unknown resource, duplicate fixed-price, missing fixed-price,
-product-level fixed-price, no-op, quantity-rule, and price-limit branches
-represented by parity specs.
+parent adjustment, `catalogId` existence/taken checks, unknown resource,
+duplicate fixed-price, missing fixed-price, product-level fixed-price, no-op,
+quantity-rule, and price-limit branches represented by parity specs. Captured
+Admin API 2026-04 behavior returns `CATALOG_DOES_NOT_EXIST` or
+`CATALOG_TAKEN` at `["input", "catalogId"]` for price-list catalog relation
+validation, and `priceListUpdate` returns `priceList: null` for those catalog
+validation failures while leaving the staged price list unchanged.
 
 Web-presence slices stage create/update/delete behavior for the captured
 subfolder, default-locale, alternate-locale, root-URL, duplicate-language,
