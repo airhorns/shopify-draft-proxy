@@ -37,6 +37,11 @@
         "reason": "The proxy stages customerSet locally and returns a deterministic synthetic timestamp instead of Shopify's live timestamp."
       },
       {
+        "path": "$.customer.verifiedEmail",
+        "matcher": "exact-bool:false",
+        "reason": "This 2025-01 address-validation setup capture has the historical customerCreate verifiedEmail=true default; HAR-1450 keeps current fresh customerCreate staging at verifiedEmail=false while preserving customerSet address replacement shape."
+      },
+      {
         "path": "$.customer.addressesV2.nodes[*].id",
         "matcher": "any-string",
         "reason": "The proxy stages customerSet replacement addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."

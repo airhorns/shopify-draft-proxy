@@ -30,9 +30,6 @@ fn sample_registry() -> Vec<OperationRegistryEntry> {
             support_notes: Some("stages products locally".to_string()),
         },
         OperationRegistryEntry {
-            // Locally handled via the document-gated special-case chain, so `implemented` is
-            // true, but it is NOT a `LOCAL_DISPATCH_ROOT`: capability routing must therefore
-            // resolve it to Unknown/Passthrough (never into a table-dispatch 501 arm).
             name: "customerCreate".to_string(),
             operation_type: OperationType::Mutation,
             domain: CapabilityDomain::Customers,
@@ -102,22 +99,12 @@ fn operation_capability_returns_registry_match_for_local_dispatch_roots_only() {
         Some("productCreate")
     );
 
-    // `customerCreate` is implemented (handled in the document-gated special-case chain) but is
-    // not a LOCAL_DISPATCH_ROOT. Capability routing must NOT surface its real domain/execution,
-    // otherwise the table dispatch would fall into a 501 arm. It resolves to Unknown/Passthrough
-    // so unmatched documents pass through upstream instead of erroring.
-    let implemented_without_dispatch_root =
+    let customer_create =
         operation_capability(&registry, OperationType::Mutation, Some("customerCreate"));
+    assert_eq!(customer_create.domain, CapabilityDomain::Customers);
+    assert_eq!(customer_create.execution, CapabilityExecution::StageLocally);
     assert_eq!(
-        implemented_without_dispatch_root.domain,
-        CapabilityDomain::Unknown
-    );
-    assert_eq!(
-        implemented_without_dispatch_root.execution,
-        CapabilityExecution::Passthrough
-    );
-    assert_eq!(
-        implemented_without_dispatch_root.operation_name.as_deref(),
+        customer_create.operation_name.as_deref(),
         Some("customerCreate")
     );
 

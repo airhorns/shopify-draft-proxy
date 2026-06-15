@@ -1088,8 +1088,455 @@ fn customer_create_stages_record_for_downstream_customer_reads_and_counts() {
 }
 
 #[test]
+fn customer_mutations_are_operation_name_independent_and_store_backed() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
+
+    let invalid = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MakeCustomer($input: CustomerInput!) {
+          made: customerCreate(input: $input) {
+            customer { id email }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "firstName": "Alice", "email": "not-an-email" } }),
+    ));
+    assert_eq!(invalid.status, 200);
+    assert_eq!(invalid.body["errors"], Value::Null);
+    assert_eq!(invalid.body["data"]["made"]["customer"], Value::Null);
+    assert_eq!(
+        invalid.body["data"]["made"]["userErrors"],
+        json!([{ "field": ["email"], "message": "Email is invalid" }])
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ConsumerCreateCustomer($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id firstName lastName displayName email phone locale verifiedEmail tags defaultEmailAddress { emailAddress } defaultPhoneNumber { phoneNumber } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "firstName": "Alice",
+                "lastName": "Buyer",
+                "email": "Alice@Example.COM",
+                "phone": "+1 (613) 450-5293",
+                "tags": ["Retail, VIP", "vip"]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["errors"], Value::Null);
+    assert_eq!(
+        create.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let customer = &create.body["data"]["customerCreate"]["customer"];
+    let id = customer["id"].as_str().unwrap();
+    assert!(id.starts_with("gid://shopify/Customer/"));
+    assert_eq!(customer["email"], json!("alice@example.com"));
+    assert_eq!(customer["phone"], json!("+16134505293"));
+    assert_eq!(customer["locale"], json!("en"));
+    assert_eq!(customer["verifiedEmail"], json!(false));
+    assert_eq!(customer["tags"], json!(["Retail", "VIP"]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadConsumerCustomer($id: ID!, $identifier: CustomerIdentifierInput!) {
+          customer(id: $id) { id email phone locale verifiedEmail tags }
+          customerByIdentifier(identifier: $identifier) { id email phone }
+        }
+        "#,
+        json!({ "id": id, "identifier": { "email": "alice@example.com" } }),
+    ));
+    assert_eq!(read.body["data"]["customer"]["id"], json!(id));
+    assert_eq!(read.body["data"]["customerByIdentifier"]["id"], json!(id));
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ConsumerDuplicateCustomer($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "email": "ALICE@example.com", "firstName": "Duplicate" } }),
+    ));
+    assert_eq!(duplicate.status, 200);
+    assert_eq!(
+        duplicate.body["data"]["customerCreate"]["customer"],
+        Value::Null
+    );
+    assert_eq!(
+        duplicate.body["data"]["customerCreate"]["userErrors"],
+        json!([{ "field": ["email"], "message": "Email has already been taken" }])
+    );
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("customerCreate")
+    );
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("ConsumerCreateCustomer"));
+}
+
+#[test]
+fn customer_update_delete_and_set_are_root_field_routed() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedCustomerForSet($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email phone }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "email": "set-route@example.com", "phone": "+1 415 555 0101" } }),
+    ));
+    let id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let set_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ConsumerCustomerSetCreate($input: CustomerSetInput!) {
+          customerSet(input: $input) {
+            customer { id firstName email locale verifiedEmail }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "firstName": "Bob", "email": "set-create@example.com" } }),
+    ));
+    assert_eq!(set_create.status, 200);
+    assert_eq!(
+        set_create.body["data"]["customerSet"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        set_create.body["data"]["customerSet"]["customer"]["email"],
+        json!("set-create@example.com")
+    );
+
+    let set_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ConsumerCustomerSetByEmail($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer {
+              id
+              firstName
+              email
+              defaultAddress { address1 city province country zip formattedArea }
+              addressesV2(first: 5) {
+                nodes { id address1 city province country zip formattedArea }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "email": "set-route@example.com" },
+            "input": {
+                "email": "set-route@example.com",
+                "firstName": "Updated",
+                "addresses": [{
+                    "address1": "11 Upsert St",
+                    "city": "Toronto",
+                    "countryCode": "CA",
+                    "provinceCode": "ON",
+                    "zip": "M5H 2N2"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(set_update.status, 200);
+    assert_eq!(
+        set_update.body["data"]["customerSet"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        set_update.body["data"]["customerSet"]["customer"]["id"],
+        json!(id)
+    );
+    assert_eq!(
+        set_update.body["data"]["customerSet"]["customer"]["firstName"],
+        json!("Updated")
+    );
+    assert_eq!(
+        set_update.body["data"]["customerSet"]["customer"]["defaultAddress"],
+        json!({
+            "address1": "11 Upsert St",
+            "city": "Toronto",
+            "province": "Ontario",
+            "country": "Canada",
+            "zip": "M5H 2N2",
+            "formattedArea": "Toronto ON, Canada"
+        })
+    );
+    assert_eq!(
+        set_update.body["data"]["customerSet"]["customer"]["addressesV2"]["nodes"][0]["address1"],
+        json!("11 Upsert St")
+    );
+
+    let null_addresses = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ConsumerCustomerSetNullAddresses($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer {
+              defaultAddress { address1 city province country zip formattedArea }
+              addressesV2(first: 5) { nodes { address1 city } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "id": id },
+            "input": { "email": "set-route@example.com", "addresses": null }
+        }),
+    ));
+    assert_eq!(null_addresses.status, 200);
+    assert_eq!(
+        null_addresses.body["data"]["customerSet"]["customer"]["defaultAddress"]["address1"],
+        json!("11 Upsert St")
+    );
+    assert_eq!(
+        null_addresses.body["data"]["customerSet"]["customer"]["addressesV2"]["nodes"][0]["city"],
+        json!("Toronto")
+    );
+
+    let clear_addresses = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ConsumerCustomerSetClearAddresses($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer {
+              defaultAddress { address1 }
+              addressesV2(first: 5) { nodes { address1 } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "id": id },
+            "input": { "email": "set-route@example.com", "addresses": [] }
+        }),
+    ));
+    assert_eq!(clear_addresses.status, 200);
+    assert_eq!(
+        clear_addresses.body["data"]["customerSet"]["customer"]["defaultAddress"],
+        Value::Null
+    );
+    assert_eq!(
+        clear_addresses.body["data"]["customerSet"]["customer"]["addressesV2"],
+        json!({
+            "nodes": [],
+            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null }
+        })
+    );
+
+    let update_identity = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ConsumerCustomerUpdate($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": id, "firstName": "", "lastName": "", "email": "", "phone": "" } }),
+    ));
+    assert_eq!(update_identity.status, 200);
+    assert_eq!(
+        update_identity.body["data"]["customerUpdate"]["userErrors"],
+        json!([{ "field": null, "message": "A name, phone number, or email address must be present" }])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ConsumerCustomerDelete($input: CustomerDeleteInput!) {
+          customerDelete(input: $input) {
+            deletedCustomerId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": create.body["data"]["customerCreate"]["customer"]["id"] } }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["customerDelete"]["deletedCustomerId"],
+        create.body["data"]["customerCreate"]["customer"]["id"]
+    );
+    assert_eq!(
+        delete.body["data"]["customerDelete"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn customer_mutations_hydrate_existing_live_customers_without_passthrough_writes() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        captured_calls.lock().unwrap().push(body.clone());
+        match (
+            body["operationName"].as_str().unwrap_or_default(),
+            body["variables"]["query"].as_str(),
+            body["variables"]["id"].as_str(),
+        ) {
+            ("CustomerDuplicateHydrate", Some("email:upstream@example.com"), _) => {
+                shopify_draft_proxy::proxy::Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "customers": {
+                                "nodes": [{ "id": "gid://shopify/Customer/upstream" }]
+                            }
+                        }
+                    }),
+                }
+            }
+            ("CustomerHydrate", _, Some("gid://shopify/Customer/upstream")) => {
+                shopify_draft_proxy::proxy::Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "customer": {
+                                "id": "gid://shopify/Customer/upstream",
+                                "email": "upstream@example.com",
+                                "displayName": "Upstream Customer",
+                                "defaultEmailAddress": { "emailAddress": "upstream@example.com" },
+                                "defaultPhoneNumber": { "phoneNumber": "+14155550199" },
+                                "canDelete": true,
+                                "verifiedEmail": true,
+                                "taxExempt": false,
+                                "taxExemptions": [],
+                                "tags": [],
+                                "state": "DISABLED",
+                                "locale": "en"
+                            }
+                        }
+                    }),
+                }
+            }
+            _ => shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "customers": { "nodes": [] }, "customer": null } }),
+            },
+        }
+    });
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrdinaryDuplicate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "firstName": "Dupe", "email": "upstream@example.com" } }),
+    ));
+    assert_eq!(duplicate.status, 200);
+    assert_eq!(
+        duplicate.body["data"]["customerCreate"]["customer"],
+        Value::Null
+    );
+    assert_eq!(
+        duplicate.body["data"]["customerCreate"]["userErrors"],
+        json!([{ "field": ["email"], "message": "Email has already been taken" }])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrdinaryUpdate($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id firstName email defaultPhoneNumber { phoneNumber } verifiedEmail }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Customer/upstream", "firstName": "Updated" } }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"]["id"],
+        json!("gid://shopify/Customer/upstream")
+    );
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"]["firstName"],
+        json!("Updated")
+    );
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"]["defaultPhoneNumber"]["phoneNumber"],
+        json!("+14155550199")
+    );
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"]["verifiedEmail"],
+        json!(true)
+    );
+
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    assert_eq!(calls[0]["operationName"], json!("CustomerDuplicateHydrate"));
+    assert_eq!(calls[1]["operationName"], json!("CustomerHydrate"));
+    assert!(calls.iter().all(|call| !call["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("mutation")));
+}
+
+#[test]
 fn customer_update_and_delete_stage_known_fixture_customer_reads() {
     let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerUpdateDeleteSeed($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "email": "update-delete-seed@example.com", "firstName": "Hermes", "lastName": "Create", "phone": "+14155550123" } }),
+    ));
+    let id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
     let update = proxy.process_request(json_graphql_request(
         r#"
         mutation CustomerUpdateParityPlan($input: CustomerInput!) {
@@ -1101,7 +1548,7 @@ fn customer_update_and_delete_stage_known_fixture_customer_reads() {
         "#,
         json!({
             "input": {
-                "id": "gid://shopify/Customer/9102966915305",
+                "id": id,
                 "firstName": "Hermes",
                 "lastName": "Updated",
                 "note": "customer update parity probe",
@@ -1131,19 +1578,19 @@ fn customer_update_and_delete_stage_known_fixture_customer_reads() {
           customerDelete(input: $input) { deletedCustomerId shop { id } userErrors { field message } }
         }
         "#,
-        json!({ "input": { "id": "gid://shopify/Customer/9102966915305" } }),
+        json!({ "input": { "id": id } }),
     ));
     assert_eq!(
         delete.body["data"]["customerDelete"],
         json!({
-            "deletedCustomerId": "gid://shopify/Customer/9102966915305",
+            "deletedCustomerId": id,
             "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
             "userErrors": []
         })
     );
     let read = proxy.process_request(json_graphql_request(
         "query($id: ID!) { customer(id: $id) { id email } }",
-        json!({ "id": "gid://shopify/Customer/9102966915305" }),
+        json!({ "id": id }),
     ));
     assert_eq!(read.body["data"]["customer"], Value::Null);
 }
@@ -1151,7 +1598,21 @@ fn customer_update_and_delete_stage_known_fixture_customer_reads() {
 #[test]
 fn customer_update_rejects_inline_marketing_consent_without_mutating_customer() {
     let mut proxy = snapshot_proxy();
-    let id = "gid://shopify/Customer/9102966915305";
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerUpdateInlineConsentCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "firstName": "Hermes", "lastName": "Original", "email": "inline-consent-baseline@example.com" } }),
+    ));
+    let id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
     let create_baseline = proxy.process_request(json_graphql_request(
         r#"
         mutation CustomerUpdateInlineConsentBaseline($input: CustomerInput!) {
@@ -1585,6 +2046,21 @@ fn customer_create_supports_consent_precondition_shapes_without_synthesizing_mis
 #[test]
 fn customer_by_identifier_supports_id_for_input_validation_downstream_reads() {
     let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerInputValidationSeed($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "email": "input-validation-downstream@example.com", "phone": "+14155550123" } }),
+    ));
+    let id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
     let update = proxy.process_request(json_graphql_request(
         r#"
         mutation CustomerUpdateParityPlan($input: CustomerInput!) {
@@ -1594,7 +2070,7 @@ fn customer_by_identifier_supports_id_for_input_validation_downstream_reads() {
           }
         }
         "#,
-        json!({ "input": { "id": "gid://shopify/Customer/9102966915305", "firstName": "", "lastName": "", "phone": "", "tags": ["Zulu", "alpha", "spaced tag"] } }),
+        json!({ "input": { "id": id, "firstName": "", "lastName": "", "phone": "", "tags": ["Zulu", "alpha", "spaced tag"] } }),
     ));
     let id = update.body["data"]["customerUpdate"]["customer"]["id"]
         .as_str()
@@ -1615,7 +2091,7 @@ fn customer_by_identifier_supports_id_for_input_validation_downstream_reads() {
     );
     assert_eq!(
         read.body["data"]["customerByIdentifier"]["tags"],
-        json!(["Zulu", "alpha", "spaced tag"])
+        json!(["alpha", "spaced tag", "Zulu"])
     );
 }
 

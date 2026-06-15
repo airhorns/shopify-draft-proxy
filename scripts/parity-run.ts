@@ -306,10 +306,14 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
         'hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration' ||
       call.query ===
         'recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration';
+    const isSyntheticCustomerCassette = call.query === 'hand-synthesized from checked-in customer parity capture';
     const canMatchSynthesizedNodeQuery = isSyntheticNodeCassette && /\bnode(?:s)?\s*\(/u.test(query);
+    const canMatchSynthesizedCustomerQuery =
+      isSyntheticCustomerCassette && call.operationName === operationName && operationName.length > 0;
     return (
       variablesMatch &&
       (canMatchSynthesizedNodeQuery ||
+        canMatchSynthesizedCustomerQuery ||
         parsed['query'] === call.query ||
         (call.query === undefined && call.operationName === operationName && operationName.length > 0))
     );
@@ -473,6 +477,11 @@ function matchesRule(value: unknown, rule: ExpectedDifference): boolean {
   if (matcher === 'any-string') return typeof value === 'string';
   if (matcher === 'non-empty-string') return typeof value === 'string' && value.length > 0;
   if (matcher === 'any-number') return typeof value === 'number';
+  if (matcher === 'any-bool') return typeof value === 'boolean';
+  if (matcher.startsWith('exact-bool:')) {
+    const expected = matcher.slice('exact-bool:'.length);
+    return (expected === 'true' && value === true) || (expected === 'false' && value === false);
+  }
   if (matcher === 'iso-timestamp') return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/u.test(value);
   if (matcher === 'storefront-access-token') return typeof value === 'string' && value.length > 0;
   const gidMatch = /^shopify-gid:([A-Za-z][A-Za-z0-9]*)$/u.exec(matcher);
@@ -499,6 +508,7 @@ function diffValues(capture: unknown, proxy: unknown, rules: ExpectedDifference[
   const rule = rules.find((candidate) => ruleMatchesPath(candidate.path, basePath));
   if (rule && matchesRule(proxy, rule)) return [];
   if (Object.is(capture, proxy)) return [];
+  if (sameShopifyGidWithSyntheticMarker(capture, proxy)) return [];
   if (Array.isArray(capture) && Array.isArray(proxy)) {
     const errors: string[] = [];
     const max = Math.max(capture.length, proxy.length);
@@ -514,6 +524,12 @@ function diffValues(capture: unknown, proxy: unknown, rules: ExpectedDifference[
     return errors;
   }
   return [`${basePath}: expected ${JSON.stringify(capture)} got ${JSON.stringify(proxy)}`];
+}
+
+function sameShopifyGidWithSyntheticMarker(capture: unknown, proxy: unknown): boolean {
+  if (typeof capture !== 'string' || typeof proxy !== 'string') return false;
+  if (!capture.startsWith('gid://shopify/') || !proxy.startsWith('gid://shopify/')) return false;
+  return proxy === `${capture}?shopify-draft-proxy=synthetic`;
 }
 
 async function runSpec(
