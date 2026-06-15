@@ -533,9 +533,9 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Query,
             CapabilityDomain::StoreProperties,
             CapabilityExecution::OverlayRead,
-            false,
+            true,
             &["shop", "Shop"],
-            &[],
+            &["tests/graphql_routes.rs"],
         ),
         registry_entry(
             "location",
@@ -1901,9 +1901,9 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::StoreProperties,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &["shopPolicyUpdate", "ShopPolicyUpdate"],
-            &[],
+            &["tests/graphql_routes.rs"],
         ),
         registry_entry(
             "productSavedSearches",

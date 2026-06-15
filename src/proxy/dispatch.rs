@@ -156,6 +156,23 @@ impl DraftProxy {
             return ok_json(json!({ "errors": schema_input_errors }));
         }
 
+        if operation.operation_type == OperationType::Mutation && root_field == "shopPolicyUpdate" {
+            return self.shop_policy_update(request, &query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "shop" | "node" | "nodes"))
+            && operation.root_fields.iter().any(|field| field == "shop")
+            && self.should_handle_shop_policy_query_locally()
+        {
+            if let Some(data) = self.shop_query_data(&query, &variables) {
+                return ok_json(json!({ "data": data }));
+            }
+        }
+
         if matches!(
             root_field,
             "customerCreate" | "companyCreate" | "companyAssignCustomerAsContact"
@@ -1129,6 +1146,9 @@ impl DraftProxy {
                     return ok_json(json!({ "data": data }));
                 }
                 if let Some(data) = self.gift_card_node_read_data(&fields) {
+                    return ok_json(json!({ "data": data }));
+                }
+                if let Some(data) = self.shop_policy_node_read_data(&fields) {
                     return ok_json(json!({ "data": data }));
                 }
             }
@@ -2353,6 +2373,23 @@ impl DraftProxy {
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
                 }
+            }
+            (CapabilityDomain::StoreProperties, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+            {
+                if self.should_handle_shop_policy_query_locally() {
+                    if let Some(data) = self.shop_query_data(&query, &variables) {
+                        return ok_json(json!({ "data": data }));
+                    }
+                }
+                self.dispatch_unknown_passthrough_or_legacy_error(
+                    request,
+                    &query,
+                    &variables,
+                    operation.operation_type,
+                    &operation.root_fields,
+                    root_field,
+                )
             }
             (CapabilityDomain::Functions, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>

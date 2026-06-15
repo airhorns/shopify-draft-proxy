@@ -112,6 +112,8 @@ impl DraftProxy {
                 "productVariantOrder": self.store.base.product_variants.order,
                 "savedSearches": saved_search_state_map_json(&self.store.base.saved_searches.records),
                 "savedSearchOrder": self.store.base.saved_searches.order,
+                "shopPolicies": shop_policy_state_map_json(&self.store.base.shop_policies.records),
+                "shopPolicyOrder": self.store.base.shop_policies.order,
                 "shop": self.store.base.shop.clone(),
                 "publicationIds": self.store.base.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publicationCount": self.store.base.publication_count,
@@ -128,6 +130,9 @@ impl DraftProxy {
                 "savedSearches": saved_search_state_map_json(&self.store.staged.saved_searches.records),
                 "savedSearchOrder": self.store.staged.saved_searches.order,
                 "deletedSavedSearchIds": self.store.staged.saved_searches.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "shopPolicies": shop_policy_state_map_json(&self.store.staged.shop_policies.records),
+                "shopPolicyOrder": self.store.staged.shop_policies.order,
+                "deletedShopPolicyIds": self.store.staged.shop_policies.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "shippingPackages": self.store.staged.shipping_packages.clone(),
                 "deletedShippingPackageIds": self.store.staged.deleted_shipping_package_ids.iter().map(|id| (id.clone(), json!(true))).collect::<serde_json::Map<_, _>>(),
                 "delegatedAccessTokens": self.store.staged.delegate_access_tokens.clone(),
@@ -320,11 +325,21 @@ impl DraftProxy {
             saved_search_state_map_from_json(&state["baseState"]["savedSearches"]),
             string_array_from_json(&state["baseState"]["savedSearchOrder"]),
         );
-        self.store.base.shop = state["baseState"]
+        let base_shop = state["baseState"]
             .get("shop")
             .filter(|shop| shop.is_object())
             .cloned()
             .unwrap_or_else(default_shop_json);
+        let mut base_shop_policies =
+            shop_policy_state_map_from_json(&state["baseState"]["shopPolicies"]);
+        let mut base_shop_policy_order =
+            string_array_from_json(&state["baseState"]["shopPolicyOrder"]);
+        if base_shop_policies.is_empty() {
+            (base_shop_policies, base_shop_policy_order) = shop_policy_state_from_shop(&base_shop);
+        }
+        self.store
+            .replace_base_shop_policies_map_with_order(base_shop_policies, base_shop_policy_order);
+        self.store.base.shop = base_shop;
         self.store.base.publication_ids =
             string_array_from_json(&state["baseState"]["publicationIds"])
                 .into_iter()
@@ -380,6 +395,15 @@ impl DraftProxy {
         );
         self.store.replace_saved_search_tombstones(
             string_array_from_json(&state["stagedState"]["deletedSavedSearchIds"])
+                .into_iter()
+                .collect(),
+        );
+        self.store.replace_staged_shop_policies_map_with_order(
+            shop_policy_state_map_from_json(&state["stagedState"]["shopPolicies"]),
+            string_array_from_json(&state["stagedState"]["shopPolicyOrder"]),
+        );
+        self.store.replace_shop_policy_tombstones(
+            string_array_from_json(&state["stagedState"]["deletedShopPolicyIds"])
                 .into_iter()
                 .collect(),
         );

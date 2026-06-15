@@ -2248,8 +2248,13 @@ impl DraftProxy {
         self.hydrate_shop_state_from_response_data(&response.body["data"]);
     }
 
-    fn hydrate_shop_state_from_response_data(&mut self, data: &Value) {
+    pub(in crate::proxy) fn hydrate_shop_state_from_response_data(&mut self, data: &Value) {
         if let Some(shop) = data.get("shop").filter(|shop| shop.is_object()) {
+            let (policies, order) = shop_policy_state_from_shop(shop);
+            if !policies.is_empty() {
+                self.store
+                    .replace_base_shop_policies_map_with_order(policies, order);
+            }
             self.store.base.shop = shop.clone();
         }
         if let Some(nodes) = data["publications"]["nodes"].as_array() {

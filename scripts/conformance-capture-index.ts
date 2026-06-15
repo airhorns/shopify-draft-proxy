@@ -5139,6 +5139,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/shop-policy-update-title-url-and-body-rendering.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/shop-policy-update-user-error-codes.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/store-properties/shop-policy-update-parity.json',
+      'config/parity-specs/store-properties/shopPolicyUpdate-parity.json',
       'config/parity-specs/store-properties/shop-policy-update-title-url-and-body-rendering.json',
       'config/parity-specs/store-properties/shop-policy-update-user-error-codes.json',
     ],

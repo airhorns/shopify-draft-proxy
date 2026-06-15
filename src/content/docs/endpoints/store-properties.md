@@ -44,12 +44,19 @@ The Rust runtime has scenario-backed store-properties slices for ported parity
 requests and runtime tests. These slices are not general registry support for
 every store-property document.
 
-Shop reads have a baseline fixture-backed slice for selected shop metadata,
-including shop policies, publication aggregates, primary domain, and safe empty
-or null shapes. `shopPolicyUpdate` has local staging evidence for policy body,
-title, URL, migrated-HTML behavior, user-error codes, blank subscription-policy
-validation, downstream `shop.shopPolicies` reads, and generic `node(id:)` /
-`nodes(ids:)` policy dispatch.
+Shop reads have a local store-backed slice for selected shop metadata,
+including staged shop policies, publication aggregates, primary domain, and safe
+empty or null shapes. `shopPolicyUpdate` is dispatched by root field, stages
+policy body/title/URL/timestamps in the Rust store, preserves the original raw
+mutation for commit replay, and exposes read-after-write behavior through
+`shop.shopPolicies` plus generic `node(id:)` / `nodes(ids:)` policy dispatch.
+The local model uses Shopify's deprecated policy title map (`Privacy Policy`,
+`Refund Policy`, `Terms of Service`, `Shipping Policy`, `Subscription Policy`,
+`Contact Information`, `Legal Notice`, and `Terms of Sale`), derives URLs from
+the effective shop domain fallback, accepts bodies up to 524,287 bytes, returns
+`TOO_BIG` above that cap, rejects blank subscription-policy bodies with
+`field: ["shopPolicy", "body"]`, and returns top-level `INVALID_VARIABLE`
+errors for invalid policy enum values or missing/null required bodies.
 
 `locationAdd` now has a generic Rust staging path for public Admin GraphQL
 documents, not only fixture-named parity documents. It stages a synthetic

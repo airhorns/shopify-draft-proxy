@@ -763,6 +763,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                 "productVariantOrder": [],
                 "savedSearches": {},
                 "savedSearchOrder": [],
+                "shopPolicies": {},
+                "shopPolicyOrder": [],
                 "shop": state.body["baseState"]["shop"].clone(),
                 "publicationIds": [],
                 "publicationCount": null,
@@ -856,7 +858,10 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     }
                 },
                 "savedSearchOrder": ["gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic"],
-                "deletedSavedSearchIds": []
+                "deletedSavedSearchIds": [],
+                "shopPolicies": {},
+                "shopPolicyOrder": [],
+                "deletedShopPolicyIds": []
             }
         })
     );

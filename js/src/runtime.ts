@@ -104,7 +104,8 @@ async function fetchJson(origin: string, request: DraftProxyRequest): Promise<Dr
 
 function fetchJsonSync(origin: string, request: DraftProxyRequest, timeoutMs = 10_000): DraftProxyHttpResponse {
   const script = `
-    const request = JSON.parse(process.env.DRAFT_PROXY_REQUEST);
+    const fs = require('node:fs');
+    const request = JSON.parse(fs.readFileSync(0, 'utf8'));
     const timeoutMs = Number(process.env.DRAFT_PROXY_FETCH_TIMEOUT_MS || 10000);
     const signal = AbortSignal.timeout(timeoutMs);
     fetch(process.env.DRAFT_PROXY_URL + request.path, {
@@ -126,21 +127,22 @@ function fetchJsonSync(origin: string, request: DraftProxyRequest, timeoutMs = 1
   `;
   const result = spawnSync(process.execPath, ['-e', script], {
     encoding: 'utf8',
+    input: JSON.stringify({
+      method: request.method,
+      path: request.path,
+      headers: normalizeHeaders(request.headers),
+      body: bodyToString(request.body),
+    }),
     env: {
       ...process.env,
       DRAFT_PROXY_URL: origin,
       DRAFT_PROXY_FETCH_TIMEOUT_MS: String(timeoutMs),
-      DRAFT_PROXY_REQUEST: JSON.stringify({
-        method: request.method,
-        path: request.path,
-        headers: normalizeHeaders(request.headers),
-        body: bodyToString(request.body),
-      }),
     },
+    maxBuffer: 128 * 1024 * 1024,
     timeout: 10_000,
   });
   if (result.status !== 0) {
-    throw new Error(`Rust DraftProxy sync request failed: ${result.stderr || result.stdout}`);
+    throw new Error(`Rust DraftProxy sync request failed: ${result.error?.message || result.stderr || result.stdout}`);
   }
   return JSON.parse(result.stdout) as DraftProxyHttpResponse;
 }
