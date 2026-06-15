@@ -1,7 +1,7 @@
 use super::*;
 
 use crate::graphql::ParsedDocument;
-use std::sync::OnceLock;
+use std::{collections::BTreeSet, sync::OnceLock};
 
 #[derive(Debug, Clone)]
 struct SchemaTypeRef {
@@ -258,6 +258,11 @@ fn validate_resolved_input_object(
         let Some(field_schema) = input_object.get(field_name) else {
             continue;
         };
+        if let Some(problem) = validate_resolved_scalar(field_value, &field_schema.type_ref) {
+            let mut nested_path = problem_path.to_vec();
+            nested_path.push(field_name.clone());
+            problems.push(variable_problem_with_message(&nested_path, &problem));
+        }
         let Some(nested_input_object) = schema.input_objects.get(&field_schema.type_ref.named_type)
         else {
             continue;
@@ -275,6 +280,18 @@ fn validate_resolved_input_object(
         }
     }
     problems
+}
+
+fn validate_resolved_scalar(value: &ResolvedValue, type_ref: &SchemaTypeRef) -> Option<String> {
+    if type_ref.named_type != "Decimal" {
+        return None;
+    }
+    let ResolvedValue::String(raw) = value else {
+        return None;
+    };
+    raw.parse::<f64>()
+        .err()
+        .map(|_| format!("invalid decimal '{raw}'"))
 }
 
 fn root_argument_not_accepted_error(
@@ -398,6 +415,14 @@ fn variable_problem(path: &[String], explanation: &str) -> Value {
     })
 }
 
+fn variable_problem_with_message(path: &[String], explanation: &str) -> Value {
+    json!({
+        "path": path,
+        "explanation": explanation,
+        "message": explanation
+    })
+}
+
 fn input_error_path(context: ValidationContext<'_>, path: &[String], argument_name: &str) -> Value {
     let mut segments = vec![
         Value::String(context.operation_path.to_string()),
@@ -422,8 +447,101 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
             "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/gift-cards/gift-card-create-validation.json"
         ))
         .unwrap_or_else(|_| json!({}));
-        schema_from_fixture(&fixture).unwrap_or_default()
+        let mut schema = schema_from_fixture(&fixture).unwrap_or_default();
+        extend_discount_basic_input_schema(&mut schema);
+        schema
     })
+}
+
+fn extend_discount_basic_input_schema(schema: &mut AdminInputSchema) {
+    let config: Value = serde_json::from_str(include_str!(
+        "../../config/admin-graphql-mutation-schema.json"
+    ))
+    .unwrap_or_else(|_| json!({}));
+    let Some(mutations) = config["mutations"].as_array() else {
+        return;
+    };
+    let Some(input_objects) = config["inputObjects"].as_array() else {
+        return;
+    };
+    let mut visited = BTreeSet::new();
+    for mutation in mutations {
+        let Some(name) = mutation["name"].as_str() else {
+            continue;
+        };
+        if !matches!(
+            name,
+            "discountCodeBasicCreate"
+                | "discountCodeBasicUpdate"
+                | "discountAutomaticBasicCreate"
+                | "discountAutomaticBasicUpdate"
+        ) {
+            continue;
+        }
+        let Some(args) = mutation["args"].as_array() else {
+            continue;
+        };
+        let parsed_args = args
+            .iter()
+            .filter_map(|arg| {
+                Some((
+                    arg["name"].as_str()?.to_string(),
+                    SchemaArgument {
+                        type_ref: schema_type_ref(&arg["type"])?,
+                    },
+                ))
+            })
+            .collect::<BTreeMap<_, _>>();
+        for arg in parsed_args.values() {
+            collect_input_object_schema(
+                &arg.type_ref.named_type,
+                input_objects,
+                &mut schema.input_objects,
+                &mut visited,
+            );
+        }
+        schema.mutation_fields.insert(name.to_string(), parsed_args);
+    }
+}
+
+fn collect_input_object_schema(
+    type_name: &str,
+    input_objects: &[Value],
+    schema_input_objects: &mut BTreeMap<String, BTreeMap<String, SchemaInputField>>,
+    visited: &mut BTreeSet<String>,
+) {
+    if !visited.insert(type_name.to_string()) {
+        return;
+    }
+    let Some(input_object) = input_objects
+        .iter()
+        .find(|input_object| input_object["name"].as_str() == Some(type_name))
+    else {
+        return;
+    };
+    let Some(fields) = input_object["inputFields"].as_array() else {
+        return;
+    };
+    let parsed_fields = fields
+        .iter()
+        .filter_map(|field| {
+            Some((
+                field["name"].as_str()?.to_string(),
+                SchemaInputField {
+                    type_ref: schema_type_ref(&field["type"])?,
+                },
+            ))
+        })
+        .collect::<BTreeMap<_, _>>();
+    for field in parsed_fields.values() {
+        collect_input_object_schema(
+            &field.type_ref.named_type,
+            input_objects,
+            schema_input_objects,
+            visited,
+        );
+    }
+    schema_input_objects.insert(type_name.to_string(), parsed_fields);
 }
 
 fn schema_from_fixture(fixture: &Value) -> Option<AdminInputSchema> {

@@ -1,6 +1,9 @@
 use super::*;
 
 const DISCOUNT_DEFAULT_TIMESTAMP: &str = "2026-04-27T19:32:14Z";
+const DISCOUNT_MINIMUM_QUANTITY_UPPER_BOUND: i64 = 2_147_483_647;
+const DISCOUNT_MINIMUM_SUBTOTAL_UPPER_BOUND: i64 = 1_000_000_000_000_000_000;
+const DISCOUNT_MINIMUM_SUBTOTAL_UPPER_BOUND_DECIMAL: &str = "1000000000000000000";
 
 impl DraftProxy {
     pub(in crate::proxy) fn discounts_query_response(
@@ -596,9 +599,24 @@ fn discount_input_user_errors(
         .is_some()
     {
         errors.push(discount_user_error(
-            vec![input_arg, "minimumRequirement"],
-            "Only one minimum requirement can be specified.",
-            "INVALID",
+            vec![
+                input_arg,
+                "minimumRequirement",
+                "subtotal",
+                "greaterThanOrEqualToSubtotal",
+            ],
+            "Minimum subtotal cannot be defined when minimum quantity is.",
+            "CONFLICT",
+        ));
+        errors.push(discount_user_error(
+            vec![
+                input_arg,
+                "minimumRequirement",
+                "quantity",
+                "greaterThanOrEqualToQuantity",
+            ],
+            "Minimum quantity cannot be defined when minimum subtotal is.",
+            "CONFLICT",
         ));
     }
     if !typename.contains("Bxgy")
@@ -689,11 +707,53 @@ fn discount_numeric_user_error(
             ));
         }
     }
+    if let Some(minimum_quantity) = resolved_i64_path(
+        input,
+        &[
+            "minimumRequirement",
+            "quantity",
+            "greaterThanOrEqualToQuantity",
+        ],
+    ) {
+        if minimum_quantity >= DISCOUNT_MINIMUM_QUANTITY_UPPER_BOUND {
+            return Some(discount_user_error(
+                vec![
+                    input_arg,
+                    "minimumRequirement",
+                    "quantity",
+                    "greaterThanOrEqualToQuantity",
+                ],
+                "Minimum quantity must be less than 2147483647",
+                "LESS_THAN",
+            ));
+        }
+    }
+    if resolved_decimal_path_at_or_above(
+        input,
+        &[
+            "minimumRequirement",
+            "subtotal",
+            "greaterThanOrEqualToSubtotal",
+        ],
+        DISCOUNT_MINIMUM_SUBTOTAL_UPPER_BOUND,
+        DISCOUNT_MINIMUM_SUBTOTAL_UPPER_BOUND_DECIMAL,
+    ) {
+        return Some(discount_user_error(
+            vec![
+                input_arg,
+                "minimumRequirement",
+                "subtotal",
+                "greaterThanOrEqualToSubtotal",
+            ],
+            "Minimum subtotal must be less than 1000000000000000000",
+            "LESS_THAN",
+        ));
+    }
     if let Some(percentage) = resolved_f64_path(input, &["customerGets", "value", "percentage"]) {
-        if percentage <= 0.0 || percentage > 1.0 {
+        if !(0.0..=1.0).contains(&percentage) {
             return Some(discount_user_error(
                 vec![input_arg, "customerGets", "value", "percentage"],
-                "Percentage value must be greater than 0 and less than or equal to 1",
+                "Value must be between 0.0 and 1.0",
                 "VALUE_OUTSIDE_RANGE",
             ));
         }
@@ -702,7 +762,7 @@ fn discount_numeric_user_error(
         input,
         &["customerGets", "value", "discountAmount", "amount"],
     ) {
-        if amount <= 0.0 {
+        if amount < 0.0 {
             return Some(discount_user_error(
                 vec![
                     input_arg,
@@ -711,8 +771,21 @@ fn discount_numeric_user_error(
                     "discountAmount",
                     "amount",
                 ],
-                "Amount must be greater than 0",
-                "VALUE_OUTSIDE_RANGE",
+                "Value must be less than or equal to 0",
+                "LESS_THAN_OR_EQUAL_TO",
+            ));
+        }
+        if amount >= 1_000_000_000_000_000_000.0 {
+            return Some(discount_user_error(
+                vec![
+                    input_arg,
+                    "customerGets",
+                    "value",
+                    "discountAmount",
+                    "amount",
+                ],
+                "Value must be greater than -1000000000000000000",
+                "LESS_THAN",
             ));
         }
     }
@@ -941,6 +1014,49 @@ fn resolved_f64_path(input: &BTreeMap<String, ResolvedValue>, path: &[&str]) -> 
         Some(ResolvedValue::String(value)) => value.parse::<f64>().ok(),
         _ => None,
     }
+}
+
+fn resolved_decimal_path_at_or_above(
+    input: &BTreeMap<String, ResolvedValue>,
+    path: &[&str],
+    integer_limit: i64,
+    decimal_integer_limit: &str,
+) -> bool {
+    match resolved_object_path(Some(&ResolvedValue::Object(input.clone())), path) {
+        Some(ResolvedValue::Int(value)) => *value >= integer_limit,
+        Some(ResolvedValue::Float(value)) => *value >= integer_limit as f64,
+        Some(ResolvedValue::String(value)) => {
+            decimal_string_at_or_above(value, decimal_integer_limit)
+        }
+        _ => false,
+    }
+}
+
+fn decimal_string_at_or_above(raw: &str, integer_limit: &str) -> bool {
+    let trimmed = raw.trim();
+    let unsigned = trimmed.strip_prefix('+').unwrap_or(trimmed);
+    if unsigned.starts_with('-') {
+        return false;
+    }
+    if unsigned.contains('e') || unsigned.contains('E') {
+        return unsigned
+            .parse::<f64>()
+            .map(|value| {
+                integer_limit
+                    .parse::<f64>()
+                    .map(|limit| value >= limit)
+                    .unwrap_or(false)
+            })
+            .unwrap_or(false);
+    }
+    let integer = unsigned.split('.').next().unwrap_or("");
+    if !integer.chars().all(|character| character.is_ascii_digit()) {
+        return false;
+    }
+    let integer = integer.trim_start_matches('0');
+    let integer = if integer.is_empty() { "0" } else { integer };
+    integer.len() > integer_limit.len()
+        || (integer.len() == integer_limit.len() && integer >= integer_limit)
 }
 
 fn discount_status_from_dates(starts_at: &str, ends_at: &Value) -> &'static str {

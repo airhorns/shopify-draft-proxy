@@ -2360,6 +2360,81 @@ fn online_store_storefront_access_token_edges_ported_from_gleam() {
 }
 
 #[test]
+fn web_pixel_create_success_returns_connected_with_non_null_settings() {
+    let mut omitted_proxy = snapshot_proxy();
+    let omitted = omitted_proxy.process_request(json_graphql_request(
+        r#"
+        mutation WebPixelUpdateValidationLocalRuntimeOmittedSettings {
+          webPixelCreate(webPixel: {}) {
+            webPixel { id status settings }
+            userErrors { __typename code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        omitted.body["data"]["webPixelCreate"],
+        json!({
+            "webPixel": {
+                "id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic",
+                "status": "CONNECTED",
+                "settings": {}
+            },
+            "userErrors": []
+        })
+    );
+
+    let mut empty_json_proxy = snapshot_proxy();
+    let empty_json = empty_json_proxy.process_request(json_graphql_request(
+        r#"
+        mutation WebPixelUpdateValidationLocalRuntimeEmptyJsonSettings {
+          webPixelCreate(webPixel: { settings: "{}" }) {
+            webPixel { id status settings }
+            userErrors { __typename code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        empty_json.body["data"]["webPixelCreate"],
+        json!({
+            "webPixel": {
+                "id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic",
+                "status": "CONNECTED",
+                "settings": {}
+            },
+            "userErrors": []
+        })
+    );
+
+    let mut object_proxy = snapshot_proxy();
+    let object = object_proxy.process_request(json_graphql_request(
+        r#"
+        mutation WebPixelUpdateValidationLocalRuntimeObjectSettings {
+          webPixelCreate(webPixel: { settings: { accountID: "abc" } }) {
+            webPixel { id status settings }
+            userErrors { __typename code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        object.body["data"]["webPixelCreate"],
+        json!({
+            "webPixel": {
+                "id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic",
+                "status": "CONNECTED",
+                "settings": {"accountID": "abc"}
+            },
+            "userErrors": []
+        })
+    );
+}
+
+#[test]
 fn online_store_pixel_endpoint_edges_ported_from_gleam() {
     let mut proxy = snapshot_proxy();
 
@@ -2377,7 +2452,7 @@ fn online_store_pixel_endpoint_edges_ported_from_gleam() {
     ));
     assert_eq!(
         web_pixel.body["data"]["create"],
-        json!({"webPixel": {"id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", "status": "NEEDS_CONFIGURATION", "settings": null, "webhookEndpointAddress": null}, "userErrors": []})
+        json!({"webPixel": {"id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic", "status": "CONNECTED", "settings": {}, "webhookEndpointAddress": null}, "userErrors": []})
     );
     assert_eq!(
         web_pixel.body["data"]["duplicate"],
