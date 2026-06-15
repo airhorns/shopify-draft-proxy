@@ -557,19 +557,33 @@ impl DraftProxy {
     ) -> Value {
         let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
+        let mut log_root_field: Option<String> = None;
         for field in fields {
             let value = match field.name.as_str() {
                 "marketCreate" => self.market_create_response(field),
                 "marketUpdate" => self.market_update_response(field),
+                "marketDelete" => self.market_delete_response(field),
                 _ => Value::Null,
             };
-            if let Some(id) = value["market"]["id"].as_str() {
+            if let Some(id) = value["market"]["id"]
+                .as_str()
+                .or_else(|| value["deletedId"].as_str())
+            {
                 staged_ids.push(id.to_string());
+                if log_root_field.is_none() {
+                    log_root_field = Some(field.name.clone());
+                }
             }
             data.insert(field.response_key.clone(), value);
         }
         if !staged_ids.is_empty() {
-            self.record_mutation_log_entry(request, query, variables, "marketCreate", staged_ids);
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                log_root_field.as_deref().unwrap_or("marketCreate"),
+                staged_ids,
+            );
         }
         Value::Object(data)
     }
@@ -725,6 +739,40 @@ impl DraftProxy {
             &json!({ "market": market, "userErrors": [] }),
             &field.selection,
         )
+    }
+
+    pub(in crate::proxy) fn market_delete_response(&mut self, field: &RootFieldSelection) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let payload = if self.store.staged.markets.remove(&id).is_some() {
+            self.cascade_market_delete(&id);
+            json!({"deletedId": id, "userErrors": []})
+        } else {
+            json!({
+                "deletedId": null,
+                "userErrors": [market_user_error(vec!["id"], "Market does not exist", json!("MARKET_NOT_FOUND"))]
+            })
+        };
+        selected_json(&payload, &field.selection)
+    }
+
+    pub(in crate::proxy) fn cascade_market_delete(&mut self, market_id: &str) {
+        self.store.staged.web_presences.retain(|_, web_presence| {
+            !web_presence_market_ids(web_presence)
+                .iter()
+                .any(|id| id == market_id)
+        });
+        for catalog in self.store.staged.catalogs.values_mut() {
+            let mut market_ids = catalog_market_ids(catalog);
+            market_ids.retain(|id| id != market_id);
+            set_catalog_market_ids(catalog, &market_ids);
+        }
+        self.store
+            .staged
+            .localization_translations
+            .retain(|translation| {
+                translation["market"]["id"].as_str() != Some(market_id)
+                    && translation["marketId"].as_str() != Some(market_id)
+            });
     }
 
     pub(in crate::proxy) fn market_update_response(&mut self, field: &RootFieldSelection) -> Value {
@@ -2451,7 +2499,9 @@ impl DraftProxy {
             let field_index = index.to_string();
             let market_id = resolved_object_string(input, "marketId").unwrap_or_default();
             if market_id.contains("missing")
-                || (!market_id.is_empty() && market_id != "gid://shopify/Market/ca")
+                || (!market_id.is_empty()
+                    && market_id != "gid://shopify/Market/ca"
+                    && !self.market_exists(&market_id))
             {
                 return selected_json(
                     &json!({

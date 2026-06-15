@@ -1871,6 +1871,216 @@ fn market_catalog_relation_tail_helpers_ported_from_gleam() {
 }
 
 #[test]
+fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(|request| {
+        panic!("marketDelete must stage locally without upstream passthrough: {request:?}")
+    });
+
+    let market_create_query = r#"
+        mutation RustMarketCreateLocalRuntimeDeleteCreate($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id name catalogs(first: 5) { nodes { id } } webPresences(first: 5) { nodes { id } } }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let market_delete_query = r#"
+        mutation RustMarketRelationsLocalRuntimeDelete($id: ID!) {
+          marketDelete(id: $id) {
+            deletedId
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let market_read_query = r#"
+        query RustMarketRelationsLocalRuntimeDeleteRead($marketId: ID!) {
+          market(id: $marketId) { id }
+        }
+    "#;
+    let catalog_read_query = r#"
+        query RustCatalogLocalRuntimeDeleteCascadeRead($catalogId: ID!) {
+          catalog(id: $catalogId) { id markets(first: 5) { nodes { id } } }
+        }
+    "#;
+    let web_presence_read_query = r#"
+        query RustMarketWebPresenceHelperLocalRuntimeDeleteRead {
+          webPresences(first: 5) { nodes { id markets(first: 5) { nodes { id } } } }
+        }
+    "#;
+    let localization_read_query = r#"
+        query RustMarketLocalizationsLocalRuntimeDeleteRead($resourceId: ID!) {
+          marketLocalizableResource(resourceId: $resourceId) {
+            marketLocalizations { key value market { id name } }
+          }
+        }
+    "#;
+    let catalog_create_query = r#"
+        mutation RustCatalogLocalRuntimeDeleteCascadeCreate($input: CatalogCreateInput!) {
+          catalogCreate(input: $input) {
+            catalog { id markets(first: 5) { nodes { id } } }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let web_presence_create_query = r#"
+        mutation RustMarketWebPresenceHelperLocalRuntimeDeleteCreate($input: WebPresenceCreateInput!) {
+          webPresenceCreate(input: $input) {
+            webPresence { id markets(first: 5) { nodes { id } } }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let market_update_query = r#"
+        mutation RustMarketRelationsLocalRuntimeDeleteLink($id: ID!, $input: MarketUpdateInput!) {
+          marketUpdate(id: $id, input: $input) {
+            market {
+              id
+              catalogs(first: 5) { nodes { id } }
+              webPresences(first: 5) { nodes { id } }
+            }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let localization_register_query = r#"
+        mutation RustMarketLocalizationsLocalRuntimeDeleteRegister($resourceId: ID!, $marketLocalizations: [MarketLocalizationInput!]!) {
+          marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {
+            marketLocalizations { key value market { id name } }
+            userErrors { __typename field code }
+          }
+        }
+    "#;
+
+    let market = proxy.process_request(json_graphql_request(
+        market_create_query,
+        json!({"input": {"name": "Delete Cascade", "regions": [{"countryCode": "DK"}]}}),
+    ));
+    let market_id = market.body["data"]["marketCreate"]["market"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let catalog = proxy.process_request(json_graphql_request(
+        catalog_create_query,
+        json!({"input": {"title": "Delete Cascade Catalog", "status": "ACTIVE", "context": {"driverType": "MARKET", "marketIds": [market_id]}}}),
+    ));
+    let catalog_id = catalog.body["data"]["catalogCreate"]["catalog"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let web_presence = proxy.process_request(json_graphql_request(
+        web_presence_create_query,
+        json!({"input": {"defaultLocale": "en", "subfolderSuffix": "delete"}}),
+    ));
+    let web_presence_id = web_presence.body["data"]["webPresenceCreate"]["webPresence"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let link = proxy.process_request(json_graphql_request(
+        market_update_query,
+        json!({"id": market_id, "input": {"webPresencesToAdd": [web_presence_id]}}),
+    ));
+    assert_eq!(link.body["data"]["marketUpdate"]["userErrors"], json!([]));
+
+    let register = proxy.process_request(json_graphql_request(
+        localization_register_query,
+        json!({
+            "resourceId": "gid://shopify/Metafield/localizable",
+            "marketLocalizations": [{
+                "marketId": market_id,
+                "key": "title",
+                "value": "Titre",
+                "marketLocalizableContentDigest": "digest-title"
+            }]
+        }),
+    ));
+    assert_eq!(
+        register.body["data"]["marketLocalizationsRegister"]["userErrors"],
+        json!([])
+    );
+
+    let log_len_before_delete = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .unwrap()
+        .len();
+    let unknown = proxy.process_request(json_graphql_request(
+        market_delete_query,
+        json!({"id": "gid://shopify/Market/9999999"}),
+    ));
+    assert_eq!(
+        unknown.body["data"]["marketDelete"],
+        json!({"deletedId": null, "userErrors": [{"__typename": "MarketUserError", "field": ["id"], "message": "Market does not exist", "code": "MARKET_NOT_FOUND"}]})
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        log_len_before_delete,
+        "unknown marketDelete should not stage a commit replay entry"
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        market_delete_query,
+        json!({"id": "gid://shopify/Market/1"}),
+    ));
+    assert_eq!(
+        delete.body["data"]["marketDelete"],
+        json!({"deletedId": "gid://shopify/Market/1", "userErrors": []})
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        market_read_query,
+        json!({"marketId": "gid://shopify/Market/1"}),
+    ));
+    assert_eq!(read.body["data"]["market"], Value::Null);
+    let catalog_read = proxy.process_request(json_graphql_request(
+        catalog_read_query,
+        json!({"catalogId": catalog_id}),
+    ));
+    assert_eq!(
+        catalog_read.body["data"]["catalog"]["markets"]["nodes"],
+        json!([])
+    );
+    let web_presence_read =
+        proxy.process_request(json_graphql_request(web_presence_read_query, json!({})));
+    assert_eq!(
+        web_presence_read.body["data"]["webPresences"]["nodes"],
+        json!([])
+    );
+    let localization_read = proxy.process_request(json_graphql_request(
+        localization_read_query,
+        json!({"resourceId": "gid://shopify/Metafield/localizable"}),
+    ));
+    assert_eq!(
+        localization_read.body["data"]["marketLocalizableResource"]["marketLocalizations"],
+        json!([])
+    );
+
+    let log = proxy.get_log_snapshot();
+    let delete_entry = log["entries"].as_array().unwrap().last().unwrap();
+    assert_eq!(
+        delete_entry["interpreted"]["rootFields"],
+        json!(["marketDelete"])
+    );
+    assert_eq!(
+        delete_entry["interpreted"]["primaryRootField"],
+        json!("marketDelete")
+    );
+    assert_eq!(
+        delete_entry["stagedResourceIds"],
+        json!(["gid://shopify/Market/1"])
+    );
+    assert!(delete_entry["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("RustMarketRelationsLocalRuntimeDelete"));
+}
+
+#[test]
 fn price_list_fixed_prices_ported_gleam_helpers_stage_and_validate() {
     // Ports old Gleam fixed-price helper behavior from markets_mutation_test.gleam:
     // by-product bulk validation/staging, fixed price add/update/delete lifecycle,
