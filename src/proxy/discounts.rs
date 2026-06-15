@@ -1,6 +1,8 @@
 use super::*;
 
 const DISCOUNT_DEFAULT_TIMESTAMP: &str = "2026-04-27T19:32:14Z";
+const DISCOUNT_CONTEXT_CUSTOMER_SELECTION_CONFLICT_MESSAGE: &str =
+    "Only one of context or customerSelection can be provided.";
 
 impl DraftProxy {
     pub(in crate::proxy) fn discounts_query_response(
@@ -119,6 +121,8 @@ impl DraftProxy {
                 "automatic",
                 "DiscountAutomaticFreeShipping",
             ),
+            "discountCodeAppCreate" => self.discount_code_app_validation(field, "codeAppDiscount"),
+            "discountCodeAppUpdate" => self.discount_code_app_validation(field, "codeAppDiscount"),
             "discountCodeActivate"
             | "discountCodeDeactivate"
             | "discountAutomaticActivate"
@@ -206,6 +210,31 @@ impl DraftProxy {
             discount_payload_for_root(&field.name, discount_node_for_record(&record), Vec::new()),
             LogDraft::staged(&field.name, "discounts", vec![id]),
         )
+    }
+
+    fn discount_code_app_validation(
+        &self,
+        field: &RootFieldSelection,
+        input_arg: &str,
+    ) -> MutationFieldOutcome {
+        let user_errors = discount_input(field, input_arg)
+            .as_ref()
+            .and_then(|input| discount_context_customer_selection_user_error(input, input_arg))
+            .into_iter()
+            .collect::<Vec<_>>();
+        if !user_errors.is_empty() {
+            return MutationFieldOutcome::unlogged(discount_code_app_payload(
+                Value::Null,
+                user_errors,
+            ));
+        }
+        MutationFieldOutcome::unlogged(discount_code_app_payload(
+            Value::Null,
+            vec![discount_null_field_user_error(
+                "Local staging for this discount mutation is not implemented.",
+                Some("NOT_IMPLEMENTED"),
+            )],
+        ))
     }
 
     fn discount_status_transition(&mut self, field: &RootFieldSelection) -> MutationFieldOutcome {
@@ -571,18 +600,8 @@ fn discount_input_user_errors(
             )),
         }
     }
-    if resolved_object_path(Some(&ResolvedValue::Object(input.clone())), &["context"]).is_some()
-        && resolved_object_path(
-            Some(&ResolvedValue::Object(input.clone())),
-            &["customerSelection"],
-        )
-        .is_some()
-    {
-        errors.push(discount_user_error(
-            vec![input_arg, "context"],
-            "Specify either context or customerSelection, not both.",
-            "INVALID",
-        ));
+    if let Some(error) = discount_context_customer_selection_user_error(input, input_arg) {
+        errors.push(error);
     }
     if resolved_object_path(
         Some(&ResolvedValue::Object(input.clone())),
@@ -621,6 +640,23 @@ fn discount_input_user_errors(
         errors.push(error);
     }
     errors
+}
+
+fn discount_context_customer_selection_user_error(
+    input: &BTreeMap<String, ResolvedValue>,
+    input_arg: &str,
+) -> Option<Value> {
+    let input_value = ResolvedValue::Object(input.clone());
+    if resolved_object_path(Some(&input_value), &["context"]).is_some()
+        && resolved_object_path(Some(&input_value), &["customerSelection"]).is_some()
+    {
+        return Some(discount_user_error(
+            vec![input_arg, "context"],
+            DISCOUNT_CONTEXT_CUSTOMER_SELECTION_CONFLICT_MESSAGE,
+            "INVALID",
+        ));
+    }
+    None
 }
 
 fn discount_subscription_field_user_error(
@@ -880,6 +916,13 @@ fn discount_payload_for_root(root: &str, node: Value, user_errors: Vec<Value>) -
     };
     json!({
         node_key: if node.is_null() { Value::Null } else { node },
+        "userErrors": user_errors
+    })
+}
+
+fn discount_code_app_payload(node: Value, user_errors: Vec<Value>) -> Value {
+    json!({
+        "codeAppDiscount": if node.is_null() { Value::Null } else { node },
         "userErrors": user_errors
     })
 }
