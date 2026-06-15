@@ -47,6 +47,7 @@ impl DraftProxy {
 
     fn admin_platform_query_response(
         &self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         root_field: &str,
@@ -67,7 +68,17 @@ impl DraftProxy {
             }
             "domain" => ok_json(json!({ "data": self.domain_query_data(&fields) })),
             "job" => ok_json(json!({ "data": self.product_tail_job_query_data(&fields) })),
-            "node" | "nodes" => ok_json(json!({ "data": self.local_node_query_data(&fields) })),
+            "node" | "nodes" => {
+                if let Some(data) = self.local_node_query_data(&fields, false) {
+                    ok_json(json!({ "data": data }))
+                } else if self.config.read_mode != ReadMode::Snapshot {
+                    (self.upstream_transport)(request.clone())
+                } else {
+                    ok_json(
+                        json!({ "data": self.local_node_query_data(&fields, true).unwrap_or_else(|| Value::Object(serde_json::Map::new())) }),
+                    )
+                }
+            }
             _ => json_error(
                 501,
                 &format!(
@@ -169,13 +180,18 @@ impl DraftProxy {
         Value::Object(data)
     }
 
-    fn local_node_query_data(&self, fields: &[RootFieldSelection]) -> Value {
+    fn local_node_query_data(
+        &self,
+        fields: &[RootFieldSelection],
+        allow_unknown_null: bool,
+    ) -> Option<Value> {
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = match field.name.as_str() {
                 "node" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
                     self.local_node_value_by_id(&id, &field.selection)
+                        .or_else(|| allow_unknown_null.then_some(Value::Null))?
                 }
                 "nodes" => Value::Array(
                     field
@@ -184,14 +200,17 @@ impl DraftProxy {
                         .map(resolved_string_list)
                         .unwrap_or_default()
                         .into_iter()
-                        .map(|id| self.local_node_value_by_id(&id, &field.selection))
-                        .collect(),
+                        .map(|id| {
+                            self.local_node_value_by_id(&id, &field.selection)
+                                .or_else(|| allow_unknown_null.then_some(Value::Null))
+                        })
+                        .collect::<Option<Vec<_>>>()?,
                 ),
                 _ => continue,
             };
             data.insert(field.response_key.clone(), value);
         }
-        Value::Object(data)
+        Some(Value::Object(data))
     }
 
     fn abandonment_read_data(
@@ -278,43 +297,44 @@ impl DraftProxy {
         }))
     }
 
-    fn local_node_value_by_id(&self, id: &str, selection: &[SelectedField]) -> Value {
+    fn local_node_value_by_id(&self, id: &str, selection: &[SelectedField]) -> Option<Value> {
         if let Some(data) = local_node_value(id, selection, Some(&self.store.staged.backup_region))
         {
-            return data;
+            return Some(data);
         }
         if shopify_gid_resource_type(id) == Some("ProductVariant") {
             let value = self.product_variant_by_id_value(id, selection);
             if !value.is_null() {
-                return value;
+                return Some(value);
             }
         }
         if let Some(operation) = self.product_delete_operation_value_by_id(id, selection) {
-            return operation;
+            return Some(operation);
         }
         if let Some(segment) = self.store.staged.segments.get(id) {
-            return selected_json(segment, selection);
+            return Some(selected_json(segment, selection));
         }
         if let Some(query) = self.store.staged.customer_segment_member_queries.get(id) {
-            return selected_json(query, selection);
+            return Some(selected_json(query, selection));
         }
         if let Some(abandonment) = self.store.staged.abandonments.get(id) {
-            return selected_json(abandonment, selection);
+            return Some(selected_json(abandonment, selection));
         }
         if let Some(value) = self.app_node_value_by_id(id, selection) {
-            return value;
+            return Some(value);
         }
         if shopify_gid_resource_type(id) == Some("GiftCard") {
-            return self
-                .store
-                .staged
-                .gift_cards
-                .get(id)
-                .map(|card| selected_json(card, selection))
-                .unwrap_or(Value::Null);
+            return Some(
+                self.store
+                    .staged
+                    .gift_cards
+                    .get(id)
+                    .map(|card| selected_json(card, selection))
+                    .unwrap_or(Value::Null),
+            );
         }
         if let Some(cart_transform) = self.store.staged.function_cart_transforms.get(id) {
-            return selected_json(cart_transform, selection);
+            return Some(selected_json(cart_transform, selection));
         }
         if let Some(cart_transform) = self
             .store
@@ -323,12 +343,12 @@ impl DraftProxy {
             .as_ref()
             .filter(|record| record.get("id").and_then(Value::as_str) == Some(id))
         {
-            return selected_json(cart_transform, selection);
+            return Some(selected_json(cart_transform, selection));
         }
         if let Some(discount) = self.discount_node_value_by_id(id, selection) {
-            return discount;
+            return Some(discount);
         }
-        Value::Null
+        None
     }
 
     fn app_node_value_by_id(&self, id: &str, selection: &[SelectedField]) -> Option<Value> {
@@ -657,7 +677,7 @@ impl DraftProxy {
             (CapabilityDomain::AdminPlatform, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
             {
-                self.admin_platform_query_response(&query, &variables, root_field)
+                self.admin_platform_query_response(request, &query, &variables, root_field)
             }
             (CapabilityDomain::AdminPlatform, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation

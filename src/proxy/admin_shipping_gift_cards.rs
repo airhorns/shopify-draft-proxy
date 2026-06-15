@@ -300,63 +300,6 @@ impl DraftProxy {
         Value::Object(data)
     }
 
-    pub(in crate::proxy) fn app_node_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Option<Value> {
-        let mut data = serde_json::Map::new();
-        let mut handled = false;
-        for field in fields {
-            if field.name != "node" {
-                continue;
-            }
-            let id = field
-                .arguments
-                .get("id")
-                .and_then(resolved_as_string)
-                .unwrap_or_default();
-            let value = match id.as_str() {
-                "gid://shopify/AppInstallation/expected" if self.store.staged.app_uninstalled => {
-                    Value::Null
-                }
-                "gid://shopify/AppInstallation/expected" => current_app_installation_json(
-                    &self.store.staged.app_subscriptions,
-                    &self.store.staged.app_one_time_purchases,
-                    &self.store.staged.revoked_app_access_scopes,
-                    &field.selection,
-                ),
-                "gid://shopify/App/expected" => selected_json(&local_app_json(), &field.selection),
-                _ => {
-                    if let Some(subscription) = self.store.staged.app_subscriptions.get(&id) {
-                        let type_selection = selected_fields_named(
-                            &field.selection,
-                            &["__typename", "id", "status", "trialDays", "lineItems"],
-                        );
-                        selected_json(subscription, &type_selection)
-                    } else if let Some(purchase) = self.store.staged.app_one_time_purchases.get(&id)
-                    {
-                        let type_selection = selected_fields_named(
-                            &field.selection,
-                            &["id", "name", "status", "test", "price"],
-                        );
-                        selected_json(purchase, &type_selection)
-                    } else if let Some(usage_record) = self.find_staged_app_usage_record(&id) {
-                        let type_selection = selected_fields_named(
-                            &field.selection,
-                            &["id", "description", "price", "subscriptionLineItem"],
-                        );
-                        selected_json(&usage_record, &type_selection)
-                    } else {
-                        continue;
-                    }
-                }
-            };
-            handled = true;
-            data.insert(field.response_key.clone(), value);
-        }
-        handled.then_some(Value::Object(data))
-    }
-
     pub(in crate::proxy) fn find_staged_app_usage_record(&self, id: &str) -> Option<Value> {
         self.store
             .staged
@@ -1411,24 +1354,6 @@ impl DraftProxy {
                 )
             }
         }))
-    }
-
-    pub(in crate::proxy) fn collection_read_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            if field.name == "collection" {
-                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                let value = self
-                    .store
-                    .staged
-                    .collections
-                    .get(&id)
-                    .map(|collection| selected_json(collection, &field.selection))
-                    .unwrap_or(Value::Null);
-                data.insert(field.response_key.clone(), value);
-            }
-        }
-        Value::Object(data)
     }
 
     pub(in crate::proxy) fn location_mutation(
@@ -2754,30 +2679,47 @@ impl DraftProxy {
             .insert(id, location);
     }
 
-    fn location_name_exists(&self, name: &str) -> bool {
-        let normalized = name.trim().to_lowercase();
-        self.store.staged.locations.values().any(|location| {
-            location
-                .get("name")
-                .and_then(Value::as_str)
-                .is_some_and(|existing| existing.trim().eq_ignore_ascii_case(&normalized))
-        })
+    pub(in crate::proxy) fn segment_read_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "segment" => {
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                    self.store
+                        .staged
+                        .segments
+                        .get(&id)
+                        .map(|segment| selected_json(segment, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "segments" => {
+                    let records = self
+                        .store
+                        .staged
+                        .segments
+                        .values()
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    selected_connection_json_with_args(
+                        records,
+                        &field.arguments,
+                        &field.selection,
+                        value_id_cursor,
+                    )
+                }
+                "segmentsCount" => {
+                    segment_count_json(self.store.staged.segments.len(), &field.selection)
+                }
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
     }
 
-    fn location_limit_reached(&self) -> bool {
-        self.store.staged.location_limit_reached
-            || self
-                .store
-                .staged
-                .locations
-                .values()
-                .filter(|location| location.get("isActive").and_then(Value::as_bool) == Some(true))
-                .count()
-                >= 200
-    }
-
-    pub(in crate::proxy) fn location_deactivate(
+    pub(in crate::proxy) fn segment_mutation(
         &mut self,
+        root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
@@ -2785,7 +2727,7 @@ impl DraftProxy {
         let Some(document) = parsed_document(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
-        let fields = document
+        let Some(field) = document
             .root_fields
             .iter()
             .filter(|field| {
@@ -3143,66 +3085,7 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn shipping_fulfillment_order_read_response(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let Some(fields) = root_fields(query, variables) else {
-            return json_error(400, "Could not parse shipping fulfillment-order read");
-        };
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
-                "fulfillmentOrder" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.ensure_shipping_fulfillment_order_hydrated(request, &id);
-                    let fulfillment_order = self
-                        .shipping_fulfillment_order_by_id(&id)
-                        .unwrap_or(Value::Null);
-                    nullable_selected_json(&fulfillment_order, &field.selection)
-                }
-                "fulfillmentOrders" => {
-                    let include_closed =
-                        resolved_bool_field(&field.arguments, "includeClosed").unwrap_or(false);
-                    let mut nodes = self.shipping_fulfillment_orders();
-                    if !include_closed {
-                        nodes.retain(|order| {
-                            !matches!(order["status"].as_str(), Some("CLOSED") | Some("CANCELLED"))
-                        });
-                    }
-                    selected_connection_json_with_args(
-                        nodes,
-                        &field.arguments,
-                        &field.selection,
-                        value_id_cursor,
-                    )
-                }
-                "manualHoldsFulfillmentOrders" => {
-                    let nodes = self
-                        .shipping_fulfillment_orders()
-                        .into_iter()
-                        .filter(|order| {
-                            order["status"].as_str() == Some("ON_HOLD")
-                                || !fulfillment_order_holds(order).is_empty()
-                        })
-                        .collect::<Vec<_>>();
-                    selected_connection_json_with_args(
-                        nodes,
-                        &field.arguments,
-                        &field.selection,
-                        value_id_cursor,
-                    )
-                }
-                _ => continue,
-            };
-            data.insert(field.response_key, value);
-        }
-        ok_json(json!({ "data": Value::Object(data) }))
-    }
-
-    pub(in crate::proxy) fn shipping_fulfillment_order_mutation_response(
+    pub(in crate::proxy) fn customer_segment_members_query_create(
         &mut self,
         root_field: &str,
         request: &Request,
@@ -4832,31 +4715,7 @@ impl DraftProxy {
         ok_json(json!({ "data": Value::Object(data) }))
     }
 
-    pub(in crate::proxy) fn should_handle_shipping_fulfillment_order_local_order_read(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> bool {
-        let Some(fields) = root_fields(query, variables) else {
-            return false;
-        };
-        fields.iter().any(|field| match field.name.as_str() {
-            "order" => {
-                let order_id = resolved_string_arg(&field.arguments, "id")
-                    .or_else(|| resolved_string_arg(&field.arguments, "orderId"));
-                let selects_fulfillment_orders =
-                    selected_child_selection(&field.selection, "fulfillmentOrders").is_some();
-                selects_fulfillment_orders
-                    && order_id.is_some_and(|id| self.store.staged.orders.contains_key(&id))
-            }
-            "fulfillmentOrder" | "fulfillmentOrders" | "manualHoldsFulfillmentOrders" => {
-                !self.store.staged.orders.is_empty()
-            }
-            _ => false,
-        })
-    }
-
-    pub(in crate::proxy) fn product_publishable_mutation(
+    pub(in crate::proxy) fn gift_card_mutation_response(
         &mut self,
         root_field: &str,
         query: &str,

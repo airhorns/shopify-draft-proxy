@@ -1616,30 +1616,6 @@ pub(in crate::proxy) fn destination_location_not_found_or_inactive_error() -> Va
     })
 }
 
-pub(in crate::proxy) fn is_fulfillment_order_move_assignment_status_request(
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    resolved_string_field(variables, "id")
-        .map(|id| id.contains("/move-assignment-"))
-        .unwrap_or(false)
-}
-
-pub(in crate::proxy) fn is_shipping_fulfillment_order_status_precondition_request(
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    resolved_string_field(variables, "id")
-        .map(|id| id.contains("/status-precondition-"))
-        .unwrap_or(false)
-}
-
-pub(in crate::proxy) fn is_fulfillment_order_deadline_request(
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    resolved_string_list_field_unsorted(variables, "fulfillmentOrderIds")
-        .iter()
-        .any(|id| id.contains("/deadline-") || id == "gid://shopify/FulfillmentOrder/9999999")
-}
-
 pub(in crate::proxy) fn is_shipping_fulfillment_order_local_order_read(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
@@ -1671,32 +1647,6 @@ pub(in crate::proxy) fn is_fulfillment_order_request_lifecycle_direct_read(
                     .map(|id| id == "gid://shopify/FulfillmentOrder/9656703910194")
                     .unwrap_or(false)
         })
-}
-
-pub(in crate::proxy) fn product_publication_aggregate_downstream_read(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Response {
-    let response_key = root_field_response_key(query).unwrap_or_else(|| "product".to_string());
-    let selection = root_field_selection(query).unwrap_or_default();
-    let arguments = root_field_arguments(query, variables).unwrap_or_default();
-    let id = resolved_string_field(&arguments, "id")
-        .unwrap_or_else(|| "gid://shopify/Product/9264105488617".to_string());
-    let product = if id == "gid://shopify/Product/9264105488617" {
-        json!({
-            "id": id,
-            "publishedOnCurrentPublication": false,
-            "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
-            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
-        })
-    } else {
-        Value::Null
-    };
-    ok_json(json!({
-        "data": {
-            response_key: if product.is_null() { Value::Null } else { selected_json(&product, &selection) }
-        }
-    }))
 }
 
 pub(in crate::proxy) fn carrier_service_record(
