@@ -1301,7 +1301,7 @@ fn discount_automatic_basic_buyer_context_lifecycle_stages_selected_context_read
 }
 
 #[test]
-fn discount_automatic_nodes_read_returns_captured_catalog_connection_shape() {
+fn discount_automatic_nodes_read_returns_empty_connection_without_staged_discounts() {
     let mut proxy = snapshot_proxy();
 
     let response = proxy.process_request(json_graphql_request(
@@ -1327,48 +1327,19 @@ fn discount_automatic_nodes_read_returns_captured_catalog_connection_shape() {
     assert_eq!(response.status, 200);
     assert_eq!(
         response.body["data"]["automaticDiscountNodes"]["nodes"],
-        json!([
-            {
-                "id": "gid://shopify/DiscountAutomaticNode/1547497439538",
-                "automaticDiscount": {
-                    "__typename": "DiscountAutomaticBxgy",
-                    "title": "Buy one, get the second 10 percent off",
-                    "status": "EXPIRED",
-                    "summary": "Buy 1 item, get 1 item at 10% off",
-                    "startsAt": "2025-04-10T00:00:00Z",
-                    "endsAt": "2025-04-25T00:00:00Z",
-                    "createdAt": "2025-03-26T19:51:38Z",
-                    "updatedAt": "2025-03-26T19:51:38Z",
-                    "asyncUsageCount": 0,
-                    "discountClasses": ["PRODUCT"],
-                    "combinesWith": { "productDiscounts": false, "orderDiscounts": false, "shippingDiscounts": false }
-                }
-            },
-            {
-                "id": "gid://shopify/DiscountAutomaticNode/1547497472306",
-                "automaticDiscount": {
-                    "__typename": "DiscountAutomaticBasic",
-                    "title": "Buy three, get 30 percent off",
-                    "status": "EXPIRED",
-                    "summary": "30% off The Complete Snowboard (Ice) • Minimum quantity of 3",
-                    "startsAt": "2025-03-26T00:00:00Z",
-                    "endsAt": "2025-04-05T00:00:00Z",
-                    "createdAt": "2025-03-26T19:51:38Z",
-                    "updatedAt": "2025-03-26T19:51:38Z",
-                    "asyncUsageCount": 0,
-                    "discountClasses": ["PRODUCT"],
-                    "combinesWith": { "productDiscounts": true, "orderDiscounts": false, "shippingDiscounts": false }
-                }
-            }
-        ])
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["automaticDiscountNodes"]["edges"],
+        json!([])
     );
     assert_eq!(
         response.body["data"]["automaticDiscountNodes"]["pageInfo"],
         json!({
             "hasNextPage": false,
             "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDM5NTM4LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDM5NTM4fQ==",
-            "endCursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDcyMzA2LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDcyMzA2fQ=="
+            "startCursor": null,
+            "endCursor": null
         })
     );
 }

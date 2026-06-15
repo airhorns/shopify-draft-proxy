@@ -108,6 +108,24 @@ fn operation_capability_returns_registry_match_for_local_dispatch_roots_only() {
         Some("customerCreate")
     );
 
+    let implemented_without_dispatch_root = operation_capability(
+        &registry,
+        OperationType::Query,
+        Some("definitelyNotALocalDispatchRoot"),
+    );
+    assert_eq!(
+        implemented_without_dispatch_root.domain,
+        CapabilityDomain::Unknown
+    );
+    assert_eq!(
+        implemented_without_dispatch_root.execution,
+        CapabilityExecution::Passthrough
+    );
+    assert_eq!(
+        implemented_without_dispatch_root.operation_name.as_deref(),
+        Some("definitelyNotALocalDispatchRoot")
+    );
+
     let unimplemented = operation_capability(&registry, OperationType::Query, Some("app"));
     assert_eq!(unimplemented.domain, CapabilityDomain::Unknown);
     assert_eq!(unimplemented.execution, CapabilityExecution::Passthrough);
@@ -208,23 +226,23 @@ fn local_dispatch_roots_are_a_subset_of_implemented_entries() {
         .map(dispatch_key_from_local_root)
         .collect();
 
-    // Every uniform table-dispatch root must be marked implemented. The reverse no longer holds:
-    // `implemented` also covers the document-gated special-case handlers, which have no dispatch
-    // root and reach their local responses earlier in dispatch.
+    // The dispatch root table is now the full local-routing inventory. There are no
+    // document-gated local handlers outside this table.
     let missing: Vec<&DispatchKey> = dispatch_roots.difference(&implemented).collect();
     assert!(
         missing.is_empty(),
         "every local dispatch root must be an implemented registry entry; missing: {missing:?}"
     );
+    let missing_dispatch_roots: Vec<&DispatchKey> =
+        implemented.difference(&dispatch_roots).collect();
+    assert!(
+        missing_dispatch_roots.is_empty(),
+        "every implemented registry entry must have a local dispatch root; missing: {missing_dispatch_roots:?}"
+    );
 }
 
 #[test]
-fn implemented_entries_never_route_into_table_dispatch_501_arms() {
-    // The proxy's promise is that an implemented operation never 501s. The table dispatch only
-    // returns a non-passthrough capability (and thus can reach a 501 arm) when a LOCAL_DISPATCH_ROOT
-    // exists. So every implemented entry that is NOT a dispatch root must resolve to
-    // Unknown/Passthrough here, guaranteeing it either was already handled in the special-case
-    // chain or passes through upstream — never an error from the table dispatch.
+fn implemented_entries_route_through_local_dispatch_roots() {
     let registry = default_registry();
     let dispatch_roots: BTreeSet<DispatchKey> = local_dispatch_roots()
         .iter()
@@ -234,32 +252,22 @@ fn implemented_entries_never_route_into_table_dispatch_501_arms() {
     for entry in implemented_entries(&registry) {
         let capability =
             operation_capability(&registry, entry.operation_type, Some(entry.name.as_str()));
-        if dispatch_roots.contains(&dispatch_key_from_registry_entry(entry)) {
-            assert_eq!(
-                capability.domain, entry.domain,
-                "{} is a dispatch root and must keep its capability domain",
-                entry.name
-            );
-            assert_ne!(
-                capability.execution,
-                CapabilityExecution::Passthrough,
-                "{} is a dispatch root and must dispatch locally",
-                entry.name
-            );
-        } else {
-            assert_eq!(
-                capability.domain,
-                CapabilityDomain::Unknown,
-                "implemented non-dispatch-root {} must resolve to Unknown so it cannot 501",
-                entry.name
-            );
-            assert_eq!(
-                capability.execution,
-                CapabilityExecution::Passthrough,
-                "implemented non-dispatch-root {} must resolve to Passthrough so it cannot 501",
-                entry.name
-            );
-        }
+        assert!(
+            dispatch_roots.contains(&dispatch_key_from_registry_entry(entry)),
+            "{} is implemented and must be present in LOCAL_DISPATCH_ROOTS",
+            entry.name
+        );
+        assert_eq!(
+            capability.domain, entry.domain,
+            "{} is a dispatch root and must keep its capability domain",
+            entry.name
+        );
+        assert_ne!(
+            capability.execution,
+            CapabilityExecution::Passthrough,
+            "{} is a dispatch root and must dispatch locally",
+            entry.name
+        );
     }
 }
 

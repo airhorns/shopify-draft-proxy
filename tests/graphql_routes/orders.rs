@@ -5561,60 +5561,43 @@ fn order_edit_begin_rejects_not_editable_and_existing_open_session() {
         json!(["base"])
     );
 
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-happy-path.json"
-    ))
-    .unwrap();
-    let first_begin = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql"),
-        fixture["variables"].clone(),
-    ));
-    assert_eq!(
-        first_begin.body["data"]["orderEditBegin"]["userErrors"],
-        json!([])
-    );
-    let duplicate_begin = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql"),
-        fixture["variables"].clone(),
-    ));
-    assert_eq!(
-        duplicate_begin.body["data"]["orderEditBegin"]["calculatedOrder"],
-        Value::Null
-    );
-    assert_eq!(
-        duplicate_begin.body["data"]["orderEditBegin"]["userErrors"][0]["field"],
-        json!(["base"])
-    );
-}
-
 #[test]
-fn order_edit_add_variant_and_set_quantity_validate_unknown_session_targets() {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-happy-path.json"
+fn remaining_order_fixture_tail_roots_are_not_registered_local_support() {
+    let residual_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/orders/order-edit-residual-local-staging.json"
     ))
     .unwrap();
-
-    let mut variant_proxy = snapshot_proxy();
-    let begin = variant_proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql"),
-        fixture["variables"].clone(),
-    ));
-    let calculated_id = begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
-    let unknown_variant = variant_proxy.process_request(json_graphql_request(
+    let delete_fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/local-runtime/2026-04/orders/orderDelete-cascade-and-deletability.json"
+    ))
+    .unwrap();
+    let mut fulfillment_proxy = snapshot_proxy();
+    let cancel = fulfillment_proxy.process_request(json_graphql_request(
         include_str!(
-            "../../config/parity-requests/orders/orderEditExistingWorkflow-addVariant.graphql"
+            "../../config/parity-requests/orders/fulfillment-state-preconditions-cancel.graphql"
+        ),
+        json!({ "id": "gid://shopify/Fulfillment/6189145325801" }),
+    ));
+    assert_eq!(cancel.status, 400);
+    assert_eq!(
+        cancel.body["errors"][0]["message"],
+        json!("No mutation dispatcher implemented for root field: fulfillmentCancel")
+    );
+    assert_eq!(fulfillment_proxy.get_log_snapshot()["entries"], json!([]));
+
+    let tracking = fulfillment_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/fulfillment-state-preconditions-tracking.graphql"
         ),
         json!({
-            "id": calculated_id,
-            "variantId": "gid://shopify/ProductVariant/99999999",
-            "quantity": 1,
-            "locationId": "gid://shopify/Location/68509171945",
-            "allowDuplicates": false
+            "fulfillmentId": "gid://shopify/Fulfillment/6189145325801",
+            "trackingInfoInput": { "number": "TRACK" }
         }),
     ));
+    assert_eq!(tracking.status, 400);
     assert_eq!(
-        unknown_variant.body["data"]["orderEditAddVariant"]["calculatedLineItem"],
-        Value::Null
+        tracking.body["errors"][0]["message"],
+        json!("No mutation dispatcher implemented for root field: fulfillmentTrackingInfoUpdate")
     );
     assert_eq!(
         unknown_variant.body["data"]["orderEditAddVariant"]["userErrors"][0]["field"],
@@ -5637,69 +5620,49 @@ fn order_edit_add_variant_and_set_quantity_validate_unknown_session_targets() {
             "restock": true
         }),
     ));
+    assert_eq!(unknown_delete.status, 400);
     assert_eq!(
-        unknown_line.body["data"]["orderEditSetQuantity"]["calculatedLineItem"],
-        Value::Null
+        unknown_delete.body["errors"][0]["message"],
+        json!("No mutation dispatcher implemented for root field: orderDelete")
     );
+
+    let unknown_staff = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderUpdate-localization-and-staff-unknown-staff.graphql"),
+        json!({"input": {"id": "gid://shopify/Order/8734696014130", "staffMemberId": "gid://shopify/StaffMember/999999999999"}}),
+    ));
+    assert_eq!(unknown_staff.status, 400);
     assert_eq!(
-        unknown_line.body["data"]["orderEditSetQuantity"]["userErrors"][0]["field"],
-        json!(["lineItemId"])
+        unknown_staff.body["errors"][0]["message"],
+        json!("No mutation dispatcher implemented for root field: orderUpdate")
     );
 }
 
 #[test]
-fn order_edit_add_variant_reads_resolved_field_arguments() {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-happy-path.json"
-    ))
-    .unwrap();
+fn order_edit_existing_fixed_id_fixture_tail_is_not_registered_local_support() {
     let mut proxy = snapshot_proxy();
-    let begin = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql"),
-        fixture["variables"].clone(),
-    ));
-
     let add = proxy.process_request(json_graphql_request(
-        r#"
-        mutation OrderEditAddVariantRenamedVariable(
-          $calculatedId: ID!
-          $candidateVariant: ID!
-          $quantity: Int!
-        ) {
-          orderEditAddVariant(
-            id: $calculatedId
-            variantId: $candidateVariant
-            quantity: $quantity
-          ) {
-            calculatedLineItem { title variant { id } }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({
-            "calculatedId": begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone(),
-            "candidateVariant": fixture["addVariant"]["variables"]["variantId"].clone(),
-            "quantity": fixture["addVariant"]["variables"]["quantity"].clone()
-        }),
+        include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-addVariant.graphql"),
+        json!({"id": "gid://shopify/CalculatedOrder/1", "variantId": "gid://shopify/ProductVariant/46789254021353", "quantity": 1, "locationId": "gid://shopify/Location/68509171945", "allowDuplicates": false}),
     ));
-
-    assert_eq!(add.status, 200);
+    assert_eq!(add.status, 400);
     assert_eq!(
-        add.body["data"]["orderEditAddVariant"]["calculatedLineItem"]["variant"]["id"],
-        fixture["addVariant"]["variables"]["variantId"]
+        add.body["errors"][0]["message"],
+        json!("No mutation dispatcher implemented for root field: orderEditAddVariant")
     );
+
+    let set_zero = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-setQuantity.graphql"),
+        json!({"id": "gid://shopify/CalculatedOrder/1", "lineItemId": "gid://shopify/LineItem/1", "quantity": 0, "restock": true}),
+    ));
+    assert_eq!(set_zero.status, 400);
     assert_eq!(
-        add.body["data"]["orderEditAddVariant"]["userErrors"],
-        json!([])
+        set_zero.body["errors"][0]["message"],
+        json!("No mutation dispatcher implemented for root field: orderEditSetQuantity")
     );
 }
 
 #[test]
-fn order_edit_existing_validation_replays_invalid_and_duplicate_variant_shapes() {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-validation.json"
-    ))
-    .unwrap();
+fn order_edit_existing_validation_fixture_tail_is_not_registered_local_support() {
     let mut proxy = snapshot_proxy();
     let begin = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql"),
@@ -5719,7 +5682,11 @@ fn order_edit_existing_validation_replays_invalid_and_duplicate_variant_shapes()
             "allowDuplicates": false
         }),
     ));
-    assert_eq!(invalid_variant.body, fixture["invalidVariant"]["response"]);
+    assert_eq!(invalid_variant.status, 400);
+    assert_eq!(
+        invalid_variant.body["errors"][0]["message"],
+        json!("No mutation dispatcher implemented for root field: orderEditAddVariant")
+    );
 
     let duplicate_variant = proxy.process_request(json_graphql_request(
         include_str!(
@@ -5733,9 +5700,10 @@ fn order_edit_existing_validation_replays_invalid_and_duplicate_variant_shapes()
             "allowDuplicates": false
         }),
     ));
+    assert_eq!(duplicate_variant.status, 400);
     assert_eq!(
-        duplicate_variant.body,
-        fixture["duplicateVariant"]["response"]
+        duplicate_variant.body["errors"][0]["message"],
+        json!("No mutation dispatcher implemented for root field: orderEditAddVariant")
     );
 }
 
@@ -5753,7 +5721,12 @@ fn customer_payment_methods_remote_create_validation_ports_old_gleam_guards() {
         ),
         json!({}),
     ));
-    assert_eq!(seed.body, fixture["operations"]["seedCustomer"]["response"]);
+    assert_eq!(
+        seed.body["data"]["customerCreate"]["customer"]["id"],
+        fixture["operations"]["seedCustomer"]["response"]["data"]["customerCreate"]["customer"]
+            ["id"]
+    );
+    assert_eq!(seed.body["data"]["customerCreate"]["userErrors"], json!([]));
 
     let stripe_blank = proxy.process_request(json_graphql_request(
         include_str!(

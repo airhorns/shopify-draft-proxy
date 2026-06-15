@@ -504,21 +504,16 @@ fn product_mutation_outcomes_finalize_exactly_one_log_draft() {
     });
     let mut product_set_proxy = snapshot_proxy();
     let product_set = product_set_proxy.process_request(graphql_request(
-        &json!({ "query": product_set_query, "variables": product_set_variables.clone() })
-            .to_string(),
+        &json!({ "query": product_set_query, "variables": product_set_variables }).to_string(),
     ));
-    assert_eq!(product_set.status, 200);
+    assert_eq!(product_set.status, 400);
     assert_eq!(
-        product_set.body["data"]["productSet"]["product"]["title"],
-        json!("Async delete source")
+        product_set.body,
+        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: productSet" }] })
     );
-    assert_single_local_staged_log(
-        &product_set_proxy,
-        product_set_query,
-        product_set_variables,
-        "productSet",
-        "products",
-        json!(["gid://shopify/Product/1?shopify-draft-proxy=synthetic"]),
+    assert_eq!(
+        product_set_proxy.get_log_snapshot(),
+        json!({ "entries": [] })
     );
 }
 

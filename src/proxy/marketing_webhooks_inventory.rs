@@ -1754,33 +1754,6 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn selling_plan_downstream_read_data(
-        &mut self,
-        query: &str,
-    ) -> Option<Value> {
-        if query.contains("DownstreamSellingPlanRead") {
-            let fixture: Value = serde_json::from_str(include_str!(
-                "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-lifecycle.json"
-            ))
-            .expect("selling plan group lifecycle fixture must parse");
-            let capture_index = match self.store.staged.selling_plan_group_downstream_step {
-                0 => 4,
-                1 => 6,
-                _ => 10,
-            };
-            self.store.staged.selling_plan_group_downstream_step += 1;
-            return Some(fixture["captures"][capture_index]["response"]["data"].clone());
-        }
-        if query.contains("ProductRelationshipSellingPlanMembershipRead") {
-            let fixture: Value = serde_json::from_str(include_str!(
-                "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-relationship-roots.json"
-            ))
-            .expect("product relationship roots fixture must parse");
-            return Some(fixture["sellingPlanDownstreamRead"]["response"]["data"].clone());
-        }
-        None
-    }
-
     fn inventory_item_selected_json(
         &self,
         inventory_item_id: &str,

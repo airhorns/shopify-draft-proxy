@@ -11,72 +11,32 @@ company-location tax settings, and B2B address behavior.
 
 ### Implemented local roots
 
-The Rust runtime locally stages the company-contact and contact-role assignment
-family. Supported mutations append replay-ready log entries with the original
-raw GraphQL request and compute responses from staged B2B company, contact,
-customer-reference, main-contact, location, role, and role-assignment state.
+The Rust operation registry marks the B2B roots below as locally implemented:
+they route through `LOCAL_DISPATCH_ROOTS` and are answered without runtime
+Shopify writes. This is not a support claim for the whole B2B domain.
 
-The local read roots for staged B2B contact state are:
+Implemented read roots:
 
 - `company`
-- `companyContact`
-- `companyContactRole`
 - `companyLocation`
-- `node(id:)` for staged B2B contact, contact-role, location, address, and
-  role-assignment IDs
 
-The supported local mutation roots for staged contact and role-assignment
-lifecycle behavior are:
+Implemented mutation roots:
 
 - `companyAssignCustomerAsContact`
-- `companyAssignMainContact`
-- `companyContactAssignRole`
-- `companyContactAssignRoles`
-- `companyContactCreate`
-- `companyContactDelete`
-- `companyContactRemoveFromCompany`
-- `companyContactRevokeRole`
-- `companyContactRevokeRoles`
-- `companyContactsDelete`
-- `companyContactUpdate`
-- `companyRevokeMainContact`
-
-Additional local B2B setup and support slices are implemented for captured
-company-contact parity flows:
-
-- `companiesDelete`
 - `companyCreate`
-- `companyDelete`
-- `companyUpdate`
-- `companyLocationCreate`
-- `companyLocationUpdate`
-- `companyLocationAssignAddress`
-- `companyAddressDelete`
-- `companyLocationAssignRoles`
-- `companyLocationRevokeRoles`
 - `companyLocationTaxSettingsUpdate`
+- `companyLocationUpdate`
+- `companyUpdate`
 
-The registry-only read roots are:
-
-- `companies`
-- `companiesCount`
-- `companyLocations`
-
-The registry-only mutation roots are:
-
-- `companyContactSendWelcomeEmail`
-- `companyLocationAssignStaffMembers`
-- `companyLocationDelete`
-- `companyLocationRemoveStaffMembers`
-- `companyLocationsDelete`
+Other B2B roots remain registry-known but unsupported until the proxy has
+local lifecycle/read models and executable evidence for those roots.
 
 ### Local behavior
 
-The Rust runtime keeps selected B2B behavior as staged local slices backed by
-parity and runtime coverage. The company-contact and contact-role assignment
-family is root-field dispatched and not gated to a specific parity document.
-Other B2B company/location roots remain narrower local slices or registry-only
-coverage-map entries until their full lifecycle behavior is modeled.
+The Rust runtime keeps selected B2B behavior as local slices for ported parity
+and runtime coverage. These slices stage only the modeled root and shape covered
+by their checked-in request documents and tests; they do not promote the entire
+B2B root family to supported status.
 
 `companyCreate` and `companyUpdate` have a local slice for company identity
 fields. That slice stages synthetic company records, preserves
@@ -132,10 +92,12 @@ including `company.customerSince`,
 `CompanyContactRoleAssignment.companyLocation`. These helpers are evidence for
 the selected payloads, not a broad local B2B catalog implementation.
 
-Parity specs also describe richer B2B lifecycle behavior captured from Shopify,
-including staff assignment and staff-assignment guardrails. Endpoint consumers
-should treat those remaining roots as captured evidence rather than current
-local support until their own lifecycle behavior is modeled.
+Older parity specs still describe rich B2B lifecycle behavior captured from
+Shopify, including company/contact/location lifecycle, role-assignment cleanup,
+address management, deletion blockers, bulk field paths, and staff-assignment
+guardrails. Until the Rust registry and dispatcher expose those behaviors as
+local staging roots, endpoint consumers should treat them as captured evidence
+and porting targets rather than full current-domain support.
 
 ### Boundaries
 
@@ -145,14 +107,14 @@ local support until their own lifecycle behavior is modeled.
   assignment IDs are covered by validation evidence, while authorized
   staff-catalog reads remain access-scope dependent.
 - Validation-only B2B parity specs prove guardrail payloads and no-stage
-  behavior for those inputs only. For B2B roots outside the contact/role family,
-  they do not make the corresponding mutation roots generally supported.
-- Generic `node(id:)` dispatch for B2B-only IDs is limited to the staged B2B IDs
-  named above. `nodes(ids:)` and staff/catalog Node hydration remain outside the
-  current B2B support surface.
-- B2B roots outside the implemented contact/role family still use visible
-  passthrough or reject behavior according to runtime configuration unless a
-  request matches a documented local runtime slice.
+  behavior for those inputs only. They do not make the corresponding mutation
+  roots generally supported.
+- Generic `node(id:)` / `nodes(ids:)` dispatch for B2B-only IDs is limited to
+  fixture-backed or tail-helper evidence. Do not infer complete Node support for
+  companies, contacts, locations, addresses, staff assignments, or catalogs.
+- Unsupported B2B mutation handling must remain visible as passthrough or
+  reject behavior according to runtime configuration unless a request matches a
+  documented local runtime slice.
 
 ### Evidence
 

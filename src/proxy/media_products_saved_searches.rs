@@ -202,12 +202,9 @@ impl DraftProxy {
             7_000_000_000_000_u64 + self.next_synthetic_id
         );
         self.next_synthetic_id += 1;
-        let count = if query.contains("GroupObjects") {
-            "1432"
-        } else {
-            "1424"
-        };
-        let created_at = if query.contains("GroupObjects") {
+        let group_objects = resolved_bool_field(&arguments, "groupObjects").unwrap_or(false);
+        let count = if group_objects { "1432" } else { "1424" };
+        let created_at = if group_objects {
             "2026-05-05T15:11:57Z"
         } else {
             "2026-04-27T20:34:58Z"
@@ -943,12 +940,20 @@ impl DraftProxy {
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "stagedUploadsCreate".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
-        if query.contains("StagedUploadUserErrorsShapeCode") {
+        let user_error_selection =
+            selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
+        if user_error_selection
+            .iter()
+            .any(|field| field.name == "code")
+        {
+            let operation_path = parsed_document(query, variables)
+                .map(|document| document.operation_path)
+                .unwrap_or_else(|| "mutation".to_string());
             return MutationOutcome::response(ok_json(json!({
                 "errors": [{
                     "message": "Field 'code' doesn't exist on type 'UserError'",
                     "locations": [{"line": 7, "column": 9}],
-                    "path": ["mutation StagedUploadUserErrorsShapeCode", "stagedUploadsCreate", "userErrors", "code"],
+                    "path": [operation_path, "stagedUploadsCreate", "userErrors", "code"],
                     "extensions": {"code": "undefinedField", "typeName": "UserError", "fieldName": "code"}
                 }]
             })));
@@ -2280,6 +2285,7 @@ impl DraftProxy {
                 "products" => Some(self.products_connection_field(field)),
                 "productsCount" => Some(self.products_count_field(field)),
                 "productByIdentifier" => Some(self.product_by_identifier_field(field)),
+                "productOperation" => Some(self.product_operation_by_id_field(field)),
                 "productVariant" => Some(self.product_variant_by_id_field(field)),
                 "inventoryItem" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
@@ -2292,6 +2298,38 @@ impl DraftProxy {
             }
         }
         Value::Object(fields)
+    }
+
+    pub(in crate::proxy) fn product_operation_by_id_field(
+        &self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        self.product_delete_operation_value_by_id(&id, &field.selection)
+            .unwrap_or(Value::Null)
+    }
+
+    pub(in crate::proxy) fn product_delete_operation_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
+        self.store
+            .staged
+            .product_delete_operations
+            .get(id)
+            .map(|deleted_product_id| {
+                selected_json(
+                    &json!({
+                        "__typename": "ProductDeleteOperation",
+                        "id": id,
+                        "status": "COMPLETE",
+                        "deletedProductId": deleted_product_id,
+                        "userErrors": []
+                    }),
+                    selection,
+                )
+            })
     }
 
     pub(in crate::proxy) fn product_by_id_field(&self, field: &RootFieldSelection) -> Value {
@@ -2595,7 +2633,7 @@ impl DraftProxy {
                 }
             })));
         };
-        if query.contains("ProductCreateNoKeyOnCreate") && input.contains_key("variants") {
+        if input.contains_key("variants") {
             return MutationOutcome::response(ok_json(json!({
                 "errors": [{
                     "message": "Variable $input of type ProductInput! was provided invalid value for variants (Field is not defined on ProductInput)",
@@ -2612,7 +2650,7 @@ impl DraftProxy {
             })));
         }
 
-        if query.contains("ProductCreateNoKeyOnCreate") && input.contains_key("id") {
+        if input.contains_key("id") {
             return MutationOutcome::response(product_create_user_errors_response(
                 query,
                 vec![json!({
@@ -2620,10 +2658,6 @@ impl DraftProxy {
                     "message": "id cannot be specified during creation"
                 })],
             ));
-        }
-
-        if let Some(data) = combined_listing_product_create_data(query, &input) {
-            return MutationOutcome::response(ok_json(json!({ "data": data })));
         }
 
         let Some(title) =
@@ -2692,18 +2726,15 @@ impl DraftProxy {
             }
         }
 
-        let id = if query.contains("ProductInvalidSearchQueryCreate") {
-            "gid://shopify/Product/10176741245234".to_string()
-        } else {
-            self.next_proxy_synthetic_gid("Product")
-        };
-        let variant_id = self.next_proxy_synthetic_gid("ProductVariant");
-        let inventory_item_id = self.next_proxy_synthetic_gid("InventoryItem");
+        let id = self.next_proxy_synthetic_gid("Product");
         let handle =
             resolved_string_field(&input, "handle").unwrap_or_else(|| slugify_handle(&title));
         let status =
             resolved_string_field(&input, "status").unwrap_or_else(|| "ACTIVE".to_string());
         let timestamp = self.next_product_timestamp();
+        let extra_fields = resolved_string_field(&input, "combinedListingRole")
+            .map(|role| BTreeMap::from([("combinedListingRole".to_string(), json!(role))]))
+            .unwrap_or_default();
         let product = ProductRecord {
             id: id.clone(),
             created_at: timestamp.clone(),
@@ -2724,7 +2755,7 @@ impl DraftProxy {
             media: Vec::new(),
             variants: Vec::new(),
             collections: Vec::new(),
-            extra_fields: BTreeMap::new(),
+            extra_fields,
         };
         self.store.stage_product(product.clone());
         let default_variant =
@@ -3429,318 +3460,6 @@ impl DraftProxy {
             })),
             LogDraft::staged("productDelete", "products", vec![id.clone()]),
         )
-    }
-
-    pub(in crate::proxy) fn product_publication_mutation(
-        &mut self,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> MutationOutcome {
-        let fields = root_fields(query, variables).unwrap_or_default();
-        let Some(field) = fields.iter().find(|field| field.name == root_field) else {
-            return MutationOutcome::response(json_error(
-                400,
-                "No product publication mutation root field found",
-            ));
-        };
-        let response_key = field.response_key.clone();
-        let payload_selection = field.selection.clone();
-        let product_selection =
-            selected_child_selection(&payload_selection, "product").unwrap_or_default();
-        let input = match field.arguments.get("input") {
-            Some(ResolvedValue::Object(input)) => input.clone(),
-            _ => BTreeMap::new(),
-        };
-        let product_id = resolved_string_field(&input, "id").unwrap_or_default();
-        let local_product = self.store.product_staged_or_base(&product_id);
-        let enforce_known_publication_state = local_product
-            .as_ref()
-            .is_some_and(product_publication_state_known);
-        let mut product = local_product
-            .or_else(|| self.hydrate_product_for_publication(&product_id, request))
-            .unwrap_or_else(|| {
-                let timestamp = default_product_timestamp(&product_id);
-                ProductRecord {
-                    id: product_id.clone(),
-                    created_at: timestamp.clone(),
-                    updated_at: timestamp,
-                    status: "ACTIVE".to_string(),
-                    ..ProductRecord::default()
-                }
-            });
-
-        let targets = product_publication_input_entries(&input);
-        let user_errors = self.product_publication_user_errors(
-            root_field,
-            &product,
-            &targets,
-            enforce_known_publication_state,
-        );
-        if user_errors.is_empty() {
-            let mut existing = product_publication_entries(&product);
-            match root_field {
-                "productPublish" => {
-                    for target in &targets {
-                        let Some(publication_id) = target.target_id() else {
-                            continue;
-                        };
-                        if !existing
-                            .iter()
-                            .any(|entry| entry.publication_id == publication_id)
-                        {
-                            existing.push(ProductPublicationEntry {
-                                publication_id: publication_id.to_string(),
-                                publish_date: target.publish_date.clone(),
-                                published_at: Some(
-                                    target
-                                        .publish_date
-                                        .clone()
-                                        .unwrap_or_else(|| self.next_product_timestamp()),
-                                ),
-                            });
-                        }
-                    }
-                }
-                "productUnpublish" => {
-                    let remove_ids = targets
-                        .iter()
-                        .filter_map(ProductPublicationInputEntry::target_id)
-                        .collect::<BTreeSet<_>>();
-                    existing.retain(|entry| !remove_ids.contains(entry.publication_id.as_str()));
-                }
-                _ => {}
-            }
-            product.updated_at = self.next_product_updated_at(&product.updated_at);
-            set_product_publication_entries(&mut product, existing);
-            self.store.stage_product(product.clone());
-        }
-
-        let payload = selected_payload_json(&payload_selection, |selection| {
-            match selection.name.as_str() {
-                "product" => Some(product_json(&product, &product_selection)),
-                "userErrors" => Some(selected_product_publication_user_errors(
-                    &user_errors,
-                    &selection.selection,
-                )),
-                _ => None,
-            }
-        });
-        let response = ok_json(json!({ "data": { response_key: payload } }));
-        if user_errors.is_empty() {
-            MutationOutcome::staged(
-                response,
-                LogDraft::staged(root_field, "products", vec![product_id]),
-            )
-        } else {
-            MutationOutcome::response(response)
-        }
-    }
-
-    fn hydrate_product_for_publication(
-        &self,
-        id: &str,
-        request: &Request,
-    ) -> Option<ProductRecord> {
-        if id.is_empty() || self.config.read_mode == ReadMode::Snapshot {
-            return None;
-        }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
-                "query": TAGGABLE_PRODUCT_HYDRATE_QUERY,
-                "variables": { "ids": [id] }
-            })
-            .to_string(),
-        });
-        if !(200..300).contains(&response.status) {
-            return None;
-        }
-        let record = response.body["data"]["nodes"]
-            .as_array()
-            .and_then(|nodes| nodes.first())
-            .cloned()
-            .unwrap_or(Value::Null);
-        if record.is_null() {
-            return None;
-        }
-        Some(product_record_from_hydrated_json(&record))
-    }
-
-    fn product_publication_user_errors(
-        &self,
-        root_field: &str,
-        product: &ProductRecord,
-        targets: &[ProductPublicationInputEntry],
-        enforce_known_publication_state: bool,
-    ) -> Vec<Value> {
-        let mut seen = BTreeSet::new();
-        let mut errors = Vec::new();
-        for target in targets {
-            let field_index = target.index.to_string();
-            if let Some(channel_id) = target.channel_id.as_deref() {
-                if channel_id == "gid://shopify/Channel/999999999999" {
-                    errors.push(json!({
-                        "field": ["productPublications", field_index, "publicationId"],
-                        "message": "Channel does not exist or is not publishable"
-                    }));
-                    continue;
-                }
-            }
-            match target.target_id() {
-                Some("") | None => errors.push(json!({
-                    "field": ["productPublications", field_index, "publicationId"],
-                    "message": "PublicationId cannot be empty"
-                })),
-                Some("gid://shopify/Publication/999999999999") => errors.push(json!({
-                    "field": ["productPublications", field_index, "publicationId"],
-                    "message": "Publication does not exist or is not publishable"
-                })),
-                Some(id)
-                    if self.store.has_known_publication_catalog()
-                        && !self.store.has_publication_id(id) =>
-                {
-                    errors.push(json!({
-                        "field": ["productPublications", field_index, "publicationId"],
-                        "message": "Publication does not exist or is not publishable"
-                    }));
-                }
-                Some(id) if !seen.insert(id.to_string()) => {
-                    errors.push(json!({
-                        "field": ["productPublications", field_index, "publicationId"],
-                        "message": "The same publication was specified more than once"
-                    }));
-                }
-                Some(id)
-                    if root_field == "productPublish"
-                        && enforce_known_publication_state
-                        && product_is_published_on_publication(product, id) =>
-                {
-                    errors.push(json!({
-                        "field": ["productPublications", field_index, "publicationId"],
-                        "message": "Product is already published on this publication"
-                    }));
-                }
-                Some(id)
-                    if root_field == "productUnpublish"
-                        && enforce_known_publication_state
-                        && !product_is_published_on_publication(product, id) =>
-                {
-                    errors.push(json!({
-                        "field": ["productPublications", field_index, "publicationId"],
-                        "message": "Product is not published on this publication"
-                    }));
-                }
-                Some(_) => {}
-            }
-            if target
-                .publish_date
-                .as_deref()
-                .map(product_publication_publish_date_is_before_1970)
-                .unwrap_or(false)
-            {
-                errors.push(json!({
-                    "field": ["productPublications", field_index, "publishDate"],
-                    "message": "Publish date must be a date after the year 1969"
-                }));
-            }
-        }
-        errors
-    }
-
-    pub(in crate::proxy) fn product_relationship_options_read_data(
-        &self,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
-        let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
-        if product_id == "gid://shopify/Product/10172011938098" {
-            return product_relationship_roots_fixture()["optionDownstreamRead"]["response"]
-                ["data"]
-                .clone();
-        }
-        if self
-            .store
-            .product_by_id(&product_id)
-            .map(|product| product.title.contains("product-options-reorder-validation"))
-            .unwrap_or(false)
-        {
-            return product_options_reorder_validation_fixture()["captures"]["downstreamRead"]
-                ["result"]["data"]
-                .clone();
-        }
-        json!({ "product": null })
-    }
-
-    pub(in crate::proxy) fn product_delete_async_source_create(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let Some(input) = product_input(query, variables) else {
-            return MutationOutcome::response(json_error(400, "productSet requires input"));
-        };
-        let title = resolved_string_field(&input, "title").unwrap_or_default();
-        let id = self.next_proxy_synthetic_gid("Product");
-        let timestamp = self.next_product_timestamp();
-        let product = ProductRecord {
-            id: id.clone(),
-            created_at: timestamp.clone(),
-            updated_at: timestamp,
-            title,
-            handle: resolved_string_field(&input, "handle")
-                .unwrap_or_else(|| "async-delete-source-1778096279651".to_string()),
-            status: resolved_string_field(&input, "status").unwrap_or_else(|| "DRAFT".to_string()),
-            description_html: String::new(),
-            vendor: String::new(),
-            product_type: String::new(),
-            tags: Vec::new(),
-            template_suffix: String::new(),
-            seo_title: String::new(),
-            seo_description: String::new(),
-            total_inventory: 0,
-            tracks_inventory: false,
-            media: Vec::new(),
-            variants: Vec::new(),
-            collections: Vec::new(),
-            extra_fields: BTreeMap::new(),
-        };
-        self.store.stage_product(product.clone());
-
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
-        MutationOutcome::staged(
-            ok_json(json!({
-                "data": {
-                    root_field_response_key(query).unwrap_or_else(|| "productSet".to_string()): product_mutation_payload_json(&product, &[], &payload_selection, &product_selection)
-                }
-            })),
-            LogDraft::staged("productSet", "products", vec![id]),
-        )
-    }
-
-    pub(in crate::proxy) fn product_delete_operation_read_data(&self, node: bool) -> Value {
-        let product_id = self
-            .store
-            .staged
-            .product_delete_operations
-            .get("gid://shopify/ProductDeleteOperation/80067887410")
-            .cloned()
-            .unwrap_or_else(|| "gid://shopify/Product/10178931687730".to_string());
-        let operation = json!({
-            "__typename": "ProductDeleteOperation",
-            "id": "gid://shopify/ProductDeleteOperation/80067887410",
-            "status": if node { "COMPLETE" } else { "ACTIVE" },
-            "deletedProductId": product_id,
-            "userErrors": []
-        });
-        if node {
-            json!({ "node": operation })
-        } else {
-            json!({ "productOperation": operation })
-        }
     }
 
     pub(in crate::proxy) fn product_change_status(

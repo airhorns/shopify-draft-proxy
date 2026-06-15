@@ -650,13 +650,19 @@ impl DraftProxy {
                         "code": "SUBSCRIPTION_NOT_ACTIVE"
                     })],
                 ),
-                Some(_record) if query.contains("AppSubscriptionTrialExtendLocalLifecycle") => (
-                    Value::Null,
-                    vec![json!({
-                        "field": ["id"],
-                        "message": "The trial can't be extended after expiration."
-                    })],
-                ),
+                Some(record)
+                    if record["currentPeriodEnd"]
+                        .as_str()
+                        .is_some_and(|value| value < "2026-06-15T00:00:00.000Z") =>
+                {
+                    (
+                        Value::Null,
+                        vec![json!({
+                            "field": ["id"],
+                            "message": "The trial can't be extended after expiration."
+                        })],
+                    )
+                }
                 Some(record) => {
                     let current = record["trialDays"].as_i64().unwrap_or(0);
                     if let Value::Object(fields) = record {
@@ -1067,7 +1073,7 @@ impl DraftProxy {
                 "message": "The expires_in value must be greater than 0.",
                 "code": "NEGATIVE_EXPIRES_IN"
             }));
-        } else if query.contains("DelegateAccessTokenCreateExpiresAfterParent") {
+        } else if expires_in > 3600 {
             user_errors.push(json!({
                 "field": null,
                 "message": "The delegate token can't expire after the parent token.",
@@ -1085,7 +1091,7 @@ impl DraftProxy {
         }
 
         if !user_errors.is_empty() {
-            if query.contains("DelegateAccessTokenCreateExpiresAfterParent") {
+            if expires_in > 3600 {
                 self.record_mutation_log_entry(
                     request,
                     query,
@@ -1239,30 +1245,32 @@ impl DraftProxy {
             .unwrap_or_default();
 
         let mut user_errors = Vec::new();
-        if query.contains("AppRevokeAccessScopesErrorCodes") {
+        if scopes.iter().any(|scope| scope == "read_products") {
+            user_errors.push(json!({
+                "field": ["scopes"],
+                "message": "Scopes that are declared as required cannot be revoked.",
+                "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
+            }));
+        }
+        if scopes
+            .iter()
+            .any(|scope| !matches!(scope.as_str(), "read_products" | "write_products"))
+        {
+            user_errors.push(json!({
+                "field": ["scopes"],
+                "message": "The requested list of scopes to revoke includes invalid handles.",
+                "code": "UNKNOWN_SCOPES"
+            }));
+        }
+        if user_errors.is_empty()
+            && !scopes.is_empty()
+            && request_header(request, "x-shopify-draft-proxy-api-client-id").is_none()
+        {
             user_errors.push(json!({
                 "field": ["base"],
                 "message": "Source app is missing.",
                 "code": "MISSING_SOURCE_APP"
             }));
-        } else {
-            if scopes.iter().any(|scope| scope == "read_products") {
-                user_errors.push(json!({
-                    "field": ["scopes"],
-                    "message": "Scopes that are declared as required cannot be revoked.",
-                    "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
-                }));
-            }
-            if scopes
-                .iter()
-                .any(|scope| !matches!(scope.as_str(), "read_products" | "write_products"))
-            {
-                user_errors.push(json!({
-                    "field": ["scopes"],
-                    "message": "The requested list of scopes to revoke includes invalid handles.",
-                    "code": "UNKNOWN_SCOPES"
-                }));
-            }
         }
 
         let revoked = if user_errors.is_empty() {
@@ -1496,30 +1504,50 @@ impl DraftProxy {
         } else {
             ok_json(json!({ "data": Value::Object(data) }))
         }
+        ok_json(json!({ "data": Value::Object(data) }))
     }
 
-    fn delivery_profile_create_payload(
-        &mut self,
-        field: &RootFieldSelection,
-        request: &Request,
-    ) -> (Value, Vec<String>) {
-        let profile_input = resolved_object_field(&field.arguments, "profile").unwrap_or_default();
-        let user_errors = delivery_profile_create_user_errors(&profile_input);
-        if !user_errors.is_empty() {
-            return (
-                delivery_profile_payload_json(Value::Null, &field.selection, user_errors),
-                Vec::new(),
-            );
+    pub(in crate::proxy) fn location_read_response(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Response {
+        let mut data = serde_json::Map::new();
+        let mut errors = Vec::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "location" => {
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                    self.location_for_read(&id)
+                        .map(|location| location_selected_json(&location, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "locationByIdentifier" => {
+                    let identifier =
+                        resolved_object_field(&field.arguments, "identifier").unwrap_or_default();
+                    let id = resolved_string_field(&identifier, "id").unwrap_or_default();
+                    let location = self
+                        .location_for_read(&id)
+                        .map(|location| location_selected_json(&location, &field.selection));
+                    if location.is_none() && identifier.contains_key("customId") {
+                        errors.push(json!({
+                            "message": "Metafield definition of type 'id' is required when using custom ids.",
+                            "path": [field.response_key.clone()],
+                            "extensions": { "code": "NOT_FOUND" }
+                        }));
+                    }
+                    location.unwrap_or(Value::Null)
+                }
+                "locations" => self.locations_connection_json(&field.arguments, &field.selection),
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), value);
         }
-
-        let id = self.next_proxy_synthetic_gid("DeliveryProfile");
-        let mut profile = self.delivery_profile_from_input(&id, &profile_input);
-        self.delivery_profile_apply_associations(&mut profile, &profile_input, true, request);
-        self.stage_delivery_profile(profile.clone());
-        (
-            delivery_profile_payload_json(profile, &field.selection, Vec::new()),
-            vec![id],
-        )
+        let mut body = serde_json::Map::new();
+        body.insert("data".to_string(), Value::Object(data));
+        if !errors.is_empty() {
+            body.insert("errors".to_string(), Value::Array(errors));
+        }
+        ok_json(Value::Object(body))
     }
 
     fn delivery_profile_update_payload(

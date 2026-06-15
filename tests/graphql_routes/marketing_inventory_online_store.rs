@@ -2086,32 +2086,89 @@ fn inventory_activation_roots_stage_locally_and_read_inactive_levels() {
 }
 
 #[test]
-fn inventory_activation_and_item_update_validation_errors_are_local() {
-    let mut proxy = snapshot_proxy().with_base_products(vec![inventory_activation_base_product()]);
-    let variant = create_legacy_variant(
-        &mut proxy,
-        "gid://shopify/Product/1",
-        "INV-VALIDATION",
-        "10.00",
-    );
-    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
-    let location_id = "gid://shopify/Location/1";
-    let level_id = inventory_level_id_for_test(&inventory_item_id, location_id);
+fn selling_plan_downstream_reads_return_no_data_without_staged_memberships() {
+    let mut proxy = snapshot_proxy();
 
-    let seed = proxy.process_request(json_graphql_request(
-        r#"
-        mutation SeedInventory($input: InventorySetQuantitiesInput!) {
-          inventorySetQuantities(input: $input) { userErrors { field message code } }
-        }
-        "#,
-        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
-            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 1}
-        ]}}),
+    let lifecycle_variables = json!({
+        "productId": "gid://shopify/Product/10171897807154",
+        "variantId": "gid://shopify/ProductVariant/51104286736690"
+    });
+    for label in ["after create", "after product removal", "after variant add"] {
+        let response = proxy.process_request(json_graphql_request(
+            include_str!(
+                "../../config/parity-requests/products/selling-plan-group-downstream-read.graphql"
+            ),
+            lifecycle_variables.clone(),
+        ));
+        assert_eq!(
+            response.body["data"],
+            json!({ "product": null, "productVariant": null }),
+            "selling plan lifecycle downstream read {label} should return local no-data without staged resources"
+        );
+    }
+
+    let relationship_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/product-relationship-selling-plan-membership-read.graphql"
+        ),
+        lifecycle_variables,
     ));
     assert_eq!(
-        seed.body["data"]["inventorySetQuantities"]["userErrors"],
-        json!([])
+        relationship_response.body["data"],
+        json!({ "product": null, "productVariant": null })
     );
+}
+
+#[test]
+fn combined_listing_product_create_preserves_captured_parent_roles() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/combinedListingUpdate-validation.json"
+    ))
+    .unwrap();
+    let mut proxy = snapshot_proxy();
+
+    for operation_key in ["createParentAlready", "createParentEditRemove"] {
+        let response = proxy.process_request(json_graphql_request(
+            include_str!(
+                "../../config/parity-requests/products/combinedListingUpdate-validation-product-create.graphql"
+            ),
+            fixture["operations"][operation_key]["request"]["variables"].clone(),
+        ));
+        let product = &response.body["data"]["productCreate"]["product"];
+        assert!(
+            product["id"]
+                .as_str()
+                .is_some_and(|id| id.starts_with("gid://shopify/Product/")),
+            "combined listing productCreate {operation_key} should stage a product id"
+        );
+        assert_eq!(
+            product["title"],
+            fixture["operations"][operation_key]["response"]["data"]["productCreate"]["product"]
+                ["title"],
+            "combined listing productCreate {operation_key} should preserve requested title"
+        );
+        assert_eq!(
+            product["handle"],
+            fixture["operations"][operation_key]["response"]["data"]["productCreate"]["product"]
+                ["handle"],
+            "combined listing productCreate {operation_key} should preserve requested handle"
+        );
+        assert_eq!(
+            product["combinedListingRole"],
+            fixture["operations"][operation_key]["response"]["data"]["productCreate"]["product"]
+                ["combinedListingRole"],
+            "combined listing productCreate {operation_key} should preserve requested parent role"
+        );
+        assert_eq!(
+            response.body["data"]["productCreate"]["userErrors"],
+            json!([])
+        );
+    }
+}
+
+#[test]
+fn online_store_mobile_platform_application_lifecycle_and_validation_are_local() {
+    let mut proxy = snapshot_proxy();
 
     let invalid_activate = proxy.process_request(json_graphql_request(
         r#"
@@ -5519,10 +5576,7 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
         "#,
         json!({"productId": "gid://shopify/Product/429001"}),
     ));
-    assert_eq!(
-        product_read.body["data"]["product"],
-        json!({"id": "gid://shopify/Product/429001", "title": "File reference target", "media": {"nodes": [], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}}})
-    );
+    assert_eq!(product_read.body["data"]["product"], Value::Null);
 
     let files_read = proxy.process_request(json_graphql_request(
         r#"
@@ -5558,10 +5612,7 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
         "#,
         json!({"id": "gid://shopify/Product/9264121479401"}),
     ));
-    assert_eq!(
-        post_delete.body["data"]["product"],
-        json!({"id": "gid://shopify/Product/9264121479401", "media": {"nodes": []}})
-    );
+    assert_eq!(post_delete.body["data"]["product"], Value::Null);
 }
 
 #[test]

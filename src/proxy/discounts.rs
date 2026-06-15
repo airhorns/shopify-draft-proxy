@@ -19,16 +19,6 @@ impl DraftProxy {
         ok_json(json!({ "data": self.discounts_query_data(&fields) }))
     }
 
-    pub(in crate::proxy) fn has_staged_discounts(&self) -> bool {
-        !self.store.staged.discounts.is_empty()
-            || !self.store.staged.deleted_discount_ids.is_empty()
-            || !self
-                .store
-                .staged
-                .discount_redeem_code_bulk_creations
-                .is_empty()
-    }
-
     pub(in crate::proxy) fn discounts_mutation(
         &mut self,
         _request: &Request,
@@ -678,6 +668,15 @@ impl DraftProxy {
                 "discountNodes" => Some(json!({
                     "nodes": self.filtered_discount_records(field).into_iter().map(discount_admin_node_for_record).collect::<Vec<_>>()
                 })),
+                "automaticDiscountNodes" => Some(selected_connection_json_with_args(
+                    self.filtered_automatic_discount_records(field)
+                        .into_iter()
+                        .map(discount_node_for_record)
+                        .collect::<Vec<_>>(),
+                    &field.arguments,
+                    &field.selection,
+                    |node| node.get("id").and_then(Value::as_str).unwrap_or_default().to_string(),
+                )),
                 "discountNodesCount" => Some(json!({
                     "count": self.filtered_discount_records(field).len(),
                     "precision": "EXACT"
@@ -695,6 +694,8 @@ impl DraftProxy {
             .unwrap_or(Value::Null);
             let selected = if value.is_null() {
                 Value::Null
+            } else if field.name == "automaticDiscountNodes" {
+                value
             } else {
                 selected_json(&value, &field.selection)
             };
@@ -718,8 +719,26 @@ impl DraftProxy {
             .collect()
     }
 
-    fn effective_discount_records(&self) -> Vec<&Value> {
-        self.store.staged.discounts.values().collect()
+    fn filtered_automatic_discount_records(&self, field: &RootFieldSelection) -> Vec<&Value> {
+        self.filtered_discount_records(field)
+            .into_iter()
+            .filter(|record| discount_kind(record) == "automatic")
+            .collect()
+    }
+
+    pub(in crate::proxy) fn discount_node_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
+        self.discount_record(id).map(|record| {
+            let value = if shopify_gid_resource_type(id) == Some("DiscountAutomaticNode") {
+                discount_node_for_record(record)
+            } else {
+                discount_admin_node_for_record(record)
+            };
+            selected_json(&value, selection)
+        })
     }
 
     fn discount_record(&self, id: &str) -> Option<&Value> {
@@ -2672,10 +2691,6 @@ pub(in crate::proxy) fn is_safe_no_data_node_gid(id: &str) -> bool {
     .any(|prefix| id.starts_with(prefix))
 }
 
-pub(in crate::proxy) fn is_finance_risk_no_data_read_document(query: &str) -> bool {
-    query.contains("FinanceRiskNoDataRead")
-}
-
 pub(in crate::proxy) fn finance_risk_no_data_read_data(fields: &[RootFieldSelection]) -> Value {
     let mut data = serde_json::Map::new();
     for field in fields {
@@ -2697,10 +2712,6 @@ pub(in crate::proxy) fn finance_risk_no_data_read_data(fields: &[RootFieldSelect
 
 pub(in crate::proxy) fn empty_nodes_edges_connection() -> Value {
     connection_json_with_empty_edges(Vec::new())
-}
-
-pub(in crate::proxy) fn is_b2b_company_customer_since_read_document(query: &str) -> bool {
-    query.contains("B2BCustomerSinceCompanyRead") && query.contains("customerSince")
 }
 
 pub(in crate::proxy) const DISCOUNT_BXGY_LIFECYCLE_CODE_ID: &str =
@@ -4415,93 +4426,6 @@ pub(in crate::proxy) fn functions_owner_cart_function() -> Value {
     })
 }
 
-pub(in crate::proxy) fn discount_automatic_nodes_read_data(fields: &[RootFieldSelection]) -> Value {
-    let connection = json!({
-        "nodes": [
-            {
-                "id": "gid://shopify/DiscountAutomaticNode/1547497439538",
-                "automaticDiscount": {
-                    "__typename": "DiscountAutomaticBxgy",
-                    "title": "Buy one, get the second 10 percent off",
-                    "status": "EXPIRED",
-                    "summary": "Buy 1 item, get 1 item at 10% off",
-                    "startsAt": "2025-04-10T00:00:00Z",
-                    "endsAt": "2025-04-25T00:00:00Z",
-                    "createdAt": "2025-03-26T19:51:38Z",
-                    "updatedAt": "2025-03-26T19:51:38Z",
-                    "asyncUsageCount": 0,
-                    "discountClasses": ["PRODUCT"],
-                    "combinesWith": {
-                        "productDiscounts": false,
-                        "orderDiscounts": false,
-                        "shippingDiscounts": false
-                    }
-                }
-            },
-            {
-                "id": "gid://shopify/DiscountAutomaticNode/1547497472306",
-                "automaticDiscount": {
-                    "__typename": "DiscountAutomaticBasic",
-                    "title": "Buy three, get 30 percent off",
-                    "status": "EXPIRED",
-                    "summary": "30% off The Complete Snowboard (Ice) • Minimum quantity of 3",
-                    "startsAt": "2025-03-26T00:00:00Z",
-                    "endsAt": "2025-04-05T00:00:00Z",
-                    "createdAt": "2025-03-26T19:51:38Z",
-                    "updatedAt": "2025-03-26T19:51:38Z",
-                    "asyncUsageCount": 0,
-                    "discountClasses": ["PRODUCT"],
-                    "combinesWith": {
-                        "productDiscounts": true,
-                        "orderDiscounts": false,
-                        "shippingDiscounts": false
-                    }
-                }
-            }
-        ],
-        "edges": [
-            {
-                "cursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDM5NTM4LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDM5NTM4fQ==",
-                "node": {
-                    "id": "gid://shopify/DiscountAutomaticNode/1547497439538",
-                    "automaticDiscount": {
-                        "__typename": "DiscountAutomaticBxgy",
-                        "title": "Buy one, get the second 10 percent off",
-                        "status": "EXPIRED"
-                    }
-                }
-            },
-            {
-                "cursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDcyMzA2LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDcyMzA2fQ==",
-                "node": {
-                    "id": "gid://shopify/DiscountAutomaticNode/1547497472306",
-                    "automaticDiscount": {
-                        "__typename": "DiscountAutomaticBasic",
-                        "title": "Buy three, get 30 percent off",
-                        "status": "EXPIRED"
-                    }
-                }
-            }
-        ],
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDM5NTM4LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDM5NTM4fQ==",
-            "endCursor": "eyJsYXN0X2lkIjoxNTQ3NDk3NDcyMzA2LCJsYXN0X3ZhbHVlIjoxNTQ3NDk3NDcyMzA2fQ=="
-        }
-    });
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        if field.name == "automaticDiscountNodes" {
-            data.insert(
-                field.response_key.clone(),
-                selected_json(&connection, &field.selection),
-            );
-        }
-    }
-    Value::Object(data)
-}
-
 pub(in crate::proxy) fn timestamp_discount_from_input(
     args: &BTreeMap<String, ResolvedValue>,
     input_key: &str,
@@ -6054,78 +5978,4 @@ pub(in crate::proxy) fn discount_automatic_basic_buyer_context_node(context: &st
             "context": context_value
         }
     })
-}
-
-pub(in crate::proxy) fn discount_activate_deactivate_noop_response(
-    root_field: &str,
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Option<Response> {
-    if !query.contains("NoopIdempotence") {
-        return None;
-    }
-    let id = resolved_string_arg(variables, "id")?;
-    let (node_field, discount_field, typename, starts_at, ends_at, status, updated_at) =
-        match (root_field, id.as_str()) {
-            ("discountCodeActivate", "gid://shopify/DiscountCodeNode/1640637301042") => (
-                "codeDiscountNode",
-                "codeDiscount",
-                "DiscountCodeBasic",
-                "2026-05-06T23:06:09Z",
-                Value::Null,
-                "ACTIVE",
-                "2026-05-06T23:08:09Z",
-            ),
-            ("discountCodeDeactivate", "gid://shopify/DiscountCodeNode/1640637333810") => (
-                "codeDiscountNode",
-                "codeDiscount",
-                "DiscountCodeBasic",
-                "2026-05-06T23:06:09Z",
-                json!("2026-05-06T23:08:10Z"),
-                "EXPIRED",
-                "2026-05-06T23:08:10Z",
-            ),
-            ("discountAutomaticActivate", "gid://shopify/DiscountAutomaticNode/1640637366578") => (
-                "automaticDiscountNode",
-                "automaticDiscount",
-                "DiscountAutomaticBasic",
-                "2026-05-06T23:06:09Z",
-                Value::Null,
-                "ACTIVE",
-                "2026-05-06T23:08:09Z",
-            ),
-            (
-                "discountAutomaticDeactivate",
-                "gid://shopify/DiscountAutomaticNode/1640637432114",
-            ) => (
-                "automaticDiscountNode",
-                "automaticDiscount",
-                "DiscountAutomaticBasic",
-                "2026-05-06T23:06:09Z",
-                json!("2026-05-06T23:08:10Z"),
-                "EXPIRED",
-                "2026-05-06T23:08:10Z",
-            ),
-            _ => return None,
-        };
-
-    let payload = json!({
-        node_field: {
-            "id": id,
-            discount_field: {
-                "__typename": typename,
-                "startsAt": starts_at,
-                "endsAt": ends_at,
-                "status": status,
-                "updatedAt": updated_at,
-            }
-        },
-        "userErrors": []
-    });
-    let payload_selection = root_field_selection(query).unwrap_or_default();
-    Some(ok_json(json!({
-        "data": {
-            root_field: selected_json(&payload, &payload_selection)
-        }
-    })))
 }

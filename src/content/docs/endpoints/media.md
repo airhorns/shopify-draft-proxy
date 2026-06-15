@@ -190,7 +190,7 @@ Local staged mutations:
   external media processing or generate real storage-transfer failures. Those
   failed-inner-state branches remain outside the supported runtime boundary
   until the media model stores the relevant Shopify failure rows/statuses.
-- Product-owned media mutations (`productCreateMedia`, `productUpdateMedia`, and `productDeleteMedia`) are part of the products group because their read-after-write behavior is tied to product state.
+- Product-owned media mutation roots (`productCreateMedia`, `productUpdateMedia`, `productDeleteMedia`, and related product media association/reorder roots) are product-state behavior and remain documented as unsupported boundaries in the products group until they have a store-backed lifecycle model.
 
 ### Unsupported and boundary behavior
 

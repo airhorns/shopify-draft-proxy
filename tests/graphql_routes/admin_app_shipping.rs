@@ -2944,14 +2944,19 @@ fn customer_update_and_delete_stage_known_fixture_customer_reads() {
         json!("+14155550123")
     );
 
-    let delete = proxy.process_request(json_graphql_request(
+    let mut optional_request = json_graphql_request(
         r#"
         mutation CustomerDeleteParityPlan($input: CustomerDeleteInput!) {
           customerDelete(input: $input) { deletedCustomerId shop { id } userErrors { field message } }
         }
         "#,
-        json!({ "input": { "id": id } }),
-    ));
+        json!({}),
+    );
+    optional_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "gid://shopify/App/local".to_string(),
+    );
+    let optional = proxy.process_request(optional_request);
     assert_eq!(
         delete.body["data"]["customerDelete"],
         json!({

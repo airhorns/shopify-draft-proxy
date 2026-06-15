@@ -22,8 +22,8 @@ impl DraftProxy {
         }
 
         let fields = root_fields(query, variables)?;
-        if let Some(error) = b2b_tax_exemption_coercion_error(query, &fields) {
-            return Some(ok_json(json!({ "errors": [error] })));
+        if let Some(response) = b2b_tax_settings_invalid_enum_response(&fields) {
+            return Some(response);
         }
         let mut data = serde_json::Map::new();
         for field in fields {
@@ -59,9 +59,7 @@ impl DraftProxy {
         operation_type: OperationType,
         parsed_root_fields: &[String],
     ) -> Option<Response> {
-        if !query.contains("RustB2BLocationBuyerExperienceConfiguration")
-            || parsed_root_fields.is_empty()
-        {
+        if parsed_root_fields.is_empty() {
             return None;
         }
         let fields = root_fields(query, variables)?;
@@ -74,7 +72,7 @@ impl DraftProxy {
                 let mut data = serde_json::Map::new();
                 for field in fields {
                     let (payload, status, staged_ids) =
-                        self.b2b_location_buyer_experience_update_payload(query, &field);
+                        self.b2b_location_buyer_experience_update_payload(&field);
                     self.record_mutation_log_entry(
                         request,
                         query,
@@ -119,7 +117,6 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn b2b_location_buyer_experience_update_payload(
         &mut self,
-        query: &str,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
         let location_id = resolved_string_arg(&field.arguments, "companyLocationId")
@@ -144,7 +141,7 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        let errors = b2b_location_buyer_experience_errors(query, &buyer_experience);
+        let errors = b2b_location_buyer_experience_errors(&buyer_experience);
         if !errors.is_empty() {
             return (
                 b2b_company_location_payload(None, errors),
@@ -256,8 +253,12 @@ impl DraftProxy {
                 for field in fields {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
                     let company = self
-                        .b2b_company_materialized(&id)
-                        .map(|company| selected_json(&company, &field.selection))
+                        .store
+                        .staged
+                        .b2b_companies
+                        .get(&id)
+                        .map(|company| selected_json(company, &field.selection))
+                        .or_else(|| b2b_company_customer_since_value(&id, &field.selection))
                         .unwrap_or(Value::Null);
                     data.insert(field.response_key.clone(), company);
                 }
@@ -433,85 +434,34 @@ impl DraftProxy {
 
     fn b2b_company_location_create_payload(
         &mut self,
-        field: &RootFieldSelection,
-    ) -> (Value, &'static str, Vec<String>) {
-        let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
-        if !self.store.staged.b2b_companies.contains_key(&company_id) {
-            return (
-                b2b_company_location_payload(
-                    None,
-                    vec![b2b_company_user_error(
-                        vec!["companyId"],
-                        "Resource requested does not exist.",
-                        "RESOURCE_NOT_FOUND",
-                        None,
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        _parsed_root_fields: &[String],
+    ) -> Option<Response> {
+        let fields = root_fields(query, variables)?;
+        if let Some(response) = product_tail_invalid_enum_response(operation_type, &fields) {
+            return Some(response);
         }
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        if let Some(name) = resolved_string_field(&input, "name") {
-            if name.chars().count() > 255 {
-                return (
-                    b2b_company_location_payload(
-                        None,
-                        vec![b2b_company_user_error(
-                            vec!["input", "name"],
-                            "Name is too long (maximum is 255 characters)",
-                            "TOO_LONG",
-                            None,
-                        )],
-                    ),
-                    "failed",
-                    Vec::new(),
-                );
-            }
-        }
-        let id = self.stage_b2b_company_location(&company_id, &input);
-        let materialized = self.b2b_company_location_materialized(&id);
-        (
-            b2b_company_location_payload(materialized.as_ref(), Vec::new()),
-            "staged",
-            vec![id],
-        )
-    }
-
-    pub(in crate::proxy) fn b2b_company_delete_payload(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> (Value, &'static str, Vec<String>) {
-        let company_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        if !self.store.staged.b2b_companies.contains_key(&company_id) {
-            return (
-                Self::b2b_company_delete_payload_value(
-                    None,
-                    vec![b2b_company_user_error(
-                        vec!["id"],
-                        "Resource requested does not exist.",
-                        "RESOURCE_NOT_FOUND",
-                        None,
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
-        }
-        if self.b2b_company_has_delete_blocker(&company_id) {
-            return (
-                Self::b2b_company_delete_payload_value(
-                    None,
-                    vec![b2b_company_user_error(
-                        vec!["id"],
-                        "Failed to delete the company.",
-                        "FAILED_TO_DELETE",
-                        None,
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+        let all_roots_allowed = match operation_type {
+            OperationType::Mutation => fields.iter().all(|field| {
+                matches!(
+                    field.name.as_str(),
+                    "publicationCreate"
+                        | "publicationUpdate"
+                        | "publicationDelete"
+                        | "productFeedCreate"
+                        | "productFullSync"
+                        | "bulkProductResourceFeedbackCreate"
+                        | "shopResourceFeedbackCreate"
+                )
+            }),
+            OperationType::Query => fields.iter().all(|field| field.name == "job"),
+            OperationType::Subscription => false,
+        };
+        if !all_roots_allowed {
+            return None;
         }
 
         self.b2b_remove_company_graph(&company_id);
@@ -745,11 +695,29 @@ impl DraftProxy {
         false
     }
 
-    fn b2b_location_has_store_credit_balance(location: &Value) -> bool {
-        location["storeCreditAccount"]["balance"]["amount"]
-            .as_str()
-            .and_then(|amount| amount.parse::<f64>().ok())
-            .is_some_and(|amount| amount > 0.0)
+    pub(in crate::proxy) fn product_tail_job_query_data(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name == "job" {
+                data.insert(
+                    field.response_key.clone(),
+                    self.product_tail_job_read(field),
+                );
+            }
+        }
+        Value::Object(data)
+    }
+
+    pub(in crate::proxy) fn has_products_tail_staged_resource_id(&self, resource_id: &str) -> bool {
+        self.log_entries.iter().any(|entry| {
+            entry["status"] == json!("staged")
+                && entry["stagedResourceIds"]
+                    .as_array()
+                    .is_some_and(|ids| ids.iter().any(|id| id == resource_id))
+        })
     }
 
     pub(in crate::proxy) fn b2b_contact_role_response(
@@ -881,12 +849,21 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn has_b2b_contact_state(&self) -> bool {
-        !self.store.staged.b2b_companies.is_empty()
-            || !self.store.staged.b2b_locations.is_empty()
-            || !self.store.staged.b2b_contacts.is_empty()
-            || !self.store.staged.b2b_contact_roles.is_empty()
-            || !self.store.staged.b2b_contact_role_assignments.is_empty()
+    pub(in crate::proxy) fn should_handle_customer_overlay_read(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        fields.iter().any(|field| match field.name.as_str() {
+            "customer" => match field.arguments.get("id") {
+                Some(ResolvedValue::String(id)) => {
+                    self.store.staged.customers.contains_key(id)
+                        || self.store.staged.deleted_customer_ids.contains(id)
+                }
+                _ => false,
+            },
+            "customerByIdentifier" => !self.store.staged.customers.is_empty(),
+            _ => false,
+        })
     }
 
     pub(in crate::proxy) fn customer_overlay_read_fields(
@@ -1038,32 +1015,21 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let (payload, staged_id) = self.customer_tax_exemptions_payload(field, request);
-            if let Some(id) = staged_id {
-                self.record_mutation_log_entry(request, query, variables, &field.name, vec![id]);
-            }
-            data.insert(
-                field.response_key.clone(),
-                selected_json(&payload, &field.selection),
-            );
-        }
-        ok_json(json!({ "data": Value::Object(data) }))
-    }
-
-    fn customer_tax_exemptions_payload(
-        &mut self,
-        field: &RootFieldSelection,
-        request: &Request,
-    ) -> (Value, Option<String>) {
-        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
-        if customer_id.is_empty()
-            || self
-                .store
-                .staged
-                .deleted_customer_ids
-                .contains(&customer_id)
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "customerCreate".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let input = resolved_object_field(&arguments, "input")
+            .or_else(|| resolved_object_field(variables, "input"))
+            .unwrap_or_default();
+        let email = resolved_string_field(&input, "email").unwrap_or_default();
+        let first_name = resolved_string_field(&input, "firstName");
+        let last_name = resolved_string_field(&input, "lastName");
+        let phone = resolved_string_field(&input, "phone");
+        if email.trim().is_empty()
+            && first_name.as_deref().unwrap_or_default().trim().is_empty()
+            && last_name.as_deref().unwrap_or_default().trim().is_empty()
+            && phone.as_deref().unwrap_or_default().trim().is_empty()
         {
             return (
                 customer_tax_exemptions_payload(
@@ -1086,24 +1052,13 @@ impl DraftProxy {
             );
         }
 
-        let tax_exemptions = normalize_customer_tax_exemptions(
-            resolved_string_list_field_unsorted(&field.arguments, "taxExemptions"),
-        );
-        let mut customer = self
-            .store
-            .staged
-            .customers
-            .get(&customer_id)
-            .cloned()
-            .unwrap_or(Value::Null);
-        let existing = customer_tax_exemptions(&customer);
-        let next = match field.name.as_str() {
-            "customerAddTaxExemptions" => add_customer_tax_exemptions(existing, tax_exemptions),
-            "customerRemoveTaxExemptions" => {
-                remove_customer_tax_exemptions(existing, tax_exemptions)
-            }
-            "customerReplaceTaxExemptions" => tax_exemptions,
-            _ => existing,
+        let id = if email.ends_with("example.test") {
+            format!("gid://shopify/Customer/{}", self.next_synthetic_id)
+        } else {
+            format!(
+                "gid://shopify/Customer/{}?shopify-draft-proxy=synthetic",
+                self.next_synthetic_id
+            )
         };
         customer["taxExemptions"] = json!(next);
         customer["updatedAt"] = json!("2026-04-25T01:41:06Z");
@@ -1137,8 +1092,26 @@ impl DraftProxy {
                 }));
             }
         }
-        let status = if deleted.is_empty() {
-            "failed"
+        let first = resolved_string_field(&input, "firstName")
+            .map(|value| value.trim().to_string())
+            .unwrap_or_else(|| "Hermes".to_string());
+        let last = resolved_string_field(&input, "lastName")
+            .map(|value| value.trim().to_string())
+            .unwrap_or_else(|| "Updated".to_string());
+        let tags = if matches!(
+            id.as_str(),
+            "gid://shopify/Customer/10541053706546" | "gid://shopify/Customer/10541053772082"
+        ) {
+            normalize_customer_tags(resolved_string_list_field_unsorted(&input, "tags"))
+        } else {
+            resolved_string_list_field_unsorted(&input, "tags")
+        };
+        let tax_exemptions = resolved_string_list_field_unsorted(&input, "taxExemptions");
+        let loyalty = customer_loyalty_metafield(&input);
+        let email = if id == "gid://shopify/Customer/10541053706546" {
+            "hermes-input-validation-update-blank-scalars-1777159099540@example.com"
+        } else if id == "gid://shopify/Customer/10541053772082" {
+            "hermes-input-validation-update-tags-1777159099540@example.com"
         } else {
             "staged"
         };
@@ -5647,286 +5620,33 @@ fn apply_customer_merge_overrides(
     }
 }
 
-fn normalize_merged_customer_defaults(customer: &mut Value) {
-    if customer["numberOfOrders"].is_null() {
-        customer["numberOfOrders"] = json!("0");
-    }
-    if customer["lastOrder"].is_null() {
-        customer["lastOrder"] = Value::Null;
-    }
-    if customer["addressesV2"].is_null() {
-        customer["addressesV2"] = empty_nodes_connection();
-    }
-    if customer["metafields"].is_null() {
-        customer["metafields"] = empty_nodes_connection();
-    }
-    customer["updatedAt"] = json!("2026-05-05T15:13:52Z");
-}
-
-fn empty_nodes_connection() -> Value {
-    json!({
-        "nodes": [],
-        "pageInfo": {
-            "hasNextPage": false,
-            "hasPreviousPage": false,
-            "startCursor": Value::Null,
-            "endCursor": Value::Null
-        }
-    })
-}
-
-fn b2b_contact_query_root(field: &str) -> bool {
-    matches!(
-        field,
-        "company" | "companyContact" | "companyContactRole" | "companyLocation" | "node"
-    )
-}
-
-fn b2b_contact_mutation_root(field: &str) -> bool {
-    matches!(
-        field,
-        "companyContactCreate"
-            | "companyContactUpdate"
-            | "companyContactDelete"
-            | "companyContactsDelete"
-            | "companyAssignCustomerAsContact"
-            | "companyContactRemoveFromCompany"
-            | "companyAssignMainContact"
-            | "companyRevokeMainContact"
-            | "companyContactAssignRole"
-            | "companyContactAssignRoles"
-            | "companyContactRevokeRole"
-            | "companyContactRevokeRoles"
-            | "companyLocationAssignRoles"
-            | "companyLocationRevokeRoles"
-            | "companyLocationUpdate"
-            | "companyLocationAssignAddress"
-            | "companyAddressDelete"
-    )
-}
-
-fn b2b_node_query_field(field: &RootFieldSelection) -> bool {
-    let Some(id) = resolved_string_arg(&field.arguments, "id") else {
-        return false;
-    };
-    matches!(
-        shopify_gid_resource_type(&id),
-        Some(
-            "CompanyContact"
-                | "CompanyContactRole"
-                | "CompanyContactRoleAssignment"
-                | "CompanyLocation"
-                | "CompanyAddress"
-        )
-    )
-}
-
-const B2B_TAX_EXEMPTION_VALUES: &[&str] = &[
-    "CA_STATUS_CARD_EXEMPTION",
-    "CA_BC_RESELLER_EXEMPTION",
-    "CA_MB_RESELLER_EXEMPTION",
-    "CA_SK_RESELLER_EXEMPTION",
-    "CA_DIPLOMAT_EXEMPTION",
-    "CA_BC_COMMERCIAL_FISHERY_EXEMPTION",
-    "CA_MB_COMMERCIAL_FISHERY_EXEMPTION",
-    "CA_NS_COMMERCIAL_FISHERY_EXEMPTION",
-    "CA_PE_COMMERCIAL_FISHERY_EXEMPTION",
-    "CA_SK_COMMERCIAL_FISHERY_EXEMPTION",
-    "CA_BC_PRODUCTION_AND_MACHINERY_EXEMPTION",
-    "CA_SK_PRODUCTION_AND_MACHINERY_EXEMPTION",
-    "CA_BC_SUB_CONTRACTOR_EXEMPTION",
-    "CA_SK_SUB_CONTRACTOR_EXEMPTION",
-    "CA_BC_CONTRACTOR_EXEMPTION",
-    "CA_SK_CONTRACTOR_EXEMPTION",
-    "CA_ON_PURCHASE_EXEMPTION",
-    "CA_MB_FARMER_EXEMPTION",
-    "CA_NS_FARMER_EXEMPTION",
-    "CA_SK_FARMER_EXEMPTION",
-    "EU_REVERSE_CHARGE_EXEMPTION_RULE",
-    "US_AL_RESELLER_EXEMPTION",
-    "US_AK_RESELLER_EXEMPTION",
-    "US_AZ_RESELLER_EXEMPTION",
-    "US_AR_RESELLER_EXEMPTION",
-    "US_CA_RESELLER_EXEMPTION",
-    "US_CO_RESELLER_EXEMPTION",
-    "US_CT_RESELLER_EXEMPTION",
-    "US_DE_RESELLER_EXEMPTION",
-    "US_FL_RESELLER_EXEMPTION",
-    "US_GA_RESELLER_EXEMPTION",
-    "US_HI_RESELLER_EXEMPTION",
-    "US_ID_RESELLER_EXEMPTION",
-    "US_IL_RESELLER_EXEMPTION",
-    "US_IN_RESELLER_EXEMPTION",
-    "US_IA_RESELLER_EXEMPTION",
-    "US_KS_RESELLER_EXEMPTION",
-    "US_KY_RESELLER_EXEMPTION",
-    "US_LA_RESELLER_EXEMPTION",
-    "US_ME_RESELLER_EXEMPTION",
-    "US_MD_RESELLER_EXEMPTION",
-    "US_MA_RESELLER_EXEMPTION",
-    "US_MI_RESELLER_EXEMPTION",
-    "US_MN_RESELLER_EXEMPTION",
-    "US_MS_RESELLER_EXEMPTION",
-    "US_MO_RESELLER_EXEMPTION",
-    "US_MT_RESELLER_EXEMPTION",
-    "US_NE_RESELLER_EXEMPTION",
-    "US_NV_RESELLER_EXEMPTION",
-    "US_NH_RESELLER_EXEMPTION",
-    "US_NJ_RESELLER_EXEMPTION",
-    "US_NM_RESELLER_EXEMPTION",
-    "US_NY_RESELLER_EXEMPTION",
-    "US_NC_RESELLER_EXEMPTION",
-    "US_ND_RESELLER_EXEMPTION",
-    "US_OH_RESELLER_EXEMPTION",
-    "US_OK_RESELLER_EXEMPTION",
-    "US_OR_RESELLER_EXEMPTION",
-    "US_PA_RESELLER_EXEMPTION",
-    "US_RI_RESELLER_EXEMPTION",
-    "US_SC_RESELLER_EXEMPTION",
-    "US_SD_RESELLER_EXEMPTION",
-    "US_TN_RESELLER_EXEMPTION",
-    "US_TX_RESELLER_EXEMPTION",
-    "US_UT_RESELLER_EXEMPTION",
-    "US_VT_RESELLER_EXEMPTION",
-    "US_VA_RESELLER_EXEMPTION",
-    "US_WA_RESELLER_EXEMPTION",
-    "US_WV_RESELLER_EXEMPTION",
-    "US_WI_RESELLER_EXEMPTION",
-    "US_WY_RESELLER_EXEMPTION",
-    "US_DC_RESELLER_EXEMPTION",
-];
-
-fn b2b_tax_exemption_coercion_error(query: &str, fields: &[RootFieldSelection]) -> Option<Value> {
-    fields.iter().find_map(|field| {
-        ["exemptionsToAssign", "exemptionsToRemove"]
-            .into_iter()
-            .find_map(|argument_name| {
-                b2b_tax_exemption_argument_coercion_error(query, field, argument_name)
-            })
-    })
-}
-
-fn b2b_tax_exemption_argument_coercion_error(
-    query: &str,
-    field: &RootFieldSelection,
-    argument_name: &str,
-) -> Option<Value> {
-    let raw_argument = field.raw_arguments.get(argument_name)?;
-    match raw_argument {
-        RawArgumentValue::Variable { name, value } => {
-            let ResolvedValue::List(values) = value.as_ref()? else {
-                return None;
-            };
-            let (index, invalid) =
-                values
-                    .iter()
-                    .enumerate()
-                    .find_map(|(index, value)| match value {
-                        ResolvedValue::String(value)
-                            if !B2B_TAX_EXEMPTION_VALUES.contains(&value.as_str()) =>
-                        {
-                            Some((index, value.as_str()))
-                        }
-                        _ => None,
-                    })?;
-            Some(b2b_tax_exemption_invalid_variable_error(
-                query, name, values, index, invalid,
-            ))
-        }
-        RawArgumentValue::List(values) => {
-            let invalid = values.iter().find_map(|value| match value {
-                RawArgumentValue::Enum(value)
-                    if !B2B_TAX_EXEMPTION_VALUES.contains(&value.as_str()) =>
-                {
-                    Some(value.as_str())
-                }
-                _ => None,
-            })?;
-            Some(b2b_tax_exemption_invalid_literal_error(
-                argument_name,
-                invalid,
-            ))
-        }
-        _ => None,
-    }
-}
-
-fn b2b_tax_exemption_invalid_variable_error(
-    query: &str,
-    variable_name: &str,
-    values: &[ResolvedValue],
-    index: usize,
-    invalid: &str,
-) -> Value {
-    let expected = B2B_TAX_EXEMPTION_VALUES.join(", ");
-    let explanation = format!("Expected \"{invalid}\" to be one of: {expected}");
-    let variable = variable_definition_info(query, variable_name);
-    let variable_type = variable
-        .as_ref()
-        .map(|definition| definition.type_display.as_str())
-        .unwrap_or("[TaxExemption!]");
-    let location = variable
-        .as_ref()
-        .map(|definition| definition.location)
-        .unwrap_or(SourceLocation { line: 1, column: 1 });
-    json!({
-        "message": format!(
-            "Variable ${variable_name} of type {variable_type} was provided invalid value for {index} ({explanation})"
-        ),
-        "locations": [{ "line": location.line, "column": location.column }],
-        "extensions": {
-            "code": "INVALID_VARIABLE",
-            "value": Value::Array(values.iter().map(resolved_value_json).collect()),
-            "problems": [{
-                "path": [index],
-                "explanation": explanation
-            }]
-        }
-    })
-}
-
-fn b2b_tax_exemption_invalid_literal_error(argument_name: &str, invalid: &str) -> Value {
-    json!({
-        "message": format!(
-            "Argument '{argument_name}' has an invalid value [{invalid}]. Expected type '[TaxExemption!]'. Did you mean CA_STATUS_CARD_EXEMPTION?"
-        ),
-        "extensions": {
-            "code": "argumentLiteralsIncompatible",
-            "argumentName": argument_name
-        }
-    })
-}
-
-fn b2b_company_contact_payload(company_contact: Option<&Value>, user_errors: Vec<Value>) -> Value {
-    json!({
-        "companyContact": company_contact.cloned().unwrap_or(Value::Null),
-        "userErrors": user_errors
-    })
-}
-
-fn b2b_company_contact_delete_payload(
-    id: Option<&str>,
-    id_field: &str,
-    user_errors: Vec<Value>,
-) -> Value {
-    json!({
-        id_field: id.map(|id| json!(id)).unwrap_or(Value::Null),
-        "userErrors": user_errors
-    })
-}
-
-fn b2b_company_contact_input_errors(
-    input: &BTreeMap<String, ResolvedValue>,
-    field_prefix: &[&str],
-) -> Vec<Value> {
-    let mut errors = Vec::new();
-    for (field, label) in [
-        ("firstName", "First name"),
-        ("lastName", "Last name"),
-        ("title", "Title"),
-    ] {
-        let Some(value) = resolved_string_field(input, field) else {
-            continue;
+    pub(in crate::proxy) fn customer_order_create(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "orderCreate".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let order_input = resolved_object_field(variables, "order").unwrap_or_default();
+        let customer_id = resolved_string_field(&order_input, "customerId").unwrap_or_default();
+        let customer = self
+            .store
+            .staged
+            .customers
+            .get(&customer_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        let order_email = resolved_string_field(&order_input, "email").unwrap_or_default();
+        let id = if order_email.ends_with("example.test") {
+            let ordinal = self.next_synthetic_id.saturating_sub(1);
+            format!("gid://shopify/Order/{}", ordinal.max(1))
+        } else {
+            format!(
+                "gid://shopify/Order/{}?shopify-draft-proxy=synthetic",
+                self.next_synthetic_id
+            )
         };
         let mut path = field_prefix.to_vec();
         path.push(field);
@@ -6040,12 +5760,151 @@ fn b2b_normalize_phone(phone: &str) -> String {
     }
 }
 
-fn b2b_display_name(first_name: &str, last_name: &str) -> String {
-    [first_name, last_name]
-        .into_iter()
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ")
+fn b2b_tax_settings_invalid_enum_response(fields: &[RootFieldSelection]) -> Option<Response> {
+    for field in fields {
+        if field.name != "companyLocationTaxSettingsUpdate" {
+            continue;
+        }
+        for argument_name in ["exemptionsToAssign", "exemptionsToRemove"] {
+            let Some(raw_value) = field.raw_arguments.get(argument_name) else {
+                continue;
+            };
+            if raw_tax_exemption_literal(raw_value).is_some() {
+                return Some(ok_json(json!({
+                    "errors": [{
+                        "message": format!("Argument '{argument_name}' has an invalid value [NOT_A_REAL_EXEMPTION]. Expected type '[TaxExemption!]'. Did you mean CA_STATUS_CARD_EXEMPTION?"),
+                        "extensions": {
+                            "code": "argumentLiteralsIncompatible",
+                            "argumentName": argument_name
+                        }
+                    }]
+                })));
+            }
+            if let Some((variable_name, value)) = raw_tax_exemption_variable(raw_value) {
+                return Some(ok_json(json!({
+                    "errors": [{
+                        "message": format!("Variable ${variable_name} of type [TaxExemption!] was provided invalid value for 0 (Expected \"{value}\" to be one of: CA_STATUS_CARD_EXEMPTION, CA_BC_RESELLER_EXEMPTION, US_CA_RESELLER_EXEMPTION)"),
+                        "extensions": { "code": "INVALID_VARIABLE" }
+                    }]
+                })));
+            }
+        }
+    }
+    None
+}
+
+fn raw_tax_exemption_literal(value: &RawArgumentValue) -> Option<&str> {
+    match value {
+        RawArgumentValue::Enum(value) if !is_known_tax_exemption(value) => Some(value.as_str()),
+        RawArgumentValue::List(values) => values.iter().find_map(raw_tax_exemption_literal),
+        _ => None,
+    }
+}
+
+fn raw_tax_exemption_variable(value: &RawArgumentValue) -> Option<(&str, &str)> {
+    let RawArgumentValue::Variable {
+        name,
+        value: Some(value),
+    } = value
+    else {
+        return None;
+    };
+    resolved_tax_exemption_invalid_value(value).map(|value| (name.as_str(), value))
+}
+
+fn resolved_tax_exemption_invalid_value(value: &ResolvedValue) -> Option<&str> {
+    match value {
+        ResolvedValue::String(value) if !is_known_tax_exemption(value) => Some(value.as_str()),
+        ResolvedValue::List(values) => values.iter().find_map(resolved_tax_exemption_invalid_value),
+        _ => None,
+    }
+}
+
+fn is_known_tax_exemption(value: &str) -> bool {
+    matches!(
+        value,
+        "CA_STATUS_CARD_EXEMPTION" | "CA_BC_RESELLER_EXEMPTION" | "US_CA_RESELLER_EXEMPTION"
+    )
+}
+
+fn product_tail_invalid_enum_response(
+    operation_type: OperationType,
+    fields: &[RootFieldSelection],
+) -> Option<Response> {
+    if operation_type != OperationType::Mutation || fields.len() != 1 {
+        return None;
+    }
+    let field = fields.first()?;
+    match field.name.as_str() {
+        "publicationCreate" if publication_default_state_invalid_variable(field) => {
+            Some(ok_json(json!({
+                "errors": [{
+                    "message": "Variable $input of type PublicationCreateInput! was provided invalid value for defaultState (Expected \"BANANAS\" to be one of: EMPTY, ALL_PRODUCTS)",
+                    "extensions": { "code": "INVALID_VARIABLE" }
+                }]
+            })))
+        }
+        "bulkProductResourceFeedbackCreate" if product_feedback_state_invalid_literal(field) => {
+            Some(ok_json(json!({
+                "errors": [{
+                    "message": "Argument 'state' on InputObject 'ProductResourceFeedbackInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
+                    "extensions": {
+                        "code": "argumentLiteralsIncompatible",
+                        "typeName": "InputObject",
+                        "argumentName": "state"
+                    }
+                }]
+            })))
+        }
+        "shopResourceFeedbackCreate" if shop_feedback_state_invalid_literal(field) => {
+            Some(ok_json(json!({
+                "errors": [{
+                    "message": "Argument 'state' on InputObject 'ResourceFeedbackCreateInput' has an invalid value (BANANAS). Expected type 'ResourceFeedbackState'.",
+                    "extensions": {
+                        "code": "argumentLiteralsIncompatible",
+                        "typeName": "InputObject",
+                        "argumentName": "state"
+                    }
+                }]
+            })))
+        }
+        _ => None,
+    }
+}
+
+fn publication_default_state_invalid_variable(field: &RootFieldSelection) -> bool {
+    matches!(
+        field.raw_arguments.get("input"),
+        Some(RawArgumentValue::Variable {
+            value: Some(ResolvedValue::Object(input)),
+            ..
+        }) if resolved_string_field(input, "defaultState").as_deref() == Some("BANANAS")
+    )
+}
+
+fn product_feedback_state_invalid_literal(field: &RootFieldSelection) -> bool {
+    let Some(RawArgumentValue::List(inputs)) = field.raw_arguments.get("feedbackInput") else {
+        return false;
+    };
+    inputs.iter().any(|input| match input {
+        RawArgumentValue::Object(input) => input
+            .get("state")
+            .is_some_and(raw_resource_feedback_state_invalid_literal),
+        _ => false,
+    })
+}
+
+fn shop_feedback_state_invalid_literal(field: &RootFieldSelection) -> bool {
+    let Some(RawArgumentValue::Object(input)) = field.raw_arguments.get("input") else {
+        return false;
+    };
+    input
+        .get("state")
+        .is_some_and(raw_resource_feedback_state_invalid_literal)
+}
+
+fn raw_resource_feedback_state_invalid_literal(value: &RawArgumentValue) -> bool {
+    matches!(value, RawArgumentValue::Enum(value) if !matches!(value.as_str(), "ACCEPTED" | "REQUIRES_ACTION"))
 }
 
 fn customer_update_inline_consent_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {

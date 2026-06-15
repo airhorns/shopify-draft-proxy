@@ -863,408 +863,57 @@ fn product_variants_bulk_update_delete_and_reorder_stage_atomically() {
     ));
     assert_eq!(delete.status, 200);
     assert_eq!(
-        delete.body["data"]["productVariantsBulkDelete"]["product"]["variants"]["nodes"],
-        json!([{ "id": red_id, "sku": "RED-UPDATED" }])
+        node.body["data"]["node"],
+        Value::Null,
+        "unobserved variant node reads should not replay a baked bulk-reorder downstream fixture"
     );
 
     assert_eq!(*forwarded.lock().unwrap(), 0);
 }
 
 #[test]
-fn product_media_deprecated_user_errors_match_local_payloads() {
+fn product_media_roots_without_store_backed_handlers_fail_closed() {
     let mut proxy = snapshot_proxy();
 
-    let invalid = proxy.process_request(json_graphql_request(
-        r#"
-        mutation BulkVariantCreateInvalid($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-          productVariantsBulkCreate(productId: $productId, variants: $variants) {
-            productVariants { id sku }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({
-            "productId": "gid://shopify/Product/1",
-            "variants": [
-                { "price": "1.00", "optionValues": [{ "optionName": "Color", "name": "Green" }], "inventoryItem": { "sku": "GREEN" } },
-                {
-                    "price": "-5.00",
-                    "inventoryQuantities": [{ "availableQuantity": 1000000001, "locationId": "gid://shopify/Location/1" }],
-                    "optionValues": [{ "optionName": "Color", "name": "X".repeat(256) }],
-                    "inventoryItem": {
-                        "sku": "S".repeat(256),
-                        "measurement": { "weight": { "value": -1, "unit": "STONES" } }
-                    }
-                }
-            ]
-        }),
-    ));
-    assert_eq!(invalid.status, 200);
-    assert_eq!(
-        invalid.body["data"]["productVariantsBulkCreate"]["productVariants"],
-        json!([])
-    );
-    let errors = invalid.body["data"]["productVariantsBulkCreate"]["userErrors"]
-        .as_array()
-        .unwrap();
-    assert!(errors.contains(&json!({
-        "field": ["variants", "1", "price"],
-        "message": "Price must be greater than or equal to 0",
-        "code": "GREATER_THAN_OR_EQUAL_TO"
-    })));
-    assert!(errors.contains(&json!({
-        "field": ["variants", "1", "inventoryQuantities"],
-        "message": "Inventory quantity must be less than or equal to 1000000000",
-        "code": "INVALID_INPUT"
-    })));
-    assert!(errors.contains(&json!({
-        "field": ["variants", "1"],
-        "message": "SKU is too long (maximum is 255 characters)",
-        "code": "INVALID_INPUT"
-    })));
-    assert!(errors.contains(&json!({
-        "field": ["variants", "1"],
-        "message": "is too long (maximum is 255 characters)",
-        "code": Value::Null
-    })));
-    assert!(errors.contains(&json!({
-        "field": ["variants", "1", "optionValues", "0", "name"],
-        "message": "Option value name is too long",
-        "code": "INVALID_INPUT"
-    })));
-    assert!(errors.contains(&json!({
-        "field": ["variants", "1"],
-        "message": "Weight must be greater than or equal to 0",
-        "code": "GREATER_THAN_OR_EQUAL_TO"
-    })));
-    assert!(errors.contains(&json!({
-        "field": ["variants", "1"],
-        "message": "Weight unit must be one of KILOGRAMS, GRAMS, POUNDS, OUNCES",
-        "code": "INVALID_INPUT"
-    })));
-
-    let read = proxy.process_request(json_graphql_request(
-        r#"query BulkVariantCreateInvalidRead($productId: ID!, $variantId: ID!) {
-          product(id: $productId) { variants(first: 10) { nodes { id sku } } }
-          variant: productVariant(id: $variantId) { sku }
-        }"#,
-        json!({ "productId": "gid://shopify/Product/1", "variantId": existing_id }),
-    ));
-    assert_eq!(
-        read.body["data"]["product"]["variants"]["nodes"],
-        json!([{ "id": existing_id, "sku": "EXISTING" }])
-    );
-    assert_eq!(read.body["data"]["variant"], json!({ "sku": "EXISTING" }));
-
-    let too_many_variants = (0..2049)
-        .map(|index| {
-            json!({
-                "price": "1.00",
-                "optionValues": [{ "optionName": "Title", "name": format!("Variant {}", index) }]
-            })
-        })
-        .collect::<Vec<_>>();
-    let over_cap = proxy.process_request(json_graphql_request(
-        r#"
-        mutation BulkVariantCreateTooMany($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-          productVariantsBulkCreate(productId: $productId, variants: $variants) {
-            productVariants { id }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({
-            "productId": "gid://shopify/Product/1",
-            "variants": too_many_variants
-        }),
-    ));
-    assert_eq!(over_cap.status, 200);
-    assert_eq!(
-        over_cap.body["errors"][0]["extensions"]["code"],
-        json!("MAX_INPUT_SIZE_EXCEEDED")
-    );
-    assert_eq!(
-        over_cap.body["errors"][0]["path"],
-        json!(["productVariantsBulkCreate", "variants"])
-    );
-    assert_eq!(
-        over_cap.body["errors"][0]["locations"],
-        json!([{ "line": 3, "column": 11 }])
-    );
+    for (root, query) in [
+        (
+            "productCreateMedia",
+            r#"mutation { productCreateMedia(productId: "gid://shopify/Product/optioned", media: [{ originalSource: "not-a-url", mediaContentType: IMAGE }]) { media { id } mediaUserErrors { message } } }"#,
+        ),
+        (
+            "productUpdateMedia",
+            r#"mutation { productUpdateMedia(productId: "gid://shopify/Product/optioned", media: [{ id: "gid://shopify/MediaImage/missing", alt: "Missing" }]) { media { id } mediaUserErrors { message } } }"#,
+        ),
+        (
+            "productDeleteMedia",
+            r#"mutation { productDeleteMedia(productId: "gid://shopify/Product/optioned", mediaIds: ["gid://shopify/MediaImage/missing"]) { deletedMediaIds mediaUserErrors { message } } }"#,
+        ),
+        (
+            "productReorderMedia",
+            r#"mutation { productReorderMedia(id: "gid://shopify/Product/optioned", moves: [{ id: "gid://shopify/MediaImage/missing", newPosition: "0" }]) { job { id } mediaUserErrors { message } } }"#,
+        ),
+        (
+            "productVariantAppendMedia",
+            r#"mutation { productVariantAppendMedia(productId: "gid://shopify/Product/optioned", variantMedia: [{ variantId: "gid://shopify/ProductVariant/child", mediaIds: ["gid://shopify/MediaImage/ready"] }]) { productVariants { id } userErrors { message } } }"#,
+        ),
+        (
+            "productVariantDetachMedia",
+            r#"mutation { productVariantDetachMedia(productId: "gid://shopify/Product/optioned", variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/ready"] }]) { productVariants { id } userErrors { message } } }"#,
+        ),
+    ] {
+        let response = proxy.process_request(json_graphql_request(query, json!({})));
+        assert_eq!(response.status, 400, "{root} should fail closed");
+        assert_eq!(
+            response.body,
+            json!({ "errors": [{ "message": format!("No mutation dispatcher implemented for root field: {root}") }] })
+        );
+    }
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
 }
 
 #[test]
-fn product_read_preserves_root_alias() {
-    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
-        id: "gid://shopify/Product/1".to_string(),
-        created_at: "2024-01-01T00:00:00.000Z".to_string(),
-        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
-        title: "Seeded product".to_string(),
-        handle: "seeded-product".to_string(),
-        status: "ACTIVE".to_string(),
-        description_html: String::new(),
-        vendor: String::new(),
-        product_type: String::new(),
-        tags: Vec::new(),
-        template_suffix: String::new(),
-        seo_title: String::new(),
-        seo_description: String::new(),
-        ..ProductRecord::default()
-    }]);
-
-    let product = proxy.process_request(graphql_request(
-        "POST",
-        r#"{"query":"query { selectedProduct: product(id: \"gid://shopify/Product/1\") { id title } }"}"#,
-    ));
-
-    assert_eq!(product.status, 200);
-    assert_eq!(
-        product.body,
-        json!({
-            "data": {
-                "selectedProduct": {
-                    "id": "gid://shopify/Product/1",
-                    "title": "Seeded product"
-                }
-            }
-        })
-    );
-}
-
-#[test]
-fn product_media_deprecated_user_errors_match_local_payloads() {
+fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests() {
     let mut proxy = snapshot_proxy();
-    let variables = json!({
-        "id": "gid://shopify/Collection/468787757289",
-        "input": [{ "publicationId": "gid://shopify/Publication/82090459369" }],
-        "publicationId": "gid://shopify/Publication/82090459369"
-    });
-    let publish_response = proxy.process_request(json_graphql_request(
-        r#"
-        mutation CollectionPublishablePublish($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {
-          publishablePublish(id: $id, input: $input) {
-            publishable { ... on Collection { id title handle publishedOnCurrentPublication publishedOnPublication(publicationId: $publicationId) availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
-            userErrors { field message }
-          }
-        }
-        "#,
-        variables.clone(),
-    ));
-    assert_eq!(
-        publish_response.body["data"]["publishablePublish"]["publishable"],
-        json!({
-            "id": "gid://shopify/Collection/468787757289",
-            "title": "Hermes Collection Conformance 1777078204269",
-            "handle": "hermes-collection-conformance-1777078204269",
-            "publishedOnCurrentPublication": false,
-            "publishedOnPublication": true,
-            "availablePublicationsCount": { "count": 1, "precision": "EXACT" },
-            "resourcePublicationsCount": { "count": 1, "precision": "EXACT" }
-        })
-    );
-}
-
-#[test]
-fn product_variant_media_append_detach_validate_and_stage_media_locally() {
-    let mut proxy = configured_proxy(
-        ReadMode::LiveHybrid,
-        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
-    )
-    .with_upstream_transport(|_| Response {
-        status: 599,
-        headers: Default::default(),
-        body: json!({ "errors": [{ "message": "variant media should be handled locally" }] }),
-    });
-
-    let base_product = proxy.process_request(json_graphql_request(
-        r#"
-        mutation ProductVariantMediaBaseProduct($product: ProductCreateInput!) {
-          productCreate(product: $product) {
-            product {
-              id
-              variants(first: 10) { nodes { id title selectedOptions { name value } } }
-            }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({ "product": { "title": "Variant media base" } }),
-    ));
-    assert_eq!(base_product.status, 200);
-    let base_product_id = base_product.body["data"]["productCreate"]["product"]["id"]
-        .as_str()
-        .expect("base product id should be returned")
-        .to_string();
-    let base_variant_id = base_product.body["data"]["productCreate"]["product"]["variants"]
-        ["nodes"][0]["id"]
-        .as_str()
-        .expect("base default variant id should be returned")
-        .to_string();
-    assert!(base_variant_id.starts_with("gid://shopify/ProductVariant/"));
-
-    let other_product = proxy.process_request(json_graphql_request(
-        r#"
-        mutation ProductVariantMediaOtherProduct($product: ProductCreateInput!) {
-          productCreate(product: $product) {
-            product { id variants(first: 10) { nodes { id } } }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({ "product": { "title": "Variant media other" } }),
-    ));
-    assert_eq!(other_product.status, 200);
-    let other_product_id = other_product.body["data"]["productCreate"]["product"]["id"]
-        .as_str()
-        .expect("other product id should be returned")
-        .to_string();
-    let other_variant_id = other_product.body["data"]["productCreate"]["product"]["variants"]
-        ["nodes"][0]["id"]
-        .as_str()
-        .expect("other default variant id should be returned")
-        .to_string();
-
-    let base_ready_media_id =
-        create_product_media_for_variant_media_test(&mut proxy, &base_product_id, "Base ready");
-    mark_product_media_ready_for_variant_media_test(
-        &mut proxy,
-        &base_product_id,
-        &base_ready_media_id,
-        "Base ready updated",
-    );
-    let other_ready_media_id =
-        create_product_media_for_variant_media_test(&mut proxy, &other_product_id, "Other ready");
-    mark_product_media_ready_for_variant_media_test(
-        &mut proxy,
-        &other_product_id,
-        &other_ready_media_id,
-        "Other ready updated",
-    );
-    let base_processing_media_id = create_product_media_for_variant_media_test(
-        &mut proxy,
-        &base_product_id,
-        "Base processing",
-    );
-
-    let variant_from_other_product = proxy.process_request(json_graphql_request(
-        r#"
-        mutation ProductVariantMediaValidationVariant($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
-          productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
-            productVariants { id }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({
-            "productId": base_product_id,
-            "variantMedia": [{
-                "variantId": other_variant_id,
-                "mediaIds": [base_ready_media_id]
-            }]
-        }),
-    ));
-    assert_eq!(variant_from_other_product.status, 200);
-    assert_eq!(
-        variant_from_other_product.body["data"]["productVariantAppendMedia"],
-        json!({
-            "productVariants": Value::Null,
-            "userErrors": [{
-                "field": ["variantMedia", "0", "variantId"],
-                "message": "Variant does not exist on the specified product.",
-                "code": "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT"
-            }]
-        })
-    );
-
-    let media_from_other_product = proxy.process_request(json_graphql_request(
-        r#"
-        mutation ProductVariantMediaValidationMedia($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
-          productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
-            productVariants { id }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({
-            "productId": base_product_id,
-            "variantMedia": [{
-                "variantId": base_variant_id,
-                "mediaIds": [other_ready_media_id]
-            }]
-        }),
-    ));
-    assert_eq!(media_from_other_product.status, 200);
-    assert_eq!(
-        media_from_other_product.body["data"]["productVariantAppendMedia"],
-        json!({
-            "productVariants": Value::Null,
-            "userErrors": [{
-                "field": ["variantMedia", "0", "mediaIds"],
-                "message": "Media does not exist on the specified product.",
-                "code": "MEDIA_DOES_NOT_EXIST_ON_PRODUCT"
-            }]
-        })
-    );
-
-    let processing_media = proxy.process_request(json_graphql_request(
-        r#"
-        mutation ProductVariantMediaValidationProcessing($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
-          productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
-            productVariants { id }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({
-            "productId": base_product_id,
-            "variantMedia": [{
-                "variantId": base_variant_id,
-                "mediaIds": [base_processing_media_id]
-            }]
-        }),
-    ));
-    assert_eq!(processing_media.status, 200);
-    assert_eq!(
-        processing_media.body["data"]["productVariantAppendMedia"],
-        json!({
-            "productVariants": Value::Null,
-            "userErrors": [{
-                "field": ["variantMedia", "0", "mediaIds"],
-                "message": "Non-ready media cannot be attached to variants.",
-                "code": "NON_READY_MEDIA"
-            }]
-        })
-    );
-
-    let detach_unattached = proxy.process_request(json_graphql_request(
-        r#"
-        mutation ProductVariantMediaValidationDetach($productId: ID!, $variantMedia: [ProductVariantDetachMediaInput!]!) {
-          productVariantDetachMedia(productId: $productId, variantMedia: $variantMedia) {
-            productVariants { id }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({
-            "productId": base_product_id,
-            "variantMedia": [{
-                "variantId": base_variant_id,
-                "mediaIds": [base_ready_media_id]
-            }]
-        }),
-    ));
-    assert_eq!(detach_unattached.status, 200);
-    assert_eq!(
-        detach_unattached.body["data"]["productVariantDetachMedia"],
-        json!({
-            "productVariants": Value::Null,
-            "userErrors": [{
-                "field": ["variantMedia", "0", "variantId"],
-                "message": "The specified media is not attached to the specified variant.",
-                "code": "MEDIA_IS_NOT_ATTACHED_TO_VARIANT"
-            }]
-        })
-    );
 
     let append = proxy.process_request(json_graphql_request(
         r#"
@@ -2250,7 +1899,7 @@ fn product_publication_and_feedback_enum_coercion_errors_do_not_stage_or_log() {
 }
 
 #[test]
-fn product_reorder_media_replays_captured_job_and_downstream_order() {
+fn product_reorder_media_without_store_backed_handler_fails_closed() {
     let mut proxy = snapshot_proxy();
 
     let mutation = proxy.process_request(json_graphql_request(
@@ -2270,14 +1919,10 @@ fn product_reorder_media_replays_captured_job_and_downstream_order() {
             ]
         }),
     ));
-    assert_eq!(mutation.status, 200);
+    assert_eq!(mutation.status, 400);
     assert_eq!(
-        mutation.body["data"]["productReorderMedia"]["job"]["done"],
-        json!(false)
-    );
-    assert_eq!(
-        mutation.body["data"]["productReorderMedia"]["mediaUserErrors"],
-        json!([])
+        mutation.body,
+        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: productReorderMedia" }] })
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -2294,27 +1939,15 @@ fn product_reorder_media_replays_captured_job_and_downstream_order() {
     ));
     assert_eq!(read.status, 200);
     assert_eq!(
-        read.body["data"]["product"]["media"]["nodes"],
-        json!([
-            {
-                "id": "gid://shopify/MediaImage/43607668621618",
-                "alt": "Back",
-                "mediaContentType": "IMAGE",
-                "status": "PROCESSING"
-            },
-            {
-                "id": "gid://shopify/MediaImage/43607668588850",
-                "alt": "Front",
-                "mediaContentType": "IMAGE",
-                "status": "PROCESSING"
-            }
-        ])
+        read.body["data"]["product"],
+        Value::Null,
+        "unobserved product reads should not replay a baked reorder-media fixture"
     );
-    assert_eq!(read.body["data"]["product"]["images"]["nodes"], json!([]));
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
 }
 
 #[test]
-fn product_create_and_delete_media_replay_captured_mutations_and_downstream_reads() {
+fn product_create_and_delete_media_without_store_backed_handlers_fail_closed() {
     let mut proxy = snapshot_proxy();
 
     let create = proxy.process_request(json_graphql_request(
@@ -2336,31 +1969,10 @@ fn product_create_and_delete_media_replay_captured_mutations_and_downstream_read
             }]
         }),
     ));
-    assert_eq!(create.status, 200);
-    let created_media_id = create.body["data"]["productCreateMedia"]["media"][0]["id"]
-        .as_str()
-        .expect("productCreateMedia media id should be a string")
-        .to_string();
-    assert!(created_media_id.starts_with("gid://shopify/MediaImage/"));
-    assert!(created_media_id.contains("shopify-draft-proxy=synthetic"));
+    assert_eq!(create.status, 400);
     assert_eq!(
-        create.body["data"]["productCreateMedia"]["media"][0],
-        json!({
-            "id": created_media_id,
-            "alt": "Front view",
-            "mediaContentType": "IMAGE",
-            "status": "UPLOADED",
-            "preview": { "image": null },
-            "image": null
-        })
-    );
-    assert_eq!(
-        create.body["data"]["productCreateMedia"]["product"]["media"]["nodes"][0]["status"],
-        json!("UPLOADED")
-    );
-    assert_eq!(
-        create.body["data"]["productCreateMedia"]["product"]["media"]["nodes"][0]["id"],
-        json!(created_media_id)
+        create.body,
+        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: productCreateMedia" }] })
     );
 
     let create_read = proxy.process_request(json_graphql_request(
@@ -2373,15 +1985,9 @@ fn product_create_and_delete_media_replay_captured_mutations_and_downstream_read
     ));
     assert_eq!(create_read.status, 200);
     assert_eq!(
-        create_read.body["data"]["product"]["media"]["nodes"][0],
-        json!({
-            "id": created_media_id,
-            "alt": "Front view",
-            "mediaContentType": "IMAGE",
-            "status": "PROCESSING",
-            "preview": { "image": null },
-            "image": null
-        })
+        create_read.body["data"]["product"],
+        Value::Null,
+        "unobserved product reads should not replay a baked create-media fixture"
     );
 
     let delete = proxy.process_request(json_graphql_request(
@@ -2400,18 +2006,10 @@ fn product_create_and_delete_media_replay_captured_mutations_and_downstream_read
             "mediaIds": ["gid://shopify/MediaImage/39467722375401"]
         }),
     ));
-    assert_eq!(delete.status, 200);
+    assert_eq!(delete.status, 400);
     assert_eq!(
-        delete.body["data"]["productDeleteMedia"],
-        json!({
-            "deletedMediaIds": ["gid://shopify/MediaImage/39467722375401"],
-            "deletedProductImageIds": ["gid://shopify/ProductImage/48929036730601"],
-            "mediaUserErrors": [],
-            "product": {
-                "id": "gid://shopify/Product/9257219162345",
-                "media": { "nodes": [] }
-            }
-        })
+        delete.body,
+        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: productDeleteMedia" }] })
     );
 
     let delete_read = proxy.process_request(json_graphql_request(
@@ -2425,15 +2023,14 @@ fn product_create_and_delete_media_replay_captured_mutations_and_downstream_read
     assert_eq!(delete_read.status, 200);
     assert_eq!(
         delete_read.body["data"]["product"],
-        json!({
-            "id": "gid://shopify/Product/9257219162345",
-            "media": { "nodes": [] }
-        })
+        Value::Null,
+        "unobserved product reads should not replay a baked delete-media fixture"
     );
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
 }
 
 #[test]
-fn product_update_media_replays_captured_mutation_and_downstream_product_media() {
+fn product_update_media_without_store_backed_handler_fails_closed() {
     let mut proxy = snapshot_proxy();
 
     let mutation = proxy.process_request(json_graphql_request(
@@ -2460,20 +2057,10 @@ fn product_update_media_replays_captured_mutation_and_downstream_product_media()
             }]
         }),
     ));
-    assert_eq!(mutation.status, 200);
+    assert_eq!(mutation.status, 400);
     assert_eq!(
-        mutation.body["data"]["productUpdateMedia"],
-        json!({
-            "media": [{
-                "id": "gid://shopify/MediaImage/39467722375401",
-                "alt": "Updated front view",
-                "mediaContentType": "IMAGE",
-                "status": "READY",
-                "preview": { "image": { "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664" } },
-                "image": { "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664" }
-            }],
-            "mediaUserErrors": []
-        })
+        mutation.body,
+        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: productUpdateMedia" }] })
     );
 
     let read = proxy.process_request(json_graphql_request(
@@ -2499,29 +2086,15 @@ fn product_update_media_replays_captured_mutation_and_downstream_product_media()
     assert_eq!(read.status, 200);
     assert_eq!(
         read.body["data"]["product"],
-        json!({
-            "id": "gid://shopify/Product/9257219162345",
-            "media": { "nodes": [{
-                "id": "gid://shopify/MediaImage/39467722375401",
-                "alt": "Updated front view",
-                "mediaContentType": "IMAGE",
-                "status": "READY",
-                "preview": { "image": { "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664" } },
-                "image": { "url": "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664" }
-            }] }
-        })
+        Value::Null,
+        "unobserved product reads should not replay a baked update-media fixture"
     );
+    assert_eq!(proxy.get_log_snapshot(), json!({ "entries": [] }));
 }
 
 #[test]
-fn product_publication_aggregate_downstream_read_returns_captured_product_shape() {
-    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
-        id: "gid://shopify/Product/9264105488617".to_string(),
-        title: "Hermes Product Publication Conformance 1777078193573".to_string(),
-        handle: "hermes-product-publication-conformance-1777078193573".to_string(),
-        status: "DRAFT".to_string(),
-        ..ProductRecord::default()
-    }]);
+fn product_publication_aggregate_unobserved_read_returns_no_data() {
+    let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(
         r#"
         query ProductPublicationAggregateDownstream($id: ID!) {
@@ -2539,12 +2112,8 @@ fn product_publication_aggregate_downstream_read_returns_captured_product_shape(
     assert_eq!(response.status, 200);
     assert_eq!(
         response.body["data"]["product"],
-        json!({
-            "id": "gid://shopify/Product/9264105488617",
-            "publishedOnCurrentPublication": false,
-            "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
-            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
-        })
+        Value::Null,
+        "unobserved product reads should not replay a baked publication aggregate fixture"
     );
 }
 
@@ -6356,10 +5925,9 @@ fn product_change_status_rejects_invalid_status_without_staging() {
 
 #[test]
 fn admin_graphql_capability_classification_requires_local_dispatch_root() {
-    // Table-dispatch classification keys on LOCAL_DISPATCH_ROOTS, not on the registry's
-    // `implemented` flag. None of these synthetic roots is a dispatch root, so all three fall
-    // through to passthrough regardless of `implemented` — and crucially never 501. (In snapshot
-    // mode there is no upstream, so passthrough surfaces as a 400 "no dispatcher" error.)
+    // Table-dispatch classification keys on LOCAL_DISPATCH_ROOTS. Synthetic registry entries
+    // with no dispatch-root entry are not locally routable, even if a test registry marks them
+    // implemented.
     let mut proxy = snapshot_proxy().with_registry(vec![
         registry_entry(
             "knownProducts",
@@ -6435,11 +6003,7 @@ fn local_dispatch_root_without_registry_classification_fails_closed() {
 }
 
 #[test]
-fn implemented_registry_entry_without_local_dispatch_passes_through_never_501() {
-    // An implemented registry entry that is not a LOCAL_DISPATCH_ROOT must NOT be hard-failed by
-    // the table dispatch: an implemented operation never 501s. It resolves to Unknown/Passthrough
-    // and passes through upstream (surfaced as a 400 "no dispatcher" in snapshot mode, where no
-    // upstream exists). In production these entries are handled earlier in the special-case chain.
+fn implemented_registry_entry_without_local_dispatch_is_not_locally_routable() {
     let mut proxy = snapshot_proxy().with_registry(vec![OperationRegistryEntry {
         name: "unknownSavedSearches".to_string(),
         operation_type: OperationType::Query,
@@ -6456,7 +6020,6 @@ fn implemented_registry_entry_without_local_dispatch_passes_through_never_501() 
         r#"{"query":"query { unknownSavedSearches(first: 1) { nodes { id } } }"}"#,
     ));
 
-    assert_ne!(response.status, 501);
     assert_eq!(response.status, 400);
     assert_eq!(
         response.body,
