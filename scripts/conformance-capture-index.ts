@@ -5837,6 +5837,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-activate-deactivate-edge-cases',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-activate-deactivate-edge-cases-conformance.ts',
+    purpose:
+      'Code discount activate/deactivate timestamp rewrites plus code and automatic unknown-id INVALID userErrors for all activate/deactivate roots.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-activate-deactivate-edge-cases.json`,
+      'config/parity-specs/discounts/discount-activate-deactivate-edge-cases.json',
+      'config/parity-requests/discounts/discount-activate-deactivate-edge-activate.graphql',
+      'config/parity-requests/discounts/discount-activate-deactivate-edge-create.graphql',
+      'config/parity-requests/discounts/discount-activate-deactivate-edge-deactivate.graphql',
+      'config/parity-requests/discounts/discount-activate-deactivate-edge-read.graphql',
+      'config/parity-requests/discounts/discount-activate-deactivate-edge-unknown.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable scheduled code basic discount, captures status transitions and unknown-id failures, then deletes the setup discount during the scenario with finally-block cleanup on failure.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-activation-failure-field-base-local-runtime',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-activation-failure-field-base-local-runtime.ts',
