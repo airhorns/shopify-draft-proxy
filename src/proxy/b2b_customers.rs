@@ -921,7 +921,10 @@ impl DraftProxy {
         let Some(ResolvedValue::Object(identifier)) = field.arguments.get("identifier") else {
             return Value::Null;
         };
-        let customer = match identifier.get("email") {
+        let customer = match identifier
+            .get("emailAddress")
+            .or_else(|| identifier.get("email"))
+        {
             Some(ResolvedValue::String(email)) => {
                 self.store.staged.customers.values().find(|customer| {
                     customer.get("email").and_then(Value::as_str) == Some(email.as_str())
@@ -929,7 +932,10 @@ impl DraftProxy {
             }
             _ => match identifier.get("id") {
                 Some(ResolvedValue::String(id)) => self.store.staged.customers.get(id),
-                _ => match identifier.get("phone") {
+                _ => match identifier
+                    .get("phoneNumber")
+                    .or_else(|| identifier.get("phone"))
+                {
                     Some(ResolvedValue::String(phone)) => {
                         self.store.staged.customers.values().find(|customer| {
                             customer.get("phone").and_then(Value::as_str) == Some(phone.as_str())
@@ -1012,8 +1018,10 @@ impl DraftProxy {
             "loyalty": null,
             "metafield": null,
             "metafields": { "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null } },
-            "defaultEmailAddress": if email.is_empty() { Value::Null } else { json!({ "emailAddress": email }) },
-            "defaultPhoneNumber": phone.as_ref().map(|phone| json!({ "phoneNumber": phone })).unwrap_or(Value::Null),
+            "defaultEmailAddress": default_email_address_value(&email),
+            "defaultPhoneNumber": phone.as_ref().map(|phone| default_phone_number_value(phone)).unwrap_or(Value::Null),
+            "emailMarketingConsent": email_marketing_consent_value(&email),
+            "smsMarketingConsent": phone.as_ref().map(|phone| sms_marketing_consent_value(phone)).unwrap_or(Value::Null),
             "defaultAddress": null,
             "createdAt": timestamp,
             "updatedAt": timestamp
@@ -1111,7 +1119,15 @@ impl DraftProxy {
                 object.insert(
                     "defaultPhoneNumber".to_string(),
                     phone
-                        .map(|value| json!({ "phoneNumber": value }))
+                        .as_ref()
+                        .map(|value| default_phone_number_value(value))
+                        .unwrap_or(Value::Null),
+                );
+                object.insert(
+                    "smsMarketingConsent".to_string(),
+                    phone
+                        .as_ref()
+                        .map(|value| sms_marketing_consent_value(value))
                         .unwrap_or(Value::Null),
                 );
             }
@@ -1226,6 +1242,250 @@ impl DraftProxy {
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
 
+    pub(in crate::proxy) fn customer_marketing_consent_update(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let Some(fields) = root_fields(query, variables) else {
+            return json_error(400, "Could not parse GraphQL operation");
+        };
+        let mut data = serde_json::Map::new();
+        let mut errors = Vec::new();
+        for field in fields {
+            let outcome =
+                self.customer_marketing_consent_update_field(&field, request, query, variables);
+            if let Some(error) = outcome.top_level_error {
+                errors.push(error);
+                data.insert(field.response_key.clone(), Value::Null);
+            } else {
+                data.insert(
+                    field.response_key.clone(),
+                    selected_json(&outcome.payload, &field.selection),
+                );
+            }
+        }
+
+        let mut response = serde_json::Map::new();
+        if !errors.is_empty() {
+            response.insert("errors".to_string(), Value::Array(errors));
+        }
+        response.insert("data".to_string(), Value::Object(data));
+        ok_json(Value::Object(response))
+    }
+
+    fn customer_marketing_consent_update_field(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> CustomerConsentOutcome {
+        let is_email = field.name == "customerEmailMarketingConsentUpdate";
+        let consent_key = if is_email {
+            "emailMarketingConsent"
+        } else {
+            "smsMarketingConsent"
+        };
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let customer_id = resolved_string_field(&input, "customerId").unwrap_or_default();
+        let consent = resolved_object_field(&input, consent_key).unwrap_or_default();
+        let marketing_state = resolved_string_field(&consent, "marketingState").unwrap_or_default();
+
+        if matches!(marketing_state.as_str(), "NOT_SUBSCRIBED" | "REDACTED")
+            || (is_email && marketing_state == "INVALID")
+        {
+            self.record_customer_consent_log(
+                request,
+                query,
+                variables,
+                &field.name,
+                Vec::new(),
+                "failed",
+            );
+            return CustomerConsentOutcome {
+                payload: Value::Null,
+                top_level_error: Some(customer_consent_invalid_state_error(
+                    field,
+                    &marketing_state,
+                )),
+            };
+        }
+
+        let Some(existing_customer) =
+            self.taggable_resource_staged_or_hydrated("Customer", &customer_id, request)
+        else {
+            let user_error = if is_email {
+                json!({
+                    "field": ["input", "customerId"],
+                    "message": "Customer not found",
+                    "code": "INVALID"
+                })
+            } else {
+                json!({
+                    "field": Value::Null,
+                    "message": "Customer not found",
+                    "code": Value::Null
+                })
+            };
+            self.record_customer_consent_log(
+                request,
+                query,
+                variables,
+                &field.name,
+                Vec::new(),
+                "failed",
+            );
+            return CustomerConsentOutcome {
+                payload: customer_consent_payload(Value::Null, vec![user_error]),
+                top_level_error: None,
+            };
+        };
+
+        let marketing_opt_in_level = resolved_string_field(&consent, "marketingOptInLevel")
+            .unwrap_or_else(|| current_consent_opt_in_level(&existing_customer, is_email));
+        let consent_updated_at = resolved_string_field(&consent, "consentUpdatedAt");
+
+        if let Some(consent_updated_at) = consent_updated_at.as_deref() {
+            if customer_consent_updated_at_is_future(consent_updated_at) {
+                self.record_customer_consent_log(
+                    request,
+                    query,
+                    variables,
+                    &field.name,
+                    Vec::new(),
+                    "failed",
+                );
+                let customer = if is_email {
+                    existing_customer.clone()
+                } else {
+                    Value::Null
+                };
+                return CustomerConsentOutcome {
+                    payload: customer_consent_payload(
+                        customer,
+                        vec![customer_consent_user_error(
+                            vec!["input", consent_key, "consentUpdatedAt"],
+                            "Consent updated at must not be in the future",
+                            "INVALID",
+                        )],
+                    ),
+                    top_level_error: None,
+                };
+            }
+        }
+
+        if marketing_state == "PENDING" && marketing_opt_in_level != "CONFIRMED_OPT_IN" {
+            self.record_customer_consent_log(
+                request,
+                query,
+                variables,
+                &field.name,
+                Vec::new(),
+                "failed",
+            );
+            let customer = if is_email {
+                existing_customer.clone()
+            } else {
+                Value::Null
+            };
+            return CustomerConsentOutcome {
+                payload: customer_consent_payload(
+                    customer,
+                    vec![customer_consent_user_error(
+                        vec!["input", consent_key, "marketingOptInLevel"],
+                        "Marketing opt in level must be confirmed opt-in for pending consent state",
+                        "INVALID",
+                    )],
+                ),
+                top_level_error: None,
+            };
+        }
+
+        if !is_email && !customer_has_default_phone(&existing_customer) {
+            self.record_customer_consent_log(
+                request,
+                query,
+                variables,
+                &field.name,
+                Vec::new(),
+                "failed",
+            );
+            return CustomerConsentOutcome {
+                payload: customer_consent_payload(
+                    Value::Null,
+                    vec![customer_consent_user_error(
+                        vec!["input", "smsMarketingConsent"],
+                        "A phone number is required to set the SMS consent state.",
+                        "INVALID",
+                    )],
+                ),
+                top_level_error: None,
+            };
+        }
+
+        if is_email && !customer_has_default_email(&existing_customer) {
+            self.record_customer_consent_log(
+                request,
+                query,
+                variables,
+                &field.name,
+                vec![customer_id],
+                "staged",
+            );
+            return CustomerConsentOutcome {
+                payload: customer_consent_payload(existing_customer, Vec::new()),
+                top_level_error: None,
+            };
+        }
+
+        let updated_at = consent_updated_at
+            .or_else(|| current_consent_updated_at(&existing_customer, is_email))
+            .unwrap_or_else(|| "2026-04-25T01:41:06Z".to_string());
+        let mut customer = existing_customer;
+        apply_customer_marketing_consent(
+            &mut customer,
+            is_email,
+            &marketing_state,
+            &marketing_opt_in_level,
+            &updated_at,
+        );
+        self.store
+            .staged
+            .customers
+            .insert(customer_id.clone(), customer.clone());
+        self.record_customer_consent_log(
+            request,
+            query,
+            variables,
+            &field.name,
+            vec![customer_id],
+            "staged",
+        );
+        CustomerConsentOutcome {
+            payload: customer_consent_payload(customer, Vec::new()),
+            top_level_error: None,
+        }
+    }
+
+    fn record_customer_consent_log(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        staged_ids: Vec<String>,
+        status: &str,
+    ) {
+        self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
+        if status != "staged" {
+            if let Some(entry) = self.log_entries.last_mut() {
+                set_log_status(entry, status);
+            }
+        }
+    }
+
     pub(in crate::proxy) fn customer_set_guard_response(
         &self,
         query: &str,
@@ -1266,6 +1526,188 @@ impl DraftProxy {
             "data": { response_key: selected_json(&payload, &payload_selection) }
         })))
     }
+}
+
+struct CustomerConsentOutcome {
+    payload: Value,
+    top_level_error: Option<Value>,
+}
+
+fn customer_consent_payload(customer: Value, user_errors: Vec<Value>) -> Value {
+    json!({
+        "customer": customer,
+        "userErrors": user_errors
+    })
+}
+
+fn customer_consent_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+fn customer_consent_invalid_state_error(field: &RootFieldSelection, state: &str) -> Value {
+    json!({
+        "message": format!("Cannot specify {state} as a marketing state input"),
+        "locations": [{ "line": field.location.line, "column": field.location.column }],
+        "extensions": { "code": "INVALID" },
+        "path": [field.response_key.clone()]
+    })
+}
+
+fn customer_has_default_email(customer: &Value) -> bool {
+    customer
+        .get("defaultEmailAddress")
+        .and_then(|contact| contact.get("emailAddress"))
+        .and_then(Value::as_str)
+        .is_some_and(|email| !email.trim().is_empty())
+}
+
+fn customer_has_default_phone(customer: &Value) -> bool {
+    customer
+        .get("defaultPhoneNumber")
+        .and_then(|contact| contact.get("phoneNumber"))
+        .and_then(Value::as_str)
+        .is_some_and(|phone| !phone.trim().is_empty())
+}
+
+fn current_consent_opt_in_level(customer: &Value, is_email: bool) -> String {
+    let contact_key = if is_email {
+        "defaultEmailAddress"
+    } else {
+        "defaultPhoneNumber"
+    };
+    customer
+        .get(contact_key)
+        .and_then(|contact| contact.get("marketingOptInLevel"))
+        .and_then(Value::as_str)
+        .unwrap_or("SINGLE_OPT_IN")
+        .to_string()
+}
+
+fn current_consent_updated_at(customer: &Value, is_email: bool) -> Option<String> {
+    let contact_key = if is_email {
+        "defaultEmailAddress"
+    } else {
+        "defaultPhoneNumber"
+    };
+    customer
+        .get(contact_key)
+        .and_then(|contact| contact.get("marketingUpdatedAt"))
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
+}
+
+fn customer_consent_updated_at_is_future(value: &str) -> bool {
+    let Some(updated_at) = parse_rfc3339_epoch_seconds(value) else {
+        return false;
+    };
+    let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) else {
+        return false;
+    };
+    updated_at > now.as_secs() as i64
+}
+
+fn apply_customer_marketing_consent(
+    customer: &mut Value,
+    is_email: bool,
+    marketing_state: &str,
+    marketing_opt_in_level: &str,
+    updated_at: &str,
+) {
+    let Some(customer_object) = customer.as_object_mut() else {
+        return;
+    };
+    if is_email {
+        if let Some(contact) = customer_object
+            .get_mut("defaultEmailAddress")
+            .and_then(Value::as_object_mut)
+        {
+            contact.insert("marketingState".to_string(), json!(marketing_state));
+            contact.insert(
+                "marketingOptInLevel".to_string(),
+                json!(marketing_opt_in_level),
+            );
+            contact.insert("marketingUpdatedAt".to_string(), json!(updated_at));
+        }
+        customer_object.insert(
+            "emailMarketingConsent".to_string(),
+            json!({
+                "marketingState": marketing_state,
+                "marketingOptInLevel": marketing_opt_in_level,
+                "consentUpdatedAt": updated_at
+            }),
+        );
+    } else {
+        if let Some(contact) = customer_object
+            .get_mut("defaultPhoneNumber")
+            .and_then(Value::as_object_mut)
+        {
+            contact.insert("marketingState".to_string(), json!(marketing_state));
+            contact.insert(
+                "marketingOptInLevel".to_string(),
+                json!(marketing_opt_in_level),
+            );
+            contact.insert("marketingUpdatedAt".to_string(), json!(updated_at));
+            contact.insert("marketingCollectedFrom".to_string(), json!("OTHER"));
+        }
+        customer_object.insert(
+            "smsMarketingConsent".to_string(),
+            json!({
+                "marketingState": marketing_state,
+                "marketingOptInLevel": marketing_opt_in_level,
+                "consentUpdatedAt": updated_at,
+                "consentCollectedFrom": "OTHER"
+            }),
+        );
+    }
+}
+
+pub(in crate::proxy) fn default_email_address_value(email: &str) -> Value {
+    if email.is_empty() {
+        return Value::Null;
+    }
+    json!({
+        "emailAddress": email,
+        "marketingState": "NOT_SUBSCRIBED",
+        "marketingOptInLevel": "SINGLE_OPT_IN",
+        "marketingUpdatedAt": Value::Null
+    })
+}
+
+pub(in crate::proxy) fn default_phone_number_value(phone: &str) -> Value {
+    json!({
+        "phoneNumber": phone,
+        "marketingState": "NOT_SUBSCRIBED",
+        "marketingOptInLevel": "SINGLE_OPT_IN",
+        "marketingUpdatedAt": Value::Null,
+        "marketingCollectedFrom": Value::Null
+    })
+}
+
+pub(in crate::proxy) fn email_marketing_consent_value(email: &str) -> Value {
+    if email.is_empty() {
+        return Value::Null;
+    }
+    json!({
+        "marketingState": "NOT_SUBSCRIBED",
+        "marketingOptInLevel": "SINGLE_OPT_IN",
+        "consentUpdatedAt": Value::Null
+    })
+}
+
+pub(in crate::proxy) fn sms_marketing_consent_value(phone: &str) -> Value {
+    if phone.is_empty() {
+        return Value::Null;
+    }
+    json!({
+        "marketingState": "NOT_SUBSCRIBED",
+        "marketingOptInLevel": "SINGLE_OPT_IN",
+        "consentUpdatedAt": Value::Null,
+        "consentCollectedFrom": Value::Null
+    })
 }
 
 fn customer_update_inline_consent_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {

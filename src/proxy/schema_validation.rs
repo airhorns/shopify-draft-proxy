@@ -285,15 +285,50 @@ fn validate_resolved_input_object(
 }
 
 fn validate_resolved_scalar(value: &ResolvedValue, type_ref: &SchemaTypeRef) -> Option<String> {
-    if type_ref.named_type != "Decimal" {
-        return None;
-    }
     let ResolvedValue::String(raw) = value else {
         return None;
     };
-    raw.parse::<f64>()
-        .err()
-        .map(|_| format!("invalid decimal '{raw}'"))
+    if let Some(allowed_values) = enum_allowed_values(&type_ref.named_type) {
+        if allowed_values.iter().any(|allowed| allowed == raw) {
+            return None;
+        }
+        return Some(format!(
+            "Expected \"{raw}\" to be one of: {}",
+            allowed_values.join(", ")
+        ));
+    }
+    match type_ref.named_type.as_str() {
+        "Decimal" => raw
+            .parse::<f64>()
+            .err()
+            .map(|_| format!("invalid decimal '{raw}'")),
+        "DateTime" => parse_rfc3339_epoch_seconds(raw)
+            .is_none()
+            .then(|| format!("invalid DateTime '{raw}'")),
+        _ => None,
+    }
+}
+
+fn enum_allowed_values(type_name: &str) -> Option<&'static [&'static str]> {
+    match type_name {
+        "CustomerMarketingOptInLevel" => Some(&["SINGLE_OPT_IN", "CONFIRMED_OPT_IN", "UNKNOWN"]),
+        "CustomerEmailMarketingState" => Some(&[
+            "INVALID",
+            "NOT_SUBSCRIBED",
+            "PENDING",
+            "SUBSCRIBED",
+            "UNSUBSCRIBED",
+            "REDACTED",
+        ]),
+        "CustomerSmsMarketingState" => Some(&[
+            "NOT_SUBSCRIBED",
+            "PENDING",
+            "SUBSCRIBED",
+            "UNSUBSCRIBED",
+            "REDACTED",
+        ]),
+        _ => None,
+    }
 }
 
 fn root_argument_not_accepted_error(
@@ -515,8 +550,19 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         let mut schema = schema_from_fixture(&fixture).unwrap_or_default();
         register_fulfillment_service_fields(&mut schema);
         extend_discount_basic_input_schema(&mut schema);
+        extend_customer_consent_input_schema(&mut schema);
         schema
     })
+}
+
+fn extend_customer_consent_input_schema(schema: &mut AdminInputSchema) {
+    extend_configured_mutation_input_schema(
+        schema,
+        &[
+            "customerEmailMarketingConsentUpdate",
+            "customerSmsMarketingConsentUpdate",
+        ],
+    );
 }
 
 fn register_fulfillment_service_fields(schema: &mut AdminInputSchema) {
@@ -569,6 +615,18 @@ fn scalar_type_ref(type_name: &str) -> SchemaTypeRef {
 }
 
 fn extend_discount_basic_input_schema(schema: &mut AdminInputSchema) {
+    extend_configured_mutation_input_schema(
+        schema,
+        &[
+            "discountCodeBasicCreate",
+            "discountCodeBasicUpdate",
+            "discountAutomaticBasicCreate",
+            "discountAutomaticBasicUpdate",
+        ],
+    );
+}
+
+fn extend_configured_mutation_input_schema(schema: &mut AdminInputSchema, mutation_names: &[&str]) {
     let config: Value = serde_json::from_str(include_str!(
         "../../config/admin-graphql-mutation-schema.json"
     ))
@@ -584,13 +642,10 @@ fn extend_discount_basic_input_schema(schema: &mut AdminInputSchema) {
         let Some(name) = mutation["name"].as_str() else {
             continue;
         };
-        if !matches!(
-            name,
-            "discountCodeBasicCreate"
-                | "discountCodeBasicUpdate"
-                | "discountAutomaticBasicCreate"
-                | "discountAutomaticBasicUpdate"
-        ) {
+        if !mutation_names
+            .iter()
+            .any(|mutation_name| mutation_name == &name)
+        {
             continue;
         }
         let Some(args) = mutation["args"].as_array() else {

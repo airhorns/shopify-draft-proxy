@@ -1315,8 +1315,10 @@ pub(in crate::proxy) fn customer_fixture_record(record: CustomerFixtureRecord<'_
         "loyalty": record.loyalty.clone(),
         "metafield": record.loyalty,
         "metafields": metafields,
-        "defaultEmailAddress": { "emailAddress": record.email },
-        "defaultPhoneNumber": { "phoneNumber": record.phone },
+        "defaultEmailAddress": default_email_address_value(record.email),
+        "defaultPhoneNumber": default_phone_number_value(record.phone),
+        "emailMarketingConsent": email_marketing_consent_value(record.email),
+        "smsMarketingConsent": sms_marketing_consent_value(record.phone),
         "defaultAddress": null,
         "createdAt": "2026-04-25T01:41:06Z",
         "updatedAt": "2026-04-25T01:41:06Z"
