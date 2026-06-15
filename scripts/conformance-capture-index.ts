@@ -6955,6 +6955,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'payment-terms-multiple-schedules',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-terms-multiple-schedules-conformance.ts',
+    purpose: 'paymentTermsCreate and paymentTermsUpdate multiple paymentSchedules userError field, message, and code.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-terms-multiple-schedules.json`,
+      'config/parity-specs/payments/payment-terms-multiple-schedules.json',
+      'config/parity-requests/payments/payment-terms-multiple-schedules-setup.graphql',
+      'config/parity-requests/payments/payment-terms-multiple-schedules-create.graphql',
+      'config/parity-requests/payments/payment-terms-multiple-schedules-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable draft order, captures create rejection, creates one valid payment terms record, captures update rejection, then deletes payment terms and draft order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
     captureId: 'payment-customization-metafields-and-handle-update',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-customization-metafields-conformance.ts',

@@ -1754,8 +1754,8 @@ pub(in crate::proxy) fn payment_terms_validation_error(
     let schedules = resolved_object_list_field(attrs, "paymentSchedules");
     if schedules.len() > 1 {
         return Some(payment_terms_user_error(
-            json!(["base"]),
-            "Cannot create payment terms with multiple schedules.",
+            Value::Null,
+            "Cannot create payment terms with multiple payment schedules.",
             unsuccessful_code,
         ));
     }
