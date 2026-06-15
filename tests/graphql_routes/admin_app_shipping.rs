@@ -1147,6 +1147,33 @@ fn customer_mutations_are_operation_name_independent_and_store_backed() {
     assert_eq!(customer["verifiedEmail"], json!(false));
     assert_eq!(customer["tags"], json!(["Retail", "VIP"]));
 
+    let mut versioned_proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
+    let mut versioned_create = json_graphql_request(
+        r#"
+        mutation VersionedCustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email verifiedEmail }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "email": "legacy-version@example.com" } }),
+    );
+    versioned_create.path = "/admin/api/2025-01/graphql.json".to_string();
+    let versioned_create = versioned_proxy.process_request(versioned_create);
+    assert_eq!(versioned_create.status, 200);
+    assert_eq!(
+        versioned_create.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        versioned_create.body["data"]["customerCreate"]["customer"]["verifiedEmail"],
+        json!(true)
+    );
+
     let read = proxy.process_request(json_graphql_request(
         r#"
         query ReadConsumerCustomer($id: ID!, $identifier: CustomerIdentifierInput!) {

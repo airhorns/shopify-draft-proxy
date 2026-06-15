@@ -48,13 +48,11 @@ function isKnownMatcher(matcher: string): matcher is Matcher {
     matcher === 'any-string' ||
     matcher === 'non-empty-string' ||
     matcher === 'any-number' ||
-    matcher === 'any-bool' ||
     matcher === 'iso-timestamp' ||
     matcher === 'storefront-access-token' ||
     /^shopify-gid:([A-Za-z][A-Za-z0-9]*)$/.test(matcher) ||
     /^shop-policy-url-base:https:\/\/[^/\s]+(?:\/[^\s]*)?$/.test(matcher) ||
     /^exact-string:.+$/.test(matcher) ||
-    /^exact-bool:(?:true|false)$/.test(matcher) ||
     /^regex:\^.+$/.test(matcher)
   );
 }

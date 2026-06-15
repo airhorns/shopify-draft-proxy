@@ -306,14 +306,10 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
         'hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration' ||
       call.query ===
         'recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration';
-    const isSyntheticCustomerCassette = call.query === 'hand-synthesized from checked-in customer parity capture';
     const canMatchSynthesizedNodeQuery = isSyntheticNodeCassette && /\bnode(?:s)?\s*\(/u.test(query);
-    const canMatchSynthesizedCustomerQuery =
-      isSyntheticCustomerCassette && call.operationName === operationName && operationName.length > 0;
     return (
       variablesMatch &&
       (canMatchSynthesizedNodeQuery ||
-        canMatchSynthesizedCustomerQuery ||
         parsed['query'] === call.query ||
         (call.query === undefined && call.operationName === operationName && operationName.length > 0))
     );
@@ -477,11 +473,6 @@ function matchesRule(value: unknown, rule: ExpectedDifference): boolean {
   if (matcher === 'any-string') return typeof value === 'string';
   if (matcher === 'non-empty-string') return typeof value === 'string' && value.length > 0;
   if (matcher === 'any-number') return typeof value === 'number';
-  if (matcher === 'any-bool') return typeof value === 'boolean';
-  if (matcher.startsWith('exact-bool:')) {
-    const expected = matcher.slice('exact-bool:'.length);
-    return (expected === 'true' && value === true) || (expected === 'false' && value === false);
-  }
   if (matcher === 'iso-timestamp') return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/u.test(value);
   if (matcher === 'storefront-access-token') return typeof value === 'string' && value.length > 0;
   const gidMatch = /^shopify-gid:([A-Za-z][A-Za-z0-9]*)$/u.exec(matcher);

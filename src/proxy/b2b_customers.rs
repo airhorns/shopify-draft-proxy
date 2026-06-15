@@ -1120,7 +1120,9 @@ impl DraftProxy {
 
         let id = self.next_proxy_synthetic_gid("Customer");
         let timestamp = self.next_product_timestamp();
-        let customer = customer_record_from_parts(&id, None, &normalized, &timestamp, false);
+        let verified_email_default = customer_create_verified_email_default(request, &normalized);
+        let customer =
+            customer_record_from_parts(&id, None, &normalized, &timestamp, verified_email_default);
         self.store
             .staged
             .customers
@@ -1936,7 +1938,7 @@ fn customer_record_from_parts(
     existing: Option<&Value>,
     input: &NormalizedCustomerInput,
     timestamp: &str,
-    customer_set: bool,
+    verified_email_default: bool,
 ) -> Value {
     let first = customer_string_value(input.first_name.as_ref(), existing, "firstName");
     let last = customer_string_value(input.last_name.as_ref(), existing, "lastName");
@@ -1997,7 +1999,7 @@ fn customer_record_from_parts(
         .unwrap_or(timestamp);
     let verified_email = existing
         .and_then(|customer| customer["verifiedEmail"].as_bool())
-        .unwrap_or(customer_set);
+        .unwrap_or(verified_email_default);
     customer_record(CustomerRecordInput {
         id,
         first: first.as_deref(),
@@ -2015,6 +2017,21 @@ fn customer_record_from_parts(
         created_at,
         updated_at: timestamp,
     })
+}
+
+fn customer_create_verified_email_default(
+    request: &Request,
+    input: &NormalizedCustomerInput,
+) -> bool {
+    if input
+        .email
+        .as_ref()
+        .and_then(|value| value.as_ref())
+        .is_none()
+    {
+        return false;
+    }
+    admin_graphql_version(&request.path).is_some_and(|version| !version_at_least(version, 2026, 4))
 }
 
 fn customer_string_value(

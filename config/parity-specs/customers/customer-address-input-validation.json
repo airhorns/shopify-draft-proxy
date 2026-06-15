@@ -9,7 +9,8 @@
   "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/customers_test.gleam"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customers/customerInputValidation-create.graphql",
-    "variablesCapturePath": "$.setupCustomer.variables"
+    "variablesCapturePath": "$.setupCustomer.variables",
+    "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Captured Admin GraphQL 2025-01 evidence for customer address input length, HTML, URL, emoji, blank-address, and whitespace normalization behavior across CustomerInput, CustomerSetInput, and dedicated address mutations. Dedicated customerAddressCreate and customerSet accept all-blank address strings after normalizing them to null; nested CustomerInput.addresses rejects an all-blank address entry.",
@@ -35,11 +36,6 @@
         "path": "$.customer.updatedAt",
         "matcher": "iso-timestamp",
         "reason": "The proxy stages customerSet locally and returns a deterministic synthetic timestamp instead of Shopify's live timestamp."
-      },
-      {
-        "path": "$.customer.verifiedEmail",
-        "matcher": "exact-bool:false",
-        "reason": "This 2025-01 address-validation setup capture has the historical customerCreate verifiedEmail=true default; HAR-1450 keeps current fresh customerCreate staging at verifiedEmail=false while preserving customerSet address replacement shape."
       },
       {
         "path": "$.customer.addressesV2.nodes[*].id",
