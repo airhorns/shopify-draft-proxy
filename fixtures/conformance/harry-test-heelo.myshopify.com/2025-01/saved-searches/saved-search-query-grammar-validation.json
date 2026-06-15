@@ -1,41 +1,42 @@
 {
-  "capturedAt": "2026-05-08T12:27:00.846Z",
+  "capturedAt": "2026-06-15T02:48:39.286Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "token": "ssqv-moww3m7d",
+  "token": "ssqv-mqem67j3",
   "notes": [
     "Saved-search query grammar validation capture.",
     "ORDER savedSearchCreate rejects reference_location_id as a reserved filter with field [\"input\", \"query\"].",
     "PRODUCT savedSearchCreate rejects collection_id combined with tag, error_feedback, or published_status.",
     "PRODUCT savedSearchCreate accepts collection_id alone and cleanup deletes that disposable saved search.",
-    "PRODUCT savedSearchUpdate with collection_id+tag returns a non-null payload echo plus userErrors and is not expected to persist locally."
+    "PRODUCT savedSearchUpdate with collection_id+tag returns a non-null payload echo plus userErrors and is not expected to persist locally.",
+    "ORDER savedSearchUpdate against a persisted default saved search rejects reference_location_id with field [\"input\", \"searchTerms\"]."
   ],
   "savedSearchCreateValidation": {
     "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-validation-create.graphql",
     "variables": {
       "orderReserved": {
         "resourceType": "ORDER",
-        "name": "SDP Reserved ssqv-moww3m7d",
+        "name": "SDP Reserved ssqv-mqem67j3",
         "query": "reference_location_id:1"
       },
       "productCollectionTag": {
         "resourceType": "PRODUCT",
-        "name": "SDP Collection Tag ssqv-moww3m7d",
+        "name": "SDP Collection Tag ssqv-mqem67j3",
         "query": "collection_id:\"123\" tag:\"AAA\""
       },
       "productCollectionPublished": {
         "resourceType": "PRODUCT",
-        "name": "SDP Published ssqv-moww3m7d",
+        "name": "SDP Published ssqv-mqem67j3",
         "query": "collection_id:\"123\" published_status:published"
       },
       "productCollectionErrorFeedback": {
         "resourceType": "PRODUCT",
-        "name": "SDP Error ssqv-moww3m7d",
+        "name": "SDP Error ssqv-mqem67j3",
         "query": "collection_id:\"123\" error_feedback:\"x\""
       },
       "productPositive": {
         "resourceType": "PRODUCT",
-        "name": "SDP Positive ssqv-moww3m7d",
+        "name": "SDP Positive ssqv-mqem67j3",
         "query": "collection_id:\"12345\""
       }
     },
@@ -79,8 +80,8 @@
         },
         "productPositive": {
           "savedSearch": {
-            "id": "gid://shopify/SavedSearch/4009680863538",
-            "name": "SDP Positive ssqv-moww3m7d",
+            "id": "gid://shopify/SavedSearch/4051339051314",
+            "name": "SDP Positive ssqv-mqem67j3",
             "query": "collection_id:\"12345\"",
             "resourceType": "PRODUCT"
           },
@@ -104,7 +105,7 @@
     "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-validation-update.graphql",
     "variables": {
       "input": {
-        "id": "gid://shopify/SavedSearch/4009680863538",
+        "id": "gid://shopify/SavedSearch/4051339051314",
         "query": "collection_id:\"123\" tag:\"AAA\""
       }
     },
@@ -112,8 +113,8 @@
       "data": {
         "savedSearchUpdate": {
           "savedSearch": {
-            "id": "gid://shopify/SavedSearch/4009680863538",
-            "name": "SDP Positive ssqv-moww3m7d",
+            "id": "gid://shopify/SavedSearch/4051339051314",
+            "name": "SDP Positive ssqv-mqem67j3",
             "query": "collection_id:\"123\" tag:\"AAA\"",
             "resourceType": "PRODUCT"
           },
@@ -131,7 +132,45 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1963,
+            "currentlyAvailable": 1959,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "savedSearchUpdateOrderReservedFilter": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-validation-update.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/3634391515442",
+        "query": "reference_location_id:42"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchUpdate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/3634391515442",
+            "name": "Unfulfilled",
+            "query": "reference_location_id:42",
+            "resourceType": "ORDER"
+          },
+          "userErrors": [
+            {
+              "field": ["input", "searchTerms"],
+              "message": "Search terms is invalid, 'reference_location_id' is a reserved filter name"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1960,
             "restoreRate": 100
           }
         }
@@ -142,13 +181,13 @@
     "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-delete.graphql",
     "variables": {
       "input": {
-        "id": "gid://shopify/SavedSearch/4009680863538"
+        "id": "gid://shopify/SavedSearch/4051339051314"
       }
     },
     "payload": {
       "data": {
         "savedSearchDelete": {
-          "deletedSavedSearchId": "gid://shopify/SavedSearch/4009680863538",
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4051339051314",
           "userErrors": []
         }
       },
@@ -158,7 +197,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1965,
+            "currentlyAvailable": 1969,
             "restoreRate": 100
           }
         }

@@ -1,0 +1,120 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-06-15T02:40:36.584Z",
+  "token": "csblank-mqelvvcm",
+  "notes": [
+    "Live Admin GraphQL DeliveryCarrierService capture for carrierServiceUpdate with a present blank name.",
+    "The setup create is disposable and exists only to target update validation.",
+    "The blank-name update returns a typed carrier-service userError and leaves the existing carrier service name unchanged on a downstream read.",
+    "The created carrier service is deleted during cleanup."
+  ],
+  "create": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-update-blank-name-create.graphql",
+    "variables": {
+      "input": {
+        "name": "Carrier Blank Update csblank-mqelvvcm",
+        "callbackUrl": "https://mock.shop/carrier-service-rates",
+        "supportsServiceDiscovery": false,
+        "active": true
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "carrierServiceCreate": {
+            "carrierService": {
+              "id": "gid://shopify/DeliveryCarrierService/103977779506",
+              "name": "Carrier Blank Update csblank-mqelvvcm",
+              "callbackUrl": "https://mock.shop/carrier-service-rates",
+              "active": true,
+              "supportsServiceDiscovery": false
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "blankNameUpdate": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-update-blank-name.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/DeliveryCarrierService/103977779506",
+        "name": ""
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "carrierServiceUpdate": {
+            "carrierService": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Shipping rate provider name can't be blank",
+                "code": "CARRIER_SERVICE_UPDATE_FAILED"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "afterRejectedUpdateRead": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-update-blank-name-read.graphql",
+    "variables": {
+      "id": "gid://shopify/DeliveryCarrierService/103977779506"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "carrierService": {
+            "id": "gid://shopify/DeliveryCarrierService/103977779506",
+            "name": "Carrier Blank Update csblank-mqelvvcm",
+            "callbackUrl": "https://mock.shop/carrier-service-rates",
+            "active": true,
+            "supportsServiceDiscovery": false
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

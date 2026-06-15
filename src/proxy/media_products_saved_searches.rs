@@ -3798,6 +3798,7 @@ impl DraftProxy {
             }));
         }
         user_errors.extend(saved_search_query_user_errors(
+            SavedSearchQueryValidationOperation::Create,
             &resource_type,
             &search_query,
         ));
@@ -3877,6 +3878,7 @@ impl DraftProxy {
             }));
         }
         user_errors.extend(saved_search_query_user_errors(
+            SavedSearchQueryValidationOperation::Update,
             &existing.resource_type,
             &requested_query,
         ));
