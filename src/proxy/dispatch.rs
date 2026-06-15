@@ -224,6 +224,22 @@ impl DraftProxy {
             return ok_json(data);
         }
 
+        if root_field == "orderCreateManualPayment" {
+            if let Some(response) =
+                self.order_create_manual_payment_local_response(request, &query, &variables)
+            {
+                return response;
+            }
+        }
+
+        if root_field == "orderInvoiceSend" {
+            if let Some(response) =
+                self.order_invoice_send_local_response(request, &query, &variables)
+            {
+                return response;
+            }
+        }
+
         if let Some(response) =
             self.draft_order_invoice_send_local_response(request, &query, &variables)
         {

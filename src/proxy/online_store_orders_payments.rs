@@ -11,6 +11,9 @@ struct OrdersLocalLogEntry<'a> {
 
 const MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH: usize = 100;
 const MOBILE_PLATFORM_APP_CLIP_APPLICATION_ID_MAX_LENGTH: usize = 255;
+const ORDER_MANUAL_PAYMENT_ACCESS_DENIED_MESSAGE: &str = "Access denied for orderCreateManualPayment field. Required access: `write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.";
+const ORDER_MANUAL_PAYMENT_REQUIRED_ACCESS: &str = "`write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.";
+const ORDER_HYDRATE_QUERY: &str = "query OrdersOrderHydrate($id: ID!) { order(id: $id) { id name email closed closedAt cancelledAt cancelReason displayFinancialStatus paymentGatewayNames currentTotalPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } totalOutstandingSet { shopMoney { amount currencyCode } } totalReceivedSet { shopMoney { amount currencyCode } } netPaymentSet { shopMoney { amount currencyCode } } totalCapturable totalCapturableSet { shopMoney { amount currencyCode } } capturable customer { id email displayName } transactions { id kind status gateway paymentId paymentReferenceId processedAt parentTransaction { id kind status } amountSet { shopMoney { amount currencyCode } } } } }";
 
 fn mobile_application_id_too_long_error<const N: usize>(field: [&str; N]) -> Value {
     mobile_app_error(
@@ -126,6 +129,86 @@ fn order_read_selects_payment_transaction_fields(field: &RootFieldSelection) -> 
                 | "transactions"
         )
     })
+}
+
+fn order_selection_json(order: &Value, selection: &[SelectedField]) -> Value {
+    if order.is_null() {
+        return Value::Null;
+    }
+    let mut projected = serde_json::Map::new();
+    for field in selection {
+        let value = if field.name == "transactions" {
+            order_transactions_selection_json(
+                order.get("transactions").unwrap_or(&Value::Null),
+                &field.selection,
+            )
+        } else if field.name == "__typename" {
+            json!("Order")
+        } else {
+            let Some(value) = order.get(&field.name) else {
+                continue;
+            };
+            nullable_selected_json(value, &field.selection)
+        };
+        projected.insert(field.response_key.clone(), value);
+    }
+    Value::Object(projected)
+}
+
+fn order_payload_json(order: &Value, selection: &[SelectedField]) -> Value {
+    if order.is_null() {
+        Value::Null
+    } else if selection.is_empty() {
+        order.clone()
+    } else {
+        order_selection_json(order, selection)
+    }
+}
+
+fn order_mutation_payload_json(payload: &Value, selection: &[SelectedField]) -> Value {
+    let mut projected = serde_json::Map::new();
+    for field in selection {
+        let value = if field.name == "order" {
+            order_payload_json(&payload["order"], &field.selection)
+        } else {
+            let Some(value) = payload.get(&field.name) else {
+                continue;
+            };
+            if field.selection.is_empty() {
+                value.clone()
+            } else if value.is_null() {
+                Value::Null
+            } else if let Some(values) = value.as_array() {
+                Value::Array(
+                    values
+                        .iter()
+                        .map(|item| nullable_selected_json(item, &field.selection))
+                        .collect(),
+                )
+            } else {
+                selected_json(value, &field.selection)
+            }
+        };
+        projected.insert(field.response_key.clone(), value);
+    }
+    Value::Object(projected)
+}
+
+fn order_transactions_selection_json(transactions: &Value, selection: &[SelectedField]) -> Value {
+    let nodes = transactions.as_array().cloned().unwrap_or_default();
+    let selects_connection_shape = selection
+        .iter()
+        .any(|field| matches!(field.name.as_str(), "nodes" | "edges" | "pageInfo"));
+    if !selects_connection_shape {
+        return Value::Array(
+            nodes
+                .iter()
+                .map(|transaction| selected_json(transaction, selection))
+                .collect(),
+        );
+    }
+    let connection = order_connection(nodes);
+    selected_json(&connection, selection)
 }
 
 fn order_read_selects_order_edit_existing_fields(field: RootFieldSelection) -> bool {
@@ -532,6 +615,142 @@ fn order_create_payment_fields(
             .map(|gateway| json!(gateway))
             .collect(),
     );
+}
+
+fn order_money_amount(order: &Value, field: &str) -> Option<f64> {
+    order[field]["shopMoney"]["amount"]
+        .as_str()
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .or_else(|| {
+            order[field]["presentmentMoney"]["amount"]
+                .as_str()
+                .and_then(|amount| amount.parse::<f64>().ok())
+        })
+}
+
+fn order_money_currency(order: &Value, field: &str) -> Option<String> {
+    order[field]["shopMoney"]["currencyCode"]
+        .as_str()
+        .or_else(|| order[field]["presentmentMoney"]["currencyCode"].as_str())
+        .map(str::to_string)
+}
+
+fn order_manual_payment_transaction(
+    id: &str,
+    amount: f64,
+    currency_code: &str,
+    gateway: &str,
+    processed_at: &str,
+) -> Value {
+    let mut transaction = payment_transaction_record(
+        id,
+        "SALE",
+        "SUCCESS",
+        &format_order_amount(amount),
+        currency_code,
+        Value::Null,
+    );
+    transaction["gateway"] = json!(gateway);
+    transaction["processedAt"] = json!(processed_at);
+    transaction
+}
+
+fn order_create_manual_payment_access_denied(field: &RootFieldSelection) -> Value {
+    let operation_path = if field.response_key == field.name {
+        json!([field.name])
+    } else {
+        json!([field.response_key])
+    };
+    json!({
+        "errors": [{
+            "message": ORDER_MANUAL_PAYMENT_ACCESS_DENIED_MESSAGE,
+            "locations": [{
+                "line": field.location.line,
+                "column": field.location.column
+            }],
+            "extensions": {
+                "code": "ACCESS_DENIED",
+                "documentation": "https://shopify.dev/api/usage/access-scopes",
+                "requiredAccess": ORDER_MANUAL_PAYMENT_REQUIRED_ACCESS
+            },
+            "path": operation_path
+        }],
+        "data": {
+            field.response_key.clone(): Value::Null
+        }
+    })
+}
+
+fn is_basic_email(value: &str) -> bool {
+    let value = value.trim();
+    let Some((local, domain)) = value.split_once('@') else {
+        return false;
+    };
+    !local.is_empty()
+        && domain.contains('.')
+        && !domain.starts_with('.')
+        && !domain.ends_with('.')
+        && !domain.contains('@')
+}
+
+fn order_create_email(order_input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
+    resolved_string_field(order_input, "email").or_else(|| {
+        resolved_object_field(order_input, "customer")
+            .and_then(|customer| {
+                resolved_object_field(&customer, "toUpsert")
+                    .or_else(|| resolved_object_field(&customer, "toAssociate"))
+            })
+            .and_then(|customer| resolved_string_field(&customer, "email"))
+    })
+}
+
+fn order_create_customer(order_input: &BTreeMap<String, ResolvedValue>) -> Value {
+    let direct_customer_id = resolved_string_field(order_input, "customerId");
+    let customer_input = resolved_object_field(order_input, "customer").unwrap_or_default();
+    let nested_customer = resolved_object_field(&customer_input, "toUpsert")
+        .or_else(|| resolved_object_field(&customer_input, "toAssociate"));
+    let customer_id = direct_customer_id.or_else(|| {
+        nested_customer
+            .as_ref()
+            .and_then(|customer| resolved_string_field(customer, "id"))
+    });
+    let customer_email = nested_customer
+        .as_ref()
+        .and_then(|customer| resolved_string_field(customer, "email"))
+        .or_else(|| resolved_string_field(order_input, "email"));
+    if customer_id.is_none() && customer_email.is_none() {
+        return Value::Null;
+    }
+    json!({
+        "id": customer_id.unwrap_or_else(|| "gid://shopify/Customer/1?shopify-draft-proxy=synthetic".to_string()),
+        "email": customer_email,
+        "displayName": nested_customer
+            .as_ref()
+            .and_then(|customer| resolved_string_field(customer, "firstName"))
+            .zip(nested_customer.as_ref().and_then(|customer| resolved_string_field(customer, "lastName")))
+            .map(|(first, last)| format!("{first} {last}"))
+            .or_else(|| nested_customer.as_ref().and_then(|customer| resolved_string_field(customer, "email")))
+            .or_else(|| resolved_string_field(order_input, "email"))
+    })
+}
+
+fn order_invoice_send_email_user_error(order: &Value, message: &str) -> Value {
+    if order["__draftProxyHydratedFromUpstream"]
+        .as_bool()
+        .unwrap_or(false)
+    {
+        let public_message = match message {
+            "email_required" => "No recipient email address was provided",
+            "email_invalid" => "To is invalid",
+            _ => message,
+        };
+        return json!({
+            "field": Value::Null,
+            "message": public_message,
+            "code": "ORDER_INVOICE_SEND_UNSUCCESSFUL"
+        });
+    }
+    orders_error(&["input", "email"], message, "INVALID")
 }
 
 fn order_create_validation_error(order: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
@@ -1976,7 +2195,7 @@ impl DraftProxy {
                         .get(&id)
                         .cloned()
                         .unwrap_or(Value::Null);
-                    nullable_selected_json(&order, &field.selection)
+                    order_payload_json(&order, &field.selection)
                 }
                 "orders" => self.staged_orders_connection(&field),
                 "ordersCount" => selected_json(
@@ -1991,6 +2210,178 @@ impl DraftProxy {
             data.insert(field.response_key, value);
         }
         Some(json!({ "data": Value::Object(data) }))
+    }
+
+    pub(in crate::proxy) fn order_create_manual_payment_local_response(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Response> {
+        let field = root_fields(query, variables)?
+            .into_iter()
+            .find(|field| field.name == "orderCreateManualPayment")?;
+        let order_id = resolved_string_arg(&field.arguments, "id")
+            .or_else(|| resolved_string_field(variables, "id"))?;
+        let Some(order) = self.store.staged.orders.get(&order_id).cloned() else {
+            return Some(ok_json(order_create_manual_payment_access_denied(&field)));
+        };
+
+        let amount_input = resolved_object_field(&field.arguments, "amount")
+            .or_else(|| resolved_object_field(variables, "amount"));
+        let currency = amount_input
+            .as_ref()
+            .and_then(input_money_currency)
+            .or_else(|| order_money_currency(&order, "totalOutstandingSet"))
+            .or_else(|| order_money_currency(&order, "totalPriceSet"))
+            .unwrap_or_else(|| "CAD".to_string());
+        let outstanding = order_money_amount(&order, "totalOutstandingSet")
+            .or_else(|| order_money_amount(&order, "currentTotalPriceSet"))
+            .or_else(|| order_money_amount(&order, "totalPriceSet"))
+            .unwrap_or(0.0);
+        let amount = amount_input
+            .as_ref()
+            .and_then(input_money_amount)
+            .unwrap_or(outstanding);
+        let payload = if amount <= 0.0 {
+            json!({
+                "order": Value::Null,
+                "userErrors": [orders_error(&["amount"], "Amount must be greater than zero", "INVALID_AMOUNT")]
+            })
+        } else if outstanding <= 0.0 {
+            json!({
+                "order": Value::Null,
+                "userErrors": [orders_error(&["id"], "Order is already paid", "INVALID")]
+            })
+        } else if amount > outstanding + 0.005 {
+            json!({
+                "order": Value::Null,
+                "userErrors": [orders_error(&["amount"], "Amount exceeds outstanding balance", "OVER_PAYMENT")]
+            })
+        } else {
+            let payment_method_name = resolved_string_arg(&field.arguments, "paymentMethodName")
+                .or_else(|| resolved_string_field(variables, "paymentMethodName"))
+                .unwrap_or_else(|| "manual".to_string());
+            let processed_at = resolved_string_arg(&field.arguments, "processedAt")
+                .or_else(|| resolved_string_field(variables, "processedAt"))
+                .unwrap_or_else(|| self.next_order_mutation_timestamp());
+            let updated_order = self.stage_order_manual_payment(
+                &order_id,
+                amount,
+                &currency,
+                &payment_method_name,
+                &processed_at,
+            )?;
+            self.record_orders_local_log_entry(OrdersLocalLogEntry {
+                request,
+                query,
+                variables,
+                root_field: "orderCreateManualPayment",
+                staged_resource_ids: vec![order_id],
+                outcome: OrdersLocalLogOutcome {
+                    status: "staged",
+                    notes: "Locally staged orderCreateManualPayment in shopify-draft-proxy.",
+                },
+            });
+            json!({ "order": updated_order, "userErrors": [] })
+        };
+        Some(ok_json(data_response(
+            &field.response_key,
+            order_mutation_payload_json(&payload, &field.selection),
+        )))
+    }
+
+    pub(in crate::proxy) fn order_invoice_send_local_response(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Response> {
+        let field = root_fields(query, variables)?
+            .into_iter()
+            .find(|field| field.name == "orderInvoiceSend")?;
+        let id = resolved_string_arg(&field.arguments, "id")
+            .or_else(|| resolved_string_field(variables, "id"))?;
+        let mut order = self
+            .store
+            .staged
+            .orders
+            .get(&id)
+            .cloned()
+            .or_else(|| self.hydrate_order_for_local_staging(request, &id))
+            .unwrap_or(Value::Null);
+        if order.is_null() {
+            return Some(ok_json(data_response(
+                &field.response_key,
+                selected_json(
+                    &json!({
+                        "order": Value::Null,
+                        "userErrors": [orders_error(&["id"], "Order does not exist", "NOT_FOUND")]
+                    }),
+                    &field.selection,
+                ),
+            )));
+        }
+
+        let email_input = resolved_object_field(&field.arguments, "email")
+            .or_else(|| resolved_object_field(variables, "email"));
+        let explicit_to = email_input
+            .as_ref()
+            .and_then(|email| resolved_string_field(email, "to"));
+        let recipient = explicit_to
+            .clone()
+            .or_else(|| order["email"].as_str().map(str::to_string))
+            .or_else(|| order["customer"]["email"].as_str().map(str::to_string));
+        let user_error = match recipient.as_deref().map(str::trim) {
+            None | Some("") => Some(order_invoice_send_email_user_error(
+                &order,
+                "email_required",
+            )),
+            Some(value) if !is_basic_email(value) => {
+                Some(order_invoice_send_email_user_error(&order, "email_invalid"))
+            }
+            _ => None,
+        };
+        if let Some(error) = user_error {
+            return Some(ok_json(data_response(
+                &field.response_key,
+                selected_json(
+                    &json!({
+                        "order": Value::Null,
+                        "userErrors": [error]
+                    }),
+                    &field.selection,
+                ),
+            )));
+        }
+
+        let notification_sent_at = self.next_order_mutation_timestamp();
+        let recipient = recipient.unwrap_or_default();
+        order["notificationSentAt"] = json!(notification_sent_at);
+        order["__draftProxyInvoiceSend"] = json!({
+            "to": recipient,
+            "notificationSentAt": notification_sent_at
+        });
+        self.store.staged.orders.insert(id.clone(), order.clone());
+        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            request,
+            query,
+            variables,
+            root_field: "orderInvoiceSend",
+            staged_resource_ids: vec![id],
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes:
+                    "Locally staged orderInvoiceSend notification metadata in shopify-draft-proxy.",
+            },
+        });
+        Some(ok_json(data_response(
+            &field.response_key,
+            order_mutation_payload_json(
+                &json!({ "order": order, "userErrors": [] }),
+                &field.selection,
+            ),
+        )))
     }
 
     fn staged_orders_connection(&self, field: &RootFieldSelection) -> Value {
@@ -2015,6 +2406,40 @@ impl DraftProxy {
             .map(|order| selected_json(order, &node_selection))
             .collect::<Vec<_>>();
         selected_json(&order_connection(nodes), &field.selection)
+    }
+
+    fn hydrate_order_for_local_staging(&mut self, request: &Request, id: &str) -> Option<Value> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": ORDER_HYDRATE_QUERY,
+                "operationName": "OrdersOrderHydrate",
+                "variables": { "id": id }
+            })
+            .to_string(),
+        });
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        let mut order = response.body["data"]["order"].clone();
+        if order.is_null() {
+            return None;
+        }
+        order["__draftProxyHydratedFromUpstream"] = json!(true);
+        self.store
+            .staged
+            .orders
+            .insert(id.to_string(), order.clone());
+        Some(order)
+    }
+
+    fn next_order_mutation_timestamp(&self) -> String {
+        product_mutation_timestamp(self.log_entries.len() as u64)
     }
 
     fn stage_order_create(
@@ -2070,6 +2495,62 @@ impl DraftProxy {
             &json!({ "order": order, "userErrors": [] }),
             &field.selection,
         )
+    }
+
+    fn stage_order_manual_payment(
+        &mut self,
+        order_id: &str,
+        amount: f64,
+        currency: &str,
+        gateway: &str,
+        processed_at: &str,
+    ) -> Option<Value> {
+        let transaction_id = format!(
+            "gid://shopify/OrderTransaction/{}",
+            self.store.staged.order_payment_next_transaction_id
+        );
+        self.store.staged.order_payment_next_transaction_id += 1;
+        let transaction = order_manual_payment_transaction(
+            &transaction_id,
+            amount,
+            currency,
+            gateway,
+            processed_at,
+        );
+
+        let order = self.store.staged.orders.get_mut(order_id)?;
+        if let Some(transactions) = order["transactions"].as_array_mut() {
+            transactions.push(transaction);
+        } else {
+            order["transactions"] = json!([transaction]);
+        }
+
+        let current_received = order_money_amount(order, "totalReceivedSet").unwrap_or(0.0);
+        let current_outstanding = order_money_amount(order, "totalOutstandingSet")
+            .or_else(|| order_money_amount(order, "currentTotalPriceSet"))
+            .or_else(|| order_money_amount(order, "totalPriceSet"))
+            .unwrap_or(0.0);
+        let received = current_received + amount;
+        let outstanding = (current_outstanding - amount).max(0.0);
+        order["displayFinancialStatus"] = if outstanding <= 0.005 {
+            json!("PAID")
+        } else {
+            json!("PARTIALLY_PAID")
+        };
+        order["capturable"] = json!(false);
+        order["totalCapturable"] = json!("0.0");
+        order["totalCapturableSet"] = order_money_set("0.0", currency);
+        order["totalOutstandingSet"] = order_money_set(&format_order_amount(outstanding), currency);
+        order["totalReceivedSet"] = order_money_set(&format_order_amount(received), currency);
+        order["netPaymentSet"] = order_money_set(&format_order_amount(received), currency);
+        if let Some(gateways) = order["paymentGatewayNames"].as_array_mut() {
+            if !gateways.iter().any(|value| value.as_str() == Some(gateway)) {
+                gateways.push(json!(gateway));
+            }
+        } else {
+            order["paymentGatewayNames"] = json!([gateway]);
+        }
+        Some(order.clone())
     }
 
     fn build_order_create_record(
@@ -2143,14 +2624,8 @@ impl DraftProxy {
         let mut order = json!({
             "id": order_id,
             "name": format!("#{}", self.store.staged.orders.len() + 1),
-            "email": resolved_string_field(order_input, "email"),
-            "customer": resolved_string_field(order_input, "customerId")
-                .map(|id| json!({
-                    "id": id,
-                    "email": resolved_string_field(order_input, "email"),
-                    "displayName": Value::Null
-                }))
-                .unwrap_or(Value::Null),
+            "email": order_create_email(order_input),
+            "customer": order_create_customer(order_input),
             "note": resolved_string_field(order_input, "note"),
             "tags": resolved_string_list_field(order_input, "tags"),
             "currencyCode": currency_code,
@@ -2583,13 +3058,6 @@ impl DraftProxy {
         }
         if root_field == "orderCreate" {
             let field = field?;
-            let order_arg = field.arguments.get("order")?;
-            if let ResolvedValue::Object(order_input) = order_arg {
-                let email = resolved_string_field(order_input, "email").unwrap_or_default();
-                if !email.is_empty() && !email.starts_with("order-customer-") {
-                    return None;
-                }
-            }
             let order = self.order_customer_paths_order_create(&field)?;
             return Some(data_response(&field.response_key, order));
         }
@@ -2850,7 +3318,7 @@ impl DraftProxy {
                 let order = self.store.staged.orders.get(&id)?;
                 Some(data_response(
                     &field.response_key,
-                    selected_json(order, &field.selection),
+                    order_payload_json(order, &field.selection),
                 ))
             }
             "orderCreateMandatePayment" => {
@@ -3192,6 +3660,14 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Option<Value> {
         let order_arg = field.arguments.get("order")?;
+        let order_selection =
+            selected_child_selection(&field.selection, "order").unwrap_or_default();
+        if order_selection
+            .iter()
+            .any(|field| !matches!(field.name.as_str(), "id" | "customer" | "__typename"))
+        {
+            return None;
+        }
         let email = resolved_object_string(order_arg, "email").unwrap_or_default();
         if !email.is_empty() && !email.starts_with("order-customer-") {
             return None;
