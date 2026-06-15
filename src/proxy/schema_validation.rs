@@ -106,6 +106,28 @@ fn validate_argument_value(
     schema: &AdminInputSchema,
     context: ValidationContext<'_>,
 ) -> Vec<Value> {
+    match value {
+        RawArgumentValue::Null if type_ref.non_null => {
+            return vec![required_root_argument_error(
+                field,
+                argument_name,
+                type_ref,
+                context,
+            )];
+        }
+        RawArgumentValue::Variable { value, .. }
+            if type_ref.non_null && matches!(value, None | Some(ResolvedValue::Null)) =>
+        {
+            return vec![required_root_argument_error(
+                field,
+                argument_name,
+                type_ref,
+                context,
+            )];
+        }
+        _ => {}
+    }
+
     let Some(input_object) = schema.input_objects.get(&type_ref.named_type) else {
         return Vec::new();
     };
@@ -119,6 +141,14 @@ fn validate_argument_value(
             context,
         ),
         RawArgumentValue::Variable { name, value } => {
+            if type_ref.non_null && matches!(value, None | Some(ResolvedValue::Null)) {
+                return vec![required_root_argument_error(
+                    field,
+                    argument_name,
+                    type_ref,
+                    context,
+                )];
+            }
             let Some(ResolvedValue::Object(fields)) = value.as_ref() else {
                 return Vec::new();
             };
@@ -154,12 +184,6 @@ fn validate_argument_value(
                 )]
             }
         }
-        RawArgumentValue::Null if type_ref.non_null => vec![required_root_argument_error(
-            field,
-            argument_name,
-            type_ref,
-            context,
-        )],
         _ => Vec::new(),
     }
 }
@@ -343,7 +367,7 @@ fn root_argument_name_location(
 fn required_root_argument_error(
     field: &RootFieldSelection,
     argument_name: &str,
-    type_ref: &SchemaTypeRef,
+    _type_ref: &SchemaTypeRef,
     context: ValidationContext<'_>,
 ) -> Value {
     json!({
@@ -352,9 +376,9 @@ fn required_root_argument_error(
         "path": [context.operation_path, context.response_key],
         "extensions": {
             "code": "missingRequiredArguments",
-            "className": field.name,
-            "name": argument_name,
-            "typeName": type_ref.display
+            "className": "Field",
+            "name": field.name,
+            "arguments": argument_name
         }
     })
 }
@@ -514,6 +538,7 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         .unwrap_or_else(|_| json!({}));
         let mut schema = schema_from_fixture(&fixture).unwrap_or_default();
         register_fulfillment_service_fields(&mut schema);
+        register_data_sale_opt_out_fields(&mut schema);
         extend_discount_basic_input_schema(&mut schema);
         schema
     })
@@ -566,6 +591,28 @@ fn scalar_type_ref(type_name: &str) -> SchemaTypeRef {
         named_type: type_name.to_string(),
         non_null: false,
     }
+}
+
+fn non_null_scalar_type_ref(type_name: &str) -> SchemaTypeRef {
+    SchemaTypeRef {
+        display: format!("{type_name}!"),
+        named_type: type_name.to_string(),
+        non_null: true,
+    }
+}
+
+fn register_data_sale_opt_out_fields(schema: &mut AdminInputSchema) {
+    schema.mutation_fields.insert(
+        "dataSaleOptOut".to_string(),
+        [(
+            "email".to_string(),
+            SchemaArgument {
+                type_ref: non_null_scalar_type_ref("String"),
+            },
+        )]
+        .into_iter()
+        .collect(),
+    );
 }
 
 fn extend_discount_basic_input_schema(schema: &mut AdminInputSchema) {
