@@ -83,6 +83,299 @@ fn order_create_stages_rich_order_and_downstream_reads() {
 }
 
 #[test]
+fn fulfillment_lifecycle_stages_against_created_order_fulfillment_order() {
+    let mut proxy = snapshot_proxy();
+
+    let create_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateFulfillableOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              fulfillments { id status trackingInfo { number url company } }
+              fulfillmentOrders(first: 5) {
+                nodes {
+                  id
+                  status
+                  lineItems(first: 5) {
+                    nodes { id totalQuantity remainingQuantity }
+                  }
+                }
+              }
+            }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "fulfillment-lifecycle@example.test",
+                "lineItems": [{
+                    "title": "Fulfillable line",
+                    "quantity": 2,
+                    "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create_order.status, 200);
+    assert_eq!(
+        create_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let order = &create_order.body["data"]["orderCreate"]["order"];
+    let order_id = order["id"].clone();
+    let fulfillment_order_id = order["fulfillmentOrders"]["nodes"][0]["id"].clone();
+    let fulfillment_order_line_item_id =
+        order["fulfillmentOrders"]["nodes"][0]["lineItems"]["nodes"][0]["id"].clone();
+
+    let create_fulfillment = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateFulfillment($fulfillment: FulfillmentInput!) {
+          fulfillmentCreate(fulfillment: $fulfillment) {
+            fulfillment {
+              id
+              status
+              trackingInfo { number url company }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "fulfillment": {
+                "lineItemsByFulfillmentOrder": [{
+                    "fulfillmentOrderId": fulfillment_order_id,
+                    "fulfillmentOrderLineItems": [{
+                        "id": fulfillment_order_line_item_id,
+                        "quantity": 1
+                    }]
+                }],
+                "trackingInfo": {
+                    "company": "Hermes",
+                    "number": "TRACK-1",
+                    "url": "https://tracking.example/TRACK-1"
+                },
+                "notifyCustomer": false
+            }
+        }),
+    ));
+    assert_eq!(create_fulfillment.status, 200);
+    assert_eq!(
+        create_fulfillment.body["data"]["fulfillmentCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create_fulfillment.body["data"]["fulfillmentCreate"]["fulfillment"]["status"],
+        json!("SUCCESS")
+    );
+    assert_eq!(
+        create_fulfillment.body["data"]["fulfillmentCreate"]["fulfillment"]["trackingInfo"],
+        json!([{
+            "number": "TRACK-1",
+            "url": "https://tracking.example/TRACK-1",
+            "company": "Hermes"
+        }])
+    );
+    let fulfillment_id =
+        create_fulfillment.body["data"]["fulfillmentCreate"]["fulfillment"]["id"].clone();
+
+    let update_tracking = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateFulfillmentTracking($fulfillmentId: ID!, $trackingInfoInput: FulfillmentTrackingInput!) {
+          fulfillmentTrackingInfoUpdate(
+            fulfillmentId: $fulfillmentId
+            trackingInfoInput: $trackingInfoInput
+          ) {
+            fulfillment {
+              id
+              status
+              trackingInfo { number url company }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "fulfillmentId": fulfillment_id,
+            "trackingInfoInput": {
+                "company": "UPS",
+                "numbers": ["TRACK-2", "TRACK-3"],
+                "urls": [
+                    "https://tracking.example/TRACK-2",
+                    "https://tracking.example/TRACK-3"
+                ]
+            }
+        }),
+    ));
+    assert_eq!(
+        update_tracking.body["data"]["fulfillmentTrackingInfoUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update_tracking.body["data"]["fulfillmentTrackingInfoUpdate"]["fulfillment"]
+            ["trackingInfo"],
+        json!([
+            {
+                "number": "TRACK-2",
+                "url": "https://tracking.example/TRACK-2",
+                "company": "UPS"
+            },
+            {
+                "number": "TRACK-3",
+                "url": "https://tracking.example/TRACK-3",
+                "company": "UPS"
+            }
+        ])
+    );
+
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CancelFulfillment($id: ID!) {
+          fulfillmentCancel(id: $id) {
+            fulfillment { id status trackingInfo { number url company } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_id }),
+    ));
+    assert_eq!(
+        cancel.body["data"]["fulfillmentCancel"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        cancel.body["data"]["fulfillmentCancel"]["fulfillment"]["status"],
+        json!("CANCELLED")
+    );
+
+    let read_after = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadOrderFulfillmentLifecycle($id: ID!) {
+          order(id: $id) {
+            id
+            fulfillments {
+              id
+              status
+              trackingInfo { number url company }
+            }
+            fulfillmentOrders(first: 5) {
+              nodes {
+                id
+                status
+                lineItems(first: 5) {
+                  nodes { id totalQuantity remainingQuantity }
+                }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    assert_eq!(
+        read_after.body["data"]["order"]["fulfillments"][0]["id"],
+        cancel.body["data"]["fulfillmentCancel"]["fulfillment"]["id"]
+    );
+    assert_eq!(
+        read_after.body["data"]["order"]["fulfillments"][0]["status"],
+        json!("CANCELLED")
+    );
+    assert_eq!(
+        read_after.body["data"]["order"]["fulfillments"][0]["trackingInfo"],
+        update_tracking.body["data"]["fulfillmentTrackingInfoUpdate"]["fulfillment"]
+            ["trackingInfo"]
+    );
+    assert_eq!(
+        read_after.body["data"]["order"]["fulfillmentOrders"]["nodes"][0]["lineItems"]["nodes"][0]
+            ["remainingQuantity"],
+        json!(1)
+    );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 4);
+    assert_eq!(
+        entries
+            .iter()
+            .map(|entry| entry["operationName"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec![
+            "orderCreate",
+            "fulfillmentCreate",
+            "fulfillmentTrackingInfoUpdate",
+            "fulfillmentCancel"
+        ]
+    );
+    assert!(entries[1]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("CreateFulfillment"));
+    assert!(entries[2]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("UpdateFulfillmentTracking"));
+    assert!(entries[3]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("CancelFulfillment"));
+    assert_eq!(entries[1]["status"], json!("staged"));
+    assert_eq!(entries[2]["status"], json!("staged"));
+    assert_eq!(entries[3]["status"], json!("staged"));
+    assert!(entries[1]["stagedResourceIds"]
+        .as_array()
+        .unwrap()
+        .contains(&cancel.body["data"]["fulfillmentCancel"]["fulfillment"]["id"]));
+}
+
+#[test]
+fn fulfillment_tracking_update_hydrates_existing_fulfillment() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/fulfillment-tracking-info-update-parity.json"
+    ))
+    .unwrap();
+    let hydrate_body = fixture["upstreamCalls"][0]["response"]["body"].clone();
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        captured.lock().unwrap().push(request);
+        shopify_draft_proxy::proxy::Response {
+            status: 200,
+            headers: Default::default(),
+            body: hydrate_body.clone(),
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/fulfillmentTrackingInfoUpdate-parity-plan.graphql"
+        ),
+        fixture["variables"].clone(),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["fulfillmentTrackingInfoUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["fulfillmentTrackingInfoUpdate"]["fulfillment"]["trackingInfo"],
+        fixture["mutation"]["response"]["data"]["fulfillmentTrackingInfoUpdate"]["fulfillment"]
+            ["trackingInfo"]
+    );
+    assert_eq!(forwarded.lock().unwrap().len(), 1);
+    let log = proxy.get_log_snapshot();
+    assert_eq!(
+        log["entries"][0]["operationName"],
+        "fulfillmentTrackingInfoUpdate"
+    );
+}
+
+#[test]
 fn order_create_line_item_fields_and_currency_defaults_are_staged() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-create-line-item-fields.json"
@@ -2585,8 +2878,12 @@ fn remaining_order_fixture_backed_edges_replay_without_passthrough_logs() {
         fulfillment_fixture["trackingHappyPath"]["variables"].clone(),
     ));
     assert_eq!(
-        happy_tracking.body,
-        fulfillment_fixture["trackingHappyPath"]["response"]
+        happy_tracking.body["data"]["fulfillmentTrackingInfoUpdate"]["fulfillment"],
+        Value::Null
+    );
+    assert_eq!(
+        happy_tracking.body["data"]["fulfillmentTrackingInfoUpdate"]["userErrors"][0]["code"],
+        "NOT_IMPLEMENTED"
     );
 
     let mut proxy = snapshot_proxy();
