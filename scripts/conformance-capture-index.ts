@@ -2171,6 +2171,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/saved-searches/saved-search-incompatible-filter-aggregation.json',
       'config/parity-requests/saved-searches/saved-search-incompatible-filter-aggregation-create.graphql',
       'config/parity-specs/saved-searches/saved-search-query-grammar-validation.json',
+      'config/parity-specs/saved-searches/saved-search-reserved-filter-update-field.json',
       'config/parity-requests/saved-searches/saved-search-query-grammar-validation-create.graphql',
       'config/parity-requests/saved-searches/saved-search-query-grammar-validation-update.graphql',
     ],
@@ -5862,6 +5863,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-activate-deactivate-edge-cases',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-activate-deactivate-edge-cases-conformance.ts',
+    purpose:
+      'Code discount activate/deactivate timestamp rewrites plus code and automatic unknown-id INVALID userErrors for all activate/deactivate roots.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-activate-deactivate-edge-cases.json`,
+      'config/parity-specs/discounts/discount-activate-deactivate-edge-cases.json',
+      'config/parity-requests/discounts/discount-activate-deactivate-edge-activate.graphql',
+      'config/parity-requests/discounts/discount-activate-deactivate-edge-create.graphql',
+      'config/parity-requests/discounts/discount-activate-deactivate-edge-deactivate.graphql',
+      'config/parity-requests/discounts/discount-activate-deactivate-edge-read.graphql',
+      'config/parity-requests/discounts/discount-activate-deactivate-edge-unknown.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable scheduled code basic discount, captures status transitions and unknown-id failures, then deletes the setup discount during the scenario with finally-block cleanup on failure.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-activation-failure-field-base-local-runtime',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-activation-failure-field-base-local-runtime.ts',
@@ -7737,6 +7759,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'carrier-service-update-blank-name',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-carrier-service-update-blank-name-conformance.ts',
+    purpose:
+      'DeliveryCarrierService update validation for present blank name, including typed CARRIER_SERVICE_UPDATE_FAILED userError and unchanged downstream read state.',
+    requiredAuthScopes: ['read_shipping', 'write_shipping'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}carrier-service-update-blank-name.json`,
+      'config/parity-specs/shipping-fulfillments/carrier-service-update-blank-name.json',
+      'config/parity-requests/shipping-fulfillments/carrier-service-update-blank-name-create.graphql',
+      'config/parity-requests/shipping-fulfillments/carrier-service-update-blank-name-read.graphql',
+      'config/parity-requests/shipping-fulfillments/carrier-service-update-blank-name.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable carrier service, records rejected blank-name update and read-after-reject state, then deletes the carrier service in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'carrier-service-create-uniqueness',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-carrier-service-create-uniqueness-conformance.ts',
@@ -8142,6 +8183,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'Records deprecated dedicated roots that synthesize cloud destination addresses before delegating to the shared webhook subscription resolver path.',
+  },
+  {
+    domain: 'webhooks',
+    captureId: 'gcp-project-topic-char-rules',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-gcp-project-topic-char-rules-conformance.ts',
+    purpose:
+      'GCP Pub/Sub project/topic character validation for dedicated Pub/Sub and unified webhook subscription create/update roots.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gcp-project-topic-char-rules.json`,
+      'config/parity-specs/webhooks/gcp-project-topic-char-rules.json',
+    ],
+    cleanupBehavior:
+      'Creates temporary Pub/Sub webhook subscriptions for accepted create/update branches, records validation failures, then deletes temporary subscriptions during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Records numeric project-number acceptance, digit-leading topic rejection, and percent-topic acceptance for both dedicated and unified webhook roots.',
   },
   {
     domain: 'webhooks',

@@ -1020,6 +1020,86 @@ fn discount_basic_non_numeric_decimal_variable_fails_before_resolver_execution()
 }
 
 #[test]
+fn discount_lifecycle_unknown_ids_use_type_specific_not_found_messages() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountLifecycleUnknowns {
+          codeActivate: discountCodeActivate(id: "gid://shopify/DiscountCodeNode/0") {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          codeDeactivate: discountCodeDeactivate(id: "gid://shopify/DiscountCodeNode/0") {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          codeDelete: discountCodeDelete(id: "gid://shopify/DiscountCodeNode/0") {
+            deletedCodeDiscountId
+            userErrors { field message code extraInfo }
+          }
+          automaticActivate: discountAutomaticActivate(id: "gid://shopify/DiscountAutomaticNode/0") {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          automaticDeactivate: discountAutomaticDeactivate(id: "gid://shopify/DiscountAutomaticNode/0") {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          automaticDelete: discountAutomaticDelete(id: "gid://shopify/DiscountAutomaticNode/0") {
+            deletedAutomaticDiscountId
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["codeActivate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        response.body["data"]["codeDeactivate"]["codeDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        response.body["data"]["codeDelete"]["deletedCodeDiscountId"],
+        json!(null)
+    );
+    assert_eq!(
+        response.body["data"]["automaticActivate"]["automaticDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        response.body["data"]["automaticDeactivate"]["automaticDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        response.body["data"]["automaticDelete"]["deletedAutomaticDiscountId"],
+        json!(null)
+    );
+
+    for response_key in ["codeActivate", "codeDeactivate", "codeDelete"] {
+        assert_eq!(
+            response.body["data"][response_key]["userErrors"],
+            json!([{ "field": ["id"], "message": "Code discount does not exist.", "code": "INVALID", "extraInfo": null }])
+        );
+    }
+    for response_key in [
+        "automaticActivate",
+        "automaticDeactivate",
+        "automaticDelete",
+    ] {
+        assert_eq!(
+            response.body["data"][response_key]["userErrors"],
+            json!([{ "field": ["id"], "message": "Automatic discount does not exist.", "code": "INVALID", "extraInfo": null }])
+        );
+    }
+}
+
+#[test]
 #[ignore = "legacy captured fixture branch; HAR-1404 routes discount mutations through the generic store-backed dispatcher"]
 fn discount_activate_deactivate_noops_preserve_captured_timestamp_shapes() {
     let mut proxy = snapshot_proxy();

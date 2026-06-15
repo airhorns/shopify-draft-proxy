@@ -247,11 +247,7 @@ impl DraftProxy {
             return MutationFieldOutcome::unlogged(discount_payload_for_root(
                 &field.name,
                 Value::Null,
-                vec![discount_user_error(
-                    vec!["id"],
-                    "Discount does not exist.",
-                    "INVALID",
-                )],
+                vec![discount_unknown_id_user_error(&field.name)],
             ));
         };
         let new_status = if activating { "ACTIVE" } else { "EXPIRED" };
@@ -276,11 +272,7 @@ impl DraftProxy {
             return MutationFieldOutcome::unlogged(discount_delete_payload(
                 &field.name,
                 Value::Null,
-                vec![discount_user_error(
-                    vec!["id"],
-                    "Discount does not exist.",
-                    "INVALID",
-                )],
+                vec![discount_unknown_id_user_error(&field.name)],
             ));
         }
         self.store.staged.deleted_discount_ids.insert(id.clone());
@@ -1007,6 +999,15 @@ fn discount_delete_payload(root: &str, deleted_id: Value, user_errors: Vec<Value
         "deletedCodeDiscountId"
     };
     json!({ key: deleted_id, "userErrors": user_errors })
+}
+
+fn discount_unknown_id_user_error(root: &str) -> Value {
+    let message = if root.starts_with("discountAutomatic") {
+        "Automatic discount does not exist."
+    } else {
+        "Code discount does not exist."
+    };
+    discount_user_error(vec!["id"], message, "INVALID")
 }
 
 fn discount_id(record: &Value) -> &str {
