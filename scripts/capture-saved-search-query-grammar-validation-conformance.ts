@@ -23,6 +23,7 @@ const client = createAdminGraphqlClient({
   headers: buildAdminAuthHeaders(adminAccessToken),
 });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'saved-searches');
+const orderDefaultId = 'gid://shopify/SavedSearch/3634391515442';
 
 function readObject(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -103,6 +104,29 @@ function assertUpdateValidation(payload: ConformanceGraphqlPayload): void {
   const userErrors = mutationPayload['userErrors'];
   if (!Array.isArray(userErrors) || userErrors.length === 0) {
     throw new Error(`Expected update validation userErrors: ${JSON.stringify(mutationPayload, null, 2)}`);
+  }
+}
+
+function assertOrderReservedUpdateValidation(payload: ConformanceGraphqlPayload): void {
+  const mutationPayload = readMutationPayload(payload, 'savedSearchUpdate');
+  const savedSearch = readObject(mutationPayload['savedSearch']);
+  if (
+    savedSearch?.['id'] !== orderDefaultId ||
+    savedSearch['query'] !== 'reference_location_id:42' ||
+    savedSearch['resourceType'] !== 'ORDER'
+  ) {
+    throw new Error(`Expected ORDER reserved-filter update payload echo: ${JSON.stringify(mutationPayload, null, 2)}`);
+  }
+  const userErrors = mutationPayload['userErrors'];
+  if (!Array.isArray(userErrors) || userErrors.length !== 1) {
+    throw new Error(`Expected ORDER reserved-filter update userError: ${JSON.stringify(mutationPayload, null, 2)}`);
+  }
+  const first = readObject(userErrors[0]);
+  if (
+    JSON.stringify(first?.['field']) !== JSON.stringify(['input', 'searchTerms']) ||
+    first?.['message'] !== "Search terms is invalid, 'reference_location_id' is a reserved filter name"
+  ) {
+    throw new Error(`Unexpected ORDER reserved-filter update userError: ${JSON.stringify(first, null, 2)}`);
   }
 }
 
@@ -231,6 +255,19 @@ try {
   assertNoTopLevelErrors(savedSearchUpdateCollectionTag, 'saved-search query grammar validation update capture');
   assertUpdateValidation(savedSearchUpdateCollectionTag.payload);
 
+  const orderReservedUpdateVariables = {
+    input: {
+      id: orderDefaultId,
+      query: 'reference_location_id:42',
+    },
+  };
+  const savedSearchUpdateOrderReservedFilter = await client.runGraphqlRequest(
+    updateDocument,
+    orderReservedUpdateVariables,
+  );
+  assertNoTopLevelErrors(savedSearchUpdateOrderReservedFilter, 'saved-search ORDER reserved-filter update capture');
+  assertOrderReservedUpdateValidation(savedSearchUpdateOrderReservedFilter.payload);
+
   const deleteVariables = { input: { id: createdId } };
   const cleanupDelete = await client.runGraphqlRequest(deleteDocument, deleteVariables);
   assertNoTopLevelErrors(cleanupDelete, 'saved-search query grammar validation cleanup');
@@ -248,6 +285,7 @@ try {
       'PRODUCT savedSearchCreate rejects collection_id combined with tag, error_feedback, or published_status.',
       'PRODUCT savedSearchCreate accepts collection_id alone and cleanup deletes that disposable saved search.',
       'PRODUCT savedSearchUpdate with collection_id+tag returns a non-null payload echo plus userErrors and is not expected to persist locally.',
+      'ORDER savedSearchUpdate against a persisted default saved search rejects reference_location_id with field ["input", "searchTerms"].',
     ],
     savedSearchCreateValidation: {
       documentPath: 'config/parity-requests/saved-searches/saved-search-query-grammar-validation-create.graphql',
@@ -258,6 +296,11 @@ try {
       documentPath: 'config/parity-requests/saved-searches/saved-search-query-grammar-validation-update.graphql',
       variables: updateVariables,
       payload: savedSearchUpdateCollectionTag.payload,
+    },
+    savedSearchUpdateOrderReservedFilter: {
+      documentPath: 'config/parity-requests/saved-searches/saved-search-query-grammar-validation-update.graphql',
+      variables: orderReservedUpdateVariables,
+      payload: savedSearchUpdateOrderReservedFilter.payload,
     },
     cleanupDelete: {
       documentPath: 'config/parity-requests/saved-searches/saved-search-query-grammar-delete.graphql',

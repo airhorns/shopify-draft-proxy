@@ -2171,6 +2171,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/saved-searches/saved-search-incompatible-filter-aggregation.json',
       'config/parity-requests/saved-searches/saved-search-incompatible-filter-aggregation-create.graphql',
       'config/parity-specs/saved-searches/saved-search-query-grammar-validation.json',
+      'config/parity-specs/saved-searches/saved-search-reserved-filter-update-field.json',
       'config/parity-requests/saved-searches/saved-search-query-grammar-validation-create.graphql',
       'config/parity-requests/saved-searches/saved-search-query-grammar-validation-update.graphql',
     ],
