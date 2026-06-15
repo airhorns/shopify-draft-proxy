@@ -2471,6 +2471,9 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
+        if query.contains("productOptionsCreate") {
+            self.record_product_option_linked_metaobject_definitions(variables);
+        }
         let product_id = resolved_string_field(variables, "productId")?;
         let fixture_name = if query.contains("ProductOptionsCreateParityPlan")
             && product_id == "gid://shopify/Product/10172064891186"
@@ -2507,6 +2510,49 @@ impl DraftProxy {
         self.store.staged.product_option_fixture = Some(fixture_name.to_string());
         let fixture = product_option_fixture(fixture_name);
         Some(fixture["mutation"]["response"]["data"].clone())
+    }
+
+    pub(in crate::proxy) fn record_product_option_linked_metaobject_definitions(
+        &mut self,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) {
+        for option in resolved_object_list_field(variables, "options") {
+            let Some(linked_metafield) = resolved_object_field(&option, "linkedMetafield") else {
+                continue;
+            };
+            let namespace =
+                resolved_string_field(&linked_metafield, "namespace").unwrap_or_default();
+            let key = resolved_string_field(&linked_metafield, "key").unwrap_or_default();
+            let Some(definition) = self
+                .store
+                .staged
+                .metafield_definitions
+                .get(&(namespace, key))
+            else {
+                continue;
+            };
+            let definition_id = definition["validations"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find_map(|validation| {
+                    (validation.get("name").and_then(Value::as_str)
+                        == Some("metaobject_definition_id"))
+                    .then(|| {
+                        validation
+                            .get("value")
+                            .and_then(Value::as_str)
+                            .map(str::to_string)
+                    })
+                    .flatten()
+                });
+            if let Some(definition_id) = definition_id {
+                self.store
+                    .staged
+                    .product_option_linked_metaobject_definition_ids
+                    .insert(definition_id);
+            }
+        }
     }
 
     pub(in crate::proxy) fn product_option_lifecycle_downstream_data(

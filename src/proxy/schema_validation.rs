@@ -28,6 +28,7 @@ struct AdminInputSchema {
 
 #[derive(Debug, Clone, Copy)]
 struct ValidationContext<'a> {
+    query: &'a str,
     operation_path: &'a str,
     response_key: &'a str,
     field_location: SourceLocation,
@@ -57,6 +58,7 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
             continue;
         };
         let context = ValidationContext {
+            query,
             operation_path: &document.operation_path,
             response_key: &field.response_key,
             field_location: field.location,
@@ -299,9 +301,10 @@ fn root_argument_not_accepted_error(
     argument_name: &str,
     context: ValidationContext<'_>,
 ) -> Value {
+    let location = root_argument_location(context, argument_name);
     json!({
         "message": format!("Field '{}' doesn't accept argument '{}'", field.name, argument_name),
-        "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
+        "locations": [{ "line": location.line, "column": location.column }],
         "path": [context.operation_path, context.response_key, argument_name],
         "extensions": {
             "code": "argumentNotAccepted",
@@ -310,6 +313,33 @@ fn root_argument_not_accepted_error(
             "argumentName": argument_name
         }
     })
+}
+
+fn root_argument_location(context: ValidationContext<'_>, argument_name: &str) -> SourceLocation {
+    let Some(line) = context
+        .query
+        .lines()
+        .nth(context.field_location.line.saturating_sub(1))
+    else {
+        return context.field_location;
+    };
+    let search_start = context
+        .field_location
+        .column
+        .saturating_sub(1)
+        .min(line.len());
+    let Some(relative_index) = line[search_start..].find(argument_name) else {
+        return context.field_location;
+    };
+    let byte_index = search_start + relative_index;
+    let after_name = &line[byte_index + argument_name.len()..];
+    if !after_name.trim_start().starts_with(':') {
+        return context.field_location;
+    }
+    SourceLocation {
+        line: context.field_location.line,
+        column: line[..byte_index].chars().count() + 1,
+    }
 }
 
 fn required_root_argument_error(
@@ -449,11 +479,31 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         .unwrap_or_else(|_| json!({}));
         let mut schema = schema_from_fixture(&fixture).unwrap_or_default();
         extend_discount_basic_input_schema(&mut schema);
+        extend_configured_input_schema(
+            &mut schema,
+            &[
+                "metaobjectDefinitionCreate",
+                "metaobjectDefinitionUpdate",
+                "standardMetaobjectDefinitionEnable",
+            ],
+        );
         schema
     })
 }
 
 fn extend_discount_basic_input_schema(schema: &mut AdminInputSchema) {
+    extend_configured_input_schema(
+        schema,
+        &[
+            "discountCodeBasicCreate",
+            "discountCodeBasicUpdate",
+            "discountAutomaticBasicCreate",
+            "discountAutomaticBasicUpdate",
+        ],
+    );
+}
+
+fn extend_configured_input_schema(schema: &mut AdminInputSchema, mutation_names: &[&str]) {
     let config: Value = serde_json::from_str(include_str!(
         "../../config/admin-graphql-mutation-schema.json"
     ))
@@ -469,13 +519,7 @@ fn extend_discount_basic_input_schema(schema: &mut AdminInputSchema) {
         let Some(name) = mutation["name"].as_str() else {
             continue;
         };
-        if !matches!(
-            name,
-            "discountCodeBasicCreate"
-                | "discountCodeBasicUpdate"
-                | "discountAutomaticBasicCreate"
-                | "discountAutomaticBasicUpdate"
-        ) {
+        if !mutation_names.contains(&name) {
             continue;
         }
         let Some(args) = mutation["args"].as_array() else {
