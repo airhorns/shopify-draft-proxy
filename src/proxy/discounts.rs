@@ -127,6 +127,10 @@ impl DraftProxy {
             | "discountAutomaticActivate"
             | "discountAutomaticDeactivate" => self.discount_status_transition(field),
             "discountCodeDelete" | "discountAutomaticDelete" => self.discount_delete(field),
+            "discountCodeBulkActivate"
+            | "discountCodeBulkDeactivate"
+            | "discountCodeBulkDelete"
+            | "discountAutomaticBulkDelete" => self.discount_bulk_mutation(field),
             "discountRedeemCodeBulkAdd" => self.discount_redeem_code_bulk_add(field),
             "discountCodeRedeemCodeBulkDelete" => self.discount_redeem_code_bulk_delete(field),
             _ => MutationFieldOutcome::unlogged(discount_payload_for_root(
@@ -256,6 +260,85 @@ impl DraftProxy {
             discount_delete_payload(&field.name, json!(id.clone()), Vec::new()),
             LogDraft::staged(&field.name, "discounts", vec![id]),
         )
+    }
+
+    fn discount_bulk_mutation(&mut self, field: &RootFieldSelection) -> MutationFieldOutcome {
+        let selector = match discount_bulk_selector(field) {
+            Ok(selector) => selector,
+            Err(user_errors) => {
+                return MutationFieldOutcome::unlogged(discount_bulk_payload(
+                    Value::Null,
+                    user_errors,
+                ));
+            }
+        };
+        if let Some(user_error) = discount_bulk_search_field_user_error(field, &selector) {
+            return MutationFieldOutcome::unlogged(discount_bulk_payload(
+                Value::Null,
+                vec![user_error],
+            ));
+        }
+
+        let matched_ids = self.discount_bulk_matching_ids(field, &selector);
+        for id in &matched_ids {
+            match field.name.as_str() {
+                "discountCodeBulkActivate" => {
+                    if let Some(mut record) = self.discount_record(id).cloned() {
+                        discount_apply_status(&mut record, "ACTIVE");
+                        self.stage_discount_record(record);
+                    }
+                }
+                "discountCodeBulkDeactivate" => {
+                    if let Some(mut record) = self.discount_record(id).cloned() {
+                        discount_apply_status(&mut record, "EXPIRED");
+                        self.stage_discount_record(record);
+                    }
+                }
+                "discountCodeBulkDelete" | "discountAutomaticBulkDelete" => {
+                    self.store.staged.deleted_discount_ids.insert(id.clone());
+                    self.store.staged.discounts.remove(id);
+                    self.store
+                        .staged
+                        .discount_code_index
+                        .retain(|_, discount_id| discount_id != id);
+                }
+                _ => {}
+            }
+        }
+
+        let job_id = self.next_proxy_synthetic_gid("Job");
+        let job = discount_bulk_job(&job_id, &selector);
+        self.store.staged.discount_bulk_operations.insert(
+            job_id.clone(),
+            discount_bulk_operation_record(&job_id, field, &selector, &matched_ids),
+        );
+
+        let mut staged_ids = matched_ids;
+        staged_ids.push(job_id);
+        MutationFieldOutcome::staged(
+            discount_bulk_payload(job, Vec::new()),
+            LogDraft::staged(&field.name, "discounts", staged_ids),
+        )
+    }
+
+    fn discount_bulk_matching_ids(
+        &self,
+        field: &RootFieldSelection,
+        selector: &DiscountBulkSelector,
+    ) -> Vec<String> {
+        self.effective_discount_records()
+            .into_iter()
+            .filter(|record| {
+                !self
+                    .store
+                    .staged
+                    .deleted_discount_ids
+                    .contains(discount_id(record))
+            })
+            .filter(|record| discount_bulk_record_in_scope(record, field.name.as_str()))
+            .filter(|record| discount_bulk_selector_matches(record, selector))
+            .map(|record| discount_id(record).to_string())
+            .collect()
     }
 
     fn discount_redeem_code_bulk_add(
@@ -450,10 +533,8 @@ impl DraftProxy {
 
     fn filtered_discount_records(&self, field: &RootFieldSelection) -> Vec<&Value> {
         let query = resolved_field_string_arg(field, "query").unwrap_or_default();
-        self.store
-            .staged
-            .discounts
-            .values()
+        self.effective_discount_records()
+            .into_iter()
             .filter(|record| {
                 !self
                     .store
@@ -463,6 +544,10 @@ impl DraftProxy {
             })
             .filter(|record| discount_matches_query(record, &query))
             .collect()
+    }
+
+    fn effective_discount_records(&self) -> Vec<&Value> {
+        self.store.staged.discounts.values().collect()
     }
 
     fn discount_record(&self, id: &str) -> Option<&Value> {
@@ -958,6 +1043,202 @@ fn discount_delete_payload(root: &str, deleted_id: Value, user_errors: Vec<Value
     json!({ key: deleted_id, "userErrors": user_errors })
 }
 
+fn discount_bulk_payload(job: Value, user_errors: Vec<Value>) -> Value {
+    json!({ "job": job, "userErrors": user_errors })
+}
+
+#[derive(Debug, Clone)]
+enum DiscountBulkSelector {
+    Ids(Vec<String>),
+    Search(String),
+    SavedSearch { id: String, query: String },
+}
+
+impl DiscountBulkSelector {
+    fn query_text(&self) -> Value {
+        match self {
+            Self::Ids(_) => Value::Null,
+            Self::Search(query) | Self::SavedSearch { query, .. } => json!(query),
+        }
+    }
+}
+
+fn discount_bulk_selector(field: &RootFieldSelection) -> Result<DiscountBulkSelector, Vec<Value>> {
+    let ids_present = field.arguments.contains_key("ids");
+    let search_present = field.arguments.contains_key("search");
+    let saved_search_present = field.arguments.contains_key("savedSearchId")
+        || field.arguments.contains_key("saved_search_id");
+    let selector_count =
+        ids_present as usize + search_present as usize + saved_search_present as usize;
+
+    let automatic = field.name == "discountAutomaticBulkDelete";
+    if selector_count == 0 {
+        return Err(vec![discount_null_field_user_error(
+            if automatic {
+                "One of IDs, search argument or saved search ID is required."
+            } else {
+                "Missing expected argument key: 'ids', 'search' or 'saved_search_id'."
+            },
+            Some("MISSING_ARGUMENT"),
+        )]);
+    }
+    if selector_count > 1 {
+        return Err(vec![discount_null_field_user_error(
+            if automatic {
+                "Only one of IDs, search argument or saved search ID is allowed."
+            } else {
+                "Only one of 'ids', 'search' or 'saved_search_id' is allowed."
+            },
+            Some("TOO_MANY_ARGUMENTS"),
+        )]);
+    }
+
+    if ids_present {
+        return Ok(DiscountBulkSelector::Ids(discount_bulk_ids(field)));
+    }
+    if search_present {
+        let search = resolved_field_string_arg(field, "search").unwrap_or_default();
+        if search.trim().is_empty() && !automatic {
+            return Err(vec![json!({
+                "field": ["search"],
+                "message": "'Search' can't be blank.",
+                "code": "BLANK",
+                "extraInfo": Value::Null
+            })]);
+        }
+        return Ok(DiscountBulkSelector::Search(search));
+    }
+
+    let id = resolved_field_string_arg(field, "savedSearchId")
+        .or_else(|| resolved_field_string_arg(field, "saved_search_id"))
+        .unwrap_or_default();
+    if let Some(record) = default_saved_search_by_id(&id) {
+        let query = record.query;
+        return Ok(DiscountBulkSelector::SavedSearch { id, query });
+    }
+
+    Err(vec![json!({
+        "field": ["savedSearchId"],
+        "message": if automatic { "Invalid savedSearchId." } else { "Invalid 'saved_search_id'." },
+        "code": "INVALID",
+        "extraInfo": Value::Null
+    })])
+}
+
+fn discount_bulk_ids(field: &RootFieldSelection) -> Vec<String> {
+    match field.arguments.get("ids") {
+        Some(ResolvedValue::List(ids)) => ids
+            .iter()
+            .filter_map(|value| match value {
+                ResolvedValue::String(id) => Some(id.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn discount_bulk_search_field_user_error(
+    field: &RootFieldSelection,
+    selector: &DiscountBulkSelector,
+) -> Option<Value> {
+    if field.name != "discountCodeBulkDelete" {
+        return None;
+    }
+    let query = match selector {
+        DiscountBulkSelector::Search(query) | DiscountBulkSelector::SavedSearch { query, .. } => {
+            query
+        }
+        DiscountBulkSelector::Ids(_) => return None,
+    };
+    let invalid = saved_search_filters(query)
+        .into_iter()
+        .map(|(key, _)| discount_search_base_filter_key(&key).to_string())
+        .find(|key| !discount_code_bulk_delete_search_field_allowed(key));
+    invalid.map(|field_name| {
+        json!({
+            "field": ["search"],
+            "message": format!("Invalid search field(s): {field_name}. Check the query syntax."),
+            "code": "INVALID",
+            "extraInfo": Value::Null
+        })
+    })
+}
+
+fn discount_code_bulk_delete_search_field_allowed(field_name: &str) -> bool {
+    matches!(
+        field_name,
+        "status" | "times_used" | "discount_type" | "method" | "id" | "title"
+    )
+}
+
+fn discount_search_base_filter_key(key: &str) -> &str {
+    key.trim_end_matches("_not")
+        .trim_end_matches("_min")
+        .trim_end_matches("_max")
+}
+
+fn discount_bulk_record_in_scope(record: &Value, root: &str) -> bool {
+    match root {
+        "discountAutomaticBulkDelete" => discount_kind(record) == "automatic",
+        "discountCodeBulkActivate" | "discountCodeBulkDeactivate" | "discountCodeBulkDelete" => {
+            discount_kind(record) == "code"
+        }
+        _ => false,
+    }
+}
+
+fn discount_bulk_selector_matches(record: &Value, selector: &DiscountBulkSelector) -> bool {
+    match selector {
+        DiscountBulkSelector::Ids(ids) => ids.iter().any(|id| id == discount_id(record)),
+        DiscountBulkSelector::Search(query) | DiscountBulkSelector::SavedSearch { query, .. } => {
+            discount_matches_query(record, query)
+        }
+    }
+}
+
+fn discount_apply_status(record: &mut Value, new_status: &str) {
+    record["status"] = json!(new_status);
+    record["updatedAt"] = json!(DISCOUNT_DEFAULT_TIMESTAMP);
+    if new_status == "ACTIVE" {
+        record["endsAt"] = Value::Null;
+    } else if new_status == "EXPIRED" && record.get("endsAt").and_then(Value::as_str).is_none() {
+        record["endsAt"] = json!(DISCOUNT_DEFAULT_TIMESTAMP);
+    }
+}
+
+fn discount_bulk_job(id: &str, selector: &DiscountBulkSelector) -> Value {
+    json!({
+        "id": id,
+        "done": true,
+        "query": selector.query_text()
+    })
+}
+
+fn discount_bulk_operation_record(
+    id: &str,
+    field: &RootFieldSelection,
+    selector: &DiscountBulkSelector,
+    matched_ids: &[String],
+) -> Value {
+    let selector_value = match selector {
+        DiscountBulkSelector::Ids(ids) => json!({ "ids": ids }),
+        DiscountBulkSelector::Search(search) => json!({ "search": search }),
+        DiscountBulkSelector::SavedSearch { id, query } => {
+            json!({ "savedSearchId": id, "search": query })
+        }
+    };
+    json!({
+        "id": id,
+        "root": field.name,
+        "selector": selector_value,
+        "matchedIds": matched_ids,
+        "done": true,
+        "createdAt": DISCOUNT_DEFAULT_TIMESTAMP,
+        "completedAt": DISCOUNT_DEFAULT_TIMESTAMP
+    })
+}
+
 fn discount_unknown_id_user_error(root: &str) -> Value {
     let message = if root.starts_with("discountAutomatic") {
         "Automatic discount does not exist."
@@ -998,7 +1279,52 @@ fn discount_matches_query(record: &Value, query: &str) -> bool {
     if normalized.contains("type:automatic") {
         return discount_kind(record) == "automatic";
     }
+    for (key, value) in saved_search_filters(query) {
+        let base_key = discount_search_base_filter_key(&key);
+        if matches!(base_key, "title" | "code")
+            && !discount_text_filter_matches(record, base_key, &value)
+        {
+            return false;
+        }
+        if base_key == "method" {
+            let value = value.to_ascii_lowercase();
+            if value.contains("automatic") && discount_kind(record) != "automatic" {
+                return false;
+            }
+            if value.contains("code") && discount_kind(record) != "code" {
+                return false;
+            }
+        }
+        if base_key == "discount_type" {
+            let value = value.to_ascii_lowercase();
+            if value.contains("automatic") && discount_kind(record) != "automatic" {
+                return false;
+            }
+            if value.contains("code") && discount_kind(record) != "code" {
+                return false;
+            }
+        }
+    }
     true
+}
+
+fn discount_text_filter_matches(record: &Value, field: &str, raw_value: &str) -> bool {
+    let needle = raw_value
+        .trim_matches('\'')
+        .trim_matches('"')
+        .trim_end_matches('*')
+        .to_ascii_lowercase();
+    if needle.is_empty() {
+        return true;
+    }
+    let value = match field {
+        "title" => record["title"].as_str(),
+        "code" => record["code"].as_str(),
+        _ => None,
+    }
+    .unwrap_or_default()
+    .to_ascii_lowercase();
+    value.contains(&needle)
 }
 
 fn resolved_string_path(input: &BTreeMap<String, ResolvedValue>, path: &[&str]) -> Option<String> {

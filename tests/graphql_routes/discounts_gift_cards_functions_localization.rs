@@ -103,6 +103,257 @@ fn discount_stage_locally_roots_dispatch_by_root_field_not_operation_name_or_ali
 }
 
 #[test]
+fn discount_broad_bulk_roots_stage_locally_without_upstream_and_update_reads() {
+    let hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&hits);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |_request| {
+        *hit_counter.lock().unwrap() += 1;
+        shopify_draft_proxy::proxy::Response {
+            status: 500,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "bulk discounts should not hit upstream" }] }),
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkSetup($scheduled: DiscountCodeBasicInput!, $active: DiscountCodeBasicInput!, $deleteCode: DiscountCodeBasicInput!, $deleteAutomatic: DiscountAutomaticBasicInput!) {
+          scheduled: discountCodeBasicCreate(basicCodeDiscount: $scheduled) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+          active: discountCodeBasicCreate(basicCodeDiscount: $active) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+          deleteCode: discountCodeBasicCreate(basicCodeDiscount: $deleteCode) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+          deleteAutomatic: discountAutomaticBasicCreate(automaticBasicDiscount: $deleteAutomatic) { automaticDiscountNode { id } userErrors { field message code extraInfo } }
+        }
+        "#,
+        json!({
+            "scheduled": {
+                "title": "Bulk activate target",
+                "code": "BULKACTIVATE",
+                "startsAt": "2026-04-28T19:32:14Z",
+                "context": { "all": "ALL" },
+                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+            },
+            "active": {
+                "title": "Bulk deactivate target",
+                "code": "BULKDEACTIVATE",
+                "startsAt": "2026-04-25T19:32:14Z",
+                "context": { "all": "ALL" },
+                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+            },
+            "deleteCode": {
+                "title": "Bulk delete shared",
+                "code": "BULKDELETECODE",
+                "startsAt": "2026-04-25T19:32:14Z",
+                "context": { "all": "ALL" },
+                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+            },
+            "deleteAutomatic": {
+                "title": "Bulk delete automatic",
+                "startsAt": "2026-04-28T19:32:14Z",
+                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+            }
+        }),
+    ));
+    assert_eq!(create.body["data"]["scheduled"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["active"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["deleteCode"]["userErrors"], json!([]));
+    assert_eq!(
+        create.body["data"]["deleteAutomatic"]["userErrors"],
+        json!([])
+    );
+
+    let active_id = create.body["data"]["active"]["codeDiscountNode"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let delete_code_id = create.body["data"]["deleteCode"]["codeDiscountNode"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let delete_automatic_id = create.body["data"]["deleteAutomatic"]["automaticDiscountNode"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let bulk = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkEffects($activeId: [ID!]!, $deleteCodeId: [ID!]!, $deleteAutomaticId: [ID!]!) {
+          activate: discountCodeBulkActivate(search: "status:scheduled") { job { id done query } userErrors { field message code extraInfo } }
+          deactivate: discountCodeBulkDeactivate(ids: $activeId) { job { done query } userErrors { field message code extraInfo } }
+          noCodeMethodMatch: discountCodeBulkDelete(search: "method:automatic") { job { done query } userErrors { field message code extraInfo } }
+          deleteCode: discountCodeBulkDelete(ids: $deleteCodeId) { job { done query } userErrors { field message code extraInfo } }
+          deleteAutomatic: discountAutomaticBulkDelete(ids: $deleteAutomaticId) { job { done query } userErrors { field message code extraInfo } }
+        }
+        "#,
+        json!({
+            "activeId": [active_id],
+            "deleteCodeId": [delete_code_id],
+            "deleteAutomaticId": [delete_automatic_id]
+        }),
+    ));
+    assert_eq!(*hits.lock().unwrap(), 0);
+    for key in ["activate", "deactivate", "deleteCode", "deleteAutomatic"] {
+        assert_eq!(bulk.body["data"][key]["job"]["done"], json!(true));
+        assert_eq!(bulk.body["data"][key]["userErrors"], json!([]));
+    }
+    assert_eq!(
+        bulk.body["data"]["noCodeMethodMatch"]["job"]["done"],
+        json!(true)
+    );
+    assert_eq!(
+        bulk.body["data"]["noCodeMethodMatch"]["job"]["query"],
+        json!("method:automatic")
+    );
+    assert_eq!(
+        bulk.body["data"]["noCodeMethodMatch"]["userErrors"],
+        json!([])
+    );
+    assert!(bulk.body["data"]["activate"]["job"]["id"]
+        .as_str()
+        .unwrap()
+        .starts_with("gid://shopify/Job/"));
+    assert_eq!(
+        bulk.body["data"]["activate"]["job"]["query"],
+        json!("status:scheduled")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkRead($activeId: ID!, $deleteCodeId: ID!, $deleteAutomaticId: ID!) {
+          activeCode: codeDiscountNode(id: $activeId) { codeDiscount { ... on DiscountCodeBasic { status } } }
+          activeCount: discountNodesCount(query: "status:active") { count precision }
+          expiredCount: discountNodesCount(query: "status:expired") { count precision }
+          deletedCode: codeDiscountNode(id: $deleteCodeId) { id }
+          deletedAutomatic: automaticDiscountNode(id: $deleteAutomaticId) { id }
+        }
+        "#,
+        json!({
+            "activeId": active_id,
+            "deleteCodeId": delete_code_id,
+            "deleteAutomaticId": delete_automatic_id
+        }),
+    ));
+    assert_eq!(
+        read.body["data"]["activeCode"]["codeDiscount"]["status"],
+        json!("EXPIRED")
+    );
+    assert_eq!(
+        read.body["data"]["activeCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["expiredCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(read.body["data"]["deletedCode"], Value::Null);
+    assert_eq!(read.body["data"]["deletedAutomatic"], Value::Null);
+
+    let state = proxy.get_state_snapshot();
+    let bulk_operations = state["stagedState"]["discountBulkOperations"]
+        .as_object()
+        .unwrap();
+    assert_eq!(bulk_operations.len(), 5);
+    assert!(bulk_operations.values().any(|operation| {
+        operation["root"] == json!("discountCodeBulkDelete")
+            && operation["selector"] == json!({ "search": "method:automatic" })
+            && operation["matchedIds"] == json!([])
+    }));
+    assert!(bulk_operations.values().any(|operation| {
+        operation["root"] == json!("discountAutomaticBulkDelete")
+            && operation["matchedIds"] == json!([delete_automatic_id])
+    }));
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().unwrap();
+    assert!(entries.iter().any(|entry| {
+        entry["interpreted"]["primaryRootField"] == json!("discountCodeBulkActivate")
+            && entry["query"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("discountCodeBulkActivate")
+    }));
+}
+
+#[test]
+fn discount_broad_bulk_selector_and_search_field_validation_is_root_specific() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkValidation($ids: [ID!], $search: String, $savedSearchId: ID!) {
+          codeActivateMissing: discountCodeBulkActivate { userErrors { field message code extraInfo } }
+          codeActivateBlank: discountCodeBulkActivate(search: "") { userErrors { field message code extraInfo } }
+          codeDeleteTooMany: discountCodeBulkDelete(ids: $ids, search: $search) { userErrors { field message code extraInfo } }
+          codeDeleteInvalidField: discountCodeBulkDelete(search: "discount_class:order") { userErrors { field message code extraInfo } }
+          automaticMissing: discountAutomaticBulkDelete { userErrors { field message code extraInfo } }
+          automaticBlank: discountAutomaticBulkDelete(search: "") { userErrors { field message code extraInfo } }
+          automaticTooMany: discountAutomaticBulkDelete(ids: $ids, search: $search) { userErrors { field message code extraInfo } }
+          automaticUnknownSavedSearch: discountAutomaticBulkDelete(savedSearchId: $savedSearchId) { userErrors { field message code extraInfo } }
+        }
+        "#,
+        json!({
+            "ids": ["gid://shopify/DiscountCodeNode/1"],
+            "search": "status:active",
+            "savedSearchId": "gid://shopify/SavedSearch/0"
+        }),
+    ));
+    assert_eq!(
+        response.body["data"]["codeActivateMissing"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "Missing expected argument key: 'ids', 'search' or 'saved_search_id'.",
+            "code": "MISSING_ARGUMENT",
+            "extraInfo": null
+        }])
+    );
+    assert_eq!(
+        response.body["data"]["codeActivateBlank"]["userErrors"],
+        json!([{
+            "field": ["search"],
+            "message": "'Search' can't be blank.",
+            "code": "BLANK",
+            "extraInfo": null
+        }])
+    );
+    assert_eq!(
+        response.body["data"]["codeDeleteTooMany"]["userErrors"][0]["message"],
+        json!("Only one of 'ids', 'search' or 'saved_search_id' is allowed.")
+    );
+    assert_eq!(
+        response.body["data"]["codeDeleteInvalidField"]["userErrors"],
+        json!([{
+            "field": ["search"],
+            "message": "Invalid search field(s): discount_class. Check the query syntax.",
+            "code": "INVALID",
+            "extraInfo": null
+        }])
+    );
+    assert_eq!(
+        response.body["data"]["automaticMissing"]["userErrors"][0]["message"],
+        json!("One of IDs, search argument or saved search ID is required.")
+    );
+    assert_eq!(
+        response.body["data"]["automaticBlank"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["automaticTooMany"]["userErrors"][0]["message"],
+        json!("Only one of IDs, search argument or saved search ID is allowed.")
+    );
+    assert_eq!(
+        response.body["data"]["automaticUnknownSavedSearch"]["userErrors"],
+        json!([{
+            "field": ["savedSearchId"],
+            "message": "Invalid savedSearchId.",
+            "code": "INVALID",
+            "extraInfo": null
+        }])
+    );
+}
+
+#[test]
 fn discount_generic_handler_validates_input_and_handles_lifecycle_by_arguments() {
     let mut proxy = snapshot_proxy();
 

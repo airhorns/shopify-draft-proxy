@@ -832,6 +832,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                 "discounts": {},
                 "discountCodeIndex": {},
                 "deletedDiscountIds": [],
+                "discountBulkOperations": {},
                 "discountRedeemCodeBulkCreations": {},
                 "ownerMetafields": {},
                 "deletedOwnerMetafields": [],
