@@ -153,6 +153,21 @@ impl DraftProxy {
                 "deletedOwnerMetafields": self.store.staged.deleted_owner_metafields.iter().map(|(owner_id, namespace, key)| json!({"ownerId": owner_id, "namespace": namespace, "key": key})).collect::<Vec<_>>()
             }
         });
+        if self.has_staged_b2b_state() {
+            snapshot["stagedState"]["b2bCompanies"] =
+                json!(self.store.staged.b2b_companies.clone());
+            snapshot["stagedState"]["b2bLocations"] =
+                json!(self.store.staged.b2b_locations.clone());
+            snapshot["stagedState"]["b2bLocationOrder"] =
+                json!(self.store.staged.b2b_location_order.clone());
+            snapshot["stagedState"]["b2bContacts"] = json!(self.store.staged.b2b_contacts.clone());
+            snapshot["stagedState"]["b2bContactRoles"] =
+                json!(self.store.staged.b2b_contact_roles.clone());
+            snapshot["stagedState"]["b2bRoleAssignments"] =
+                json!(self.store.staged.b2b_role_assignments.clone());
+            snapshot["stagedState"]["b2bStaffAssignments"] =
+                json!(self.store.staged.b2b_staff_assignments.clone());
+        }
         if !self.store.staged.metaobject_definitions.is_empty() {
             snapshot["stagedState"]["metaobjectDefinitions"] =
                 json!(self.store.staged.metaobject_definitions);
@@ -225,6 +240,16 @@ impl DraftProxy {
                 .collect::<Vec<_>>());
         }
         snapshot
+    }
+
+    fn has_staged_b2b_state(&self) -> bool {
+        !self.store.staged.b2b_companies.is_empty()
+            || !self.store.staged.b2b_locations.is_empty()
+            || !self.store.staged.b2b_location_order.is_empty()
+            || !self.store.staged.b2b_contacts.is_empty()
+            || !self.store.staged.b2b_contact_roles.is_empty()
+            || !self.store.staged.b2b_role_assignments.is_empty()
+            || !self.store.staged.b2b_staff_assignments.is_empty()
     }
 
     pub(in crate::proxy) fn dump_state(&self, request: &Request) -> Response {
@@ -506,6 +531,70 @@ impl DraftProxy {
             .get("locationLimitReached")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        self.store.staged.b2b_companies = state["stagedState"]
+            .get("b2bCompanies")
+            .and_then(Value::as_object)
+            .map(|companies| {
+                companies
+                    .iter()
+                    .map(|(id, company)| (id.clone(), company.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.b2b_locations = state["stagedState"]
+            .get("b2bLocations")
+            .and_then(Value::as_object)
+            .map(|locations| {
+                locations
+                    .iter()
+                    .map(|(id, location)| (id.clone(), location.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.b2b_location_order = state["stagedState"]
+            .get("b2bLocationOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| self.store.staged.b2b_locations.keys().cloned().collect());
+        self.store.staged.b2b_contacts = state["stagedState"]
+            .get("b2bContacts")
+            .and_then(Value::as_object)
+            .map(|contacts| {
+                contacts
+                    .iter()
+                    .map(|(id, contact)| (id.clone(), contact.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.b2b_contact_roles = state["stagedState"]
+            .get("b2bContactRoles")
+            .and_then(Value::as_object)
+            .map(|roles| {
+                roles
+                    .iter()
+                    .map(|(id, role)| (id.clone(), role.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.b2b_role_assignments = state["stagedState"]
+            .get("b2bRoleAssignments")
+            .and_then(Value::as_object)
+            .map(|assignments| {
+                assignments
+                    .iter()
+                    .map(|(id, assignment)| (id.clone(), assignment.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.b2b_staff_assignments = state["stagedState"]
+            .get("b2bStaffAssignments")
+            .and_then(Value::as_object)
+            .map(|assignments| {
+                assignments
+                    .iter()
+                    .map(|(id, assignment)| (id.clone(), assignment.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
         self.store.staged.metaobject_definitions = state["stagedState"]
             .get("metaobjectDefinitions")
             .and_then(Value::as_object)
