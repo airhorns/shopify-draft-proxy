@@ -12,9 +12,9 @@ order-editing shipping-line roots.
 
 ### Supported roots
 
-The current Rust operation registry does not mark any shipping/fulfillments root
-as fully implemented. Registry presence is a local-model commitment only; it is
-not a claim that the whole shipping/fulfillments domain is supported for
+The current Rust operation registry marks a bounded delivery-profile slice as
+locally implemented. Registry presence remains a local-model commitment only; it
+is not a claim that the whole shipping/fulfillments domain is supported for
 arbitrary documents.
 
 The registry-only read roots are:
@@ -36,8 +36,6 @@ The registry-only read roots are:
 - `deliveryPromiseProvider`
 - `deliveryPromiseSettings`
 - `deliverySettings`
-- `deliveryProfile`
-- `deliveryProfiles`
 - `locationsAvailableForDeliveryProfilesConnection`
 - `fulfillmentConstraintRules`
 
@@ -80,9 +78,6 @@ The registry-only mutation roots are:
 - `fulfillmentConstraintRuleCreate`
 - `fulfillmentConstraintRuleDelete`
 - `fulfillmentConstraintRuleUpdate`
-- `deliveryProfileCreate`
-- `deliveryProfileRemove`
-- `deliveryProfileUpdate`
 - `deliveryCustomizationActivation`
 - `deliveryCustomizationCreate`
 - `deliveryCustomizationDelete`
@@ -102,6 +97,17 @@ The registry-only mutation roots are:
 The Rust runtime has scenario-backed shipping and fulfillment slices for ported
 parity requests and runtime tests. These slices stage or serialize local state
 only for the request families recognized by the Rust dispatcher.
+
+Delivery-profile support is store-backed for `deliveryProfileCreate`,
+`deliveryProfileUpdate`, `deliveryProfileRemove`, downstream
+`deliveryProfile(id:)`, and `deliveryProfiles(...)`. The modeled custom-profile
+subset stages profile names, nested location groups, locations, zones, countries,
+method definitions, rate definitions, method conditions, condition deletes,
+variant association/dissociation, profile list/detail reads, and async removal
+job payloads without sending the write upstream during runtime handling.
+Removing a staged profile tombstones it locally so `deliveryProfile(id:)`
+returns `null`; the original raw mutations remain in the mutation log for
+`/__meta/commit` replay.
 
 Fulfillment-service slices cover create, update, delete, downstream
 `fulfillmentService(id:)`, associated `location(id:)`, after-delete absence,
@@ -135,9 +141,11 @@ These slices operate on local order-backed fulfillment records and are not a
 general fulfillment-service execution engine.
 
 Delivery settings and delivery promise settings are read-only in the captured
-empty/no-feature branch. Delivery profiles have fixture-backed read and bounded
-custom-profile write slices for create/update/remove, validation, variant
-dissociation, async removal payloads, and downstream null reads after removal.
+empty/no-feature branch. Delivery-profile validation covers the captured
+blank/too-long name, unknown location, empty zone-country, create-time
+update-only input, missing-profile update/remove, default-profile remove, and
+successful nested create/update/remove branches used by the checked-in parity
+specs.
 
 Local pickup and shipping package slices stage settings on known local
 locations or package records. Pickup changes are visible through the captured
@@ -153,9 +161,13 @@ caller-visible order and return effects should be read with
 
 ### Boundaries
 
-- Shipping/fulfillments roots remain `implemented: false` in the current
+- Most shipping/fulfillments roots remain `implemented: false` in the current
   operation registry. Scenario-backed Rust helpers should not be described as
   broad root support.
+- Delivery-profile support is bounded to custom-profile local staging and the
+  selected read-after-write effects above. It is not full Shopify delivery
+  settings emulation, carrier callback execution, checkout rate calculation, or
+  complete delivery-profile catalog behavior.
 - Delivery customization and delivery promise mutations are Shopify
   Function-backed or provider-backed and remain unsupported until function
   ownership, activation eligibility, metafields, provider state, validation,

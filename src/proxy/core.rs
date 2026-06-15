@@ -140,6 +140,9 @@ impl DraftProxy {
                 "returnsByOrder": self.store.staged.returns_by_order.clone(),
                "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
                 "reverseFulfillmentOrders": self.store.staged.reverse_fulfillment_orders.clone(),
+                "deliveryProfiles": self.store.staged.delivery_profiles.clone(),
+                "deliveryProfileOrder": self.store.staged.delivery_profile_order.clone(),
+                "deletedDeliveryProfileIds": self.store.staged.deleted_delivery_profile_ids.iter().cloned().collect::<Vec<_>>(),
                 "locations": self.store.staged.locations.clone(),
                 "locationOrder": self.store.staged.location_order.clone(),
                 "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
@@ -488,6 +491,33 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.delivery_profiles = state["stagedState"]
+            .get("deliveryProfiles")
+            .and_then(Value::as_object)
+            .map(|profiles| {
+                profiles
+                    .iter()
+                    .map(|(id, profile)| (id.clone(), profile.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.delivery_profile_order = state["stagedState"]
+            .get("deliveryProfileOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .delivery_profiles
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
+        self.store.staged.deleted_delivery_profile_ids = state["stagedState"]
+            .get("deletedDeliveryProfileIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.locations = state["stagedState"]
             .get("locations")
             .and_then(Value::as_object)

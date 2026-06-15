@@ -536,6 +536,707 @@ pub(in crate::proxy) fn location_deactivate_payload_json(
     })
 }
 
+pub(in crate::proxy) fn delivery_profile_payload_json(
+    profile: Value,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
+            "profile" => Some(if profile.is_null() {
+                Value::Null
+            } else {
+                delivery_profile_selected_json(&profile, &selection.selection)
+            }),
+            "userErrors" => Some(delivery_profile_user_errors_json(
+                user_errors.clone(),
+                &selection.selection,
+            )),
+            _ => None,
+        }
+    })
+}
+
+pub(in crate::proxy) fn delivery_profile_remove_payload_json(
+    job: Value,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
+            "job" => Some(if job.is_null() {
+                Value::Null
+            } else {
+                selected_json(&job, &selection.selection)
+            }),
+            "userErrors" => Some(delivery_profile_user_errors_json(
+                user_errors.clone(),
+                &selection.selection,
+            )),
+            _ => None,
+        }
+    })
+}
+
+pub(in crate::proxy) fn delivery_profile_user_errors_json(
+    user_errors: Vec<Value>,
+    selection: &[SelectedField],
+) -> Value {
+    Value::Array(
+        user_errors
+            .into_iter()
+            .map(|error| selected_json(&error, selection))
+            .collect(),
+    )
+}
+
+pub(in crate::proxy) fn delivery_profile_create_user_errors(
+    profile: &BTreeMap<String, ResolvedValue>,
+) -> Vec<Value> {
+    if let Some(error) = delivery_profile_name_user_error(profile) {
+        return vec![error];
+    }
+    if !resolved_string_list_field_unsorted(profile, "variantsToDissociate").is_empty() {
+        return vec![delivery_profile_user_error(
+            Value::Null,
+            "Cannot disassociate variants when creating a profile.",
+        )];
+    }
+    for group in resolved_object_list_field(profile, "locationGroupsToCreate") {
+        if !resolved_object_list_field(&group, "zonesToUpdate").is_empty() {
+            return vec![delivery_profile_user_error(
+                Value::Null,
+                "Cannot update zones when creating a profile.",
+            )];
+        }
+        for zone in resolved_object_list_field(&group, "zonesToCreate") {
+            if !resolved_object_list_field(&zone, "methodDefinitionsToUpdate").is_empty() {
+                return vec![delivery_profile_user_error(
+                    Value::Null,
+                    "Profile is invalid: Input cannot include method_definitions_to_update on create.",
+                )];
+            }
+        }
+    }
+    delivery_profile_common_shape_user_errors(profile)
+}
+
+pub(in crate::proxy) fn delivery_profile_update_user_errors(
+    profile: &BTreeMap<String, ResolvedValue>,
+) -> Vec<Value> {
+    if let Some(error) = delivery_profile_name_user_error(profile) {
+        return vec![error];
+    }
+    delivery_profile_common_shape_user_errors(profile)
+}
+
+fn delivery_profile_name_user_error(profile: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
+    let name = resolved_string_field(profile, "name")?;
+    if name.is_empty() {
+        return Some(delivery_profile_user_error(
+            json!(["profile", "name"]),
+            "Add a profile name",
+        ));
+    }
+    if name.chars().count() >= 128 {
+        return Some(delivery_profile_user_error(
+            json!(["profile", "name"]),
+            "Profile name must be less than 128 characters long",
+        ));
+    }
+    None
+}
+
+fn delivery_profile_common_shape_user_errors(
+    profile: &BTreeMap<String, ResolvedValue>,
+) -> Vec<Value> {
+    for group in resolved_object_list_field(profile, "locationGroupsToCreate") {
+        if delivery_profile_has_unknown_location(&resolved_string_list_field_unsorted(
+            &group,
+            "locations",
+        )) {
+            return vec![delivery_profile_unknown_location_user_error()];
+        }
+        for zone in resolved_object_list_field(&group, "zonesToCreate") {
+            if delivery_profile_zone_countries_from_input(&zone).is_empty() {
+                return vec![delivery_profile_user_error(
+                    Value::Null,
+                    "Profile is invalid: cannot create LocationGroupZone without countries.",
+                )];
+            }
+        }
+    }
+    for group in resolved_object_list_field(profile, "locationGroupsToUpdate") {
+        if delivery_profile_has_unknown_location(&resolved_string_list_field_unsorted(
+            &group,
+            "locationsToAdd",
+        )) {
+            return vec![delivery_profile_unknown_location_user_error()];
+        }
+    }
+    Vec::new()
+}
+
+fn delivery_profile_has_unknown_location(location_ids: &[String]) -> bool {
+    location_ids
+        .iter()
+        .any(|id| id == "gid://shopify/Location/999999999")
+}
+
+fn delivery_profile_unknown_location_user_error() -> Value {
+    delivery_profile_user_error(
+        Value::Null,
+        "The Location could not be found for this shop.",
+    )
+}
+
+fn delivery_profile_user_error(field: Value, message: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message
+    })
+}
+
+pub(in crate::proxy) fn delivery_profile_selected_json(
+    profile: &Value,
+    selections: &[SelectedField],
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("DeliveryProfile")),
+        "id"
+        | "name"
+        | "default"
+        | "version"
+        | "originLocationCount"
+        | "zoneCountryCount"
+        | "activeMethodDefinitionsCount"
+        | "locationsWithoutRatesCount" => profile
+            .get(&selection.name)
+            .cloned()
+            .map(|value| nullable_selected_json(&value, &selection.selection)),
+        "productVariantsCount" => Some(selected_json(
+            profile
+                .get("productVariantsCount")
+                .unwrap_or(&json!({ "count": 0, "precision": "EXACT" })),
+            &selection.selection,
+        )),
+        "profileItems" => Some(delivery_profile_items_connection_json(
+            profile
+                .get("profileItems")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default(),
+            &selection.arguments,
+            &selection.selection,
+        )),
+        "profileLocationGroups" => Some(Value::Array(
+            profile
+                .get("profileLocationGroups")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .map(|group| {
+                    delivery_profile_location_group_selected_json(group, &selection.selection)
+                })
+                .collect(),
+        )),
+        "sellingPlanGroups" => Some(selected_empty_connection_json(&selection.selection)),
+        "unassignedLocationsPaginated" => {
+            Some(selected_empty_connection_json(&selection.selection))
+        }
+        "unassignedLocations" => Some(Value::Array(Vec::new())),
+        _ => profile
+            .get(&selection.name)
+            .cloned()
+            .map(|value| nullable_selected_json(&value, &selection.selection)),
+    })
+}
+
+fn delivery_profile_location_group_selected_json(
+    group: &Value,
+    selections: &[SelectedField],
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "locationGroup" => Some(delivery_location_group_selected_json(
+            &group["locationGroup"],
+            &selection.selection,
+        )),
+        "locationGroupZones" => Some(delivery_location_group_zones_connection_json(
+            group
+                .get("locationGroupZones")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default(),
+            &selection.arguments,
+            &selection.selection,
+        )),
+        "countriesInAnyZone" => Some(Value::Array(
+            group
+                .get("countriesInAnyZone")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|country| selected_json(&country, &selection.selection))
+                .collect(),
+        )),
+        _ => None,
+    })
+}
+
+fn delivery_location_group_selected_json(group: &Value, selections: &[SelectedField]) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "id" => group.get("id").cloned(),
+        "locations" => Some(delivery_profile_locations_connection_json(
+            group
+                .get("locations")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default(),
+            &selection.arguments,
+            &selection.selection,
+        )),
+        "locationsCount" => Some(selected_json(
+            group
+                .get("locationsCount")
+                .unwrap_or(&json!({ "count": 0, "precision": "EXACT" })),
+            &selection.selection,
+        )),
+        _ => group
+            .get(&selection.name)
+            .cloned()
+            .map(|value| nullable_selected_json(&value, &selection.selection)),
+    })
+}
+
+fn delivery_location_group_zones_connection_json(
+    zones: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selections: &[SelectedField],
+) -> Value {
+    let nodes = limited_nodes(zones, arguments);
+    let connection = connection_json_with_cursor(
+        nodes,
+        |_, node| node["zone"]["id"].as_str().unwrap_or_default().to_string(),
+        connection_page_info(false, false, None, None),
+    );
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "nodes" => Some(Value::Array(
+            connection["nodes"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|node| delivery_location_group_zone_selected_json(node, &selection.selection))
+                .collect(),
+        )),
+        "edges" => Some(Value::Array(
+            connection["edges"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|edge| {
+                    let mut projected = serde_json::Map::new();
+                    for edge_field in &selection.selection {
+                        match edge_field.name.as_str() {
+                            "cursor" => {
+                                projected.insert(
+                                    edge_field.response_key.clone(),
+                                    edge["cursor"].clone(),
+                                );
+                            }
+                            "node" => {
+                                projected.insert(
+                                    edge_field.response_key.clone(),
+                                    delivery_location_group_zone_selected_json(
+                                        &edge["node"],
+                                        &edge_field.selection,
+                                    ),
+                                );
+                            }
+                            _ => {}
+                        }
+                    }
+                    Value::Object(projected)
+                })
+                .collect(),
+        )),
+        "pageInfo" => Some(selected_json(&connection["pageInfo"], &selection.selection)),
+        _ => None,
+    })
+}
+
+fn delivery_location_group_zone_selected_json(zone: &Value, selections: &[SelectedField]) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "zone" => Some(delivery_zone_selected_json(
+            &zone["zone"],
+            &selection.selection,
+        )),
+        "methodDefinitions" => Some(delivery_method_definitions_connection_json(
+            zone.get("methodDefinitions")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default(),
+            &selection.arguments,
+            &selection.selection,
+        )),
+        _ => None,
+    })
+}
+
+fn delivery_zone_selected_json(zone: &Value, selections: &[SelectedField]) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "id" | "name" => zone.get(&selection.name).cloned(),
+        "countries" => Some(Value::Array(
+            zone.get("countries")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .map(|country| selected_json(country, &selection.selection))
+                .collect(),
+        )),
+        _ => None,
+    })
+}
+
+fn delivery_method_definitions_connection_json(
+    methods: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selections: &[SelectedField],
+) -> Value {
+    let nodes = limited_nodes(methods, arguments);
+    let connection = connection_json_with_cursor(
+        nodes,
+        |_, node| value_id_cursor(node),
+        connection_page_info(false, false, None, None),
+    );
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "nodes" => Some(Value::Array(
+            connection["nodes"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|node| delivery_method_definition_selected_json(node, &selection.selection))
+                .collect(),
+        )),
+        "edges" => Some(Value::Array(
+            connection["edges"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|edge| {
+                    let mut projected = serde_json::Map::new();
+                    for edge_field in &selection.selection {
+                        match edge_field.name.as_str() {
+                            "cursor" => {
+                                projected.insert(
+                                    edge_field.response_key.clone(),
+                                    edge["cursor"].clone(),
+                                );
+                            }
+                            "node" => {
+                                projected.insert(
+                                    edge_field.response_key.clone(),
+                                    delivery_method_definition_selected_json(
+                                        &edge["node"],
+                                        &edge_field.selection,
+                                    ),
+                                );
+                            }
+                            _ => {}
+                        }
+                    }
+                    Value::Object(projected)
+                })
+                .collect(),
+        )),
+        "pageInfo" => Some(selected_json(&connection["pageInfo"], &selection.selection)),
+        _ => None,
+    })
+}
+
+fn delivery_method_definition_selected_json(method: &Value, selections: &[SelectedField]) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "id" | "name" | "active" | "description" => method.get(&selection.name).cloned(),
+        "rateProvider" => Some(delivery_rate_provider_selected_json(
+            &method["rateProvider"],
+            &selection.selection,
+        )),
+        "methodConditions" => Some(Value::Array(
+            method
+                .get("methodConditions")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .map(|condition| selected_json(condition, &selection.selection))
+                .collect(),
+        )),
+        _ => None,
+    })
+}
+
+fn delivery_rate_provider_selected_json(
+    rate_provider: &Value,
+    selections: &[SelectedField],
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" | "id" => rate_provider.get(&selection.name).cloned(),
+        "price" => Some(selected_json(&rate_provider["price"], &selection.selection)),
+        "fixedFee" | "percentageOfRateFee" => rate_provider.get(&selection.name).cloned(),
+        _ => None,
+    })
+}
+
+fn delivery_profile_items_connection_json(
+    items: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selections: &[SelectedField],
+) -> Value {
+    let nodes = limited_nodes(items, arguments);
+    let connection = connection_json_with_cursor(
+        nodes,
+        |index, node| {
+            node["product"]["id"]
+                .as_str()
+                .map(str::to_string)
+                .unwrap_or_else(|| format!("delivery-profile-item-{index}"))
+        },
+        connection_page_info(false, false, None, None),
+    );
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "nodes" => Some(Value::Array(
+            connection["nodes"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|item| delivery_profile_item_selected_json(item, &selection.selection))
+                .collect(),
+        )),
+        "pageInfo" => Some(selected_json(&connection["pageInfo"], &selection.selection)),
+        _ => None,
+    })
+}
+
+fn delivery_profile_item_selected_json(item: &Value, selections: &[SelectedField]) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "product" => Some(selected_json(&item["product"], &selection.selection)),
+        "variants" => Some(delivery_profile_variants_connection_json(
+            item.get("variants")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default(),
+            &selection.arguments,
+            &selection.selection,
+        )),
+        _ => None,
+    })
+}
+
+fn delivery_profile_variants_connection_json(
+    variants: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selections: &[SelectedField],
+) -> Value {
+    let nodes = limited_nodes(variants, arguments);
+    selected_json(
+        &connection_json_with_cursor(
+            nodes,
+            |_, node| value_id_cursor(node),
+            connection_page_info(false, false, None, None),
+        ),
+        selections,
+    )
+}
+
+fn delivery_profile_locations_connection_json(
+    locations: Vec<Value>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selections: &[SelectedField],
+) -> Value {
+    let nodes = limited_nodes(locations, arguments);
+    selected_json(
+        &connection_json_with_cursor(
+            nodes,
+            |_, node| value_id_cursor(node),
+            connection_page_info(false, false, None, None),
+        ),
+        selections,
+    )
+}
+
+fn limited_nodes(mut nodes: Vec<Value>, arguments: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+    if let Some(limit) = arguments.get("first").and_then(resolved_as_usize) {
+        nodes.truncate(limit);
+    }
+    nodes
+}
+
+pub(in crate::proxy) fn refresh_delivery_profile_counts(profile: &mut Value) {
+    let groups = profile
+        .get("profileLocationGroups")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let origin_count = groups
+        .iter()
+        .map(|group| {
+            group["locationGroup"]["locations"]
+                .as_array()
+                .map(Vec::len)
+                .unwrap_or(0)
+        })
+        .sum::<usize>();
+    let mut country_count = 0usize;
+    let mut active_methods = 0usize;
+    for group in &groups {
+        for zone in group["locationGroupZones"].as_array().into_iter().flatten() {
+            country_count += zone["zone"]["countries"]
+                .as_array()
+                .map(Vec::len)
+                .unwrap_or(0);
+            active_methods += zone["methodDefinitions"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|method| method["active"].as_bool().unwrap_or(false))
+                .count();
+        }
+    }
+    let variant_count = profile
+        .get("profileItems")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|item| item["variants"].as_array().map(Vec::len).unwrap_or(0))
+        .sum::<usize>();
+    profile["originLocationCount"] = json!(origin_count);
+    profile["zoneCountryCount"] = json!(country_count);
+    profile["activeMethodDefinitionsCount"] = json!(active_methods);
+    profile["productVariantsCount"] = json!({
+        "count": variant_count,
+        "precision": "EXACT"
+    });
+}
+
+pub(in crate::proxy) fn delivery_profile_location_record(id: &str) -> Value {
+    json!({
+        "id": id,
+        "name": delivery_profile_location_name(id)
+    })
+}
+
+fn delivery_profile_location_name(id: &str) -> String {
+    match id.rsplit('/').next().filter(|tail| !tail.is_empty()) {
+        Some(tail) => format!("Location {tail}"),
+        None => "Delivery profile location".to_string(),
+    }
+}
+
+pub(in crate::proxy) fn delivery_profile_item_for_variant(
+    variant_id: &str,
+    observed_variant: Option<&Value>,
+) -> Value {
+    let product = observed_variant.and_then(|variant| variant.get("product"));
+    let product_id = product
+        .and_then(|product| product.get("id"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| delivery_profile_fallback_product_id(variant_id));
+    let product_title = product
+        .and_then(|product| product.get("title"))
+        .and_then(Value::as_str)
+        .unwrap_or("Delivery profile product");
+    let variant_title = observed_variant
+        .and_then(|variant| variant.get("title"))
+        .and_then(Value::as_str)
+        .unwrap_or("Default Title");
+    json!({
+        "product": {
+            "id": product_id,
+            "title": product_title
+        },
+        "variants": [{
+            "id": variant_id,
+            "title": variant_title
+        }]
+    })
+}
+
+fn delivery_profile_fallback_product_id(variant_id: &str) -> String {
+    let tail = variant_id
+        .rsplit('/')
+        .next()
+        .filter(|tail| !tail.is_empty())
+        .unwrap_or("local");
+    format!("gid://shopify/Product/delivery-profile-{tail}")
+}
+
+pub(in crate::proxy) fn delivery_profile_countries_from_input(
+    zone_input: &BTreeMap<String, ResolvedValue>,
+) -> Vec<Value> {
+    delivery_profile_zone_countries_from_input(zone_input)
+        .into_iter()
+        .map(|country| delivery_profile_country_record(&country))
+        .collect()
+}
+
+fn delivery_profile_zone_countries_from_input(
+    zone_input: &BTreeMap<String, ResolvedValue>,
+) -> Vec<String> {
+    match zone_input.get("countries") {
+        Some(ResolvedValue::List(values)) => values
+            .iter()
+            .filter_map(|value| match value {
+                ResolvedValue::Object(country) => resolved_string_field(country, "code")
+                    .or_else(|| resolved_string_field(country, "countryCode")),
+                _ => None,
+            })
+            .collect(),
+        Some(ResolvedValue::Object(countries)) => {
+            let rest_of_world = resolved_bool_field(countries, "restOfWorld").unwrap_or(false);
+            let mut codes = resolved_string_list_field_unsorted(countries, "countryCodes");
+            if rest_of_world {
+                codes.push("REST_OF_WORLD".to_string());
+            }
+            codes
+        }
+        _ => Vec::new(),
+    }
+}
+
+fn delivery_profile_country_record(code: &str) -> Value {
+    let rest_of_world = code == "REST_OF_WORLD";
+    json!({
+        "id": format!("gid://shopify/DeliveryCountry/{code}"),
+        "name": if rest_of_world { "Rest of World" } else { delivery_profile_country_name(code) },
+        "translatedName": if rest_of_world { "Rest of World" } else { delivery_profile_country_name(code) },
+        "code": {
+            "countryCode": if rest_of_world { Value::Null } else { json!(code) },
+            "restOfWorld": rest_of_world
+        },
+        "provinces": []
+    })
+}
+
+fn delivery_profile_country_name(code: &str) -> &'static str {
+    match code {
+        "US" => "United States",
+        "CA" => "Canada",
+        "GB" => "United Kingdom",
+        _ => "Country",
+    }
+}
+
+pub(in crate::proxy) fn delivery_price_from_method_input(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let rate_definition = resolved_object_field(input, "rateDefinition").unwrap_or_default();
+    let price = resolved_object_field(&rate_definition, "price").unwrap_or_default();
+    json!({
+        "amount": resolved_money_amount_string(price.get("amount")),
+        "currencyCode": resolved_string_field(&price, "currencyCode").unwrap_or_else(|| "USD".to_string())
+    })
+}
+
 pub(in crate::proxy) fn fulfillment_order_move_assignment_record(
     id: &str,
     location_id: &str,

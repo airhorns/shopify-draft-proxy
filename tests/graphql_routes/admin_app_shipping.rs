@@ -4746,6 +4746,430 @@ fn delivery_settings_roots_return_read_only_settings_with_aliases_and_selected_f
 }
 
 #[test]
+fn delivery_profile_lifecycle_stages_nested_state_reads_and_removal_job() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation DeliveryProfileLifecycleCreate($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile {
+              id
+              name
+              version
+              originLocationCount
+              zoneCountryCount
+              activeMethodDefinitionsCount
+              productVariantsCount { count precision }
+              profileItems(first: 5) {
+                nodes {
+                  product { id title }
+                  variants(first: 5) { nodes { id title } }
+                }
+              }
+              profileLocationGroups {
+                locationGroup {
+                  id
+                  locations(first: 5) {
+                    nodes { id name }
+                    pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+                  }
+                  locationsCount { count precision }
+                }
+                locationGroupZones(first: 5) {
+                  nodes {
+                    zone { id name countries { code { countryCode restOfWorld } } }
+                    methodDefinitions(first: 5) {
+                      nodes {
+                        id
+                        name
+                        active
+                        rateProvider { ... on DeliveryRateDefinition { id price { amount currencyCode } } }
+                        methodConditions {
+                          id
+                          field
+                          operator
+                          conditionCriteria {
+                            __typename
+                            ... on Weight { value unit }
+                            ... on MoneyV2 { amount currencyCode }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation DeliveryProfileLifecycleUpdate($id: ID!, $profile: DeliveryProfileInput!) {
+          deliveryProfileUpdate(id: $id, profile: $profile) {
+            profile {
+              id
+              name
+              version
+              originLocationCount
+              activeMethodDefinitionsCount
+              productVariantsCount { count precision }
+              profileItems(first: 5) { nodes { product { id } variants(first: 5) { nodes { id } } } }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let read_query = r#"
+        query DeliveryProfileDownstreamRead($id: ID!) {
+          deliveryProfile(id: $id) {
+            id
+            name
+            originLocationCount
+            activeMethodDefinitionsCount
+          }
+          deliveryProfiles(first: 5) {
+            edges { cursor node { id name } }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+    "#;
+    let remove_query = r#"
+        mutation DeliveryProfileLifecycleRemove($id: ID!) {
+          deliveryProfileRemove(id: $id) {
+            job { id done }
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    let create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "profile": {
+                "name": "Local heavy goods",
+                "locationGroupsToCreate": [{
+                    "locations": ["gid://shopify/Location/106318430514"],
+                    "zonesToCreate": [{
+                        "name": "Domestic",
+                        "countries": [{ "code": "US", "includeAllProvinces": true }],
+                        "methodDefinitionsToCreate": [{
+                            "name": "Standard",
+                            "active": true,
+                            "rateDefinition": { "price": { "amount": "7.25", "currencyCode": "USD" } },
+                            "weightConditionsToCreate": [{
+                                "operator": "GREATER_THAN_OR_EQUAL_TO",
+                                "criteria": { "value": 1, "unit": "KILOGRAMS" }
+                            }]
+                        }]
+                    }]
+                }],
+                "variantsToAssociate": ["gid://shopify/ProductVariant/51098706739506"]
+            }
+        }),
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["deliveryProfileCreate"]["userErrors"],
+        json!([])
+    );
+    let profile = &create.body["data"]["deliveryProfileCreate"]["profile"];
+    let profile_id = profile["id"].as_str().unwrap().to_string();
+    let group_id = profile["profileLocationGroups"][0]["locationGroup"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let zone_id = profile["profileLocationGroups"][0]["locationGroupZones"]["nodes"][0]["zone"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let method_id = profile["profileLocationGroups"][0]["locationGroupZones"]["nodes"][0]
+        ["methodDefinitions"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let rate_id = profile["profileLocationGroups"][0]["locationGroupZones"]["nodes"][0]
+        ["methodDefinitions"]["nodes"][0]["rateProvider"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let condition_id = profile["profileLocationGroups"][0]["locationGroupZones"]["nodes"][0]
+        ["methodDefinitions"]["nodes"][0]["methodConditions"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(profile_id.starts_with("gid://shopify/DeliveryProfile/"));
+    assert_eq!(profile["name"], json!("Local heavy goods"));
+    assert_eq!(profile["version"], json!(1));
+    assert_eq!(profile["originLocationCount"], json!(1));
+    assert_eq!(profile["zoneCountryCount"], json!(1));
+    assert_eq!(profile["activeMethodDefinitionsCount"], json!(1));
+    assert_eq!(
+        profile["productVariantsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        profile["profileItems"]["nodes"][0]["variants"]["nodes"][0]["id"],
+        json!("gid://shopify/ProductVariant/51098706739506")
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": profile_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["deliveryProfile"]["name"],
+        json!("Local heavy goods")
+    );
+    assert_eq!(
+        read.body["data"]["deliveryProfiles"]["edges"][0]["node"]["id"],
+        json!(profile_id)
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": profile_id,
+            "profile": {
+                "name": "Local heavy goods updated",
+                "variantsToDissociate": ["gid://shopify/ProductVariant/51098706739506"],
+                "conditionsToDelete": [condition_id],
+                "locationGroupsToUpdate": [{
+                    "id": group_id,
+                    "locationsToAdd": ["gid://shopify/Location/106318463282"],
+                    "zonesToUpdate": [{
+                        "id": zone_id,
+                        "name": "Domestic updated",
+                        "methodDefinitionsToUpdate": [{
+                            "id": method_id,
+                            "name": "Standard updated",
+                            "active": false,
+                            "rateDefinition": {
+                                "id": rate_id,
+                                "price": { "amount": "8.50", "currencyCode": "USD" }
+                            }
+                        }],
+                        "methodDefinitionsToCreate": [{
+                            "name": "Express",
+                            "active": true,
+                            "rateDefinition": { "price": { "amount": "12.00", "currencyCode": "USD" } },
+                            "priceConditionsToCreate": [{
+                                "operator": "LESS_THAN_OR_EQUAL_TO",
+                                "criteria": { "amount": "100.00", "currencyCode": "USD" }
+                            }]
+                        }]
+                    }]
+                }]
+            }
+        }),
+    ));
+
+    assert_eq!(update.status, 200);
+    let updated = &update.body["data"]["deliveryProfileUpdate"]["profile"];
+    assert_eq!(updated["id"], json!(profile_id));
+    assert_eq!(updated["name"], json!("Local heavy goods updated"));
+    assert_eq!(updated["version"], json!(2));
+    assert_eq!(updated["originLocationCount"], json!(2));
+    assert_eq!(updated["activeMethodDefinitionsCount"], json!(1));
+    assert_eq!(
+        updated["productVariantsCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    assert_eq!(updated["profileItems"]["nodes"], json!([]));
+
+    let remove = proxy.process_request(json_graphql_request(
+        remove_query,
+        json!({ "id": profile_id }),
+    ));
+    assert_eq!(remove.status, 200);
+    assert_eq!(
+        remove.body["data"]["deliveryProfileRemove"]["userErrors"],
+        json!([])
+    );
+    assert!(remove.body["data"]["deliveryProfileRemove"]["job"]["id"]
+        .as_str()
+        .unwrap()
+        .starts_with("gid://shopify/Job/"));
+    assert_eq!(
+        remove.body["data"]["deliveryProfileRemove"]["job"]["done"],
+        json!(false)
+    );
+
+    let read_after_remove = proxy.process_request(json_graphql_request(
+        r#"query ReadRemovedDeliveryProfile($id: ID!) { deliveryProfile(id: $id) { id } }"#,
+        json!({ "id": profile_id }),
+    ));
+    assert_eq!(
+        read_after_remove.body["data"]["deliveryProfile"],
+        Value::Null
+    );
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(
+        log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("deliveryProfileCreate")
+    );
+    assert_eq!(log["entries"][0]["rawBody"].is_string(), true);
+    assert_eq!(
+        log["entries"][1]["interpreted"]["primaryRootField"],
+        json!("deliveryProfileUpdate")
+    );
+    assert_eq!(
+        log["entries"][2]["interpreted"]["primaryRootField"],
+        json!("deliveryProfileRemove")
+    );
+    assert_eq!(log["entries"][2]["status"], json!("staged"));
+}
+
+#[test]
+fn delivery_profile_validations_match_captured_write_subset() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation DeliveryProfileCreateValidation($profile: DeliveryProfileInput!) {
+          deliveryProfileCreate(profile: $profile) {
+            profile { id name }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation DeliveryProfileUpdateValidation($id: ID!, $profile: DeliveryProfileInput!) {
+          deliveryProfileUpdate(id: $id, profile: $profile) {
+            profile { id name }
+            userErrors { field message }
+          }
+        }
+    "#;
+
+    let blank = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "profile": { "name": "" } }),
+    ));
+    assert_eq!(
+        blank.body["data"]["deliveryProfileCreate"],
+        json!({
+            "profile": null,
+            "userErrors": [{ "field": ["profile", "name"], "message": "Add a profile name" }]
+        })
+    );
+
+    let long_name = "x".repeat(128);
+    let too_long = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({ "profile": { "name": long_name } }),
+    ));
+    assert_eq!(
+        too_long.body["data"]["deliveryProfileCreate"]["userErrors"][0]["message"],
+        json!("Profile name must be less than 128 characters long")
+    );
+
+    let disallowed = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "profile": {
+                "name": "Disallowed",
+                "variantsToDissociate": ["gid://shopify/ProductVariant/1"]
+            }
+        }),
+    ));
+    assert_eq!(
+        disallowed.body["data"]["deliveryProfileCreate"]["userErrors"][0]["message"],
+        json!("Cannot disassociate variants when creating a profile.")
+    );
+
+    let unknown_location = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "profile": {
+                "name": "Unknown location",
+                "locationGroupsToCreate": [{ "locations": ["gid://shopify/Location/999999999"] }]
+            }
+        }),
+    ));
+    assert_eq!(
+        unknown_location.body["data"]["deliveryProfileCreate"]["userErrors"][0],
+        json!({ "field": null, "message": "The Location could not be found for this shop." })
+    );
+
+    let empty_countries = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "profile": {
+                "name": "Empty countries",
+                "locationGroupsToCreate": [{
+                    "locations": ["gid://shopify/Location/106318430514"],
+                    "zonesToCreate": [{ "name": "Empty", "countries": [] }]
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        empty_countries.body["data"]["deliveryProfileCreate"]["userErrors"][0]["message"],
+        json!("Profile is invalid: cannot create LocationGroupZone without countries.")
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "profile": {
+                "name": "Validation base",
+                "locationGroupsToCreate": [{
+                    "locations": ["gid://shopify/Location/106318430514"],
+                    "zonesToCreate": [{ "name": "Domestic", "countries": [{ "code": "US", "includeAllProvinces": true }] }]
+                }]
+            }
+        }),
+    ));
+    let id = create.body["data"]["deliveryProfileCreate"]["profile"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let missing_update = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({ "id": "gid://shopify/DeliveryProfile/999999999999", "profile": { "name": "Nope" } }),
+    ));
+    assert_eq!(
+        missing_update.body["data"]["deliveryProfileUpdate"],
+        json!({
+            "profile": null,
+            "userErrors": [{ "field": null, "message": "Profile could not be updated." }]
+        })
+    );
+
+    let update_unknown_location = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "id": id,
+            "profile": {
+                "locationGroupsToCreate": [{ "locations": ["gid://shopify/Location/999999999"] }]
+            }
+        }),
+    ));
+    assert_eq!(
+        update_unknown_location.body["data"]["deliveryProfileUpdate"]["userErrors"][0]["message"],
+        json!("The Location could not be found for this shop.")
+    );
+
+    let missing_remove = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingDeliveryProfileRemove($id: ID!) {
+          deliveryProfileRemove(id: $id) { job { id done } userErrors { field message } }
+        }
+        "#,
+        json!({ "id": "gid://shopify/DeliveryProfile/999999999999" }),
+    ));
+    assert_eq!(
+        missing_remove.body["data"]["deliveryProfileRemove"],
+        json!({
+            "job": null,
+            "userErrors": [{ "field": null, "message": "The Delivery Profile cannot be found for the shop." }]
+        })
+    );
+}
+
+#[test]
 fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
     let mut proxy = snapshot_proxy();
     let update_query = r#"
