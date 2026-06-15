@@ -547,19 +547,783 @@ impl DraftProxy {
                     json_error(400, "Could not parse GraphQL operation")
                 }
             }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
-                    && matches!(
-                        root_field,
-                        "publicationCreate"
-                            | "publicationUpdate"
-                            | "publicationDelete"
-                            | "productFeedCreate"
-                            | "productFullSync"
-                            | "bulkProductResourceFeedbackCreate"
-                            | "shopResourceFeedbackCreate"
-                    ) =>
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "mobilePlatformApplication"
+                        | "mobilePlatformApplications"
+                        | "scriptTag"
+                        | "scriptTags"
+                        | "webPixel"
+                        | "serverPixel"
+                        | "theme"
+                        | "themes"
+                )
+            })
+            && is_ported_online_store_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.online_store_query_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "mobilePlatformApplicationCreate"
+                        | "mobilePlatformApplicationUpdate"
+                        | "scriptTagCreate"
+                        | "scriptTagUpdate"
+                        | "themeCreate"
+                        | "themePublish"
+                        | "themeUpdate"
+                        | "themeDelete"
+                        | "themeFilesUpsert"
+                        | "themeFilesCopy"
+                        | "themeFilesDelete"
+                        | "webPixelCreate"
+                        | "webPixelUpdate"
+                        | "serverPixelCreate"
+                        | "eventBridgeServerPixelUpdate"
+                        | "pubSubServerPixelUpdate"
+                        | "storefrontAccessTokenCreate"
+                )
+            })
+            && is_ported_online_store_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return self.online_store_mutation(&fields, request, &query, &variables);
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "marketingActivity"
+                        | "marketingActivities"
+                        | "marketingEvent"
+                        | "marketingEvents"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.marketing_query_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "marketingActivityCreateExternal"
+                        | "marketingActivityUpdateExternal"
+                        | "marketingActivityUpsertExternal"
+                        | "marketingActivityDeleteExternal"
+                        | "marketingActivitiesDeleteAllExternal"
+                        | "marketingEngagementCreate"
+                        | "marketingEngagementsDelete"
+                        | "marketingActivityCreate"
+                        | "marketingActivityUpdate"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                let response = self.marketing_mutation(&fields, request);
+                let staged_ids: Vec<String> = fields
+                    .iter()
+                    .filter_map(|field| {
+                        response.body["data"][field.response_key.as_str()]["marketingActivity"]
+                            ["id"]
+                            .as_str()
+                            .map(ToString::to_string)
+                    })
+                    .collect();
+                if !staged_ids.is_empty() {
+                    self.record_mutation_log_entry(
+                        request, &query, &variables, root_field, staged_ids,
+                    );
+                }
+                return response;
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && is_rust_webhook_local_runtime_document(&query)
+            && matches!(
+                root_field,
+                "webhookSubscriptionCreate"
+                    | "webhookSubscriptionUpdate"
+                    | "webhookSubscriptionDelete"
+                    | "pubSubWebhookSubscriptionCreate"
+                    | "pubSubWebhookSubscriptionUpdate"
+                    | "eventBridgeWebhookSubscriptionCreate"
+                    | "eventBridgeWebhookSubscriptionUpdate"
+            )
+        {
+            return match root_field {
+                "webhookSubscriptionCreate"
+                | "pubSubWebhookSubscriptionCreate"
+                | "eventBridgeWebhookSubscriptionCreate" => {
+                    self.webhook_subscription_create(root_field, request, &query, &variables)
+                }
+                "webhookSubscriptionUpdate"
+                | "pubSubWebhookSubscriptionUpdate"
+                | "eventBridgeWebhookSubscriptionUpdate" => {
+                    self.webhook_subscription_update(root_field, request, &query, &variables)
+                }
+                "webhookSubscriptionDelete" => {
+                    self.webhook_subscription_delete(request, &query, &variables)
+                }
+                _ => unreachable!(),
+            };
+        }
+
+        if operation.operation_type == OperationType::Query
+            && is_rust_webhook_local_runtime_document(&query)
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "webhookSubscription" | "webhookSubscriptions" | "webhookSubscriptionsCount"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.webhook_subscriptions_query_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "event" | "events" | "eventsCount" | "whatever"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": event_empty_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "availableLocales"
+                        | "shopLocales"
+                        | "translatableResource"
+                        | "translatableResources"
+                        | "translatableResourcesByIds"
+                        | "markets"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.localization_query_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "shopLocaleEnable"
+                        | "shopLocaleUpdate"
+                        | "shopLocaleDisable"
+                        | "translationsRegister"
+                        | "translationsRemove"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                let data = self.localization_mutation_data(&fields);
+                self.record_mutation_log_entry(
+                    request,
+                    &query,
+                    &variables,
+                    root_field,
+                    fields
+                        .iter()
+                        .map(|field| field.response_key.clone())
+                        .collect(),
+                );
+                return ok_json(json!({ "data": data }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "market"))
+            && (is_ported_market_create_document(&query)
+                || is_ported_market_relations_document(&query))
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.market_query_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "marketCreate" | "marketUpdate"))
+            && (is_ported_market_create_document(&query)
+                || is_ported_market_relations_document(&query))
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                let data = self.market_create_mutation_data(&fields, request, &query, &variables);
+                return ok_json(json!({ "data": data }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "catalog" | "catalogs"))
+            && is_ported_catalog_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.catalog_query_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "catalogCreate" | "catalogUpdate" | "catalogDelete" | "catalogContextUpdate"
+                )
+            })
+            && is_ported_catalog_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                let data = self.catalog_mutation_data(&fields, request, &query, &variables);
+                return ok_json(json!({ "data": data }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "catalog" | "catalogs" | "priceList" | "priceLists"
+                )
+            })
+            && is_ported_price_list_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.price_list_query_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "priceListCreate"
+                        | "priceListUpdate"
+                        | "priceListDelete"
+                        | "priceListFixedPricesByProductUpdate"
+                        | "priceListFixedPricesAdd"
+                        | "priceListFixedPricesUpdate"
+                        | "priceListFixedPricesDelete"
+                        | "quantityRulesDelete"
+                        | "webPresenceCreate"
+                        | "webPresenceUpdate"
+                        | "webPresenceDelete"
+                )
+            })
+            && is_ported_price_list_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                let data = self.price_list_mutation_data(&fields, request, &query, &variables);
+                return ok_json(json!({ "data": data }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "marketLocalizableResource" | "marketLocalizableResources" | "markets"
+                )
+            })
+            && is_ported_market_localization_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.market_localization_query_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "marketLocalizationsRegister" | "marketLocalizationsRemove"
+                )
+            })
+            && is_ported_market_localization_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                let data = self.market_localization_mutation_data(&fields);
+                self.record_mutation_log_entry(
+                    request,
+                    &query,
+                    &variables,
+                    root_field,
+                    fields
+                        .iter()
+                        .map(|field| field.response_key.clone())
+                        .collect(),
+                );
+                return ok_json(json!({ "data": data }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "deliverySettings" | "deliveryPromiseSettings"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": delivery_settings_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && is_finance_risk_no_data_read_document(&query)
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "cashTrackingSession"
+                        | "cashTrackingSessions"
+                        | "pointOfSaleDevice"
+                        | "dispute"
+                        | "disputeEvidence"
+                        | "disputes"
+                        | "shopPayPaymentRequestReceipt"
+                        | "shopPayPaymentRequestReceipts"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": finance_risk_no_data_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && query.contains("ShopifyPaymentsAccountAccessProbe")
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "shopifyPaymentsAccount")
+        {
+            return ok_json(json!({ "data": { "shopifyPaymentsAccount": Value::Null } }));
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| field == "company")
+            && is_b2b_company_customer_since_read_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": b2b_company_customer_since_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "carrierService" | "carrierServices"))
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.carrier_service_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "fulfillmentService" | "location"))
+            && is_fulfillment_service_lifecycle_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                if let Some(data) = self.fulfillment_service_read_data(&fields) {
+                    return ok_json(json!({ "data": data }));
+                }
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && root_field == "locationByIdentifier"
+            && is_location_custom_id_miss_document(&query)
+        {
+            return ok_json(location_custom_id_miss_response());
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "location" | "locationByIdentifier" | "locations"
+                )
+            })
+            && (self.config.read_mode == ReadMode::Snapshot || self.has_staged_locations())
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.location_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "collection")
+            && is_collection_publishable_parity_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.collection_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "customerSegmentMembersQuery")
+            && is_customer_segment_members_query_document(&query)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": self.customer_segment_members_query_read_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "currentAppInstallation")
+            && (is_app_subscription_activation_document(&query)
+                || is_app_access_scopes_read_document(&query)
+                || is_app_usage_record_read_document(&query)
+                || is_app_billing_local_read_document(&query))
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": self.current_app_installation_read_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && self.has_staged_discounts()
+            && operation.root_fields.iter().all(|field| {
+                local_dispatch_root(
+                    OperationType::Query,
+                    CapabilityDomain::Discounts,
+                    CapabilityExecution::OverlayRead,
+                    field,
+                )
+                .is_some()
+            })
+        {
+            return self.discounts_query_response(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Query
+            && query.contains("DiscountTimestampsMonotonicRead")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "codeDiscountNode" | "codeDiscountNodeByCode"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": self.discount_timestamps_monotonic_read_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && query.contains("DiscountRedeemCodeBulkLiveRead")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "codeDiscountNode" | "codeDiscountNodeByCode"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": discount_redeem_code_bulk_live_read_data(
+                        &fields,
+                        self.store.staged.redeem_code_bulk_live_added,
+                        self.store.staged.redeem_code_bulk_live_deleted_seed,
+                    )
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && (query.contains("DiscountRedeemCodeBulkValidationCreationRead")
+                || query.contains("DiscountRedeemCodeBulkValidationRead")
+                || query.contains("DiscountRedeemCodeBulkValidationExistingRead"))
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "discountRedeemCodeBulkCreation"
+                        | "codeDiscountNode"
+                        | "codeDiscountNodeByCode"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": discount_redeem_code_bulk_validation_read_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && query.contains("DiscountBxgyLifecycleRead")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "discountNode" | "codeDiscountNodeByCode" | "automaticDiscountNode"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": discount_bxgy_lifecycle_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && query.contains("DiscountClassInferenceRead")
+            && root_field == "discountNodesCount"
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": discount_class_inference_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && query.contains("DiscountStatusTimeWindowDerivationRead")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "codeDiscountNode" | "discountNode" | "discountNodes" | "discountNodesCount"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": discount_status_time_window_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && query.contains("DiscountFreeShippingLifecycleRead")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "discountNode"
+                        | "codeDiscountNodeByCode"
+                        | "automaticDiscountNode"
+                        | "discountNodes"
+                        | "discountNodesCount"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": self.discount_free_shipping_lifecycle_read_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && query.contains("DiscountCodeBasicLifecycleRead")
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "discountNode"
+                        | "codeDiscountNodeByCode"
+                        | "discountNodes"
+                        | "discountNodesCount"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": self.discount_code_basic_lifecycle_read_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && query.contains("DiscountCodeBasicBuyerContextRead")
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "discountNode" | "codeDiscountNodeByCode"))
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(
+                    json!({ "data": discount_code_basic_buyer_context_read_data(&fields) }),
+                );
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && root_field == "automaticDiscountNode"
+            && query.contains("DiscountAutomaticBasicBuyerContextRead")
+        {
+            if let Some(response) = discount_automatic_basic_buyer_context_read(&query, &variables)
+            {
+                return response;
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && root_field == "automaticDiscountNodes"
+            && query.contains("DiscountAutomaticNodesRead")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": discount_automatic_nodes_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && query.contains("CartTransformInvalidFields")
+        {
+            return ok_json(json!({
+                "errors": [
+                    {
+                        "message": "Field 'title' doesn't exist on type 'CartTransform'",
+                        "locations": [{ "line": 5, "column": 7 }],
+                        "path": ["query CartTransformInvalidFields", "cartTransforms", "nodes", "title"],
+                        "extensions": { "code": "undefinedField", "typeName": "CartTransform", "fieldName": "title" }
+                    },
+                    {
+                        "message": "Field 'functionHandle' doesn't exist on type 'CartTransform'",
+                        "locations": [{ "line": 6, "column": 7 }],
+                        "path": ["query CartTransformInvalidFields", "cartTransforms", "nodes", "functionHandle"],
+                        "extensions": { "code": "undefinedField", "typeName": "CartTransform", "fieldName": "functionHandle" }
+                    },
+                    {
+                        "message": "Field 'createdAt' doesn't exist on type 'CartTransform'",
+                        "locations": [{ "line": 7, "column": 7 }],
+                        "path": ["query CartTransformInvalidFields", "cartTransforms", "nodes", "createdAt"],
+                        "extensions": { "code": "undefinedField", "typeName": "CartTransform", "fieldName": "createdAt" }
+                    },
+                    {
+                        "message": "Field 'updatedAt' doesn't exist on type 'CartTransform'",
+                        "locations": [{ "line": 8, "column": 7 }],
+                        "path": ["query CartTransformInvalidFields", "cartTransforms", "nodes", "updatedAt"],
+                        "extensions": { "code": "undefinedField", "typeName": "CartTransform", "fieldName": "updatedAt" }
+                    }
+                ]
+            }));
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "validation"
+                        | "validations"
+                        | "cartTransforms"
+                        | "shopifyFunctions"
+                        | "shopifyFunction"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.functions_metadata_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| field == "node")
+            && query.contains("CartTransform")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                if fields.iter().any(|field| {
+                    resolved_field_string_arg(field, "id")
+                        .is_some_and(|id| id.contains("gid://shopify/CartTransform/"))
+                }) {
+                    return ok_json(
+                        json!({ "data": self.functions_metadata_node_read_data(&fields) }),
+                    );
+                }
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && root_field == "node"
+            && query.contains("AdminPlatformDiscountCodeNodeReadAfterUpdate")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({
+                    "data": self.discount_code_basic_lifecycle_admin_node_read_data(&fields)
+                }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && matches!(root_field, "segment" | "segments" | "segmentsCount")
+            && self.segment_read_data_handles_fields(&query, &variables)
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.segment_read_data(&fields) }));
+            }
+            return json_error(400, "Could not parse GraphQL operation");
+        }
+
+        if operation.operation_type == OperationType::Query
+            && matches!(root_field, "node" | "nodes")
+        {
+            if query.contains("ProductVariantNodeRead") {
+                return ok_json(json!({ "data": product_variant_node_read_data(&variables) }));
+            }
+            if let Some(fields) = root_fields(&query, &variables) {
+                if is_segment_query_grammar_document(&query) {
+                    if let Some(data) = self.segment_node_read_data(&fields) {
+                        return ok_json(json!({ "data": data }));
+                    }
+                }
+                if is_customer_segment_members_query_document(&query) {
+                    if let Some(data) = self.customer_segment_members_query_node_read_data(&fields)
+                    {
+                        return ok_json(json!({ "data": data }));
+                    }
+                }
+                if let Some(data) = self.app_node_read_data(&fields) {
+                    return ok_json(json!({ "data": data }));
+                }
+                if let Some(data) = self.gift_card_node_read_data(&fields) {
+                    return ok_json(json!({ "data": data }));
+                }
+            }
+            if let Some(data) =
+                local_node_read_fields(&query, &variables, Some(&self.store.staged.backup_region))
             {
                 self.products_mutation_tail_helper_response(
                     request,

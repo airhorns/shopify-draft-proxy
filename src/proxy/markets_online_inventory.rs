@@ -1,5 +1,22 @@
 use super::*;
 
+pub(in crate::proxy) fn is_ported_market_create_document(query: &str) -> bool {
+    query.contains("RustMarketCreateLocalRuntime")
+}
+
+pub(in crate::proxy) fn is_ported_market_relations_document(query: &str) -> bool {
+    query.contains("RustMarketRelationsLocalRuntime")
+}
+
+pub(in crate::proxy) fn is_ported_catalog_document(query: &str) -> bool {
+    query.contains("RustCatalogLocalRuntime")
+}
+
+pub(in crate::proxy) fn is_ported_price_list_document(query: &str) -> bool {
+    query.contains("RustPriceListLocalRuntime")
+        || query.contains("RustPriceListFixedPricesLocalRuntime")
+}
+
 pub(in crate::proxy) fn catalog_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
     json!({
         "__typename": "CatalogUserError",
@@ -1900,6 +1917,47 @@ pub(in crate::proxy) fn marketing_connection(
         empty_page_info(),
     );
     selected_json(&full, selection)
+}
+
+pub(in crate::proxy) fn marketing_record_matches_query(record: &Value, query: &str) -> bool {
+    marketing_query_terms(query)
+        .iter()
+        .all(|(field, expected)| {
+            marketing_record_query_value(record, field).is_some_and(|value| {
+                value
+                    .to_ascii_lowercase()
+                    .contains(&expected.to_ascii_lowercase())
+            })
+        })
+}
+
+pub(in crate::proxy) fn marketing_query_terms(query: &str) -> Vec<(String, String)> {
+    query
+        .split_whitespace()
+        .filter_map(|term| {
+            let (field, value) = term.split_once(':')?;
+            let value = value.trim_matches(|ch| ch == '"' || ch == '\'');
+            (!field.is_empty() && !value.is_empty()).then(|| (field.to_string(), value.to_string()))
+        })
+        .collect()
+}
+
+pub(in crate::proxy) fn marketing_record_query_value(
+    record: &Value,
+    field: &str,
+) -> Option<String> {
+    match field {
+        "id" => record["id"].as_str(),
+        "remote_id" | "remoteId" => record["remoteId"]
+            .as_str()
+            .or_else(|| record["marketingEvent"]["remoteId"].as_str()),
+        "title" => record["title"].as_str(),
+        "description" => record["marketingEvent"]["description"].as_str(),
+        "status" => record["status"].as_str(),
+        "channel_handle" | "channelHandle" => record["marketingEvent"]["channelHandle"].as_str(),
+        _ => None,
+    }
+    .map(ToString::to_string)
 }
 
 pub(in crate::proxy) fn marketing_activity_payload(

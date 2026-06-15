@@ -150,7 +150,7 @@ impl DraftProxy {
                             {
                                 return false;
                             }
-                            if query.contains("__har") || query.contains("__none__") {
+                            if !marketing_record_matches_query(record, &query) {
                                 return false;
                             }
                             true
@@ -182,30 +182,28 @@ impl DraftProxy {
                 }
                 "marketingEvents" => {
                     let query = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
-                    let records = if query.contains("__har") || query.contains("__none__") {
-                        Vec::new()
-                    } else {
-                        self.store
-                            .staged
-                            .marketing_activities
-                            .values()
-                            .filter(|record| {
-                                let id = record["id"].as_str().unwrap_or_default();
-                                !self
-                                    .store
-                                    .staged
-                                    .deleted_marketing_activity_ids
-                                    .contains(id)
-                            })
-                            .filter_map(|record| {
-                                if record["marketingEvent"].is_null() {
-                                    None
-                                } else {
-                                    Some(record["marketingEvent"].clone())
-                                }
-                            })
-                            .collect()
-                    };
+                    let records = self
+                        .store
+                        .staged
+                        .marketing_activities
+                        .values()
+                        .filter(|record| {
+                            let id = record["id"].as_str().unwrap_or_default();
+                            !self
+                                .store
+                                .staged
+                                .deleted_marketing_activity_ids
+                                .contains(id)
+                        })
+                        .filter(|record| marketing_record_matches_query(record, &query))
+                        .filter_map(|record| {
+                            if record["marketingEvent"].is_null() {
+                                None
+                            } else {
+                                Some(record["marketingEvent"].clone())
+                            }
+                        })
+                        .collect();
                     marketing_connection(records, &field.selection)
                 }
                 _ => Value::Null,
