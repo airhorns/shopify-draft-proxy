@@ -690,10 +690,10 @@ fn discount_numeric_user_error(
         }
     }
     if let Some(percentage) = resolved_f64_path(input, &["customerGets", "value", "percentage"]) {
-        if percentage <= 0.0 || percentage > 1.0 {
+        if !(0.0..=1.0).contains(&percentage) {
             return Some(discount_user_error(
                 vec![input_arg, "customerGets", "value", "percentage"],
-                "Percentage value must be greater than 0 and less than or equal to 1",
+                "Value must be between 0.0 and 1.0",
                 "VALUE_OUTSIDE_RANGE",
             ));
         }
@@ -702,7 +702,7 @@ fn discount_numeric_user_error(
         input,
         &["customerGets", "value", "discountAmount", "amount"],
     ) {
-        if amount <= 0.0 {
+        if amount < 0.0 {
             return Some(discount_user_error(
                 vec![
                     input_arg,
@@ -711,8 +711,21 @@ fn discount_numeric_user_error(
                     "discountAmount",
                     "amount",
                 ],
-                "Amount must be greater than 0",
-                "VALUE_OUTSIDE_RANGE",
+                "Value must be less than or equal to 0",
+                "LESS_THAN_OR_EQUAL_TO",
+            ));
+        }
+        if amount >= 1_000_000_000_000_000_000.0 {
+            return Some(discount_user_error(
+                vec![
+                    input_arg,
+                    "customerGets",
+                    "value",
+                    "discountAmount",
+                    "amount",
+                ],
+                "Value must be greater than -1000000000000000000",
+                "LESS_THAN",
             ));
         }
     }

@@ -225,6 +225,226 @@ fn discount_generic_handler_validates_input_and_handles_lifecycle_by_arguments()
 }
 
 #[test]
+fn discount_basic_customer_gets_value_bounds_match_captured_shopify_behavior() {
+    let mut proxy = snapshot_proxy();
+
+    let create = r#"
+        mutation DiscountValueBounds(
+          $percentageHigh: DiscountCodeBasicInput!
+          $percentageNegative: DiscountCodeBasicInput!
+          $percentageZero: DiscountCodeBasicInput!
+          $amountNegative: DiscountCodeBasicInput!
+          $amountZero: DiscountCodeBasicInput!
+          $amountHigh: DiscountCodeBasicInput!
+        ) {
+          percentageHigh: discountCodeBasicCreate(basicCodeDiscount: $percentageHigh) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+          percentageNegative: discountCodeBasicCreate(basicCodeDiscount: $percentageNegative) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+          percentageZero: discountCodeBasicCreate(basicCodeDiscount: $percentageZero) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+          amountNegative: discountCodeBasicCreate(basicCodeDiscount: $amountNegative) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+          amountZero: discountCodeBasicCreate(basicCodeDiscount: $amountZero) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+          amountHigh: discountCodeBasicCreate(basicCodeDiscount: $amountHigh) { codeDiscountNode { id } userErrors { field message code extraInfo } }
+        }
+    "#;
+    let base = json!({
+        "startsAt": "2026-04-25T00:00:00Z",
+        "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
+        "context": { "all": "ALL" },
+        "customerGets": { "items": { "all": true } }
+    });
+    let input = |title: &str, code: &str, value: Value| {
+        let mut input = base.clone();
+        input["title"] = json!(title);
+        input["code"] = json!(code);
+        input["customerGets"]["value"] = value;
+        input
+    };
+
+    let response = proxy.process_request(json_graphql_request(
+        create,
+        json!({
+            "percentageHigh": input("Percentage high", "PCTHIGH1440", json!({ "percentage": 1.5 })),
+            "percentageNegative": input("Percentage negative", "PCTNEG1440", json!({ "percentage": -0.1 })),
+            "percentageZero": input("Percentage zero", "PCTZERO1440", json!({ "percentage": 0 })),
+            "amountNegative": input("Amount negative", "AMTNEG1440", json!({ "discountAmount": { "amount": "-5", "appliesOnEachItem": false } })),
+            "amountZero": input("Amount zero", "AMTZERO1440", json!({ "discountAmount": { "amount": "0", "appliesOnEachItem": false } })),
+            "amountHigh": input("Amount high", "AMTHIGH1440", json!({ "discountAmount": { "amount": "1000000000000000000", "appliesOnEachItem": false } }))
+        }),
+    ));
+
+    assert_eq!(
+        response.body["data"]["percentageHigh"]["userErrors"],
+        json!([{
+            "field": ["basicCodeDiscount", "customerGets", "value", "percentage"],
+            "message": "Value must be between 0.0 and 1.0",
+            "code": "VALUE_OUTSIDE_RANGE",
+            "extraInfo": null
+        }])
+    );
+    assert_eq!(
+        response.body["data"]["percentageNegative"]["userErrors"],
+        response.body["data"]["percentageHigh"]["userErrors"]
+    );
+    assert!(
+        response.body["data"]["percentageZero"]["codeDiscountNode"]["id"]
+            .as_str()
+            .unwrap()
+            .contains("shopify-draft-proxy=synthetic")
+    );
+    assert_eq!(
+        response.body["data"]["percentageZero"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["amountNegative"]["userErrors"],
+        json!([{
+            "field": ["basicCodeDiscount", "customerGets", "value", "discountAmount", "amount"],
+            "message": "Value must be less than or equal to 0",
+            "code": "LESS_THAN_OR_EQUAL_TO",
+            "extraInfo": null
+        }])
+    );
+    assert!(
+        response.body["data"]["amountZero"]["codeDiscountNode"]["id"]
+            .as_str()
+            .unwrap()
+            .contains("shopify-draft-proxy=synthetic")
+    );
+    assert_eq!(response.body["data"]["amountZero"]["userErrors"], json!([]));
+    assert_eq!(
+        response.body["data"]["amountHigh"]["userErrors"],
+        json!([{
+            "field": ["basicCodeDiscount", "customerGets", "value", "discountAmount", "amount"],
+            "message": "Value must be greater than -1000000000000000000",
+            "code": "LESS_THAN",
+            "extraInfo": null
+        }])
+    );
+}
+
+#[test]
+fn discount_automatic_basic_update_uses_shared_customer_gets_value_bounds() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation Setup($input: DiscountAutomaticBasicInput!) {
+          discountAutomaticBasicCreate(automaticBasicDiscount: $input) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Automatic shared bounds setup",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "context": { "all": "ALL" },
+            "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+        }}),
+    ));
+    let id = create.body["data"]["discountAutomaticBasicCreate"]["automaticDiscountNode"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation Update($id: ID!, $zeroPercent: DiscountAutomaticBasicInput!, $negativeAmount: DiscountAutomaticBasicInput!) {
+          zeroPercent: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $zeroPercent) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          negativeAmount: discountAutomaticBasicUpdate(id: $id, automaticBasicDiscount: $negativeAmount) {
+            automaticDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "id": id,
+            "zeroPercent": {
+                "title": "Automatic shared bounds zero percent",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "context": { "all": "ALL" },
+                "customerGets": { "value": { "percentage": 0 }, "items": { "all": true } }
+            },
+            "negativeAmount": {
+                "title": "Automatic shared bounds negative amount",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "context": { "all": "ALL" },
+                "customerGets": { "value": { "discountAmount": { "amount": "-1", "appliesOnEachItem": false } }, "items": { "all": true } }
+            }
+        }),
+    ));
+
+    assert_eq!(
+        update.body["data"]["zeroPercent"]["automaticDiscountNode"]["id"],
+        json!(id)
+    );
+    assert_eq!(update.body["data"]["zeroPercent"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["negativeAmount"]["automaticDiscountNode"],
+        json!(null)
+    );
+    assert_eq!(
+        update.body["data"]["negativeAmount"]["userErrors"],
+        json!([{
+            "field": ["automaticBasicDiscount", "customerGets", "value", "discountAmount", "amount"],
+            "message": "Value must be less than or equal to 0",
+            "code": "LESS_THAN_OR_EQUAL_TO",
+            "extraInfo": null
+        }])
+    );
+}
+
+#[test]
+fn discount_basic_non_numeric_decimal_variable_fails_before_resolver_execution() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountValueBoundsNonNumeric($input: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $input) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "input": {
+            "title": "Value Bounds NonNumeric",
+            "code": "VALUEBOUNDSNAN1440",
+            "startsAt": "2026-04-25T00:00:00Z",
+            "combinesWith": { "productDiscounts": false, "orderDiscounts": true, "shippingDiscounts": false },
+            "context": { "all": "ALL" },
+            "customerGets": {
+                "value": { "discountAmount": { "amount": "abc", "appliesOnEachItem": false } },
+                "items": { "all": true }
+            }
+        }}),
+    ));
+
+    assert_eq!(response.body["data"], Value::Null);
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        json!(
+            "Variable $input of type DiscountCodeBasicInput! was provided invalid value for customerGets.value.discountAmount.amount (invalid decimal 'abc')"
+        )
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["problems"],
+        json!([{
+            "path": ["customerGets", "value", "discountAmount", "amount"],
+            "explanation": "invalid decimal 'abc'",
+            "message": "invalid decimal 'abc'"
+        }])
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
+#[test]
 #[ignore = "legacy captured fixture branch; HAR-1404 routes discount mutations through the generic store-backed dispatcher"]
 fn discount_activate_deactivate_noops_preserve_captured_timestamp_shapes() {
     let mut proxy = snapshot_proxy();
