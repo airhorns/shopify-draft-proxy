@@ -4828,25 +4828,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
-    captureId: 'online-store-theme-file-operation-result-shape-local-runtime',
-    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
-    scriptPath: 'scripts/capture-theme-file-operation-result-shape-local-runtime.ts',
-    purpose:
-      'themeFilesUpsert/themeFilesCopy/themeFilesDelete ThemeFileOperationResult field shape, body boundary, and local-only mutation log behavior.',
-    requiredAuthScopes: ['local-runtime', 'authenticated_admin_graphql'],
-    fixtureOutputs: [
-      `${LOCAL_RUNTIME_ROOT}theme-file-operation-result-shape.json`,
-      'config/parity-specs/online-store/theme-file-operation-result-shape.json',
-      'config/parity-requests/online-store/theme-file-operation-result-shape.graphql',
-    ],
-    cleanupBehavior:
-      'Local-runtime capture. Live no-side-effect schema introspection is captured when credentials are available; no Shopify theme assets are written.',
-    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
-    notes:
-      'Direct live theme-file writes can mutate storefront theme assets and require theme-write authorization, so payload-shape parity is executable local-runtime evidence backed by live no-side-effect introspection for OnlineStoreThemeFileOperationResult when available.',
-  },
-  {
-    domain: 'online-store',
     captureId: 'online-store-mobile-platform-application-model-validation-local-runtime',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-online-store-mobile-platform-application-model-validation-local-runtime.ts',
