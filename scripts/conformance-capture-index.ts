@@ -2171,6 +2171,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/saved-searches/saved-search-incompatible-filter-aggregation.json',
       'config/parity-requests/saved-searches/saved-search-incompatible-filter-aggregation-create.graphql',
       'config/parity-specs/saved-searches/saved-search-query-grammar-validation.json',
+      'config/parity-specs/saved-searches/saved-search-reserved-filter-update-field.json',
       'config/parity-requests/saved-searches/saved-search-query-grammar-validation-create.graphql',
       'config/parity-requests/saved-searches/saved-search-query-grammar-validation-update.graphql',
     ],
@@ -7772,6 +7773,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable carrier service with an allowed callback URL, records invalid update attempts against it, then deletes the carrier service in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
+    captureId: 'carrier-service-update-blank-name',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-carrier-service-update-blank-name-conformance.ts',
+    purpose:
+      'DeliveryCarrierService update validation for present blank name, including typed CARRIER_SERVICE_UPDATE_FAILED userError and unchanged downstream read state.',
+    requiredAuthScopes: ['read_shipping', 'write_shipping'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}carrier-service-update-blank-name.json`,
+      'config/parity-specs/shipping-fulfillments/carrier-service-update-blank-name.json',
+      'config/parity-requests/shipping-fulfillments/carrier-service-update-blank-name-create.graphql',
+      'config/parity-requests/shipping-fulfillments/carrier-service-update-blank-name-read.graphql',
+      'config/parity-requests/shipping-fulfillments/carrier-service-update-blank-name.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable carrier service, records rejected blank-name update and read-after-reject state, then deletes the carrier service in cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

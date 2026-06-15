@@ -1,0 +1,40 @@
+{
+  "scenarioId": "saved-search-reserved-filter-update-field",
+  "operationNames": ["savedSearchCreate", "savedSearchUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "query-validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-query-grammar-validation.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-validation-create.graphql",
+    "variablesCapturePath": "$.savedSearchCreateValidation.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live evidence that the ORDER reference_location_id reserved-filter userError maps to input.query on savedSearchCreate but input.searchTerms on savedSearchUpdate. Unknown-filter and incompatible-filter update branches remain covered separately and continue to use input.query.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "order-reserved-filter-create-field",
+        "capturePath": "$.savedSearchCreateValidation.payload.data.orderReserved",
+        "proxyPath": "$.data.orderReserved",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "order-reserved-filter-update-field",
+        "capturePath": "$.savedSearchUpdateOrderReservedFilter.payload.data.savedSearchUpdate",
+        "proxyPath": "$.data.savedSearchUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-validation-update.graphql",
+          "variablesCapturePath": "$.savedSearchUpdateOrderReservedFilter.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}
