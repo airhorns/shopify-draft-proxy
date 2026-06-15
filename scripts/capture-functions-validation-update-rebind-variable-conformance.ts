@@ -21,7 +21,7 @@ const missingValidationId = 'gid://shopify/Validation/999999999999';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
   defaultApiVersion: '2026-04',
-  env: { ...process.env, SHOPIFY_CONFORMANCE_API_VERSION: process.env.SHOPIFY_CONFORMANCE_API_VERSION ?? '2026-04' },
+  env: { ...process.env, SHOPIFY_CONFORMANCE_API_VERSION: process.env['SHOPIFY_CONFORMANCE_API_VERSION'] ?? '2026-04' },
   exitOnMissing: true,
 });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
