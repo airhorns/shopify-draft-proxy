@@ -80,9 +80,7 @@ impl DraftProxy {
         operation_type: OperationType,
         parsed_root_fields: &[String],
     ) -> Option<Response> {
-        if !query.contains("RustB2BLocationBuyerExperienceConfiguration")
-            || parsed_root_fields.is_empty()
-        {
+        if parsed_root_fields.is_empty() {
             return None;
         }
         let fields = root_fields(query, variables)?;
@@ -95,7 +93,7 @@ impl DraftProxy {
                 let mut data = serde_json::Map::new();
                 for field in fields {
                     let (payload, status, staged_ids) =
-                        self.b2b_location_buyer_experience_update_payload(query, &field);
+                        self.b2b_company_location_update_payload(query, &field);
                     self.record_mutation_log_entry(
                         request,
                         query,
@@ -138,7 +136,7 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn b2b_location_buyer_experience_update_payload(
+    pub(in crate::proxy) fn b2b_company_location_update_payload(
         &mut self,
         query: &str,
         field: &RootFieldSelection,
@@ -148,8 +146,6 @@ impl DraftProxy {
                 "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic".to_string()
             });
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let buyer_experience =
-            resolved_object_field(&input, "buyerExperienceConfiguration").unwrap_or_default();
         if !b2b_company_location_exists(&self.store.staged.b2b_locations, &location_id) {
             return (
                 b2b_company_location_payload(
@@ -165,7 +161,24 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        let errors = b2b_location_buyer_experience_errors(query, &buyer_experience);
+        let mut errors = Vec::new();
+        if let Some(name) = resolved_string_field(&input, "name") {
+            if b2b_strip_html_tags(&name).trim().is_empty() {
+                errors.push(b2b_company_user_error(
+                    vec!["input", "name"],
+                    "Name can't be blank",
+                    "BLANK",
+                    None,
+                ));
+            }
+        }
+        let buyer_experience = resolved_object_field(&input, "buyerExperienceConfiguration");
+        if let Some(buyer_experience) = buyer_experience.as_ref() {
+            errors.extend(b2b_location_buyer_experience_errors(
+                query,
+                buyer_experience,
+            ));
+        }
         if !errors.is_empty() {
             return (
                 b2b_company_location_payload(None, errors),
@@ -174,28 +187,42 @@ impl DraftProxy {
             );
         }
 
-        let payment_terms_template_id =
-            resolved_string_field(&buyer_experience, "paymentTermsTemplateId")
-                .unwrap_or_else(|| "gid://shopify/PaymentTermsTemplate/4".to_string());
-        let checkout_to_draft =
-            resolved_bool_field(&buyer_experience, "checkoutToDraft").unwrap_or(false);
-        let editable_shipping_address =
-            resolved_bool_field(&buyer_experience, "editableShippingAddress").unwrap_or(false);
-        let deposit = if buyer_experience.contains_key("deposit") {
-            json!({ "__typename": "DepositPercentage" })
-        } else {
-            Value::Null
-        };
-        let location = json!({
-            "id": location_id,
-            "taxSettings": { "taxExempt": true },
-            "buyerExperienceConfiguration": {
+        let mut location = self
+            .store
+            .staged
+            .b2b_locations
+            .get(&location_id)
+            .cloned()
+            .unwrap_or_else(|| b2b_synthetic_seed_company_location(&location_id));
+        if let Some(name) = resolved_string_field(&input, "name") {
+            location["name"] = json!(b2b_strip_html_tags(&name));
+        }
+        if input.contains_key("note") {
+            location["note"] = resolved_string_field(&input, "note")
+                .map(Value::String)
+                .unwrap_or(Value::Null);
+        }
+        if let Some(buyer_experience) = buyer_experience {
+            let payment_terms_template_id =
+                resolved_string_field(&buyer_experience, "paymentTermsTemplateId")
+                    .unwrap_or_else(|| "gid://shopify/PaymentTermsTemplate/4".to_string());
+            let checkout_to_draft =
+                resolved_bool_field(&buyer_experience, "checkoutToDraft").unwrap_or(false);
+            let editable_shipping_address =
+                resolved_bool_field(&buyer_experience, "editableShippingAddress").unwrap_or(false);
+            let deposit = if buyer_experience.contains_key("deposit") {
+                json!({ "__typename": "DepositPercentage" })
+            } else {
+                Value::Null
+            };
+            location["taxSettings"] = json!({ "taxExempt": true });
+            location["buyerExperienceConfiguration"] = json!({
                 "editableShippingAddress": editable_shipping_address,
                 "checkoutToDraft": checkout_to_draft,
                 "paymentTermsTemplate": { "id": payment_terms_template_id },
                 "deposit": deposit
-            }
-        });
+            });
+        }
         self.store
             .staged
             .b2b_locations
@@ -215,22 +242,39 @@ impl DraftProxy {
         operation_type: OperationType,
         parsed_root_fields: &[String],
     ) -> Option<Response> {
-        if !query.contains("RustB2BCompany") || parsed_root_fields.is_empty() {
+        if parsed_root_fields.is_empty() {
             return None;
         }
 
         let fields = root_fields(query, variables)?;
         match operation_type {
             OperationType::Mutation
-                if parsed_root_fields
-                    .iter()
-                    .all(|field| matches!(field.as_str(), "companyCreate" | "companyUpdate")) =>
+                if parsed_root_fields.iter().all(|field| {
+                    matches!(
+                        field.as_str(),
+                        "companyCreate"
+                            | "companyUpdate"
+                            | "companyDelete"
+                            | "companiesDelete"
+                            | "companyLocationCreate"
+                            | "storeCreditAccountCredit"
+                    )
+                }) =>
             {
                 let mut data = serde_json::Map::new();
                 for field in fields {
                     let (payload, status, staged_ids) = match field.name.as_str() {
                         "companyCreate" => self.b2b_company_create_payload(&field),
                         "companyUpdate" => self.b2b_company_update_payload(&field),
+                        "companyDelete" => self.b2b_company_delete_payload(&field),
+                        "companiesDelete" => self.b2b_companies_delete_payload(&field),
+                        "companyLocationCreate" => self.b2b_company_location_create_payload(&field),
+                        "storeCreditAccountCredit"
+                            if self.b2b_store_credit_account_credit_should_handle(&field) =>
+                        {
+                            self.b2b_store_credit_account_credit_payload(&field)
+                        }
+                        "storeCreditAccountCredit" => return None,
                         _ => return None,
                     };
                     self.record_mutation_log_entry(
@@ -252,18 +296,43 @@ impl DraftProxy {
                 }
                 Some(ok_json(json!({ "data": Value::Object(data) })))
             }
-            OperationType::Query if parsed_root_fields.iter().all(|field| field == "company") => {
+            OperationType::Query
+                if parsed_root_fields
+                    .iter()
+                    .all(|field| matches!(field.as_str(), "company" | "companyLocation")) =>
+            {
+                if self.config.read_mode != ReadMode::Snapshot
+                    && fields.iter().all(|field| match field.name.as_str() {
+                        "company" => resolved_string_arg(&field.arguments, "id")
+                            .is_none_or(|id| !self.store.staged.b2b_companies.contains_key(&id)),
+                        "companyLocation" => resolved_string_arg(&field.arguments, "id")
+                            .is_none_or(|id| !self.store.staged.b2b_locations.contains_key(&id)),
+                        _ => true,
+                    })
+                {
+                    return None;
+                }
                 let mut data = serde_json::Map::new();
                 for field in fields {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    let company = self
-                        .store
-                        .staged
-                        .b2b_companies
-                        .get(&id)
-                        .map(|company| selected_json(company, &field.selection))
-                        .unwrap_or(Value::Null);
-                    data.insert(field.response_key.clone(), company);
+                    let value = match field.name.as_str() {
+                        "company" => self
+                            .store
+                            .staged
+                            .b2b_companies
+                            .get(&id)
+                            .map(|company| selected_json(company, &field.selection))
+                            .unwrap_or(Value::Null),
+                        "companyLocation" => self
+                            .store
+                            .staged
+                            .b2b_locations
+                            .get(&id)
+                            .map(|location| selected_json(location, &field.selection))
+                            .unwrap_or(Value::Null),
+                        _ => return None,
+                    };
+                    data.insert(field.response_key.clone(), value);
                 }
                 Some(ok_json(json!({ "data": Value::Object(data) })))
             }
@@ -291,17 +360,80 @@ impl DraftProxy {
         let name = resolved_string_field(&company_input, "name")
             .map(|name| b2b_strip_html_tags(&name))
             .unwrap_or_else(|| "B2B Draft".to_string());
+        let location_id = format!(
+            "gid://shopify/CompanyLocation/{}?shopify-draft-proxy=synthetic",
+            self.store.staged.next_b2b_company_id.saturating_sub(4)
+        );
+        let contact_id = format!(
+            "gid://shopify/CompanyContact/{}?shopify-draft-proxy=synthetic",
+            self.store.staged.next_b2b_company_id.saturating_sub(4)
+        );
+        let company_contact_input = resolved_object_field(&input, "companyContact");
+        let company_location_input = resolved_object_field(&input, "companyLocation");
+        let location_name = company_location_input
+            .as_ref()
+            .and_then(|location| resolved_string_field(location, "name"))
+            .map(|name| b2b_strip_html_tags(&name))
+            .filter(|name| !name.trim().is_empty())
+            .unwrap_or_else(|| name.clone());
+        let location_note = company_location_input
+            .as_ref()
+            .and_then(|location| resolved_string_field(location, "note"))
+            .map(Value::String)
+            .unwrap_or(Value::Null);
+        let billing_address = company_location_input
+            .as_ref()
+            .and_then(|location| resolved_object_field(location, "billingAddress"))
+            .map(|address| resolved_value_json(&ResolvedValue::Object(address)))
+            .unwrap_or(Value::Null);
+        let location = json!({
+            "id": location_id,
+            "name": location_name,
+            "note": location_note,
+            "company": { "id": id.clone() },
+            "billingAddress": billing_address
+        });
+        let contact = if company_contact_input.is_some() {
+            json!({ "id": contact_id })
+        } else {
+            Value::Null
+        };
+        let contact_roles = json!({
+            "nodes": [
+                {
+                    "id": format!(
+                        "gid://shopify/CompanyContactRole/{}?shopify-draft-proxy=synthetic",
+                        self.store.staged.next_b2b_company_id.saturating_sub(4)
+                    ),
+                    "name": "Location admin"
+                },
+                {
+                    "id": format!(
+                        "gid://shopify/CompanyContactRole/{}?shopify-draft-proxy=synthetic",
+                        self.store.staged.next_b2b_company_id.saturating_sub(3)
+                    ),
+                    "name": "Ordering only"
+                }
+            ]
+        });
         let company = json!({
             "id": id,
             "name": name,
             "externalId": resolved_string_field(&company_input, "externalId").map(Value::String).unwrap_or(Value::Null),
             "customerSince": resolved_string_field(&company_input, "customerSince").map(Value::String).unwrap_or(Value::Null),
-            "note": resolved_string_field(&company_input, "note").map(Value::String).unwrap_or(Value::Null)
+            "note": resolved_string_field(&company_input, "note").map(Value::String).unwrap_or(Value::Null),
+            "mainContact": contact,
+            "locations": connection_json(vec![location.clone()]),
+            "contactRoles": contact_roles
         });
         self.store
             .staged
             .b2b_companies
             .insert(id.clone(), company.clone());
+        self.store
+            .staged
+            .b2b_locations
+            .insert(location_id, location);
         (
             b2b_company_payload(Some(&company), Vec::new()),
             "staged",
@@ -361,6 +493,375 @@ impl DraftProxy {
             "staged",
             vec![company_id],
         )
+    }
+
+    pub(in crate::proxy) fn b2b_company_location_create_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let Some(mut company) = self.store.staged.b2b_companies.get(&company_id).cloned() else {
+            return (
+                b2b_company_location_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["companyId"],
+                        "Resource requested does not exist.",
+                        "RESOURCE_NOT_FOUND",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        };
+        if let Some(name) = resolved_string_field(&input, "name") {
+            if name.chars().count() > 255 {
+                return (
+                    b2b_company_location_payload(
+                        None,
+                        vec![b2b_company_user_error(
+                            vec!["input", "name"],
+                            "Name is too long (maximum is 255 characters)",
+                            "TOO_LONG",
+                            None,
+                        )],
+                    ),
+                    "failed",
+                    Vec::new(),
+                );
+            }
+        }
+        let location_id = format!(
+            "gid://shopify/CompanyLocation/{}?shopify-draft-proxy=synthetic",
+            self.store.staged.next_b2b_company_id
+        );
+        self.store.staged.next_b2b_company_id += 5;
+        let existing_locations = company["locations"]["nodes"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let fallback_name = existing_locations
+            .first()
+            .and_then(|location| location["name"].as_str())
+            .or_else(|| company["name"].as_str())
+            .unwrap_or("B2B Draft")
+            .to_string();
+        let name = resolved_string_field(&input, "name")
+            .map(|name| b2b_strip_html_tags(&name))
+            .filter(|name| !name.trim().is_empty())
+            .unwrap_or(fallback_name);
+        let location = json!({
+            "id": location_id,
+            "name": name,
+            "note": resolved_string_field(&input, "note").map(Value::String).unwrap_or(Value::Null),
+            "company": { "id": company_id.clone() },
+            "billingAddress": resolved_object_field(&input, "billingAddress")
+                .map(|address| resolved_value_json(&ResolvedValue::Object(address)))
+                .unwrap_or(Value::Null)
+        });
+        let mut next_locations = existing_locations;
+        next_locations.push(location.clone());
+        company["locations"] = connection_json(next_locations);
+        self.store.staged.b2b_companies.insert(company_id, company);
+        self.store
+            .staged
+            .b2b_locations
+            .insert(location_id.clone(), location.clone());
+        (
+            b2b_company_location_payload(Some(&location), Vec::new()),
+            "staged",
+            vec![location_id],
+        )
+    }
+
+    pub(in crate::proxy) fn b2b_company_delete_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let company_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        if !self.store.staged.b2b_companies.contains_key(&company_id) {
+            return (
+                Self::b2b_company_delete_payload_value(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["id"],
+                        "Resource requested does not exist.",
+                        "RESOURCE_NOT_FOUND",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        if self.b2b_company_has_delete_blocker(&company_id) {
+            return (
+                Self::b2b_company_delete_payload_value(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["id"],
+                        "Failed to delete the company.",
+                        "FAILED_TO_DELETE",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+
+        self.b2b_remove_company_graph(&company_id);
+        (
+            Self::b2b_company_delete_payload_value(Some(&company_id), Vec::new()),
+            "staged",
+            vec![company_id],
+        )
+    }
+
+    pub(in crate::proxy) fn b2b_companies_delete_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let company_ids = resolved_string_list_field_unsorted(&field.arguments, "companyIds");
+        let mut deleted_ids = Vec::new();
+        let mut user_errors = Vec::new();
+        for (index, company_id) in company_ids.iter().enumerate() {
+            if !self.store.staged.b2b_companies.contains_key(company_id) {
+                user_errors.push(b2b_company_user_error(
+                    vec!["companyIds", &index.to_string()],
+                    "Resource requested does not exist.",
+                    "RESOURCE_NOT_FOUND",
+                    None,
+                ));
+            } else if self.b2b_company_has_delete_blocker(company_id) {
+                user_errors.push(b2b_company_user_error(
+                    vec!["companyIds", &index.to_string()],
+                    "Failed to delete the company.",
+                    "FAILED_TO_DELETE",
+                    None,
+                ));
+            } else {
+                deleted_ids.push(company_id.clone());
+            }
+        }
+        for company_id in &deleted_ids {
+            self.b2b_remove_company_graph(company_id);
+        }
+        let status = if deleted_ids.is_empty() {
+            "failed"
+        } else {
+            "staged"
+        };
+        (
+            json!({
+                "deletedCompanyIds": deleted_ids,
+                "userErrors": user_errors
+            }),
+            status,
+            deleted_ids,
+        )
+    }
+
+    pub(in crate::proxy) fn b2b_store_credit_account_credit_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let owner_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        if !self.store.staged.b2b_locations.contains_key(&owner_id) {
+            return (
+                Self::b2b_store_credit_payload_value(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["id"],
+                        "Resource requested does not exist.",
+                        "RESOURCE_NOT_FOUND",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        let input = resolved_object_field(&field.arguments, "creditInput").unwrap_or_default();
+        let money = resolved_object_field(&input, "creditAmount").unwrap_or_default();
+        let amount = resolved_money_amount_string(money.get("amount"));
+        let normalized_amount = normalized_money_amount(&amount);
+        let currency =
+            resolved_string_field(&money, "currencyCode").unwrap_or_else(|| "USD".to_string());
+        let account_id = format!(
+            "gid://shopify/StoreCreditAccount/{}?shopify-draft-proxy=synthetic",
+            resource_id_tail(&owner_id)
+        );
+        let account = json!({
+            "id": account_id,
+            "balance": { "amount": normalized_amount, "currencyCode": currency },
+            "owner": { "id": owner_id }
+        });
+        let transaction = json!({
+            "amount": { "amount": normalized_amount, "currencyCode": currency },
+            "balanceAfterTransaction": { "amount": normalized_amount, "currencyCode": currency },
+            "event": "ADJUSTMENT",
+            "origin": Value::Null,
+            "account": account
+        });
+        if let Some(location) = self.store.staged.b2b_locations.get_mut(&owner_id) {
+            location["storeCreditAccount"] = transaction["account"].clone();
+        }
+        (
+            Self::b2b_store_credit_payload_value(Some(&transaction), Vec::new()),
+            "staged",
+            vec![owner_id],
+        )
+    }
+
+    fn b2b_store_credit_account_credit_should_handle(&self, field: &RootFieldSelection) -> bool {
+        resolved_string_arg(&field.arguments, "id")
+            .is_some_and(|id| self.store.staged.b2b_locations.contains_key(&id))
+    }
+
+    fn b2b_company_has_delete_blocker(&self, company_id: &str) -> bool {
+        self.store
+            .staged
+            .orders
+            .values()
+            .any(|order| Self::b2b_record_references_company(order, company_id))
+            || self
+                .store
+                .staged
+                .draft_orders
+                .values()
+                .any(|draft_order| Self::b2b_record_references_company(draft_order, company_id))
+            || self
+                .store
+                .staged
+                .order_customer_orders
+                .values()
+                .any(|order| Self::b2b_record_references_company(order, company_id))
+            || self
+                .b2b_company_location_ids(company_id)
+                .iter()
+                .any(|location_id| {
+                    self.store
+                        .staged
+                        .b2b_locations
+                        .get(location_id)
+                        .is_some_and(Self::b2b_location_has_store_credit_balance)
+                })
+    }
+
+    fn b2b_company_location_ids(&self, company_id: &str) -> Vec<String> {
+        let mut ids = Vec::new();
+        if let Some(company) = self.store.staged.b2b_companies.get(company_id) {
+            if let Some(nodes) = company["locations"]["nodes"].as_array() {
+                ids.extend(
+                    nodes
+                        .iter()
+                        .filter_map(|location| location["id"].as_str().map(str::to_string)),
+                );
+            }
+        }
+        ids.extend(
+            self.store
+                .staged
+                .b2b_locations
+                .iter()
+                .filter(|(_, location)| location["company"]["id"].as_str() == Some(company_id))
+                .map(|(id, _)| id.clone()),
+        );
+        ids.sort();
+        ids.dedup();
+        ids
+    }
+
+    fn b2b_remove_company_graph(&mut self, company_id: &str) {
+        let location_ids = self.b2b_company_location_ids(company_id);
+        self.store.staged.b2b_companies.remove(company_id);
+        for location_id in location_ids {
+            self.store.staged.b2b_locations.remove(&location_id);
+        }
+    }
+
+    pub(in crate::proxy) fn b2b_company_node_for_id(&self, id: &str) -> Option<Value> {
+        self.store
+            .staged
+            .b2b_companies
+            .get(id)
+            .cloned()
+            .or_else(|| {
+                self.store
+                    .staged
+                    .b2b_locations
+                    .get(id)
+                    .and_then(|location| {
+                        location["company"]["id"]
+                            .as_str()
+                            .and_then(|company_id| self.store.staged.b2b_companies.get(company_id))
+                            .cloned()
+                    })
+            })
+    }
+
+    fn b2b_company_delete_payload_value(
+        deleted_company_id: Option<&str>,
+        user_errors: Vec<Value>,
+    ) -> Value {
+        json!({
+            "deletedCompanyId": deleted_company_id.map(|id| json!(id)).unwrap_or(Value::Null),
+            "userErrors": user_errors
+        })
+    }
+
+    fn b2b_store_credit_payload_value(
+        transaction: Option<&Value>,
+        user_errors: Vec<Value>,
+    ) -> Value {
+        json!({
+            "storeCreditAccountTransaction": transaction.cloned().unwrap_or(Value::Null),
+            "userErrors": user_errors
+        })
+    }
+
+    fn b2b_record_references_company(record: &Value, company_id: &str) -> bool {
+        Self::b2b_value_contains_company_id(record.get("purchasingEntity"), company_id)
+            || Self::b2b_value_contains_company_id(
+                record
+                    .get("order")
+                    .and_then(|order| order.get("purchasingEntity")),
+                company_id,
+            )
+            || Self::b2b_value_contains_company_id(record.get("purchasingCompany"), company_id)
+    }
+
+    fn b2b_value_contains_company_id(value: Option<&Value>, company_id: &str) -> bool {
+        let Some(value) = value else {
+            return false;
+        };
+        if value["companyId"].as_str() == Some(company_id)
+            || value["company"]["id"].as_str() == Some(company_id)
+            || value["company"].as_str() == Some(company_id)
+        {
+            return true;
+        }
+        if let Some(object) = value.as_object() {
+            return object
+                .values()
+                .any(|nested| Self::b2b_value_contains_company_id(Some(nested), company_id));
+        }
+        if let Some(values) = value.as_array() {
+            return values
+                .iter()
+                .any(|nested| Self::b2b_value_contains_company_id(Some(nested), company_id));
+        }
+        false
+    }
+
+    fn b2b_location_has_store_credit_balance(location: &Value) -> bool {
+        location["storeCreditAccount"]["balance"]["amount"]
+            .as_str()
+            .and_then(|amount| amount.parse::<f64>().ok())
+            .is_some_and(|amount| amount > 0.0)
     }
 
     pub(in crate::proxy) fn products_mutation_tail_helper_response(

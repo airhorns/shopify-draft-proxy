@@ -715,6 +715,50 @@ fn order_connection(nodes: Vec<Value>) -> Value {
     })
 }
 
+fn b2b_purchasing_entity_record<F>(
+    purchasing_entity_input: Option<BTreeMap<String, ResolvedValue>>,
+    company_for_id: F,
+    locations: &BTreeMap<String, Value>,
+) -> Value
+where
+    F: Fn(&str) -> Option<Value>,
+{
+    let Some(purchasing_entity_input) = purchasing_entity_input else {
+        return Value::Null;
+    };
+    let Some(purchasing_company) =
+        resolved_object_field(&purchasing_entity_input, "purchasingCompany")
+    else {
+        return Value::Null;
+    };
+    let company_id = resolved_string_field(&purchasing_company, "companyId").unwrap_or_default();
+    if company_id.is_empty() {
+        return Value::Null;
+    }
+    let company = company_for_id(&company_id)
+        .map(|company| json!({ "id": company["id"].clone(), "name": company["name"].clone() }))
+        .unwrap_or_else(|| json!({ "id": company_id }));
+    let contact = resolved_string_field(&purchasing_company, "companyContactId")
+        .map(|id| json!({ "id": id }))
+        .unwrap_or(Value::Null);
+    let location = resolved_string_field(&purchasing_company, "companyLocationId")
+        .map(|id| {
+            locations
+                .get(&id)
+                .map(|location| {
+                    json!({ "id": id, "name": location["name"].clone(), "company": { "id": company_id } })
+                })
+                .unwrap_or_else(|| json!({ "id": id, "company": { "id": company_id } }))
+        })
+        .unwrap_or(Value::Null);
+    json!({
+        "__typename": "PurchasingCompany",
+        "company": company,
+        "contact": contact,
+        "location": location
+    })
+}
+
 fn data_response(response_key: &str, value: Value) -> Value {
     let mut data = serde_json::Map::new();
     data.insert(response_key.to_string(), value);
@@ -1872,7 +1916,14 @@ impl DraftProxy {
         match root_field {
             "draftOrderCreate" => {
                 let field = field?;
+                let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+                let has_b2b_purchasing_entity = resolved_object_field(&input, "purchasingEntity")
+                    .and_then(|entity| resolved_object_field(&entity, "purchasingCompany"))
+                    .is_some();
                 match draft_order_create_input_email(field).as_deref() {
+                    _ if has_b2b_purchasing_entity => {
+                        Some(self.stage_completable_draft_order(field, "OPEN", "10.0", "CAD"))
+                    }
                     Some("complete-readback@example.test") => {
                         Some(self.stage_completable_draft_order(field, "PAID", "25.0", "CAD"))
                     }
@@ -2151,6 +2202,11 @@ impl DraftProxy {
                     "displayName": Value::Null
                 }))
                 .unwrap_or(Value::Null),
+            "purchasingEntity": b2b_purchasing_entity_record(
+                resolved_object_field(order_input, "purchasingEntity"),
+                |id| self.b2b_company_node_for_id(id),
+                &self.store.staged.b2b_locations,
+            ),
             "note": resolved_string_field(order_input, "note"),
             "tags": resolved_string_list_field(order_input, "tags"),
             "currencyCode": currency_code,
@@ -2207,10 +2263,17 @@ impl DraftProxy {
         };
         let name = format!("#D{}", self.store.staged.draft_orders.len() + 1);
         let line_item = draft_order_line_item_record(field);
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let purchasing_entity = b2b_purchasing_entity_record(
+            resolved_object_field(&input, "purchasingEntity"),
+            |id| self.b2b_company_node_for_id(id),
+            &self.store.staged.b2b_locations,
+        );
         let draft_order = json!({
             "id": id,
             "name": name,
             "status": "OPEN",
+            "purchasingEntity": purchasing_entity,
             "__draftProxyFinancialStatus": financial_status,
             "__draftProxyLineItems": [line_item],
             "totalPriceSet": order_money_set(&amount, currency_code)
@@ -2277,6 +2340,7 @@ impl DraftProxy {
             "sourceName": "347082227713",
             "displayFinancialStatus": if payment_pending { "PENDING" } else { "PAID" },
             "displayFulfillmentStatus": "UNFULFILLED",
+            "purchasingEntity": draft_order["purchasingEntity"].clone(),
             "currentTotalPriceSet": order_money_set(&amount, &currency_code),
             "lineItems": {
                 "nodes": draft_order["__draftProxyLineItems"].as_array().cloned().unwrap_or_default()
@@ -3211,9 +3275,18 @@ impl DraftProxy {
             ResolvedValue::Object(fields) => resolved_string_arg(fields, "customerId"),
             _ => None,
         };
+        let purchasing_entity = match order_arg {
+            ResolvedValue::Object(fields) => b2b_purchasing_entity_record(
+                resolved_object_field(fields, "purchasingEntity"),
+                |id| self.b2b_company_node_for_id(id),
+                &self.store.staged.b2b_locations,
+            ),
+            _ => Value::Null,
+        };
         let order = json!({
             "id": id,
-            "customer": customer_id.map(|id| json!({ "id": id })).unwrap_or(Value::Null)
+            "customer": customer_id.map(|id| json!({ "id": id })).unwrap_or(Value::Null),
+            "purchasingEntity": purchasing_entity
         });
         self.store.staged.order_customer_orders.insert(
             order["id"].as_str().unwrap_or_default().to_string(),

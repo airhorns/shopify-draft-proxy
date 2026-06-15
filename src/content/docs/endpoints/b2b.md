@@ -11,23 +11,36 @@ company-location tax settings, and B2B address behavior.
 
 ### Supported roots
 
-The current Rust operation registry does not mark any B2B root as fully
-implemented. Registry presence is a local-model commitment only; it is not a
-supported-runtime claim for the whole B2B domain.
+The Rust operation registry marks only the B2B roots with executable local
+runtime slices as implemented. Registry presence for the remaining B2B roots is
+a local-model commitment only; it is not a supported-runtime claim for the
+whole B2B domain.
 
-The registry-only read roots are:
+Implemented local read roots:
+
+- `company`
+- `companyLocation`
+
+Implemented local mutation roots:
+
+- `companiesDelete`
+- `companyCreate`
+- `companyDelete`
+- `companyLocationCreate`
+- `companyLocationTaxSettingsUpdate`
+- `companyLocationUpdate`
+- `companyUpdate`
+
+The remaining registry-only read roots are:
 
 - `companies`
 - `companiesCount`
-- `company`
 - `companyContact`
 - `companyContactRole`
-- `companyLocation`
 - `companyLocations`
 
-The registry-only mutation roots are:
+The remaining registry-only mutation roots are:
 
-- `companiesDelete`
 - `companyAddressDelete`
 - `companyAssignCustomerAsContact`
 - `companyAssignMainContact`
@@ -41,27 +54,21 @@ The registry-only mutation roots are:
 - `companyContactsDelete`
 - `companyContactSendWelcomeEmail`
 - `companyContactUpdate`
-- `companyCreate`
-- `companyDelete`
 - `companyLocationAssignAddress`
 - `companyLocationAssignRoles`
 - `companyLocationAssignStaffMembers`
-- `companyLocationCreate`
 - `companyLocationDelete`
 - `companyLocationRemoveStaffMembers`
 - `companyLocationRevokeRoles`
 - `companyLocationsDelete`
-- `companyLocationTaxSettingsUpdate`
-- `companyLocationUpdate`
 - `companyRevokeMainContact`
-- `companyUpdate`
 
 ### Local behavior
 
 The Rust runtime keeps selected B2B behavior as scenario-backed local slices for
 ported parity and runtime coverage. These slices stage only the root and shape
 covered by their checked-in request documents and tests; they do not promote the
-entire B2B root family to implemented registry support.
+entire B2B root family to supported runtime coverage.
 
 `companyCreate` and `companyUpdate` have a Rust-tail local slice for company
 identity fields. That slice stages synthetic company records, preserves
@@ -71,6 +78,20 @@ character set, length, and duplicate values, rejects HTML/overlong notes, and
 rejects `companyUpdate(input.customerSince)` without changing the staged
 company. Successful staged mutations append replay-ready log entries with the
 original raw GraphQL request.
+
+`companyCreate` also stages a synthetic company location, main contact, and the
+standard location-admin/ordering-only role nodes when the request selection asks
+for them. `companyLocationCreate` supports the string-validation and
+delete-precondition setup shapes captured in B2B parity evidence, including the
+captured blank-location-name fallback behavior.
+
+`companyDelete` and `companiesDelete` stage local cascade deletion for company
+records and their staged company locations only after a deletable-status-style
+precheck. Staged orders, completed draft-order orders, open draft orders, and
+CompanyLocation store-credit balances that reference the target company block
+deletion with `FAILED_TO_DELETE`; bulk deletion returns per-index errors and
+still deletes unblocked companies. Unknown bulk IDs return
+`RESOURCE_NOT_FOUND`.
 
 `companyLocationTaxSettingsUpdate` has a local tax-settings slice for required
 and nullable input handling, invalid `TaxExemption` enum coercion, assignment
@@ -83,6 +104,8 @@ ported request family. It validates empty configuration, deposit without a
 payment-terms template, and disabled deposit feature branches, then stages
 `editableShippingAddress`, `checkoutToDraft`, `paymentTermsTemplate`, and
 `deposit` for downstream `companyLocation(id:)` reads when the input is valid.
+It also rejects blank/whitespace `input.name` after HTML stripping with Shopify
+`BLANK` user errors and no state change.
 
 Fixture-backed read helpers cover stable B2B read shapes that the Rust port
 still uses as evidence, including `company.customerSince`,
@@ -110,15 +133,14 @@ evidence and porting targets rather than full current-domain support.
 - Generic `node(id:)` / `nodes(ids:)` dispatch for B2B-only IDs is limited to
   fixture-backed or tail-helper evidence. Do not infer complete Node support for
   companies, contacts, locations, addresses, staff assignments, or catalogs.
-- The Rust operation registry currently keeps all B2B roots
-  `implemented: false`. Unsupported mutation handling must remain visible as
-  passthrough or reject behavior according to runtime configuration unless a
-  request matches a documented local runtime slice.
+- Unsupported B2B mutation handling must remain visible as passthrough or
+  reject behavior according to runtime configuration unless a request matches a
+  documented local runtime slice.
 
 ### Evidence
 
 - Registry status: `src/operation_registry.rs`
-- Runtime tail-helper coverage: `tests/graphql_routes.rs`
+- Runtime B2B coverage: `tests/graphql_routes/b2b.rs`
 - Read and lifecycle parity specs: `config/parity-specs/b2b/*.json`
 - Read and lifecycle fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/b2b/*.json` and `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/*.json`
 - Root inventory fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
