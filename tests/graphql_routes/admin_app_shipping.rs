@@ -453,6 +453,45 @@ fn bulk_operation_run_mutation_validates_without_dispatcher_errors() {
     }
 }
 
+fn staged_bulk_mutation_upload_path(
+    proxy: &mut DraftProxy,
+    filename: &str,
+    file_size: &str,
+) -> String {
+    let staged = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBulkUpload($input: [StagedUploadInput!]!) {
+          stagedUploadsCreate(input: $input) {
+            stagedTargets { parameters { name value } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": [{
+                "resource": "BULK_MUTATION_VARIABLES",
+                "filename": filename,
+                "mimeType": "text/jsonl",
+                "httpMethod": "POST",
+                "fileSize": file_size
+            }]
+        }),
+    ));
+    assert_eq!(staged.status, 200);
+    assert_eq!(
+        staged.body["data"]["stagedUploadsCreate"]["userErrors"],
+        json!([])
+    );
+    staged.body["data"]["stagedUploadsCreate"]["stagedTargets"][0]["parameters"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|parameter| parameter["name"] == "key")
+        .and_then(|parameter| parameter["value"].as_str())
+        .unwrap()
+        .to_string()
+}
+
 #[test]
 fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
     let mut proxy = snapshot_proxy();
@@ -536,35 +575,66 @@ fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
 }
 
 #[test]
-fn bulk_operation_run_mutation_validates_client_identifier_and_file_size() {
-    let mut proxy = configured_proxy_with_bulk_mutation_max(ReadMode::Snapshot, None, Some(10));
-    let staged = proxy.process_request(json_graphql_request(
+fn bulk_operation_run_mutation_rejects_oversized_staged_upload_with_shopify_error_shape() {
+    let mut proxy = snapshot_proxy();
+    let path = staged_bulk_mutation_upload_path(&mut proxy, "oversized-import.jsonl", "104857601");
+    let log_before = proxy.get_log_snapshot();
+
+    let response = proxy.process_request(json_graphql_request(
         r#"
-        mutation CreateBulkUpload($input: [StagedUploadInput!]!) {
-          stagedUploadsCreate(input: $input) {
-            stagedTargets { parameters { name value } }
-            userErrors { field message }
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id }
+            userErrors { field message code }
           }
         }
         "#,
         json!({
-            "input": [{
-                "resource": "BULK_MUTATION_VARIABLES",
-                "filename": "oversized-import.jsonl",
-                "mimeType": "text/jsonl",
-                "httpMethod": "POST",
-                "fileSize": "11"
-            }]
+            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+            "path": path
         }),
     ));
-    let path = staged.body["data"]["stagedUploadsCreate"]["stagedTargets"][0]["parameters"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|parameter| parameter["name"] == "key")
-        .and_then(|parameter| parameter["value"].as_str())
-        .unwrap()
-        .to_string();
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "The input file size exceeds the maximum allowed size of 100 MB.",
+            "code": "INVALID_STAGED_UPLOAD_FILE"
+        }])
+    );
+    assert_eq!(proxy.get_log_snapshot(), log_before);
+
+    let current = proxy.process_request(json_graphql_request(
+        r#"
+        query CurrentMutation {
+          currentBulkOperation(type: MUTATION) { id }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        current.body["data"]["currentBulkOperation"],
+        Value::Null,
+        "oversized validation must not stage a mutation bulk operation"
+    );
+}
+
+#[test]
+fn bulk_operation_run_mutation_validates_client_identifier_and_configured_file_size() {
+    let max_bytes = 2 * 1024 * 1024;
+    let mut proxy =
+        configured_proxy_with_bulk_mutation_max(ReadMode::Snapshot, None, Some(max_bytes));
+    let path = staged_bulk_mutation_upload_path(
+        &mut proxy,
+        "configured-oversized-import.jsonl",
+        &(max_bytes + 1).to_string(),
+    );
     let mutation =
         "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }";
 
@@ -606,10 +676,78 @@ fn bulk_operation_run_mutation_validates_client_identifier_and_file_size() {
     assert_eq!(
         oversized.body["data"]["bulkOperationRunMutation"]["userErrors"],
         json!([{
-            "field": ["stagedUploadPath"],
-            "message": "The JSONL file exceeds the maximum allowed size of 100 MB.",
-            "code": "INVALID_MUTATION"
+            "field": null,
+            "message": "The input file size exceeds the maximum allowed size of 2 MB.",
+            "code": "INVALID_STAGED_UPLOAD_FILE"
         }])
+    );
+}
+
+#[test]
+fn bulk_operation_run_mutation_file_size_error_precedes_in_progress_throttle() {
+    let max_bytes = 2 * 1024 * 1024;
+    let mut proxy =
+        configured_proxy_with_bulk_mutation_max(ReadMode::Snapshot, None, Some(max_bytes));
+    let path = staged_bulk_mutation_upload_path(
+        &mut proxy,
+        "oversized-import-with-running-mutation.jsonl",
+        &(max_bytes + 1).to_string(),
+    );
+    let mut cancel_request = json_graphql_request(
+        r#"
+        mutation CancelCapturedMutation($id: ID!) {
+          bulkOperationCancel(id: $id) {
+            bulkOperation { id status type }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/BulkOperation/7749099127090" }),
+    );
+    cancel_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let cancel = proxy.process_request(cancel_request);
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["type"],
+        json!("MUTATION")
+    );
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
+        json!("CANCELING")
+    );
+    let log_before = proxy.get_log_snapshot();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+            "path": path
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "The input file size exceeds the maximum allowed size of 2 MB.",
+            "code": "INVALID_STAGED_UPLOAD_FILE"
+        }])
+    );
+    assert_eq!(
+        proxy.get_log_snapshot(),
+        log_before,
+        "oversized validation must not append a bulk mutation log entry"
     );
 }
 

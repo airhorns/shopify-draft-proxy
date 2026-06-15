@@ -8071,6 +8071,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'bulk-operations',
+    captureId: 'bulk-operation-run-mutation-file-size',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-run-mutation-file-size-conformance.ts',
+    purpose:
+      'bulkOperationRunMutation oversized staged JSONL validation returns INVALID_STAGED_UPLOAD_FILE before in-progress mutation throttle handling.',
+    requiredAuthScopes: ['bulk operation access and product write access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operation-run-mutation-file-size.json`,
+      'config/parity-specs/bulk-operations/bulk-operation-run-mutation-file-size.json',
+      'config/parity-requests/bulk-operations/bulk-operation-run-mutation-file-size-staged-upload.graphql',
+      'config/parity-requests/bulk-operations/bulk-operation-run-mutation-file-size.graphql',
+    ],
+    cleanupBehavior:
+      'Cancels any pre-existing mutation bulk operation, uploads one under-limit JSONL to create a non-terminal mutation operation, uploads one >100 MB JSONL, records the oversized validation response, then cancels the non-terminal operation.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
     captureId: 'bulk-operation-run-mutation-allowed-roots',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bulk-operation-run-mutation-allowed-roots-conformance.ts',
