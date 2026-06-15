@@ -299,7 +299,8 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
     const parsed = JSON.parse(body) as Record<string, unknown>;
     const variablesMatch = stableJson(parsed['variables'] ?? {}) === stableJson(call.variables ?? {});
     const query = typeof parsed['query'] === 'string' ? parsed['query'] : '';
-    const operationName = typeof parsed['operationName'] === 'string' ? parsed['operationName'] : '';
+    const queryOperationName = /\b(?:query|mutation|subscription)\s+([_A-Za-z][_0-9A-Za-z]*)/u.exec(query)?.[1] ?? '';
+    const operationName = typeof parsed['operationName'] === 'string' ? parsed['operationName'] : queryOperationName;
     const isSyntheticNodeCassette =
       call.query?.startsWith('sha:') ||
       call.query ===
@@ -307,9 +308,12 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
       call.query ===
         'recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration';
     const canMatchSynthesizedNodeQuery = isSyntheticNodeCassette && /\bnode(?:s)?\s*\(/u.test(query);
+    const canMatchCapturedScriptQuery =
+      call.query?.startsWith('sha:') === true && call.operationName === operationName && operationName.length > 0;
     return (
       variablesMatch &&
-      (canMatchSynthesizedNodeQuery ||
+      (canMatchCapturedScriptQuery ||
+        canMatchSynthesizedNodeQuery ||
         parsed['query'] === call.query ||
         (call.query === undefined && call.operationName === operationName && operationName.length > 0))
     );

@@ -2509,6 +2509,53 @@ impl DraftProxy {
         Some(fixture["mutation"]["response"]["data"].clone())
     }
 
+    pub(in crate::proxy) fn product_options_create_linked_metaobjects(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<MutationOutcome> {
+        let product_id = resolved_string_field(variables, "productId")?;
+        let mut linked_sets = Vec::new();
+        for option in resolved_object_list_field(variables, "options") {
+            let Some(linked_metafield) = resolved_object_field(&option, "linkedMetafield") else {
+                continue;
+            };
+            let ids = resolved_string_list_field(&linked_metafield, "values")
+                .into_iter()
+                .filter(|id| shopify_gid_resource_type(id) == Some("Metaobject"))
+                .collect::<BTreeSet<_>>();
+            if ids.len() > 1 {
+                linked_sets.push(ids);
+            }
+        }
+        if linked_sets.is_empty() {
+            return None;
+        }
+        self.store
+            .staged
+            .linked_product_option_metaobject_sets
+            .extend(linked_sets);
+
+        let product = self
+            .product_record_by_id(&product_id)
+            .map(product_summary_json)
+            .unwrap_or_else(|| json!({"id": product_id.clone()}));
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let payload = selected_json(
+            &json!({
+                "product": product,
+                "userErrors": []
+            }),
+            &payload_selection,
+        );
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "productOptionsCreate".to_string());
+        Some(MutationOutcome::staged(
+            ok_json(json!({"data": {response_key: payload}})),
+            LogDraft::staged("productOptionsCreate", "products", vec![product_id]),
+        ))
+    }
+
     pub(in crate::proxy) fn product_option_lifecycle_downstream_data(
         &self,
         variables: &BTreeMap<String, ResolvedValue>,
