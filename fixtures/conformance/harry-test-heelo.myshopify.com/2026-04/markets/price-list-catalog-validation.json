@@ -1,0 +1,562 @@
+{
+  "capturedAt": "2026-06-15T01:39:27.504Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scope": "price-list catalogId existence and taken validation",
+  "setup": {
+    "market": {
+      "id": "gid://shopify/Market/97997685042",
+      "currency": "USD"
+    },
+    "missingCatalogId": "gid://shopify/MarketCatalog/99999999",
+    "note": "Records public Admin GraphQL 2026-04 PriceListUserError semantics for priceListCreate/priceListUpdate catalogId relation validation. Validation failures do not create or update price lists."
+  },
+  "cases": [
+    {
+      "name": "markets read for price-list catalog validation",
+      "query": "#graphql\nquery PriceListCatalogValidationMarketsRead($first: Int!) {\n  markets(first: $first) {\n    nodes {\n      id\n      name\n      currencySettings {\n        baseCurrency {\n          currencyCode\n        }\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "first": 10
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/97997685042",
+                  "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
+                  "currencySettings": {
+                    "baseCurrency": {
+                      "currencyCode": "USD"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/97997816114",
+                  "name": "Draft Proxy Currency Settings 20260507164435 Manual Rate",
+                  "currencySettings": {
+                    "baseCurrency": {
+                      "currencyCode": "USD"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/97997947186",
+                  "name": "Draft Proxy Currency Settings 20260507164530 Manual Rate",
+                  "currencySettings": {
+                    "baseCurrency": {
+                      "currencyCode": "USD"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/98515026226",
+                  "name": "Draft Proxy Currency Settings 20260613200520 Manual Rate",
+                  "currencySettings": {
+                    "baseCurrency": {
+                      "currencyCode": "USD"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "currencySettings": {
+                    "baseCurrency": {
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/92276818226",
+                  "name": "Mexico",
+                  "currencySettings": {
+                    "baseCurrency": {
+                      "currencyCode": "MXN"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priceListCreate nonexistent catalogId validation",
+      "query": "#graphql\nmutation PriceListCreateCatalogValidation($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      currency\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Price list missing catalog mqejp74u",
+          "currency": "USD",
+          "parent": {
+            "adjustment": {
+              "type": "PERCENTAGE_DECREASE",
+              "value": 10
+            }
+          },
+          "catalogId": "gid://shopify/MarketCatalog/99999999"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListCreate": {
+              "priceList": null,
+              "userErrors": [
+                {
+                  "field": ["input", "catalogId"],
+                  "message": "Catalog does not exist.",
+                  "code": "CATALOG_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priceListCreate setup for catalog taken validation",
+      "query": "#graphql\nmutation PriceListCreateCatalogValidation($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      currency\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Price list catalog taken setup mqejp74u",
+          "currency": "USD",
+          "parent": {
+            "adjustment": {
+              "type": "PERCENTAGE_DECREASE",
+              "value": 10
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListCreate": {
+              "priceList": {
+                "id": "gid://shopify/PriceList/32290341170",
+                "currency": "USD",
+                "parent": {
+                  "adjustment": {
+                    "type": "PERCENTAGE_DECREASE",
+                    "value": 10
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalogCreate setup with assigned price list",
+      "query": "#graphql\nmutation CatalogCreateRelationValidation($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "Catalog taken setup mqejp74u",
+          "status": "ACTIVE",
+          "context": {
+            "marketIds": ["gid://shopify/Market/97997685042"]
+          },
+          "priceListId": "gid://shopify/PriceList/32290341170"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogCreate": {
+              "catalog": {
+                "id": "gid://shopify/MarketCatalog/151756603698"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priceListCreate catalog already has price list validation",
+      "query": "#graphql\nmutation PriceListCreateCatalogValidation($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      currency\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Price list catalog taken mqejp74u",
+          "currency": "USD",
+          "parent": {
+            "adjustment": {
+              "type": "PERCENTAGE_DECREASE",
+              "value": 10
+            }
+          },
+          "catalogId": "gid://shopify/MarketCatalog/151756603698"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListCreate": {
+              "priceList": null,
+              "userErrors": [
+                {
+                  "field": ["input", "catalogId"],
+                  "message": "Catalog has a price list already assigned.",
+                  "code": "CATALOG_TAKEN"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priceListCreate setup for update nonexistent catalogId validation",
+      "query": "#graphql\nmutation PriceListCreateCatalogValidation($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      currency\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Price list update missing catalog setup mqejp74u",
+          "currency": "USD",
+          "parent": {
+            "adjustment": {
+              "type": "PERCENTAGE_DECREASE",
+              "value": 10
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListCreate": {
+              "priceList": {
+                "id": "gid://shopify/PriceList/32290373938",
+                "currency": "USD",
+                "parent": {
+                  "adjustment": {
+                    "type": "PERCENTAGE_DECREASE",
+                    "value": 10
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priceListUpdate nonexistent catalogId validation",
+      "query": "#graphql\nmutation PriceListUpdateCatalogValidation($id: ID!, $input: PriceListUpdateInput!) {\n  priceListUpdate(id: $id, input: $input) {\n    priceList {\n      id\n      currency\n      catalog {\n        id\n      }\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/PriceList/32290373938",
+        "input": {
+          "catalogId": "gid://shopify/MarketCatalog/99999999"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListUpdate": {
+              "priceList": null,
+              "userErrors": [
+                {
+                  "field": ["input", "catalogId"],
+                  "message": "Catalog does not exist.",
+                  "code": "CATALOG_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "priceListUpdate catalog already has price list validation",
+      "query": "#graphql\nmutation PriceListUpdateCatalogValidation($id: ID!, $input: PriceListUpdateInput!) {\n  priceListUpdate(id: $id, input: $input) {\n    priceList {\n      id\n      currency\n      catalog {\n        id\n      }\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/PriceList/32290373938",
+        "input": {
+          "catalogId": "gid://shopify/MarketCatalog/151756603698"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListUpdate": {
+              "priceList": null,
+              "userErrors": [
+                {
+                  "field": ["input", "catalogId"],
+                  "message": "Catalog has a price list already assigned.",
+                  "code": "CATALOG_TAKEN"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "type": "priceList",
+      "id": "gid://shopify/PriceList/32290373938",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListDelete": {
+              "deletedId": "gid://shopify/PriceList/32290373938",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "priceList",
+      "id": "gid://shopify/PriceList/32290341170",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListDelete": {
+              "deletedId": "gid://shopify/PriceList/32290341170",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "catalog",
+      "id": "gid://shopify/MarketCatalog/151756603698",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "catalogDelete": {
+              "deletedId": "gid://shopify/MarketCatalog/151756603698",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "PriceListCatalogValidationMarketsRead",
+      "variables": {
+        "first": 10
+      },
+      "query": "#graphql\nquery PriceListCatalogValidationMarketsRead($first: Int!) {\n  markets(first: $first) {\n    nodes {\n      id\n      name\n      currencySettings {\n        baseCurrency {\n          currencyCode\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/97997685042",
+                  "name": "Draft Proxy Currency Settings 20260507164352 Manual Rate",
+                  "currencySettings": {
+                    "baseCurrency": {
+                      "currencyCode": "USD"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/97997816114",
+                  "name": "Draft Proxy Currency Settings 20260507164435 Manual Rate",
+                  "currencySettings": {
+                    "baseCurrency": {
+                      "currencyCode": "USD"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/97997947186",
+                  "name": "Draft Proxy Currency Settings 20260507164530 Manual Rate",
+                  "currencySettings": {
+                    "baseCurrency": {
+                      "currencyCode": "USD"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/98515026226",
+                  "name": "Draft Proxy Currency Settings 20260613200520 Manual Rate",
+                  "currencySettings": {
+                    "baseCurrency": {
+                      "currencyCode": "USD"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "currencySettings": {
+                    "baseCurrency": {
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                {
+                  "id": "gid://shopify/Market/92276818226",
+                  "name": "Mexico",
+                  "currencySettings": {
+                    "baseCurrency": {
+                      "currencyCode": "MXN"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

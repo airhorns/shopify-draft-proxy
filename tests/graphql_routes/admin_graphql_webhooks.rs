@@ -1138,6 +1138,280 @@ fn webhook_subscription_uri_and_format_validation_ports_old_gleam_edges() {
 }
 
 #[test]
+fn pubsub_gcp_project_and_topic_char_rules_match_shopify() {
+    let mut proxy = snapshot_proxy();
+
+    let dedicated_numeric_project = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        mutation {
+          pubSubWebhookSubscriptionCreate(
+            topic: SHOP_UPDATE
+            webhookSubscription: { pubSubProject: "123456789012", pubSubTopic: "valid-topic" }
+          ) {
+            webhookSubscription {
+              id
+              uri
+              endpoint {
+                __typename
+                ... on WebhookPubSubEndpoint { pubSubProject pubSubTopic }
+              }
+            }
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(dedicated_numeric_project.status, 200);
+    assert_eq!(
+        dedicated_numeric_project.body["data"]["pubSubWebhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    let dedicated_id = dedicated_numeric_project.body["data"]["pubSubWebhookSubscriptionCreate"]
+        ["webhookSubscription"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        dedicated_numeric_project.body["data"]["pubSubWebhookSubscriptionCreate"]
+            ["webhookSubscription"]["endpoint"],
+        json!({
+            "__typename": "WebhookPubSubEndpoint",
+            "pubSubProject": "123456789012",
+            "pubSubTopic": "valid-topic"
+        })
+    );
+
+    let dedicated_digit_leading_topic = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        mutation {
+          pubSubWebhookSubscriptionCreate(
+            topic: SHOP_UPDATE
+            webhookSubscription: { pubSubProject: "valid-project", pubSubTopic: "1topic" }
+          ) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(dedicated_digit_leading_topic.status, 200);
+    assert_eq!(
+        dedicated_digit_leading_topic.body["data"]["pubSubWebhookSubscriptionCreate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [{
+                "field": ["webhookSubscription", "pubSubTopic"],
+                "message": "Google Cloud Pub/Sub topic ID is not valid"
+            }]
+        })
+    );
+
+    let unified_percent_topic = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        mutation {
+          webhookSubscriptionCreate(
+            topic: SHOP_UPDATE
+            webhookSubscription: { uri: "pubsub://valid-project:my%25topic", format: JSON }
+          ) {
+            webhookSubscription {
+              id
+              uri
+              endpoint {
+                __typename
+                ... on WebhookPubSubEndpoint { pubSubProject pubSubTopic }
+              }
+            }
+            userErrors { field message }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(unified_percent_topic.status, 200);
+    assert_eq!(
+        unified_percent_topic.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    let unified_id = unified_percent_topic.body["data"]["webhookSubscriptionCreate"]
+        ["webhookSubscription"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        unified_percent_topic.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]
+            ["endpoint"],
+        json!({
+            "__typename": "WebhookPubSubEndpoint",
+            "pubSubProject": "valid-project",
+            "pubSubTopic": "my%25topic"
+        })
+    );
+
+    let dedicated_update_percent_topic = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        mutation($id: ID!) {
+          pubSubWebhookSubscriptionUpdate(
+            id: $id
+            webhookSubscription: { pubSubProject: "123456789012", pubSubTopic: "next%25topic" }
+          ) {
+            webhookSubscription {
+              id
+              uri
+              endpoint {
+                __typename
+                ... on WebhookPubSubEndpoint { pubSubProject pubSubTopic }
+              }
+            }
+            userErrors { field message }
+          }
+        }"#,
+        json!({ "id": dedicated_id }),
+    ));
+    assert_eq!(dedicated_update_percent_topic.status, 200);
+    assert_eq!(
+        dedicated_update_percent_topic.body["data"]["pubSubWebhookSubscriptionUpdate"]
+            ["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        dedicated_update_percent_topic.body["data"]["pubSubWebhookSubscriptionUpdate"]
+            ["webhookSubscription"]["endpoint"],
+        json!({
+            "__typename": "WebhookPubSubEndpoint",
+            "pubSubProject": "123456789012",
+            "pubSubTopic": "next%25topic"
+        })
+    );
+
+    let unified_update_numeric_project = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        mutation($id: ID!) {
+          webhookSubscriptionUpdate(
+            id: $id
+            webhookSubscription: { uri: "pubsub://123456789012:valid-topic", format: JSON }
+          ) {
+            webhookSubscription {
+              id
+              uri
+              endpoint {
+                __typename
+                ... on WebhookPubSubEndpoint { pubSubProject pubSubTopic }
+              }
+            }
+            userErrors { field message }
+          }
+        }"#,
+        json!({ "id": unified_id }),
+    ));
+    assert_eq!(unified_update_numeric_project.status, 200);
+    assert_eq!(
+        unified_update_numeric_project.body["data"]["webhookSubscriptionUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        unified_update_numeric_project.body["data"]["webhookSubscriptionUpdate"]
+            ["webhookSubscription"]["endpoint"],
+        json!({
+            "__typename": "WebhookPubSubEndpoint",
+            "pubSubProject": "123456789012",
+            "pubSubTopic": "valid-topic"
+        })
+    );
+
+    let unified_update_digit_leading_topic = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        mutation($id: ID!) {
+          webhookSubscriptionUpdate(
+            id: $id
+            webhookSubscription: { uri: "pubsub://valid-project:1topic", format: JSON }
+          ) {
+            webhookSubscription { id }
+            userErrors { field message }
+          }
+        }"#,
+        json!({ "id": unified_id }),
+    ));
+    assert_eq!(unified_update_digit_leading_topic.status, 200);
+    assert_eq!(
+        unified_update_digit_leading_topic.body["data"]["webhookSubscriptionUpdate"],
+        json!({
+            "webhookSubscription": null,
+            "userErrors": [
+                {
+                    "field": ["webhookSubscription", "callbackUrl"],
+                    "message": "Address is invalid"
+                },
+                {
+                    "field": ["webhookSubscription", "callbackUrl"],
+                    "message": "Address is not a valid GCP topic id."
+                }
+            ]
+        })
+    );
+
+    let detail = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        query($id: ID!) {
+          webhookSubscription(id: $id) {
+            id
+            endpoint {
+              __typename
+              ... on WebhookPubSubEndpoint { pubSubProject pubSubTopic }
+            }
+          }
+        }"#,
+        json!({ "id": unified_id }),
+    ));
+    assert_eq!(
+        detail.body["data"]["webhookSubscription"]["endpoint"],
+        json!({
+            "__typename": "WebhookPubSubEndpoint",
+            "pubSubProject": "123456789012",
+            "pubSubTopic": "valid-topic"
+        })
+    );
+
+    let list = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+        query {
+          webhookSubscriptions(first: 5) {
+            nodes {
+              id
+              endpoint {
+                __typename
+                ... on WebhookPubSubEndpoint { pubSubProject pubSubTopic }
+              }
+            }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(
+        list.body["data"]["webhookSubscriptions"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+
+    let count = proxy.process_request(json_graphql_request(
+        "# RustWebhookLocalRuntime\nquery { webhookSubscriptionsCount { count } }",
+        json!({}),
+    ));
+    assert_eq!(
+        count.body["data"]["webhookSubscriptionsCount"],
+        json!({ "count": 2 })
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4,
+        "two accepted creates plus two accepted updates should be logged; rejected mutations should not"
+    );
+}
+
+#[test]
 fn dedicated_pubsub_webhook_update_uses_old_gleam_field_path_errors() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(

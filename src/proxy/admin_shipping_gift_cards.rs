@@ -2885,6 +2885,8 @@ impl DraftProxy {
         let mut user_errors = Vec::new();
         if name.trim().is_empty() {
             user_errors.push(json!({ "field": ["name"], "message": "Name can't be blank" }));
+        } else {
+            user_errors.extend(fulfillment_service_name_whitespace_errors(&name));
         }
         if let Some(error) = self.fulfillment_service_callback_url_error(callback_url.as_deref()) {
             user_errors.push(error);
@@ -2976,6 +2978,26 @@ impl DraftProxy {
                 .and_then(Value::as_str)
                 .map(str::to_string)
         };
+        let name_user_errors = if field.arguments.contains_key("name") {
+            if name.trim().is_empty() {
+                vec![json!({ "field": ["name"], "message": "Name can't be blank" })]
+            } else {
+                fulfillment_service_name_whitespace_errors(&name)
+            }
+        } else {
+            vec![]
+        };
+        if !name_user_errors.is_empty() {
+            return (
+                fulfillment_service_payload_json(
+                    Value::Null,
+                    &field.selection,
+                    &service_selection,
+                    name_user_errors,
+                ),
+                vec![],
+            );
+        }
         if fulfillment_service_name_is_reserved(&name) {
             return (
                 fulfillment_service_payload_json(
@@ -3270,6 +3292,21 @@ impl DraftProxy {
                 "CARRIER_SERVICE_UPDATE_FAILED",
             );
         };
+        if matches!(
+            resolved_string_field(&input, "name").as_deref(),
+            Some(name) if name.trim().is_empty()
+        ) {
+            return carrier_service_payload_json(
+                Value::Null,
+                &field.selection,
+                &carrier_selection,
+                vec![carrier_service_user_error(
+                    Value::Null,
+                    "Shipping rate provider name can't be blank",
+                    "CARRIER_SERVICE_UPDATE_FAILED",
+                )],
+            );
+        }
         let existing_callback_url = existing
             .get("callbackUrl")
             .and_then(Value::as_str)

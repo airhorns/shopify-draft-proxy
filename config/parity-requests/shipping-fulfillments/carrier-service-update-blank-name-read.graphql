@@ -1,0 +1,9 @@
+query CarrierServiceUpdateBlankNameRead($id: ID!) {
+  carrierService(id: $id) {
+    id
+    name
+    callbackUrl
+    active
+    supportsServiceDiscovery
+  }
+}

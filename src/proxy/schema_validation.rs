@@ -1,7 +1,7 @@
 use super::*;
 
 use crate::graphql::ParsedDocument;
-use std::sync::OnceLock;
+use std::{collections::BTreeSet, sync::OnceLock};
 
 #[derive(Debug, Clone)]
 struct SchemaTypeRef {
@@ -28,6 +28,7 @@ struct AdminInputSchema {
 
 #[derive(Debug, Clone, Copy)]
 struct ValidationContext<'a> {
+    query: &'a str,
     operation_path: &'a str,
     response_key: &'a str,
     field_location: SourceLocation,
@@ -57,6 +58,7 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
             continue;
         };
         let context = ValidationContext {
+            query,
             operation_path: &document.operation_path,
             response_key: &field.response_key,
             field_location: field.location,
@@ -258,6 +260,11 @@ fn validate_resolved_input_object(
         let Some(field_schema) = input_object.get(field_name) else {
             continue;
         };
+        if let Some(problem) = validate_resolved_scalar(field_value, &field_schema.type_ref) {
+            let mut nested_path = problem_path.to_vec();
+            nested_path.push(field_name.clone());
+            problems.push(variable_problem_with_message(&nested_path, &problem));
+        }
         let Some(nested_input_object) = schema.input_objects.get(&field_schema.type_ref.named_type)
         else {
             continue;
@@ -277,14 +284,28 @@ fn validate_resolved_input_object(
     problems
 }
 
+fn validate_resolved_scalar(value: &ResolvedValue, type_ref: &SchemaTypeRef) -> Option<String> {
+    if type_ref.named_type != "Decimal" {
+        return None;
+    }
+    let ResolvedValue::String(raw) = value else {
+        return None;
+    };
+    raw.parse::<f64>()
+        .err()
+        .map(|_| format!("invalid decimal '{raw}'"))
+}
+
 fn root_argument_not_accepted_error(
     field: &RootFieldSelection,
     argument_name: &str,
     context: ValidationContext<'_>,
 ) -> Value {
+    let location = root_argument_name_location(context.query, field, argument_name)
+        .unwrap_or(context.field_location);
     json!({
         "message": format!("Field '{}' doesn't accept argument '{}'", field.name, argument_name),
-        "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
+        "locations": [{ "line": location.line, "column": location.column }],
         "path": [context.operation_path, context.response_key, argument_name],
         "extensions": {
             "code": "argumentNotAccepted",
@@ -293,6 +314,30 @@ fn root_argument_not_accepted_error(
             "argumentName": argument_name
         }
     })
+}
+
+fn root_argument_name_location(
+    query: &str,
+    field: &RootFieldSelection,
+    argument_name: &str,
+) -> Option<SourceLocation> {
+    let start = byte_offset_for_location(query, field.location)?;
+    let mut search_start = start;
+    while search_start <= query.len() {
+        let offset = query[search_start..].find(argument_name)? + search_start;
+        let after_name = offset + argument_name.len();
+        let next_non_whitespace =
+            query[after_name..]
+                .char_indices()
+                .find_map(|(inner_offset, ch)| {
+                    (!ch.is_whitespace()).then_some(after_name + inner_offset)
+                })?;
+        if query[next_non_whitespace..].starts_with(':') {
+            return source_location_for_byte_offset(query, offset);
+        }
+        search_start = after_name;
+    }
+    None
 }
 
 fn required_root_argument_error(
@@ -398,6 +443,14 @@ fn variable_problem(path: &[String], explanation: &str) -> Value {
     })
 }
 
+fn variable_problem_with_message(path: &[String], explanation: &str) -> Value {
+    json!({
+        "path": path,
+        "explanation": explanation,
+        "message": explanation
+    })
+}
+
 fn input_error_path(context: ValidationContext<'_>, path: &[String], argument_name: &str) -> Value {
     let mut segments = vec![
         Value::String(context.operation_path.to_string()),
@@ -406,6 +459,43 @@ fn input_error_path(context: ValidationContext<'_>, path: &[String], argument_na
     segments.extend(path.iter().cloned().map(Value::String));
     segments.push(Value::String(argument_name.to_string()));
     Value::Array(segments)
+}
+
+fn byte_offset_for_location(query: &str, location: SourceLocation) -> Option<usize> {
+    let mut line = 1;
+    let mut column = 1;
+    for (offset, ch) in query.char_indices() {
+        if line == location.line && column == location.column {
+            return Some(offset);
+        }
+        if ch == '\n' {
+            line += 1;
+            column = 1;
+        } else {
+            column += 1;
+        }
+    }
+    (line == location.line && column == location.column).then_some(query.len())
+}
+
+fn source_location_for_byte_offset(query: &str, target_offset: usize) -> Option<SourceLocation> {
+    if target_offset > query.len() || !query.is_char_boundary(target_offset) {
+        return None;
+    }
+    let mut line = 1;
+    let mut column = 1;
+    for (offset, ch) in query.char_indices() {
+        if offset == target_offset {
+            return Some(SourceLocation { line, column });
+        }
+        if ch == '\n' {
+            line += 1;
+            column = 1;
+        } else {
+            column += 1;
+        }
+    }
+    (target_offset == query.len()).then_some(SourceLocation { line, column })
 }
 
 fn local_extension_input_field(input_type_name: &str, field_name: &str) -> bool {
@@ -422,8 +512,151 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
             "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/gift-cards/gift-card-create-validation.json"
         ))
         .unwrap_or_else(|_| json!({}));
-        schema_from_fixture(&fixture).unwrap_or_default()
+        let mut schema = schema_from_fixture(&fixture).unwrap_or_default();
+        register_fulfillment_service_fields(&mut schema);
+        extend_discount_basic_input_schema(&mut schema);
+        schema
     })
+}
+
+fn register_fulfillment_service_fields(schema: &mut AdminInputSchema) {
+    for (field_name, arguments) in [
+        (
+            "fulfillmentServiceCreate",
+            &[
+                ("name", "String"),
+                ("callbackUrl", "URL"),
+                ("trackingSupport", "Boolean"),
+                ("inventoryManagement", "Boolean"),
+                ("requiresShippingMethod", "Boolean"),
+            ][..],
+        ),
+        (
+            "fulfillmentServiceUpdate",
+            &[
+                ("id", "ID"),
+                ("name", "String"),
+                ("callbackUrl", "URL"),
+                ("trackingSupport", "Boolean"),
+                ("inventoryManagement", "Boolean"),
+                ("requiresShippingMethod", "Boolean"),
+            ][..],
+        ),
+    ] {
+        schema.mutation_fields.insert(
+            field_name.to_string(),
+            arguments
+                .iter()
+                .map(|(argument_name, type_name)| {
+                    (
+                        (*argument_name).to_string(),
+                        SchemaArgument {
+                            type_ref: scalar_type_ref(type_name),
+                        },
+                    )
+                })
+                .collect(),
+        );
+    }
+}
+
+fn scalar_type_ref(type_name: &str) -> SchemaTypeRef {
+    SchemaTypeRef {
+        display: type_name.to_string(),
+        named_type: type_name.to_string(),
+        non_null: false,
+    }
+}
+
+fn extend_discount_basic_input_schema(schema: &mut AdminInputSchema) {
+    let config: Value = serde_json::from_str(include_str!(
+        "../../config/admin-graphql-mutation-schema.json"
+    ))
+    .unwrap_or_else(|_| json!({}));
+    let Some(mutations) = config["mutations"].as_array() else {
+        return;
+    };
+    let Some(input_objects) = config["inputObjects"].as_array() else {
+        return;
+    };
+    let mut visited = BTreeSet::new();
+    for mutation in mutations {
+        let Some(name) = mutation["name"].as_str() else {
+            continue;
+        };
+        if !matches!(
+            name,
+            "discountCodeBasicCreate"
+                | "discountCodeBasicUpdate"
+                | "discountAutomaticBasicCreate"
+                | "discountAutomaticBasicUpdate"
+        ) {
+            continue;
+        }
+        let Some(args) = mutation["args"].as_array() else {
+            continue;
+        };
+        let parsed_args = args
+            .iter()
+            .filter_map(|arg| {
+                Some((
+                    arg["name"].as_str()?.to_string(),
+                    SchemaArgument {
+                        type_ref: schema_type_ref(&arg["type"])?,
+                    },
+                ))
+            })
+            .collect::<BTreeMap<_, _>>();
+        for arg in parsed_args.values() {
+            collect_input_object_schema(
+                &arg.type_ref.named_type,
+                input_objects,
+                &mut schema.input_objects,
+                &mut visited,
+            );
+        }
+        schema.mutation_fields.insert(name.to_string(), parsed_args);
+    }
+}
+
+fn collect_input_object_schema(
+    type_name: &str,
+    input_objects: &[Value],
+    schema_input_objects: &mut BTreeMap<String, BTreeMap<String, SchemaInputField>>,
+    visited: &mut BTreeSet<String>,
+) {
+    if !visited.insert(type_name.to_string()) {
+        return;
+    }
+    let Some(input_object) = input_objects
+        .iter()
+        .find(|input_object| input_object["name"].as_str() == Some(type_name))
+    else {
+        return;
+    };
+    let Some(fields) = input_object["inputFields"].as_array() else {
+        return;
+    };
+    let parsed_fields = fields
+        .iter()
+        .filter_map(|field| {
+            Some((
+                field["name"].as_str()?.to_string(),
+                SchemaInputField {
+                    type_ref: schema_type_ref(&field["type"])?,
+                },
+            ))
+        })
+        .collect::<BTreeMap<_, _>>();
+    for field in parsed_fields.values() {
+        collect_input_object_schema(
+            &field.type_ref.named_type,
+            input_objects,
+            schema_input_objects,
+            visited,
+        );
+    }
+    schema_input_objects.insert(type_name.to_string(), parsed_fields);
 }
 
 fn schema_from_fixture(fixture: &Value) -> Option<AdminInputSchema> {
