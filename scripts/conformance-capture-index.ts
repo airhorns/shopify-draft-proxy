@@ -3194,6 +3194,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'localization',
+    captureId: 'localization-translations-digest-mismatch',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-translations-digest-mismatch-conformance.mts',
+    purpose: 'translationsRegister current digest validation for correct, fabricated, and stale product title digests.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_translations',
+      'write_translations',
+      'read_locales',
+      'write_locales',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-translations-digest-mismatch.json`,
+      'config/parity-specs/localization/localization-translations-digest-mismatch.json',
+      'config/parity-requests/localization/localization-translations-digest-product-create.graphql',
+      'config/parity-requests/localization/localization-translations-digest-product-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, enables French only when needed, captures correct/wrong/stale digest branches, deletes the product, and restores the locale when the script enabled it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
     captureId: 'localization-handle-translation-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-localization-handle-translation-validation-conformance.mts',
