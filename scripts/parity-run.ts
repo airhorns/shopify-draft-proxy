@@ -319,6 +319,11 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
     const variablesMatch = stableJson(parsed['variables'] ?? {}) === stableJson(call.variables ?? {});
     const query = typeof parsed['query'] === 'string' ? parsed['query'] : '';
     const operationName = typeof parsed['operationName'] === 'string' ? parsed['operationName'] : '';
+    const isSyntheticCustomerCassette = call.query === 'hand-synthesized from checked-in customer parity capture';
+    const canMatchSynthesizedCustomerQuery =
+      isSyntheticCustomerCassette &&
+      ((call.operationName === 'CustomerHydrate' && /\bcustomer\s*\(/u.test(query)) ||
+        (call.operationName === 'CustomerCountHydrate' && /\bcustomersCount\b/u.test(query)));
     const isSyntheticNodeCassette =
       call.query?.startsWith('sha:') ||
       call.query?.includes('hand-synthesized from checked-in seedProducts/mediaReadyRead capture') ||
@@ -330,6 +335,7 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
     return (
       variablesMatch &&
       (canMatchSynthesizedNodeQuery ||
+        canMatchSynthesizedCustomerQuery ||
         parsed['query'] === call.query ||
         (call.query === undefined && call.operationName === operationName && operationName.length > 0))
     );

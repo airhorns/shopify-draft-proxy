@@ -440,56 +440,13 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
         "giftCardSendNotificationToRecipient",
         CapabilityDomain::GiftCards,
     ),
-    local_query(
-        "locationsAvailableForDeliveryProfilesConnection",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_query(
-        "assignedFulfillmentOrders",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_query("fulfillmentOrder", CapabilityDomain::ShippingFulfillments),
-    local_query("fulfillmentOrders", CapabilityDomain::ShippingFulfillments),
-    local_mutation(
-        "locationLocalPickupDisable",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "locationLocalPickupEnable",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrderAcceptCancellationRequest",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrderAcceptFulfillmentRequest",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrderMerge",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrderRejectCancellationRequest",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrderRejectFulfillmentRequest",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrderSplit",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrderSubmitCancellationRequest",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrderSubmitFulfillmentRequest",
-        CapabilityDomain::ShippingFulfillments,
-    ),
+    local_query("customer", CapabilityDomain::Customers),
+    local_query("customers", CapabilityDomain::Customers),
+    local_query("customersCount", CapabilityDomain::Customers),
+    local_query("customerByIdentifier", CapabilityDomain::Customers),
+    local_mutation("customerAddTaxExemptions", CapabilityDomain::Customers),
+    local_mutation("customerRemoveTaxExemptions", CapabilityDomain::Customers),
+    local_mutation("customerReplaceTaxExemptions", CapabilityDomain::Customers),
     local_mutation("locationAdd", CapabilityDomain::StoreProperties),
     local_mutation("locationEdit", CapabilityDomain::StoreProperties),
     local_mutation("locationActivate", CapabilityDomain::StoreProperties),
