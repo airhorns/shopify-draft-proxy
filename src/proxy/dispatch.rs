@@ -160,7 +160,7 @@ impl DraftProxy {
             root_field,
             "customerCreate" | "companyCreate" | "companyAssignCustomerAsContact"
         ) {
-            if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
+            if let Some(data) = self.order_customer_error_paths_data(request, &query, &variables) {
                 return ok_json(data);
             }
         }
@@ -2115,7 +2115,7 @@ impl DraftProxy {
             root_field,
             "orderCancel" | "orderCustomerSet" | "orderCustomerRemove"
         ) {
-            if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
+            if let Some(data) = self.order_customer_error_paths_data(request, &query, &variables) {
                 return ok_json(data);
             }
         }

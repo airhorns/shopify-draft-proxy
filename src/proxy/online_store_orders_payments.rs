@@ -3084,6 +3084,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn order_customer_error_paths_data(
         &mut self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
@@ -3097,7 +3098,9 @@ impl DraftProxy {
                     self.order_customer_paths_assign_customer(&field)
                 }
                 "orderCreate" => self.order_customer_paths_order_create(&field),
-                "orderCancel" => self.order_customer_paths_cancel_order(&field),
+                "orderCancel" => {
+                    self.order_customer_paths_cancel_order(request, query, variables, &field)
+                }
                 "orderCustomerSet" => Some(self.order_customer_set_error_paths(&field)),
                 "orderCustomerRemove" => Some(self.order_customer_remove_error_paths(&field)),
                 _ => None,
@@ -3227,6 +3230,9 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn order_customer_paths_cancel_order(
         &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Option<Value> {
         let order_id = resolved_string_arg(&field.arguments, "orderId")?;
@@ -3264,17 +3270,86 @@ impl DraftProxy {
                 &field.selection,
             ));
         }
-        if !self
+
+        if self.store.staged.orders.contains_key(&order_id) {
+            let already_cancelled = self
+                .store
+                .staged
+                .orders
+                .get(&order_id)
+                .and_then(|order| order.get("cancelledAt"))
+                .is_some_and(|cancelled_at| !cancelled_at.is_null());
+            if already_cancelled {
+                return Some(selected_json(
+                    &error_payload("orderId", "Order has already been cancelled", "INVALID"),
+                    &field.selection,
+                ));
+            }
+
+            let reason =
+                resolved_string_arg(&field.arguments, "reason").unwrap_or_else(|| "OTHER".into());
+            let timestamp = self.order_cancel_timestamp();
+            let job_id = format!(
+                "gid://shopify/Job/{}?shopify-draft-proxy=synthetic",
+                self.log_entries.len() + 1
+            );
+            let order = self
+                .store
+                .staged
+                .orders
+                .get_mut(&order_id)
+                .expect("staged order existence was checked before mutation");
+            order["closed"] = json!(true);
+            order["closedAt"] = json!(timestamp.clone());
+            order["cancelledAt"] = json!(timestamp);
+            order["cancelReason"] = json!(reason);
+            order["updatedAt"] = order["cancelledAt"].clone();
+            let order = order.clone();
+            if let Some(customer_id) = order["customer"]["id"].as_str() {
+                if let Some(customer_orders) =
+                    self.store.staged.customer_orders.get_mut(customer_id)
+                {
+                    for customer_order in customer_orders {
+                        if customer_order["id"].as_str() == Some(order_id.as_str()) {
+                            *customer_order = order.clone();
+                        }
+                    }
+                }
+            }
+            self.record_orders_local_log_entry(OrdersLocalLogEntry {
+                request,
+                query,
+                variables,
+                root_field: "orderCancel",
+                staged_resource_ids: vec![order_id],
+                outcome: OrdersLocalLogOutcome {
+                    status: "staged",
+                    notes: "Locally staged orderCancel in shopify-draft-proxy.",
+                },
+            });
+            return Some(selected_json(
+                &json!({
+                    "order": order,
+                    "job": { "id": job_id, "done": false },
+                    "orderCancelUserErrors": [],
+                    "userErrors": []
+                }),
+                &field.selection,
+            ));
+        }
+
+        let Some(mut order) = self
             .store
             .staged
             .order_customer_orders
-            .contains_key(&order_id)
-        {
+            .get(&order_id)
+            .cloned()
+        else {
             return Some(selected_json(
                 &error_payload("orderId", "Order does not exist", "NOT_FOUND"),
                 &field.selection,
             ));
-        }
+        };
         if self
             .store
             .staged
@@ -3290,15 +3365,44 @@ impl DraftProxy {
             .staged
             .order_customer_cancelled_ids
             .insert(order_id.clone());
+        let reason =
+            resolved_string_arg(&field.arguments, "reason").unwrap_or_else(|| "OTHER".into());
+        let timestamp = self.order_cancel_timestamp();
+        order["closed"] = json!(true);
+        order["closedAt"] = json!(timestamp.clone());
+        order["cancelledAt"] = json!(timestamp);
+        order["cancelReason"] = json!(reason);
+        self.store
+            .staged
+            .order_customer_orders
+            .insert(order_id.clone(), order.clone());
+        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            request,
+            query,
+            variables,
+            root_field: "orderCancel",
+            staged_resource_ids: vec![order_id.clone()],
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally staged orderCancel in shopify-draft-proxy.",
+            },
+        });
         Some(selected_json(
             &json!({
-                "order": { "id": order_id },
+                "order": order,
                 "job": { "id": "gid://shopify/Job/order-customer-cancel", "done": false },
                 "orderCancelUserErrors": [],
                 "userErrors": []
             }),
             &field.selection,
         ))
+    }
+
+    fn order_cancel_timestamp(&self) -> String {
+        format!(
+            "2024-01-01T00:00:{:02}.000Z",
+            (self.log_entries.len() + 1) % 60
+        )
     }
 
     pub(in crate::proxy) fn order_customer_set_error_paths(

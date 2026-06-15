@@ -5306,6 +5306,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}order-management-cleanup.json`,
       'config/parity-specs/orders/orderCancel-parity.json',
       'config/parity-specs/orders/orderCancel-restock-refundMethod-parity.json',
+      'config/parity-specs/orders/orderCancel-snapshot-staging.json',
       'config/parity-specs/orders/orderClose-parity.json',
       'config/parity-specs/orders/orderCreateManualPayment-access-denied-parity.json',
       'config/parity-specs/orders/orderCustomerRemove-parity.json',
