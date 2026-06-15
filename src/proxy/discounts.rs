@@ -1,11 +1,8 @@
 use super::*;
 
 const DISCOUNT_DEFAULT_TIMESTAMP: &str = "2026-04-27T19:32:14Z";
-const DISCOUNT_MINIMUM_QUANTITY_UPPER_BOUND: i64 = 2_147_483_647;
-const DISCOUNT_MINIMUM_SUBTOTAL_UPPER_BOUND: i64 = 1_000_000_000_000_000_000;
-const DISCOUNT_MINIMUM_SUBTOTAL_UPPER_BOUND_DECIMAL: &str = "1000000000000000000";
-const SHOPIFY_FUNCTION_BY_ID_QUERY: &str = "query ShopifyFunctionById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    handle\n    apiType\n    description\n    appKey\n    app {\n      id\n      title\n      handle\n      apiKey\n    }\n  }\n}\n";
-const SHOPIFY_FUNCTION_BY_HANDLE_QUERY: &str = "query ShopifyFunctionByHandle($handle: String!) {\n  shopifyFunctions(first: 1, handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
+const DISCOUNT_CONTEXT_CUSTOMER_SELECTION_CONFLICT_MESSAGE: &str =
+    "Only one of context or customerSelection can be provided.";
 
 impl DraftProxy {
     pub(in crate::proxy) fn discounts_query_response(
@@ -132,20 +129,8 @@ impl DraftProxy {
                 "automatic",
                 "DiscountAutomaticFreeShipping",
             ),
-            "discountAutomaticAppCreate" => self.app_discount_create(
-                request,
-                field,
-                "automaticAppDiscount",
-                "automatic",
-                "DiscountAutomaticApp",
-            ),
-            "discountAutomaticAppUpdate" => self.app_discount_update(
-                request,
-                field,
-                "automaticAppDiscount",
-                "automatic",
-                "DiscountAutomaticApp",
-            ),
+            "discountCodeAppCreate" => self.discount_code_app_validation(field, "codeAppDiscount"),
+            "discountCodeAppUpdate" => self.discount_code_app_validation(field, "codeAppDiscount"),
             "discountCodeActivate"
             | "discountCodeDeactivate"
             | "discountAutomaticActivate"
@@ -239,104 +224,29 @@ impl DraftProxy {
         )
     }
 
-    fn app_discount_create(
-        &mut self,
-        request: &Request,
+    fn discount_code_app_validation(
+        &self,
         field: &RootFieldSelection,
         input_arg: &str,
-        discount_kind: &str,
-        typename: &str,
     ) -> MutationFieldOutcome {
-        let input = discount_input(field, input_arg);
-        let errors = app_discount_input_user_errors(input.as_ref(), input_arg, typename, true);
-        if !errors.is_empty() {
-            return MutationFieldOutcome::unlogged(app_discount_payload_for_root(
-                &field.name,
+        let user_errors = discount_input(field, input_arg)
+            .as_ref()
+            .and_then(|input| discount_context_customer_selection_user_error(input, input_arg))
+            .into_iter()
+            .collect::<Vec<_>>();
+        if !user_errors.is_empty() {
+            return MutationFieldOutcome::unlogged(discount_code_app_payload(
                 Value::Null,
-                errors,
+                user_errors,
             ));
         }
-        let input = input.unwrap_or_default();
-        let function = match self.app_discount_function_for_input(request, &input, input_arg) {
-            Ok(function) => function,
-            Err(error) => {
-                return MutationFieldOutcome::unlogged(app_discount_payload_for_root(
-                    &field.name,
-                    Value::Null,
-                    vec![error],
-                ))
-            }
-        };
-        let id_type = if discount_kind == "automatic" {
-            "DiscountAutomaticNode"
-        } else {
-            "DiscountCodeNode"
-        };
-        let id = self.next_proxy_synthetic_gid(id_type);
-        let mut record = discount_record_from_input(&id, discount_kind, typename, &input, None);
-        attach_app_discount_function(&mut record, &function);
-        self.stage_discount_record(record.clone());
-        MutationFieldOutcome::staged(
-            app_discount_payload_for_root(
-                &field.name,
-                discount_body_for_record(&record),
-                Vec::new(),
-            ),
-            LogDraft::staged(&field.name, "discounts", vec![id]),
-        )
-    }
-
-    fn app_discount_update(
-        &mut self,
-        request: &Request,
-        field: &RootFieldSelection,
-        input_arg: &str,
-        discount_kind: &str,
-        typename: &str,
-    ) -> MutationFieldOutcome {
-        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
-        let input = discount_input(field, input_arg);
-        let mut errors = if self.discount_record(&id).is_none() {
-            vec![discount_user_error(
-                vec!["id"],
-                "Discount does not exist.",
-                "INVALID",
-            )]
-        } else {
-            app_discount_input_user_errors(input.as_ref(), input_arg, typename, false)
-        };
-        if !errors.is_empty() {
-            return MutationFieldOutcome::unlogged(app_discount_payload_for_root(
-                &field.name,
-                Value::Null,
-                errors,
-            ));
-        }
-        let input = input.unwrap_or_default();
-        let function = match self.app_discount_function_for_input(request, &input, input_arg) {
-            Ok(function) => function,
-            Err(error) => {
-                errors.push(error);
-                return MutationFieldOutcome::unlogged(app_discount_payload_for_root(
-                    &field.name,
-                    Value::Null,
-                    errors,
-                ));
-            }
-        };
-        let existing = self.discount_record(&id).cloned();
-        let mut record =
-            discount_record_from_input(&id, discount_kind, typename, &input, existing.as_ref());
-        attach_app_discount_function(&mut record, &function);
-        self.stage_discount_record(record.clone());
-        MutationFieldOutcome::staged(
-            app_discount_payload_for_root(
-                &field.name,
-                discount_body_for_record(&record),
-                Vec::new(),
-            ),
-            LogDraft::staged(&field.name, "discounts", vec![id]),
-        )
+        MutationFieldOutcome::unlogged(discount_code_app_payload(
+            Value::Null,
+            vec![discount_null_field_user_error(
+                "Local staging for this discount mutation is not implemented.",
+                Some("NOT_IMPLEMENTED"),
+            )],
+        ))
     }
 
     fn discount_status_transition(&mut self, field: &RootFieldSelection) -> MutationFieldOutcome {
@@ -971,18 +881,8 @@ fn discount_input_user_errors(
             )),
         }
     }
-    if resolved_object_path(Some(&ResolvedValue::Object(input.clone())), &["context"]).is_some()
-        && resolved_object_path(
-            Some(&ResolvedValue::Object(input.clone())),
-            &["customerSelection"],
-        )
-        .is_some()
-    {
-        errors.push(discount_user_error(
-            vec![input_arg, "context"],
-            "Specify either context or customerSelection, not both.",
-            "INVALID",
-        ));
+    if let Some(error) = discount_context_customer_selection_user_error(input, input_arg) {
+        errors.push(error);
     }
     if resolved_object_path(
         Some(&ResolvedValue::Object(input.clone())),
@@ -1038,8 +938,25 @@ fn discount_input_user_errors(
     errors
 }
 
-fn app_discount_input_user_errors(
-    input: Option<&BTreeMap<String, ResolvedValue>>,
+fn discount_context_customer_selection_user_error(
+    input: &BTreeMap<String, ResolvedValue>,
+    input_arg: &str,
+) -> Option<Value> {
+    let input_value = ResolvedValue::Object(input.clone());
+    if resolved_object_path(Some(&input_value), &["context"]).is_some()
+        && resolved_object_path(Some(&input_value), &["customerSelection"]).is_some()
+    {
+        return Some(discount_user_error(
+            vec![input_arg, "context"],
+            DISCOUNT_CONTEXT_CUSTOMER_SELECTION_CONFLICT_MESSAGE,
+            "INVALID",
+        ));
+    }
+    None
+}
+
+fn discount_subscription_field_user_error(
+    input: &BTreeMap<String, ResolvedValue>,
     input_arg: &str,
     typename: &str,
     create: bool,
@@ -1579,6 +1496,13 @@ fn discount_payload_for_root(root: &str, node: Value, user_errors: Vec<Value>) -
     };
     json!({
         node_key: if node.is_null() { Value::Null } else { node },
+        "userErrors": user_errors
+    })
+}
+
+fn discount_code_app_payload(node: Value, user_errors: Vec<Value>) -> Value {
+    json!({
+        "codeAppDiscount": if node.is_null() { Value::Null } else { node },
         "userErrors": user_errors
     })
 }

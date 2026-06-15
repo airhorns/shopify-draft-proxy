@@ -103,250 +103,275 @@ fn discount_stage_locally_roots_dispatch_by_root_field_not_operation_name_or_ali
 }
 
 #[test]
-fn discount_broad_bulk_roots_stage_locally_without_upstream_and_update_reads() {
+fn discount_context_customer_selection_conflict_uses_shopify_message_for_generic_roots() {
     let hits = Arc::new(Mutex::new(0usize));
     let hit_counter = Arc::clone(&hits);
-    let mut proxy = configured_proxy(
-        ReadMode::LiveHybrid,
-        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
-    )
-    .with_upstream_transport(move |_request| {
+    let mut proxy = snapshot_proxy().with_upstream_transport(move |_request| {
         *hit_counter.lock().unwrap() += 1;
         shopify_draft_proxy::proxy::Response {
             status: 500,
             headers: Default::default(),
-            body: json!({ "errors": [{ "message": "bulk discounts should not hit upstream" }] }),
+            body: json!({ "errors": [{ "message": "discount validation should stay local" }] }),
         }
     });
 
-    let create = proxy.process_request(json_graphql_request(
+    let conflict = proxy.process_request(json_graphql_request(
         r#"
-        mutation BulkSetup($scheduled: DiscountCodeBasicInput!, $active: DiscountCodeBasicInput!, $deleteCode: DiscountCodeBasicInput!, $deleteAutomatic: DiscountAutomaticBasicInput!) {
-          scheduled: discountCodeBasicCreate(basicCodeDiscount: $scheduled) { codeDiscountNode { id } userErrors { field message code extraInfo } }
-          active: discountCodeBasicCreate(basicCodeDiscount: $active) { codeDiscountNode { id } userErrors { field message code extraInfo } }
-          deleteCode: discountCodeBasicCreate(basicCodeDiscount: $deleteCode) { codeDiscountNode { id } userErrors { field message code extraInfo } }
-          deleteAutomatic: discountAutomaticBasicCreate(automaticBasicDiscount: $deleteAutomatic) { automaticDiscountNode { id } userErrors { field message code extraInfo } }
+        mutation DiscountContextCustomerSelectionConflict(
+          $basicCode: DiscountCodeBasicInput!,
+          $bxgyCode: DiscountCodeBxgyInput!,
+          $freeShippingCode: DiscountCodeFreeShippingInput!,
+          $appCode: DiscountCodeAppInput!
+        ) {
+          basicCode: discountCodeBasicCreate(basicCodeDiscount: $basicCode) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          bxgyCode: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyCode) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          freeShippingCode: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingCode) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          appCode: discountCodeAppCreate(codeAppDiscount: $appCode) {
+            codeAppDiscount { discountId }
+            userErrors { field message code extraInfo }
+          }
         }
         "#,
         json!({
-            "scheduled": {
-                "title": "Bulk activate target",
-                "code": "BULKACTIVATE",
-                "startsAt": "2026-04-28T19:32:14Z",
-                "context": { "all": "ALL" },
+            "basicCode": {
+                "title": "Conflict basic",
+                "code": "CONFLICTBASIC",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "context": { "customers": { "add": ["gid://shopify/Customer/1"] } },
+                "customerSelection": { "customers": { "add": ["gid://shopify/Customer/2"] } },
                 "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
             },
-            "active": {
-                "title": "Bulk deactivate target",
-                "code": "BULKDEACTIVATE",
-                "startsAt": "2026-04-25T19:32:14Z",
-                "context": { "all": "ALL" },
-                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+            "bxgyCode": {
+                "title": "Conflict bxgy",
+                "code": "CONFLICTBXGY",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "context": { "customers": { "add": ["gid://shopify/Customer/1"] } },
+                "customerSelection": { "customers": { "add": ["gid://shopify/Customer/2"] } },
+                "customerBuys": {
+                    "value": { "quantity": "1" },
+                    "items": { "products": { "productsToAdd": ["gid://shopify/Product/1"] } }
+                },
+                "customerGets": {
+                    "value": {
+                        "discountOnQuantity": {
+                            "quantity": "1",
+                            "effect": { "percentage": 1 }
+                        }
+                    },
+                    "items": { "products": { "productsToAdd": ["gid://shopify/Product/1"] } }
+                }
             },
-            "deleteCode": {
-                "title": "Bulk delete shared",
-                "code": "BULKDELETECODE",
-                "startsAt": "2026-04-25T19:32:14Z",
-                "context": { "all": "ALL" },
-                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+            "freeShippingCode": {
+                "title": "Conflict shipping",
+                "code": "CONFLICTSHIP",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "context": { "customers": { "add": ["gid://shopify/Customer/1"] } },
+                "customerSelection": { "customers": { "add": ["gid://shopify/Customer/2"] } },
+                "destination": { "all": true }
             },
-            "deleteAutomatic": {
-                "title": "Bulk delete automatic",
-                "startsAt": "2026-04-28T19:32:14Z",
-                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+            "appCode": {
+                "title": "Conflict app",
+                "code": "CONFLICTAPP",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "context": { "customers": { "add": ["gid://shopify/Customer/1"] } },
+                "customerSelection": { "customers": { "add": ["gid://shopify/Customer/2"] } },
+                "functionHandle": "discount-local"
             }
         }),
     ));
-    assert_eq!(create.body["data"]["scheduled"]["userErrors"], json!([]));
-    assert_eq!(create.body["data"]["active"]["userErrors"], json!([]));
-    assert_eq!(create.body["data"]["deleteCode"]["userErrors"], json!([]));
-    assert_eq!(
-        create.body["data"]["deleteAutomatic"]["userErrors"],
-        json!([])
-    );
 
-    let active_id = create.body["data"]["active"]["codeDiscountNode"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    let delete_code_id = create.body["data"]["deleteCode"]["codeDiscountNode"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    let delete_automatic_id = create.body["data"]["deleteAutomatic"]["automaticDiscountNode"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-
-    let bulk = proxy.process_request(json_graphql_request(
-        r#"
-        mutation BulkEffects($activeId: [ID!]!, $deleteCodeId: [ID!]!, $deleteAutomaticId: [ID!]!) {
-          activate: discountCodeBulkActivate(search: "status:scheduled") { job { id done query } userErrors { field message code extraInfo } }
-          deactivate: discountCodeBulkDeactivate(ids: $activeId) { job { done query } userErrors { field message code extraInfo } }
-          noCodeMethodMatch: discountCodeBulkDelete(search: "method:automatic") { job { done query } userErrors { field message code extraInfo } }
-          deleteCode: discountCodeBulkDelete(ids: $deleteCodeId) { job { done query } userErrors { field message code extraInfo } }
-          deleteAutomatic: discountAutomaticBulkDelete(ids: $deleteAutomaticId) { job { done query } userErrors { field message code extraInfo } }
-        }
-        "#,
-        json!({
-            "activeId": [active_id],
-            "deleteCodeId": [delete_code_id],
-            "deleteAutomaticId": [delete_automatic_id]
-        }),
-    ));
+    assert_eq!(conflict.status, 200);
     assert_eq!(*hits.lock().unwrap(), 0);
-    for key in ["activate", "deactivate", "deleteCode", "deleteAutomatic"] {
-        assert_eq!(bulk.body["data"][key]["job"]["done"], json!(true));
-        assert_eq!(bulk.body["data"][key]["userErrors"], json!([]));
-    }
     assert_eq!(
-        bulk.body["data"]["noCodeMethodMatch"]["job"]["done"],
-        json!(true)
-    );
-    assert_eq!(
-        bulk.body["data"]["noCodeMethodMatch"]["job"]["query"],
-        json!("method:automatic")
-    );
-    assert_eq!(
-        bulk.body["data"]["noCodeMethodMatch"]["userErrors"],
-        json!([])
-    );
-    assert!(bulk.body["data"]["activate"]["job"]["id"]
-        .as_str()
-        .unwrap()
-        .starts_with("gid://shopify/Job/"));
-    assert_eq!(
-        bulk.body["data"]["activate"]["job"]["query"],
-        json!("status:scheduled")
-    );
-
-    let read = proxy.process_request(json_graphql_request(
-        r#"
-        query BulkRead($activeId: ID!, $deleteCodeId: ID!, $deleteAutomaticId: ID!) {
-          activeCode: codeDiscountNode(id: $activeId) { codeDiscount { ... on DiscountCodeBasic { status } } }
-          activeCount: discountNodesCount(query: "status:active") { count precision }
-          expiredCount: discountNodesCount(query: "status:expired") { count precision }
-          deletedCode: codeDiscountNode(id: $deleteCodeId) { id }
-          deletedAutomatic: automaticDiscountNode(id: $deleteAutomaticId) { id }
-        }
-        "#,
-        json!({
-            "activeId": active_id,
-            "deleteCodeId": delete_code_id,
-            "deleteAutomaticId": delete_automatic_id
-        }),
-    ));
-    assert_eq!(
-        read.body["data"]["activeCode"]["codeDiscount"]["status"],
-        json!("EXPIRED")
-    );
-    assert_eq!(
-        read.body["data"]["activeCount"],
-        json!({ "count": 1, "precision": "EXACT" })
-    );
-    assert_eq!(
-        read.body["data"]["expiredCount"],
-        json!({ "count": 1, "precision": "EXACT" })
-    );
-    assert_eq!(read.body["data"]["deletedCode"], Value::Null);
-    assert_eq!(read.body["data"]["deletedAutomatic"], Value::Null);
-
-    let state = proxy.get_state_snapshot();
-    let bulk_operations = state["stagedState"]["discountBulkOperations"]
-        .as_object()
-        .unwrap();
-    assert_eq!(bulk_operations.len(), 5);
-    assert!(bulk_operations.values().any(|operation| {
-        operation["root"] == json!("discountCodeBulkDelete")
-            && operation["selector"] == json!({ "search": "method:automatic" })
-            && operation["matchedIds"] == json!([])
-    }));
-    assert!(bulk_operations.values().any(|operation| {
-        operation["root"] == json!("discountAutomaticBulkDelete")
-            && operation["matchedIds"] == json!([delete_automatic_id])
-    }));
-
-    let log = proxy.get_log_snapshot();
-    let entries = log["entries"].as_array().unwrap();
-    assert!(entries.iter().any(|entry| {
-        entry["interpreted"]["primaryRootField"] == json!("discountCodeBulkActivate")
-            && entry["query"]
-                .as_str()
-                .unwrap_or_default()
-                .contains("discountCodeBulkActivate")
-    }));
-}
-
-#[test]
-fn discount_broad_bulk_selector_and_search_field_validation_is_root_specific() {
-    let mut proxy = snapshot_proxy();
-    let response = proxy.process_request(json_graphql_request(
-        r#"
-        mutation BulkValidation($ids: [ID!], $search: String, $savedSearchId: ID!) {
-          codeActivateMissing: discountCodeBulkActivate { userErrors { field message code extraInfo } }
-          codeActivateBlank: discountCodeBulkActivate(search: "") { userErrors { field message code extraInfo } }
-          codeDeleteTooMany: discountCodeBulkDelete(ids: $ids, search: $search) { userErrors { field message code extraInfo } }
-          codeDeleteInvalidField: discountCodeBulkDelete(search: "discount_class:order") { userErrors { field message code extraInfo } }
-          automaticMissing: discountAutomaticBulkDelete { userErrors { field message code extraInfo } }
-          automaticBlank: discountAutomaticBulkDelete(search: "") { userErrors { field message code extraInfo } }
-          automaticTooMany: discountAutomaticBulkDelete(ids: $ids, search: $search) { userErrors { field message code extraInfo } }
-          automaticUnknownSavedSearch: discountAutomaticBulkDelete(savedSearchId: $savedSearchId) { userErrors { field message code extraInfo } }
-        }
-        "#,
-        json!({
-            "ids": ["gid://shopify/DiscountCodeNode/1"],
-            "search": "status:active",
-            "savedSearchId": "gid://shopify/SavedSearch/0"
-        }),
-    ));
-    assert_eq!(
-        response.body["data"]["codeActivateMissing"]["userErrors"],
+        conflict.body["data"]["basicCode"]["userErrors"],
         json!([{
-            "field": null,
-            "message": "Missing expected argument key: 'ids', 'search' or 'saved_search_id'.",
-            "code": "MISSING_ARGUMENT",
-            "extraInfo": null
-        }])
-    );
-    assert_eq!(
-        response.body["data"]["codeActivateBlank"]["userErrors"],
-        json!([{
-            "field": ["search"],
-            "message": "'Search' can't be blank.",
-            "code": "BLANK",
-            "extraInfo": null
-        }])
-    );
-    assert_eq!(
-        response.body["data"]["codeDeleteTooMany"]["userErrors"][0]["message"],
-        json!("Only one of 'ids', 'search' or 'saved_search_id' is allowed.")
-    );
-    assert_eq!(
-        response.body["data"]["codeDeleteInvalidField"]["userErrors"],
-        json!([{
-            "field": ["search"],
-            "message": "Invalid search field(s): discount_class. Check the query syntax.",
+            "field": ["basicCodeDiscount", "context"],
+            "message": "Only one of context or customerSelection can be provided.",
             "code": "INVALID",
             "extraInfo": null
         }])
     );
     assert_eq!(
-        response.body["data"]["automaticMissing"]["userErrors"][0]["message"],
-        json!("One of IDs, search argument or saved search ID is required.")
+        conflict.body["data"]["bxgyCode"]["userErrors"],
+        json!([{
+            "field": ["bxgyCodeDiscount", "context"],
+            "message": "Only one of context or customerSelection can be provided.",
+            "code": "INVALID",
+            "extraInfo": null
+        }])
     );
     assert_eq!(
-        response.body["data"]["automaticBlank"]["userErrors"],
+        conflict.body["data"]["freeShippingCode"]["userErrors"],
+        json!([{
+            "field": ["freeShippingCodeDiscount", "context"],
+            "message": "Only one of context or customerSelection can be provided.",
+            "code": "INVALID",
+            "extraInfo": null
+        }])
+    );
+    assert_eq!(
+        conflict.body["data"]["appCode"],
+        json!({
+            "codeAppDiscount": null,
+            "userErrors": [{
+                "field": ["codeAppDiscount", "context"],
+                "message": "Only one of context or customerSelection can be provided.",
+                "code": "INVALID",
+                "extraInfo": null
+            }]
+        })
+    );
+}
+
+#[test]
+fn discount_context_customer_selection_conflict_uses_shopify_message_for_update_roots() {
+    let mut proxy = snapshot_proxy();
+
+    let setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountContextCustomerSelectionConflictSetup(
+          $basicCode: DiscountCodeBasicInput!,
+          $bxgyCode: DiscountCodeBxgyInput!,
+          $freeShippingCode: DiscountCodeFreeShippingInput!
+        ) {
+          basicCode: discountCodeBasicCreate(basicCodeDiscount: $basicCode) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          bxgyCode: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyCode) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          freeShippingCode: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingCode) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "basicCode": {
+                "title": "Setup basic",
+                "code": "SETUPBASIC",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "context": { "all": "ALL" },
+                "customerGets": { "value": { "percentage": 0.1 }, "items": { "all": true } }
+            },
+            "bxgyCode": {
+                "title": "Setup bxgy",
+                "code": "SETUPBXGY",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "context": { "all": "ALL" },
+                "customerBuys": {
+                    "value": { "quantity": "1" },
+                    "items": { "products": { "productsToAdd": ["gid://shopify/Product/1"] } }
+                },
+                "customerGets": {
+                    "value": {
+                        "discountOnQuantity": {
+                            "quantity": "1",
+                            "effect": { "percentage": 1 }
+                        }
+                    },
+                    "items": { "products": { "productsToAdd": ["gid://shopify/Product/1"] } }
+                }
+            },
+            "freeShippingCode": {
+                "title": "Setup shipping",
+                "code": "SETUPSHIP",
+                "startsAt": "2026-04-25T00:00:00Z",
+                "context": { "all": "ALL" },
+                "destination": { "all": true }
+            }
+        }),
+    ));
+
+    assert_eq!(setup.status, 200);
+    assert_eq!(setup.body["data"]["basicCode"]["userErrors"], json!([]));
+    assert_eq!(setup.body["data"]["bxgyCode"]["userErrors"], json!([]));
+    assert_eq!(
+        setup.body["data"]["freeShippingCode"]["userErrors"],
         json!([])
     );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DiscountContextCustomerSelectionConflictUpdates(
+          $basicId: ID!,
+          $basicCode: DiscountCodeBasicInput!,
+          $bxgyId: ID!,
+          $bxgyCode: DiscountCodeBxgyInput!,
+          $freeShippingId: ID!,
+          $freeShippingCode: DiscountCodeFreeShippingInput!
+        ) {
+          basicCode: discountCodeBasicUpdate(id: $basicId, basicCodeDiscount: $basicCode) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          bxgyCode: discountCodeBxgyUpdate(id: $bxgyId, bxgyCodeDiscount: $bxgyCode) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+          freeShippingCode: discountCodeFreeShippingUpdate(id: $freeShippingId, freeShippingCodeDiscount: $freeShippingCode) {
+            codeDiscountNode { id }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "basicId": setup.body["data"]["basicCode"]["codeDiscountNode"]["id"].clone(),
+            "basicCode": {
+                "title": "Conflict basic update",
+                "context": { "customers": { "add": ["gid://shopify/Customer/1"] } },
+                "customerSelection": { "customers": { "add": ["gid://shopify/Customer/2"] } }
+            },
+            "bxgyId": setup.body["data"]["bxgyCode"]["codeDiscountNode"]["id"].clone(),
+            "bxgyCode": {
+                "title": "Conflict bxgy update",
+                "context": { "customers": { "add": ["gid://shopify/Customer/1"] } },
+                "customerSelection": { "customers": { "add": ["gid://shopify/Customer/2"] } }
+            },
+            "freeShippingId": setup.body["data"]["freeShippingCode"]["codeDiscountNode"]["id"].clone(),
+            "freeShippingCode": {
+                "title": "Conflict shipping update",
+                "context": { "customers": { "add": ["gid://shopify/Customer/1"] } },
+                "customerSelection": { "customers": { "add": ["gid://shopify/Customer/2"] } }
+            }
+        }),
+    ));
+
+    assert_eq!(update.status, 200);
     assert_eq!(
-        response.body["data"]["automaticTooMany"]["userErrors"][0]["message"],
-        json!("Only one of IDs, search argument or saved search ID is allowed.")
+        update.body["data"]["basicCode"]["userErrors"],
+        json!([{
+            "field": ["basicCodeDiscount", "context"],
+            "message": "Only one of context or customerSelection can be provided.",
+            "code": "INVALID",
+            "extraInfo": null
+        }])
     );
     assert_eq!(
-        response.body["data"]["automaticUnknownSavedSearch"]["userErrors"],
+        update.body["data"]["bxgyCode"]["userErrors"],
         json!([{
-            "field": ["savedSearchId"],
-            "message": "Invalid savedSearchId.",
+            "field": ["bxgyCodeDiscount", "context"],
+            "message": "Only one of context or customerSelection can be provided.",
+            "code": "INVALID",
+            "extraInfo": null
+        }])
+    );
+    assert_eq!(
+        update.body["data"]["freeShippingCode"]["userErrors"],
+        json!([{
+            "field": ["freeShippingCodeDiscount", "context"],
+            "message": "Only one of context or customerSelection can be provided.",
             "code": "INVALID",
             "extraInfo": null
         }])
@@ -388,6 +413,18 @@ fn discount_generic_handler_validates_input_and_handles_lifecycle_by_arguments()
     assert_eq!(
         invalid.body["data"]["discountCodeBasicCreate"]["codeDiscountNode"],
         json!(null)
+    );
+    assert!(
+        invalid.body["data"]["discountCodeBasicCreate"]["userErrors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|error| {
+                error["field"] == json!(["basicCodeDiscount", "context"])
+                    && error["message"]
+                        == json!("Only one of context or customerSelection can be provided.")
+                    && error["code"] == json!("INVALID")
+            })
     );
     assert!(
         invalid.body["data"]["discountCodeBasicCreate"]["userErrors"]
