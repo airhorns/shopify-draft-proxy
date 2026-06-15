@@ -2838,6 +2838,12 @@ Captured mutation-scoped `DiscountUserError` branches:
   `discountAmount.amount: "0"` by creating native code discounts, so do
   not reject zero values locally without a newer capture proving Shopify
   changed that behavior
+- simultaneous `minimumRequirement.subtotal` and `minimumRequirement.quantity`
+  branches return two `CONFLICT` entries on the concrete subtotal and quantity
+  value paths, not one input-level error
+- oversized `minimumRequirement.quantity.greaterThanOrEqualToQuantity` and
+  `minimumRequirement.subtotal.greaterThanOrEqualToSubtotal` values return
+  `LESS_THAN` on the concrete value paths
 - combining collection entitlements with product/product-variant entitlements returns a `CONFLICT` error on `['basicCodeDiscount', 'customerGets', 'items', 'collections', 'add']`, while invalid product and variant GIDs also return separate `INVALID` entries
 - BXGY roots reject all-items customer-get/customer-buy payloads and blank titles with root-specific field prefixes (`bxgyCodeDiscount` vs `automaticBxgyDiscount`)
 - free-shipping roots reject all discount-class combinesWith flags; code free shipping also reported blank title, while the captured automatic free-shipping branch only reported invalid combinesWith for the same blank-title payload

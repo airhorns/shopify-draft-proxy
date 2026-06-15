@@ -3492,6 +3492,31 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'price-list-catalog-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-price-list-catalog-validation-conformance.ts',
+    purpose:
+      'priceListCreate and priceListUpdate catalogId validation for nonexistent catalogs and catalogs that already have a price list assigned.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}price-list-catalog-validation.json`,
+      'config/parity-specs/markets/price-list-create-catalog-does-not-exist.json',
+      'config/parity-specs/markets/price-list-create-catalog-taken.json',
+      'config/parity-specs/markets/price-list-update-catalog-does-not-exist.json',
+      'config/parity-specs/markets/price-list-update-catalog-taken.json',
+      'config/parity-requests/markets/price-list-input-validation-markets-read.graphql',
+      'config/parity-requests/markets/price-list-create-catalog-validation.graphql',
+      'config/parity-requests/markets/price-list-update-input-validation.graphql',
+      'config/parity-requests/markets/catalog-create-relation-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable price lists and a market catalog for taken-branch setup, records validation failures that do not create or update records, then deletes all created price lists and catalogs.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Uses a never-created MarketCatalog gid for CATALOG_DOES_NOT_EXIST and a disposable MarketCatalog with an attached price list for CATALOG_TAKEN.',
+  },
+  {
+    domain: 'markets',
     captureId: 'price-list-name-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-price-list-name-validation-conformance.ts',
@@ -5833,6 +5858,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable active and expired code/automatic basic discounts, captures no-op transitions, records hydrate cassette entries, and deletes all created discounts.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-activate-deactivate-edge-cases',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-activate-deactivate-edge-cases-conformance.ts',
+    purpose:
+      'Code discount activate/deactivate timestamp rewrites plus code and automatic unknown-id INVALID userErrors for all activate/deactivate roots.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-activate-deactivate-edge-cases.json`,
+      'config/parity-specs/discounts/discount-activate-deactivate-edge-cases.json',
+      'config/parity-requests/discounts/discount-activate-deactivate-edge-activate.graphql',
+      'config/parity-requests/discounts/discount-activate-deactivate-edge-create.graphql',
+      'config/parity-requests/discounts/discount-activate-deactivate-edge-deactivate.graphql',
+      'config/parity-requests/discounts/discount-activate-deactivate-edge-read.graphql',
+      'config/parity-requests/discounts/discount-activate-deactivate-edge-unknown.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable scheduled code basic discount, captures status transitions and unknown-id failures, then deletes the setup discount during the scenario with finally-block cleanup on failure.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
