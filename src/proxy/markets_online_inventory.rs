@@ -2298,22 +2298,6 @@ pub(in crate::proxy) fn bulk_operation_record_with_type(
     })
 }
 
-pub(in crate::proxy) fn b2b_company_customer_since_read_data(
-    fields: &[RootFieldSelection],
-) -> Value {
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        if field.name == "company" {
-            let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-            data.insert(
-                field.response_key.clone(),
-                b2b_company_customer_since_value(&id, &field.selection).unwrap_or(Value::Null),
-            );
-        }
-    }
-    Value::Object(data)
-}
-
 pub(in crate::proxy) fn b2b_company_customer_since_value(
     id: &str,
     selection: &[SelectedField],

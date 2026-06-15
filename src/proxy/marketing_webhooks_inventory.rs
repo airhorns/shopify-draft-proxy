@@ -2595,32 +2595,6 @@ impl DraftProxy {
             .entry("on_hand".to_string())
             .or_insert(available + reserved);
     }
-
-    pub(in crate::proxy) fn functions_metadata_node_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = if field.name == "node" {
-                resolved_field_string_arg(field, "id")
-                    .and_then(|id| self.store.staged.function_cart_transforms.get(&id).cloned())
-                    .or_else(|| self.store.staged.function_cart_transform.clone())
-                    .unwrap_or(Value::Null)
-            } else {
-                Value::Null
-            };
-            if value.is_null() {
-                data.insert(field.response_key.clone(), Value::Null);
-            } else {
-                data.insert(
-                    field.response_key.clone(),
-                    selected_json(&value, &field.selection),
-                );
-            }
-        }
-        Value::Object(data)
-    }
 }
 
 fn input_string_field_value(

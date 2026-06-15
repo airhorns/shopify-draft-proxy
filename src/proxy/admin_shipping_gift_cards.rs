@@ -161,63 +161,6 @@ impl DraftProxy {
         Value::Object(data)
     }
 
-    pub(in crate::proxy) fn app_node_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Option<Value> {
-        let mut data = serde_json::Map::new();
-        let mut handled = false;
-        for field in fields {
-            if field.name != "node" {
-                continue;
-            }
-            let id = field
-                .arguments
-                .get("id")
-                .and_then(resolved_as_string)
-                .unwrap_or_default();
-            let value = match id.as_str() {
-                "gid://shopify/AppInstallation/expected" if self.store.staged.app_uninstalled => {
-                    Value::Null
-                }
-                "gid://shopify/AppInstallation/expected" => current_app_installation_json(
-                    &self.store.staged.app_subscriptions,
-                    &self.store.staged.app_one_time_purchases,
-                    &self.store.staged.revoked_app_access_scopes,
-                    &field.selection,
-                ),
-                "gid://shopify/App/expected" => selected_json(&local_app_json(), &field.selection),
-                _ => {
-                    if let Some(subscription) = self.store.staged.app_subscriptions.get(&id) {
-                        let type_selection = selected_fields_named(
-                            &field.selection,
-                            &["__typename", "id", "status", "trialDays", "lineItems"],
-                        );
-                        selected_json(subscription, &type_selection)
-                    } else if let Some(purchase) = self.store.staged.app_one_time_purchases.get(&id)
-                    {
-                        let type_selection = selected_fields_named(
-                            &field.selection,
-                            &["id", "name", "status", "test", "price"],
-                        );
-                        selected_json(purchase, &type_selection)
-                    } else if let Some(usage_record) = self.find_staged_app_usage_record(&id) {
-                        let type_selection = selected_fields_named(
-                            &field.selection,
-                            &["id", "description", "price", "subscriptionLineItem"],
-                        );
-                        selected_json(&usage_record, &type_selection)
-                    } else {
-                        continue;
-                    }
-                }
-            };
-            handled = true;
-            data.insert(field.response_key.clone(), value);
-        }
-        handled.then_some(Value::Object(data))
-    }
-
     pub(in crate::proxy) fn find_staged_app_usage_record(&self, id: &str) -> Option<Value> {
         self.store
             .staged
@@ -1274,24 +1217,6 @@ impl DraftProxy {
         }))
     }
 
-    pub(in crate::proxy) fn collection_read_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            if field.name == "collection" {
-                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                let value = self
-                    .store
-                    .staged
-                    .collections
-                    .get(&id)
-                    .map(|collection| selected_json(collection, &field.selection))
-                    .unwrap_or(Value::Null);
-                data.insert(field.response_key.clone(), value);
-            }
-        }
-        Value::Object(data)
-    }
-
     pub(in crate::proxy) fn location_mutation(
         &mut self,
         root_field: &str,
@@ -2283,70 +2208,6 @@ impl DraftProxy {
             .or(Some(self.store.base.publication_ids.len()));
     }
 
-    pub(in crate::proxy) fn segment_node_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Option<Value> {
-        let mut data = serde_json::Map::new();
-        let mut handled = false;
-        for field in fields {
-            let value = match field.name.as_str() {
-                "node" => {
-                    handled = true;
-                    field
-                        .arguments
-                        .get("id")
-                        .and_then(resolved_as_string)
-                        .and_then(|id| self.store.staged.segments.get(&id).cloned())
-                        .map(|segment| selected_json(&segment, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                "nodes" => {
-                    handled = true;
-                    let ids = field
-                        .arguments
-                        .get("ids")
-                        .map(resolved_string_list)
-                        .unwrap_or_default();
-                    Value::Array(
-                        ids.iter()
-                            .map(|id| {
-                                self.store
-                                    .staged
-                                    .segments
-                                    .get(id)
-                                    .map(|segment| selected_json(segment, &field.selection))
-                                    .unwrap_or(Value::Null)
-                            })
-                            .collect(),
-                    )
-                }
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        handled.then_some(Value::Object(data))
-    }
-
-    pub(in crate::proxy) fn segment_read_data_handles_fields(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> bool {
-        let Some(fields) = root_fields(query, variables) else {
-            return false;
-        };
-        fields.iter().any(|field| match field.name.as_str() {
-            "segment" => field
-                .arguments
-                .get("id")
-                .and_then(resolved_as_string)
-                .is_some_and(|id| self.store.staged.segments.contains_key(&id)),
-            "segments" | "segmentsCount" => !self.store.staged.segments.is_empty(),
-            _ => false,
-        })
-    }
-
     pub(in crate::proxy) fn segment_read_data(&self, fields: &[RootFieldSelection]) -> Value {
         let mut data = serde_json::Map::new();
         for field in fields {
@@ -2612,57 +2473,6 @@ impl DraftProxy {
             data.insert(field.response_key.clone(), value);
         }
         Value::Object(data)
-    }
-
-    pub(in crate::proxy) fn customer_segment_members_query_node_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Option<Value> {
-        let mut data = serde_json::Map::new();
-        let mut handled = false;
-        for field in fields {
-            let value = match field.name.as_str() {
-                "node" => {
-                    handled = true;
-                    field
-                        .arguments
-                        .get("id")
-                        .and_then(resolved_as_string)
-                        .and_then(|id| {
-                            self.store
-                                .staged
-                                .customer_segment_member_queries
-                                .get(&id)
-                                .cloned()
-                        })
-                        .map(|query| selected_json(&query, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                "nodes" => {
-                    handled = true;
-                    let ids = field
-                        .arguments
-                        .get("ids")
-                        .map(resolved_string_list)
-                        .unwrap_or_default();
-                    Value::Array(
-                        ids.iter()
-                            .map(|id| {
-                                self.store
-                                    .staged
-                                    .customer_segment_member_queries
-                                    .get(id)
-                                    .map(|query| selected_json(query, &field.selection))
-                                    .unwrap_or(Value::Null)
-                            })
-                            .collect(),
-                    )
-                }
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        handled.then_some(Value::Object(data))
     }
 
     pub(in crate::proxy) fn customer_segment_members_query_create(
@@ -3611,33 +3421,6 @@ impl DraftProxy {
             data.insert(field.response_key.clone(), value);
         }
         Value::Object(data)
-    }
-
-    pub(in crate::proxy) fn gift_card_node_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Option<Value> {
-        let mut data = serde_json::Map::new();
-        let mut handled = false;
-        for field in fields {
-            if field.name != "node" {
-                continue;
-            }
-            let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-            if shopify_gid_resource_type(&id) != Some("GiftCard") {
-                continue;
-            }
-            handled = true;
-            let value = self
-                .store
-                .staged
-                .gift_cards
-                .get(&id)
-                .map(|card| selected_json(card, &field.selection))
-                .unwrap_or(Value::Null);
-            data.insert(field.response_key.clone(), value);
-        }
-        handled.then_some(Value::Object(data))
     }
 
     pub(in crate::proxy) fn gift_card_mutation_response(

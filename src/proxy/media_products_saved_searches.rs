@@ -1071,49 +1071,6 @@ impl DraftProxy {
         ok_json(json!({"data": Value::Object(data)}))
     }
 
-    pub(in crate::proxy) fn media_product_read(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let mut data = serde_json::Map::new();
-        for field in root_fields(query, variables).unwrap_or_default() {
-            if field.name != "product" {
-                continue;
-            }
-            let id = field
-                .arguments
-                .get("id")
-                .or_else(|| field.arguments.get("productId"))
-                .and_then(|value| match value {
-                    ResolvedValue::String(value) => Some(value.clone()),
-                    _ => None,
-                })
-                .unwrap_or_else(|| {
-                    resolved_string_arg(variables, "id")
-                        .or_else(|| resolved_string_arg(variables, "productId"))
-                        .unwrap_or_default()
-                });
-            let product = match id.as_str() {
-                "gid://shopify/Product/429001" => json!({
-                    "id": id,
-                    "title": "File reference target",
-                    "media": {"nodes": [], "pageInfo": media_page_info(None)}
-                }),
-                "gid://shopify/Product/9264121479401" => json!({
-                    "id": id,
-                    "media": {"nodes": [], "pageInfo": media_page_info(None)}
-                }),
-                _ => Value::Null,
-            };
-            data.insert(
-                field.response_key,
-                selected_json(&product, &field.selection),
-            );
-        }
-        ok_json(json!({"data": Value::Object(data)}))
-    }
-
     pub(in crate::proxy) fn owner_metafields_set(
         &mut self,
         request: &Request,
@@ -2013,125 +1970,6 @@ impl DraftProxy {
             .collect()
     }
 
-    pub(in crate::proxy) fn metafields_app_namespace_mutation(
-        &mut self,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let metafields = list_object_arg(variables, "metafields");
-        if metafields.iter().any(|input| {
-            resolved_string_field(input, "namespace")
-                .map(|namespace| namespace.starts_with("app--999999999999--"))
-                .unwrap_or(false)
-        }) {
-            let payload = if root_field == "metafieldsSet" {
-                json!({"metafields": [], "userErrors": [{"field": ["metafields", "0"], "message": "Access to this namespace and key on Metafields for this resource type is not allowed.", "code": "APP_NOT_AUTHORIZED", "elementIndex": null}]})
-            } else {
-                json!({"deletedMetafields": [], "userErrors": [{"field": ["metafields"], "message": "Access to this namespace and key on Metafields for this resource type is not allowed."}]})
-            };
-            return ok_json(
-                json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
-            );
-        }
-
-        if root_field == "metafieldsDelete" {
-            let mut deleted = Vec::new();
-            for input in metafields {
-                let owner_id = resolved_string_field(&input, "ownerId").unwrap_or_default();
-                let namespace = canonical_app_metafield_namespace(
-                    resolved_string_field(&input, "namespace").as_deref(),
-                );
-                let key = resolved_string_field(&input, "key").unwrap_or_default();
-                self.store.staged.app_metafields.remove(&(
-                    owner_id.clone(),
-                    namespace.clone(),
-                    key.clone(),
-                ));
-                deleted.push(json!({"ownerId": owner_id, "namespace": namespace, "key": key}));
-            }
-            let payload = json!({"deletedMetafields": deleted, "userErrors": []});
-            return ok_json(
-                json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
-            );
-        }
-
-        let mut records = Vec::new();
-        for input in metafields {
-            let owner_id = resolved_string_field(&input, "ownerId").unwrap_or_default();
-            let namespace = canonical_app_metafield_namespace(
-                resolved_string_field(&input, "namespace").as_deref(),
-            );
-            let key = resolved_string_field(&input, "key").unwrap_or_default();
-            let record = json!({
-                "id": format!("gid://shopify/Metafield/{}", self.store.staged.app_metafields.len() + 1),
-                "namespace": namespace,
-                "key": key,
-                "type": resolved_string_field(&input, "type").unwrap_or_else(|| "single_line_text_field".to_string()),
-                "value": resolved_string_field(&input, "value").unwrap_or_default()
-            });
-            self.store
-                .staged
-                .app_metafields
-                .insert((owner_id, namespace, key), record.clone());
-            records.push(record);
-        }
-        let payload = json!({"metafields": records, "userErrors": []});
-        ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
-    }
-
-    pub(in crate::proxy) fn metafields_app_namespace_product_read(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let mut data = serde_json::Map::new();
-        for field in root_fields(query, variables).unwrap_or_default() {
-            if field.name != "product" {
-                continue;
-            }
-            let Some(ResolvedValue::String(product_id)) = field.arguments.get("id") else {
-                data.insert(field.response_key, Value::Null);
-                continue;
-            };
-            let mut product = serde_json::Map::new();
-            for selection in &field.selection {
-                let value = match selection.name.as_str() {
-                    "id" => Some(json!(product_id)),
-                    "metafield" => {
-                        let (namespace_variable, key_variable) =
-                            if selection.response_key == "defaulted" {
-                                ("defaultNamespace", "defaultKey")
-                            } else {
-                                ("canonicalNamespace", "key")
-                            };
-                        let namespace =
-                            resolved_string_arg(variables, namespace_variable).unwrap_or_default();
-                        let key = resolved_string_arg(variables, key_variable).unwrap_or_default();
-                        let record = self.store.staged.app_metafields.get(&(
-                            product_id.clone(),
-                            namespace,
-                            key,
-                        ));
-                        Some(
-                            record
-                                .map(|record| selected_json(record, &selection.selection))
-                                .unwrap_or(Value::Null),
-                        )
-                    }
-                    _ => None,
-                };
-                if let Some(value) = value {
-                    product.insert(selection.response_key.clone(), value);
-                }
-            }
-            data.insert(field.response_key, Value::Object(product));
-        }
-        ok_json(json!({"data": Value::Object(data)}))
-    }
-
     pub(in crate::proxy) fn product_overlay_read_fields(
         &self,
         query: &str,
@@ -2387,48 +2225,6 @@ impl DraftProxy {
             },
             |product| product_cursor(product).to_string(),
         )
-    }
-
-    pub(in crate::proxy) fn product_variants_bulk_delete_passthrough(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        self.record_passthrough_log_entry(
-            request,
-            query,
-            variables,
-            &["productVariantsBulkDelete".to_string()],
-            "productVariantsBulkDelete",
-        );
-        let response = (self.upstream_transport)(request.clone());
-        if let Some(product) = response
-            .body
-            .pointer("/data/productVariantsBulkDelete/product")
-            .and_then(product_state_from_json)
-        {
-            self.store.stage_observed_product(product);
-        }
-        let deleted_variant_ids = resolved_string_list_arg(variables, "variantsIds");
-        let mut hydrate_ids = Vec::new();
-        if let Some(product_id) = resolved_string_arg(variables, "productId").or_else(|| {
-            response
-                .body
-                .pointer("/data/productVariantsBulkDelete/product/id")
-                .and_then(Value::as_str)
-                .map(str::to_string)
-        }) {
-            hydrate_ids.push(product_id);
-        }
-        hydrate_ids.extend(deleted_variant_ids.clone());
-        hydrate_ids.sort();
-        hydrate_ids.dedup();
-        self.hydrate_product_nodes_for_observation(hydrate_ids);
-        for variant_id in deleted_variant_ids {
-            self.store.delete_product_variant(&variant_id);
-        }
-        response
     }
 
     pub(in crate::proxy) fn products_count_field(&self, field: &RootFieldSelection) -> Value {
@@ -3431,40 +3227,6 @@ impl DraftProxy {
                 .draft_order_tags
                 .insert(id.to_string(), taggable_record_tags(&record));
         }
-    }
-
-    pub(in crate::proxy) fn should_handle_taggable_resource_overlay_read(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> bool {
-        fields.iter().any(|field| {
-            matches!(
-                field.name.as_str(),
-                "order" | "customer" | "article" | "draftOrder"
-            ) && resolved_string_arg(&field.arguments, "id").is_some_and(|id| {
-                self.store.staged.taggable_resources.contains_key(&id)
-                    || self.store.staged.customers.contains_key(&id)
-            })
-        })
-    }
-
-    pub(in crate::proxy) fn taggable_resource_overlay_read_fields(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
-                "customer" => self.customer_read_field(field),
-                "order" | "article" | "draftOrder" => resolved_string_arg(&field.arguments, "id")
-                    .and_then(|id| self.store.staged.taggable_resources.get(&id).cloned())
-                    .map(|record| selected_json(&record, &field.selection))
-                    .unwrap_or(Value::Null),
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
     }
 
     pub(in crate::proxy) fn record_mutation_log_entry(
