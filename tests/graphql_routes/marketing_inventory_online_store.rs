@@ -2,6 +2,251 @@ use super::common::*;
 use pretty_assertions::assert_eq;
 
 #[test]
+fn online_store_integration_roots_dispatch_without_captured_operation_names() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateThemeWithOrdinaryName {
+          createdTheme: themeCreate(source: "https://example.com/theme.zip", name: "Ordinary theme", role: UNPUBLISHED) {
+            theme { id name role }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["createdTheme"]["theme"],
+        json!({
+            "id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic",
+            "name": "Ordinary theme",
+            "role": "UNPUBLISHED"
+        })
+    );
+    assert_eq!(create.body["data"]["createdTheme"]["userErrors"], json!([]));
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteMissingWebPixel {
+          missingPixel: webPixelDelete(id: "gid://shopify/WebPixel/9999999999") {
+            deletedWebPixelId
+            userErrors { __typename code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["missingPixel"],
+        json!({
+            "deletedWebPixelId": null,
+            "userErrors": [{
+                "__typename": "WebPixelUserError",
+                "code": "NOT_FOUND",
+                "field": ["id"],
+                "message": "Pixel not found"
+            }]
+        })
+    );
+}
+
+#[test]
+fn online_store_integration_delete_family_stages_locally_and_keeps_live_hybrid_off_upstream() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+    let upstream_observer = upstream_calls.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            upstream_observer.lock().unwrap().push(request.path.clone());
+            panic!("online-store integration mutations must not proxy upstream")
+        });
+
+    let setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateIntegrationDeleteTargets {
+          scriptTagCreate(input: { src: "https://cdn.example.test/app.js" }) {
+            scriptTag { id }
+            userErrors { code field message }
+          }
+          webPixelCreate(webPixel: {}) {
+            webPixel { id }
+            userErrors { code field message }
+          }
+          serverPixelCreate {
+            serverPixel { id }
+            userErrors { code field message }
+          }
+          storefrontAccessTokenCreate(input: { title: "Hydrogen" }) {
+            storefrontAccessToken { id }
+            userErrors { code field message }
+          }
+          mobilePlatformApplicationCreate(input: { android: { applicationId: "com.example.android", appLinksEnabled: true, sha256CertFingerprints: ["AA:BB"] } }) {
+            mobilePlatformApplication { __typename ... on AndroidApplication { id } }
+            userErrors { code field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(setup.status, 200);
+    let script_tag_id = setup.body["data"]["scriptTagCreate"]["scriptTag"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let web_pixel_id = setup.body["data"]["webPixelCreate"]["webPixel"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let storefront_token_id = setup.body["data"]["storefrontAccessTokenCreate"]
+        ["storefrontAccessToken"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let mobile_app_id = setup.body["data"]["mobilePlatformApplicationCreate"]
+        ["mobilePlatformApplication"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let deleted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteIntegrationTargets(
+          $scriptTagId: ID!
+          $webPixelId: ID!
+          $tokenInput: StorefrontAccessTokenDeleteInput!
+          $mobileAppId: ID!
+        ) {
+          script: scriptTagDelete(id: $scriptTagId) {
+            deletedScriptTagId
+            userErrors { __typename code field message }
+          }
+          pixel: webPixelDelete(id: $webPixelId) {
+            deletedWebPixelId
+            userErrors { __typename code field message }
+          }
+          server: serverPixelDelete {
+            deletedServerPixelId
+            userErrors { code field message }
+          }
+          token: storefrontAccessTokenDelete(input: $tokenInput) {
+            deletedStorefrontAccessTokenId
+            userErrors { code field message }
+          }
+          mobile: mobilePlatformApplicationDelete(id: $mobileAppId) {
+            deletedMobilePlatformApplicationId
+            userErrors { code field message }
+          }
+          invalidScript: scriptTagDelete(id: "not-a-gid") {
+            deletedScriptTagId
+            userErrors { __typename code field message }
+          }
+        }
+        "#,
+        json!({
+            "scriptTagId": script_tag_id,
+            "webPixelId": web_pixel_id,
+            "tokenInput": {"id": storefront_token_id},
+            "mobileAppId": mobile_app_id
+        }),
+    ));
+    assert_eq!(deleted.status, 200);
+    assert_eq!(
+        deleted.body["data"]["script"],
+        json!({"deletedScriptTagId": "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic", "userErrors": []})
+    );
+    assert_eq!(
+        deleted.body["data"]["pixel"],
+        json!({"deletedWebPixelId": "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic", "userErrors": []})
+    );
+    assert_eq!(
+        deleted.body["data"]["server"],
+        json!({"deletedServerPixelId": "gid://shopify/ServerPixel/3?shopify-draft-proxy=synthetic", "userErrors": []})
+    );
+    assert_eq!(
+        deleted.body["data"]["token"],
+        json!({"deletedStorefrontAccessTokenId": "gid://shopify/StorefrontAccessToken/4?shopify-draft-proxy=synthetic", "userErrors": []})
+    );
+    assert_eq!(
+        deleted.body["data"]["mobile"],
+        json!({"deletedMobilePlatformApplicationId": "gid://shopify/MobilePlatformApplication/5?shopify-draft-proxy=synthetic", "userErrors": []})
+    );
+    assert_eq!(
+        deleted.body["data"]["invalidScript"],
+        json!({
+            "deletedScriptTagId": null,
+            "userErrors": [{
+                "__typename": "ScriptTagUserError",
+                "code": "INVALID",
+                "field": ["id"],
+                "message": "Script tag id is invalid"
+            }]
+        })
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 0);
+
+    let read_after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadDeletedIntegrations($scriptTagId: ID!, $webPixelId: ID!, $mobileAppId: ID!) {
+          scriptTag(id: $scriptTagId) { id }
+          webPixel(id: $webPixelId) { id }
+          serverPixel { id }
+          mobilePlatformApplication(id: $mobileAppId) { __typename ... on AndroidApplication { id } }
+        }
+        "#,
+        json!({
+            "scriptTagId": "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic",
+            "webPixelId": "gid://shopify/WebPixel/2?shopify-draft-proxy=synthetic",
+            "mobileAppId": "gid://shopify/MobilePlatformApplication/5?shopify-draft-proxy=synthetic"
+        }),
+    ));
+    assert_eq!(
+        read_after_delete.body["data"],
+        json!({
+            "scriptTag": null,
+            "webPixel": null,
+            "serverPixel": null,
+            "mobilePlatformApplication": null
+        })
+    );
+}
+
+#[test]
+fn mixed_online_store_mutations_with_supported_root_do_not_passthrough() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::new()));
+    let upstream_observer = upstream_calls.clone();
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            upstream_observer.lock().unwrap().push(request.path.clone());
+            panic!("mixed online-store mutation must not proxy upstream")
+        });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MixedOnlineStoreMutation {
+          urlRedirectCreate(urlRedirect: { path: "/old", target: "/new" }) {
+            urlRedirect { id }
+            userErrors { field message }
+          }
+          themeCreate(source: "https://example.com/theme.zip", name: "Safe", role: UNPUBLISHED) {
+            theme { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 400);
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        "No mutation dispatcher implemented for mixed Online Store root fields: urlRedirectCreate, themeCreate"
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 0);
+}
+
+#[test]
 fn marketing_empty_reads_keep_shopify_connection_shapes() {
     let mut proxy = snapshot_proxy();
     let response = proxy.process_request(json_graphql_request(

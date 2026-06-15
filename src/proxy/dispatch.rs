@@ -358,57 +358,6 @@ impl DraftProxy {
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
-                    "mobilePlatformApplication"
-                        | "mobilePlatformApplications"
-                        | "scriptTag"
-                        | "scriptTags"
-                        | "webPixel"
-                        | "serverPixel"
-                        | "theme"
-                        | "themes"
-                )
-            })
-            && is_ported_online_store_document(&query)
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.online_store_query_data(&fields) }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "mobilePlatformApplicationCreate"
-                        | "mobilePlatformApplicationUpdate"
-                        | "scriptTagCreate"
-                        | "scriptTagUpdate"
-                        | "themeCreate"
-                        | "themePublish"
-                        | "themeUpdate"
-                        | "themeDelete"
-                        | "themeFilesUpsert"
-                        | "themeFilesCopy"
-                        | "themeFilesDelete"
-                        | "webPixelCreate"
-                        | "webPixelUpdate"
-                        | "serverPixelCreate"
-                        | "eventBridgeServerPixelUpdate"
-                        | "pubSubServerPixelUpdate"
-                        | "storefrontAccessTokenCreate"
-                )
-            })
-            && is_ported_online_store_document(&query)
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return self.online_store_mutation(&fields, request, &query, &variables);
-            }
-        }
-
-        if operation.operation_type == OperationType::Query
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
                     "marketingActivity"
                         | "marketingActivities"
                         | "marketingEvent"
@@ -2140,6 +2089,35 @@ impl DraftProxy {
                 root_field,
             );
         }
+        if operation.operation_type == OperationType::Mutation {
+            let has_online_store_local_mutation = operation.root_fields.iter().any(|field| {
+                local_dispatch_root(
+                    OperationType::Mutation,
+                    CapabilityDomain::OnlineStore,
+                    CapabilityExecution::StageLocally,
+                    field,
+                )
+                .is_some()
+            });
+            let all_online_store_local_mutations = operation.root_fields.iter().all(|field| {
+                local_dispatch_root(
+                    OperationType::Mutation,
+                    CapabilityDomain::OnlineStore,
+                    CapabilityExecution::StageLocally,
+                    field,
+                )
+                .is_some()
+            });
+            if has_online_store_local_mutation && !all_online_store_local_mutations {
+                return json_error(
+                    400,
+                    &format!(
+                        "No mutation dispatcher implemented for mixed Online Store root fields: {}",
+                        operation.root_fields.join(", ")
+                    ),
+                );
+            }
+        }
         match (capability.domain, capability.execution) {
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
                 if has_local_dispatch
@@ -2335,6 +2313,55 @@ impl DraftProxy {
             {
                 let outcome = self.discounts_mutation(request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::OnlineStore, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+            {
+                let all_fields_have_online_store_dispatch =
+                    operation.root_fields.iter().all(|field| {
+                        local_dispatch_root(
+                            OperationType::Query,
+                            CapabilityDomain::OnlineStore,
+                            CapabilityExecution::OverlayRead,
+                            field,
+                        )
+                        .is_some()
+                    });
+                if all_fields_have_online_store_dispatch {
+                    if let Some(fields) = root_fields(&query, &variables) {
+                        ok_json(json!({ "data": self.online_store_query_data(&fields) }))
+                    } else {
+                        json_error(400, "Could not parse GraphQL operation")
+                    }
+                } else {
+                    self.dispatch_unknown_passthrough_or_legacy_error(
+                        request,
+                        &query,
+                        &variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    )
+                }
+            }
+            (CapabilityDomain::OnlineStore, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && operation.root_fields.iter().all(|field| {
+                        local_dispatch_root(
+                            OperationType::Mutation,
+                            CapabilityDomain::OnlineStore,
+                            CapabilityExecution::StageLocally,
+                            field,
+                        )
+                        .is_some()
+                    }) =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    self.online_store_mutation(&fields, request, &query, &variables)
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
             }
             (CapabilityDomain::GiftCards, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
