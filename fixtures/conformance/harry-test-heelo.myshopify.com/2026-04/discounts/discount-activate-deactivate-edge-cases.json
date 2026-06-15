@@ -1,0 +1,384 @@
+{
+  "scenarioId": "discount-activate-deactivate-edge-cases",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "runId": 1781487690172,
+  "variables": {
+    "id": "gid://shopify/DiscountCodeNode/1654181036338",
+    "code": "HAREDGE1781487690172"
+  },
+  "requests": {
+    "create": {
+      "query": "mutation DiscountActivateDeactivateEdgeCreate($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          startsAt\n          endsAt\n          status\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "HAR activate edge 1781487690172",
+          "code": "HAREDGE1781487690172",
+          "startsAt": "2030-01-01T00:00:00.000Z",
+          "combinesWith": {
+            "productDiscounts": false,
+            "orderDiscounts": true,
+            "shippingDiscounts": false
+          },
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          }
+        }
+      }
+    },
+    "deactivate": {
+      "query": "mutation DiscountActivateDeactivateEdgeDeactivate($id: ID!) {\n  discountCodeDeactivate(id: $id) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          startsAt\n          endsAt\n          status\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1654181036338"
+      }
+    },
+    "activate": {
+      "query": "mutation DiscountActivateDeactivateEdgeActivate($id: ID!) {\n  discountCodeActivate(id: $id) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          startsAt\n          endsAt\n          status\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1654181036338"
+      }
+    },
+    "readAfterActivate": {
+      "query": "query DiscountActivateDeactivateEdgeRead($id: ID!, $code: String!) {\n  codeDiscountNode(id: $id) {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        startsAt\n        endsAt\n        status\n      }\n    }\n  }\n  codeDiscountNodeByCode(code: $code) {\n    id\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1654181036338",
+        "code": "HAREDGE1781487690172"
+      }
+    },
+    "unknown": {
+      "query": "mutation DiscountActivateDeactivateEdgeUnknown {\n  codeActivate: discountCodeActivate(id: \"gid://shopify/DiscountCodeNode/0\") {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  codeDeactivate: discountCodeDeactivate(id: \"gid://shopify/DiscountCodeNode/0\") {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  automaticActivate: discountAutomaticActivate(id: \"gid://shopify/DiscountAutomaticNode/0\") {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  automaticDeactivate: discountAutomaticDeactivate(id: \"gid://shopify/DiscountAutomaticNode/0\") {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {}
+    },
+    "cleanup": {
+      "query": "mutation DiscountDeleteUnknownIdCode($id: ID!) {\n  discountCodeDelete(id: $id) {\n    deletedCodeDiscountId\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1654181036338"
+      }
+    }
+  },
+  "scopeProbe": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_data_erasure",
+      "read_customer_merge",
+      "read_customers",
+      "read_delivery_customizations",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillment_constraint_rules",
+      "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
+      "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_online_store_navigation",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_privacy_settings",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_purchase_options",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "read_validations",
+      "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
+      "write_content",
+      "write_customer_data_erasure",
+      "write_customer_merge",
+      "write_customers",
+      "write_delivery_customizations",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillment_constraint_rules",
+      "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
+      "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_marketing_events",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_online_store_navigation",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_privacy_settings",
+      "write_products",
+      "write_publications",
+      "write_purchase_options",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations",
+      "write_validations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "create": {
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeBasicCreate": {
+            "codeDiscountNode": {
+              "id": "gid://shopify/DiscountCodeNode/1654181036338",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "title": "HAR activate edge 1781487690172",
+                "startsAt": "2030-01-01T00:00:00Z",
+                "endsAt": null,
+                "status": "SCHEDULED"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "deactivate": {
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeDeactivate": {
+            "codeDiscountNode": {
+              "id": "gid://shopify/DiscountCodeNode/1654181036338",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "startsAt": "2026-06-15T01:41:30Z",
+                "endsAt": "2026-06-15T01:41:30Z",
+                "status": "EXPIRED"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "activate": {
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeActivate": {
+            "codeDiscountNode": {
+              "id": "gid://shopify/DiscountCodeNode/1654181036338",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "startsAt": "2026-06-15T01:41:30Z",
+                "endsAt": null,
+                "status": "ACTIVE"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "readAfterActivate": {
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1654181036338",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBasic",
+              "startsAt": "2026-06-15T01:41:30Z",
+              "endsAt": null,
+              "status": "ACTIVE"
+            }
+          },
+          "codeDiscountNodeByCode": {
+            "id": "gid://shopify/DiscountCodeNode/1654181036338"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "unknown": {
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "codeActivate": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Code discount does not exist.",
+                "code": "INVALID"
+              }
+            ]
+          },
+          "codeDeactivate": {
+            "codeDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Code discount does not exist.",
+                "code": "INVALID"
+              }
+            ]
+          },
+          "automaticActivate": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Automatic discount does not exist.",
+                "code": "INVALID"
+              }
+            ]
+          },
+          "automaticDeactivate": {
+            "automaticDiscountNode": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Automatic discount does not exist.",
+                "code": "INVALID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 40,
+            "actualQueryCost": 40,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1960,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1654181036338",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1960,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
