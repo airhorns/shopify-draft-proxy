@@ -11,7 +11,6 @@
   ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "input-validation"],
-  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-context-customer-selection-conflict.json"
   ],
