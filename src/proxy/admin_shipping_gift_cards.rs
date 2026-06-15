@@ -30,6 +30,7 @@ query StorePropertiesPublishablePayloadShopHydrate($id: ID!) {
   }
 }
 "#;
+const APP_DOMAIN_SYNTHETIC_NOW: &str = "2026-04-28T02:10:00.000Z";
 
 impl DraftProxy {
     pub(in crate::proxy) fn backup_region_update(
@@ -511,7 +512,7 @@ impl DraftProxy {
                         "code": "SUBSCRIPTION_NOT_ACTIVE"
                     })],
                 ),
-                Some(_record) if query.contains("AppSubscriptionTrialExtendLocalLifecycle") => (
+                Some(record) if !app_subscription_trial_is_active(record) => (
                     Value::Null,
                     vec![json!({
                         "field": ["id"],
@@ -928,7 +929,7 @@ impl DraftProxy {
                 "message": "The expires_in value must be greater than 0.",
                 "code": "NEGATIVE_EXPIRES_IN"
             }));
-        } else if query.contains("DelegateAccessTokenCreateExpiresAfterParent") {
+        } else if delegate_expires_after_parent(request, expires_in) {
             user_errors.push(json!({
                 "field": null,
                 "message": "The delegate token can't expire after the parent token.",
@@ -946,7 +947,9 @@ impl DraftProxy {
         }
 
         if !user_errors.is_empty() {
-            if query.contains("DelegateAccessTokenCreateExpiresAfterParent") {
+            if user_errors.iter().any(|error| {
+                error.get("code").and_then(Value::as_str) == Some("EXPIRES_AFTER_PARENT")
+            }) {
                 self.record_mutation_log_entry(
                     request,
                     query,
@@ -981,7 +984,7 @@ impl DraftProxy {
         let record = json!({
             "accessToken": token,
             "accessScopes": scopes,
-            "createdAt": "2026-04-28T02:10:00.000Z",
+            "createdAt": APP_DOMAIN_SYNTHETIC_NOW,
             "expiresIn": expires_in,
             "parentAccessToken": parent_access_token,
             "apiClientId": api_client_id
@@ -1100,7 +1103,7 @@ impl DraftProxy {
             .unwrap_or_default();
 
         let mut user_errors = Vec::new();
-        if query.contains("AppRevokeAccessScopesErrorCodes") {
+        if app_revoke_access_scopes_missing_source_app(request) {
             user_errors.push(json!({
                 "field": ["base"],
                 "message": "Source app is missing.",
@@ -5331,6 +5334,42 @@ fn fixture_location_deactivate_state_machine_location(location_id: &str) -> Opti
         })),
         _ => None,
     }
+}
+
+fn app_subscription_trial_is_active(subscription: &Value) -> bool {
+    let Some(trial_days) = subscription.get("trialDays").and_then(Value::as_i64) else {
+        return false;
+    };
+    if trial_days <= 0 {
+        return false;
+    }
+    subscription
+        .get("currentPeriodEnd")
+        .and_then(Value::as_str)
+        .and_then(parse_rfc3339_epoch_seconds)
+        .is_some_and(|period_end| {
+            parse_rfc3339_epoch_seconds(APP_DOMAIN_SYNTHETIC_NOW)
+                .is_some_and(|now| period_end > now)
+        })
+}
+
+fn delegate_expires_after_parent(request: &Request, expires_in: i64) -> bool {
+    let Some(parent_expires_at) =
+        request_header(request, "x-shopify-draft-proxy-access-token-expires-at")
+            .and_then(|value| parse_rfc3339_epoch_seconds(&value))
+    else {
+        return false;
+    };
+    let Some(created_at) = parse_rfc3339_epoch_seconds(APP_DOMAIN_SYNTHETIC_NOW) else {
+        return false;
+    };
+    created_at + expires_in > parent_expires_at
+}
+
+fn app_revoke_access_scopes_missing_source_app(request: &Request) -> bool {
+    request_header(request, "x-shopify-draft-proxy-source-app-missing")
+        .as_deref()
+        .is_some_and(|value| matches!(value, "1" | "true" | "TRUE" | "True"))
 }
 
 fn publishable_publication_input_errors(

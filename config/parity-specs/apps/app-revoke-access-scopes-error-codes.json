@@ -10,10 +10,13 @@
     "no-upstream-passthrough"
   ],
   "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-05/apps/app-revoke-access-scopes-error-codes.json"],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
   "comparisonMode": "captured-vs-proxy-request",
   "proxyRequest": {
-    "documentPath": "config/parity-requests/apps/appRevokeAccessScopes-error-codes.graphql"
+    "documentPath": "config/parity-requests/apps/appRevokeAccessScopes-error-codes.graphql",
+    "headers": {
+      "x-shopify-draft-proxy-source-app-missing": "true"
+    }
   },
   "comparison": {
     "mode": "strict-json",
@@ -24,8 +27,32 @@
         "capturePath": "$.evidence.parity.expected.missingSourceApp.data.appRevokeAccessScopes",
         "proxyPath": "$.data.appRevokeAccessScopes",
         "selectedPaths": ["$.userErrors[*].field", "$.userErrors[*].message", "$.userErrors[*].code", "$.revoked"]
+      },
+      {
+        "name": "ordinary-operation-name-missing-source-app",
+        "capturePath": "$.evidence.parity.expected.missingSourceApp.data.appRevokeAccessScopes",
+        "proxyPath": "$.data.appRevokeAccessScopes",
+        "selectedPaths": ["$.userErrors[*].field", "$.userErrors[*].message", "$.userErrors[*].code", "$.revoked"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appRevokeAccessScopes-error-codes-ordinary-operation-name.graphql",
+          "headers": {
+            "x-shopify-draft-proxy-source-app-missing": "true"
+          }
+        }
+      },
+      {
+        "name": "anonymous-mutation-missing-source-app",
+        "capturePath": "$.evidence.parity.expected.missingSourceApp.data.appRevokeAccessScopes",
+        "proxyPath": "$.data.appRevokeAccessScopes",
+        "selectedPaths": ["$.userErrors[*].field", "$.userErrors[*].message", "$.userErrors[*].code", "$.revoked"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appRevokeAccessScopes-error-codes-anonymous.graphql",
+          "headers": {
+            "x-shopify-draft-proxy-source-app-missing": "true"
+          }
+        }
       }
     ]
   },
-  "notes": "HAR-672 required scenarioId. The public Admin schema for the configured conformance credential exposes only scopes on appRevokeAccessScopes; focused Gleam runtime tests cover catalog-unknown, undeclared, required, implied, application-not-found, and app-not-installed branches."
+  "notes": "HAR-672 required scenarioId. The public Admin schema for the configured conformance credential exposes only scopes on appRevokeAccessScopes; source-app/id/not-installed branches are local-runtime backed. The missing source-app replay now uses explicit request context via x-shopify-draft-proxy-source-app-missing so validation is independent of GraphQL operation name."
 }

@@ -1990,7 +1990,7 @@ fn apps_mutations_dispatch_by_root_field_for_ordinary_operation_names() {
 fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycle() {
     let mut proxy = snapshot_proxy();
 
-    let expires_after_parent = proxy.process_request(json_graphql_request(
+    let mut expires_after_parent_request = json_graphql_request(
         r#"
         mutation DelegateAccessTokenCreateExpiresAfterParent {
           delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 99999999 }) {
@@ -2000,7 +2000,12 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
         }
         "#,
         json!({}),
-    ));
+    );
+    expires_after_parent_request.headers.insert(
+        "x-shopify-draft-proxy-access-token-expires-at".to_string(),
+        "2026-04-28T03:10:00.000Z".to_string(),
+    );
+    let expires_after_parent = proxy.process_request(expires_after_parent_request);
     assert_eq!(
         expires_after_parent.body["data"]["delegateAccessTokenCreate"],
         json!({
@@ -2012,6 +2017,60 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
             }]
         })
     );
+    assert_eq!(
+        proxy.get_state_snapshot()["stagedState"]["delegatedAccessTokens"],
+        json!({})
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"][0]["status"],
+        json!("failed")
+    );
+
+    for query in [
+        r#"
+        mutation ConsumerNamedDelegate {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 99999999 }) {
+            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        r#"
+        mutation {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 99999999 }) {
+            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
+            userErrors { field message code }
+          }
+        }
+        "#,
+    ] {
+        let mut request = json_graphql_request(query, json!({}));
+        request.headers.insert(
+            "x-shopify-draft-proxy-access-token-expires-at".to_string(),
+            "2026-04-28T03:10:00.000Z".to_string(),
+        );
+        let response = proxy.process_request(request);
+        assert_eq!(
+            response.body["data"]["delegateAccessTokenCreate"],
+            json!({
+                "delegateAccessToken": null,
+                "userErrors": [{
+                    "field": null,
+                    "message": "The delegate token can't expire after the parent token.",
+                    "code": "EXPIRES_AFTER_PARENT"
+                }]
+            })
+        );
+    }
+    assert_eq!(
+        proxy.get_state_snapshot()["stagedState"]["delegatedAccessTokens"],
+        json!({})
+    );
+    assert!(proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|entry| entry["status"] == json!("failed")));
 
     let missing = proxy.process_request(json_graphql_request(
         r#"
@@ -2210,7 +2269,7 @@ fn app_revoke_access_scopes_validates_atomically_and_updates_current_installatio
         })
     );
 
-    let missing_source_app = proxy.process_request(json_graphql_request(
+    let mut missing_source_app_request = json_graphql_request(
         r#"
         mutation AppRevokeAccessScopesErrorCodes {
           appRevokeAccessScopes(scopes: ["write_products"]) {
@@ -2220,7 +2279,12 @@ fn app_revoke_access_scopes_validates_atomically_and_updates_current_installatio
         }
         "#,
         json!({}),
-    ));
+    );
+    missing_source_app_request.headers.insert(
+        "x-shopify-draft-proxy-source-app-missing".to_string(),
+        "true".to_string(),
+    );
+    let missing_source_app = proxy.process_request(missing_source_app_request);
     assert_eq!(
         missing_source_app.body["data"]["appRevokeAccessScopes"],
         json!({
@@ -2228,6 +2292,39 @@ fn app_revoke_access_scopes_validates_atomically_and_updates_current_installatio
             "userErrors": [{ "field": ["base"], "message": "Source app is missing.", "code": "MISSING_SOURCE_APP" }]
         })
     );
+
+    for query in [
+        r#"
+        mutation ConsumerNamedRevoke {
+          appRevokeAccessScopes(scopes: ["write_products"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        r#"
+        mutation {
+          appRevokeAccessScopes(scopes: ["write_products"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+    ] {
+        let mut request = json_graphql_request(query, json!({}));
+        request.headers.insert(
+            "x-shopify-draft-proxy-source-app-missing".to_string(),
+            "true".to_string(),
+        );
+        let response = proxy.process_request(request);
+        assert_eq!(
+            response.body["data"]["appRevokeAccessScopes"],
+            json!({
+                "revoked": [],
+                "userErrors": [{ "field": ["base"], "message": "Source app is missing.", "code": "MISSING_SOURCE_APP" }]
+            })
+        );
+    }
 
     let optional = proxy.process_request(json_graphql_request(
         r#"
@@ -2897,6 +2994,37 @@ fn app_billing_access_local_lifecycle_reads_nodes_and_uninstall_cascade() {
             "userErrors": [{ "field": ["id"], "message": "The trial can't be extended after expiration." }]
         })
     );
+
+    for query in [
+        r#"
+        mutation ConsumerNamedTrial($id: ID!) {
+          appSubscriptionTrialExtend(id: $id, days: 3) {
+            appSubscription { id trialDays }
+            userErrors { field message }
+          }
+        }
+        "#,
+        r#"
+        mutation($id: ID!) {
+          appSubscriptionTrialExtend(id: $id, days: 3) {
+            appSubscription { id trialDays }
+            userErrors { field message }
+          }
+        }
+        "#,
+    ] {
+        let response = proxy.process_request(json_graphql_request(
+            query,
+            json!({ "id": "gid://shopify/AppSubscription/expected" }),
+        ));
+        assert_eq!(
+            response.body["data"]["appSubscriptionTrialExtend"],
+            json!({
+                "appSubscription": null,
+                "userErrors": [{ "field": ["id"], "message": "The trial can't be extended after expiration." }]
+            })
+        );
+    }
 
     proxy.process_request(json_graphql_request(
         r#"
