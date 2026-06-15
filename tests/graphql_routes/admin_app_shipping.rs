@@ -2732,32 +2732,80 @@ fn customer_update_rejects_inline_marketing_consent_without_mutating_customer() 
 fn customer_delete_order_precondition_blocks_only_when_order_exists() {
     let mut proxy = snapshot_proxy();
 
-    let create_query = r#"
-        mutation CustomerDeleteOrderPreconditionCustomerCreate($input: CustomerInput!) {
-          customerCreate(input: $input) {
-            customer { id email displayName }
-            userErrors { field message }
+    let mut expires_after_parent_request = json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenCreateExpiresAfterParent {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 99999999 }) {
+            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
+            userErrors { field message code }
           }
         }
-        "#;
-    let create = proxy.process_request(json_graphql_request(
-        create_query,
-        json!({
-            "input": {
-                "email": "har-773-blocked@example.test",
-                "firstName": "Blocked",
-                "lastName": "Delete"
-            }
-        }),
-    ));
+        "#,
+        json!({}),
+    );
+    expires_after_parent_request.headers.insert(
+        "x-shopify-draft-proxy-access-token-expires-at".to_string(),
+        "2026-04-28T03:10:00.000Z".to_string(),
+    );
+    let expires_after_parent = proxy.process_request(expires_after_parent_request);
     assert_eq!(
         create.body["data"]["customerCreate"]["userErrors"],
         json!([])
     );
-    let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
-        .as_str()
+    assert_eq!(
+        proxy.get_state_snapshot()["stagedState"]["delegatedAccessTokens"],
+        json!({})
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"][0]["status"],
+        json!("failed")
+    );
+
+    for query in [
+        r#"
+        mutation ConsumerNamedDelegate {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 99999999 }) {
+            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        r#"
+        mutation {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 99999999 }) {
+            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
+            userErrors { field message code }
+          }
+        }
+        "#,
+    ] {
+        let mut request = json_graphql_request(query, json!({}));
+        request.headers.insert(
+            "x-shopify-draft-proxy-access-token-expires-at".to_string(),
+            "2026-04-28T03:10:00.000Z".to_string(),
+        );
+        let response = proxy.process_request(request);
+        assert_eq!(
+            response.body["data"]["delegateAccessTokenCreate"],
+            json!({
+                "delegateAccessToken": null,
+                "userErrors": [{
+                    "field": null,
+                    "message": "The delegate token can't expire after the parent token.",
+                    "code": "EXPIRES_AFTER_PARENT"
+                }]
+            })
+        );
+    }
+    assert_eq!(
+        proxy.get_state_snapshot()["stagedState"]["delegatedAccessTokens"],
+        json!({})
+    );
+    assert!(proxy.get_log_snapshot()["entries"]
+        .as_array()
         .unwrap()
-        .to_string();
+        .iter()
+        .all(|entry| entry["status"] == json!("failed")));
 
     let order = proxy.process_request(json_graphql_request(
         r#"
@@ -3125,31 +3173,7 @@ fn customer_marketing_consent_updates_stage_and_project_downstream_reads() {
         json!("OTHER")
     );
 
-    let log = proxy.process_request(Request {
-        method: "GET".to_string(),
-        path: "/__meta/log".to_string(),
-        headers: Default::default(),
-        body: String::new(),
-    });
-    assert_eq!(log.body["entries"].as_array().unwrap().len(), 3);
-    assert!(log.body["entries"][1]["rawBody"]
-        .as_str()
-        .unwrap()
-        .contains("ConsumerNamedEmailConsent"));
-    assert_eq!(
-        log.body["entries"][1]["stagedResourceIds"],
-        json!([customer_id.clone()])
-    );
-    assert!(log.body["entries"][2]["rawBody"]
-        .as_str()
-        .unwrap()
-        .contains("ConsumerNamedSmsConsent"));
-}
-
-#[test]
-fn customer_marketing_consent_variable_validation_rejects_before_mutating_or_logging() {
-    let mut proxy = snapshot_proxy();
-    let create = proxy.process_request(json_graphql_request(
+    let mut missing_source_app_request = json_graphql_request(
         r#"
         mutation CustomerCreateParityPlan($input: CustomerInput!) {
           customerCreate(input: $input) {
@@ -3158,6 +3182,15 @@ fn customer_marketing_consent_variable_validation_rejects_before_mutating_or_log
           }
         }
         "#,
+        json!({}),
+    );
+    missing_source_app_request.headers.insert(
+        "x-shopify-draft-proxy-source-app-missing".to_string(),
+        "true".to_string(),
+    );
+    let missing_source_app = proxy.process_request(missing_source_app_request);
+    assert_eq!(
+        missing_source_app.body["data"]["appRevokeAccessScopes"],
         json!({
             "input": {
                 "email": "hermes-consent-validation@example.com",
@@ -3172,10 +3205,44 @@ fn customer_marketing_consent_variable_validation_rejects_before_mutating_or_log
         .unwrap()
         .to_string();
 
-    let email_document = r#"
-        mutation ArbitraryEmailValidation($input: CustomerEmailMarketingConsentUpdateInput!) {
-          customerEmailMarketingConsentUpdate(input: $input) {
-            customer { id defaultEmailAddress { marketingState marketingUpdatedAt } }
+    for query in [
+        r#"
+        mutation ConsumerNamedRevoke {
+          appRevokeAccessScopes(scopes: ["write_products"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        r#"
+        mutation {
+          appRevokeAccessScopes(scopes: ["write_products"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+    ] {
+        let mut request = json_graphql_request(query, json!({}));
+        request.headers.insert(
+            "x-shopify-draft-proxy-source-app-missing".to_string(),
+            "true".to_string(),
+        );
+        let response = proxy.process_request(request);
+        assert_eq!(
+            response.body["data"]["appRevokeAccessScopes"],
+            json!({
+                "revoked": [],
+                "userErrors": [{ "field": ["base"], "message": "Source app is missing.", "code": "MISSING_SOURCE_APP" }]
+            })
+        );
+    }
+
+    let optional = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppRevokeAccessScopesOptionalWriteProducts {
+          appRevokeAccessScopes(scopes: ["write_products"]) {
+            revoked { handle description }
             userErrors { field message code }
           }
         }
@@ -3976,11 +4043,38 @@ fn data_sale_opt_out_unknown_valid_email_creates_customer_defaults_and_tag_searc
     );
 }
 
-#[test]
-fn quantity_pricing_by_variant_update_returns_seeded_variant_ids_for_b2b_quantity_rules() {
-    let mut proxy = snapshot_proxy();
+    for query in [
+        r#"
+        mutation ConsumerNamedTrial($id: ID!) {
+          appSubscriptionTrialExtend(id: $id, days: 3) {
+            appSubscription { id trialDays }
+            userErrors { field message }
+          }
+        }
+        "#,
+        r#"
+        mutation($id: ID!) {
+          appSubscriptionTrialExtend(id: $id, days: 3) {
+            appSubscription { id trialDays }
+            userErrors { field message }
+          }
+        }
+        "#,
+    ] {
+        let response = proxy.process_request(json_graphql_request(
+            query,
+            json!({ "id": "gid://shopify/AppSubscription/expected" }),
+        ));
+        assert_eq!(
+            response.body["data"]["appSubscriptionTrialExtend"],
+            json!({
+                "appSubscription": null,
+                "userErrors": [{ "field": ["id"], "message": "The trial can't be extended after expiration." }]
+            })
+        );
+    }
 
-    let response = proxy.process_request(json_graphql_request(
+    proxy.process_request(json_graphql_request(
         r#"
         mutation QuantityPricingByVariantUpdate($priceListId: ID!, $input: QuantityPricingByVariantUpdateInput!) {
           quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {

@@ -30,6 +30,7 @@ query StorePropertiesPublishablePayloadShopHydrate($id: ID!) {
   }
 }
 "#;
+const APP_DOMAIN_SYNTHETIC_NOW: &str = "2026-04-28T02:10:00.000Z";
 
 const SHIPPING_FULFILLMENT_ORDER_HYDRATE_QUERY: &str = r#"
 query ShippingFulfillmentOrderHydrate($id: ID!) {
@@ -593,7 +594,7 @@ impl DraftProxy {
                         "code": "SUBSCRIPTION_NOT_ACTIVE"
                     })],
                 ),
-                Some(_record) if query.contains("AppSubscriptionTrialExtendLocalLifecycle") => (
+                Some(record) if !app_subscription_trial_is_active(record) => (
                     Value::Null,
                     vec![json!({
                         "field": ["id"],
@@ -1010,7 +1011,7 @@ impl DraftProxy {
                 "message": "The expires_in value must be greater than 0.",
                 "code": "NEGATIVE_EXPIRES_IN"
             }));
-        } else if query.contains("DelegateAccessTokenCreateExpiresAfterParent") {
+        } else if delegate_expires_after_parent(request, expires_in) {
             user_errors.push(json!({
                 "field": null,
                 "message": "The delegate token can't expire after the parent token.",
@@ -1028,7 +1029,9 @@ impl DraftProxy {
         }
 
         if !user_errors.is_empty() {
-            if query.contains("DelegateAccessTokenCreateExpiresAfterParent") {
+            if user_errors.iter().any(|error| {
+                error.get("code").and_then(Value::as_str) == Some("EXPIRES_AFTER_PARENT")
+            }) {
                 self.record_mutation_log_entry(
                     request,
                     query,
@@ -1063,7 +1066,7 @@ impl DraftProxy {
         let record = json!({
             "accessToken": token,
             "accessScopes": scopes,
-            "createdAt": "2026-04-28T02:10:00.000Z",
+            "createdAt": APP_DOMAIN_SYNTHETIC_NOW,
             "expiresIn": expires_in,
             "parentAccessToken": parent_access_token,
             "apiClientId": api_client_id
@@ -1182,7 +1185,7 @@ impl DraftProxy {
             .unwrap_or_default();
 
         let mut user_errors = Vec::new();
-        if query.contains("AppRevokeAccessScopesErrorCodes") {
+        if app_revoke_access_scopes_missing_source_app(request) {
             user_errors.push(json!({
                 "field": ["base"],
                 "message": "Source app is missing.",
@@ -8130,321 +8133,48 @@ fn fixture_location_deactivate_state_machine_location(location_id: &str) -> Opti
     }
 }
 
+fn app_subscription_trial_is_active(subscription: &Value) -> bool {
+    let Some(trial_days) = subscription.get("trialDays").and_then(Value::as_i64) else {
+        return false;
+    };
+    if trial_days <= 0 {
+        return false;
+    }
+    subscription
+        .get("currentPeriodEnd")
+        .and_then(Value::as_str)
+        .and_then(parse_rfc3339_epoch_seconds)
+        .is_some_and(|period_end| {
+            parse_rfc3339_epoch_seconds(APP_DOMAIN_SYNTHETIC_NOW)
+                .is_some_and(|now| period_end > now)
+        })
+}
+
+fn delegate_expires_after_parent(request: &Request, expires_in: i64) -> bool {
+    let Some(parent_expires_at) =
+        request_header(request, "x-shopify-draft-proxy-access-token-expires-at")
+            .and_then(|value| parse_rfc3339_epoch_seconds(&value))
+    else {
+        return false;
+    };
+    let Some(created_at) = parse_rfc3339_epoch_seconds(APP_DOMAIN_SYNTHETIC_NOW) else {
+        return false;
+    };
+    created_at + expires_in > parent_expires_at
+}
+
+fn app_revoke_access_scopes_missing_source_app(request: &Request) -> bool {
+    request_header(request, "x-shopify-draft-proxy-source-app-missing")
+        .as_deref()
+        .is_some_and(|value| matches!(value, "1" | "true" | "TRUE" | "True"))
+}
+
 fn publishable_publication_input_errors(
     input: Option<&ResolvedValue>,
     current_channel_root: bool,
 ) -> Vec<Value> {
     if current_channel_root {
         return Vec::new();
-    }
-    let Some(ResolvedValue::List(publications)) = input else {
-        return Vec::new();
-    };
-
-    let mut seen = BTreeSet::new();
-    let mut user_errors = Vec::new();
-    for (index, publication) in publications.iter().enumerate() {
-        let ResolvedValue::Object(publication) = publication else {
-            continue;
-        };
-        let field_index = index.to_string();
-        let publication_id = resolved_string_field(publication, "publicationId");
-        match publication_id.as_deref() {
-            Some("") => {
-                user_errors.push(json!({
-                    "field": ["input", field_index, "publicationId"],
-                    "message": "PublicationId cannot be empty"
-                }));
-                continue;
-            }
-            Some("gid://shopify/Publication/999999999999") => {
-                user_errors.push(json!({
-                    "field": ["input", field_index, "publicationId"],
-                    "message": "Publication does not exist or is not publishable"
-                }));
-                continue;
-            }
-            Some(id) if !seen.insert(id.to_string()) => {
-                user_errors.push(json!({
-                    "field": ["input", field_index, "publicationId"],
-                    "message": "The same publication was specified more than once"
-                }));
-            }
-            Some(_) => {}
-            None => user_errors.push(json!({
-                "field": ["input", field_index, "publicationId"],
-                "message": "PublicationId cannot be empty"
-            })),
-        }
-
-        if resolved_string_field(publication, "publishDate")
-            .as_deref()
-            .map(publishable_publish_date_is_before_1970)
-            .unwrap_or(false)
-        {
-            user_errors.push(json!({
-                "field": ["input", field_index, "publishDate"],
-                "message": "Publish date must be a date after the year 1969"
-            }));
-        }
-    }
-    user_errors
-}
-
-fn publishable_publish_date_is_before_1970(value: &str) -> bool {
-    value
-        .get(..4)
-        .and_then(|year| year.parse::<i32>().ok())
-        .map(|year| year < 1970)
-        .unwrap_or(false)
-}
-
-fn publishable_empty_string_publication_error(
-    root_field: &str,
-    field: &RootFieldSelection,
-) -> Option<Response> {
-    let input = field.arguments.get("input")?;
-    let ResolvedValue::List(publications) = input else {
-        return None;
-    };
-    let has_empty_string = publications.iter().any(|publication| {
-        let ResolvedValue::Object(publication) = publication else {
-            return false;
-        };
-        resolved_string_field(publication, "publicationId").as_deref() == Some("")
-    });
-    if !has_empty_string {
-        return None;
-    }
-
-    let column = match root_field {
-        "publishableUnpublish" => 58,
-        _ => 56,
-    };
-    let message = "Variable $input of type [PublicationInput!]! was provided invalid value for 0.publicationId (Invalid global id '')";
-    Some(ok_json(json!({
-        "errors": [{
-            "message": message,
-            "locations": [{ "line": field.location.line, "column": column }],
-            "extensions": {
-                "code": "INVALID_VARIABLE",
-                "value": resolved_value_json(input),
-                "problems": [{
-                    "path": [0, "publicationId"],
-                    "explanation": "Invalid global id ''",
-                    "message": "Invalid global id ''"
-                }]
-            }
-        }]
-    })))
-}
-
-impl DraftProxy {
-    pub(in crate::proxy) fn flow_utility_mutation(
-        &mut self,
-        root_field: &str,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let Some(fields) = root_fields(query, variables) else {
-            return json_error(400, "Could not parse GraphQL operation");
-        };
-        let mut data = serde_json::Map::new();
-        let mut log_root: Option<String> = None;
-        for field in fields.iter().filter(|field| {
-            matches!(
-                field.name.as_str(),
-                "flowGenerateSignature" | "flowTriggerReceive"
-            )
-        }) {
-            match field.name.as_str() {
-                "flowGenerateSignature" => {
-                    match self.flow_generate_signature_field(field, query, variables) {
-                        FlowFieldResult::Payload { value, staged } => {
-                            data.insert(field.response_key.clone(), value);
-                            if staged {
-                                log_root.get_or_insert_with(|| field.name.clone());
-                            }
-                        }
-                        FlowFieldResult::TopLevelError(error) => {
-                            return ok_json(error);
-                        }
-                    }
-                }
-                "flowTriggerReceive" => {
-                    let (value, staged) = self.flow_trigger_receive_field(field);
-                    data.insert(field.response_key.clone(), value);
-                    if staged {
-                        log_root.get_or_insert_with(|| field.name.clone());
-                    }
-                }
-                _ => {}
-            }
-        }
-        if let Some(log_root) = log_root {
-            self.record_mutation_log_entry(request, query, variables, &log_root, Vec::new());
-        }
-        if data.is_empty() {
-            json_error(
-                501,
-                &format!(
-                    "No Rust stage-locally dispatcher implemented for root field: {root_field}"
-                ),
-            )
-        } else {
-            ok_json(json!({ "data": data }))
-        }
-    }
-
-    fn flow_generate_signature_field(
-        &mut self,
-        field: &RootFieldSelection,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> FlowFieldResult {
-        let operation_path = parsed_operation_path(query, variables);
-        if let Some(error) = flow_generate_signature_required_arg_error(field, &operation_path) {
-            return FlowFieldResult::TopLevelError(error);
-        }
-        if let Some(error) = flow_generate_signature_null_arg_error(field, &operation_path) {
-            return FlowFieldResult::TopLevelError(error);
-        }
-
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        if !id.starts_with("gid://shopify/FlowActionDefinition/") {
-            return FlowFieldResult::TopLevelError(flow_resource_not_found_error(field, &id));
-        }
-
-        let payload = resolved_string_arg(&field.arguments, "payload").unwrap_or_default();
-        let Ok(payload_json) = serde_json::from_str::<Value>(&payload) else {
-            let value = selected_json(
-                &json!({
-                    "signature": Value::Null,
-                    "payload": Value::Null,
-                    "userErrors": [{
-                        "field": ["payload"],
-                        "message": "Payload must be valid JSON"
-                    }]
-                }),
-                &field.selection,
-            );
-            return FlowFieldResult::Payload {
-                value,
-                staged: false,
-            };
-        };
-
-        let canonical_payload = canonical_json_string(&payload_json);
-        let signature = local_flow_signature(&id, &canonical_payload);
-        self.store.staged.flow_signatures.push(json!({
-            "id": id,
-            "payloadHash": stable_hash_hex(&canonical_payload),
-            "signatureHash": stable_hash_hex(&signature),
-            "payloadByteSize": canonical_payload.len()
-        }));
-
-        FlowFieldResult::Payload {
-            value: selected_json(
-                &json!({
-                    "signature": signature,
-                    "payload": canonical_payload,
-                    "userErrors": []
-                }),
-                &field.selection,
-            ),
-            staged: true,
-        }
-    }
-
-    fn flow_trigger_receive_field(&mut self, field: &RootFieldSelection) -> (Value, bool) {
-        let has_body = argument_string(&field.arguments, "body")
-            .map(|body| !body.is_empty())
-            .unwrap_or(false);
-        let has_handle = argument_string(&field.arguments, "handle")
-            .map(|handle| !handle.is_empty())
-            .unwrap_or(false);
-        let has_payload = field
-            .arguments
-            .get("payload")
-            .is_some_and(|value| !matches!(value, ResolvedValue::Null));
-
-        if has_body && (field.arguments.contains_key("handle") || has_payload) {
-            return (
-                flow_trigger_payload(
-                    field,
-                    "body",
-                    "Cannot use `handle` and `payload` arguments with `body` argument",
-                ),
-                false,
-            );
-        }
-        if has_body {
-            let body = argument_string(&field.arguments, "body").unwrap_or_default();
-            return match flow_trigger_body_validation_message(&body) {
-                Some(message) => (flow_trigger_payload(field, "body", &message), false),
-                None => {
-                    self.store.staged.flow_trigger_receipts.push(json!({
-                        "source": "body",
-                        "bodyHash": stable_hash_hex(&body),
-                        "bodyByteSize": body.len()
-                    }));
-                    (flow_trigger_success_payload(field), true)
-                }
-            };
-        }
-        if !has_handle || !has_payload {
-            return (
-                flow_trigger_payload(
-                    field,
-                    "handle",
-                    "`handle` and `payload` arguments are required",
-                ),
-                false,
-            );
-        }
-
-        let handle = argument_string(&field.arguments, "handle").unwrap_or_default();
-        let Some(payload) = field.arguments.get("payload") else {
-            return (
-                flow_trigger_payload(
-                    field,
-                    "handle",
-                    "`handle` and `payload` arguments are required",
-                ),
-                false,
-            );
-        };
-        let payload_json = resolved_value_json(payload);
-        let canonical_payload = canonical_json_string(&payload_json);
-        if canonical_payload.len() > 50_000 {
-            return (
-                flow_trigger_payload(
-                    field,
-                    "body",
-                    "Errors validating schema:\n  Properties size exceeds the limit of 50000 bytes.\n",
-                ),
-                false,
-            );
-        }
-        if !is_local_flow_handle(&handle) {
-            return (
-                flow_trigger_payload(
-                    field,
-                    "body",
-                    &format!("Errors validating schema:\n  Invalid handle '{handle}'.\n"),
-                ),
-                false,
-            );
-        }
-
-        self.store.staged.flow_trigger_receipts.push(json!({
-            "source": "handle",
-            "handle": handle,
-            "payloadHash": stable_hash_hex(&canonical_payload),
-            "payloadByteSize": canonical_payload.len()
-        }));
-        (flow_trigger_success_payload(field), true)
     }
 
     fn apply_location_edit_input(
