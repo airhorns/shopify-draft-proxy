@@ -1,0 +1,301 @@
+{
+  "scenarioId": "bulk-operation-run-mutation-file-size",
+  "capturedAt": "2026-06-15T07:01:35.989Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "request": {
+    "operationName": "BulkOperationRunMutationFileSize",
+    "query": "mutation BulkOperationRunMutationFileSize($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n"
+  },
+  "cleanupBefore": [
+    {
+      "operationName": "BulkOperationRunMutationFileSizeCurrent",
+      "query": "query BulkOperationRunMutationFileSizeCurrent {\n  currentBulkOperation(type: MUTATION) {\n    id\nstatus\ntype\nerrorCode\ncreatedAt\ncompletedAt\nobjectCount\nrootObjectCount\nfileSize\nurl\npartialDataUrl\nquery\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "data": {
+          "currentBulkOperation": {
+            "id": "gid://shopify/BulkOperation/7928733499698",
+            "status": "CANCELED",
+            "type": "MUTATION",
+            "errorCode": null,
+            "createdAt": "2026-06-15T06:52:35Z",
+            "completedAt": null,
+            "objectCount": "0",
+            "rootObjectCount": "0",
+            "fileSize": null,
+            "url": null,
+            "partialDataUrl": null,
+            "query": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "running": {
+    "stagedUpload": {
+      "operationName": "BulkOperationRunMutationFileSizeStagedUpload",
+      "query": "mutation BulkOperationRunMutationFileSizeStagedUpload($input: [StagedUploadInput!]!) {\n  stagedUploadsCreate(input: $input) {\n    stagedTargets {\n      url\n      resourceUrl\n      parameters {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": [
+          {
+            "filename": "bulk-operation-run-mutation-file-size-1781506893977-running.jsonl",
+            "mimeType": "text/jsonl",
+            "resource": "BULK_MUTATION_VARIABLES",
+            "httpMethod": "PUT",
+            "fileSize": "13631680"
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "stagedUploadsCreate": {
+            "stagedTargets": [
+              {
+                "url": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/bulk/bd78a20e-4d98-4ec4-8e87-0ac2ee6c57f7/bulk-operation-run-mutation-file-size-1781506893977-running.jsonl?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=merchant-assets%40shopify-tiers.iam.gserviceaccount.com%2F20260615%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260615T070134Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=3bc35b429b4e6c61b0910bf0e5dc549c37a97d0335077d62d62099a6b8a80cb995ee0c327656369cd1a3274c348463b247a14a7ce1bcbdc6da84b40bf67fa81e05194bdef87d133729f6d62b3a794fceeed57f452cb49758cd962fca5339180aa60356100c58688aa70aad37a5423156e2a80680df56ad9ba89e1d3aff8dbfdefab6ffcd2b2b57435799b8113295c7f141a7e4fbf0fe4d2fbf138ea5591a81a08c90cc2eb5fe1f4e9fe3fc7150017ca655aefa978275e418dd3485d01cca983d0628a376c707f51f2d8910217a7257ea25a02b3492cfd20691b40d8682890eed539708675d250cedb7d02b4b53878e004f3cfdeb2e32d970e138984691e72cf0",
+                "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/bulk/bd78a20e-4d98-4ec4-8e87-0ac2ee6c57f7/bulk-operation-run-mutation-file-size-1781506893977-running.jsonl?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=merchant-assets%40shopify-tiers.iam.gserviceaccount.com%2F20260615%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260615T070134Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=3bc35b429b4e6c61b0910bf0e5dc549c37a97d0335077d62d62099a6b8a80cb995ee0c327656369cd1a3274c348463b247a14a7ce1bcbdc6da84b40bf67fa81e05194bdef87d133729f6d62b3a794fceeed57f452cb49758cd962fca5339180aa60356100c58688aa70aad37a5423156e2a80680df56ad9ba89e1d3aff8dbfdefab6ffcd2b2b57435799b8113295c7f141a7e4fbf0fe4d2fbf138ea5591a81a08c90cc2eb5fe1f4e9fe3fc7150017ca655aefa978275e418dd3485d01cca983d0628a376c707f51f2d8910217a7257ea25a02b3492cfd20691b40d8682890eed539708675d250cedb7d02b4b53878e004f3cfdeb2e32d970e138984691e72cf0",
+                "parameters": [
+                  {
+                    "name": "content_type",
+                    "value": "text/jsonl"
+                  },
+                  {
+                    "name": "acl",
+                    "value": "private"
+                  }
+                ]
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "upload": {
+      "status": 200,
+      "body": "",
+      "sizeBytes": 8388800
+    },
+    "firstRun": {
+      "operationName": "BulkOperationRunMutationFileSize",
+      "query": "mutation BulkOperationRunMutationFileSize($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }",
+        "path": "tmp/92891250994/bulk/bd78a20e-4d98-4ec4-8e87-0ac2ee6c57f7/bulk-operation-run-mutation-file-size-1781506893977-running.jsonl"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7928759124274",
+              "status": "CREATED",
+              "type": "MUTATION"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "oversizedStagedUpload": {
+      "operationName": "BulkOperationRunMutationFileSizeStagedUpload",
+      "query": "mutation BulkOperationRunMutationFileSizeStagedUpload($input: [StagedUploadInput!]!) {\n  stagedUploadsCreate(input: $input) {\n    stagedTargets {\n      url\n      resourceUrl\n      parameters {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": [
+          {
+            "filename": "bulk-operation-run-mutation-file-size-1781506893977-oversized.jsonl",
+            "mimeType": "text/jsonl",
+            "resource": "BULK_MUTATION_VARIABLES",
+            "httpMethod": "PUT",
+            "fileSize": "104866200"
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "stagedUploadsCreate": {
+            "stagedTargets": [
+              {
+                "url": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/bulk/2aca1104-1fe3-4869-ad73-5a62f6e51ca8/bulk-operation-run-mutation-file-size-1781506893977-oversized.jsonl?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=merchant-assets%40shopify-tiers.iam.gserviceaccount.com%2F20260615%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260615T070135Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=04cc2c0a5cac5be06c719b050e94b9e17827e778a546c1eedaad542c6c0fe081c0b8c23678004ad9cdb08ddcc57d154539d722e75d297c98eb541ca66c53fb824a5ceb938ffc29902cb514bc80870bdd33b49bade5c77a6208d504cbcd873f53df07055cdd7ece51700d1b7bb56254c29acb83fbc916784efc50e48d1e755218fb61b61bbc3f5c6b3156887c8b159a94a65128545ad1023f3be8401ec17e4cea6f2d078d27c7c1b0b15f5afc780535a2f23e363a6ca82373cd79ddd009a1a2916673918a6d624d194659ef8f2fea8edb26a1dfb12f6af1fd737dfdac5f50b16a9975fa62d0ada492f21899a3a5d87565aa0aa8501e88962c5b266bd3e8c8eda1",
+                "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/bulk/2aca1104-1fe3-4869-ad73-5a62f6e51ca8/bulk-operation-run-mutation-file-size-1781506893977-oversized.jsonl?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=merchant-assets%40shopify-tiers.iam.gserviceaccount.com%2F20260615%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260615T070135Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=04cc2c0a5cac5be06c719b050e94b9e17827e778a546c1eedaad542c6c0fe081c0b8c23678004ad9cdb08ddcc57d154539d722e75d297c98eb541ca66c53fb824a5ceb938ffc29902cb514bc80870bdd33b49bade5c77a6208d504cbcd873f53df07055cdd7ece51700d1b7bb56254c29acb83fbc916784efc50e48d1e755218fb61b61bbc3f5c6b3156887c8b159a94a65128545ad1023f3be8401ec17e4cea6f2d078d27c7c1b0b15f5afc780535a2f23e363a6ca82373cd79ddd009a1a2916673918a6d624d194659ef8f2fea8edb26a1dfb12f6af1fd737dfdac5f50b16a9975fa62d0ada492f21899a3a5d87565aa0aa8501e88962c5b266bd3e8c8eda1",
+                "parameters": [
+                  {
+                    "name": "content_type",
+                    "value": "text/jsonl"
+                  },
+                  {
+                    "name": "acl",
+                    "value": "private"
+                  }
+                ]
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "oversizedUpload": {
+      "status": 200,
+      "body": "",
+      "sizeBytes": 104866200
+    },
+    "oversizedRun": {
+      "operationName": "BulkOperationRunMutationFileSize",
+      "query": "mutation BulkOperationRunMutationFileSize($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }",
+        "path": "tmp/92891250994/bulk/2aca1104-1fe3-4869-ad73-5a62f6e51ca8/bulk-operation-run-mutation-file-size-1781506893977-oversized.jsonl"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "The input file size exceeds the maximum allowed size of 100 MB.",
+                "code": "INVALID_STAGED_UPLOAD_FILE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "currentAfterOversized": {
+      "operationName": "BulkOperationRunMutationFileSizeCurrent",
+      "query": "query BulkOperationRunMutationFileSizeCurrent {\n  currentBulkOperation(type: MUTATION) {\n    id\nstatus\ntype\nerrorCode\ncreatedAt\ncompletedAt\nobjectCount\nrootObjectCount\nfileSize\nurl\npartialDataUrl\nquery\n  }\n}\n",
+      "variables": {},
+      "status": 200,
+      "response": {
+        "data": {
+          "currentBulkOperation": {
+            "id": "gid://shopify/BulkOperation/7928759124274",
+            "status": "RUNNING",
+            "type": "MUTATION",
+            "errorCode": null,
+            "createdAt": "2026-06-15T07:01:34Z",
+            "completedAt": null,
+            "objectCount": "0",
+            "rootObjectCount": "0",
+            "fileSize": null,
+            "url": null,
+            "partialDataUrl": null,
+            "query": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "cancelAfter": {
+      "operationName": "BulkOperationRunMutationFileSizeCancel",
+      "query": "mutation BulkOperationRunMutationFileSizeCancel($id: ID!) {\n  bulkOperationCancel(id: $id) {\n    bulkOperation {\n      id\nstatus\ntype\nerrorCode\ncreatedAt\ncompletedAt\nobjectCount\nrootObjectCount\nfileSize\nurl\npartialDataUrl\nquery\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/7928759124274"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationCancel": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7928759124274",
+              "status": "CANCELING",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-06-15T07:01:34Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
