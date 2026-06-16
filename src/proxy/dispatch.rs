@@ -1448,7 +1448,16 @@ impl DraftProxy {
             (CapabilityDomain::Metafields, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
             {
-                self.metafield_definition_pinning_read(&query, &variables)
+                // Cold LiveHybrid definition reads forward verbatim to the
+                // upstream; only once a lifecycle has staged definitions do we
+                // serve locally (read-after-write / read-after-delete).
+                if self.config.read_mode != ReadMode::Snapshot
+                    && !self.local_has_metafield_definition_state(&variables)
+                {
+                    (self.upstream_transport)(request.clone())
+                } else {
+                    self.metafield_definition_pinning_read(&query, &variables)
+                }
             }
             (CapabilityDomain::Metafields, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation

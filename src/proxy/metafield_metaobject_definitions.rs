@@ -1087,6 +1087,24 @@ impl DraftProxy {
         definition
     }
 
+    /// Mirrors Gleam `local_has_metafield_definition_state`. A cold
+    /// LiveHybrid metafield-definition read with no local state is just an
+    /// upstream read; once a lifecycle has staged (or a synthetic id is
+    /// referenced) definitions, reads must stay local so read-after-write
+    /// does not leak back to the upstream.
+    pub(in crate::proxy) fn local_has_metafield_definition_state(
+        &self,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        let has_synthetic = variables.values().any(|value| match value {
+            ResolvedValue::String(text) => {
+                text.starts_with("gid://shopify/") && text.contains("shopify-draft-proxy=synthetic")
+            }
+            _ => false,
+        });
+        has_synthetic || !self.store.staged.metafield_definitions.is_empty()
+    }
+
     pub(in crate::proxy) fn metafield_definition_pinning_read(
         &self,
         query: &str,
