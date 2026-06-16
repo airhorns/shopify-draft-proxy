@@ -2855,10 +2855,24 @@ impl DraftProxy {
         if id == "gid://shopify/Job/2"
             && self.has_products_tail_staged_resource_id("gid://shopify/Job/2")
         {
-            selected_json(&product_tail_full_sync_job(), &field.selection)
-        } else {
-            Value::Null
+            return selected_json(&product_tail_full_sync_job(), &field.selection);
         }
+        // A job enqueued locally (e.g. a metafield-definition validation job)
+        // is addressed by a synthetic Job gid. Reading it back returns a
+        // freshly-enqueued, not-yet-complete Job with no backing bulk query —
+        // matching Shopify's shape for a pending async job.
+        if id.contains("?shopify-draft-proxy=synthetic")
+            && shopify_gid_resource_type(&id) == Some("Job")
+        {
+            let job = json!({
+                "__typename": "Job",
+                "id": id,
+                "done": false,
+                "query": Value::Null,
+            });
+            return selected_json(&job, &field.selection);
+        }
+        Value::Null
     }
 
     pub(in crate::proxy) fn product_tail_job_query_data(

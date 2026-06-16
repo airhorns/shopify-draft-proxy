@@ -62,6 +62,18 @@ pub(in crate::proxy) fn metafield_json_value(metafield_type: &str, value: &str) 
     }
 }
 
+/// A reserved app namespace (`app--<apiClientId>--<suffix>`) may only be
+/// written by the app that owns it. The proxy authenticates as api client
+/// 347082227713, so a write targeting any other app's reserved namespace is
+/// rejected with APP_NOT_AUTHORIZED.
+pub(in crate::proxy) fn app_namespace_belongs_to_other_app(namespace: &str) -> bool {
+    let Some(remainder) = namespace.strip_prefix("app--") else {
+        return false;
+    };
+    let app_id = remainder.split("--").next().unwrap_or_default();
+    !app_id.is_empty() && app_id != "347082227713"
+}
+
 pub(in crate::proxy) fn canonical_app_metafield_namespace(namespace: Option<&str>) -> String {
     match namespace {
         Some(value) if value.starts_with("$app:") => {
@@ -124,6 +136,12 @@ pub(in crate::proxy) fn metafields_set_input_errors(
                     vec!["metafields", &index.to_string(), "namespace"],
                     "",
                     &format!("Namespace {namespace} is a reserved namespace"),
+                ))
+            } else if app_namespace_belongs_to_other_app(&namespace) {
+                Some(metafields_set_path_user_error(
+                    vec!["metafields", &index.to_string()],
+                    "APP_NOT_AUTHORIZED",
+                    "Access to this namespace and key on Metafields for this resource type is not allowed.",
                 ))
             } else if !input.contains_key("type") {
                 Some(metafields_set_path_user_error(

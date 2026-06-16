@@ -1226,6 +1226,24 @@ impl DraftProxy {
             root_field_response_key(query).unwrap_or_else(|| "metafieldsDelete".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
         let inputs = list_object_arg(variables, "metafields");
+        // A delete targeting another app's reserved namespace is not permitted;
+        // Shopify rejects the whole batch before deleting anything.
+        if inputs.iter().any(|input| {
+            app_namespace_belongs_to_other_app(&canonical_app_metafield_namespace(
+                resolved_string_field(input, "namespace").as_deref(),
+            ))
+        }) {
+            let payload = json!({
+                "deletedMetafields": [],
+                "userErrors": [{
+                    "field": ["metafields"],
+                    "message": "Access to this namespace and key on Metafields for this resource type is not allowed."
+                }]
+            });
+            return MutationOutcome::response(ok_json(
+                json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
+            ));
+        }
         self.hydrate_owner_metafield_ids(
             request,
             inputs

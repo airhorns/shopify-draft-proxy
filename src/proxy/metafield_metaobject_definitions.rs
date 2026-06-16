@@ -1,7 +1,7 @@
 use super::*;
 
 const METAFIELD_DEFINITION_RESOURCE_TYPE_LIMIT: usize = 256;
-const PINNED_DEFINITION_LIMIT: usize = 50;
+const PINNED_DEFINITION_LIMIT: usize = 20;
 const ADMIN_FILTERABLE_DEFINITION_LIMIT: usize = 50;
 const STANDARD_TEMPLATE_MARKER_FIELD: &str = "__shopifyDraftProxyStandardTemplateId";
 
