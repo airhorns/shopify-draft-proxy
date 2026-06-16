@@ -1757,13 +1757,6 @@ impl DraftProxy {
             return self.media_product_read(&query, &variables);
         }
 
-        if operation.operation_type == OperationType::Query
-            && root_field == "product"
-            && query.contains("ProductPublicationAggregateDownstream")
-        {
-            return product_publication_aggregate_downstream_read(&query, &variables);
-        }
-
         if operation.operation_type == OperationType::Mutation
             && operation.root_fields.iter().any(|field| {
                 matches!(
@@ -2689,22 +2682,11 @@ impl DraftProxy {
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if has_local_dispatch && root_field == "productSet" =>
-            {
-                let outcome = self.product_set(&query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if has_local_dispatch && root_field == "productDuplicate" =>
-            {
-                let outcome = self.product_duplicate(&query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if has_local_dispatch
-                    && matches!(root_field, "productBundleCreate" | "productBundleUpdate") =>
+                    && matches!(root_field, "productPublish" | "productUnpublish") =>
             {
-                let outcome = self.product_bundle_mutation(root_field, &query, &variables);
+                let outcome =
+                    self.product_publication_mutation(root_field, &query, &variables, request);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)

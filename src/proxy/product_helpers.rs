@@ -95,6 +95,319 @@ pub(in crate::proxy) fn product_summary_json(product: &ProductRecord) -> Value {
     })
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(in crate::proxy) struct ProductPublicationEntry {
+    pub publication_id: String,
+    pub publish_date: Option<String>,
+    pub published_at: Option<String>,
+}
+
+pub(in crate::proxy) fn product_publication_state_known(product: &ProductRecord) -> bool {
+    product.extra_fields.contains_key("productPublications")
+        || product.extra_fields.contains_key("resourcePublicationsV2")
+}
+
+pub(in crate::proxy) fn product_publication_entries(
+    product: &ProductRecord,
+) -> Vec<ProductPublicationEntry> {
+    let direct_entries = product
+        .extra_fields
+        .get("productPublications")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| {
+            let publication_id = entry.get("publicationId").and_then(Value::as_str)?;
+            Some(ProductPublicationEntry {
+                publication_id: publication_id.to_string(),
+                publish_date: entry
+                    .get("publishDate")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                published_at: entry
+                    .get("publishedAt")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+            })
+        })
+        .collect::<Vec<_>>();
+    if product.extra_fields.contains_key("productPublications") {
+        return direct_entries;
+    }
+
+    product
+        .extra_fields
+        .get("resourcePublicationsV2")
+        .and_then(|connection| connection.get("nodes"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|entry| {
+            entry
+                .get("isPublished")
+                .and_then(Value::as_bool)
+                .unwrap_or(true)
+        })
+        .filter_map(|entry| {
+            let publication_id = entry
+                .get("publication")
+                .and_then(|publication| publication.get("id"))
+                .and_then(Value::as_str)?;
+            Some(ProductPublicationEntry {
+                publication_id: publication_id.to_string(),
+                publish_date: entry
+                    .get("publishDate")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                published_at: entry
+                    .get("publishedAt")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+            })
+        })
+        .collect()
+}
+
+pub(in crate::proxy) fn set_product_publication_entries(
+    product: &mut ProductRecord,
+    mut entries: Vec<ProductPublicationEntry>,
+) {
+    entries.sort_by(|left, right| left.publication_id.cmp(&right.publication_id));
+    let published_at = entries
+        .iter()
+        .filter_map(|entry| entry.published_at.as_ref().or(entry.publish_date.as_ref()))
+        .min()
+        .cloned();
+    let values = entries
+        .iter()
+        .map(|entry| {
+            let mut object = serde_json::Map::new();
+            object.insert(
+                "publicationId".to_string(),
+                json!(entry.publication_id.clone()),
+            );
+            if let Some(publish_date) = &entry.publish_date {
+                object.insert("publishDate".to_string(), json!(publish_date));
+            }
+            if let Some(published_at) = &entry.published_at {
+                object.insert("publishedAt".to_string(), json!(published_at));
+            }
+            Value::Object(object)
+        })
+        .collect::<Vec<_>>();
+    product
+        .extra_fields
+        .insert("productPublications".to_string(), Value::Array(values));
+    product.extra_fields.insert(
+        "publishedAt".to_string(),
+        published_at.map(Value::String).unwrap_or(Value::Null),
+    );
+}
+
+pub(in crate::proxy) fn product_is_published_on_publication(
+    product: &ProductRecord,
+    publication_id: &str,
+) -> bool {
+    product_publication_entries(product)
+        .iter()
+        .any(|entry| entry.publication_id == publication_id)
+}
+
+fn product_visible_publication_entries(product: &ProductRecord) -> Vec<ProductPublicationEntry> {
+    if product.status == "ACTIVE" {
+        product_publication_entries(product)
+    } else {
+        Vec::new()
+    }
+}
+
+fn product_publication_count_json(product: &ProductRecord, selections: &[SelectedField]) -> Value {
+    selected_json(
+        &json!({
+            "count": product_visible_publication_entries(product).len(),
+            "precision": "EXACT"
+        }),
+        selections,
+    )
+}
+
+fn publication_node_json(publication_id: &str, selections: &[SelectedField]) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("Publication")),
+        "id" => Some(json!(publication_id)),
+        _ => None,
+    })
+}
+
+fn product_publishable_node_json(product: &ProductRecord, selections: &[SelectedField]) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("Product")),
+        "id" => Some(json!(product.id)),
+        _ => None,
+    })
+}
+
+fn product_publication_connection_node_json(
+    product: &ProductRecord,
+    entry: &ProductPublicationEntry,
+    selections: &[SelectedField],
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!("ProductPublication")),
+        "channel" => Some(Value::Null),
+        "isPublished" => Some(json!(true)),
+        "publishDate" => Some(
+            entry
+                .publish_date
+                .as_ref()
+                .or(entry.published_at.as_ref())
+                .map(|value| json!(value))
+                .unwrap_or(Value::Null),
+        ),
+        "product" => Some(product_publishable_node_json(product, &selection.selection)),
+        _ => None,
+    })
+}
+
+fn resource_publication_connection_node_json(
+    product: &ProductRecord,
+    entry: &ProductPublicationEntry,
+    typename: &str,
+    selections: &[SelectedField],
+) -> Value {
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "__typename" => Some(json!(typename)),
+        "channel" => Some(Value::Null),
+        "isPublished" => Some(json!(true)),
+        "publication" => Some(publication_node_json(
+            &entry.publication_id,
+            &selection.selection,
+        )),
+        "publishDate" => Some(
+            entry
+                .publish_date
+                .as_ref()
+                .or(entry.published_at.as_ref())
+                .map(|value| json!(value))
+                .unwrap_or(Value::Null),
+        ),
+        "publishable" => Some(product_publishable_node_json(product, &selection.selection)),
+        _ => None,
+    })
+}
+
+fn product_publication_connection_json(
+    product: &ProductRecord,
+    selections: &[SelectedField],
+) -> Value {
+    let node_selection = nested_selected_fields(selections, &["nodes"]);
+    let edge_node_selection = nested_selected_fields(selections, &["edges", "node"]);
+    let page_info_selection = nested_selected_fields(selections, &["pageInfo"]);
+    let entries = product_visible_publication_entries(product);
+    let nodes = entries
+        .iter()
+        .map(|entry| product_publication_connection_node_json(product, entry, &node_selection))
+        .collect::<Vec<_>>();
+    let edges = entries
+        .iter()
+        .map(|entry| {
+            json!({
+                "cursor": entry.publication_id,
+                "node": product_publication_connection_node_json(product, entry, &edge_node_selection)
+            })
+        })
+        .collect::<Vec<_>>();
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "nodes" => Some(Value::Array(nodes.clone())),
+        "edges" => Some(Value::Array(edges.clone())),
+        "pageInfo" => Some(selected_json(&empty_page_info(), &page_info_selection)),
+        _ => None,
+    })
+}
+
+fn resource_publication_connection_json(
+    product: &ProductRecord,
+    typename: &str,
+    selections: &[SelectedField],
+) -> Value {
+    let node_selection = nested_selected_fields(selections, &["nodes"]);
+    let edge_node_selection = nested_selected_fields(selections, &["edges", "node"]);
+    let page_info_selection = nested_selected_fields(selections, &["pageInfo"]);
+    let entries = product_visible_publication_entries(product);
+    let nodes = entries
+        .iter()
+        .map(|entry| {
+            resource_publication_connection_node_json(product, entry, typename, &node_selection)
+        })
+        .collect::<Vec<_>>();
+    let edges = entries
+        .iter()
+        .map(|entry| {
+            json!({
+                "cursor": entry.publication_id,
+                "node": resource_publication_connection_node_json(
+                    product,
+                    entry,
+                    typename,
+                    &edge_node_selection
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+    selected_payload_json(selections, |selection| match selection.name.as_str() {
+        "nodes" => Some(Value::Array(nodes.clone())),
+        "edges" => Some(Value::Array(edges.clone())),
+        "pageInfo" => Some(selected_json(&empty_page_info(), &page_info_selection)),
+        _ => None,
+    })
+}
+
+fn product_publication_field_json(
+    product: &ProductRecord,
+    selection: &SelectedField,
+) -> Option<Value> {
+    match selection.name.as_str() {
+        "publishedAt" => Some(
+            product
+                .extra_fields
+                .get("publishedAt")
+                .cloned()
+                .unwrap_or(Value::Null),
+        ),
+        "publishedOnCurrentPublication" => Some(Value::Bool(false)),
+        "publishedOnPublication" => {
+            let publication_id = selection
+                .arguments
+                .get("publicationId")
+                .and_then(resolved_as_string)
+                .unwrap_or_default();
+            Some(Value::Bool(product_is_published_on_publication(
+                product,
+                &publication_id,
+            )))
+        }
+        "availablePublicationsCount" | "resourcePublicationsCount" => Some(
+            product_publication_count_json(product, &selection.selection),
+        ),
+        "publications" | "productPublications" => Some(product_publication_connection_json(
+            product,
+            &selection.selection,
+        )),
+        "resourcePublications" => Some(resource_publication_connection_json(
+            product,
+            "ResourcePublication",
+            &selection.selection,
+        )),
+        "resourcePublicationsV2" => Some(resource_publication_connection_json(
+            product,
+            "ResourcePublicationV2",
+            &selection.selection,
+        )),
+        "resourcePublicationOnCurrentPublication" => Some(Value::Null),
+        _ => None,
+    }
+}
+
 pub(in crate::proxy) fn collection_summary_json(collection: &Value) -> Value {
     json!({
         "id": collection.get("id").cloned().unwrap_or(Value::Null),
@@ -660,11 +973,13 @@ pub(in crate::proxy) fn product_json(
                 .map(|value| selected_json(&value, &selection.selection))
                 .unwrap_or_else(|| selected_empty_connection_json(&selection.selection)),
         ),
-        _ => product
-            .extra_fields
-            .get(&selection.name)
-            .cloned()
-            .map(|value| nullable_selected_json(&value, &selection.selection)),
+        _ => product_publication_field_json(product, selection).or_else(|| {
+            product
+                .extra_fields
+                .get(&selection.name)
+                .cloned()
+                .map(|value| nullable_selected_json(&value, &selection.selection))
+        }),
     })
 }
 
@@ -792,11 +1107,13 @@ pub(in crate::proxy) fn product_json_with_variants(
                 .map(|value| selected_json(&value, &selection.selection))
                 .unwrap_or_else(|| selected_empty_connection_json(&selection.selection)),
         ),
-        _ => product
-            .extra_fields
-            .get(&selection.name)
-            .cloned()
-            .map(|value| nullable_selected_json(&value, &selection.selection)),
+        _ => product_publication_field_json(product, selection).or_else(|| {
+            product
+                .extra_fields
+                .get(&selection.name)
+                .cloned()
+                .map(|value| nullable_selected_json(&value, &selection.selection))
+        }),
     })
 }
 

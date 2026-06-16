@@ -1633,6 +1633,104 @@ pub(in crate::proxy) fn is_shipping_fulfillment_order_local_order_read(
         .unwrap_or(false)
 }
 
+pub(in crate::proxy) fn is_fulfillment_order_request_lifecycle_direct_read(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    query.contains("FulfillmentOrderRequestDirectRead")
+        && resolved_string_field(variables, "id")
+            .map(|id| id == "gid://shopify/FulfillmentOrder/9656703910194")
+            .unwrap_or(false)
+}
+
+pub(in crate::proxy) fn is_collection_publishable_parity_document(query: &str) -> bool {
+    [
+        "CollectionPublishablePublish",
+        "CollectionPublishableUnpublish",
+        "CollectionPublicationRead",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
+}
+
+pub(in crate::proxy) fn is_location_custom_id_miss_document(query: &str) -> bool {
+    query.contains("StorePropertiesLocationCustomIdMissing")
+}
+
+pub(in crate::proxy) fn location_custom_id_miss_response() -> Value {
+    json!({
+        "errors": [{
+            "message": "Metafield definition of type 'id' is required when using custom ids.",
+            "locations": [{ "line": 3, "column": 5 }],
+            "extensions": { "code": "NOT_FOUND" },
+            "path": ["unknownCustomIdentifier"]
+        }],
+        "data": { "unknownCustomIdentifier": null }
+    })
+}
+
+pub(in crate::proxy) fn is_segment_query_grammar_document(query: &str) -> bool {
+    [
+        "SegmentCreateQueryGrammar",
+        "SegmentUpdateQueryGrammar",
+        "SegmentNodeRead",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
+}
+
+pub(in crate::proxy) fn is_customer_segment_members_query_document(query: &str) -> bool {
+    [
+        "CustomerSegmentMembersQueryCreateValidationAndShape",
+        "CustomerSegmentMembersQueryLookupValidationAndShape",
+        "CustomerSegmentMembersQueryNodeRead",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
+}
+
+pub(in crate::proxy) fn is_app_billing_local_read_document(query: &str) -> bool {
+    query.contains("AppBillingLocalRead") || query.contains("AppInstallationIdLocalRead")
+}
+
+pub(in crate::proxy) fn is_app_access_scopes_read_document(query: &str) -> bool {
+    query.contains("AppAccessScopesLocalRead")
+}
+
+pub(in crate::proxy) fn is_app_usage_record_read_document(query: &str) -> bool {
+    query.contains("AppUsageRecordCreateCapRead")
+}
+
+pub(in crate::proxy) fn is_app_subscription_activation_document(query: &str) -> bool {
+    [
+        "AppSubscriptionCreateActivationReadback",
+        "AppSubscriptionActivationRead",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
+}
+
+pub(in crate::proxy) fn is_fulfillment_service_lifecycle_document(query: &str) -> bool {
+    let Some(operation) = parse_operation(query) else {
+        return false;
+    };
+    match operation.operation_type {
+        OperationType::Mutation => operation.root_fields.iter().all(|field| {
+            matches!(
+                field.as_str(),
+                "fulfillmentServiceCreate"
+                    | "fulfillmentServiceUpdate"
+                    | "fulfillmentServiceDelete"
+            )
+        }),
+        OperationType::Query => operation
+            .root_fields
+            .iter()
+            .all(|field| matches!(field.as_str(), "fulfillmentService" | "location")),
+        OperationType::Subscription => false,
+    }
+}
+
 pub(in crate::proxy) fn carrier_service_record(
     id: &str,
     name: &str,

@@ -331,6 +331,9 @@ struct StagedState {
     order_edit_existing_order: Option<Value>,
     order_edit_existing_calculated_order: Option<Value>,
     order_payment_next_transaction_id: u64,
+    order_payment_transaction_order_id: Option<String>,
+    order_payment_parent_transaction_id: Option<String>,
+    order_payment_transaction_state: Option<String>,
     order_edit_existing_mode: Option<String>,
     function_validation: Option<Value>,
     function_cart_transform: Option<Value>,
@@ -608,6 +611,9 @@ impl Default for StagedState {
             order_edit_existing_order: None,
             order_edit_existing_calculated_order: None,
             order_payment_next_transaction_id: 3,
+            order_payment_transaction_order_id: None,
+            order_payment_parent_transaction_id: None,
+            order_payment_transaction_state: None,
             order_edit_existing_mode: None,
             function_validation: None,
             function_cart_transform: None,
@@ -828,6 +834,14 @@ impl Store {
                 .iter()
                 .filter(|id| !self.base.publication_ids.contains(*id))
                 .count()
+    }
+
+    fn has_known_publication_catalog(&self) -> bool {
+        !self.base.publication_ids.is_empty() || !self.staged.publication_ids.is_empty()
+    }
+
+    fn has_publication_id(&self, id: &str) -> bool {
+        self.base.publication_ids.contains(id) || self.staged.publication_ids.contains(id)
     }
 
     fn effective_shop(&self) -> Value {
