@@ -301,7 +301,8 @@ fn root_argument_not_accepted_error(
     argument_name: &str,
     context: ValidationContext<'_>,
 ) -> Value {
-    let location = root_argument_location(context, argument_name);
+    let location = root_argument_name_location(context.query, field, argument_name)
+        .unwrap_or(context.field_location);
     json!({
         "message": format!("Field '{}' doesn't accept argument '{}'", field.name, argument_name),
         "locations": [{ "line": location.line, "column": location.column }],
@@ -315,31 +316,28 @@ fn root_argument_not_accepted_error(
     })
 }
 
-fn root_argument_location(context: ValidationContext<'_>, argument_name: &str) -> SourceLocation {
-    let Some(line) = context
-        .query
-        .lines()
-        .nth(context.field_location.line.saturating_sub(1))
-    else {
-        return context.field_location;
-    };
-    let search_start = context
-        .field_location
-        .column
-        .saturating_sub(1)
-        .min(line.len());
-    let Some(relative_index) = line[search_start..].find(argument_name) else {
-        return context.field_location;
-    };
-    let byte_index = search_start + relative_index;
-    let after_name = &line[byte_index + argument_name.len()..];
-    if !after_name.trim_start().starts_with(':') {
-        return context.field_location;
+fn root_argument_name_location(
+    query: &str,
+    field: &RootFieldSelection,
+    argument_name: &str,
+) -> Option<SourceLocation> {
+    let start = byte_offset_for_location(query, field.location)?;
+    let mut search_start = start;
+    while search_start <= query.len() {
+        let offset = query[search_start..].find(argument_name)? + search_start;
+        let after_name = offset + argument_name.len();
+        let next_non_whitespace =
+            query[after_name..]
+                .char_indices()
+                .find_map(|(inner_offset, ch)| {
+                    (!ch.is_whitespace()).then_some(after_name + inner_offset)
+                })?;
+        if query[next_non_whitespace..].starts_with(':') {
+            return source_location_for_byte_offset(query, offset);
+        }
+        search_start = after_name;
     }
-    SourceLocation {
-        line: context.field_location.line,
-        column: line[..byte_index].chars().count() + 1,
-    }
+    None
 }
 
 fn required_root_argument_error(
@@ -463,6 +461,43 @@ fn input_error_path(context: ValidationContext<'_>, path: &[String], argument_na
     Value::Array(segments)
 }
 
+fn byte_offset_for_location(query: &str, location: SourceLocation) -> Option<usize> {
+    let mut line = 1;
+    let mut column = 1;
+    for (offset, ch) in query.char_indices() {
+        if line == location.line && column == location.column {
+            return Some(offset);
+        }
+        if ch == '\n' {
+            line += 1;
+            column = 1;
+        } else {
+            column += 1;
+        }
+    }
+    (line == location.line && column == location.column).then_some(query.len())
+}
+
+fn source_location_for_byte_offset(query: &str, target_offset: usize) -> Option<SourceLocation> {
+    if target_offset > query.len() || !query.is_char_boundary(target_offset) {
+        return None;
+    }
+    let mut line = 1;
+    let mut column = 1;
+    for (offset, ch) in query.char_indices() {
+        if offset == target_offset {
+            return Some(SourceLocation { line, column });
+        }
+        if ch == '\n' {
+            line += 1;
+            column = 1;
+        } else {
+            column += 1;
+        }
+    }
+    (target_offset == query.len()).then_some(SourceLocation { line, column })
+}
+
 fn local_extension_input_field(input_type_name: &str, field_name: &str) -> bool {
     matches!(
         (input_type_name, field_name),
@@ -478,6 +513,7 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         ))
         .unwrap_or_else(|_| json!({}));
         let mut schema = schema_from_fixture(&fixture).unwrap_or_default();
+        register_fulfillment_service_fields(&mut schema);
         extend_discount_basic_input_schema(&mut schema);
         extend_configured_input_schema(
             &mut schema,
@@ -489,6 +525,55 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         );
         schema
     })
+}
+
+fn register_fulfillment_service_fields(schema: &mut AdminInputSchema) {
+    for (field_name, arguments) in [
+        (
+            "fulfillmentServiceCreate",
+            &[
+                ("name", "String"),
+                ("callbackUrl", "URL"),
+                ("trackingSupport", "Boolean"),
+                ("inventoryManagement", "Boolean"),
+                ("requiresShippingMethod", "Boolean"),
+            ][..],
+        ),
+        (
+            "fulfillmentServiceUpdate",
+            &[
+                ("id", "ID"),
+                ("name", "String"),
+                ("callbackUrl", "URL"),
+                ("trackingSupport", "Boolean"),
+                ("inventoryManagement", "Boolean"),
+                ("requiresShippingMethod", "Boolean"),
+            ][..],
+        ),
+    ] {
+        schema.mutation_fields.insert(
+            field_name.to_string(),
+            arguments
+                .iter()
+                .map(|(argument_name, type_name)| {
+                    (
+                        (*argument_name).to_string(),
+                        SchemaArgument {
+                            type_ref: scalar_type_ref(type_name),
+                        },
+                    )
+                })
+                .collect(),
+        );
+    }
+}
+
+fn scalar_type_ref(type_name: &str) -> SchemaTypeRef {
+    SchemaTypeRef {
+        display: type_name.to_string(),
+        named_type: type_name.to_string(),
+        non_null: false,
+    }
 }
 
 fn extend_discount_basic_input_schema(schema: &mut AdminInputSchema) {

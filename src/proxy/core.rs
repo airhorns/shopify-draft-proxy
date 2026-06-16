@@ -153,6 +153,31 @@ impl DraftProxy {
                 "deletedOwnerMetafields": self.store.staged.deleted_owner_metafields.iter().map(|(owner_id, namespace, key)| json!({"ownerId": owner_id, "namespace": namespace, "key": key})).collect::<Vec<_>>()
             }
         });
+        snapshot["stagedState"]["b2bCompanies"] = json!(self.store.staged.b2b_companies.clone());
+        snapshot["stagedState"]["b2bLocations"] = json!(self.store.staged.b2b_locations.clone());
+        snapshot["stagedState"]["b2bContacts"] = json!(self.store.staged.b2b_contacts.clone());
+        snapshot["stagedState"]["deletedB2bContactIds"] = json!(self
+            .store
+            .staged
+            .deleted_b2b_contact_ids
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>());
+        snapshot["stagedState"]["b2bContactRoles"] =
+            json!(self.store.staged.b2b_contact_roles.clone());
+        snapshot["stagedState"]["b2bContactRoleAssignments"] =
+            json!(self.store.staged.b2b_contact_role_assignments.clone());
+        snapshot["stagedState"]["deletedB2bContactRoleAssignmentIds"] = json!(self
+            .store
+            .staged
+            .deleted_b2b_contact_role_assignment_ids
+            .iter()
+            .cloned()
+            .collect::<Vec<_>>());
+        snapshot["stagedState"]["nextB2bCompanyId"] = json!(self.store.staged.next_b2b_company_id);
+        snapshot["stagedState"]["nextB2bContactId"] = json!(self.store.staged.next_b2b_contact_id);
+        snapshot["stagedState"]["nextB2bContactRoleAssignmentId"] =
+            json!(self.store.staged.next_b2b_contact_role_assignment_id);
         if !self.store.staged.metaobject_definitions.is_empty() {
             snapshot["stagedState"]["metaobjectDefinitions"] =
                 json!(self.store.staged.metaobject_definitions);
@@ -666,6 +691,83 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.b2b_companies = state["stagedState"]
+            .get("b2bCompanies")
+            .and_then(Value::as_object)
+            .map(|companies| {
+                companies
+                    .iter()
+                    .map(|(id, company)| (id.clone(), company.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.b2b_locations = state["stagedState"]
+            .get("b2bLocations")
+            .and_then(Value::as_object)
+            .map(|locations| {
+                locations
+                    .iter()
+                    .map(|(id, location)| (id.clone(), location.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.b2b_contacts = state["stagedState"]
+            .get("b2bContacts")
+            .and_then(Value::as_object)
+            .map(|contacts| {
+                contacts
+                    .iter()
+                    .map(|(id, contact)| (id.clone(), contact.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.deleted_b2b_contact_ids = state["stagedState"]
+            .get("deletedB2bContactIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.b2b_contact_roles = state["stagedState"]
+            .get("b2bContactRoles")
+            .and_then(Value::as_object)
+            .map(|roles| {
+                roles
+                    .iter()
+                    .map(|(id, role)| (id.clone(), role.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.b2b_contact_role_assignments = state["stagedState"]
+            .get("b2bContactRoleAssignments")
+            .and_then(Value::as_object)
+            .map(|assignments| {
+                assignments
+                    .iter()
+                    .map(|(id, assignment)| (id.clone(), assignment.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.deleted_b2b_contact_role_assignment_ids = state["stagedState"]
+            .get("deletedB2bContactRoleAssignmentIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.next_b2b_company_id = state["stagedState"]
+            .get("nextB2bCompanyId")
+            .and_then(Value::as_u64)
+            .unwrap_or(1)
+            .max(1);
+        self.store.staged.next_b2b_contact_id = state["stagedState"]
+            .get("nextB2bContactId")
+            .and_then(Value::as_u64)
+            .unwrap_or(1)
+            .max(1);
+        self.store.staged.next_b2b_contact_role_assignment_id = state["stagedState"]
+            .get("nextB2bContactRoleAssignmentId")
+            .and_then(Value::as_u64)
+            .unwrap_or(1)
+            .max(1);
         self.log_entries = dump["log"]["entries"]
             .as_array()
             .cloned()
