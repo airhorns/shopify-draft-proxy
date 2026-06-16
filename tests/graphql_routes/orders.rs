@@ -476,6 +476,230 @@ fn order_create_line_item_fields_and_currency_defaults_are_staged() {
 }
 
 #[test]
+fn order_close_and_open_stage_lifecycle_state_and_reads() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedLifecycleOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id closed closedAt updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "order-lifecycle@example.com",
+                "lineItems": [{
+                    "title": "Lifecycle item",
+                    "quantity": 1,
+                    "priceSet": {
+                        "shopMoney": { "amount": "10.00", "currencyCode": "USD" }
+                    }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+    assert_eq!(
+        create.body["data"]["orderCreate"]["order"]["closed"],
+        json!(false)
+    );
+    assert_eq!(
+        create.body["data"]["orderCreate"]["order"]["closedAt"],
+        Value::Null
+    );
+    assert_eq!(
+        create.body["data"]["orderCreate"]["order"]["updatedAt"],
+        json!("2024-01-01T00:00:00.000Z")
+    );
+
+    let close = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ClientNamedClose($input: OrderCloseInput!) {
+          closeAlias: orderClose(input: $input) {
+            order { id closed closedAt updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": order_id.clone() } }),
+    ));
+    assert_eq!(close.status, 200);
+    assert_eq!(close.body["data"]["closeAlias"]["userErrors"], json!([]));
+    assert_eq!(close.body["data"]["closeAlias"]["order"]["id"], order_id);
+    assert_eq!(
+        close.body["data"]["closeAlias"]["order"]["closed"],
+        json!(true)
+    );
+    assert_eq!(
+        close.body["data"]["closeAlias"]["order"]["closedAt"],
+        json!("2024-01-01T00:00:01.000Z")
+    );
+    assert_eq!(
+        close.body["data"]["closeAlias"]["order"]["updatedAt"],
+        json!("2024-01-01T00:00:01.000Z")
+    );
+
+    let read_closed = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadLifecycleOrder($id: ID!) {
+          order(id: $id) { id closed closedAt updatedAt }
+        }
+        "#,
+        json!({ "id": order_id.clone() }),
+    ));
+    assert_eq!(
+        read_closed.body["data"]["order"],
+        close.body["data"]["closeAlias"]["order"]
+    );
+
+    let redundant_close = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RedundantClose($input: OrderCloseInput!) {
+          orderClose(input: $input) {
+            order { id closed closedAt updatedAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": order_id.clone() } }),
+    ));
+    assert_eq!(
+        redundant_close.body["data"]["orderClose"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        redundant_close.body["data"]["orderClose"]["order"]["closedAt"],
+        close.body["data"]["closeAlias"]["order"]["closedAt"]
+    );
+    assert_eq!(
+        redundant_close.body["data"]["orderClose"]["order"]["updatedAt"],
+        close.body["data"]["closeAlias"]["order"]["updatedAt"]
+    );
+
+    let open = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ClientNamedOpen($input: OrderOpenInput!) {
+          openAlias: orderOpen(input: $input) {
+            order { id closed closedAt updatedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": order_id.clone() } }),
+    ));
+    assert_eq!(open.body["data"]["openAlias"]["userErrors"], json!([]));
+    assert_eq!(
+        open.body["data"]["openAlias"]["order"]["closed"],
+        json!(false)
+    );
+    assert_eq!(
+        open.body["data"]["openAlias"]["order"]["closedAt"],
+        Value::Null
+    );
+    assert_eq!(
+        open.body["data"]["openAlias"]["order"]["updatedAt"],
+        json!("2024-01-01T00:00:02.000Z")
+    );
+
+    let redundant_open = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RedundantOpen($input: OrderOpenInput!) {
+          orderOpen(input: $input) {
+            order { id closed closedAt updatedAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": order_id.clone() } }),
+    ));
+    assert_eq!(
+        redundant_open.body["data"]["orderOpen"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        redundant_open.body["data"]["orderOpen"]["order"],
+        open.body["data"]["openAlias"]["order"]
+    );
+
+    let read_open = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadOpenLifecycleOrder($id: ID!) {
+          order(id: $id) { id closed closedAt updatedAt }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    assert_eq!(
+        read_open.body["data"]["order"],
+        open.body["data"]["openAlias"]["order"]
+    );
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"][1]["operationName"], json!("orderClose"));
+    assert_eq!(log["entries"][1]["status"], json!("staged"));
+    assert!(log["entries"][1]["rawBody"]
+        .as_str()
+        .is_some_and(|raw| raw.contains("ClientNamedClose")));
+    assert_eq!(log["entries"][3]["operationName"], json!("orderOpen"));
+    assert!(log["entries"][3]["rawBody"]
+        .as_str()
+        .is_some_and(|raw| raw.contains("ClientNamedOpen")));
+}
+
+#[test]
+fn order_close_and_open_unknown_ids_return_shopify_user_errors() {
+    let mut proxy = snapshot_proxy();
+
+    let close = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CloseMissingOrder($input: OrderCloseInput!) {
+          orderClose(input: $input) {
+            order { id closed closedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Order/404" } }),
+    ));
+    assert_eq!(
+        close.body["data"]["orderClose"],
+        json!({
+            "order": Value::Null,
+            "userErrors": [{ "field": ["id"], "message": "Order does not exist" }]
+        })
+    );
+
+    let open = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OpenMissingOrder($input: OrderOpenInput!) {
+          orderOpen(input: $input) {
+            order { id closed closedAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Order/404" } }),
+    ));
+    assert_eq!(
+        open.body["data"]["orderOpen"],
+        json!({
+            "order": Value::Null,
+            "userErrors": [{ "field": ["id"], "message": "Order does not exist" }]
+        })
+    );
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"][0]["status"], json!("failed"));
+    assert_eq!(log["entries"][0]["operationName"], json!("orderClose"));
+    assert_eq!(log["entries"][1]["status"], json!("failed"));
+    assert_eq!(log["entries"][1]["operationName"], json!("orderOpen"));
+}
+
+#[test]
 fn order_create_validation_matrix_returns_typed_user_errors() {
     let mut proxy = snapshot_proxy();
 

@@ -211,6 +211,7 @@ describe('Rust HTTP adapter route surface', () => {
             discounts: {},
             discountCodeIndex: {},
             deletedDiscountIds: [],
+            discountBulkOperations: {},
             discountRedeemCodeBulkCreations: {},
             ownerMetafields: {},
             deletedOwnerMetafields: [],

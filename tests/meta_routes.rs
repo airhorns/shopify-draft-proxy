@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 use std::sync::{Arc, Mutex};
 
 use pretty_assertions::assert_eq;
@@ -832,6 +834,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
             "discounts": {},
             "discountCodeIndex": {},
             "deletedDiscountIds": [],
+            "discountBulkOperations": {},
             "discountRedeemCodeBulkCreations": {},
             "ownerMetafields": {},
             "deletedOwnerMetafields": [],
