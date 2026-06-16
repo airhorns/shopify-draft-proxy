@@ -145,7 +145,8 @@ impl DraftProxy {
                 "publicationIds": self.store.base.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publicationCount": self.store.base.publication_count,
                 "availableLocales": available_locales,
-                "shopLocales": self.store.base.shop_locales.clone()
+                "shopLocales": self.store.base.shop_locales.clone(),
+                "localizationProductIds": self.store.base.localization_product_ids.iter().cloned().collect::<Vec<_>>()
             },
             "stagedState": {
                 "products": product_state_map_json(&self.store.staged.products.records),
@@ -322,6 +323,9 @@ impl DraftProxy {
             snapshot["stagedState"]["localizationTranslations"] =
                 json!(self.store.staged.localization_translations.clone());
         }
+        if self.store.staged.localization_dirty {
+            snapshot["stagedState"]["localizationDirty"] = json!(true);
+        }
         snapshot
     }
 
@@ -484,6 +488,12 @@ impl DraftProxy {
                     }),
                 )])
             });
+        self.store.base.localization_product_ids = state["baseState"]
+            .get("localizationProductIds")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| vec![LOCALIZATION_BASELINE_PRODUCT_ID.to_string()])
+            .into_iter()
+            .collect();
         self.store.staged.publication_ids =
             string_array_from_json(&state["stagedState"]["publicationIds"])
                 .into_iter()
@@ -1017,6 +1027,9 @@ impl DraftProxy {
             .as_array()
             .cloned()
             .unwrap_or_default();
+        self.store.staged.localization_dirty = state["stagedState"]["localizationDirty"]
+            .as_bool()
+            .unwrap_or(false);
         self.log_entries = dump["log"]["entries"]
             .as_array()
             .cloned()

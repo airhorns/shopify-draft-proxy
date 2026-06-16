@@ -1,4 +1,5 @@
 use super::*;
+use sha2::{Digest, Sha256};
 
 const FALLBACK_PRODUCT_TRANSLATION_TITLE: &str = "The Inventory Not Tracked Snowboard";
 const FALLBACK_PRODUCT_TRANSLATION_HANDLE: &str = "the-inventory-not-tracked-snowboard";
@@ -238,14 +239,18 @@ impl DraftProxy {
         &self,
         published_filter: Option<bool>,
     ) -> Vec<Value> {
-        let mut locales = self
-            .store
-            .base
-            .shop_locales
-            .values()
-            .cloned()
-            .collect::<Vec<_>>();
-        locales.extend(self.store.staged.shop_locales.values().cloned());
+        let mut by_code: BTreeMap<String, Value> = BTreeMap::new();
+        for locale in self.store.base.shop_locales.values() {
+            if let Some(code) = locale["locale"].as_str() {
+                by_code.insert(code.to_string(), locale.clone());
+            }
+        }
+        for locale in self.store.staged.shop_locales.values() {
+            if let Some(code) = locale["locale"].as_str() {
+                by_code.insert(code.to_string(), locale.clone());
+            }
+        }
+        let mut locales = by_code.into_values().collect::<Vec<_>>();
         locales.sort_by_key(|locale| locale["locale"].as_str().unwrap_or_default().to_string());
         if let Some(published) = published_filter {
             locales.retain(|locale| locale["published"].as_bool() == Some(published));
@@ -274,7 +279,13 @@ impl DraftProxy {
                 "shopLocale": null,
                 "userErrors": [shop_locale_user_error(vec!["locale"], "Locale has already been taken", "TAKEN")]
             })
-        } else if self.localization_shop_locales(None).len() >= 20 {
+        } else if self
+            .localization_shop_locales(None)
+            .iter()
+            .filter(|locale| !locale["primary"].as_bool().unwrap_or(false))
+            .count()
+            >= 20
+        {
             json!({
                 "shopLocale": null,
                 "userErrors": [{
@@ -290,11 +301,25 @@ impl DraftProxy {
             let name = self
                 .localization_available_locale_name(&locale)
                 .unwrap_or(locale.as_str());
-            let record = shop_locale_record(&locale, name, false);
+            let mut record = shop_locale_record(&locale, name, false);
+            let target_web_presence_ids = resolved_string_list_arg(
+                &field.arguments,
+                "marketWebPresenceIds",
+            )
+            .into_iter()
+            .filter(|id| is_known_market_web_presence_id(id))
+            .collect::<Vec<_>>();
+            record["marketWebPresences"] = Value::Array(
+                target_web_presence_ids
+                    .iter()
+                    .map(|id| shop_locale_market_web_presence_record(id))
+                    .collect(),
+            );
             self.store
                 .staged
                 .shop_locales
                 .insert(locale.clone(), record.clone());
+            self.sync_web_presence_locales(&locale, &target_web_presence_ids, false);
             json!({ "shopLocale": record, "userErrors": [] })
         };
         selected_json(&payload, &field.selection)
@@ -348,13 +373,17 @@ impl DraftProxy {
             record["published"] = json!(published);
         }
         if input.contains_key("marketWebPresenceIds") {
+            let target_web_presence_ids = market_web_presence_ids
+                .into_iter()
+                .filter(|id| is_known_market_web_presence_id(id))
+                .collect::<Vec<_>>();
             record["marketWebPresences"] = Value::Array(
-                market_web_presence_ids
-                    .into_iter()
-                    .filter(|id| is_known_market_web_presence_id(id))
-                    .map(|id| shop_locale_market_web_presence_record(&id))
+                target_web_presence_ids
+                    .iter()
+                    .map(|id| shop_locale_market_web_presence_record(id))
                     .collect(),
             );
+            self.sync_web_presence_locales(&locale, &target_web_presence_ids, true);
         }
         if locale != "en" {
             self.store
@@ -390,6 +419,7 @@ impl DraftProxy {
                 .staged
                 .localization_translations
                 .retain(|translation| translation["locale"] != json!(locale));
+            self.store.staged.localization_dirty = true;
             json!({ "locale": locale, "userErrors": [] })
         };
         selected_json(&payload, &field.selection)
@@ -2484,7 +2514,7 @@ impl DraftProxy {
                 }));
                 continue;
             }
-            if !self.store.staged.shop_locales.contains_key(&locale) {
+            if !self.localization_shop_locale_added(&locale) {
                 user_errors.push(json!({
                     "field": ["translations", field_index, "locale"],
                     "message": "Locale is not a valid locale for the shop",
@@ -2510,15 +2540,24 @@ impl DraftProxy {
                 }));
                 continue;
             }
-            if resolved_object_string(translation_input, "translatableContentDigest")
-                .is_some_and(|digest| digest.starts_with("invalid-"))
+            if let Some(supplied_digest) =
+                resolved_object_string(translation_input, "translatableContentDigest")
             {
-                user_errors.push(json!({
-                    "field": ["translations", field_index, "translatableContentDigest"],
-                    "message": "Translatable content hash is invalid",
-                    "code": "INVALID_TRANSLATABLE_CONTENT"
-                }));
-                continue;
+                let key = resolved_object_string(translation_input, "key").unwrap_or_default();
+                let digest_invalid = supplied_digest.starts_with("invalid-")
+                    || self
+                        .localization_source_content_value(&resource_id, &key)
+                        .is_some_and(|value| {
+                            localization_content_digest(&value) != supplied_digest
+                        });
+                if digest_invalid {
+                    user_errors.push(json!({
+                        "field": ["translations", field_index, "translatableContentDigest"],
+                        "message": "Translatable content hash is invalid",
+                        "code": "INVALID_TRANSLATABLE_CONTENT"
+                    }));
+                    continue;
+                }
             }
             if resource_id.contains("PackingSlipTemplate") {
                 has_null_translation_error = true;
@@ -2607,6 +2646,7 @@ impl DraftProxy {
                 &field.selection,
             );
         }
+        self.store.staged.localization_dirty = true;
         let mut removed = Vec::new();
         let mut retained = Vec::new();
         for translation in self.store.staged.localization_translations.drain(..) {
@@ -2956,6 +2996,101 @@ impl DraftProxy {
         }
     }
 
+    /// Cold LiveHybrid localization reads need the captured upstream
+    /// product/source-content slice before local translation mutations can
+    /// validate resource existence and stage read-after-write effects. Once any
+    /// localization/product/collection state exists, stay local so staged locale
+    /// and translation changes are not bypassed by passthrough. Ported from Gleam
+    /// `should_fetch_upstream_in_live_hybrid` (localization/queries.gleam:100).
+    pub(in crate::proxy) fn localization_should_fetch_upstream(&self, root_field: &str) -> bool {
+        if !matches!(
+            root_field,
+            "availableLocales"
+                | "shopLocales"
+                | "translatableResource"
+                | "translatableResources"
+                | "translatableResourcesByIds"
+        ) {
+            return false;
+        }
+        !self.has_localization_query_state()
+    }
+
+    fn has_localization_query_state(&self) -> bool {
+        !self.store.staged.localization_translations.is_empty()
+            || !self.store.staged.shop_locales.is_empty()
+            || self.store.staged.localization_dirty
+            || self.store.has_product_state()
+            || self.store.has_collection_state()
+    }
+
+    /// Hydrate localization base state from an upstream GraphQL response body,
+    /// ported from Gleam `hydrate_from_upstream_response`
+    /// (localization/queries.gleam:234). Shop locales, available locales and
+    /// translatable-resource product ids are observed as a side effect of a cold
+    /// read so later targets (locale validation, read-after-write) resolve
+    /// locally against real Shopify state.
+    pub(in crate::proxy) fn hydrate_localization_from_upstream(&mut self, body: &Value) {
+        let Some(data) = body.get("data").and_then(Value::as_object) else {
+            return;
+        };
+        // Scan every top-level field (queries alias fields freely, e.g.
+        // `allShopLocales: shopLocales`, `single: translatableResource`).
+        let mut resources: Vec<Value> = Vec::new();
+        for value in data.values() {
+            // shopLocales / availableLocales arrays.
+            if let Some(items) = value.as_array() {
+                for item in items {
+                    if item.get("isoCode").and_then(Value::as_str).is_some() {
+                        if let (Some(code), Some(name)) = (
+                            item.get("isoCode").and_then(Value::as_str),
+                            item.get("name").and_then(Value::as_str),
+                        ) {
+                            self.store
+                                .base
+                                .available_locales
+                                .insert(code.to_string(), name.to_string());
+                        }
+                    } else if item.get("primary").is_some() {
+                        if let Some(code) = item.get("locale").and_then(Value::as_str) {
+                            self.store
+                                .base
+                                .shop_locales
+                                .insert(code.to_string(), item.clone());
+                        }
+                    }
+                }
+            }
+            // translatableResource (single) or a connection of resources.
+            if value.get("resourceId").and_then(Value::as_str).is_some() {
+                resources.push(value.clone());
+            }
+            if let Some(nodes) = value.get("nodes").and_then(Value::as_array) {
+                resources.extend(
+                    nodes
+                        .iter()
+                        .filter(|node| node.get("resourceId").and_then(Value::as_str).is_some())
+                        .cloned(),
+                );
+            }
+        }
+        for resource in &resources {
+            if let Some(resource_id) = resource.get("resourceId").and_then(Value::as_str) {
+                if resource_id.starts_with("gid://shopify/Product/") {
+                    self.store
+                        .base
+                        .localization_product_ids
+                        .insert(resource_id.to_string());
+                }
+            }
+        }
+    }
+
+    fn localization_shop_locale_added(&self, locale: &str) -> bool {
+        self.store.base.shop_locales.contains_key(locale)
+            || self.store.staged.shop_locales.contains_key(locale)
+    }
+
     pub(in crate::proxy) fn localization_translatable_resource_ids(&self) -> Vec<String> {
         let mut ids = self
             .store
@@ -3011,6 +3146,142 @@ impl DraftProxy {
             .find(|content| content["key"].as_str() == Some(key))
             .and_then(|content| content["digest"].as_str().map(str::to_string))
     }
+
+    /// The current source-content value for a translatable resource field, when the
+    /// proxy holds authoritative local state for it. Translatable content digests are
+    /// `sha256(value)` of the source string (verified against live Shopify captures),
+    /// so this lets the register path reject stale/incorrect `translatableContentDigest`
+    /// inputs exactly like Shopify. Returns `None` for resources whose source content
+    /// the proxy hasn't observed (hydrated-only ids), in which case digest validation
+    /// is skipped — mirroring Gleam's "content not found → no digest error".
+    fn localization_source_content_value(&self, resource_id: &str, key: &str) -> Option<String> {
+        if !resource_id.starts_with("gid://shopify/Product/") {
+            return None;
+        }
+        let product = self.store.product_staged_or_base(resource_id)?;
+        let value = match key {
+            "title" => product.title.clone(),
+            "handle" => product.handle.clone(),
+            "body_html" => product.description_html.clone(),
+            "product_type" => product.product_type.clone(),
+            "meta_title" => product.seo_title.clone(),
+            "meta_description" => product.seo_description.clone(),
+            _ => return None,
+        };
+        Some(value)
+    }
+
+    /// Mirror Shopify's web-presence ↔ alternate-locale sync. When a non-primary
+    /// locale is associated with one or more market web presences via
+    /// `shopLocaleEnable`/`shopLocaleUpdate`, Shopify reflects it on the
+    /// `MarketWebPresence` itself: every target presence gains the locale in
+    /// `alternateLocales` (unpublished) plus a matching `rootUrls` entry. On an
+    /// update the association is authoritative, so non-target presences lose the
+    /// locale (`replace = true`); enable only adds. The downstream `webPresences`
+    /// read is served from `staged.web_presences`, so the staged records are
+    /// mutated in place. Ported from the Gleam localization mutation handlers.
+    fn sync_web_presence_locales(&mut self, locale: &str, target_ids: &[String], replace: bool) {
+        if locale == "en" {
+            return;
+        }
+        let name = self
+            .localization_available_locale_name(locale)
+            .map(str::to_string);
+        for (id, record) in self.store.staged.web_presences.iter_mut() {
+            if target_ids.iter().any(|target| target == id) {
+                web_presence_add_locale(record, locale, name.as_deref());
+            } else if replace {
+                web_presence_remove_locale(record, locale);
+            }
+        }
+    }
+}
+
+/// Add an alternate locale + root URL to a staged web-presence record if absent.
+fn web_presence_add_locale(record: &mut Value, locale: &str, name: Option<&str>) {
+    let Some(obj) = record.as_object_mut() else {
+        return;
+    };
+    let display_name = name.unwrap_or(locale).to_string();
+    let suffix = obj
+        .get("subfolderSuffix")
+        .and_then(Value::as_str)
+        .filter(|suffix| !suffix.is_empty())
+        .map(str::to_string);
+    let origin = obj
+        .get("rootUrls")
+        .and_then(Value::as_array)
+        .and_then(|urls| urls.first())
+        .and_then(|entry| entry.get("url"))
+        .and_then(Value::as_str)
+        .and_then(web_presence_origin);
+
+    if let Some(alternates) = obj
+        .entry("alternateLocales")
+        .or_insert_with(|| Value::Array(Vec::new()))
+        .as_array_mut()
+    {
+        if !alternates
+            .iter()
+            .any(|entry| entry["locale"].as_str() == Some(locale))
+        {
+            alternates.push(json!({
+                "locale": locale,
+                "name": display_name,
+                "primary": false,
+                "published": false
+            }));
+        }
+    }
+
+    if let Some(origin) = origin {
+        if let Some(root_urls) = obj
+            .entry("rootUrls")
+            .or_insert_with(|| Value::Array(Vec::new()))
+            .as_array_mut()
+        {
+            if !root_urls
+                .iter()
+                .any(|entry| entry["locale"].as_str() == Some(locale))
+            {
+                let url = match suffix.as_deref() {
+                    Some(suffix) => format!("{origin}/{locale}-{suffix}/"),
+                    None => format!("{origin}/{locale}/"),
+                };
+                root_urls.push(json!({ "locale": locale, "url": url }));
+            }
+        }
+    }
+}
+
+/// Remove an alternate locale + its root URL from a staged web-presence record.
+fn web_presence_remove_locale(record: &mut Value, locale: &str) {
+    let Some(obj) = record.as_object_mut() else {
+        return;
+    };
+    if let Some(alternates) = obj.get_mut("alternateLocales").and_then(Value::as_array_mut) {
+        alternates.retain(|entry| entry["locale"].as_str() != Some(locale));
+    }
+    if let Some(root_urls) = obj.get_mut("rootUrls").and_then(Value::as_array_mut) {
+        root_urls.retain(|entry| entry["locale"].as_str() != Some(locale));
+    }
+}
+
+/// Extract `scheme://host` from a URL, dropping any path/query suffix.
+fn web_presence_origin(url: &str) -> Option<String> {
+    let (scheme, rest) = url.split_once("://")?;
+    let host = rest.split('/').next().unwrap_or("");
+    if host.is_empty() {
+        None
+    } else {
+        Some(format!("{scheme}://{host}"))
+    }
+}
+
+fn localization_content_digest(value: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(value.as_bytes());
+    format!("{:x}", hasher.finalize())
 }
 
 fn markets_variables_have_local_id(

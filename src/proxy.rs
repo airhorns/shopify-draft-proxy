@@ -276,6 +276,10 @@ struct StagedState {
     created_publication_ids: BTreeSet<String>,
     shop_locales: BTreeMap<String, Value>,
     localization_translations: Vec<Value>,
+    // True once a localization mutation has cleared staged state (locale disable,
+    // translation remove). Keeps the proxy authoritative for localization reads so a
+    // now-empty staged set is not mistaken for a cold cache that must forward upstream.
+    localization_dirty: bool,
     marketing_activities: BTreeMap<String, Value>,
     deleted_marketing_activity_ids: BTreeSet<String>,
     marketing_delete_all_external: bool,
@@ -570,6 +574,7 @@ impl Default for StagedState {
             created_publication_ids: BTreeSet::new(),
             shop_locales: BTreeMap::new(),
             localization_translations: Vec::new(),
+            localization_dirty: false,
             marketing_activities: BTreeMap::new(),
             deleted_marketing_activity_ids: BTreeSet::new(),
             marketing_delete_all_external: false,

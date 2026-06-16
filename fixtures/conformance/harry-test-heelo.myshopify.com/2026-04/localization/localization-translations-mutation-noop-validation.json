@@ -132,8 +132,12 @@
   "unknownKeyRemove": {
     "variables": {
       "resourceId": "gid://shopify/Product/10212146807090",
-      "keys": ["bogus_key"],
-      "locales": ["fr"]
+      "keys": [
+        "bogus_key"
+      ],
+      "locales": [
+        "fr"
+      ]
     },
     "response": {
       "data": {
@@ -252,8 +256,12 @@
     "remove": {
       "variables": {
         "resourceId": "gid://shopify/Product/10212146807090",
-        "keys": ["title"],
-        "locales": ["it"]
+        "keys": [
+          "title"
+        ],
+        "locales": [
+          "it"
+        ]
       },
       "response": {
         "data": {
@@ -293,7 +301,11 @@
             "translations": [],
             "userErrors": [
               {
-                "field": ["translations", "0", "locale"],
+                "field": [
+                  "translations",
+                  "0",
+                  "locale"
+                ],
                 "message": "Locale is not a valid locale for the shop",
                 "code": "INVALID_LOCALE_FOR_SHOP"
               }
@@ -332,7 +344,11 @@
           "translations": [],
           "userErrors": [
             {
-              "field": ["translations", "0", "locale"],
+              "field": [
+                "translations",
+                "0",
+                "locale"
+              ],
               "message": "Locale cannot be the same as the shop's primary locale",
               "code": "INVALID_LOCALE_FOR_SHOP"
             }
@@ -379,7 +395,7 @@
       "variables": {
         "resourceId": "gid://shopify/Product/10212146807090"
       },
-      "query": "#graphql\n  query LocalizationTranslationsMutationNoopValidationRead($resourceId: ID!) {\n    shopLocales {\n      locale\n      name\n      primary\n      published\n    }\n    translatableResource(resourceId: $resourceId) {\n      resourceId\n      translatableContent {\n        key\n        value\n        digest\n        locale\n        type\n      }\n      translations(locale: \"it\") {\n        key\n        value\n        locale\n        outdated\n        market {\n          id\n        }\n      }\n    }\n  }\n",
+      "query": "query LocalizationTranslationsMutationNoopValidationRead($resourceId: ID!) {\n  shopLocales {\n    locale\n    name\n    primary\n    published\n  }\n  translatableResource(resourceId: $resourceId) {\n    resourceId\n    translatableContent {\n      key\n      value\n      digest\n      locale\n      type\n    }\n    translations(locale: \"it\") {\n      key\n      value\n      locale\n      outdated\n      market {\n        id\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

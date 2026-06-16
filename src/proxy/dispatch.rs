@@ -1287,6 +1287,19 @@ impl DraftProxy {
             (CapabilityDomain::Localization, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
             {
+                // Cold LiveHybrid reads forward verbatim upstream and hydrate the
+                // base stores as a side effect (product existence, shop locales);
+                // once a lifecycle has staged localization records we serve
+                // locally (read-after-write).
+                if self.config.read_mode == ReadMode::LiveHybrid
+                    && self.localization_should_fetch_upstream(root_field)
+                {
+                    let response = (self.upstream_transport)(request.clone());
+                    if response.status < 400 {
+                        self.hydrate_localization_from_upstream(&response.body);
+                    }
+                    return response;
+                }
                 if let Some(fields) = root_fields(&query, &variables) {
                     ok_json(json!({ "data": self.localization_query_data(&fields, request) }))
                 } else {

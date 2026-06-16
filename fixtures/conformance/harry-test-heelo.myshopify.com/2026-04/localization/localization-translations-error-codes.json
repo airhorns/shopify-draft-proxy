@@ -172,7 +172,11 @@
           "translations": [],
           "userErrors": [
             {
-              "field": ["translations", "0", "value"],
+              "field": [
+                "translations",
+                "0",
+                "value"
+              ],
               "message": "Value can't be blank",
               "code": "FAILS_RESOURCE_VALIDATION"
             }
@@ -810,7 +814,9 @@
           "translations": null,
           "userErrors": [
             {
-              "field": ["resourceId"],
+              "field": [
+                "resourceId"
+              ],
               "message": "Too many keys for resource - maximum 100 per mutation",
               "code": "TOO_MANY_KEYS_FOR_RESOURCE"
             }
@@ -833,7 +839,9 @@
   "removeEmptyLocales": {
     "variables": {
       "resourceId": "gid://shopify/Product/10177127055666",
-      "keys": ["title"],
+      "keys": [
+        "title"
+      ],
       "locales": []
     },
     "response": {
@@ -902,7 +910,7 @@
       "variables": {
         "resourceId": "gid://shopify/Product/10177127055666"
       },
-      "query": "#graphql\n  query LocalizationTranslationsErrorCodesSetupRead($resourceId: ID!) {\n    shopLocales {\n      locale\n      name\n      primary\n      published\n    }\n    translatableResource(resourceId: $resourceId) {\n      resourceId\n      translatableContent {\n        key\n        value\n        digest\n        locale\n        type\n      }\n      translations(locale: \"fr\") {\n        key\n        value\n        locale\n        outdated\n        market {\n          id\n        }\n      }\n    }\n  }\n",
+      "query": "query LocalizationTranslationsErrorCodesSetupRead($resourceId: ID!) {\n  shopLocales {\n    locale\n    name\n    primary\n    published\n  }\n  translatableResource(resourceId: $resourceId) {\n    resourceId\n    translatableContent {\n      key\n      value\n      digest\n      locale\n      type\n    }\n    translations(locale: \"fr\") {\n      key\n      value\n      locale\n      outdated\n      market {\n        id\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
