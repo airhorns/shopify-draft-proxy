@@ -2,34 +2,38 @@
   "preMutationRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10172064891186",
+        "id": "gid://shopify/Product/10213972148530",
         "options": [
           {
-            "id": "gid://shopify/ProductOption/12718243053874",
+            "id": "gid://shopify/ProductOption/12769725219122",
             "name": "Size",
             "position": 1,
-            "values": ["Small"],
+            "values": [
+              "Small"
+            ],
             "optionValues": [
               {
-                "id": "gid://shopify/ProductOptionValue/7979347018034",
+                "id": "gid://shopify/ProductOptionValue/8182642508082",
                 "name": "Small",
                 "hasVariants": true
               }
             ]
           },
           {
-            "id": "gid://shopify/ProductOption/12718243021106",
+            "id": "gid://shopify/ProductOption/12769725186354",
             "name": "Shade",
             "position": 2,
-            "values": ["Crimson"],
+            "values": [
+              "Crimson"
+            ],
             "optionValues": [
               {
-                "id": "gid://shopify/ProductOptionValue/7979346952498",
+                "id": "gid://shopify/ProductOptionValue/8182642442546",
                 "name": "Crimson",
                 "hasVariants": true
               },
               {
-                "id": "gid://shopify/ProductOptionValue/7979347050802",
+                "id": "gid://shopify/ProductOptionValue/8182642540850",
                 "name": "Blue",
                 "hasVariants": false
               }
@@ -39,7 +43,7 @@
         "variants": {
           "nodes": [
             {
-              "id": "gid://shopify/ProductVariant/51105202667826",
+              "id": "gid://shopify/ProductVariant/51317775434034",
               "title": "Small / Crimson",
               "selectedOptions": [
                 {
@@ -70,27 +74,32 @@
   },
   "mutation": {
     "variables": {
-      "productId": "gid://shopify/Product/10172064891186",
-      "options": ["gid://shopify/ProductOption/12718243053874", "gid://shopify/ProductOption/12718243021106"]
+      "productId": "gid://shopify/Product/10213972148530",
+      "options": [
+        "gid://shopify/ProductOption/12769725219122",
+        "gid://shopify/ProductOption/12769725186354"
+      ]
     },
     "response": {
       "data": {
         "productOptionsDelete": {
           "deletedOptionsIds": [
-            "gid://shopify/ProductOption/12718243053874",
-            "gid://shopify/ProductOption/12718243021106"
+            "gid://shopify/ProductOption/12769725219122",
+            "gid://shopify/ProductOption/12769725186354"
           ],
           "product": {
-            "id": "gid://shopify/Product/10172064891186",
+            "id": "gid://shopify/Product/10213972148530",
             "options": [
               {
-                "id": "gid://shopify/ProductOption/12718243086642",
+                "id": "gid://shopify/ProductOption/12769725251890",
                 "name": "Title",
                 "position": 1,
-                "values": ["Default Title"],
+                "values": [
+                  "Default Title"
+                ],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/7979347149106",
+                    "id": "gid://shopify/ProductOptionValue/8182642639154",
                     "name": "Default Title",
                     "hasVariants": true
                   }
@@ -100,7 +109,7 @@
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51105202667826",
+                  "id": "gid://shopify/ProductVariant/51317775434034",
                   "title": "Default Title",
                   "selectedOptions": [
                     {
@@ -131,16 +140,18 @@
   "downstreamRead": {
     "data": {
       "product": {
-        "id": "gid://shopify/Product/10172064891186",
+        "id": "gid://shopify/Product/10213972148530",
         "options": [
           {
-            "id": "gid://shopify/ProductOption/12718243086642",
+            "id": "gid://shopify/ProductOption/12769725251890",
             "name": "Title",
             "position": 1,
-            "values": ["Default Title"],
+            "values": [
+              "Default Title"
+            ],
             "optionValues": [
               {
-                "id": "gid://shopify/ProductOptionValue/7979347149106",
+                "id": "gid://shopify/ProductOptionValue/8182642639154",
                 "name": "Default Title",
                 "hasVariants": true
               }
@@ -150,7 +161,7 @@
         "variants": {
           "nodes": [
             {
-              "id": "gid://shopify/ProductVariant/51105202667826",
+              "id": "gid://shopify/ProductVariant/51317775434034",
               "title": "Default Title",
               "selectedOptions": [
                 {
@@ -181,16 +192,18 @@
         "productOptionsDelete": {
           "deletedOptionsIds": [],
           "product": {
-            "id": "gid://shopify/Product/10172064891186",
+            "id": "gid://shopify/Product/10213972148530",
             "options": [
               {
-                "id": "gid://shopify/ProductOption/12718243086642",
+                "id": "gid://shopify/ProductOption/12769725251890",
                 "name": "Title",
                 "position": 1,
-                "values": ["Default Title"],
+                "values": [
+                  "Default Title"
+                ],
                 "optionValues": [
                   {
-                    "id": "gid://shopify/ProductOptionValue/7979347149106",
+                    "id": "gid://shopify/ProductOptionValue/8182642639154",
                     "name": "Default Title",
                     "hasVariants": true
                   }
@@ -200,7 +213,7 @@
             "variants": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ProductVariant/51105202667826",
+                  "id": "gid://shopify/ProductVariant/51317775434034",
                   "title": "Default Title",
                   "selectedOptions": [
                     {
@@ -214,7 +227,10 @@
           },
           "userErrors": [
             {
-              "field": ["options", "0"],
+              "field": [
+                "options",
+                "0"
+              ],
               "message": "Option does not exist"
             }
           ]
@@ -235,71 +251,96 @@
   },
   "upstreamCalls": [
     {
-      "operationName": "ProductsHydrateNodes",
+      "operationName": "ProductOptionLifecycleHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10172064891186"]
+        "ids": [
+          "gid://shopify/Product/10213972148530"
+        ]
       },
-      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "query": "query ProductOptionLifecycleHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Product {\n      id\n      options {\n        id\n        name\n        position\n        values\n        optionValues {\n          id\n          name\n          hasVariants\n        }\n      }\n      totalInventory\n      tracksInventory\n      variants(first: 110) {\n        nodes {\n          id\n          title\n          sku\n          barcode\n          price\n          inventoryQuantity\n          selectedOptions {\n            name\n            value\n          }\n          inventoryItem {\n            id\n            tracked\n            requiresShipping\n          }\n        }\n      }\n    }\n  }\n}",
       "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "nodes": [
-              {
-                "id": "gid://shopify/Product/10172064891186",
-                "options": [
-                  {
-                    "id": "gid://shopify/ProductOption/12718243053874",
-                    "name": "Size",
-                    "position": 1,
-                    "values": ["Small"],
-                    "optionValues": [
-                      {
-                        "id": "gid://shopify/ProductOptionValue/7979347018034",
-                        "name": "Small",
-                        "hasVariants": true
-                      }
-                    ]
-                  },
-                  {
-                    "id": "gid://shopify/ProductOption/12718243021106",
-                    "name": "Shade",
-                    "position": 2,
-                    "values": ["Crimson"],
-                    "optionValues": [
-                      {
-                        "id": "gid://shopify/ProductOptionValue/7979346952498",
-                        "name": "Crimson",
-                        "hasVariants": true
-                      },
-                      {
-                        "id": "gid://shopify/ProductOptionValue/7979347050802",
-                        "name": "Blue",
-                        "hasVariants": false
-                      }
-                    ]
-                  }
-                ],
-                "variants": {
-                  "nodes": [
+        "data": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Product/10213972148530",
+              "options": [
+                {
+                  "id": "gid://shopify/ProductOption/12769725219122",
+                  "name": "Size",
+                  "position": 1,
+                  "values": [
+                    "Small"
+                  ],
+                  "optionValues": [
                     {
-                      "id": "gid://shopify/ProductVariant/51105202667826",
-                      "title": "Small / Crimson",
-                      "selectedOptions": [
-                        {
-                          "name": "Size",
-                          "value": "Small"
-                        },
-                        {
-                          "name": "Shade",
-                          "value": "Crimson"
-                        }
-                      ]
+                      "id": "gid://shopify/ProductOptionValue/8182642508082",
+                      "name": "Small",
+                      "hasVariants": true
+                    }
+                  ]
+                },
+                {
+                  "id": "gid://shopify/ProductOption/12769725186354",
+                  "name": "Shade",
+                  "position": 2,
+                  "values": [
+                    "Crimson"
+                  ],
+                  "optionValues": [
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8182642442546",
+                      "name": "Crimson",
+                      "hasVariants": true
+                    },
+                    {
+                      "id": "gid://shopify/ProductOptionValue/8182642540850",
+                      "name": "Blue",
+                      "hasVariants": false
                     }
                   ]
                 }
+              ],
+              "totalInventory": 0,
+              "tracksInventory": false,
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51317775434034",
+                    "title": "Small / Crimson",
+                    "sku": null,
+                    "barcode": null,
+                    "price": "0.00",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [
+                      {
+                        "name": "Size",
+                        "value": "Small"
+                      },
+                      {
+                        "name": "Shade",
+                        "value": "Crimson"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53422240268594",
+                      "tracked": false,
+                      "requiresShipping": true
+                    }
+                  }
+                ]
               }
-            ]
+            }
+          ]
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 32,
+            "actualQueryCost": 6,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1994,
+              "restoreRate": 100
+            }
           }
         }
       }

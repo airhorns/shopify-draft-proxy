@@ -320,7 +320,16 @@ async function startCassetteServer(): Promise<CassetteServer> {
         consumedCalls.add(matchedIndex);
         response.statusCode = call?.response?.status ?? 200;
         response.setHeader('content-type', 'application/json');
-        response.end(JSON.stringify(call?.response?.body ?? {}));
+        // Support two response shapes:
+        //   { body: <graphql-payload> } — the typed RecordedUpstreamCall shape
+        //   { data: ..., errors: ... }  — raw GraphQL payload stored directly as response
+        const responseBody =
+          call?.response?.body !== undefined
+            ? call.response.body
+            : (call?.response as Record<string, unknown> | undefined)?.['data'] !== undefined
+              ? call?.response
+              : {};
+        response.end(JSON.stringify(responseBody));
         return;
       }
       if (fallbackResponse !== null && recordedCallMatchesBody(fallbackResponse.call, body)) {
@@ -455,7 +464,11 @@ function captureResponseForRequest(capture: unknown, request: LoadedProxyRequest
     }
     if (typeof candidate !== 'object' || candidate === null) continue;
     const entry = candidate as Record<string, unknown>;
-    if (entry['query'] === request.query && stableJson(entry['variables'] ?? {}) === stableJson(request.variables ?? {})) {
+    if (
+      typeof entry['query'] === 'string' &&
+      (entry['query'] as string).trimEnd() === request.query.trimEnd() &&
+      stableJson(entry['variables'] ?? {}) === stableJson(request.variables ?? {})
+    ) {
       const response = normalizedCapturePayload(entry['response'] ?? entry['result']);
       if (response !== null) return { status: 200, body: response };
     }

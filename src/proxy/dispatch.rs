@@ -1237,6 +1237,12 @@ impl DraftProxy {
             {
                 return ok_json(json!({ "data": data }));
             }
+            // No local handler recognized the node type(s); pass through to upstream so that
+            // cassette-driven hydration queries (e.g. ProductOptionLifecycleHydrateNodes) can
+            // be served by the cassette server and used to seed observed product state.
+            let response = (self.upstream_transport)(request.clone());
+            self.observe_nodes_response(&response);
+            return response;
         }
 
         if operation.operation_type == OperationType::Query && root_field == "backupRegion" {

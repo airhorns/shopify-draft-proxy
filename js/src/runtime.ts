@@ -103,41 +103,51 @@ async function fetchJson(origin: string, request: DraftProxyRequest): Promise<Dr
 }
 
 function fetchJsonSync(origin: string, request: DraftProxyRequest, timeoutMs = 10_000): DraftProxyHttpResponse {
+  // Pass the request via stdin rather than an environment variable to avoid
+  // E2BIG failures when the body is large (e.g. dumpState/restoreState with
+  // hundreds of staged variants).
   const script = `
-    const request = JSON.parse(process.env.DRAFT_PROXY_REQUEST);
-    const timeoutMs = Number(process.env.DRAFT_PROXY_FETCH_TIMEOUT_MS || 10000);
-    const signal = AbortSignal.timeout(timeoutMs);
-    fetch(process.env.DRAFT_PROXY_URL + request.path, {
-      method: request.method,
-      headers: request.headers,
-      body: request.body.length === 0 ? undefined : request.body,
-      signal,
-    }).then(async (response) => {
-      const text = await response.text();
-      let body = text;
-      if (text.length > 0) {
-        try { body = JSON.parse(text); } catch {}
-      }
-      console.log(JSON.stringify({ status: response.status, headers: Object.fromEntries(response.headers.entries()), body }));
-    }).catch((error) => {
-      console.error(error && error.stack ? error.stack : String(error));
-      process.exit(1);
+    let input = '';
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', (chunk) => { input += chunk; });
+    process.stdin.on('end', () => {
+      const request = JSON.parse(input);
+      const timeoutMs = Number(process.env.DRAFT_PROXY_FETCH_TIMEOUT_MS || 10000);
+      const signal = AbortSignal.timeout(timeoutMs);
+      fetch(process.env.DRAFT_PROXY_URL + request.path, {
+        method: request.method,
+        headers: request.headers,
+        body: request.body.length === 0 ? undefined : request.body,
+        signal,
+      }).then(async (response) => {
+        const text = await response.text();
+        let body = text;
+        if (text.length > 0) {
+          try { body = JSON.parse(text); } catch {}
+        }
+        console.log(JSON.stringify({ status: response.status, headers: Object.fromEntries(response.headers.entries()), body }));
+      }).catch((error) => {
+        console.error(error && error.stack ? error.stack : String(error));
+        process.exit(1);
+      });
     });
   `;
+  const requestJson = JSON.stringify({
+    method: request.method,
+    path: request.path,
+    headers: normalizeHeaders(request.headers),
+    body: bodyToString(request.body),
+  });
   const result = spawnSync(process.execPath, ['-e', script], {
     encoding: 'utf8',
+    input: requestJson,
+    maxBuffer: 64 * 1024 * 1024, // 64MB — large enough for dumpState/restoreState with many variants
     env: {
       ...process.env,
       DRAFT_PROXY_URL: origin,
       DRAFT_PROXY_FETCH_TIMEOUT_MS: String(timeoutMs),
-      DRAFT_PROXY_REQUEST: JSON.stringify({
-        method: request.method,
-        path: request.path,
-        headers: normalizeHeaders(request.headers),
-        body: bodyToString(request.body),
-      }),
     },
-    timeout: 10_000,
+    timeout: 15_000,
   });
   if (result.status !== 0) {
     throw new Error(`Rust DraftProxy sync request failed: ${result.stderr || result.stdout}`);

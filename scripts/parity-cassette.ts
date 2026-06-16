@@ -34,9 +34,14 @@ export function isGraphqlDocumentText(value: unknown): value is string {
 export function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): boolean {
   try {
     const parsed = JSON.parse(body) as Record<string, unknown>;
+    // Normalize trailing whitespace so .graphql files with a trailing newline
+    // match cassette entries captured without one (and vice versa).
+    const outgoingQuery = typeof parsed['query'] === 'string' ? parsed['query'].trimEnd() : null;
+    const recordedQuery = typeof call.query === 'string' ? call.query.trimEnd() : null;
     return (
-      typeof call.query === 'string' &&
-      parsed['query'] === call.query &&
+      outgoingQuery !== null &&
+      recordedQuery !== null &&
+      outgoingQuery === recordedQuery &&
       stableJson(parsed['variables'] ?? {}) === stableJson(call.variables ?? {})
     );
   } catch {

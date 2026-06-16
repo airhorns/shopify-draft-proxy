@@ -1,8 +1,14 @@
 {
   "scenarioId": "product-options-create-variant-strategy-null",
-  "operationNames": ["productOptionsCreate"],
+  "operationNames": [
+    "productOptionsCreate"
+  ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-null-parity.json"
   ],
@@ -46,7 +52,59 @@
       {
         "name": "pre-mutation-read-data",
         "capturePath": "$.preMutationRead.data.product",
-        "proxyPath": "$.data.nodes[0]"
+        "proxyPath": "$.data.nodes[0]",
+        "expectedDifferences": [
+          {
+            "path": "$.totalInventory",
+            "ignore": true,
+            "reason": "Hydration query returns totalInventory; preMutationRead did not select this field."
+          },
+          {
+            "path": "$.tracksInventory",
+            "ignore": true,
+            "reason": "Hydration query returns tracksInventory; preMutationRead did not select this field."
+          },
+          {
+            "path": "$.variants.nodes[*].sku",
+            "ignore": true,
+            "reason": "Hydration query returns full variant data; preMutationRead selected a subset."
+          },
+          {
+            "path": "$.variants.nodes[*].barcode",
+            "ignore": true,
+            "reason": "Hydration query returns full variant data; preMutationRead selected a subset."
+          },
+          {
+            "path": "$.variants.nodes[*].price",
+            "ignore": true,
+            "reason": "Hydration query returns full variant data; preMutationRead selected a subset."
+          },
+          {
+            "path": "$.variants.nodes[*].inventoryQuantity",
+            "ignore": true,
+            "reason": "Hydration query returns full variant data; preMutationRead selected a subset."
+          },
+          {
+            "path": "$.variants.nodes[*].inventoryItem",
+            "ignore": true,
+            "reason": "Hydration query returns full variant data; preMutationRead selected a subset."
+          },
+          {
+            "path": "$.variants.nodes[*].compareAtPrice",
+            "ignore": true,
+            "reason": "Hydration query returns full variant data; preMutationRead selected a subset."
+          },
+          {
+            "path": "$.variants.nodes[*].taxable",
+            "ignore": true,
+            "reason": "Hydration query returns full variant data; preMutationRead selected a subset."
+          },
+          {
+            "path": "$.variants.nodes[*].inventoryPolicy",
+            "ignore": true,
+            "reason": "Hydration query returns full variant data; preMutationRead selected a subset."
+          }
+        ]
       },
       {
         "name": "mutation-data",
