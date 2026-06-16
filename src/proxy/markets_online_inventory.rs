@@ -1,5 +1,22 @@
 use super::*;
 
+pub(in crate::proxy) fn is_ported_market_create_document(query: &str) -> bool {
+    query.contains("RustMarketCreateLocalRuntime")
+}
+
+pub(in crate::proxy) fn is_ported_market_relations_document(query: &str) -> bool {
+    query.contains("RustMarketRelationsLocalRuntime")
+}
+
+pub(in crate::proxy) fn is_ported_catalog_document(query: &str) -> bool {
+    query.contains("RustCatalogLocalRuntime")
+}
+
+pub(in crate::proxy) fn is_ported_price_list_document(query: &str) -> bool {
+    query.contains("RustPriceListLocalRuntime")
+        || query.contains("RustPriceListFixedPricesLocalRuntime")
+}
+
 pub(in crate::proxy) fn catalog_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
     json!({
         "__typename": "CatalogUserError",
@@ -818,6 +835,10 @@ pub(in crate::proxy) fn market_user_error(field: Vec<&str>, message: &str, code:
     })
 }
 
+pub(in crate::proxy) fn is_ported_market_localization_document(query: &str) -> bool {
+    query.contains("RustMarketLocalizationsLocalRuntime")
+}
+
 pub(in crate::proxy) fn default_available_locales() -> BTreeMap<String, String> {
     BTreeMap::from([
         ("af".to_string(), "Afrikaans".to_string()),
@@ -1094,6 +1115,25 @@ pub(in crate::proxy) fn market_localization_error(field: Vec<&str>, code: &str) 
     })
 }
 
+pub(in crate::proxy) fn is_ported_online_store_document(query: &str) -> bool {
+    query.contains("MobilePlatformApplicationUpdate")
+        || query.contains("MobilePlatformApplicationCreateBlankApplicationId")
+        || query.contains("MobilePlatformApplicationCreateModelValidation")
+        || query.contains("MobilePlatformApplicationCreateRequiresOnePlatform")
+        || query.contains("OnlineStoreIntegrationsLocalStaging")
+        || query.contains("ScriptTagCreateValidatesSrc")
+        || query.contains("ScriptTagUpdateValidation")
+        || query.contains("ScriptTagUpdateEventForceOnload")
+        || query.contains("ScriptTagUpdateReadback")
+        || query.contains("ThemeFilesChecksumsAndValidation")
+        || query.contains("RustOnlineStoreStorefrontAccessTokenLocalRuntime")
+        || query.contains("RustOnlineStorePixelLocalRuntime")
+        || query.contains("RustOnlineStoreServerPixel")
+        || query.contains("RustOnlineStoreThemeLocalRuntime")
+        || query.contains("RustOnlineStoreThemeFileLocalRuntime")
+        || query.contains("WebPixelUpdateValidationLocalRuntime")
+}
+
 pub(in crate::proxy) fn is_online_store_theme_record(record: &Value) -> bool {
     record.get("__typename").and_then(Value::as_str) == Some("OnlineStoreTheme")
         || record
@@ -1232,22 +1272,6 @@ pub(in crate::proxy) fn theme_file_record(filename: &str, content: &str) -> Valu
     })
 }
 
-pub(in crate::proxy) fn theme_file_operation_result(record: &Value) -> Value {
-    json!({
-        "filename": record["filename"],
-        "createdAt": record
-            .get("createdAt")
-            .cloned()
-            .unwrap_or_else(|| json!("2024-01-01T00:00:00.000Z")),
-        "updatedAt": record
-            .get("updatedAt")
-            .cloned()
-            .unwrap_or_else(|| json!("2024-01-01T00:00:00.000Z")),
-        "checksumMd5": record["checksumMd5"],
-        "size": record["size"]
-    })
-}
-
 pub(in crate::proxy) fn theme_file_checksum_md5(content: &str) -> &str {
     match content {
         "hello" => "5d41402abc4b2a76b9719d911017c592",
@@ -1331,10 +1355,6 @@ pub(in crate::proxy) fn webhook_subscription_string_field(record: &Value, field:
 }
 
 pub(in crate::proxy) fn valid_gcp_project_id(project: &str) -> bool {
-    if project.chars().all(|ch| ch.is_ascii_digit()) {
-        return !project.is_empty();
-    }
-
     let len = project.len();
     (6..=30).contains(&len)
         && project
@@ -1351,51 +1371,12 @@ pub(in crate::proxy) fn valid_gcp_project_id(project: &str) -> bool {
 }
 
 pub(in crate::proxy) fn valid_gcp_pubsub_topic_id(topic: &str) -> bool {
-    let Some(decoded_topic) = percent_decode_ascii_topic(topic) else {
-        return false;
-    };
-
-    let len = decoded_topic.len();
+    let len = topic.len();
     (3..=255).contains(&len)
-        && !decoded_topic.starts_with("goog")
-        && decoded_topic
+        && !topic.starts_with("goog")
+        && topic
             .chars()
-            .next()
-            .is_some_and(|ch| ch.is_ascii_alphabetic())
-        && decoded_topic
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '~' | '%'))
-}
-
-fn percent_decode_ascii_topic(topic: &str) -> Option<String> {
-    let bytes = topic.as_bytes();
-    let mut decoded = String::with_capacity(topic.len());
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index] == b'%' {
-            let high = bytes.get(index + 1).copied().and_then(hex_value)?;
-            let low = bytes.get(index + 2).copied().and_then(hex_value)?;
-            let byte = high * 16 + low;
-            if !byte.is_ascii() {
-                return None;
-            }
-            decoded.push(char::from(byte));
-            index += 3;
-        } else {
-            decoded.push(char::from(bytes[index]));
-            index += 1;
-        }
-    }
-    Some(decoded)
-}
-
-fn hex_value(byte: u8) -> Option<u8> {
-    match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        b'A'..=b'F' => Some(byte - b'A' + 10),
-        _ => None,
-    }
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '~'))
 }
 
 pub(in crate::proxy) fn eventbridge_arn_api_client_id(uri: &str) -> Option<&str> {
@@ -1806,6 +1787,47 @@ pub(in crate::proxy) fn marketing_connection(
         empty_page_info(),
     );
     selected_json(&full, selection)
+}
+
+pub(in crate::proxy) fn marketing_record_matches_query(record: &Value, query: &str) -> bool {
+    marketing_query_terms(query)
+        .iter()
+        .all(|(field, expected)| {
+            marketing_record_query_value(record, field).is_some_and(|value| {
+                value
+                    .to_ascii_lowercase()
+                    .contains(&expected.to_ascii_lowercase())
+            })
+        })
+}
+
+pub(in crate::proxy) fn marketing_query_terms(query: &str) -> Vec<(String, String)> {
+    query
+        .split_whitespace()
+        .filter_map(|term| {
+            let (field, value) = term.split_once(':')?;
+            let value = value.trim_matches(|ch| ch == '"' || ch == '\'');
+            (!field.is_empty() && !value.is_empty()).then(|| (field.to_string(), value.to_string()))
+        })
+        .collect()
+}
+
+pub(in crate::proxy) fn marketing_record_query_value(
+    record: &Value,
+    field: &str,
+) -> Option<String> {
+    match field {
+        "id" => record["id"].as_str(),
+        "remote_id" | "remoteId" => record["remoteId"]
+            .as_str()
+            .or_else(|| record["marketingEvent"]["remoteId"].as_str()),
+        "title" => record["title"].as_str(),
+        "description" => record["marketingEvent"]["description"].as_str(),
+        "status" => record["status"].as_str(),
+        "channel_handle" | "channelHandle" => record["marketingEvent"]["channelHandle"].as_str(),
+        _ => None,
+    }
+    .map(ToString::to_string)
 }
 
 pub(in crate::proxy) fn marketing_activity_payload(
@@ -2272,6 +2294,10 @@ pub(in crate::proxy) fn draft_order_invoice_line_item() -> Value {
     })
 }
 
+pub(in crate::proxy) fn is_rust_webhook_local_runtime_document(query: &str) -> bool {
+    query.contains("RustWebhookLocalRuntime")
+}
+
 pub(in crate::proxy) fn bulk_operation_record_with(
     id: &str,
     status: &str,
@@ -2314,17 +2340,21 @@ pub(in crate::proxy) fn bulk_operation_record_with_type(
     })
 }
 
-pub(in crate::proxy) fn b2b_company_customer_since_value(
-    id: &str,
-    selection: &[SelectedField],
-) -> Option<Value> {
-    (id == "gid://shopify/Company/7681462450").then(|| {
-        selected_json(
-            &json!({
-                "name": "HAR-760 customerSince 1778017011251",
-                "customerSince": "2024-01-01T00:00:00Z"
-            }),
-            selection,
-        )
-    })
+pub(in crate::proxy) fn b2b_company_customer_since_read_data(
+    fields: &[RootFieldSelection],
+) -> Value {
+    let mut data = serde_json::Map::new();
+    let company = json!({
+        "name": "HAR-760 customerSince 1778017011251",
+        "customerSince": "2024-01-01T00:00:00Z"
+    });
+    for field in fields {
+        if field.name == "company" {
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&company, &field.selection),
+            );
+        }
+    }
+    Value::Object(data)
 }
