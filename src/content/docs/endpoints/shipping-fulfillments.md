@@ -26,6 +26,7 @@ The implemented mutation roots are:
 - `carrierServiceCreate`
 - `carrierServiceDelete`
 - `carrierServiceUpdate`
+- `fulfillmentEventCreate`
 - `fulfillmentServiceCreate`
 - `fulfillmentServiceDelete`
 - `fulfillmentServiceUpdate`
@@ -61,7 +62,6 @@ The registry-only read roots are:
 The registry-only mutation roots are:
 
 - `fulfillmentCreate`
-- `fulfillmentEventCreate`
 - `fulfillmentTrackingInfoUpdate`
 - `fulfillmentCancel`
 - `fulfillmentOrderCancel`

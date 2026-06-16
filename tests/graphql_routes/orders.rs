@@ -9,6 +9,79 @@ fn without_extensions(value: &Value) -> Value {
     value
 }
 
+fn stage_fulfillment_for_event(proxy: &mut DraftProxy) -> (Value, Value) {
+    let create_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateFulfillmentEventOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              fulfillmentOrders(first: 5) {
+                nodes {
+                  id
+                  lineItems(first: 5) {
+                    nodes { id totalQuantity remainingQuantity }
+                  }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "fulfillment-event@example.test",
+                "lineItems": [{
+                    "title": "Fulfillment event line",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create_order.status, 200);
+    assert_eq!(
+        create_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let order = &create_order.body["data"]["orderCreate"]["order"];
+    let order_id = order["id"].clone();
+    let fulfillment_order_id = order["fulfillmentOrders"]["nodes"][0]["id"].clone();
+
+    let create_fulfillment = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateFulfillmentForEvent($fulfillment: FulfillmentInput!) {
+          fulfillmentCreate(fulfillment: $fulfillment) {
+            fulfillment {
+              id
+              status
+              displayStatus
+              events(first: 5) { nodes { id status } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "fulfillment": {
+                "lineItemsByFulfillmentOrder": [{
+                    "fulfillmentOrderId": fulfillment_order_id
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create_fulfillment.status, 200);
+    assert_eq!(
+        create_fulfillment.body["data"]["fulfillmentCreate"]["userErrors"],
+        json!([])
+    );
+    (
+        order_id,
+        create_fulfillment.body["data"]["fulfillmentCreate"]["fulfillment"]["id"].clone(),
+    )
+}
+
 #[test]
 fn order_create_stages_rich_order_and_downstream_reads() {
     let fixture: Value = serde_json::from_str(include_str!(
@@ -326,6 +399,362 @@ fn fulfillment_lifecycle_stages_against_created_order_fulfillment_order() {
         .as_array()
         .unwrap()
         .contains(&cancel.body["data"]["fulfillmentCancel"]["fulfillment"]["id"]));
+}
+
+#[test]
+fn fulfillment_event_create_stages_event_and_top_level_read_after_write() {
+    let mut proxy = snapshot_proxy();
+    let (order_id, fulfillment_id) = stage_fulfillment_for_event(&mut proxy);
+
+    let event_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentEventCreateRuntime($fulfillmentEvent: FulfillmentEventInput!) {
+          fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
+            fulfillmentEvent {
+              id
+              status
+              message
+              happenedAt
+              createdAt
+              estimatedDeliveryAt
+              city
+              province
+              country
+              zip
+              address1
+              latitude
+              longitude
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "fulfillmentEvent": {
+                "fulfillmentId": fulfillment_id,
+                "status": "IN_TRANSIT",
+                "message": "Package scanned in transit",
+                "happenedAt": "2026-05-05T20:21:01Z",
+                "estimatedDeliveryAt": "2026-05-07T20:20:01Z",
+                "city": "Toronto",
+                "province": "Ontario",
+                "country": "Canada",
+                "zip": "M5H 2M9",
+                "address1": "123 Queen St W",
+                "latitude": 43.6532,
+                "longitude": -79.3832
+            }
+        }),
+    ));
+    assert_eq!(event_create.status, 200);
+    assert_eq!(
+        event_create.body["data"]["fulfillmentEventCreate"]["userErrors"],
+        json!([])
+    );
+    let event = &event_create.body["data"]["fulfillmentEventCreate"]["fulfillmentEvent"];
+    assert_eq!(event["status"], json!("IN_TRANSIT"));
+    assert_eq!(event["message"], json!("Package scanned in transit"));
+    assert_eq!(event["createdAt"], json!("2024-01-01T00:00:03.000Z"));
+    let event_id = event["id"].clone();
+
+    let top_level_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentEventTopLevelRead($id: ID!) {
+          fulfillment(id: $id) {
+            id
+            status
+            displayStatus
+            estimatedDeliveryAt
+            inTransitAt
+            events(first: 5) {
+              nodes {
+                id
+                status
+                message
+                happenedAt
+                createdAt
+                estimatedDeliveryAt
+                city
+                province
+                country
+                zip
+                address1
+                latitude
+                longitude
+              }
+              pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+            }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_id }),
+    ));
+    assert_eq!(top_level_read.status, 200);
+    let fulfillment = &top_level_read.body["data"]["fulfillment"];
+    assert_eq!(fulfillment["displayStatus"], json!("IN_TRANSIT"));
+    assert_eq!(fulfillment["inTransitAt"], json!("2026-05-05T20:21:01Z"));
+    assert_eq!(
+        fulfillment["estimatedDeliveryAt"],
+        json!("2026-05-07T20:20:01Z")
+    );
+    assert_eq!(fulfillment["events"]["nodes"][0]["id"], event_id);
+    assert_eq!(
+        fulfillment["events"]["nodes"][0]["message"],
+        json!("Package scanned in transit")
+    );
+
+    let nested_order_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FulfillmentEventNestedOrderRead($id: ID!) {
+          order(id: $id) {
+            fulfillments {
+              id
+              displayStatus
+              events(first: 5) { nodes { id status message } }
+            }
+          }
+        }
+        "#,
+        json!({ "id": order_id }),
+    ));
+    assert_eq!(
+        nested_order_read.body["data"]["order"]["fulfillments"][0]["events"]["nodes"][0]["id"],
+        event_id
+    );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().unwrap();
+    assert_eq!(
+        entries
+            .iter()
+            .map(|entry| entry["operationName"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["orderCreate", "fulfillmentCreate", "fulfillmentEventCreate"]
+    );
+    assert!(entries[2]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("FulfillmentEventCreateRuntime"));
+    assert!(entries[2]["stagedResourceIds"]
+        .as_array()
+        .unwrap()
+        .contains(&event_id));
+}
+
+#[test]
+fn fulfillment_event_create_rejects_unknown_real_fulfillment_gid() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentEventCreateUnknown($fulfillmentEvent: FulfillmentEventInput!) {
+          fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
+            fulfillmentEvent { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "fulfillmentEvent": {
+                "fulfillmentId": "gid://shopify/Fulfillment/1234567890",
+                "status": "IN_TRANSIT"
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["fulfillmentEventCreate"],
+        json!({
+            "fulfillmentEvent": null,
+            "userErrors": [{
+                "field": ["fulfillmentEvent", "fulfillmentId"],
+                "message": "Fulfillment does not exist.",
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
+#[test]
+fn fulfillment_event_create_rejects_cancelled_parent_without_logging() {
+    let mut proxy = snapshot_proxy();
+    let (_order_id, fulfillment_id) = stage_fulfillment_for_event(&mut proxy);
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CancelBeforeEvent($id: ID!) {
+          fulfillmentCancel(id: $id) {
+            fulfillment { id status displayStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_id }),
+    ));
+    assert_eq!(
+        cancel.body["data"]["fulfillmentCancel"]["userErrors"],
+        json!([])
+    );
+
+    let rejected = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentEventCreateCancelled($fulfillmentEvent: FulfillmentEventInput!) {
+          fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
+            fulfillmentEvent { id status }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "fulfillmentEvent": {
+                "fulfillmentId": fulfillment_id,
+                "status": "DELIVERED",
+                "message": "Should not stage"
+            }
+        }),
+    ));
+
+    assert_eq!(
+        rejected.body["data"]["fulfillmentEventCreate"],
+        json!({
+            "fulfillmentEvent": null,
+            "userErrors": [{
+                "field": ["fulfillmentEvent", "fulfillmentId"],
+                "message": "fulfillment_is_cancelled",
+                "code": "INVALID"
+            }]
+        })
+    );
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"].as_array().unwrap().len(), 3);
+    assert_eq!(
+        log["entries"][2]["operationName"],
+        json!("fulfillmentCancel")
+    );
+}
+
+#[test]
+fn fulfillment_event_create_hydrates_real_fulfillment_without_passthrough_mutation() {
+    let fulfillment_id = "gid://shopify/Fulfillment/7878997410098";
+    let order_id = "gid://shopify/Order/6100000000000";
+    let hydrate_body = json!({
+        "data": {
+            "fulfillment": {
+                "id": fulfillment_id,
+                "order": {
+                    "id": order_id,
+                    "name": "#6100",
+                    "email": "hydrated-fulfillment@example.test",
+                    "phone": null,
+                    "createdAt": "2026-05-05T20:20:00Z",
+                    "updatedAt": "2026-05-05T20:20:00Z",
+                    "closed": false,
+                    "closedAt": null,
+                    "cancelledAt": null,
+                    "cancelReason": null,
+                    "displayFinancialStatus": "PAID",
+                    "displayFulfillmentStatus": "FULFILLED",
+                    "note": null,
+                    "tags": [],
+                    "fulfillments": [{
+                        "id": fulfillment_id,
+                        "status": "SUCCESS",
+                        "displayStatus": "FULFILLED",
+                        "createdAt": "2026-05-05T20:20:00Z",
+                        "updatedAt": "2026-05-05T20:20:00Z",
+                        "trackingInfo": []
+                    }],
+                    "fulfillmentOrders": { "nodes": [] }
+                }
+            }
+        }
+    });
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        captured.lock().unwrap().push(request);
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: hydrate_body.clone(),
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentEventCreateHydrated($fulfillmentEvent: FulfillmentEventInput!) {
+          fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
+            fulfillmentEvent { id status message }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "fulfillmentEvent": {
+                "fulfillmentId": fulfillment_id,
+                "status": "IN_TRANSIT",
+                "message": "Hydrated fulfillment event"
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["fulfillmentEventCreate"]["userErrors"],
+        json!([])
+    );
+    let forwarded = forwarded.lock().unwrap();
+    assert_eq!(forwarded.len(), 1);
+    assert!(forwarded[0]
+        .body
+        .contains("ShippingFulfillmentEventCreateFulfillmentHydrate"));
+    assert!(!forwarded[0].body.contains("FulfillmentEventCreateHydrated"));
+    let log = proxy.get_log_snapshot();
+    assert_eq!(
+        log["entries"][0]["operationName"],
+        json!("fulfillmentEventCreate")
+    );
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("FulfillmentEventCreateHydrated"));
+}
+
+#[test]
+fn fulfillment_event_create_invalid_status_variable_fails_schema_validation() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FulfillmentEventCreateInvalidStatus($fulfillmentEvent: FulfillmentEventInput!) {
+          fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
+            fulfillmentEvent { id status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "fulfillmentEvent": {
+                "fulfillmentId": "gid://shopify/Fulfillment/1234567890",
+                "status": "NOT_A_FULFILLMENT_EVENT_STATUS"
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert!(response.body["errors"][0]["message"]
+        .as_str()
+        .unwrap()
+        .contains("Expected \"NOT_A_FULFILLMENT_EVENT_STATUS\" to be one of"));
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
 }
 
 #[test]
