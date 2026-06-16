@@ -873,6 +873,9 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
     staged_state.insert("nextB2bCompanyId".to_string(), json!(1));
     staged_state.insert("nextB2bContactId".to_string(), json!(1));
     staged_state.insert("nextB2bContactRoleAssignmentId".to_string(), json!(1));
+    staged_state.insert("mergedCustomerIds".to_string(), json!({}));
+    staged_state.insert("customerMergeRequests".to_string(), json!({}));
+    staged_state.insert("customerDataErasureRequests".to_string(), json!({}));
     assert_eq!(state.body, expected);
 }
 

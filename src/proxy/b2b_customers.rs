@@ -2505,7 +2505,11 @@ impl DraftProxy {
                 }
                 _ => false,
             },
-            "customerByIdentifier" => !self.store.staged.customers.is_empty(),
+            "customerByIdentifier" => !self.customer_effective_records().is_empty(),
+            "customers" | "customersCount" => {
+                !self.store.staged.customers.is_empty()
+                    || !self.store.staged.deleted_customer_ids.is_empty()
+            }
             _ => false,
         })
     }
@@ -2519,9 +2523,9 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "customer" => Some(self.customer_read_field(field)),
                 "customerByIdentifier" => Some(self.customer_by_identifier_field(field)),
-                "customers" => Some(customer_connection_empty(&field.selection)),
+                "customers" => Some(self.customer_connection_field(field)),
                 "customersCount" => Some(selected_json(
-                    &json!({ "count": 177, "precision": "EXACT" }),
+                    &json!({ "count": 177usize.saturating_sub(self.store.staged.deleted_customer_ids.len()), "precision": "EXACT" }),
                     &field.selection,
                 )),
                 _ => None,
@@ -2582,26 +2586,91 @@ impl DraftProxy {
             return Value::Null;
         };
         let customer = match identifier.get("email") {
-            Some(ResolvedValue::String(email)) => {
-                self.store.staged.customers.values().find(|customer| {
+            Some(ResolvedValue::String(email)) => self
+                .customer_effective_records()
+                .into_iter()
+                .find(|customer| {
                     customer.get("email").and_then(Value::as_str) == Some(email.as_str())
-                })
+                }),
+            _ if matches!(
+                identifier.get("emailAddress"),
+                Some(ResolvedValue::String(_))
+            ) =>
+            {
+                let Some(ResolvedValue::String(email)) = identifier.get("emailAddress") else {
+                    return Value::Null;
+                };
+                self.customer_effective_records()
+                    .into_iter()
+                    .find(|customer| {
+                        customer.get("email").and_then(Value::as_str) == Some(email.as_str())
+                            || customer["defaultEmailAddress"]["emailAddress"].as_str()
+                                == Some(email.as_str())
+                    })
             }
             _ => match identifier.get("id") {
-                Some(ResolvedValue::String(id)) => self.store.staged.customers.get(id),
+                Some(ResolvedValue::String(id)) => self
+                    .store
+                    .staged
+                    .customers
+                    .get(id)
+                    .filter(|_| !self.store.staged.deleted_customer_ids.contains(id))
+                    .cloned(),
                 _ => match identifier.get("phone") {
-                    Some(ResolvedValue::String(phone)) => {
-                        self.store.staged.customers.values().find(|customer| {
+                    Some(ResolvedValue::String(phone)) => self
+                        .customer_effective_records()
+                        .into_iter()
+                        .find(|customer| {
                             customer.get("phone").and_then(Value::as_str) == Some(phone.as_str())
-                        })
+                        }),
+                    _ if matches!(
+                        identifier.get("phoneNumber"),
+                        Some(ResolvedValue::String(_))
+                    ) =>
+                    {
+                        let Some(ResolvedValue::String(phone)) = identifier.get("phoneNumber")
+                        else {
+                            return Value::Null;
+                        };
+                        self.customer_effective_records()
+                            .into_iter()
+                            .find(|customer| {
+                                customer.get("phone").and_then(Value::as_str)
+                                    == Some(phone.as_str())
+                                    || customer["defaultPhoneNumber"]["phoneNumber"].as_str()
+                                        == Some(phone.as_str())
+                            })
                     }
                     _ => None,
                 },
             },
         };
         customer
+            .as_ref()
             .map(|customer| selected_json(customer, &field.selection))
             .unwrap_or(Value::Null)
+    }
+
+    pub(in crate::proxy) fn customer_connection_field(&self, field: &RootFieldSelection) -> Value {
+        selected_connection_json_with_args(
+            self.customer_effective_records()
+                .into_iter()
+                .filter(|customer| customer_matches_search_query(customer, &field.arguments))
+                .collect(),
+            &field.arguments,
+            &field.selection,
+            value_id_cursor,
+        )
+    }
+
+    pub(in crate::proxy) fn customer_effective_records(&self) -> Vec<Value> {
+        self.store
+            .staged
+            .customers
+            .iter()
+            .filter(|(id, _)| !self.store.staged.deleted_customer_ids.contains(*id))
+            .map(|(_, customer)| customer.clone())
+            .collect()
     }
 
     pub(in crate::proxy) fn customer_create(
@@ -2926,6 +2995,708 @@ impl DraftProxy {
             "data": { response_key: selected_json(&payload, &payload_selection) }
         })))
     }
+
+    pub(in crate::proxy) fn customer_merge_erasure_mutation_response(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        parsed_root_fields: &[String],
+    ) -> Option<Response> {
+        if operation_type != OperationType::Mutation
+            || parsed_root_fields.is_empty()
+            || !parsed_root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "customerMerge" | "customerRequestDataErasure" | "customerCancelDataErasure"
+                )
+            })
+        {
+            return None;
+        }
+
+        let fields = root_fields(query, variables)?;
+        if let Some(errors) = customer_merge_top_level_errors(query, variables, &fields) {
+            return Some(ok_json(json!({ "errors": errors })));
+        }
+
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let (payload, status, staged_ids) = match field.name.as_str() {
+                "customerMerge" => self.customer_merge_payload(&field),
+                "customerRequestDataErasure" => self.customer_data_erasure_payload(&field, true),
+                "customerCancelDataErasure" => self.customer_data_erasure_payload(&field, false),
+                _ => return None,
+            };
+            self.record_customer_side_effect_log(
+                request,
+                query,
+                variables,
+                &field.name,
+                staged_ids,
+                status,
+            );
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&payload, &field.selection),
+            );
+        }
+        Some(ok_json(json!({ "data": Value::Object(data) })))
+    }
+
+    pub(in crate::proxy) fn customer_merge_query_response(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        parsed_root_fields: &[String],
+    ) -> Option<Response> {
+        if operation_type != OperationType::Query || parsed_root_fields.is_empty() {
+            return None;
+        }
+        let fields = root_fields(query, variables)?;
+        let has_customer_merge_job_reference = self.has_customer_merge_job_reference(&fields);
+        if parsed_root_fields.iter().all(|field| {
+            matches!(
+                field.as_str(),
+                "customer"
+                    | "customers"
+                    | "customersCount"
+                    | "customerByIdentifier"
+                    | "customerMergeJobStatus"
+                    | "job"
+                    | "node"
+            )
+        }) && (parsed_root_fields
+            .iter()
+            .any(|field| field == "customerMergeJobStatus")
+            || has_customer_merge_job_reference
+            || self.should_handle_customer_overlay_read(query, &fields))
+        {
+            let mut data = serde_json::Map::new();
+            for field in fields {
+                let value = match field.name.as_str() {
+                    "customer" => self.customer_read_field(&field),
+                    "customerByIdentifier" => self.customer_by_identifier_field(&field),
+                    "customers" => self.customer_connection_field(&field),
+                    "customersCount" => selected_json(
+                        &json!({ "count": 177usize.saturating_sub(self.store.staged.deleted_customer_ids.len()), "precision": "EXACT" }),
+                        &field.selection,
+                    ),
+                    "customerMergeJobStatus" => self.customer_merge_job_status_field(&field),
+                    "job" => self.customer_merge_job_node_field(&field),
+                    "node" if customer_merge_job_node_field(&field) => {
+                        self.customer_merge_job_node_field(&field)
+                    }
+                    "node" => return None,
+                    _ => return None,
+                };
+                data.insert(field.response_key.clone(), value);
+            }
+            return Some(ok_json(json!({ "data": Value::Object(data) })));
+        }
+        if parsed_root_fields
+            .iter()
+            .all(|field| field == "customerMergeJobStatus")
+        {
+            let mut data = serde_json::Map::new();
+            for field in fields {
+                data.insert(
+                    field.response_key.clone(),
+                    self.customer_merge_job_status_field(&field),
+                );
+            }
+            return Some(ok_json(json!({ "data": Value::Object(data) })));
+        }
+        if parsed_root_fields
+            .iter()
+            .all(|field| matches!(field.as_str(), "job" | "node"))
+        {
+            if !has_customer_merge_job_reference {
+                return None;
+            }
+            let data = self.customer_merge_job_node_fields(&fields)?;
+            return Some(ok_json(json!({ "data": data })));
+        }
+        None
+    }
+
+    fn customer_merge_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let one_id = resolved_string_arg(&field.arguments, "customerOneId").unwrap_or_default();
+        let two_id = resolved_string_arg(&field.arguments, "customerTwoId").unwrap_or_default();
+        if one_id == two_id {
+            return (
+                customer_merge_payload_json(
+                    None,
+                    None,
+                    vec![customer_merge_user_error(
+                        Value::Null,
+                        "Customers IDs should not match",
+                        "INVALID_CUSTOMER_ID",
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        if let Some(error) = self.customer_merge_unknown_error(&one_id, "customerOneId") {
+            return (
+                customer_merge_payload_json(None, None, vec![error]),
+                "failed",
+                Vec::new(),
+            );
+        }
+        if let Some(error) = self.customer_merge_unknown_error(&two_id, "customerTwoId") {
+            return (
+                customer_merge_payload_json(None, None, vec![error]),
+                "failed",
+                Vec::new(),
+            );
+        }
+
+        let blocker_errors = self.customer_merge_blocker_errors(&one_id, &two_id);
+        if !blocker_errors.is_empty() {
+            return (
+                customer_merge_payload_json(None, None, blocker_errors),
+                "failed",
+                Vec::new(),
+            );
+        }
+
+        let result_id = two_id.clone();
+        let source_id = one_id.clone();
+        let mut result = self
+            .store
+            .staged
+            .customers
+            .get(&result_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        let source = self
+            .store
+            .staged
+            .customers
+            .get(&source_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        let override_fields =
+            resolved_object_field(&field.arguments, "overrideFields").unwrap_or_default();
+        apply_customer_merge_overrides(&mut result, &source, &override_fields);
+        normalize_merged_customer_defaults(&mut result);
+
+        self.store
+            .staged
+            .customers
+            .insert(result_id.clone(), result);
+        self.store.staged.customers.remove(&source_id);
+        self.store
+            .staged
+            .deleted_customer_ids
+            .insert(source_id.clone());
+        self.store
+            .staged
+            .merged_customer_ids
+            .insert(source_id.clone(), result_id.clone());
+        if let Some(source_orders) = self.store.staged.customer_orders.remove(&source_id) {
+            self.store
+                .staged
+                .customer_orders
+                .entry(result_id.clone())
+                .or_default()
+                .extend(source_orders);
+        }
+
+        let job_id = self.next_proxy_synthetic_gid("Job");
+        let request = customer_merge_request_json(&job_id, &result_id, Vec::new());
+        self.store
+            .staged
+            .customer_merge_requests
+            .insert(job_id.clone(), request);
+        (
+            customer_merge_payload_json(Some(result_id.as_str()), Some(&job_id), Vec::new()),
+            "staged",
+            vec![source_id, result_id, job_id],
+        )
+    }
+
+    fn customer_data_erasure_payload(
+        &mut self,
+        field: &RootFieldSelection,
+        request_erasure: bool,
+    ) -> (Value, &'static str, Vec<String>) {
+        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        if !self.customer_exists(&customer_id) {
+            return (
+                customer_data_erasure_payload_json(
+                    None,
+                    vec![customer_data_erasure_user_error(
+                        "Customer does not exist",
+                        "DOES_NOT_EXIST",
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        if request_erasure {
+            self.store.staged.customer_data_erasure_requests.insert(
+                customer_id.clone(),
+                json!({ "customerId": customer_id, "status": "REQUESTED" }),
+            );
+            return (
+                customer_data_erasure_payload_json(Some(&customer_id), Vec::new()),
+                "staged",
+                vec![customer_id],
+            );
+        }
+        let is_pending = self
+            .store
+            .staged
+            .customer_data_erasure_requests
+            .get(&customer_id)
+            .and_then(|request| request["status"].as_str())
+            == Some("REQUESTED");
+        if !is_pending {
+            return (
+                customer_data_erasure_payload_json(
+                    None,
+                    vec![customer_data_erasure_user_error(
+                        "Customer's data is not scheduled for erasure",
+                        "NOT_BEING_ERASED",
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        self.store.staged.customer_data_erasure_requests.insert(
+            customer_id.clone(),
+            json!({ "customerId": customer_id, "status": "CANCELED" }),
+        );
+        (
+            customer_data_erasure_payload_json(Some(&customer_id), Vec::new()),
+            "staged",
+            vec![customer_id],
+        )
+    }
+
+    fn customer_merge_unknown_error(&self, id: &str, field: &str) -> Option<Value> {
+        if self.customer_exists(id) {
+            return None;
+        }
+        Some(customer_merge_user_error(
+            json!([field]),
+            &format!("Customer does not exist with ID {}", resource_id_tail(id)),
+            "INVALID_CUSTOMER_ID",
+        ))
+    }
+
+    fn customer_exists(&self, id: &str) -> bool {
+        !id.is_empty()
+            && self.store.staged.customers.contains_key(id)
+            && !self.store.staged.deleted_customer_ids.contains(id)
+    }
+
+    fn customer_merge_blocker_errors(&self, one_id: &str, two_id: &str) -> Vec<Value> {
+        let one = self.store.staged.customers.get(one_id);
+        let two = self.store.staged.customers.get(two_id);
+        let mut errors = Vec::new();
+        let combined_tags = one
+            .into_iter()
+            .chain(two)
+            .flat_map(customer_tags)
+            .collect::<BTreeSet<_>>();
+        if combined_tags.len() > 250 {
+            errors.push(customer_merge_user_error(
+                json!(["customerOneId"]),
+                "Customers must have 250 tags or less.",
+                "INVALID_CUSTOMER",
+            ));
+            errors.push(customer_merge_user_error(
+                json!(["customerTwoId"]),
+                "Customers must have 250 tags or less.",
+                "INVALID_CUSTOMER",
+            ));
+        }
+        let combined_note_len = one
+            .and_then(|customer| customer["note"].as_str())
+            .unwrap_or_default()
+            .chars()
+            .count()
+            + two
+                .and_then(|customer| customer["note"].as_str())
+                .unwrap_or_default()
+                .chars()
+                .count();
+        if combined_note_len > 5000 {
+            errors.push(customer_merge_user_error(
+                json!(["customerOneId"]),
+                "Customer notes must be 5,000 characters or less.",
+                "INVALID_CUSTOMER",
+            ));
+            errors.push(customer_merge_user_error(
+                json!(["customerTwoId"]),
+                "Customer notes must be 5,000 characters or less.",
+                "INVALID_CUSTOMER",
+            ));
+        }
+        for (id, field_name) in [(one_id, "customerOneId"), (two_id, "customerTwoId")] {
+            if self.customer_has_assigned_gift_card(id) {
+                let name = self
+                    .store
+                    .staged
+                    .customers
+                    .get(id)
+                    .and_then(|customer| customer["displayName"].as_str())
+                    .filter(|name| !name.is_empty())
+                    .unwrap_or("Customer");
+                errors.push(customer_merge_user_error(
+                    json!([field_name]),
+                    &format!("{name} has gift cards and can’t be merged."),
+                    "INVALID_CUSTOMER",
+                ));
+            }
+            if self.customer_has_subscription_contract(id) {
+                errors.push(customer_merge_user_error(
+                    json!([field_name]),
+                    "Customers with subscription contracts can’t be merged.",
+                    "INVALID_CUSTOMER",
+                ));
+            }
+        }
+        errors
+    }
+
+    fn customer_has_assigned_gift_card(&self, customer_id: &str) -> bool {
+        self.store.staged.gift_cards.values().any(|card| {
+            card["customer"]["id"].as_str() == Some(customer_id)
+                || card["customerId"].as_str() == Some(customer_id)
+        })
+    }
+
+    fn customer_has_subscription_contract(&self, customer_id: &str) -> bool {
+        self.store
+            .staged
+            .customer_payment_method_customer_index
+            .get(customer_id)
+            .into_iter()
+            .flatten()
+            .filter_map(|id| self.store.staged.customer_payment_methods.get(id))
+            .any(|method| {
+                method["activeSubscriptionContracts"]["nodes"]
+                    .as_array()
+                    .is_some_and(|nodes| !nodes.is_empty())
+            })
+    }
+
+    fn customer_merge_job_status_field(&self, field: &RootFieldSelection) -> Value {
+        let job_id = resolved_string_arg(&field.arguments, "jobId").unwrap_or_default();
+        self.store
+            .staged
+            .customer_merge_requests
+            .get(&job_id)
+            .map(|request| selected_json(request, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn customer_merge_job_node_fields(&self, fields: &[RootFieldSelection]) -> Option<Value> {
+        let mut handled_any = false;
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = self.customer_merge_job_node_field(field);
+            if !value.is_null() {
+                handled_any = true;
+            }
+            data.insert(field.response_key.clone(), value);
+        }
+        handled_any.then_some(Value::Object(data))
+    }
+
+    fn has_customer_merge_job_reference(&self, fields: &[RootFieldSelection]) -> bool {
+        fields.iter().any(|field| match field.name.as_str() {
+            "customerMergeJobStatus" => resolved_string_arg(&field.arguments, "jobId")
+                .as_deref()
+                .is_some_and(|id| self.store.staged.customer_merge_requests.contains_key(id)),
+            "job" | "node" => resolved_string_arg(&field.arguments, "id")
+                .as_deref()
+                .is_some_and(|id| self.store.staged.customer_merge_requests.contains_key(id)),
+            _ => false,
+        })
+    }
+
+    fn customer_merge_job_node_field(&self, field: &RootFieldSelection) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        self.store
+            .staged
+            .customer_merge_requests
+            .get(&id)
+            .map(customer_merge_job_from_request)
+            .map(|job| selected_json(&job, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn record_customer_side_effect_log(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        staged_ids: Vec<String>,
+        status: &str,
+    ) {
+        self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
+        if status != "staged" {
+            if let Some(entry) = self.log_entries.last_mut() {
+                set_log_status(entry, status);
+            }
+        }
+    }
+}
+
+fn customer_merge_top_level_errors(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    fields: &[RootFieldSelection],
+) -> Option<Vec<Value>> {
+    let operation_path = parsed_document(query, variables)
+        .map(|document| document.operation_path)
+        .unwrap_or_else(|| "mutation".to_string());
+    let mut errors = Vec::new();
+    for field in fields.iter().filter(|field| field.name == "customerMerge") {
+        let missing = ["customerOneId", "customerTwoId"]
+            .into_iter()
+            .filter(|argument| !field.raw_arguments.contains_key(*argument))
+            .collect::<Vec<_>>();
+        if !missing.is_empty() {
+            errors.push(json!({
+                "message": format!(
+                    "Field 'customerMerge' is missing required arguments: {}",
+                    missing.join(", ")
+                ),
+                "locations": [{ "line": field.location.line, "column": field.location.column }],
+                "path": [operation_path.clone(), field.response_key.clone()],
+                "extensions": {
+                    "code": "missingRequiredArguments",
+                    "className": "Field",
+                    "name": "customerMerge",
+                    "arguments": missing.join(", ")
+                }
+            }));
+        }
+        for argument in ["customerOneId", "customerTwoId"] {
+            if matches!(
+                field.raw_arguments.get(argument),
+                Some(RawArgumentValue::String(value)) if value.is_empty()
+            ) {
+                errors.push(json!({
+                    "message": "Invalid global id ''",
+                    "locations": [{ "line": field.location.line, "column": field.location.column }],
+                    "path": [operation_path.clone(), field.response_key.clone(), argument],
+                    "extensions": {
+                        "code": "argumentLiteralsIncompatible",
+                        "typeName": "CoercionError"
+                    }
+                }));
+            }
+        }
+    }
+    (!errors.is_empty()).then_some(errors)
+}
+
+fn customer_merge_payload_json(
+    resulting_customer_id: Option<&str>,
+    job_id: Option<&str>,
+    user_errors: Vec<Value>,
+) -> Value {
+    json!({
+        "resultingCustomerId": resulting_customer_id.map(Value::from).unwrap_or(Value::Null),
+        "job": job_id.map(|id| json!({ "__typename": "Job", "id": id, "done": false, "query": Value::Null })).unwrap_or(Value::Null),
+        "userErrors": user_errors
+    })
+}
+
+fn customer_merge_request_json(
+    job_id: &str,
+    resulting_customer_id: &str,
+    errors: Vec<Value>,
+) -> Value {
+    json!({
+        "__typename": "CustomerMergeRequest",
+        "jobId": job_id,
+        "resultingCustomerId": resulting_customer_id,
+        "status": "COMPLETED",
+        "customerMergeErrors": errors
+    })
+}
+
+fn customer_merge_job_from_request(request: &Value) -> Value {
+    json!({
+        "__typename": "Job",
+        "id": request["jobId"].clone(),
+        "done": true,
+        "query": { "__typename": "QueryRoot" }
+    })
+}
+
+fn customer_merge_user_error(field: Value, message: &str, code: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code,
+        "errorFields": field,
+        "block_type": code
+    })
+}
+
+fn customer_data_erasure_payload_json(customer_id: Option<&str>, user_errors: Vec<Value>) -> Value {
+    json!({
+        "customerId": customer_id.map(Value::from).unwrap_or(Value::Null),
+        "userErrors": user_errors
+    })
+}
+
+fn customer_data_erasure_user_error(message: &str, code: &str) -> Value {
+    json!({
+        "field": ["customerId"],
+        "message": message,
+        "code": code
+    })
+}
+
+fn customer_tags(customer: &Value) -> Vec<String> {
+    customer["tags"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|tag| tag.as_str().map(str::to_string))
+        .collect()
+}
+
+fn customer_matches_search_query(
+    customer: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    let Some(query) = resolved_string_arg(arguments, "query") else {
+        return true;
+    };
+    let query = query.trim();
+    if query.is_empty() {
+        return true;
+    }
+    if let Some(email) = query.strip_prefix("email:") {
+        return customer.get("email").and_then(Value::as_str) == Some(email.trim_matches('"'));
+    }
+    if let Some(tag) = query.strip_prefix("tag:") {
+        let tag = tag.trim_matches('"');
+        return customer_tags(customer).iter().any(|value| value == tag);
+    }
+    customer.get("email").and_then(Value::as_str) == Some(query)
+        || customer_tags(customer).iter().any(|value| value == query)
+}
+
+fn customer_merge_job_node_field(field: &RootFieldSelection) -> bool {
+    resolved_string_arg(&field.arguments, "id")
+        .as_deref()
+        .is_some_and(|id| shopify_gid_resource_type(id) == Some("Job"))
+}
+
+fn apply_customer_merge_overrides(
+    result: &mut Value,
+    source: &Value,
+    override_fields: &BTreeMap<String, ResolvedValue>,
+) {
+    for (override_key, target_field) in [
+        ("customerIdOfEmailToKeep", "email"),
+        ("customerIdOfPhoneNumberToKeep", "phone"),
+        ("customerIdOfFirstNameToKeep", "firstName"),
+        ("customerIdOfLastNameToKeep", "lastName"),
+    ] {
+        let Some(target_id) = resolved_string_field(override_fields, override_key) else {
+            continue;
+        };
+        let target = if result["id"].as_str() == Some(target_id.as_str()) {
+            result.clone()
+        } else if source["id"].as_str() == Some(target_id.as_str()) {
+            source.clone()
+        } else {
+            continue;
+        };
+        if let Some(value) = target.get(target_field).cloned() {
+            result[target_field] = value;
+        }
+    }
+    if let Some(note) = resolved_string_field(override_fields, "note") {
+        result["note"] = json!(note);
+    } else if result["note"].is_null() && !source["note"].is_null() {
+        result["note"] = source["note"].clone();
+    }
+    if let Some(tags) = override_fields.get("tags") {
+        if let ResolvedValue::List(tags) = tags {
+            let mut tags = tags
+                .iter()
+                .filter_map(|tag| match tag {
+                    ResolvedValue::String(tag) => Some(tag.clone()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            tags.sort();
+            result["tags"] = json!(tags);
+        }
+    } else {
+        let mut tags = customer_tags(result)
+            .into_iter()
+            .chain(customer_tags(source))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        tags.sort();
+        result["tags"] = json!(tags);
+    }
+    let first = result["firstName"].as_str().unwrap_or_default();
+    let last = result["lastName"].as_str().unwrap_or_default();
+    result["displayName"] = json!([first, last]
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" "));
+    if let Some(email) = result["email"].as_str() {
+        result["defaultEmailAddress"] = json!({ "emailAddress": email });
+    }
+    if let Some(phone) = result["phone"].as_str() {
+        result["defaultPhoneNumber"] = json!({ "phoneNumber": phone });
+    }
+}
+
+fn normalize_merged_customer_defaults(customer: &mut Value) {
+    if customer["numberOfOrders"].is_null() {
+        customer["numberOfOrders"] = json!("0");
+    }
+    if customer["lastOrder"].is_null() {
+        customer["lastOrder"] = Value::Null;
+    }
+    if customer["addressesV2"].is_null() {
+        customer["addressesV2"] = empty_nodes_connection();
+    }
+    if customer["metafields"].is_null() {
+        customer["metafields"] = empty_nodes_connection();
+    }
+    customer["updatedAt"] = json!("2026-05-05T15:13:52Z");
+}
+
+fn empty_nodes_connection() -> Value {
+    json!({
+        "nodes": [],
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": Value::Null,
+            "endCursor": Value::Null
+        }
+    })
 }
 
 fn b2b_contact_query_root(field: &str) -> bool {

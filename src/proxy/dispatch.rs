@@ -171,6 +171,25 @@ impl DraftProxy {
             }
         }
 
+        if let Some(response) = self.customer_merge_query_response(
+            &query,
+            &variables,
+            operation.operation_type,
+            &operation.root_fields,
+        ) {
+            return response;
+        }
+
+        if let Some(response) = self.customer_merge_erasure_mutation_response(
+            request,
+            &query,
+            &variables,
+            operation.operation_type,
+            &operation.root_fields,
+        ) {
+            return response;
+        }
+
         if let Some(response) = self.products_mutation_tail_helper_response(
             request,
             &query,
