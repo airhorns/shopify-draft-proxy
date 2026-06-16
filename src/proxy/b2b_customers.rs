@@ -218,7 +218,7 @@ impl DraftProxy {
             OperationType::Query => fields.iter().all(|field| {
                 matches!(
                     field.name.as_str(),
-                    "company" | "companyLocation" | "companyLocations"
+                    "company" | "companies" | "companyLocation" | "companyLocations"
                 )
             }),
             OperationType::Subscription => false,
@@ -330,6 +330,7 @@ impl DraftProxy {
                                 value_id_cursor,
                             )
                         }
+                        "companies" => self.b2b_companies_connection(&field),
                         _ => return None,
                     };
                     data.insert(field.response_key.clone(), value);
@@ -1555,8 +1556,42 @@ impl DraftProxy {
             "companyLocation" => resolved_string_arg(&field.arguments, "id")
                 .is_some_and(|id| self.store.staged.b2b_locations.contains_key(&id)),
             "companyLocations" => !self.store.staged.b2b_locations.is_empty(),
+            // A companies(query:) connection can always be answered from locally
+            // staged state — an empty result is the correct answer once the
+            // matching companies have been deleted.
+            "companies" => true,
             _ => false,
         })
+    }
+
+    /// Resolves a `companies(first:, query:)` connection from locally staged
+    /// companies, honouring a `name:"…"` search term so deleted companies (and
+    /// companies whose name does not match) are excluded.
+    fn b2b_companies_connection(&self, field: &RootFieldSelection) -> Value {
+        let name_filter = resolved_string_arg(&field.arguments, "query")
+            .as_deref()
+            .and_then(b2b_company_name_query_value);
+        let companies = self
+            .store
+            .staged
+            .b2b_companies
+            .values()
+            .filter(|company| match &name_filter {
+                Some(value) => company["name"]
+                    .as_str()
+                    .map(|name| name.to_ascii_lowercase().contains(value.as_str()))
+                    .unwrap_or(false),
+                None => true,
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        selected_typed_connection_with_args(
+            &companies,
+            &field.arguments,
+            &field.selection,
+            |company, selections| self.b2b_company_selected_json(company, selections),
+            value_id_cursor,
+        )
     }
 
     fn b2b_company_selected_json(&self, company: &Value, selections: &[SelectedField]) -> Value {
@@ -2051,7 +2086,7 @@ impl DraftProxy {
             root_field,
         );
 
-        if b2b_contact_delete_succeeded(&response) {
+        if b2b_passthrough_mutation_succeeded(&response) {
             for contact_id in contact_ids {
                 if self.store.staged.b2b_contacts.contains_key(&contact_id) {
                     self.b2b_delete_company_contact(&contact_id);
@@ -2059,6 +2094,229 @@ impl DraftProxy {
             }
         }
         response
+    }
+
+    /// Forwards companyContactCreate upstream for its authoritative payload, then
+    /// stages a local company contact under the real id Shopify returned so later
+    /// reads of the company surface the new contact. The contact is linked to a
+    /// Customer by email (provisioning a synthetic one when none matches), but
+    /// only when the upstream create succeeded — a rejected create stages nothing.
+    pub(in crate::proxy) fn b2b_company_contact_create_with_cascade(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        parsed_root_fields: &[String],
+        root_field: &str,
+    ) -> Response {
+        let create = root_fields(query, variables)
+            .and_then(|fields| fields.into_iter().find(|f| f.name == "companyContactCreate"));
+
+        let response = self.dispatch_unknown_passthrough_or_legacy_error(
+            request,
+            query,
+            variables,
+            operation_type,
+            parsed_root_fields,
+            root_field,
+        );
+
+        if let Some(field) = create {
+            if b2b_passthrough_mutation_succeeded(&response) {
+                if let Some(contact_id) = response
+                    .body
+                    .pointer("/data/companyContactCreate/companyContact/id")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+                {
+                    let company_id =
+                        resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+                    let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+                    let first = resolved_string_field(&input, "firstName");
+                    let last = resolved_string_field(&input, "lastName");
+                    let title = resolved_string_field(&input, "title");
+                    let customer_id = resolved_string_field(&input, "email").map(|email| {
+                        self.b2b_provision_contact_customer(&email, first.clone(), last.clone())
+                    });
+                    let contact = json!({
+                        "id": contact_id,
+                        "companyId": company_id,
+                        "customerId": customer_id.map(Value::String).unwrap_or(Value::Null),
+                        "firstName": first.map(Value::String).unwrap_or(Value::Null),
+                        "lastName": last.map(Value::String).unwrap_or(Value::Null),
+                        "title": title.map(Value::String).unwrap_or(Value::Null),
+                        // A contact added after creation defaults to the shop's primary
+                        // locale ("en") and never becomes the company's main contact.
+                        "locale": resolved_string_field(&input, "locale")
+                            .unwrap_or_else(|| "en".to_string()),
+                        "isMainContact": false
+                    });
+                    self.store
+                        .staged
+                        .b2b_contacts
+                        .insert(contact_id.clone(), contact);
+                    if let Some(mut company) =
+                        self.store.staged.b2b_companies.get(&company_id).cloned()
+                    {
+                        b2b_push_json_id(&mut company, "contactIds", &contact_id);
+                        self.store.staged.b2b_companies.insert(company_id, company);
+                    }
+                }
+            }
+        }
+        response
+    }
+
+    /// Forwards companyAssignMainContact upstream, then — only when the upstream
+    /// assignment succeeded — points the company's `mainContactId` at the target
+    /// contact and syncs `isMainContact` across every contact of the company.
+    /// A rejected assignment (e.g. a contact that belongs to another company)
+    /// leaves staged state untouched.
+    pub(in crate::proxy) fn b2b_assign_main_contact_with_cascade(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        parsed_root_fields: &[String],
+        root_field: &str,
+    ) -> Response {
+        let assign = root_fields(query, variables)
+            .and_then(|fields| fields.into_iter().find(|f| f.name == "companyAssignMainContact"));
+
+        let response = self.dispatch_unknown_passthrough_or_legacy_error(
+            request,
+            query,
+            variables,
+            operation_type,
+            parsed_root_fields,
+            root_field,
+        );
+
+        if let Some(field) = assign {
+            if b2b_passthrough_mutation_succeeded(&response) {
+                let company_id =
+                    resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+                let contact_id =
+                    resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+                self.b2b_set_main_contact(&company_id, Some(&contact_id));
+            }
+        }
+        response
+    }
+
+    /// Forwards companyRevokeMainContact upstream, then — only on success — clears
+    /// the company's `mainContactId` and resets `isMainContact` to false across all
+    /// of its contacts.
+    pub(in crate::proxy) fn b2b_revoke_main_contact_with_cascade(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        parsed_root_fields: &[String],
+        root_field: &str,
+    ) -> Response {
+        let revoke = root_fields(query, variables)
+            .and_then(|fields| fields.into_iter().find(|f| f.name == "companyRevokeMainContact"));
+
+        let response = self.dispatch_unknown_passthrough_or_legacy_error(
+            request,
+            query,
+            variables,
+            operation_type,
+            parsed_root_fields,
+            root_field,
+        );
+
+        if let Some(field) = revoke {
+            if b2b_passthrough_mutation_succeeded(&response) {
+                let company_id =
+                    resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+                self.b2b_set_main_contact(&company_id, None);
+            }
+        }
+        response
+    }
+
+    /// Forwards companyDelete/companiesDelete upstream, then — only on success —
+    /// removes the targeted companies (and their staged contacts and locations)
+    /// so subsequent `company(id)` and `companies(query:)` reads no longer surface
+    /// the deleted records.
+    pub(in crate::proxy) fn b2b_company_delete_with_cascade(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        parsed_root_fields: &[String],
+        root_field: &str,
+    ) -> Response {
+        let company_ids = root_fields(query, variables)
+            .map(|fields| {
+                fields
+                    .iter()
+                    .flat_map(|field| match field.name.as_str() {
+                        "companyDelete" => resolved_string_arg(&field.arguments, "id")
+                            .into_iter()
+                            .collect::<Vec<String>>(),
+                        "companiesDelete" => {
+                            resolved_string_list_field_unsorted(&field.arguments, "companyIds")
+                        }
+                        _ => Vec::new(),
+                    })
+                    .collect::<Vec<String>>()
+            })
+            .unwrap_or_default();
+
+        let response = self.dispatch_unknown_passthrough_or_legacy_error(
+            request,
+            query,
+            variables,
+            operation_type,
+            parsed_root_fields,
+            root_field,
+        );
+
+        if b2b_passthrough_mutation_succeeded(&response) {
+            for company_id in company_ids {
+                self.b2b_delete_company(&company_id);
+            }
+        }
+        response
+    }
+
+    /// Points a company's main contact at `main_contact_id` (or clears it when
+    /// None), keeping each contact's `isMainContact` flag in sync.
+    fn b2b_set_main_contact(&mut self, company_id: &str, main_contact_id: Option<&str>) {
+        let Some(mut company) = self.store.staged.b2b_companies.get(company_id).cloned() else {
+            return;
+        };
+        company["mainContactId"] = main_contact_id.map(|id| json!(id)).unwrap_or(Value::Null);
+        let contact_ids = b2b_json_id_list(&company, "contactIds");
+        self.store
+            .staged
+            .b2b_companies
+            .insert(company_id.to_string(), company);
+        for contact_id in contact_ids {
+            if let Some(mut contact) = self.store.staged.b2b_contacts.get(&contact_id).cloned() {
+                contact["isMainContact"] = json!(main_contact_id == Some(contact_id.as_str()));
+                self.store.staged.b2b_contacts.insert(contact_id, contact);
+            }
+        }
+    }
+
+    /// Removes a company and its staged contacts and locations from local state.
+    fn b2b_delete_company(&mut self, company_id: &str) {
+        if let Some(company) = self.store.staged.b2b_companies.remove(company_id) {
+            for contact_id in b2b_json_id_list(&company, "contactIds") {
+                self.store.staged.b2b_contacts.remove(&contact_id);
+            }
+            for location_id in b2b_json_id_list(&company, "locationIds") {
+                self.store.staged.b2b_locations.remove(&location_id);
+            }
+        }
     }
 
     fn b2b_remove_location_assignment_id(
@@ -3681,7 +3939,7 @@ where
 /// A contact delete/remove is treated as successful (and therefore cascades to
 /// local state) only when the upstream payload returns without transport errors
 /// and every mutation payload reports an empty `userErrors` list.
-fn b2b_contact_delete_succeeded(response: &Response) -> bool {
+fn b2b_passthrough_mutation_succeeded(response: &Response) -> bool {
     if response.status >= 400 {
         return false;
     }
@@ -3701,6 +3959,18 @@ fn b2b_contact_delete_succeeded(response: &Response) -> bool {
         }
     }
     true
+}
+
+/// Extracts the lowercased value of a `name:"…"` (or `name:…`) term from a
+/// Shopify search query string, used to filter a companies connection by name.
+fn b2b_company_name_query_value(query: &str) -> Option<String> {
+    let rest = query.split("name:").nth(1)?.trim_start();
+    let value = if let Some(quoted) = rest.strip_prefix('"') {
+        quoted.split('"').next().unwrap_or("")
+    } else {
+        rest.split_whitespace().next().unwrap_or("")
+    };
+    (!value.is_empty()).then(|| value.to_ascii_lowercase())
 }
 
 fn b2b_json_id_list(record: &Value, field: &str) -> Vec<String> {
