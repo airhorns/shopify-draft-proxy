@@ -21,6 +21,7 @@ pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 1
 const RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
 const LOCAL_APP_SUBSCRIPTION_ACTIVATION_ID: &str = "gid://shopify/AppSubscription/expected";
 const LOCAL_APP_PURCHASE_ONE_TIME_ID: &str = "gid://shopify/AppPurchaseOneTime/expected";
+const LOCALIZATION_BASELINE_PRODUCT_ID: &str = "gid://shopify/Product/9801098789170";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReadMode {
@@ -150,6 +151,22 @@ pub struct ProductVariantInventoryItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct ProductOperationRecord {
+    id: String,
+    kind: ProductOperationKind,
+    product_id: Option<String>,
+    new_product_id: Option<String>,
+    user_errors: Vec<Value>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+enum ProductOperationKind {
+    Set,
+    Duplicate,
+    Bundle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct SavedSearchRecord {
     id: String,
     name: String,
@@ -173,6 +190,7 @@ struct BaseState {
     publication_count: Option<usize>,
     available_locales: BTreeMap<String, String>,
     shop_locales: BTreeMap<String, Value>,
+    localization_product_ids: BTreeSet<String>,
 }
 
 #[derive(Clone)]
@@ -185,7 +203,19 @@ struct StagedState {
     deleted_shipping_package_ids: BTreeSet<String>,
     customers: BTreeMap<String, Value>,
     deleted_customer_ids: BTreeSet<String>,
+    customer_addresses: BTreeMap<String, Value>,
+    customer_address_order: BTreeMap<String, Vec<String>>,
+    customer_address_owners: BTreeMap<String, String>,
     customer_orders: BTreeMap<String, Vec<Value>>,
+    merged_customer_ids: BTreeMap<String, String>,
+    customer_merge_requests: BTreeMap<String, Value>,
+    customer_data_erasure_requests: BTreeMap<String, Value>,
+    store_credit_accounts: BTreeMap<String, Value>,
+    store_credit_account_order: Vec<String>,
+    store_credit_transactions: BTreeMap<String, Value>,
+    store_credit_transaction_order: Vec<String>,
+    next_store_credit_account_id: u64,
+    next_store_credit_transaction_id: u64,
     taggable_resources: BTreeMap<String, Value>,
     carrier_services: BTreeMap<String, Value>,
     deleted_carrier_service_ids: BTreeSet<String>,
@@ -199,18 +229,28 @@ struct StagedState {
     fulfillment_service_locations: BTreeMap<String, Value>,
     deleted_fulfillment_service_ids: BTreeSet<String>,
     deleted_fulfillment_service_location_ids: BTreeSet<String>,
+    delivery_profiles: BTreeMap<String, Value>,
+    delivery_profile_order: Vec<String>,
+    deleted_delivery_profile_ids: BTreeSet<String>,
+    observed_shipping_locations: BTreeMap<String, Value>,
+    observed_shipping_location_order: Vec<String>,
     locations: BTreeMap<String, Value>,
     location_order: Vec<String>,
+    deleted_location_ids: BTreeSet<String>,
     location_limit_reached: bool,
     segments: BTreeMap<String, Value>,
     collections: BTreeMap<String, Value>,
+    deleted_collection_ids: BTreeSet<String>,
+    collection_jobs: BTreeMap<String, Value>,
     fulfillment_order_deadlines: BTreeMap<String, String>,
     bulk_operations: BTreeMap<String, Value>,
     bulk_operation_staged_uploads: BTreeMap<String, Option<u64>>,
     discounts: BTreeMap<String, Value>,
     discount_code_index: BTreeMap<String, String>,
     deleted_discount_ids: BTreeSet<String>,
+    discount_bulk_operations: BTreeMap<String, Value>,
     discount_redeem_code_bulk_creations: BTreeMap<String, Value>,
+    timestamp_discounts: BTreeMap<String, Value>,
     gift_cards: BTreeMap<String, Value>,
     markets: BTreeMap<String, Value>,
     catalogs: BTreeMap<String, Value>,
@@ -226,8 +266,16 @@ struct StagedState {
     webhook_subscriptions: BTreeMap<String, Value>,
     b2b_companies: BTreeMap<String, Value>,
     b2b_locations: BTreeMap<String, Value>,
+    b2b_location_order: Vec<String>,
+    b2b_contacts: BTreeMap<String, Value>,
+    b2b_contact_roles: BTreeMap<String, Value>,
+    b2b_role_assignments: BTreeMap<String, Value>,
+    b2b_staff_assignments: BTreeMap<String, Value>,
     next_b2b_company_id: u64,
     inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
+    inventory_level_order: Vec<(String, String)>,
+    inventory_level_ids: BTreeMap<(String, String), String>,
+    inactive_inventory_levels: BTreeSet<(String, String)>,
     inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
     next_inventory_quantity_timestamp: u64,
     inventory_transfers: BTreeMap<String, InventoryTransferRecord>,
@@ -235,13 +283,22 @@ struct StagedState {
     deleted_metaobject_definition_ids: BTreeSet<String>,
     metaobjects: BTreeMap<String, Value>,
     deleted_metaobject_ids: BTreeSet<String>,
+    url_redirects: BTreeMap<String, Value>,
+    url_redirect_order: Vec<String>,
+    linked_product_option_metaobject_sets: Vec<BTreeSet<String>>,
+    product_option_linked_metaobject_definition_ids: BTreeSet<String>,
+    app_metafields: BTreeMap<(String, String, String), Value>,
     owner_metafields: BTreeMap<String, Vec<Value>>,
     deleted_owner_metafields: BTreeSet<(String, String, String)>,
     metafield_definitions: BTreeMap<(String, String), Value>,
     media_files: BTreeMap<String, Value>,
     deleted_media_file_ids: BTreeSet<String>,
     online_store_integrations: BTreeMap<String, Value>,
+    product_operations: BTreeMap<String, ProductOperationRecord>,
+    product_set_updated: bool,
+    product_option_fixture: Option<String>,
     product_delete_operations: BTreeMap<String, String>,
+    selling_plan_group_downstream_step: usize,
     mandate_payment_keys: BTreeSet<String>,
     payment_terms: BTreeMap<String, Value>,
     payment_terms_owner_index: BTreeMap<String, String>,
@@ -257,6 +314,8 @@ struct StagedState {
     returns_by_order: BTreeMap<String, Vec<String>>,
     reverse_deliveries: BTreeMap<String, Value>,
     reverse_fulfillment_orders: BTreeMap<String, Value>,
+    next_refund_id: u64,
+    next_refund_line_item_id: u64,
     next_order_id: u64,
     next_draft_order_id: u64,
     next_return_id: u64,
@@ -275,6 +334,11 @@ struct StagedState {
     next_order_customer_order_id: u64,
     order_edit_existing_order: Option<Value>,
     order_edit_existing_calculated_order: Option<Value>,
+    order_edit_existing_calculated_order_id: Option<String>,
+    order_edit_existing_session_order_id: Option<String>,
+    order_payment_transaction_state: Option<String>,
+    order_payment_transaction_order_id: Option<String>,
+    order_payment_parent_transaction_id: Option<String>,
     order_payment_next_transaction_id: u64,
     order_edit_existing_mode: Option<String>,
     function_validation: Option<Value>,
@@ -283,9 +347,21 @@ struct StagedState {
     function_validation_order: Vec<String>,
     function_cart_transforms: BTreeMap<String, Value>,
     function_cart_transform_order: Vec<String>,
+    code_basic_lifecycle_status: Option<String>,
+    free_shipping_code_status: Option<String>,
+    free_shipping_automatic_status: Option<String>,
+    redeem_code_bulk_live_added: bool,
+    redeem_code_bulk_live_deleted_seed: bool,
     backup_region: Value,
     flow_signatures: Vec<Value>,
     flow_trigger_receipts: Vec<Value>,
+
+    b2b_contact_role_assignments: BTreeMap<String, Value>,
+    deleted_b2b_contact_ids: BTreeSet<String>,
+    deleted_b2b_contact_role_assignment_ids: BTreeSet<String>,
+    next_b2b_contact_id: u64,
+    next_b2b_contact_role_assignment_id: u64,
+    deleted_order_ids: BTreeSet<String>,
 }
 
 #[derive(Clone)]
@@ -420,7 +496,19 @@ impl Default for StagedState {
             deleted_shipping_package_ids: BTreeSet::new(),
             customers: BTreeMap::new(),
             deleted_customer_ids: BTreeSet::new(),
+            customer_addresses: BTreeMap::new(),
+            customer_address_order: BTreeMap::new(),
+            customer_address_owners: BTreeMap::new(),
             customer_orders: BTreeMap::new(),
+            merged_customer_ids: BTreeMap::new(),
+            customer_merge_requests: BTreeMap::new(),
+            customer_data_erasure_requests: BTreeMap::new(),
+            store_credit_accounts: BTreeMap::new(),
+            store_credit_account_order: Vec::new(),
+            store_credit_transactions: BTreeMap::new(),
+            store_credit_transaction_order: Vec::new(),
+            next_store_credit_account_id: 1,
+            next_store_credit_transaction_id: 1,
             taggable_resources: BTreeMap::new(),
             carrier_services: BTreeMap::new(),
             deleted_carrier_service_ids: BTreeSet::new(),
@@ -434,18 +522,28 @@ impl Default for StagedState {
             fulfillment_service_locations: BTreeMap::new(),
             deleted_fulfillment_service_ids: BTreeSet::new(),
             deleted_fulfillment_service_location_ids: BTreeSet::new(),
+            delivery_profiles: BTreeMap::new(),
+            delivery_profile_order: Vec::new(),
+            deleted_delivery_profile_ids: BTreeSet::new(),
+            observed_shipping_locations: BTreeMap::new(),
+            observed_shipping_location_order: Vec::new(),
             locations: BTreeMap::new(),
             location_order: Vec::new(),
+            deleted_location_ids: BTreeSet::new(),
             location_limit_reached: false,
             segments: BTreeMap::new(),
             collections: BTreeMap::new(),
+            deleted_collection_ids: BTreeSet::new(),
+            collection_jobs: BTreeMap::new(),
             fulfillment_order_deadlines: BTreeMap::new(),
             bulk_operations: BTreeMap::new(),
             bulk_operation_staged_uploads: BTreeMap::new(),
             discounts: BTreeMap::new(),
             discount_code_index: BTreeMap::new(),
             deleted_discount_ids: BTreeSet::new(),
+            discount_bulk_operations: BTreeMap::new(),
             discount_redeem_code_bulk_creations: BTreeMap::new(),
+            timestamp_discounts: BTreeMap::new(),
             gift_cards: BTreeMap::new(),
             markets: BTreeMap::new(),
             catalogs: BTreeMap::new(),
@@ -461,8 +559,16 @@ impl Default for StagedState {
             webhook_subscriptions: BTreeMap::new(),
             b2b_companies: BTreeMap::new(),
             b2b_locations: BTreeMap::new(),
+            b2b_location_order: Vec::new(),
+            b2b_contacts: BTreeMap::new(),
+            b2b_contact_roles: BTreeMap::new(),
+            b2b_role_assignments: BTreeMap::new(),
+            b2b_staff_assignments: BTreeMap::new(),
             next_b2b_company_id: 1,
             inventory_levels: BTreeMap::new(),
+            inventory_level_order: Vec::new(),
+            inventory_level_ids: BTreeMap::new(),
+            inactive_inventory_levels: BTreeSet::new(),
             inventory_quantity_updated_at: BTreeMap::new(),
             next_inventory_quantity_timestamp: 0,
             inventory_transfers: BTreeMap::new(),
@@ -470,13 +576,22 @@ impl Default for StagedState {
             deleted_metaobject_definition_ids: BTreeSet::new(),
             metaobjects: BTreeMap::new(),
             deleted_metaobject_ids: BTreeSet::new(),
+            url_redirects: BTreeMap::new(),
+            url_redirect_order: Vec::new(),
+            linked_product_option_metaobject_sets: Vec::new(),
+            product_option_linked_metaobject_definition_ids: BTreeSet::new(),
+            app_metafields: BTreeMap::new(),
             owner_metafields: BTreeMap::new(),
             deleted_owner_metafields: BTreeSet::new(),
             metafield_definitions: BTreeMap::new(),
             media_files: BTreeMap::new(),
             deleted_media_file_ids: BTreeSet::new(),
             online_store_integrations: BTreeMap::new(),
+            product_operations: BTreeMap::new(),
+            product_set_updated: false,
+            product_option_fixture: None,
             product_delete_operations: BTreeMap::new(),
+            selling_plan_group_downstream_step: 0,
             mandate_payment_keys: BTreeSet::new(),
             payment_terms: BTreeMap::new(),
             payment_terms_owner_index: BTreeMap::new(),
@@ -492,6 +607,8 @@ impl Default for StagedState {
             returns_by_order: BTreeMap::new(),
             reverse_deliveries: BTreeMap::new(),
             reverse_fulfillment_orders: BTreeMap::new(),
+            next_refund_id: 1,
+            next_refund_line_item_id: 1,
             next_order_id: 1,
             next_draft_order_id: 1,
             next_return_id: 2,
@@ -510,6 +627,11 @@ impl Default for StagedState {
             next_order_customer_order_id: 1,
             order_edit_existing_order: None,
             order_edit_existing_calculated_order: None,
+            order_edit_existing_calculated_order_id: None,
+            order_edit_existing_session_order_id: None,
+            order_payment_transaction_state: None,
+            order_payment_transaction_order_id: None,
+            order_payment_parent_transaction_id: None,
             order_payment_next_transaction_id: 3,
             order_edit_existing_mode: None,
             function_validation: None,
@@ -518,10 +640,22 @@ impl Default for StagedState {
             function_validation_order: Vec::new(),
             function_cart_transforms: BTreeMap::new(),
             function_cart_transform_order: Vec::new(),
+            code_basic_lifecycle_status: None,
+            free_shipping_code_status: None,
+            free_shipping_automatic_status: None,
+            redeem_code_bulk_live_added: false,
+            redeem_code_bulk_live_deleted_seed: false,
             backup_region: backup_region_country("CA")
                 .expect("default backup region country must be captured"),
             flow_signatures: Vec::new(),
             flow_trigger_receipts: Vec::new(),
+        
+            b2b_contact_role_assignments: BTreeMap::new(),
+            deleted_b2b_contact_ids: BTreeSet::new(),
+            deleted_b2b_contact_role_assignment_ids: BTreeSet::new(),
+            next_b2b_contact_id: 1,
+            next_b2b_contact_role_assignment_id: 1,
+            deleted_order_ids: BTreeSet::new(),
         }
     }
 }
@@ -620,6 +754,10 @@ impl Store {
                 }]
             }),
         );
+        store
+            .base
+            .localization_product_ids
+            .insert(LOCALIZATION_BASELINE_PRODUCT_ID.to_string());
         store
     }
 
@@ -768,8 +906,19 @@ impl Store {
             || !self.staged.products.tombstones.is_empty()
     }
 
+    fn has_collection_state(&self) -> bool {
+        !self.staged.collections.is_empty()
+            || !self.staged.deleted_collection_ids.is_empty()
+            || !self.staged.collection_jobs.is_empty()
+    }
+
     fn has_product(&self, id: &str) -> bool {
         self.product_by_id(id).is_some()
+    }
+
+    fn has_localization_product(&self, id: &str) -> bool {
+        !self.staged.products.is_tombstoned(id)
+            && (self.has_product(id) || self.base.localization_product_ids.contains(id))
     }
 
     fn stage_product(&mut self, product: ProductRecord) {
@@ -798,6 +947,7 @@ impl Store {
         else {
             return;
         };
+        self.staged.deleted_collection_ids.remove(&collection_id);
 
         let mut normalized_products = Vec::new();
         for mut product in products {
@@ -854,6 +1004,41 @@ impl Store {
         for product in normalized_products {
             self.stage_observed_product(product);
         }
+    }
+
+    fn collection_by_id(&self, id: &str) -> Option<&Value> {
+        if self.staged.deleted_collection_ids.contains(id) {
+            return None;
+        }
+        self.staged.collections.get(id)
+    }
+
+    fn stage_collection(&mut self, collection: Value) {
+        if let Some(id) = collection.get("id").and_then(Value::as_str) {
+            self.staged.deleted_collection_ids.remove(id);
+            self.staged.collections.insert(id.to_string(), collection);
+        }
+    }
+
+    fn delete_collection(&mut self, id: &str) -> bool {
+        let existed = self.staged.collections.remove(id).is_some();
+        if existed {
+            self.staged.deleted_collection_ids.insert(id.to_string());
+        }
+        for product in self.products() {
+            if product
+                .collections
+                .iter()
+                .any(|collection| collection.get("id").and_then(Value::as_str) == Some(id))
+            {
+                let mut updated = product;
+                updated
+                    .collections
+                    .retain(|collection| collection.get("id").and_then(Value::as_str) != Some(id));
+                self.stage_product(updated);
+            }
+        }
+        existed
     }
 
     fn delete_product(&mut self, id: &str) {
@@ -918,6 +1103,36 @@ impl Store {
             self.staged.product_variants.tombstone(id.to_string());
         }
         existed
+    }
+
+    fn reorder_product_variants(&mut self, product_id: &str, ordered_ids: &[String]) {
+        let variants = self.product_variants_for_product(product_id);
+        let mut by_id = variants
+            .iter()
+            .cloned()
+            .map(|variant| (variant.id.clone(), variant))
+            .collect::<BTreeMap<_, _>>();
+        let product_variant_ids = by_id.keys().cloned().collect::<BTreeSet<_>>();
+        let mut staged_order = Vec::new();
+
+        for id in ordered_ids {
+            if product_variant_ids.contains(id) && !staged_order.contains(id) {
+                staged_order.push(id.clone());
+            }
+        }
+        for variant in variants {
+            if !staged_order.contains(&variant.id) {
+                staged_order.push(variant.id.clone());
+            }
+        }
+
+        for id in staged_order.iter().cloned() {
+            if let Some(variant) = by_id.remove(&id) {
+                self.staged.product_variants.stage(id, variant);
+            }
+        }
+        self.staged.product_variants.order =
+            normalized_order(self.staged.product_variants.records.keys(), staged_order);
     }
 
     fn saved_search_base_with_defaults(
@@ -1093,6 +1308,8 @@ mod metafields_orders_payments;
 mod metaobjects;
 mod online_store_orders_payments;
 mod product_helpers;
+mod product_operations;
+mod product_options;
 mod resolved_values;
 mod resource_ids;
 mod routing;
@@ -1133,6 +1350,10 @@ pub(in crate::proxy) use self::metaobjects::*;
 pub(in crate::proxy) use self::online_store_orders_payments::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::product_helpers::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::product_operations::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::product_options::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::resolved_values::*;
 #[allow(unused_imports)]
@@ -1732,48 +1953,54 @@ mod store_tests {
 
     #[test]
     fn collection_downstream_read_uses_observed_passthrough_membership_state() {
-        let upstream_body = json!({
-            "data": {
-                "collectionAddProducts": {
-                    "collection": {
-                        "id": "gid://shopify/Collection/store-backed",
-                        "title": "Store Backed Collection",
-                        "handle": "store-backed-collection",
-                        "products": {
-                            "nodes": [
-                                {
-                                    "id": "gid://shopify/Product/first",
-                                    "title": "First Product",
-                                    "handle": "first-product"
-                                },
-                                {
-                                    "id": "gid://shopify/Product/second",
-                                    "title": "Second Product",
-                                    "handle": "second-product"
-                                }
-                            ],
-                            "pageInfo": {
-                                "hasNextPage": false,
-                                "hasPreviousPage": false
-                            }
-                        }
-                    },
-                    "userErrors": []
+        let mut proxy = snapshot_proxy().with_base_products(vec![
+            ProductRecord {
+                id: "gid://shopify/Product/first".to_string(),
+                title: "First Product".to_string(),
+                handle: "first-product".to_string(),
+                status: "ACTIVE".to_string(),
+                ..ProductRecord::default()
+            },
+            ProductRecord {
+                id: "gid://shopify/Product/second".to_string(),
+                title: "Second Product".to_string(),
+                handle: "second-product".to_string(),
+                status: "ACTIVE".to_string(),
+                ..ProductRecord::default()
+            },
+        ]);
+
+        let create = proxy.process_request(graphql_request(
+            r#"
+            mutation CollectionCreateForDownstreamRead($input: CollectionInput!) {
+              collectionCreate(input: $input) {
+                collection {
+                  id
                 }
+                userErrors {
+                  field
+                  message
+                }
+              }
             }
-        });
-        let mut proxy = DraftProxy::new(Config {
-            read_mode: ReadMode::LiveHybrid,
-            unsupported_mutation_mode: Some(UnsupportedMutationMode::Passthrough),
-            bulk_operation_run_mutation_max_input_file_size_bytes: None,
-            port: 0,
-            shopify_admin_origin: "https://shopify.com".to_string(),
-            snapshot_path: None,
-        })
-        .with_upstream_transport({
-            let upstream_body = upstream_body.clone();
-            move |_| ok_json(upstream_body.clone())
-        });
+            "#,
+            json!({
+                "input": {
+                    "title": "Store Backed Collection",
+                    "handle": "store-backed-collection",
+                    "sortOrder": "MANUAL"
+                }
+            }),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(
+            create.body["data"]["collectionCreate"]["userErrors"],
+            json!([])
+        );
+        let collection_id = create.body["data"]["collectionCreate"]["collection"]["id"]
+            .as_str()
+            .expect("collection create should return id")
+            .to_string();
 
         let mutation = proxy.process_request(graphql_request(
             r#"
@@ -1803,7 +2030,7 @@ mod store_tests {
             }
             "#,
             json!({
-                "id": "gid://shopify/Collection/store-backed",
+                "id": collection_id,
                 "productIds": ["gid://shopify/Product/first", "gid://shopify/Product/second"]
             }),
         ));
@@ -1851,7 +2078,7 @@ mod store_tests {
             }
             "#,
             json!({
-                "collectionId": "gid://shopify/Collection/store-backed",
+                "collectionId": collection_id,
                 "firstProductId": "gid://shopify/Product/first",
                 "secondProductId": "gid://shopify/Product/second"
             }),
@@ -1877,7 +2104,7 @@ mod store_tests {
             read.body["data"]["first"]["collections"]["nodes"],
             json!([
                 {
-                    "id": "gid://shopify/Collection/store-backed",
+                    "id": collection_id,
                     "title": "Store Backed Collection",
                     "handle": "store-backed-collection"
                 }
