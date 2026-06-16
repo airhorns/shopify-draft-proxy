@@ -3177,78 +3177,329 @@ fn product_variants_bulk_create_strategy_downstreams_replay_captured_variant_sha
 }
 
 #[test]
-fn product_set_fixture_replay_preserves_mutation_and_downstream_product_graphs() {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json"
-    ))
-    .unwrap();
-    let mut proxy = snapshot_proxy();
-    let mutation_query =
-        include_str!("../../config/parity-requests/products/productSet-parity-plan.graphql");
-    let read_query =
-        include_str!("../../config/parity-requests/products/productSet-downstream-read.graphql");
+fn product_set_stage_locally_for_natural_operations_and_async_readback() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
 
     let create = proxy.process_request(json_graphql_request(
-        mutation_query,
-        fixture["mutation"]["variables"].clone(),
+        r#"
+        mutation NaturalProductSet($input: ProductSetInput!, $synchronous: Boolean!) {
+          productSet(input: $input, synchronous: $synchronous) {
+            product {
+              id
+              title
+              handle
+              status
+              vendor
+              productType
+              totalInventory
+              options { name values optionValues { name hasVariants } }
+              variants(first: 10) {
+                nodes {
+                  id
+                  title
+                  sku
+                  price
+                  inventoryQuantity
+                  selectedOptions { name value }
+                  inventoryItem { tracked requiresShipping }
+                }
+              }
+            }
+            productSetOperation { id status userErrors { field message code } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "synchronous": true,
+            "input": {
+                "title": "Natural ProductSet Source",
+                "status": "DRAFT",
+                "vendor": "HERMES",
+                "productType": "SNOWBOARD",
+                "productOptions": [{
+                    "name": "Color",
+                    "values": [{"name": "Blue"}, {"name": "Black"}]
+                }],
+                "variants": [
+                    {
+                        "optionValues": [{"optionName": "Color", "name": "Blue"}],
+                        "sku": "NAT-BLUE",
+                        "price": "79.99",
+                        "inventoryQuantities": [
+                            {"quantity": 2, "name": "available"},
+                            {"quantity": 5, "name": "available"}
+                        ],
+                        "inventoryItem": {"tracked": true, "requiresShipping": true}
+                    },
+                    {
+                        "optionValues": [{"optionName": "Color", "name": "Black"}],
+                        "sku": "NAT-BLACK",
+                        "price": "69.99",
+                        "inventoryQuantities": [{"quantity": 3, "name": "available"}],
+                        "inventoryItem": {"tracked": false, "requiresShipping": true}
+                    }
+                ]
+            }
+        }),
     ));
     assert_eq!(create.status, 200);
-    assert_eq!(create.body["data"], fixture["mutation"]["response"]["data"]);
+    assert_eq!(create.body["data"]["productSet"]["userErrors"], json!([]));
     assert_eq!(
-        create.body["data"]["productSet"]["product"]["variants"]["nodes"][0]["inventoryItem"]
-            ["inventoryLevels"]["nodes"][0]["quantities"],
-        json!([
-            {"name": "available", "quantity": 2, "updatedAt": "2026-04-25T23:03:30Z"},
-            {"name": "on_hand", "quantity": 2, "updatedAt": null},
-            {"name": "incoming", "quantity": 0, "updatedAt": null}
-        ])
+        create.body["data"]["productSet"]["productSetOperation"],
+        Value::Null
+    );
+    let product_id = create.body["data"]["productSet"]["product"]["id"].clone();
+    assert!(product_id.as_str().unwrap().contains("/Product/"));
+    assert_eq!(
+        create.body["data"]["productSet"]["product"]["totalInventory"],
+        json!(10)
+    );
+    assert_eq!(
+        create.body["data"]["productSet"]["product"]["variants"]["nodes"][0]["title"],
+        json!("Blue")
+    );
+    assert_eq!(
+        create.body["data"]["productSet"]["product"]["variants"]["nodes"][0]["selectedOptions"],
+        json!([{ "name": "Color", "value": "Blue" }])
+    );
+    assert_eq!(
+        create.body["data"]["productSet"]["product"]["variants"]["nodes"][1]["inventoryItem"]
+            ["tracked"],
+        json!(false)
     );
 
-    let create_read = proxy.process_request(json_graphql_request(
-        read_query,
-        fixture["downstreamReadVariables"].clone(),
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query NaturalProductSetRead($id: ID!) {
+          product(id: $id) {
+            id
+            title
+            totalInventory
+            variants(first: 10) { nodes { sku inventoryQuantity selectedOptions { name value } } }
+          }
+        }
+        "#,
+        json!({ "id": product_id.clone() }),
     ));
-    assert_eq!(create_read.status, 200);
-    assert_eq!(create_read.body["data"], fixture["downstreamRead"]["data"]);
+    assert_eq!(read.status, 200);
+    assert_eq!(read.body["data"]["product"]["id"], product_id);
     assert_eq!(
-        create_read.body["data"]["variantOne"]["id"],
-        create_read.body["data"]["product"]["variants"]["nodes"][0]["id"]
-    );
-    assert_eq!(
-        create_read.body["data"]["variantOne"]["inventoryItem"],
-        create_read.body["data"]["stockOne"]
-            .as_object()
-            .map(|stock| {
-                let mut item = stock.clone();
-                item.remove("variant");
-                Value::Object(item)
-            })
-            .unwrap()
+        read.body["data"]["product"]["variants"]["nodes"][0]["sku"],
+        json!("NAT-BLUE")
     );
 
-    let update = proxy.process_request(json_graphql_request(
-        mutation_query,
-        fixture["update"]["mutation"]["variables"].clone(),
+    let async_set = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalProductSetAsync($input: ProductSetInput!, $synchronous: Boolean!) {
+          productSet(input: $input, synchronous: $synchronous) {
+            product { id }
+            productSetOperation {
+              __typename
+              id
+              status
+              product { id title }
+              userErrors { field message code }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "synchronous": false,
+            "input": {
+                "title": "Natural ProductSet Async",
+                "status": "DRAFT",
+                "variants": [{
+                    "sku": "NAT-ASYNC",
+                    "price": "19.99",
+                    "inventoryQuantities": [{"quantity": 4, "name": "available"}]
+                }]
+            }
+        }),
     ));
-    assert_eq!(update.status, 200);
+    assert_eq!(async_set.status, 200);
+    assert_eq!(async_set.body["data"]["productSet"]["product"], Value::Null);
     assert_eq!(
-        update.body["data"],
-        fixture["update"]["mutation"]["response"]["data"]
+        async_set.body["data"]["productSet"]["productSetOperation"]["status"],
+        json!("CREATED")
+    );
+    let operation_id = async_set.body["data"]["productSet"]["productSetOperation"]["id"].clone();
+    assert!(operation_id
+        .as_str()
+        .unwrap()
+        .contains("/ProductSetOperation/"));
+
+    let operation = proxy.process_request(json_graphql_request(
+        r#"
+        query NaturalProductSetOperationRead($id: ID!) {
+          productOperation(id: $id) {
+            __typename
+            status
+            product { id title totalInventory }
+            ... on ProductSetOperation { id userErrors { field message code } }
+          }
+        }
+        "#,
+        json!({ "id": operation_id.clone() }),
+    ));
+    assert_eq!(operation.status, 200);
+    assert_eq!(
+        operation.body["data"]["productOperation"]["__typename"],
+        json!("ProductSetOperation")
+    );
+    assert_eq!(
+        operation.body["data"]["productOperation"]["status"],
+        json!("COMPLETE")
+    );
+    assert_eq!(
+        operation.body["data"]["productOperation"]["product"]["title"],
+        json!("Natural ProductSet Async")
+    );
+    assert_eq!(
+        operation.body["data"]["productOperation"]["userErrors"],
+        json!([])
     );
 
-    let update_read = proxy.process_request(json_graphql_request(
-        read_query,
-        fixture["update"]["downstreamReadVariables"].clone(),
+    let node = proxy.process_request(json_graphql_request(
+        r#"
+        query NaturalProductSetOperationNode($id: ID!) {
+          node(id: $id) {
+            __typename
+            ... on ProductSetOperation {
+              id
+              status
+              product { title }
+            }
+          }
+        }
+        "#,
+        json!({ "id": operation_id }),
     ));
-    assert_eq!(update_read.status, 200);
+    assert_eq!(node.status, 200);
     assert_eq!(
-        update_read.body["data"],
-        fixture["update"]["downstreamRead"]["data"]
+        node.body["data"]["node"]["__typename"],
+        json!("ProductSetOperation")
     );
     assert_eq!(
-        update_read.body["data"]["product"]["variants"]["nodes"][0]["sku"],
-        json!("GRAPH-BLUE-UPDATED-1777158209644")
+        node.body["data"]["node"]["product"]["title"],
+        json!("Natural ProductSet Async")
     );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 2);
+    assert_eq!(
+        entries[0]["interpreted"]["primaryRootField"],
+        json!("productSet")
+    );
+    assert!(entries[0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("NaturalProductSet"));
+    assert!(entries[1]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("NaturalProductSetAsync"));
+}
+
+#[test]
+fn product_set_validates_identifier_id_and_shape_limits() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
+
+    let id_not_allowed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalProductSetIdNotAllowed($identifier: ProductSetIdentifiers, $input: ProductSetInput!) {
+          productSet(identifier: $identifier, input: $input) {
+            product { id }
+            productSetOperation { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "handle": "natural-id-not-allowed" },
+            "input": {
+                "id": "gid://shopify/Product/123",
+                "title": "Should Not Stage"
+            }
+        }),
+    ));
+    assert_eq!(id_not_allowed.status, 200);
+    assert_eq!(
+        id_not_allowed.body["data"]["productSet"]["product"],
+        Value::Null
+    );
+    assert_eq!(
+        id_not_allowed.body["data"]["productSet"]["userErrors"][0]["code"],
+        json!("ID_NOT_ALLOWED")
+    );
+
+    let too_many_options = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalProductSetShape($input: ProductSetInput!) {
+          productSet(input: $input) {
+            product { id }
+            productSetOperation { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Too Many Options",
+                "productOptions": [
+                    {"name": "One", "values": [{"name": "A"}]},
+                    {"name": "Two", "values": [{"name": "A"}]},
+                    {"name": "Three", "values": [{"name": "A"}]},
+                    {"name": "Four", "values": [{"name": "A"}]}
+                ]
+            }
+        }),
+    ));
+    assert_eq!(too_many_options.status, 200);
+    assert_eq!(
+        too_many_options.body["data"]["productSet"]["product"],
+        Value::Null
+    );
+    let shape_errors = too_many_options.body["data"]["productSet"]["userErrors"]
+        .as_array()
+        .unwrap();
+    assert!(shape_errors.iter().any(|error| {
+        error["field"] == json!(["input", "productOptions"])
+            && error["message"] == json!("Options are limited to 3 per product")
+    }));
+    assert!(shape_errors.iter().any(|error| {
+        error["field"] == json!(["input", "variants"])
+            && error["message"] == json!("Variants input is required when updating product options")
+    }));
+
+    let over_variant_limit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalProductSetVariantLimit($input: ProductSetInput!) {
+          productSet(input: $input) { product { id } userErrors { message } }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Too Many Variants",
+                "variants": (0..2049).map(|index| json!({"sku": format!("SKU-{index}")})).collect::<Vec<_>>()
+            }
+        }),
+    ));
+    assert_eq!(over_variant_limit.status, 200);
+    assert_eq!(
+        over_variant_limit.body["errors"][0]["extensions"]["code"],
+        json!("MAX_INPUT_SIZE_EXCEEDED")
+    );
+
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
 }
 
 #[test]
@@ -5317,121 +5568,506 @@ fn product_options_create_variant_strategy_edges_stage_from_store_state() {
 }
 
 #[test]
-fn product_duplicate_replays_captured_sync_and_async_readbacks() {
-    let mut proxy = snapshot_proxy();
+fn product_duplicate_stage_locally_for_natural_operations_and_async_readbacks() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
 
-    let sync_fixture = product_fixture(include_str!(
-        "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-duplicate-parity.json"
+    let source = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DuplicateSourceProductSet($input: ProductSetInput!) {
+          productSet(input: $input) {
+            product {
+              id
+              title
+              handle
+              variants(first: 10) { nodes { sku selectedOptions { name value } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Natural Duplicate Source",
+                "status": "ACTIVE",
+                "productOptions": [{"name": "Color", "values": [{"name": "Red"}]}],
+                "variants": [{
+                    "optionValues": [{"optionName": "Color", "name": "Red"}],
+                    "sku": "DUP-RED",
+                    "price": "12.34",
+                    "inventoryQuantities": [{"quantity": 2, "name": "available"}]
+                }]
+            }
+        }),
     ));
+    assert_eq!(source.status, 200);
+    assert_eq!(source.body["data"]["productSet"]["userErrors"], json!([]));
+    let source_id = source.body["data"]["productSet"]["product"]["id"].clone();
+
     let duplicate = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/products/productDuplicate-parity-plan.graphql"),
-        sync_fixture["mutation"]["variables"].clone(),
+        r#"
+        mutation NaturalProductDuplicate($productId: ID!, $newTitle: String!, $synchronous: Boolean!) {
+          productDuplicate(productId: $productId, newTitle: $newTitle, synchronous: $synchronous) {
+            newProduct {
+              id
+              title
+              handle
+              status
+              variants(first: 10) { nodes { sku selectedOptions { name value } } }
+            }
+            productDuplicateOperation { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": source_id.clone(),
+            "newTitle": "Natural Duplicate Sync Copy",
+            "synchronous": true
+        }),
     ));
     assert_eq!(duplicate.status, 200);
     assert_eq!(
-        duplicate.body["data"],
-        sync_fixture["mutation"]["response"]["data"]
-    );
-    let duplicate_read = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/products/productDuplicate-downstream-read.graphql"
-        ),
-        json!({ "id": duplicate.body["data"]["productDuplicate"]["newProduct"]["id"].clone() }),
-    ));
-    assert_eq!(duplicate_read.status, 200);
-    assert_eq!(
-        duplicate_read.body["data"]["product"]["id"],
-        sync_fixture["downstreamRead"]["data"]["product"]["id"]
+        duplicate.body["data"]["productDuplicate"]["userErrors"],
+        json!([])
     );
     assert_eq!(
-        duplicate_read.body["data"]["product"]["options"],
-        sync_fixture["downstreamRead"]["data"]["product"]["options"]
+        duplicate.body["data"]["productDuplicate"]["productDuplicateOperation"],
+        Value::Null
+    );
+    let duplicate_id = duplicate.body["data"]["productDuplicate"]["newProduct"]["id"].clone();
+    assert!(duplicate_id.as_str().unwrap().contains("/Product/"));
+    assert_ne!(duplicate_id, source_id);
+    assert_eq!(
+        duplicate.body["data"]["productDuplicate"]["newProduct"]["status"],
+        json!("DRAFT")
     );
     assert_eq!(
-        duplicate_read.body["data"]["product"]["variants"],
-        sync_fixture["downstreamRead"]["data"]["product"]["variants"]
-    );
-    assert_eq!(
-        duplicate_read.body["data"]["product"]["collections"],
-        sync_fixture["downstreamRead"]["data"]["product"]["collections"]
-    );
-    assert_eq!(
-        duplicate_read.body["data"]["product"]["metafields"],
-        sync_fixture["downstreamRead"]["data"]["product"]["metafields"]
+        duplicate.body["data"]["productDuplicate"]["newProduct"]["variants"]["nodes"][0]["sku"],
+        json!("DUP-RED")
     );
 
-    let mut async_proxy = snapshot_proxy();
-    let async_fixture = product_fixture(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-duplicate-async-success.json"
+    let duplicate_read = proxy.process_request(json_graphql_request(
+        r#"
+        query NaturalProductDuplicateRead($id: ID!) {
+          product(id: $id) {
+            id
+            title
+            status
+            variants(first: 10) { nodes { sku } }
+          }
+        }
+        "#,
+        json!({ "id": duplicate_id.clone() }),
     ));
-    let async_duplicate = async_proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/products/productDuplicate-async.graphql"),
-        async_fixture["mutation"]["variables"].clone(),
+    assert_eq!(duplicate_read.status, 200);
+    assert_eq!(duplicate_read.body["data"]["product"]["id"], duplicate_id);
+    assert_eq!(
+        duplicate_read.body["data"]["product"]["title"],
+        json!("Natural Duplicate Sync Copy")
+    );
+
+    let async_duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalProductDuplicateAsync($productId: ID!, $newTitle: String!, $synchronous: Boolean!) {
+          productDuplicate(productId: $productId, newTitle: $newTitle, synchronous: $synchronous) {
+            newProduct { id }
+            productDuplicateOperation {
+              __typename
+              id
+              status
+              product { id title }
+              newProduct { id }
+              userErrors { field message }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": source_id.clone(),
+            "newTitle": "Natural Duplicate Async Copy",
+            "synchronous": false
+        }),
     ));
     assert_eq!(async_duplicate.status, 200);
     assert_eq!(
-        async_duplicate.body["data"],
-        async_fixture["mutation"]["response"]["data"]
+        async_duplicate.body["data"]["productDuplicate"]["newProduct"],
+        Value::Null
     );
-    let operation = async_proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/products/productDuplicate-operation-read.graphql"),
-        json!({
-            "id": async_duplicate.body["data"]["productDuplicate"]["productDuplicateOperation"]["id"].clone()
-        }),
+    assert_eq!(
+        async_duplicate.body["data"]["productDuplicate"]["productDuplicateOperation"]["status"],
+        json!("CREATED")
+    );
+    assert_eq!(
+        async_duplicate.body["data"]["productDuplicate"]["productDuplicateOperation"]["product"]
+            ["id"],
+        source_id
+    );
+    let operation_id =
+        async_duplicate.body["data"]["productDuplicate"]["productDuplicateOperation"]["id"].clone();
+    assert!(operation_id
+        .as_str()
+        .unwrap()
+        .contains("/ProductDuplicateOperation/"));
+
+    let operation = proxy.process_request(json_graphql_request(
+        r#"
+        query NaturalProductDuplicateOperationRead($id: ID!) {
+          productOperation(id: $id) {
+            __typename
+            status
+            product { id title }
+            ... on ProductDuplicateOperation {
+              id
+              newProduct { id title handle status }
+              userErrors { field message }
+            }
+          }
+        }
+        "#,
+        json!({ "id": operation_id.clone() }),
     ));
     assert_eq!(operation.status, 200);
     assert_eq!(
-        operation.body["data"],
-        async_fixture["operationRead"]["response"]["data"]
-    );
-    let async_read = async_proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/products/productDuplicate-async-product-read.graphql"
-        ),
-        json!({ "id": operation.body["data"]["productOperation"]["newProduct"]["id"].clone() }),
-    ));
-    assert_eq!(async_read.status, 200);
-    assert_eq!(
-        async_read.body["data"]["product"]["id"],
-        async_fixture["downstreamRead"]["response"]["data"]["product"]["id"]
+        operation.body["data"]["productOperation"]["__typename"],
+        json!("ProductDuplicateOperation")
     );
     assert_eq!(
-        async_read.body["data"]["product"]["title"],
-        async_fixture["downstreamRead"]["response"]["data"]["product"]["title"]
+        operation.body["data"]["productOperation"]["status"],
+        json!("COMPLETE")
     );
     assert_eq!(
-        async_read.body["data"]["product"]["handle"],
-        async_fixture["downstreamRead"]["response"]["data"]["product"]["handle"]
+        operation.body["data"]["productOperation"]["newProduct"]["title"],
+        json!("Natural Duplicate Async Copy")
     );
     assert_eq!(
-        async_read.body["data"]["product"]["status"],
-        async_fixture["downstreamRead"]["response"]["data"]["product"]["status"]
+        operation.body["data"]["productOperation"]["userErrors"],
+        json!([])
     );
 
-    let mut missing_proxy = snapshot_proxy();
-    let missing_fixture = product_fixture(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-duplicate-async-missing.json"
+    let node = proxy.process_request(json_graphql_request(
+        r#"
+        query NaturalProductDuplicateOperationNode($id: ID!) {
+          node(id: $id) {
+            __typename
+            ... on ProductDuplicateOperation {
+              id
+              status
+              newProduct { title status }
+            }
+          }
+        }
+        "#,
+        json!({ "id": operation_id }),
     ));
-    let missing_duplicate = missing_proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/products/productDuplicate-async.graphql"),
-        missing_fixture["mutation"]["variables"].clone(),
+    assert_eq!(node.status, 200);
+    assert_eq!(
+        node.body["data"]["node"]["newProduct"]["title"],
+        json!("Natural Duplicate Async Copy")
+    );
+
+    let missing_duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalProductDuplicateMissingAsync($productId: ID!, $newTitle: String!, $synchronous: Boolean!) {
+          productDuplicate(productId: $productId, newTitle: $newTitle, synchronous: $synchronous) {
+            newProduct { id }
+            productDuplicateOperation { id status product { id } newProduct { id } userErrors { field message } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/999999999999999999",
+            "newTitle": "Missing Copy",
+            "synchronous": false
+        }),
     ));
     assert_eq!(missing_duplicate.status, 200);
     assert_eq!(
-        missing_duplicate.body["data"],
-        missing_fixture["mutation"]["response"]["data"]
+        missing_duplicate.body["data"]["productDuplicate"]["userErrors"],
+        json!([])
     );
-    let missing_operation = missing_proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/products/productDuplicate-operation-read.graphql"),
-        json!({
-            "id": missing_duplicate.body["data"]["productDuplicate"]["productDuplicateOperation"]["id"].clone()
-        }),
+    let missing_operation_id = missing_duplicate.body["data"]["productDuplicate"]
+        ["productDuplicateOperation"]["id"]
+        .clone();
+    let missing_operation = proxy.process_request(json_graphql_request(
+        r#"
+        query NaturalProductDuplicateMissingOperation($id: ID!) {
+          productOperation(id: $id) {
+            __typename
+            status
+            ... on ProductDuplicateOperation {
+              newProduct { id }
+              userErrors { field message }
+            }
+          }
+        }
+        "#,
+        json!({ "id": missing_operation_id }),
     ));
     assert_eq!(missing_operation.status, 200);
     assert_eq!(
-        missing_operation.body["data"],
-        missing_fixture["operationRead"]["response"]["data"]
+        missing_operation.body["data"]["productOperation"]["newProduct"],
+        Value::Null
     );
+    assert_eq!(
+        missing_operation.body["data"]["productOperation"]["userErrors"],
+        json!([{ "field": ["productId"], "message": "Product does not exist" }])
+    );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 4);
+    assert!(entries[1]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("NaturalProductDuplicate"));
+    assert!(entries[2]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("NaturalProductDuplicateAsync"));
+    assert!(entries[3]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("NaturalProductDuplicateMissingAsync"));
+}
+
+#[test]
+fn product_bundle_create_update_stage_operations_and_validation_locally() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
+
+    let component = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalBundleComponentSet($input: ProductSetInput!) {
+          productSet(input: $input) {
+            product { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Natural Bundle Component",
+                "status": "ACTIVE",
+                "variants": [{"sku": "BUNDLE-COMP", "inventoryQuantities": [{"quantity": 1, "name": "available"}]}]
+            }
+        }),
+    ));
+    assert_eq!(component.status, 200);
+    assert_eq!(
+        component.body["data"]["productSet"]["userErrors"],
+        json!([])
+    );
+    let component_id = component.body["data"]["productSet"]["product"]["id"].clone();
+
+    let empty_components = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalProductBundleCreateValidation($input: ProductBundleCreateInput!) {
+          productBundleCreate(input: $input) {
+            productBundleOperation { id status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "Invalid Bundle", "components": [] } }),
+    ));
+    assert_eq!(empty_components.status, 200);
+    assert_eq!(
+        empty_components.body["data"]["productBundleCreate"]["productBundleOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        empty_components.body["data"]["productBundleCreate"]["userErrors"],
+        json!([{ "field": null, "message": "At least one component is required." }])
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalProductBundleCreate($input: ProductBundleCreateInput!) {
+          productBundleCreate(input: $input) {
+            productBundleOperation {
+              __typename
+              id
+              status
+              product { id title }
+              userErrors { field message }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Natural Bundle",
+                "components": [{ "productId": component_id.clone(), "quantity": 1 }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productBundleCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["productBundleCreate"]["productBundleOperation"]["__typename"],
+        json!("ProductBundleOperation")
+    );
+    assert_eq!(
+        create.body["data"]["productBundleCreate"]["productBundleOperation"]["status"],
+        json!("CREATED")
+    );
+    assert_eq!(
+        create.body["data"]["productBundleCreate"]["productBundleOperation"]["product"],
+        Value::Null
+    );
+    let create_operation_id =
+        create.body["data"]["productBundleCreate"]["productBundleOperation"]["id"].clone();
+    assert!(create_operation_id
+        .as_str()
+        .unwrap()
+        .contains("/ProductBundleOperation/"));
+
+    let create_operation = proxy.process_request(json_graphql_request(
+        r#"
+        query NaturalProductBundleOperationRead($id: ID!) {
+          productOperation(id: $id) {
+            __typename
+            status
+            product { id title }
+            ... on ProductBundleOperation { id userErrors { field message } }
+          }
+        }
+        "#,
+        json!({ "id": create_operation_id.clone() }),
+    ));
+    assert_eq!(create_operation.status, 200);
+    assert_eq!(
+        create_operation.body["data"]["productOperation"]["__typename"],
+        json!("ProductBundleOperation")
+    );
+    assert_eq!(
+        create_operation.body["data"]["productOperation"]["status"],
+        json!("COMPLETE")
+    );
+    assert_eq!(
+        create_operation.body["data"]["productOperation"]["product"]["title"],
+        json!("Natural Bundle")
+    );
+    let bundle_id = create_operation.body["data"]["productOperation"]["product"]["id"].clone();
+
+    let create_node = proxy.process_request(json_graphql_request(
+        r#"
+        query NaturalProductBundleOperationNode($id: ID!) {
+          node(id: $id) {
+            __typename
+            ... on ProductBundleOperation { id status product { title } }
+          }
+        }
+        "#,
+        json!({ "id": create_operation_id }),
+    ));
+    assert_eq!(create_node.status, 200);
+    assert_eq!(
+        create_node.body["data"]["node"]["product"]["title"],
+        json!("Natural Bundle")
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalProductBundleUpdate($input: ProductBundleUpdateInput!) {
+          productBundleUpdate(input: $input) {
+            productBundleOperation { id status product { id } userErrors { field message } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "productId": bundle_id.clone(),
+                "title": "Natural Bundle Updated",
+                "components": [{ "productId": component_id, "quantity": 2 }]
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productBundleUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["productBundleUpdate"]["productBundleOperation"]["status"],
+        json!("CREATED")
+    );
+    let update_operation_id =
+        update.body["data"]["productBundleUpdate"]["productBundleOperation"]["id"].clone();
+
+    let update_operation = proxy.process_request(json_graphql_request(
+        r#"
+        query NaturalProductBundleUpdateOperation($id: ID!) {
+          productOperation(id: $id) {
+            status
+            product { id title }
+            ... on ProductBundleOperation { id userErrors { field message } }
+          }
+        }
+        "#,
+        json!({ "id": update_operation_id }),
+    ));
+    assert_eq!(
+        update_operation.body["data"]["productOperation"]["product"]["id"],
+        bundle_id
+    );
+    assert_eq!(
+        update_operation.body["data"]["productOperation"]["product"]["title"],
+        json!("Natural Bundle Updated")
+    );
+
+    let missing_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalProductBundleUpdateMissing($input: ProductBundleUpdateInput!) {
+          productBundleUpdate(input: $input) {
+            productBundleOperation { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "productId": "gid://shopify/Product/999999999999999999" } }),
+    ));
+    assert_eq!(missing_update.status, 200);
+    assert_eq!(
+        missing_update.body["data"]["productBundleUpdate"]["productBundleOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        missing_update.body["data"]["productBundleUpdate"]["userErrors"],
+        json!([{ "field": null, "message": "Product does not exist" }])
+    );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 3);
+    assert_eq!(
+        entries[1]["interpreted"]["primaryRootField"],
+        json!("productBundleCreate")
+    );
+    assert_eq!(
+        entries[2]["interpreted"]["primaryRootField"],
+        json!("productBundleUpdate")
+    );
+    assert!(entries[1]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("NaturalProductBundleCreate"));
+    assert!(entries[2]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("NaturalProductBundleUpdate"));
 }
 
 #[test]

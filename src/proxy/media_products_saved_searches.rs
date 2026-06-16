@@ -2483,36 +2483,6 @@ impl DraftProxy {
         self.store.product_count()
     }
 
-    pub(in crate::proxy) fn product_set_fixture_backed_mutation_data(
-        &mut self,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json"
-        ))
-        .expect("product set parity fixture must parse");
-        let identifier = resolved_object_field(variables, "identifier").unwrap_or_default();
-        if resolved_string_field(&identifier, "id").is_some() {
-            self.store.staged.product_set_updated = true;
-            Some(fixture["update"]["mutation"]["response"]["data"].clone())
-        } else {
-            self.store.staged.product_set_updated = false;
-            Some(fixture["mutation"]["response"]["data"].clone())
-        }
-    }
-
-    pub(in crate::proxy) fn product_set_downstream_read_data(&self) -> Value {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json"
-        ))
-        .expect("product set parity fixture must parse");
-        if self.store.staged.product_set_updated {
-            fixture["update"]["downstreamRead"]["data"].clone()
-        } else {
-            fixture["downstreamRead"]["data"].clone()
-        }
-    }
-
     pub(in crate::proxy) fn product_create(
         &mut self,
         request: &Request,

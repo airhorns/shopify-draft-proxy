@@ -1199,6 +1199,9 @@ impl DraftProxy {
                 if let Some(data) = self.gift_card_node_read_data(&fields) {
                     return ok_json(json!({ "data": data }));
                 }
+                if let Some(data) = self.product_operation_node_query_data(&fields) {
+                    return ok_json(json!({ "data": data }));
+                }
                 if let Some(data) = self.media_file_node_read_data(&fields) {
                     return ok_json(json!({ "data": data }));
                 }
@@ -2040,11 +2043,6 @@ impl DraftProxy {
                 let outcome = self.product_delete_async_source_create(&query, &variables);
                 return self.finalize_mutation_outcome(request, &query, &variables, outcome);
             }
-            if query.contains("ProductSetParityPlan") {
-                if let Some(data) = self.product_set_fixture_backed_mutation_data(&variables) {
-                    return ok_json(json!({ "data": data }));
-                }
-            }
             if !operation.root_fields.is_empty()
                 && operation.root_fields.iter().all(|field| {
                     matches!(
@@ -2075,13 +2073,14 @@ impl DraftProxy {
                     return ok_json(json!({ "data": data }));
                 }
             }
-            if let Some(data) =
-                self.product_duplicate_fixture_mutation_data_staged(&query, &variables)
+            if !operation
+                .root_fields
+                .iter()
+                .any(|field| field == "productDuplicate")
             {
-                return ok_json(json!({ "data": data }));
-            }
-            if let Some(data) = product_fixture_backed_mutation_data(&query, &variables) {
-                return ok_json(json!({ "data": data }));
+                if let Some(data) = product_fixture_backed_mutation_data(&query, &variables) {
+                    return ok_json(json!({ "data": data }));
+                }
             }
         }
 
@@ -2128,11 +2127,6 @@ impl DraftProxy {
                     "data": self.product_relationship_options_read_data(&variables)
                 }));
             }
-            if query.contains("ProductDuplicateOperationRead") {
-                return ok_json(json!({
-                    "data": product_duplicate_operation_read_data(&variables)
-                }));
-            }
             if query.contains("ProductDeleteOperationRead") {
                 return ok_json(json!({
                     "data": self.product_delete_operation_read_data(false)
@@ -2142,9 +2136,6 @@ impl DraftProxy {
                 return ok_json(json!({
                     "data": self.product_delete_operation_read_data(true)
                 }));
-            }
-            if query.contains("ProductSetDownstreamRead") {
-                return ok_json(json!({ "data": self.product_set_downstream_read_data() }));
             }
             if query.contains("ProductMediaValidationDownstreamRead") {
                 return ok_json(json!({ "data": product_media_validation_downstream_data() }));
@@ -2244,6 +2235,17 @@ impl DraftProxy {
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query
                     && has_local_dispatch
+                    && root_field == "productOperation" =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    ok_json(json!({ "data": self.product_operation_query_data(&fields) }))
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
+            }
+            (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query
+                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "inventoryItem"
@@ -2277,6 +2279,25 @@ impl DraftProxy {
                 if has_local_dispatch && root_field == "productDelete" =>
             {
                 let outcome = self.product_delete(&query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if has_local_dispatch && root_field == "productSet" =>
+            {
+                let outcome = self.product_set(&query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if has_local_dispatch && root_field == "productDuplicate" =>
+            {
+                let outcome = self.product_duplicate(&query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if has_local_dispatch
+                    && matches!(root_field, "productBundleCreate" | "productBundleUpdate") =>
+            {
+                let outcome = self.product_bundle_mutation(root_field, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)

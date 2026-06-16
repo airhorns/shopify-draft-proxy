@@ -482,37 +482,6 @@ impl DraftProxy {
         Some(data)
     }
 
-    pub(in crate::proxy) fn product_duplicate_fixture_mutation_data_staged(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
-        if !query.contains("ProductDuplicateParityPlan") && !query.contains("ProductDuplicateAsync")
-        {
-            return None;
-        }
-        let data = product_fixture_backed_mutation_data(query, variables)?;
-        self.stage_observed_products_from_value(&data);
-        if query.contains("ProductDuplicateAsync") {
-            let fixture_name = if resolved_string_field(variables, "productId").as_deref()
-                == Some("gid://shopify/Product/999999999999999999")
-            {
-                "async-missing"
-            } else {
-                "async-success"
-            };
-            let fixture = product_duplicate_fixture(fixture_name);
-            if let Some(product) = fixture["operationRead"]["response"]["data"]["productOperation"]
-                ["newProduct"]
-                .as_object()
-            {
-                self.store
-                    .stage_observed_product_json(&Value::Object(product.clone()));
-            }
-        }
-        Some(data)
-    }
-
     pub(in crate::proxy) fn product_media_mutation_data(
         &mut self,
         fields: &[RootFieldSelection],
@@ -821,29 +790,6 @@ pub(in crate::proxy) fn product_fixture_backed_mutation_data(
             }
         }));
     }
-    if query.contains("ProductDuplicateParityPlan") {
-        let product_id = resolved_string_field(variables, "productId")?;
-        let new_title = resolved_string_field(variables, "newTitle")?;
-        if product_id != "gid://shopify/Product/9257219817705"
-            || new_title != "Hermes Product Graph Copy 1776550889941"
-        {
-            return None;
-        }
-        let fixture = product_duplicate_fixture("sync");
-        return Some(fixture["mutation"]["response"]["data"].clone());
-    }
-    if query.contains("ProductDuplicateAsync") {
-        let product_id = resolved_string_field(variables, "productId")?;
-        if product_id == "gid://shopify/Product/10172162900274" {
-            let fixture = product_duplicate_fixture("async-success");
-            return Some(fixture["mutation"]["response"]["data"].clone());
-        }
-        if product_id == "gid://shopify/Product/999999999999999999" {
-            let fixture = product_duplicate_fixture("async-missing");
-            return Some(fixture["mutation"]["response"]["data"].clone());
-        }
-        return None;
-    }
     if query.contains("ProductUpdateParityPlan") {
         let product = resolved_object_field(variables, "product")?;
         if resolved_string_field(&product, "id").as_deref()
@@ -912,34 +858,6 @@ pub(in crate::proxy) fn product_relationship_roots_fixture() -> Value {
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-relationship-roots.json"
     ))
     .expect("product relationship roots fixture must parse")
-}
-
-pub(in crate::proxy) fn product_duplicate_fixture(name: &str) -> Value {
-    let source = match name {
-        "sync" => include_str!(
-            "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-duplicate-parity.json"
-        ),
-        "async-success" => include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-duplicate-async-success.json"
-        ),
-        "async-missing" => include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-duplicate-async-missing.json"
-        ),
-        _ => unreachable!("unknown product duplicate fixture"),
-    };
-    serde_json::from_str(source).expect("product duplicate fixture must parse")
-}
-
-pub(in crate::proxy) fn product_duplicate_operation_read_data(
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Value {
-    let id = resolved_string_field(variables, "id").unwrap_or_default();
-    let fixture_name = if id == "gid://shopify/ProductDuplicateOperation/78699200818" {
-        "async-missing"
-    } else {
-        "async-success"
-    };
-    product_duplicate_fixture(fixture_name)["operationRead"]["response"]["data"].clone()
 }
 
 pub(in crate::proxy) fn product_variant_node_read_data(

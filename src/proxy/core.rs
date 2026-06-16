@@ -155,6 +155,10 @@ impl DraftProxy {
                 "deletedOwnerMetafields": self.store.staged.deleted_owner_metafields.iter().map(|(owner_id, namespace, key)| json!({"ownerId": owner_id, "namespace": namespace, "key": key})).collect::<Vec<_>>()
             }
         });
+        if !self.store.staged.product_operations.is_empty() {
+            snapshot["stagedState"]["productOperations"] =
+                json!(self.store.staged.product_operations);
+        }
         snapshot["stagedState"]["b2bCompanies"] = json!(self.store.staged.b2b_companies.clone());
         snapshot["stagedState"]["b2bLocations"] = json!(self.store.staged.b2b_locations.clone());
         snapshot["stagedState"]["b2bContacts"] = json!(self.store.staged.b2b_contacts.clone());
@@ -627,6 +631,20 @@ impl DraftProxy {
                             tombstone.get("namespace")?.as_str()?.to_string(),
                             tombstone.get("key")?.as_str()?.to_string(),
                         ))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.product_operations = state["stagedState"]
+            .get("productOperations")
+            .and_then(Value::as_object)
+            .map(|operations| {
+                operations
+                    .iter()
+                    .filter_map(|(id, operation)| {
+                        serde_json::from_value::<ProductOperationRecord>(operation.clone())
+                            .ok()
+                            .map(|operation| (id.clone(), operation))
                     })
                     .collect()
             })
