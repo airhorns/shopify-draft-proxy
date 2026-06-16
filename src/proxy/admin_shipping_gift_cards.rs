@@ -1634,6 +1634,36 @@ impl DraftProxy {
         self.store.staged.locations.insert(id, location);
     }
 
+    pub(in crate::proxy) fn has_location_overlay_state(&self) -> bool {
+        self.config.read_mode == ReadMode::Snapshot
+            || !self.store.staged.locations.is_empty()
+            || !self.store.staged.location_order.is_empty()
+            || !self.store.staged.deleted_location_ids.is_empty()
+            || !self.store.staged.fulfillment_service_locations.is_empty()
+            || self.store.staged.location_limit_reached
+    }
+
+    /// True when a location read must consult the upstream baseline to answer.
+    ///
+    /// `location`, `locations`, and id-based `locationByIdentifier` reads resolve
+    /// against the store's real locations, so without local overlay state they
+    /// must pass through to upstream. `locationByIdentifier(customId:)` is
+    /// resolved purely locally (the proxy intentionally does not model id-typed
+    /// location metafield definitions and always reports the custom id as
+    /// not found), so it never needs the baseline.
+    pub(in crate::proxy) fn location_read_needs_upstream(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        fields.iter().any(|field| match field.name.as_str() {
+            "location" | "locations" => true,
+            "locationByIdentifier" => resolved_object_field(&field.arguments, "identifier")
+                .map(|identifier| !identifier.contains_key("customId"))
+                .unwrap_or(true),
+            _ => false,
+        })
+    }
+
     pub(in crate::proxy) fn location_read_response(
         &self,
         fields: &[RootFieldSelection],

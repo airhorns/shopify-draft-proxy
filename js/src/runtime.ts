@@ -137,12 +137,6 @@ function fetchJsonSync(origin: string, request: DraftProxyRequest, timeoutMs = 1
   const result = spawnSync(process.execPath, ['-e', script], {
     input,
     encoding: 'utf8',
-    input: JSON.stringify({
-      method: request.method,
-      path: request.path,
-      headers: normalizeHeaders(request.headers),
-      body: bodyToString(request.body),
-    }),
     env: {
       ...process.env,
       DRAFT_PROXY_URL: origin,

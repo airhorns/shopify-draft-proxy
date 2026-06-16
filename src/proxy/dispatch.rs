@@ -1471,8 +1471,12 @@ impl DraftProxy {
                                 "data": self.collection_membership_downstream_read_data(&fields)
                             }))
                         }
-                    } else {
+                    } else if self.has_location_overlay_state()
+                        || !self.location_read_needs_upstream(&fields)
+                    {
                         self.location_read_response(&fields)
+                    } else {
+                        (self.upstream_transport)(request.clone())
                     }
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
