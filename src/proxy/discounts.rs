@@ -4,6 +4,8 @@ const DISCOUNT_DEFAULT_TIMESTAMP: &str = "2026-04-27T19:32:14Z";
 const DISCOUNT_MINIMUM_QUANTITY_UPPER_BOUND: i64 = 2_147_483_647;
 const DISCOUNT_MINIMUM_SUBTOTAL_UPPER_BOUND: i64 = 1_000_000_000_000_000_000;
 const DISCOUNT_MINIMUM_SUBTOTAL_UPPER_BOUND_DECIMAL: &str = "1000000000000000000";
+const SHOPIFY_FUNCTION_BY_ID_QUERY: &str = "query ShopifyFunctionById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    handle\n    apiType\n    description\n    appKey\n    app {\n      id\n      title\n      handle\n      apiKey\n    }\n  }\n}\n";
+const SHOPIFY_FUNCTION_BY_HANDLE_QUERY: &str = "query ShopifyFunctionByHandle($handle: String!) {\n  shopifyFunctions(first: 1, handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
 
 impl DraftProxy {
     pub(in crate::proxy) fn discounts_query_response(
@@ -39,7 +41,7 @@ impl DraftProxy {
         let mut data = serde_json::Map::new();
         let mut log_drafts = Vec::new();
         for field in fields {
-            let outcome = self.discount_mutation_field(&field);
+            let outcome = self.discount_mutation_field(_request, &field);
             if let Some(log_draft) = outcome.log_draft {
                 log_drafts.push(log_draft);
             }
@@ -60,7 +62,11 @@ impl DraftProxy {
         MutationOutcome::with_log_drafts(response, log_drafts)
     }
 
-    fn discount_mutation_field(&mut self, field: &RootFieldSelection) -> MutationFieldOutcome {
+    fn discount_mutation_field(
+        &mut self,
+        request: &Request,
+        field: &RootFieldSelection,
+    ) -> MutationFieldOutcome {
         match field.name.as_str() {
             "discountCodeBasicCreate" => {
                 self.discount_create(field, "basicCodeDiscount", "code", "DiscountCodeBasic")
@@ -85,6 +91,20 @@ impl DraftProxy {
                 "freeShippingCodeDiscount",
                 "code",
                 "DiscountCodeFreeShipping",
+            ),
+            "discountCodeAppCreate" => self.app_discount_create(
+                request,
+                field,
+                "codeAppDiscount",
+                "code",
+                "DiscountCodeApp",
+            ),
+            "discountCodeAppUpdate" => self.app_discount_update(
+                request,
+                field,
+                "codeAppDiscount",
+                "code",
+                "DiscountCodeApp",
             ),
             "discountAutomaticBasicCreate" => self.discount_create(
                 field,
@@ -122,11 +142,29 @@ impl DraftProxy {
                 "automatic",
                 "DiscountAutomaticFreeShipping",
             ),
+            "discountAutomaticAppCreate" => self.app_discount_create(
+                request,
+                field,
+                "automaticAppDiscount",
+                "automatic",
+                "DiscountAutomaticApp",
+            ),
+            "discountAutomaticAppUpdate" => self.app_discount_update(
+                request,
+                field,
+                "automaticAppDiscount",
+                "automatic",
+                "DiscountAutomaticApp",
+            ),
             "discountCodeActivate"
             | "discountCodeDeactivate"
             | "discountAutomaticActivate"
             | "discountAutomaticDeactivate" => self.discount_status_transition(field),
             "discountCodeDelete" | "discountAutomaticDelete" => self.discount_delete(field),
+            "discountCodeBulkActivate"
+            | "discountCodeBulkDeactivate"
+            | "discountCodeBulkDelete"
+            | "discountAutomaticBulkDelete" => self.discount_bulk_mutation(field),
             "discountRedeemCodeBulkAdd" => self.discount_redeem_code_bulk_add(field),
             "discountCodeRedeemCodeBulkDelete" => self.discount_redeem_code_bulk_delete(field),
             _ => MutationFieldOutcome::unlogged(discount_payload_for_root(
@@ -211,6 +249,106 @@ impl DraftProxy {
         )
     }
 
+    fn app_discount_create(
+        &mut self,
+        request: &Request,
+        field: &RootFieldSelection,
+        input_arg: &str,
+        discount_kind: &str,
+        typename: &str,
+    ) -> MutationFieldOutcome {
+        let input = discount_input(field, input_arg);
+        let errors = app_discount_input_user_errors(input.as_ref(), input_arg, typename, true);
+        if !errors.is_empty() {
+            return MutationFieldOutcome::unlogged(app_discount_payload_for_root(
+                &field.name,
+                Value::Null,
+                errors,
+            ));
+        }
+        let input = input.unwrap_or_default();
+        let function = match self.app_discount_function_for_input(request, &input, input_arg) {
+            Ok(function) => function,
+            Err(error) => {
+                return MutationFieldOutcome::unlogged(app_discount_payload_for_root(
+                    &field.name,
+                    Value::Null,
+                    vec![error],
+                ))
+            }
+        };
+        let id_type = if discount_kind == "automatic" {
+            "DiscountAutomaticNode"
+        } else {
+            "DiscountCodeNode"
+        };
+        let id = self.next_proxy_synthetic_gid(id_type);
+        let mut record = discount_record_from_input(&id, discount_kind, typename, &input, None);
+        attach_app_discount_function(&mut record, &function);
+        self.stage_discount_record(record.clone());
+        MutationFieldOutcome::staged(
+            app_discount_payload_for_root(
+                &field.name,
+                discount_body_for_record(&record),
+                Vec::new(),
+            ),
+            LogDraft::staged(&field.name, "discounts", vec![id]),
+        )
+    }
+
+    fn app_discount_update(
+        &mut self,
+        request: &Request,
+        field: &RootFieldSelection,
+        input_arg: &str,
+        discount_kind: &str,
+        typename: &str,
+    ) -> MutationFieldOutcome {
+        let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+        let input = discount_input(field, input_arg);
+        let mut errors = if self.discount_record(&id).is_none() {
+            vec![discount_user_error(
+                vec!["id"],
+                "Discount does not exist.",
+                "INVALID",
+            )]
+        } else {
+            app_discount_input_user_errors(input.as_ref(), input_arg, typename, false)
+        };
+        if !errors.is_empty() {
+            return MutationFieldOutcome::unlogged(app_discount_payload_for_root(
+                &field.name,
+                Value::Null,
+                errors,
+            ));
+        }
+        let input = input.unwrap_or_default();
+        let function = match self.app_discount_function_for_input(request, &input, input_arg) {
+            Ok(function) => function,
+            Err(error) => {
+                errors.push(error);
+                return MutationFieldOutcome::unlogged(app_discount_payload_for_root(
+                    &field.name,
+                    Value::Null,
+                    errors,
+                ));
+            }
+        };
+        let existing = self.discount_record(&id).cloned();
+        let mut record =
+            discount_record_from_input(&id, discount_kind, typename, &input, existing.as_ref());
+        attach_app_discount_function(&mut record, &function);
+        self.stage_discount_record(record.clone());
+        MutationFieldOutcome::staged(
+            app_discount_payload_for_root(
+                &field.name,
+                discount_body_for_record(&record),
+                Vec::new(),
+            ),
+            LogDraft::staged(&field.name, "discounts", vec![id]),
+        )
+    }
+
     fn discount_status_transition(&mut self, field: &RootFieldSelection) -> MutationFieldOutcome {
         let id = resolved_field_string_arg(field, "id").unwrap_or_default();
         let activating = field.name.ends_with("Activate");
@@ -256,6 +394,85 @@ impl DraftProxy {
             discount_delete_payload(&field.name, json!(id.clone()), Vec::new()),
             LogDraft::staged(&field.name, "discounts", vec![id]),
         )
+    }
+
+    fn discount_bulk_mutation(&mut self, field: &RootFieldSelection) -> MutationFieldOutcome {
+        let selector = match discount_bulk_selector(field) {
+            Ok(selector) => selector,
+            Err(user_errors) => {
+                return MutationFieldOutcome::unlogged(discount_bulk_payload(
+                    Value::Null,
+                    user_errors,
+                ));
+            }
+        };
+        if let Some(user_error) = discount_bulk_search_field_user_error(field, &selector) {
+            return MutationFieldOutcome::unlogged(discount_bulk_payload(
+                Value::Null,
+                vec![user_error],
+            ));
+        }
+
+        let matched_ids = self.discount_bulk_matching_ids(field, &selector);
+        for id in &matched_ids {
+            match field.name.as_str() {
+                "discountCodeBulkActivate" => {
+                    if let Some(mut record) = self.discount_record(id).cloned() {
+                        discount_apply_status(&mut record, "ACTIVE");
+                        self.stage_discount_record(record);
+                    }
+                }
+                "discountCodeBulkDeactivate" => {
+                    if let Some(mut record) = self.discount_record(id).cloned() {
+                        discount_apply_status(&mut record, "EXPIRED");
+                        self.stage_discount_record(record);
+                    }
+                }
+                "discountCodeBulkDelete" | "discountAutomaticBulkDelete" => {
+                    self.store.staged.deleted_discount_ids.insert(id.clone());
+                    self.store.staged.discounts.remove(id);
+                    self.store
+                        .staged
+                        .discount_code_index
+                        .retain(|_, discount_id| discount_id != id);
+                }
+                _ => {}
+            }
+        }
+
+        let job_id = self.next_proxy_synthetic_gid("Job");
+        let job = discount_bulk_job(&job_id, &selector);
+        self.store.staged.discount_bulk_operations.insert(
+            job_id.clone(),
+            discount_bulk_operation_record(&job_id, field, &selector, &matched_ids),
+        );
+
+        let mut staged_ids = matched_ids;
+        staged_ids.push(job_id);
+        MutationFieldOutcome::staged(
+            discount_bulk_payload(job, Vec::new()),
+            LogDraft::staged(&field.name, "discounts", staged_ids),
+        )
+    }
+
+    fn discount_bulk_matching_ids(
+        &self,
+        field: &RootFieldSelection,
+        selector: &DiscountBulkSelector,
+    ) -> Vec<String> {
+        self.effective_discount_records()
+            .into_iter()
+            .filter(|record| {
+                !self
+                    .store
+                    .staged
+                    .deleted_discount_ids
+                    .contains(discount_id(record))
+            })
+            .filter(|record| discount_bulk_record_in_scope(record, field.name.as_str()))
+            .filter(|record| discount_bulk_selector_matches(record, selector))
+            .map(|record| discount_id(record).to_string())
+            .collect()
     }
 
     fn discount_redeem_code_bulk_add(
@@ -317,6 +534,7 @@ impl DraftProxy {
             record["codesCount"] = json!({ "count": next.len(), "precision": "EXACT" });
             record["codes"] = Value::Array(next);
         }
+        self.rebuild_discount_code_index();
         MutationFieldOutcome::staged(
             json!({ "bulkCreation": creation, "userErrors": [] }),
             LogDraft::staged(&field.name, "discounts", vec![discount_id, creation_id]),
@@ -327,28 +545,22 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
-        let codes_to_delete: BTreeSet<String> = match field.arguments.get("codes") {
-            Some(ResolvedValue::List(values)) => values
-                .iter()
-                .filter_map(|value| match value {
-                    ResolvedValue::String(code) => Some(code.clone()),
-                    ResolvedValue::Object(object) => {
-                        object.get("code").and_then(|value| match value {
-                            ResolvedValue::String(code) => Some(code.clone()),
-                            _ => None,
-                        })
-                    }
-                    _ => None,
-                })
-                .collect(),
-            _ => BTreeSet::new(),
-        };
-        if codes_to_delete.is_empty() && !field.arguments.contains_key("all") {
+        let selector_count = redeem_code_bulk_delete_selector_count(field);
+        if selector_count == 0 {
             return MutationFieldOutcome::unlogged(json!({
                 "job": Value::Null,
                 "userErrors": [discount_null_field_user_error(
                     "Missing expected argument key: 'ids', 'search' or 'saved_search_id'.",
                     Some("MISSING_ARGUMENT")
+                )]
+            }));
+        }
+        if selector_count > 1 {
+            return MutationFieldOutcome::unlogged(json!({
+                "job": Value::Null,
+                "userErrors": [discount_null_field_user_error(
+                    "Only one of 'ids', 'search' or 'saved_search_id' is allowed.",
+                    Some("TOO_MANY_ARGUMENTS")
                 )]
             }));
         }
@@ -364,17 +576,59 @@ impl DraftProxy {
                 }]
             }));
         }
+        let ids_to_delete: BTreeSet<String> = match field.arguments.get("ids") {
+            Some(ResolvedValue::List(ids)) if ids.is_empty() => {
+                return MutationFieldOutcome::unlogged(json!({
+                    "job": Value::Null,
+                    "userErrors": [discount_null_field_user_error(
+                        "Something went wrong, please try again.",
+                        None
+                    )]
+                }));
+            }
+            Some(ResolvedValue::List(ids)) => ids
+                .iter()
+                .filter_map(|id| match id {
+                    ResolvedValue::String(id) => Some(id.clone()),
+                    _ => None,
+                })
+                .collect(),
+            _ => BTreeSet::new(),
+        };
+        if matches!(field.arguments.get("search"), Some(ResolvedValue::String(search)) if search.trim().is_empty())
+        {
+            return MutationFieldOutcome::unlogged(json!({
+                "job": Value::Null,
+                "userErrors": [{
+                    "field": ["search"],
+                    "message": "'Search' can't be blank.",
+                    "code": "BLANK",
+                    "extraInfo": Value::Null
+                }]
+            }));
+        }
+        if field.arguments.contains_key("savedSearchId")
+            || field.arguments.contains_key("saved_search_id")
+        {
+            return MutationFieldOutcome::unlogged(json!({
+                "job": Value::Null,
+                "userErrors": [{
+                    "field": ["savedSearchId"],
+                    "message": "Invalid 'saved_search_id'.",
+                    "code": "INVALID",
+                    "extraInfo": Value::Null
+                }]
+            }));
+        }
         if let Some(record) = self.store.staged.discounts.get_mut(&discount_id) {
-            if field.arguments.contains_key("all") {
-                record["codes"] = json!([]);
-            } else if let Some(codes) = record["codes"].as_array() {
+            if let Some(codes) = record["codes"].as_array() {
                 record["codes"] = Value::Array(
                     codes
                         .iter()
                         .filter(|code| {
-                            code.get("code")
+                            code.get("id")
                                 .and_then(Value::as_str)
-                                .map(|code| !codes_to_delete.contains(code))
+                                .map(|id| !ids_to_delete.contains(id))
                                 .unwrap_or(true)
                         })
                         .cloned()
@@ -384,9 +638,10 @@ impl DraftProxy {
             let count = record["codes"].as_array().map(Vec::len).unwrap_or(0);
             record["codesCount"] = json!({ "count": count, "precision": "EXACT" });
         }
+        self.rebuild_discount_code_index();
         MutationFieldOutcome::staged(
             json!({
-                "job": { "id": self.next_proxy_synthetic_gid("Job"), "done": false },
+                "job": { "id": self.next_proxy_synthetic_gid("Job"), "done": true, "query": Value::Null },
                 "userErrors": []
             }),
             LogDraft::staged(&field.name, "discounts", vec![discount_id]),
@@ -450,10 +705,8 @@ impl DraftProxy {
 
     fn filtered_discount_records(&self, field: &RootFieldSelection) -> Vec<&Value> {
         let query = resolved_field_string_arg(field, "query").unwrap_or_default();
-        self.store
-            .staged
-            .discounts
-            .values()
+        self.effective_discount_records()
+            .into_iter()
             .filter(|record| {
                 !self
                     .store
@@ -465,6 +718,10 @@ impl DraftProxy {
             .collect()
     }
 
+    fn effective_discount_records(&self) -> Vec<&Value> {
+        self.store.staged.discounts.values().collect()
+    }
+
     fn discount_record(&self, id: &str) -> Option<&Value> {
         if self.store.staged.deleted_discount_ids.contains(id) {
             return None;
@@ -474,22 +731,151 @@ impl DraftProxy {
 
     fn stage_discount_record(&mut self, record: Value) {
         let id = discount_id(&record).to_string();
-        if let Some(old) = self.store.staged.discounts.get(&id) {
-            if let Some(code) = old.get("code").and_then(Value::as_str) {
+        self.store.staged.deleted_discount_ids.remove(&id);
+        self.store.staged.discounts.insert(id, record);
+        self.rebuild_discount_code_index();
+    }
+
+    fn rebuild_discount_code_index(&mut self) {
+        self.store.staged.discount_code_index.clear();
+        for (id, record) in &self.store.staged.discounts {
+            if self.store.staged.deleted_discount_ids.contains(id) {
+                continue;
+            }
+            for code in discount_record_codes(record) {
                 self.store
                     .staged
                     .discount_code_index
-                    .remove(&code.to_ascii_uppercase());
+                    .insert(code.to_ascii_uppercase(), id.clone());
             }
         }
-        if let Some(code) = record.get("code").and_then(Value::as_str) {
-            self.store
-                .staged
-                .discount_code_index
-                .insert(code.to_ascii_uppercase(), id.clone());
+    }
+
+    fn app_discount_function_for_input(
+        &mut self,
+        request: &Request,
+        input: &BTreeMap<String, ResolvedValue>,
+        input_arg: &str,
+    ) -> Result<Value, Value> {
+        let function_id = resolved_non_blank_string_field(input, "functionId");
+        let function_handle = resolved_non_blank_string_field(input, "functionHandle");
+        let identifier = function_id.as_deref().or(function_handle.as_deref());
+        let Some(identifier) = identifier else {
+            return Err(app_discount_user_error(
+                vec![json!(input_arg), json!("functionHandle")],
+                "Function id can't be blank.",
+                Some("MISSING_FUNCTION_IDENTIFIER"),
+            ));
+        };
+        let field_name = if function_id.is_some() {
+            "functionId"
+        } else {
+            "functionHandle"
+        };
+        let function = self
+            .app_discount_function_from_staged_discounts(
+                function_id.as_deref(),
+                function_handle.as_deref(),
+            )
+            .or_else(|| {
+                function_by_id_or_handle(function_id.as_deref(), function_handle.as_deref())
+            })
+            .or_else(|| {
+                self.fetch_shopify_function(
+                    request,
+                    function_id.as_deref(),
+                    function_handle.as_deref(),
+                )
+            });
+        let Some(function) = function else {
+            return Err(app_discount_user_error(
+                vec![json!(input_arg), json!(field_name)],
+                &format!(
+                    "Function {identifier} not found. Ensure that it is released in the current app (347082227713), and that the app is installed."
+                ),
+                Some("INVALID"),
+            ));
+        };
+        if !app_discount_function_api_type_is_supported(&function) {
+            return Err(app_discount_user_error(
+                vec![json!(input_arg), json!(field_name)],
+                "Unexpected Function API. The provided function must implement one of the following extension targets: [product_discounts, order_discounts, shipping_discounts, discount].",
+                None,
+            ));
         }
-        self.store.staged.deleted_discount_ids.remove(&id);
-        self.store.staged.discounts.insert(id, record);
+        Ok(function)
+    }
+
+    fn app_discount_function_from_staged_discounts(
+        &self,
+        id: Option<&str>,
+        handle: Option<&str>,
+    ) -> Option<Value> {
+        self.store
+            .staged
+            .discounts
+            .values()
+            .filter_map(|record| record.get("shopifyFunction"))
+            .find(|function| {
+                id.is_some_and(|id| function["id"].as_str() == Some(id))
+                    || handle.is_some_and(|handle| function["handle"].as_str() == Some(handle))
+            })
+            .cloned()
+    }
+
+    fn fetch_shopify_function(
+        &self,
+        request: &Request,
+        id: Option<&str>,
+        handle: Option<&str>,
+    ) -> Option<Value> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        if let Some(id) = id {
+            return self.fetch_shopify_function_by_id(request, id);
+        }
+        handle.and_then(|handle| self.fetch_shopify_function_by_handle(request, handle))
+    }
+
+    fn fetch_shopify_function_by_id(&self, request: &Request, id: &str) -> Option<Value> {
+        let lookup = Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": SHOPIFY_FUNCTION_BY_ID_QUERY,
+                "variables": { "id": id }
+            })
+            .to_string(),
+        };
+        let response = (self.upstream_transport)(lookup);
+        if response.status != 200 {
+            return None;
+        }
+        response.body["data"]["shopifyFunction"].as_object()?;
+        Some(response.body["data"]["shopifyFunction"].clone())
+    }
+
+    fn fetch_shopify_function_by_handle(&self, request: &Request, handle: &str) -> Option<Value> {
+        let lookup = Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": SHOPIFY_FUNCTION_BY_HANDLE_QUERY,
+                "variables": { "handle": handle }
+            })
+            .to_string(),
+        };
+        let response = (self.upstream_transport)(lookup);
+        if response.status != 200 {
+            return None;
+        }
+        response.body["data"]["shopifyFunctions"]["nodes"]
+            .as_array()
+            .and_then(|nodes| nodes.first())
+            .cloned()
     }
 }
 
@@ -631,6 +1017,172 @@ fn discount_input_user_errors(
         errors.push(error);
     }
     errors
+}
+
+fn app_discount_input_user_errors(
+    input: Option<&BTreeMap<String, ResolvedValue>>,
+    input_arg: &str,
+    typename: &str,
+    create: bool,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    let Some(input) = input else {
+        errors.push(app_discount_user_error(
+            vec![json!(input_arg)],
+            "Input is required.",
+            Some("REQUIRED"),
+        ));
+        return errors;
+    };
+    let code_app = typename == "DiscountCodeApp";
+    match resolved_string_path(input, &["title"]) {
+        Some(title) if title.trim().is_empty() => errors.push(app_discount_user_error(
+            vec![json!(input_arg), json!("title")],
+            if code_app {
+                "can't be blank"
+            } else {
+                "Title can't be blank."
+            },
+            Some("INVALID"),
+        )),
+        Some(title) if title.chars().count() > 255 => errors.push(app_discount_user_error(
+            vec![json!(input_arg), json!("title")],
+            "is too long (maximum is 255 characters)",
+            Some("INVALID"),
+        )),
+        Some(_) => {}
+        None => errors.push(app_discount_user_error(
+            vec![json!(input_arg), json!("title")],
+            if code_app {
+                "can't be blank"
+            } else {
+                "Title can't be blank."
+            },
+            Some("INVALID"),
+        )),
+    }
+    if code_app {
+        match resolved_string_path(input, &["code"]) {
+            Some(code) if code.trim().is_empty() => errors.push(app_discount_user_error(
+                vec![json!(input_arg), json!("code")],
+                "Discount code can't be blank.",
+                Some("INVALID"),
+            )),
+            Some(code) if code.contains('\n') || code.contains('\r') => {
+                errors.push(app_discount_user_error(
+                    vec![json!(input_arg), json!("code")],
+                    "Code cannot contain newline characters.",
+                    Some("INVALID"),
+                ))
+            }
+            Some(code) if code.chars().count() > 255 => errors.push(app_discount_user_error(
+                vec![json!(input_arg), json!("code")],
+                "Code is too long (maximum is 255 characters)",
+                Some("INVALID"),
+            )),
+            Some(_) => {}
+            None if create => errors.push(app_discount_user_error(
+                vec![json!(input_arg), json!("code")],
+                "Discount code can't be blank.",
+                Some("INVALID"),
+            )),
+            None => {}
+        }
+    }
+    if create && resolved_non_blank_string_field(input, "startsAt").is_none() {
+        errors.push(app_discount_user_error(
+            vec![json!(input_arg), json!("startsAt")],
+            "Starts at can't be blank.",
+            Some("INVALID"),
+        ));
+    }
+    if matches!(
+        resolved_object_path(Some(&ResolvedValue::Object(input.clone())), &["discountClasses"]),
+        Some(ResolvedValue::List(values)) if values.is_empty()
+    ) {
+        errors.push(app_discount_user_error(
+            vec![json!(input_arg), json!("discountClasses")],
+            "Discount classes can't be empty.",
+            Some("INVALID"),
+        ));
+    }
+    if resolved_object_path(Some(&ResolvedValue::Object(input.clone())), &["context"]).is_some()
+        && resolved_object_path(
+            Some(&ResolvedValue::Object(input.clone())),
+            &["customerSelection"],
+        )
+        .is_some()
+    {
+        errors.push(app_discount_user_error(
+            vec![json!(input_arg), json!("context")],
+            "Only one of context or customerSelection can be provided.",
+            Some("INVALID"),
+        ));
+    }
+    if app_discount_empty_customer_selection(input) {
+        errors.push(app_discount_user_error(
+            vec![json!(input_arg), json!("customerSelection")],
+            "a minimum of one prerequisite segment or prerequisite customer must be provided",
+            Some("INVALID"),
+        ));
+    }
+    if typename == "DiscountAutomaticApp" && input.contains_key("channelIds") {
+        errors.push(app_discount_user_error(
+            vec![json!(input_arg), json!("channelIds")],
+            "Channel IDs are not supported for automatic app discounts.",
+            Some("INVALID"),
+        ));
+    }
+    if resolved_bool_path(input, &["markets", "removeAllMarkets"]).unwrap_or(false)
+        && !resolved_string_list_path(input, &["markets", "add"]).is_empty()
+    {
+        errors.push(app_discount_user_error(
+            vec![json!(input_arg), json!("markets")],
+            "Cannot add markets while removeAllMarkets is true.",
+            Some("INVALID"),
+        ));
+    }
+    let function_id = resolved_non_blank_string_field(input, "functionId");
+    let function_handle = resolved_non_blank_string_field(input, "functionHandle");
+    match (function_id.is_some(), function_handle.is_some()) {
+        (false, false) => errors.push(app_discount_user_error(
+            vec![json!(input_arg), json!("functionHandle")],
+            "Function id can't be blank.",
+            Some("MISSING_FUNCTION_IDENTIFIER"),
+        )),
+        (true, true) => errors.push(app_discount_user_error(
+            vec![json!(input_arg)],
+            "Only one of functionId or functionHandle is allowed.",
+            Some("MULTIPLE_FUNCTION_IDENTIFIERS"),
+        )),
+        _ => {}
+    }
+    errors
+}
+
+fn app_discount_empty_customer_selection(input: &BTreeMap<String, ResolvedValue>) -> bool {
+    matches!(
+        resolved_object_path(
+            Some(&ResolvedValue::Object(input.clone())),
+            &["customerSelection", "customerSegments", "add"],
+        ),
+        Some(ResolvedValue::List(values)) if values.is_empty()
+    ) || matches!(
+        resolved_object_path(
+            Some(&ResolvedValue::Object(input.clone())),
+            &["customerSelection", "customers", "add"],
+        ),
+        Some(ResolvedValue::List(values)) if values.is_empty()
+    )
+}
+
+fn app_discount_user_error(field: Vec<Value>, message: &str, code: Option<&str>) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code.map(Value::from).unwrap_or(Value::Null),
+        "extraInfo": Value::Null
+    })
 }
 
 fn discount_subscription_field_user_error(
@@ -850,6 +1402,10 @@ fn discount_record_from_input(
         "asyncUsageCount": 0,
         "usageLimit": resolved_i64_path(input, &["usageLimit"]).map(Value::from).unwrap_or(Value::Null),
         "usesPerOrderLimit": resolved_i64_path(input, &["usesPerOrderLimit"]).map(Value::from).unwrap_or(Value::Null),
+        "recurringCycleLimit": resolved_i64_path(input, &["recurringCycleLimit"])
+            .map(Value::from)
+            .or_else(|| existing.map(|record| record["recurringCycleLimit"].clone()))
+            .unwrap_or(Value::Null),
         "discountClasses": discount_classes_for_input(typename, input),
         "combinesWith": combines_with,
         "context": discount_context_from_input(input),
@@ -866,8 +1422,40 @@ fn discount_record_from_input(
             "count": codes.as_array().map(Vec::len).unwrap_or(0),
             "precision": "EXACT"
         },
+        "metafields": discount_metafields_from_input(input)
+            .or_else(|| existing.map(|record| record["metafields"].clone()))
+            .unwrap_or_else(|| json!([])),
         "summary": discount_summary_for_input(typename, input)
     })
+}
+
+fn attach_app_discount_function(record: &mut Value, function: &Value) {
+    record["shopifyFunction"] = function.clone();
+    record["appDiscountType"] = app_discount_type_for_function(function);
+}
+
+fn app_discount_type_for_function(function: &Value) -> Value {
+    let function_id = function["handle"]
+        .as_str()
+        .or_else(|| function["id"].as_str())
+        .unwrap_or_default();
+    json!({
+        "appKey": function.get("appKey").cloned().unwrap_or(Value::Null),
+        "functionId": function_id,
+        "title": function.get("title").cloned().unwrap_or(Value::Null),
+        "description": function.get("description").cloned().unwrap_or(Value::Null)
+    })
+}
+
+fn app_discount_function_api_type_is_supported(function: &Value) -> bool {
+    let api_type = function["apiType"]
+        .as_str()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    matches!(
+        api_type.as_str(),
+        "discount" | "product_discounts" | "order_discounts" | "shipping_discounts"
+    )
 }
 
 fn discount_node_for_record(record: &Value) -> Value {
@@ -900,8 +1488,13 @@ fn discount_admin_node_for_record(record: &Value) -> Value {
 }
 
 fn discount_body_for_record(record: &Value) -> Value {
+    let metafields = record
+        .get("metafields")
+        .cloned()
+        .unwrap_or_else(|| json!([]));
     json!({
         "__typename": record["typename"],
+        "discountId": record["id"],
         "title": record["title"],
         "status": record["status"],
         "summary": record["summary"],
@@ -933,7 +1526,29 @@ fn discount_body_for_record(record: &Value) -> Value {
         "appliesOncePerCustomer": record["appliesOncePerCustomer"],
         "appliesOnOneTimePurchase": record["appliesOnOneTimePurchase"],
         "appliesOnSubscription": record["appliesOnSubscription"],
-        "recurringCycleLimit": Value::Null
+        "recurringCycleLimit": record.get("recurringCycleLimit").cloned().unwrap_or(Value::Null),
+        "appDiscountType": record.get("appDiscountType").cloned().unwrap_or(Value::Null),
+        "metafields": {
+            "nodes": metafields,
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": Value::Null,
+                "endCursor": Value::Null
+            }
+        }
+    })
+}
+
+fn app_discount_payload_for_root(root: &str, node: Value, user_errors: Vec<Value>) -> Value {
+    let node_key = if root.starts_with("discountAutomatic") {
+        "automaticAppDiscount"
+    } else {
+        "codeAppDiscount"
+    };
+    json!({
+        node_key: if node.is_null() { Value::Null } else { node },
+        "userErrors": user_errors
     })
 }
 
@@ -958,6 +1573,202 @@ fn discount_delete_payload(root: &str, deleted_id: Value, user_errors: Vec<Value
     json!({ key: deleted_id, "userErrors": user_errors })
 }
 
+fn discount_bulk_payload(job: Value, user_errors: Vec<Value>) -> Value {
+    json!({ "job": job, "userErrors": user_errors })
+}
+
+#[derive(Debug, Clone)]
+enum DiscountBulkSelector {
+    Ids(Vec<String>),
+    Search(String),
+    SavedSearch { id: String, query: String },
+}
+
+impl DiscountBulkSelector {
+    fn query_text(&self) -> Value {
+        match self {
+            Self::Ids(_) => Value::Null,
+            Self::Search(query) | Self::SavedSearch { query, .. } => json!(query),
+        }
+    }
+}
+
+fn discount_bulk_selector(field: &RootFieldSelection) -> Result<DiscountBulkSelector, Vec<Value>> {
+    let ids_present = field.arguments.contains_key("ids");
+    let search_present = field.arguments.contains_key("search");
+    let saved_search_present = field.arguments.contains_key("savedSearchId")
+        || field.arguments.contains_key("saved_search_id");
+    let selector_count =
+        ids_present as usize + search_present as usize + saved_search_present as usize;
+
+    let automatic = field.name == "discountAutomaticBulkDelete";
+    if selector_count == 0 {
+        return Err(vec![discount_null_field_user_error(
+            if automatic {
+                "One of IDs, search argument or saved search ID is required."
+            } else {
+                "Missing expected argument key: 'ids', 'search' or 'saved_search_id'."
+            },
+            Some("MISSING_ARGUMENT"),
+        )]);
+    }
+    if selector_count > 1 {
+        return Err(vec![discount_null_field_user_error(
+            if automatic {
+                "Only one of IDs, search argument or saved search ID is allowed."
+            } else {
+                "Only one of 'ids', 'search' or 'saved_search_id' is allowed."
+            },
+            Some("TOO_MANY_ARGUMENTS"),
+        )]);
+    }
+
+    if ids_present {
+        return Ok(DiscountBulkSelector::Ids(discount_bulk_ids(field)));
+    }
+    if search_present {
+        let search = resolved_field_string_arg(field, "search").unwrap_or_default();
+        if search.trim().is_empty() && !automatic {
+            return Err(vec![json!({
+                "field": ["search"],
+                "message": "'Search' can't be blank.",
+                "code": "BLANK",
+                "extraInfo": Value::Null
+            })]);
+        }
+        return Ok(DiscountBulkSelector::Search(search));
+    }
+
+    let id = resolved_field_string_arg(field, "savedSearchId")
+        .or_else(|| resolved_field_string_arg(field, "saved_search_id"))
+        .unwrap_or_default();
+    if let Some(record) = default_saved_search_by_id(&id) {
+        let query = record.query;
+        return Ok(DiscountBulkSelector::SavedSearch { id, query });
+    }
+
+    Err(vec![json!({
+        "field": ["savedSearchId"],
+        "message": if automatic { "Invalid savedSearchId." } else { "Invalid 'saved_search_id'." },
+        "code": "INVALID",
+        "extraInfo": Value::Null
+    })])
+}
+
+fn discount_bulk_ids(field: &RootFieldSelection) -> Vec<String> {
+    match field.arguments.get("ids") {
+        Some(ResolvedValue::List(ids)) => ids
+            .iter()
+            .filter_map(|value| match value {
+                ResolvedValue::String(id) => Some(id.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn discount_bulk_search_field_user_error(
+    field: &RootFieldSelection,
+    selector: &DiscountBulkSelector,
+) -> Option<Value> {
+    if field.name != "discountCodeBulkDelete" {
+        return None;
+    }
+    let query = match selector {
+        DiscountBulkSelector::Search(query) | DiscountBulkSelector::SavedSearch { query, .. } => {
+            query
+        }
+        DiscountBulkSelector::Ids(_) => return None,
+    };
+    let invalid = saved_search_filters(query)
+        .into_iter()
+        .map(|(key, _)| discount_search_base_filter_key(&key).to_string())
+        .find(|key| !discount_code_bulk_delete_search_field_allowed(key));
+    invalid.map(|field_name| {
+        json!({
+            "field": ["search"],
+            "message": format!("Invalid search field(s): {field_name}. Check the query syntax."),
+            "code": "INVALID",
+            "extraInfo": Value::Null
+        })
+    })
+}
+
+fn discount_code_bulk_delete_search_field_allowed(field_name: &str) -> bool {
+    matches!(
+        field_name,
+        "status" | "times_used" | "discount_type" | "method" | "id" | "title"
+    )
+}
+
+fn discount_search_base_filter_key(key: &str) -> &str {
+    key.trim_end_matches("_not")
+        .trim_end_matches("_min")
+        .trim_end_matches("_max")
+}
+
+fn discount_bulk_record_in_scope(record: &Value, root: &str) -> bool {
+    match root {
+        "discountAutomaticBulkDelete" => discount_kind(record) == "automatic",
+        "discountCodeBulkActivate" | "discountCodeBulkDeactivate" | "discountCodeBulkDelete" => {
+            discount_kind(record) == "code"
+        }
+        _ => false,
+    }
+}
+
+fn discount_bulk_selector_matches(record: &Value, selector: &DiscountBulkSelector) -> bool {
+    match selector {
+        DiscountBulkSelector::Ids(ids) => ids.iter().any(|id| id == discount_id(record)),
+        DiscountBulkSelector::Search(query) | DiscountBulkSelector::SavedSearch { query, .. } => {
+            discount_matches_query(record, query)
+        }
+    }
+}
+
+fn discount_apply_status(record: &mut Value, new_status: &str) {
+    record["status"] = json!(new_status);
+    record["updatedAt"] = json!(DISCOUNT_DEFAULT_TIMESTAMP);
+    if new_status == "ACTIVE" {
+        record["endsAt"] = Value::Null;
+    } else if new_status == "EXPIRED" && record.get("endsAt").and_then(Value::as_str).is_none() {
+        record["endsAt"] = json!(DISCOUNT_DEFAULT_TIMESTAMP);
+    }
+}
+
+fn discount_bulk_job(id: &str, selector: &DiscountBulkSelector) -> Value {
+    json!({
+        "id": id,
+        "done": true,
+        "query": selector.query_text()
+    })
+}
+
+fn discount_bulk_operation_record(
+    id: &str,
+    field: &RootFieldSelection,
+    selector: &DiscountBulkSelector,
+    matched_ids: &[String],
+) -> Value {
+    let selector_value = match selector {
+        DiscountBulkSelector::Ids(ids) => json!({ "ids": ids }),
+        DiscountBulkSelector::Search(search) => json!({ "search": search }),
+        DiscountBulkSelector::SavedSearch { id, query } => {
+            json!({ "savedSearchId": id, "search": query })
+        }
+    };
+    json!({
+        "id": id,
+        "root": field.name,
+        "selector": selector_value,
+        "matchedIds": matched_ids,
+        "done": true,
+        "createdAt": DISCOUNT_DEFAULT_TIMESTAMP,
+        "completedAt": DISCOUNT_DEFAULT_TIMESTAMP
+    })
+}
+
 fn discount_unknown_id_user_error(root: &str) -> Value {
     let message = if root.starts_with("discountAutomatic") {
         "Automatic discount does not exist."
@@ -973,6 +1784,18 @@ fn discount_id(record: &Value) -> &str {
 
 fn discount_kind(record: &Value) -> &str {
     record["kind"].as_str().unwrap_or_default()
+}
+
+fn discount_record_codes(record: &Value) -> Vec<String> {
+    let mut codes = Vec::new();
+    if let Some(redeem_codes) = record.get("codes").and_then(Value::as_array) {
+        for redeem_code in redeem_codes {
+            if let Some(code) = redeem_code.get("code").and_then(Value::as_str) {
+                codes.push(code.to_string());
+            }
+        }
+    }
+    codes
 }
 
 fn discount_matches_query(record: &Value, query: &str) -> bool {
@@ -998,7 +1821,52 @@ fn discount_matches_query(record: &Value, query: &str) -> bool {
     if normalized.contains("type:automatic") {
         return discount_kind(record) == "automatic";
     }
+    for (key, value) in saved_search_filters(query) {
+        let base_key = discount_search_base_filter_key(&key);
+        if matches!(base_key, "title" | "code")
+            && !discount_text_filter_matches(record, base_key, &value)
+        {
+            return false;
+        }
+        if base_key == "method" {
+            let value = value.to_ascii_lowercase();
+            if value.contains("automatic") && discount_kind(record) != "automatic" {
+                return false;
+            }
+            if value.contains("code") && discount_kind(record) != "code" {
+                return false;
+            }
+        }
+        if base_key == "discount_type" {
+            let value = value.to_ascii_lowercase();
+            if value.contains("automatic") && discount_kind(record) != "automatic" {
+                return false;
+            }
+            if value.contains("code") && discount_kind(record) != "code" {
+                return false;
+            }
+        }
+    }
     true
+}
+
+fn discount_text_filter_matches(record: &Value, field: &str, raw_value: &str) -> bool {
+    let needle = raw_value
+        .trim_matches('\'')
+        .trim_matches('"')
+        .trim_end_matches('*')
+        .to_ascii_lowercase();
+    if needle.is_empty() {
+        return true;
+    }
+    let value = match field {
+        "title" => record["title"].as_str(),
+        "code" => record["code"].as_str(),
+        _ => None,
+    }
+    .unwrap_or_default()
+    .to_ascii_lowercase();
+    value.contains(&needle)
 }
 
 fn resolved_string_path(input: &BTreeMap<String, ResolvedValue>, path: &[&str]) -> Option<String> {
@@ -1006,6 +1874,13 @@ fn resolved_string_path(input: &BTreeMap<String, ResolvedValue>, path: &[&str]) 
         Some(ResolvedValue::String(value)) => Some(value.clone()),
         _ => None,
     }
+}
+
+fn resolved_non_blank_string_field(
+    input: &BTreeMap<String, ResolvedValue>,
+    field: &str,
+) -> Option<String> {
+    resolved_string_field(input, field).filter(|value| !value.trim().is_empty())
 }
 
 fn resolved_f64_path(input: &BTreeMap<String, ResolvedValue>, path: &[&str]) -> Option<f64> {
@@ -1075,6 +1950,10 @@ fn discount_status_from_dates(starts_at: &str, ends_at: &Value) -> &'static str 
 }
 
 fn discount_classes_for_input(typename: &str, input: &BTreeMap<String, ResolvedValue>) -> Value {
+    let explicit_classes = resolved_string_list_path(input, &["discountClasses"]);
+    if !explicit_classes.is_empty() {
+        return json!(explicit_classes);
+    }
     if typename.contains("FreeShipping") {
         return json!(["SHIPPING"]);
     }
@@ -1296,6 +2175,30 @@ fn discount_maximum_shipping_price_from_input(input: &BTreeMap<String, ResolvedV
     resolved_decimal_text_path(input, &["maximumShippingPrice"])
         .map(|amount| json!({ "amount": amount, "currencyCode": "CAD" }))
         .unwrap_or(Value::Null)
+}
+
+fn discount_metafields_from_input(input: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
+    match input.get("metafields") {
+        Some(ResolvedValue::List(metafields)) => Some(Value::Array(
+            metafields
+                .iter()
+                .enumerate()
+                .filter_map(|(index, value)| match value {
+                    ResolvedValue::Object(metafield) => Some(json!({
+                        "id": format!("gid://shopify/Metafield/discount-app-{index}?shopify-draft-proxy=synthetic"),
+                        "namespace": resolved_string_field(metafield, "namespace").unwrap_or_default(),
+                        "key": resolved_string_field(metafield, "key").unwrap_or_default(),
+                        "type": resolved_string_field(metafield, "type").unwrap_or_default(),
+                        "value": resolved_string_field(metafield, "value").unwrap_or_default(),
+                        "createdAt": DISCOUNT_DEFAULT_TIMESTAMP,
+                        "updatedAt": DISCOUNT_DEFAULT_TIMESTAMP
+                    })),
+                    _ => None,
+                })
+                .collect(),
+        )),
+        _ => None,
+    }
 }
 
 fn resolved_decimal_text_path(
@@ -3058,6 +3961,12 @@ fn cart_transform_metafield_errors(field: &RootFieldSelection) -> Vec<Value> {
     }
 }
 
+fn staged_function_id_in_use(records: &BTreeMap<String, Value>, function_id: &str) -> bool {
+    records
+        .values()
+        .any(|record| record["functionId"].as_str() == Some(function_id))
+}
+
 pub(in crate::proxy) fn cart_transform_metafields_from_field(
     field: &RootFieldSelection,
     ids: Vec<String>,
@@ -3219,13 +4128,6 @@ impl DraftProxy {
                 Some("NOT_FOUND"),
             ));
         };
-        if input.contains_key("functionId") || input.contains_key("functionHandle") {
-            return validation_payload_error(function_user_error(
-                vec![json!("validation")],
-                "Function binding cannot be changed.",
-                Some("INVALID"),
-            ));
-        }
         let errors = validation_metafield_errors(input);
         if !errors.is_empty() {
             return json!({ "validation": Value::Null, "userErrors": errors });
@@ -3299,6 +4201,23 @@ impl DraftProxy {
     ) -> Value {
         let function_id = resolved_field_string_arg(field, "functionId");
         let function_handle = resolved_field_string_arg(field, "functionHandle");
+        if let Some(payload) = cart_transform_identifier_error(&function_id, &function_handle) {
+            return payload;
+        }
+        if let Some(function_id) = function_id.as_deref() {
+            if staged_function_id_in_use(&self.store.staged.function_validations, function_id)
+                || staged_function_id_in_use(
+                    &self.store.staged.function_cart_transforms,
+                    function_id,
+                )
+            {
+                return cart_transform_payload_error(function_user_error(
+                    vec![json!("functionId")],
+                    "Could not enable cart transform because it is already registered",
+                    Some("FUNCTION_ALREADY_REGISTERED"),
+                ));
+            }
+        }
         let function =
             match cart_transform_function_resolution_payload(&function_id, &function_handle) {
                 Ok(function) => function,
@@ -3307,19 +4226,6 @@ impl DraftProxy {
         let errors = cart_transform_metafield_errors(field);
         if !errors.is_empty() {
             return json!({ "cartTransform": Value::Null, "userErrors": errors });
-        }
-        if self
-            .store
-            .staged
-            .function_cart_transforms
-            .values()
-            .any(|record| record["functionId"] == function["id"])
-        {
-            return cart_transform_payload_error(function_user_error(
-                vec![json!("functionId")],
-                "Could not enable cart transform because it is already registered",
-                Some("FUNCTION_ALREADY_REGISTERED"),
-            ));
         }
         let id = if self.store.staged.function_cart_transform_order.is_empty() {
             "gid://shopify/CartTransform/3".to_string()
@@ -3681,30 +4587,6 @@ pub(in crate::proxy) fn discount_redeem_code_bulk_live_add_data(
     Value::Object(data)
 }
 
-pub(in crate::proxy) fn discount_redeem_code_bulk_live_delete_data(
-    fields: &[RootFieldSelection],
-) -> Value {
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        let value = match field.name.as_str() {
-            "discountCodeRedeemCodeBulkDelete" => json!({
-                "job": {
-                    "id": "gid://shopify/Job/45ed84bf-3490-489b-9950-9a4992c1c4e0?shopify-draft-proxy=synthetic",
-                    "done": true,
-                    "query": Value::Null
-                },
-                "userErrors": []
-            }),
-            _ => Value::Null,
-        };
-        data.insert(
-            field.response_key.clone(),
-            selected_json(&value, &field.selection),
-        );
-    }
-    Value::Object(data)
-}
-
 pub(in crate::proxy) fn discount_redeem_code_bulk_live_read_data(
     fields: &[RootFieldSelection],
     added: bool,
@@ -3837,83 +4719,6 @@ pub(in crate::proxy) fn discount_redeem_code_bulk_live_node(
             },
             "minimumRequirement": Value::Null
         }
-    })
-}
-
-pub(in crate::proxy) const DISCOUNT_REDEEM_CODE_BULK_DELETE_VALIDATION_DISCOUNT_ID: &str =
-    "gid://shopify/DiscountCodeNode/1640468283698";
-
-pub(in crate::proxy) fn discount_redeem_code_bulk_delete_validation_data(
-    fields: &[RootFieldSelection],
-) -> Value {
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        let value = discount_redeem_code_bulk_delete_validation_value(field);
-        data.insert(
-            field.response_key.clone(),
-            selected_json(&value, &field.selection),
-        );
-    }
-    Value::Object(data)
-}
-
-pub(in crate::proxy) fn discount_redeem_code_bulk_delete_validation_value(
-    field: &RootFieldSelection,
-) -> Value {
-    let selector_count = redeem_code_bulk_delete_selector_count(field);
-    let user_errors = if selector_count == 0 {
-        vec![discount_null_field_user_error(
-            "Missing expected argument key: 'ids', 'search' or 'saved_search_id'.",
-            Some("MISSING_ARGUMENT"),
-        )]
-    } else if selector_count > 1 {
-        vec![discount_null_field_user_error(
-            "Only one of 'ids', 'search' or 'saved_search_id' is allowed.",
-            Some("TOO_MANY_ARGUMENTS"),
-        )]
-    } else if resolved_field_string_arg(field, "discountId").as_deref()
-        != Some(DISCOUNT_REDEEM_CODE_BULK_DELETE_VALIDATION_DISCOUNT_ID)
-    {
-        vec![json!({
-            "field": ["discountId"],
-            "message": "Code discount does not exist.",
-            "code": "INVALID",
-            "extraInfo": Value::Null
-        })]
-    } else if matches!(field.arguments.get("ids"), Some(ResolvedValue::List(ids)) if ids.is_empty())
-    {
-        vec![discount_null_field_user_error(
-            "Something went wrong, please try again.",
-            None,
-        )]
-    } else if matches!(field.arguments.get("search"), Some(ResolvedValue::String(search)) if search.trim().is_empty())
-    {
-        vec![json!({
-            "field": ["search"],
-            "message": "'Search' can't be blank.",
-            "code": "BLANK",
-            "extraInfo": Value::Null
-        })]
-    } else if field.arguments.contains_key("savedSearchId")
-        || field.arguments.contains_key("saved_search_id")
-    {
-        vec![json!({
-            "field": ["savedSearchId"],
-            "message": "Invalid 'saved_search_id'.",
-            "code": "INVALID",
-            "extraInfo": Value::Null
-        })]
-    } else {
-        Vec::new()
-    };
-
-    json!({
-        "job": if user_errors.is_empty() { json!({
-            "id": "gid://shopify/Job/45ed84bf-3490-489b-9950-9a4992c1c4e0?shopify-draft-proxy=synthetic",
-            "done": true,
-            "query": Value::Null
-        }) } else { Value::Null },
-        "userErrors": user_errors
     })
 }
 

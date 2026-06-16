@@ -40,7 +40,8 @@ Validation behavior:
 - `validationCreate` rejects missing or multiple identifiers, unresolved references, and known non-validation API types without staging.
 - Omitted or explicit `null` title uses the resolved Function-derived title; explicit empty string is preserved.
 - Omitted `enable` / `enabled` defaults to `false`, activation is capped at 25 active validations, and validation-owned metafields persist for downstream reads.
-- `validationUpdate` rejects Function rebinding input shape, applies the same active-validation cap, and upserts non-empty metafield input by `(namespace, key)` while preserving unrelated rows.
+- `validationUpdate` rejects Function rebinding input shape before resolver execution because public `ValidationUpdateInput` does not expose `functionId` or `functionHandle`. Inline literals return Shopify's captured top-level `argumentLiteralsIncompatible` field-not-defined error, while variable-bound input returns top-level `INVALID_VARIABLE`; neither branch produces mutation-scoped `userErrors`.
+- Valid `validationUpdate` input applies the same active-validation cap and upserts non-empty metafield input by `(namespace, key)` while preserving unrelated rows.
 - Invalid validation metafields reject the entire mutation before staging with index-scoped userErrors. Downstream `validation`, `validations`, `metafields(...)`, and `metafield(namespace:, key:)` reads expose persisted rows.
 
 Cart transform behavior:
@@ -49,7 +50,7 @@ Cart transform behavior:
 - The proxy rejects non-Shopify argument shapes such as a `cartTransform: { ... }` wrapper or `title` argument as GraphQL validation errors before staging.
 - Valid create input resolves the referenced Function, persists cart-transform metadata locally, and stores valid metafields in input order.
 - Missing metafield values and malformed JSON values return `INVALID_METAFIELDS` userErrors without staging.
-- Known non-cart-transform Function references return the captured identifier-specific branch: `FUNCTION_NOT_FOUND` on `functionId`, `FUNCTION_DOES_NOT_IMPLEMENT` on `functionHandle`.
+- Known non-cart-transform Function references return the captured identifier-specific branch: `FUNCTION_NOT_FOUND` on `functionId`, `FUNCTION_DOES_NOT_IMPLEMENT` on `functionHandle`. For `functionId`, an already-staged Function instance takes precedence before API-type validation and returns `FUNCTION_ALREADY_REGISTERED`, including when the Function is already bound to a validation.
 - `cartTransformDelete` checks ownership against the staged transform's resolved `ShopifyFunction` owner and current app installation when that metadata exists. Missing installation, Function, or owner metadata returns `UNAUTHORIZED_APP_SCOPE`.
 - `CartTransform` reads expose the modeled Admin field set: `id`, `functionId`, `blockOnFailure`, `shopifyFunction`, `errorHistory`, and HasMetafields selections. Fabricated scalar fields such as `title`, `functionHandle`, `createdAt`, or `updatedAt` are not projected.
 
@@ -77,16 +78,19 @@ Function catalog and guardrails:
 - `fixtures/conformance/local-runtime/2026-04/functions/functions-validation-max-cap.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-live-owner-metadata-read.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-create-error-shape.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-update-rebind-variable.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/validation-create-title-fallback-parity.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-metafields-input-validation.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-update-metafields-upsert.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-api-mismatch-by-identifier.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-registered-wrong-api-precedence.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-metafields.json`
 - `config/parity-specs/functions/functions-metadata-local-staging.json`
 - `config/parity-specs/functions/functions-owner-metadata-local-staging.json`
 - `config/parity-specs/functions/functions-create-guardrails.json`
 - `config/parity-specs/functions/functions-validation-create-validation.json`
 - `config/parity-specs/functions/functions-validation-update-shape.json`
+- `config/parity-specs/functions/functions-validation-update-rebind-variable.json`
 - `config/parity-specs/functions/functions-validation-max-cap.json`
 - `config/parity-specs/functions/functions-live-owner-metadata-read.json`
 - `config/parity-specs/functions/functions-validation-create-error-shape.json`
@@ -94,6 +98,7 @@ Function catalog and guardrails:
 - `config/parity-specs/functions/functions-validation-metafields-input-validation.json`
 - `config/parity-specs/functions/functions-validation-update-metafields-upsert.json`
 - `config/parity-specs/functions/functions-cart-transform-create-api-mismatch-by-identifier.json`
+- `config/parity-specs/functions/functions-cart-transform-create-registered-wrong-api-precedence.json`
 - `config/parity-specs/functions/functions-cart-transform-create-metafields.json`
 - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
 
