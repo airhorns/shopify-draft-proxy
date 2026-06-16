@@ -2247,6 +2247,178 @@ fn localization_unknown_resource_and_market_scoped_translation_validation_match_
 }
 
 #[test]
+fn localization_translations_register_validation_order_matches_shopify_precedence() {
+    let mut locale_proxy = snapshot_proxy();
+
+    let non_enabled_blank = locale_proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": "gid://shopify/Product/9801098789170",
+            "translations": [{
+                "locale": "it",
+                "key": "title",
+                "value": "",
+                "translatableContentDigest": "digest"
+            }]
+        }),
+    ));
+    assert_eq!(
+        non_enabled_blank.body["data"]["translationsRegister"],
+        json!({
+            "translations": [],
+            "userErrors": [{
+                "field": ["translations", "0", "locale"],
+                "message": "Locale is not a valid locale for the shop",
+                "code": "INVALID_LOCALE_FOR_SHOP"
+            }]
+        })
+    );
+
+    let primary_blank = locale_proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": "gid://shopify/Product/9801098789170",
+            "translations": [{
+                "locale": "en",
+                "key": "title",
+                "value": "",
+                "translatableContentDigest": "digest"
+            }]
+        }),
+    ));
+    assert_eq!(
+        primary_blank.body["data"]["translationsRegister"],
+        json!({
+            "translations": [],
+            "userErrors": [{
+                "field": ["translations", "0", "locale"],
+                "message": "Locale cannot be the same as the shop's primary locale",
+                "code": "INVALID_LOCALE_FOR_SHOP"
+            }]
+        })
+    );
+
+    let mut market_proxy = snapshot_proxy();
+    let enable = market_proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleEnable($locale: String!) {
+          shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+        }"#,
+        json!({ "locale": "es" }),
+    ));
+    assert_eq!(
+        enable.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+    let unknown_market_blank = market_proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale market { id } }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": "gid://shopify/Product/9801098789170",
+            "translations": [{
+                "locale": "es",
+                "key": "title",
+                "value": "",
+                "translatableContentDigest": "digest",
+                "marketId": "gid://shopify/Market/999999"
+            }]
+        }),
+    ));
+    assert_eq!(
+        unknown_market_blank.body["data"]["translationsRegister"],
+        json!({
+            "translations": null,
+            "userErrors": [{
+                "field": ["translations", "0", "marketId"],
+                "message": "The market corresponding to the `marketId` argument doesn't exist",
+                "code": "MARKET_DOES_NOT_EXIST"
+            }]
+        })
+    );
+}
+
+#[test]
+fn localization_translations_register_stages_locally_and_keeps_raw_mutation_for_commit() {
+    let upstream_hits = Arc::new(Mutex::new(0usize));
+    let hit_counter = Arc::clone(&upstream_hits);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |_request| {
+        *hit_counter.lock().unwrap() += 1;
+        shopify_draft_proxy::proxy::Response {
+            status: 500,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "translationsRegister should stay local" }] }),
+        }
+    });
+
+    let enable = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationShopLocaleEnable($locale: String!) {
+          shopLocaleEnable(locale: $locale) { userErrors { field message code } }
+        }"#,
+        json!({ "locale": "fr" }),
+    ));
+    assert_eq!(
+        enable.body["data"]["shopLocaleEnable"]["userErrors"],
+        json!([])
+    );
+
+    let register = proxy.process_request(json_graphql_request(
+        r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
+          translationsRegister(resourceId: $resourceId, translations: $translations) {
+            translations { key value locale }
+            userErrors { field message code }
+          }
+        }"#,
+        json!({
+            "resourceId": "gid://shopify/Product/9801098789170",
+            "translations": [{
+                "locale": "fr",
+                "key": "title",
+                "value": "Titre local",
+                "translatableContentDigest": "digest"
+            }]
+        }),
+    ));
+    assert_eq!(register.status, 200);
+    assert_eq!(*upstream_hits.lock().unwrap(), 0);
+    assert_eq!(
+        register.body["data"]["translationsRegister"]["translations"],
+        json!([{ "key": "title", "value": "Titre local", "locale": "fr" }])
+    );
+    assert_eq!(
+        register.body["data"]["translationsRegister"]["userErrors"],
+        json!([])
+    );
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"].as_array().unwrap().len(), 2);
+    assert!(log["entries"][1]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("mutation LocalizationTranslationsRegister"));
+    assert!(log["entries"][1]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("Titre local"));
+}
+
+#[test]
 fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
     let mut proxy = snapshot_proxy();
     let known_presence = "gid://shopify/MarketWebPresence/known";
