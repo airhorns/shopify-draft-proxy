@@ -134,6 +134,9 @@ impl DraftProxy {
                 "customers": self.store.staged.customers.clone(),
                 "deletedCustomerIds": self.store.staged.deleted_customer_ids.iter().cloned().collect::<Vec<_>>(),
                 "customerOrders": self.store.staged.customer_orders.clone(),
+                "mergedCustomerIds": self.store.staged.merged_customer_ids.clone(),
+                "customerMergeRequests": self.store.staged.customer_merge_requests.clone(),
+                "customerDataErasureRequests": self.store.staged.customer_data_erasure_requests.clone(),
                 "taggableResources": self.store.staged.taggable_resources.clone(),
                 "orders": self.store.staged.orders.clone(),
                 "deletedOrderIds": self.store.staged.deleted_order_ids.iter().cloned().collect::<Vec<_>>(),
@@ -152,14 +155,18 @@ impl DraftProxy {
                 "discountCodeIndex": self.store.staged.discount_code_index.clone(),
                 "deletedDiscountIds": self.store.staged.deleted_discount_ids.iter().cloned().collect::<Vec<_>>(),
                 "discountRedeemCodeBulkCreations": self.store.staged.discount_redeem_code_bulk_creations.clone(),
-                "ownerMetafields": self.store.staged.owner_metafields.clone(),
-                "deletedOwnerMetafields": self.store.staged.deleted_owner_metafields.iter().map(|(owner_id, namespace, key)| json!({"ownerId": owner_id, "namespace": namespace, "key": key})).collect::<Vec<_>>()
+                "ownerMetafields": self.store.staged.owner_metafields.clone()
             }
         });
-        if !self.store.staged.product_operations.is_empty() {
-            snapshot["stagedState"]["productOperations"] =
-                json!(self.store.staged.product_operations);
-        }
+        snapshot["stagedState"]["deletedOwnerMetafields"] = json!(self
+            .store
+            .staged
+            .deleted_owner_metafields
+            .iter()
+            .map(|(owner_id, namespace, key)| {
+                json!({"ownerId": owner_id, "namespace": namespace, "key": key})
+            })
+            .collect::<Vec<_>>());
         snapshot["stagedState"]["b2bCompanies"] = json!(self.store.staged.b2b_companies.clone());
         snapshot["stagedState"]["b2bLocations"] = json!(self.store.staged.b2b_locations.clone());
         snapshot["stagedState"]["b2bContacts"] = json!(self.store.staged.b2b_contacts.clone());
@@ -455,6 +462,38 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.merged_customer_ids = state["stagedState"]["mergedCustomerIds"]
+            .as_object()
+            .map(|merged| {
+                merged
+                    .iter()
+                    .filter_map(|(source, result)| {
+                        result
+                            .as_str()
+                            .map(|result| (source.clone(), result.to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.customer_merge_requests = state["stagedState"]["customerMergeRequests"]
+            .as_object()
+            .map(|requests| {
+                requests
+                    .iter()
+                    .map(|(id, request)| (id.clone(), request.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.customer_data_erasure_requests = state["stagedState"]
+            ["customerDataErasureRequests"]
+            .as_object()
+            .map(|requests| {
+                requests
+                    .iter()
+                    .map(|(id, request)| (id.clone(), request.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
         self.store.staged.taggable_resources = state["stagedState"]["taggableResources"]
             .as_object()
             .map(|resources| {
@@ -638,20 +677,6 @@ impl DraftProxy {
                             tombstone.get("namespace")?.as_str()?.to_string(),
                             tombstone.get("key")?.as_str()?.to_string(),
                         ))
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.product_operations = state["stagedState"]
-            .get("productOperations")
-            .and_then(Value::as_object)
-            .map(|operations| {
-                operations
-                    .iter()
-                    .filter_map(|(id, operation)| {
-                        serde_json::from_value::<ProductOperationRecord>(operation.clone())
-                            .ok()
-                            .map(|operation| (id.clone(), operation))
                     })
                     .collect()
             })

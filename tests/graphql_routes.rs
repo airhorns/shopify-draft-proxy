@@ -6,6 +6,8 @@ mod admin_graphql_webhooks;
 mod b2b;
 #[path = "graphql_routes/common.rs"]
 mod common;
+#[path = "graphql_routes/customers.rs"]
+mod customers;
 #[path = "graphql_routes/discounts_gift_cards_functions_localization.rs"]
 mod discounts_gift_cards_functions_localization;
 #[path = "graphql_routes/marketing_inventory_online_store.rs"]

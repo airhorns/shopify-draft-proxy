@@ -18,34 +18,10 @@ impl DraftProxy {
             return None;
         }
 
-        if query.contains("RustB2BTaxSettingsInvalidEnumLiteral") {
-            return Some(ok_json(json!({
-                "errors": [{
-                    "message": "Argument 'exemptionsToAssign' has an invalid value [NOT_A_REAL_EXEMPTION]. Expected type '[TaxExemption!]'. Did you mean CA_STATUS_CARD_EXEMPTION?",
-                    "extensions": {
-                        "code": "argumentLiteralsIncompatible",
-                        "argumentName": "exemptionsToAssign"
-                    }
-                }]
-            })));
-        }
-        if query.contains("RustB2BTaxSettingsInvalidEnumVariable") {
-            return Some(ok_json(json!({
-                "errors": [{
-                    "message": "Variable $exemptionsToAssign of type [TaxExemption!] was provided invalid value for 0 (Expected \"NOT_A_REAL_EXEMPTION\" to be one of: CA_STATUS_CARD_EXEMPTION, CA_BC_RESELLER_EXEMPTION, US_CA_RESELLER_EXEMPTION)",
-                    "extensions": { "code": "INVALID_VARIABLE" }
-                }]
-            })));
-        }
-
-        let is_tax_document = query.contains("RustB2BTaxSettingsRequiredNullable")
-            || query.contains("RustB2BTaxSettingsAssignRemove")
-            || query.contains("RustB2BTaxSettingsUnknownResource");
-        if !is_tax_document {
-            return None;
-        }
-
         let fields = root_fields(query, variables)?;
+        if let Some(error) = b2b_tax_exemption_coercion_error(query, &fields) {
+            return Some(ok_json(json!({ "errors": [error] })));
+        }
         let mut data = serde_json::Map::new();
         for field in fields {
             if field.name != "companyLocationTaxSettingsUpdate" {
@@ -215,22 +191,26 @@ impl DraftProxy {
         operation_type: OperationType,
         parsed_root_fields: &[String],
     ) -> Option<Response> {
-        if !query.contains("RustB2BCompany") || parsed_root_fields.is_empty() {
+        if parsed_root_fields.is_empty() {
             return None;
         }
 
         let fields = root_fields(query, variables)?;
         match operation_type {
             OperationType::Mutation
-                if parsed_root_fields
-                    .iter()
-                    .all(|field| matches!(field.as_str(), "companyCreate" | "companyUpdate")) =>
+                if parsed_root_fields.iter().all(|field| {
+                    matches!(
+                        field.as_str(),
+                        "companyCreate" | "companyUpdate" | "companyLocationCreate"
+                    )
+                }) =>
             {
                 let mut data = serde_json::Map::new();
                 for field in fields {
                     let (payload, status, staged_ids) = match field.name.as_str() {
                         "companyCreate" => self.b2b_company_create_payload(&field),
                         "companyUpdate" => self.b2b_company_update_payload(&field),
+                        "companyLocationCreate" => self.b2b_company_location_create_payload(&field),
                         _ => return None,
                     };
                     self.record_mutation_log_entry(
@@ -252,16 +232,16 @@ impl DraftProxy {
                 }
                 Some(ok_json(json!({ "data": Value::Object(data) })))
             }
-            OperationType::Query if parsed_root_fields.iter().all(|field| field == "company") => {
+            OperationType::Query
+                if self.has_b2b_contact_state()
+                    && parsed_root_fields.iter().all(|field| field == "company") =>
+            {
                 let mut data = serde_json::Map::new();
                 for field in fields {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
                     let company = self
-                        .store
-                        .staged
-                        .b2b_companies
-                        .get(&id)
-                        .map(|company| selected_json(company, &field.selection))
+                        .b2b_company_materialized(&id)
+                        .map(|company| selected_json(&company, &field.selection))
                         .unwrap_or(Value::Null);
                     data.insert(field.response_key.clone(), company);
                 }
@@ -291,21 +271,90 @@ impl DraftProxy {
         let name = resolved_string_field(&company_input, "name")
             .map(|name| b2b_strip_html_tags(&name))
             .unwrap_or_else(|| "B2B Draft".to_string());
+        let default_role = self.ensure_b2b_contact_role(&id, "Ordering only", true);
+        let admin_role = self.ensure_b2b_contact_role(&id, "Location admin", false);
         let company = json!({
             "id": id,
             "name": name,
             "externalId": resolved_string_field(&company_input, "externalId").map(Value::String).unwrap_or(Value::Null),
             "customerSince": resolved_string_field(&company_input, "customerSince").map(Value::String).unwrap_or(Value::Null),
-            "note": resolved_string_field(&company_input, "note").map(Value::String).unwrap_or(Value::Null)
+            "note": resolved_string_field(&company_input, "note").map(Value::String).unwrap_or(Value::Null),
+            "mainContactId": Value::Null,
+            "mainContact": Value::Null,
+            "contactIds": [],
+            "contacts": connection_json(Vec::new()),
+            "contactsCount": { "count": 0, "precision": "EXACT" },
+            "locationIds": [],
+            "locations": connection_json(Vec::new()),
+            "locationsCount": { "count": 0, "precision": "EXACT" },
+            "contactRoles": connection_json(vec![admin_role.clone(), default_role.clone()]),
+            "defaultRole": default_role
         });
         self.store
             .staged
             .b2b_companies
             .insert(id.clone(), company.clone());
+        let mut staged_ids = vec![id.clone()];
+
+        if let Some(contact_input) = resolved_object_field(&input, "companyContact") {
+            let contact_id =
+                synthetic_shopify_gid("CompanyContact", self.store.staged.next_b2b_contact_id);
+            self.store.staged.next_b2b_contact_id += 1;
+            let customer_id = synthetic_shopify_gid(
+                "Customer",
+                format!("contact-{}", resource_id_tail(&contact_id)),
+            );
+            let contact = self.b2b_contact_from_input(
+                contact_id.clone(),
+                id.clone(),
+                &contact_input,
+                customer_id,
+            );
+            self.store
+                .staged
+                .b2b_contacts
+                .insert(contact_id.clone(), contact);
+            self.append_b2b_company_contact(&id, &contact_id);
+            if let Some(company) = self.store.staged.b2b_companies.get_mut(&id) {
+                company["mainContactId"] = json!(contact_id.clone());
+            }
+            staged_ids.push(contact_id);
+        }
+
+        let mut location_input =
+            resolved_object_field(&input, "companyLocation").unwrap_or_default();
+        if !location_input.contains_key("name") {
+            location_input.insert("name".to_string(), ResolvedValue::String(name));
+        }
+        let location_id = self.stage_b2b_company_location(&id, &location_input);
+        staged_ids.push(location_id.clone());
+        if let Some(main_contact_id) = self
+            .store
+            .staged
+            .b2b_companies
+            .get(&id)
+            .and_then(|company| company.get("mainContactId"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        {
+            if let Ok(assignment_id) = self.b2b_create_role_assignment(
+                &main_contact_id,
+                default_role
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                &location_id,
+                None,
+            ) {
+                staged_ids.push(assignment_id);
+            }
+        }
+
+        let materialized = self.b2b_company_materialized(&id).unwrap_or(company);
         (
-            b2b_company_payload(Some(&company), Vec::new()),
+            b2b_company_payload(Some(&materialized), Vec::new()),
             "staged",
-            vec![id],
+            staged_ids,
         )
     }
 
@@ -356,11 +405,1612 @@ impl DraftProxy {
             .staged
             .b2b_companies
             .insert(company_id.clone(), company.clone());
+        let materialized = self
+            .b2b_company_materialized(&company_id)
+            .unwrap_or(company.clone());
         (
-            b2b_company_payload(Some(&company), Vec::new()),
+            b2b_company_payload(Some(&materialized), Vec::new()),
             "staged",
             vec![company_id],
         )
+    }
+
+    fn b2b_company_location_create_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+        if !self.store.staged.b2b_companies.contains_key(&company_id) {
+            return (
+                b2b_company_location_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["companyId"],
+                        "Resource requested does not exist.",
+                        "RESOURCE_NOT_FOUND",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let id = self.stage_b2b_company_location(&company_id, &input);
+        let materialized = self.b2b_company_location_materialized(&id);
+        (
+            b2b_company_location_payload(materialized.as_ref(), Vec::new()),
+            "staged",
+            vec![id],
+        )
+    }
+
+    pub(in crate::proxy) fn b2b_contact_role_response(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        parsed_root_fields: &[String],
+    ) -> Option<Response> {
+        if parsed_root_fields.is_empty() {
+            return None;
+        }
+
+        let fields = root_fields(query, variables)?;
+        match operation_type {
+            OperationType::Query
+                if parsed_root_fields
+                    .iter()
+                    .all(|field| b2b_contact_query_root(field)) =>
+            {
+                if self.config.read_mode != ReadMode::Snapshot && !self.has_b2b_contact_state() {
+                    return None;
+                }
+                if fields
+                    .iter()
+                    .any(|field| field.name == "node" && !b2b_node_query_field(field))
+                {
+                    return None;
+                }
+                let mut data = serde_json::Map::new();
+                for field in fields {
+                    let value = match field.name.as_str() {
+                        "company" => resolved_string_arg(&field.arguments, "id")
+                            .and_then(|id| self.b2b_company_materialized(&id))
+                            .map(|company| selected_json(&company, &field.selection))
+                            .unwrap_or(Value::Null),
+                        "companyContact" => resolved_string_arg(&field.arguments, "id")
+                            .and_then(|id| self.b2b_contact_materialized(&id))
+                            .map(|contact| selected_json(&contact, &field.selection))
+                            .unwrap_or(Value::Null),
+                        "companyContactRole" => resolved_string_arg(&field.arguments, "id")
+                            .and_then(|id| self.b2b_contact_role_materialized(&id))
+                            .map(|role| selected_json(&role, &field.selection))
+                            .unwrap_or(Value::Null),
+                        "companyLocation" => resolved_string_arg(&field.arguments, "id")
+                            .and_then(|id| self.b2b_company_location_materialized(&id))
+                            .map(|location| selected_json(&location, &field.selection))
+                            .unwrap_or(Value::Null),
+                        "node" => resolved_string_arg(&field.arguments, "id")
+                            .and_then(|id| self.b2b_node_materialized(&id))
+                            .map(|node| selected_json(&node, &field.selection))
+                            .unwrap_or(Value::Null),
+                        _ => return None,
+                    };
+                    data.insert(field.response_key.clone(), value);
+                }
+                Some(ok_json(json!({ "data": Value::Object(data) })))
+            }
+            OperationType::Mutation
+                if parsed_root_fields
+                    .iter()
+                    .all(|field| b2b_contact_mutation_root(field)) =>
+            {
+                let mut data = serde_json::Map::new();
+                for field in fields {
+                    let (payload, status, staged_ids) = match field.name.as_str() {
+                        "companyContactCreate" => self.b2b_company_contact_create_payload(&field),
+                        "companyContactUpdate" => self.b2b_company_contact_update_payload(&field),
+                        "companyContactDelete" => self.b2b_company_contact_delete_payload(&field),
+                        "companyContactsDelete" => self.b2b_company_contacts_delete_payload(&field),
+                        "companyAssignCustomerAsContact" => {
+                            self.b2b_company_assign_customer_as_contact_payload(&field)
+                        }
+                        "companyContactRemoveFromCompany" => {
+                            self.b2b_company_contact_remove_from_company_payload(&field)
+                        }
+                        "companyAssignMainContact" => {
+                            self.b2b_company_assign_main_contact_payload(&field)
+                        }
+                        "companyRevokeMainContact" => {
+                            self.b2b_company_revoke_main_contact_payload(&field)
+                        }
+                        "companyContactAssignRole" => {
+                            self.b2b_company_contact_assign_role_payload(&field)
+                        }
+                        "companyContactAssignRoles" => {
+                            self.b2b_company_contact_assign_roles_payload(&field)
+                        }
+                        "companyContactRevokeRole" => {
+                            self.b2b_company_contact_revoke_role_payload(&field)
+                        }
+                        "companyContactRevokeRoles" => {
+                            self.b2b_company_contact_revoke_roles_payload(&field)
+                        }
+                        "companyLocationAssignRoles" => {
+                            self.b2b_company_location_assign_roles_payload(&field)
+                        }
+                        "companyLocationRevokeRoles" => {
+                            self.b2b_company_location_revoke_roles_payload(&field)
+                        }
+                        "companyLocationUpdate" => self.b2b_company_location_update_payload(&field),
+                        "companyLocationAssignAddress" => {
+                            self.b2b_company_location_assign_address_payload(&field)
+                        }
+                        "companyAddressDelete" => self.b2b_company_address_delete_payload(&field),
+                        _ => return None,
+                    };
+                    self.record_mutation_log_entry(
+                        request,
+                        query,
+                        variables,
+                        &field.name,
+                        staged_ids,
+                    );
+                    if status == "failed" {
+                        if let Some(entry) = self.log_entries.last_mut() {
+                            set_log_status(entry, status);
+                        }
+                    }
+                    data.insert(
+                        field.response_key.clone(),
+                        selected_json(&payload, &field.selection),
+                    );
+                }
+                Some(ok_json(json!({ "data": Value::Object(data) })))
+            }
+            _ => None,
+        }
+    }
+
+    pub(in crate::proxy) fn has_b2b_contact_state(&self) -> bool {
+        !self.store.staged.b2b_companies.is_empty()
+            || !self.store.staged.b2b_locations.is_empty()
+            || !self.store.staged.b2b_contacts.is_empty()
+            || !self.store.staged.b2b_contact_roles.is_empty()
+            || !self.store.staged.b2b_contact_role_assignments.is_empty()
+    }
+
+    fn b2b_company_contact_create_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+        if !self.store.staged.b2b_companies.contains_key(&company_id) {
+            return (
+                b2b_company_contact_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["companyId"],
+                        "Resource requested does not exist.",
+                        "RESOURCE_NOT_FOUND",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let errors = b2b_company_contact_input_errors(&input, &["input"]);
+        if !errors.is_empty() {
+            return (
+                b2b_company_contact_payload(None, errors),
+                "failed",
+                Vec::new(),
+            );
+        }
+
+        let id = synthetic_shopify_gid("CompanyContact", self.store.staged.next_b2b_contact_id);
+        self.store.staged.next_b2b_contact_id += 1;
+        let customer_id =
+            synthetic_shopify_gid("Customer", format!("contact-{}", resource_id_tail(&id)));
+        let contact =
+            self.b2b_contact_from_input(id.clone(), company_id.clone(), &input, customer_id);
+        self.store.staged.deleted_b2b_contact_ids.remove(&id);
+        self.store.staged.b2b_contacts.insert(id.clone(), contact);
+        self.append_b2b_company_contact(&company_id, &id);
+        let materialized = self.b2b_contact_materialized(&id);
+        (
+            b2b_company_contact_payload(materialized.as_ref(), Vec::new()),
+            "staged",
+            vec![id],
+        )
+    }
+
+    fn b2b_company_contact_update_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let contact_id =
+            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+        if !self.b2b_contact_exists(&contact_id) {
+            return (
+                b2b_company_contact_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["companyContactId"],
+                        "Resource requested does not exist.",
+                        "RESOURCE_NOT_FOUND",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let errors = b2b_company_contact_input_errors(&input, &["input"]);
+        if !errors.is_empty() {
+            return (
+                b2b_company_contact_payload(None, errors),
+                "failed",
+                Vec::new(),
+            );
+        }
+
+        let mut contact = self
+            .store
+            .staged
+            .b2b_contacts
+            .get(&contact_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        self.apply_b2b_contact_input(&mut contact, &input);
+        self.store
+            .staged
+            .b2b_contacts
+            .insert(contact_id.clone(), contact);
+        let materialized = self.b2b_contact_materialized(&contact_id);
+        (
+            b2b_company_contact_payload(materialized.as_ref(), Vec::new()),
+            "staged",
+            vec![contact_id],
+        )
+    }
+
+    fn b2b_company_contact_delete_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let contact_id =
+            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+        if !self.b2b_delete_contact(&contact_id) {
+            return (
+                b2b_company_contact_delete_payload(
+                    None,
+                    "deletedCompanyContactId",
+                    vec![b2b_company_user_error(
+                        vec!["companyContactId"],
+                        "Resource requested does not exist.",
+                        "RESOURCE_NOT_FOUND",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        (
+            b2b_company_contact_delete_payload(
+                Some(&contact_id),
+                "deletedCompanyContactId",
+                Vec::new(),
+            ),
+            "staged",
+            vec![contact_id],
+        )
+    }
+
+    fn b2b_company_contacts_delete_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let contact_ids =
+            resolved_string_list_field_unsorted(&field.arguments, "companyContactIds");
+        let mut deleted = Vec::new();
+        let mut errors = Vec::new();
+        for (index, contact_id) in contact_ids.iter().enumerate() {
+            if self.b2b_delete_contact(contact_id) {
+                deleted.push(contact_id.clone());
+            } else {
+                errors.push(json!({
+                    "field": ["companyContactIds", index.to_string()],
+                    "message": "The company contact doesn't exist.",
+                    "code": "RESOURCE_NOT_FOUND"
+                }));
+            }
+        }
+        let status = if deleted.is_empty() {
+            "failed"
+        } else {
+            "staged"
+        };
+        (
+            json!({
+                "deletedCompanyContactIds": deleted,
+                "userErrors": errors
+            }),
+            status,
+            contact_ids,
+        )
+    }
+
+    fn b2b_company_assign_customer_as_contact_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        if !self.store.staged.b2b_companies.contains_key(&company_id) {
+            return (
+                b2b_company_contact_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["companyId"],
+                        "Resource requested does not exist.",
+                        "RESOURCE_NOT_FOUND",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        let Some(customer) = self.store.staged.customers.get(&customer_id).cloned() else {
+            return (
+                b2b_company_contact_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["customerId"],
+                        "Customer does not exist.",
+                        "RESOURCE_NOT_FOUND",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        };
+        if customer
+            .get("email")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .is_empty()
+        {
+            return (
+                b2b_company_contact_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["companyId"],
+                        "Customer must have an email address.",
+                        "INVALID_INPUT",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        if self.store.staged.b2b_contacts.values().any(|contact| {
+            contact.get("customerId").and_then(Value::as_str) == Some(customer_id.as_str())
+                && !self.store.staged.deleted_b2b_contact_ids.contains(
+                    contact
+                        .get("id")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default(),
+                )
+        }) {
+            return (
+                b2b_company_contact_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["companyId"],
+                        "Customer is already associated with a company contact.",
+                        "INVALID_INPUT",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+
+        let id = synthetic_shopify_gid("CompanyContact", self.store.staged.next_b2b_contact_id);
+        self.store.staged.next_b2b_contact_id += 1;
+        let contact = self.b2b_contact_from_customer(id.clone(), company_id.clone(), &customer);
+        self.store.staged.b2b_contacts.insert(id.clone(), contact);
+        self.append_b2b_company_contact(&company_id, &id);
+        let materialized = self.b2b_contact_materialized(&id);
+        (
+            b2b_company_contact_payload(materialized.as_ref(), Vec::new()),
+            "staged",
+            vec![id],
+        )
+    }
+
+    fn b2b_company_contact_remove_from_company_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let contact_id =
+            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+        if !self.b2b_delete_contact(&contact_id) {
+            return (
+                b2b_company_contact_delete_payload(
+                    None,
+                    "removedCompanyContactId",
+                    vec![b2b_company_user_error(
+                        vec!["companyContactId"],
+                        "Resource requested does not exist.",
+                        "RESOURCE_NOT_FOUND",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        (
+            b2b_company_contact_delete_payload(
+                Some(&contact_id),
+                "removedCompanyContactId",
+                Vec::new(),
+            ),
+            "staged",
+            vec![contact_id],
+        )
+    }
+
+    fn b2b_company_assign_main_contact_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+        let contact_id =
+            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+        let Some(contact) = self.store.staged.b2b_contacts.get(&contact_id) else {
+            return (
+                b2b_company_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["companyContactId"],
+                        "Resource requested does not exist.",
+                        "RESOURCE_NOT_FOUND",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        };
+        if contact.get("companyId").and_then(Value::as_str) != Some(company_id.as_str()) {
+            return (
+                b2b_company_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["companyContactId"],
+                        "The company contact does not belong to the company.",
+                        "INVALID_INPUT",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        let Some(company) = self.store.staged.b2b_companies.get_mut(&company_id) else {
+            return (
+                b2b_company_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["companyId"],
+                        "Resource requested does not exist.",
+                        "RESOURCE_NOT_FOUND",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        };
+        company["mainContactId"] = json!(contact_id);
+        let materialized = self.b2b_company_materialized(&company_id);
+        (
+            b2b_company_payload(materialized.as_ref(), Vec::new()),
+            "staged",
+            vec![company_id, contact_id],
+        )
+    }
+
+    fn b2b_company_revoke_main_contact_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+        let Some(company) = self.store.staged.b2b_companies.get_mut(&company_id) else {
+            return (
+                b2b_company_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["companyId"],
+                        "Resource requested does not exist.",
+                        "RESOURCE_NOT_FOUND",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        };
+        company["mainContactId"] = Value::Null;
+        let materialized = self.b2b_company_materialized(&company_id);
+        (
+            b2b_company_payload(materialized.as_ref(), Vec::new()),
+            "staged",
+            vec![company_id],
+        )
+    }
+
+    fn b2b_company_contact_assign_role_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let contact_id =
+            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+        let role_id =
+            resolved_string_arg(&field.arguments, "companyContactRoleId").unwrap_or_default();
+        let location_id =
+            resolved_string_arg(&field.arguments, "companyLocationId").unwrap_or_default();
+        match self.b2b_create_role_assignment(&contact_id, &role_id, &location_id, None) {
+            Ok(assignment_id) => {
+                let assignment = self.b2b_role_assignment_materialized(&assignment_id);
+                (
+                    json!({
+                        "companyContactRoleAssignment": assignment.unwrap_or(Value::Null),
+                        "userErrors": []
+                    }),
+                    "staged",
+                    vec![assignment_id],
+                )
+            }
+            Err(error) => (
+                json!({
+                    "companyContactRoleAssignment": Value::Null,
+                    "userErrors": [error]
+                }),
+                "failed",
+                Vec::new(),
+            ),
+        }
+    }
+
+    fn b2b_company_contact_assign_roles_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let contact_id =
+            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+        let roles = resolved_object_list_field(&field.arguments, "rolesToAssign");
+        let mut assignments = Vec::new();
+        let mut assignment_ids = Vec::new();
+        let mut errors = Vec::new();
+        if !self.b2b_contact_exists(&contact_id) {
+            return (
+                json!({
+                    "roleAssignments": [],
+                    "userErrors": [{
+                        "field": ["companyContactId"],
+                        "message": "Resource requested does not exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        for (index, role) in roles.iter().enumerate() {
+            let role_id = resolved_string_field(role, "companyContactRoleId").unwrap_or_default();
+            let location_id = resolved_string_field(role, "companyLocationId").unwrap_or_default();
+            match self.b2b_create_role_assignment(&contact_id, &role_id, &location_id, Some(index))
+            {
+                Ok(assignment_id) => {
+                    if let Some(assignment) = self.b2b_role_assignment_materialized(&assignment_id)
+                    {
+                        assignments.push(assignment);
+                    }
+                    assignment_ids.push(assignment_id);
+                }
+                Err(error) => errors.push(error),
+            }
+        }
+        let status = if assignment_ids.is_empty() {
+            "failed"
+        } else {
+            "staged"
+        };
+        (
+            json!({
+                "roleAssignments": assignments,
+                "userErrors": errors
+            }),
+            status,
+            assignment_ids,
+        )
+    }
+
+    fn b2b_company_contact_revoke_role_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let contact_id =
+            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+        let assignment_id = resolved_string_arg(&field.arguments, "companyContactRoleAssignmentId")
+            .or_else(|| resolved_string_arg(&field.arguments, "roleAssignmentId"))
+            .unwrap_or_default();
+        match self.b2b_revoke_role_assignment(&contact_id, &assignment_id, None) {
+            Ok(id) => (
+                json!({
+                    "revokedCompanyContactRoleAssignmentId": id,
+                    "userErrors": []
+                }),
+                "staged",
+                vec![id],
+            ),
+            Err(error) => (
+                json!({
+                    "revokedCompanyContactRoleAssignmentId": Value::Null,
+                    "userErrors": [error]
+                }),
+                "failed",
+                Vec::new(),
+            ),
+        }
+    }
+
+    fn b2b_company_contact_revoke_roles_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let contact_id =
+            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+        let assignment_ids =
+            resolved_string_list_field_unsorted(&field.arguments, "roleAssignmentIds");
+        let mut revoked = Vec::new();
+        let mut errors = Vec::new();
+        for (index, assignment_id) in assignment_ids.iter().enumerate() {
+            match self.b2b_revoke_role_assignment(&contact_id, assignment_id, Some(index)) {
+                Ok(id) => revoked.push(id),
+                Err(error) => errors.push(error),
+            }
+        }
+        let status = if revoked.is_empty() {
+            "failed"
+        } else {
+            "staged"
+        };
+        (
+            json!({
+                "revokedRoleAssignmentIds": revoked,
+                "userErrors": errors
+            }),
+            status,
+            assignment_ids,
+        )
+    }
+
+    fn b2b_company_location_assign_roles_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let location_id =
+            resolved_string_arg(&field.arguments, "companyLocationId").unwrap_or_default();
+        let roles = resolved_object_list_field(&field.arguments, "rolesToAssign");
+        let mut assignments = Vec::new();
+        let mut assignment_ids = Vec::new();
+        let mut errors = Vec::new();
+        if self
+            .b2b_company_location_materialized(&location_id)
+            .is_none()
+        {
+            return (
+                json!({
+                    "roleAssignments": [],
+                    "userErrors": [{
+                        "field": ["companyLocationId"],
+                        "message": "Resource requested does not exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        for (index, role) in roles.iter().enumerate() {
+            let contact_id = resolved_string_field(role, "companyContactId").unwrap_or_default();
+            let role_id = resolved_string_field(role, "companyContactRoleId").unwrap_or_default();
+            match self.b2b_create_role_assignment(&contact_id, &role_id, &location_id, Some(index))
+            {
+                Ok(assignment_id) => {
+                    if let Some(assignment) = self.b2b_role_assignment_materialized(&assignment_id)
+                    {
+                        assignments.push(assignment);
+                    }
+                    assignment_ids.push(assignment_id);
+                }
+                Err(error) => {
+                    let field = error
+                        .get("field")
+                        .and_then(Value::as_array)
+                        .and_then(|path| path.get(1))
+                        .and_then(Value::as_str)
+                        .map(|_| json!(["rolesToAssign", index.to_string()]))
+                        .unwrap_or_else(|| json!(["rolesToAssign", index.to_string()]));
+                    let message = if !self.b2b_contact_exists(&contact_id) {
+                        "Company contact does not exist."
+                    } else if self.b2b_contact_role_materialized(&role_id).is_none() {
+                        "Company role does not exist."
+                    } else {
+                        error
+                            .get("message")
+                            .and_then(Value::as_str)
+                            .unwrap_or("Resource requested does not exist.")
+                    };
+                    errors.push(json!({
+                        "field": field,
+                        "message": message,
+                        "code": error.get("code").cloned().unwrap_or_else(|| json!("RESOURCE_NOT_FOUND"))
+                    }));
+                }
+            }
+        }
+        let status = if assignment_ids.is_empty() {
+            "failed"
+        } else {
+            "staged"
+        };
+        (
+            json!({
+                "roleAssignments": assignments,
+                "userErrors": errors
+            }),
+            status,
+            assignment_ids,
+        )
+    }
+
+    fn b2b_company_location_revoke_roles_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let location_id =
+            resolved_string_arg(&field.arguments, "companyLocationId").unwrap_or_default();
+        let assignment_ids = resolved_string_list_field_unsorted(&field.arguments, "rolesToRevoke");
+        let mut revoked = Vec::new();
+        let mut errors = Vec::new();
+        for (index, assignment_id) in assignment_ids.iter().enumerate() {
+            let exists = self
+                .store
+                .staged
+                .b2b_contact_role_assignments
+                .get(assignment_id)
+                .is_some_and(|assignment| {
+                    assignment.get("companyLocationId").and_then(Value::as_str)
+                        == Some(location_id.as_str())
+                });
+            if exists {
+                self.store
+                    .staged
+                    .b2b_contact_role_assignments
+                    .remove(assignment_id);
+                self.store
+                    .staged
+                    .deleted_b2b_contact_role_assignment_ids
+                    .insert(assignment_id.clone());
+                revoked.push(assignment_id.clone());
+            } else {
+                errors.push(json!({
+                    "field": ["rolesToRevoke", index.to_string()],
+                    "message": "Resource requested does not exist.",
+                    "code": "RESOURCE_NOT_FOUND"
+                }));
+            }
+        }
+        let status = if revoked.is_empty() {
+            "failed"
+        } else {
+            "staged"
+        };
+        (
+            json!({
+                "revokedRoleAssignmentIds": revoked,
+                "userErrors": errors
+            }),
+            status,
+            assignment_ids,
+        )
+    }
+
+    fn b2b_company_location_update_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let location_id =
+            resolved_string_arg(&field.arguments, "companyLocationId").unwrap_or_default();
+        let Some(mut location) = self.store.staged.b2b_locations.get(&location_id).cloned() else {
+            return (
+                b2b_company_location_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["companyLocationId"],
+                        "Resource requested does not exist.",
+                        "RESOURCE_NOT_FOUND",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        };
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        if let Some(name) = resolved_string_field(&input, "name") {
+            location["name"] = json!(name);
+        }
+        self.store
+            .staged
+            .b2b_locations
+            .insert(location_id.clone(), location.clone());
+        (
+            b2b_company_location_payload(Some(&location), Vec::new()),
+            "staged",
+            vec![location_id],
+        )
+    }
+
+    fn b2b_company_address_delete_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let address_id = resolved_string_arg(&field.arguments, "addressId").unwrap_or_default();
+        for location in self.store.staged.b2b_locations.values_mut() {
+            if location
+                .get("billingAddress")
+                .and_then(|address| address.get("id"))
+                .and_then(Value::as_str)
+                == Some(address_id.as_str())
+            {
+                location["billingAddress"] = Value::Null;
+                return (
+                    json!({
+                        "deletedAddressId": address_id,
+                        "userErrors": []
+                    }),
+                    "staged",
+                    vec![address_id],
+                );
+            }
+        }
+        (
+            json!({
+                "deletedAddressId": Value::Null,
+                "userErrors": [{
+                    "field": ["addressId"],
+                    "message": "Resource requested does not exist.",
+                    "code": "RESOURCE_NOT_FOUND"
+                }]
+            }),
+            "failed",
+            Vec::new(),
+        )
+    }
+
+    fn b2b_company_location_assign_address_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let location_id = resolved_string_arg(&field.arguments, "locationId").unwrap_or_default();
+        let address_input = resolved_object_field(&field.arguments, "address").unwrap_or_default();
+        let Some(location) = self.store.staged.b2b_locations.get_mut(&location_id) else {
+            return (
+                json!({
+                    "addresses": Value::Null,
+                    "userErrors": [{
+                        "field": ["locationId"],
+                        "message": "Resource requested does not exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        };
+        let address = b2b_company_address_json(&location_id, &address_input);
+        location["billingAddress"] = address.clone();
+        (
+            json!({
+                "addresses": [address.clone()],
+                "userErrors": []
+            }),
+            "staged",
+            vec![
+                location_id,
+                address
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+            ],
+        )
+    }
+
+    fn b2b_contact_from_input(
+        &self,
+        id: String,
+        company_id: String,
+        input: &BTreeMap<String, ResolvedValue>,
+        customer_id: String,
+    ) -> Value {
+        let first_name = resolved_string_field(input, "firstName").unwrap_or_default();
+        let last_name = resolved_string_field(input, "lastName").unwrap_or_default();
+        let email = resolved_string_field(input, "email").unwrap_or_default();
+        let phone = resolved_string_field(input, "phone").map(|phone| b2b_normalize_phone(&phone));
+        let title = resolved_string_field(input, "title").unwrap_or_default();
+        let customer = b2b_contact_customer_json(
+            &customer_id,
+            &first_name,
+            &last_name,
+            &email,
+            phone.as_deref(),
+        );
+        json!({
+            "id": id,
+            "companyId": company_id,
+            "customerId": customer_id,
+            "title": title,
+            "locale": resolved_string_field(input, "locale").map(Value::String).unwrap_or(Value::Null),
+            "customer": customer,
+            "isMainContact": false,
+            "roleAssignments": connection_json(Vec::new())
+        })
+    }
+
+    fn b2b_contact_from_customer(&self, id: String, company_id: String, customer: &Value) -> Value {
+        let customer_id = customer
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        json!({
+            "id": id,
+            "companyId": company_id,
+            "customerId": customer_id,
+            "title": Value::Null,
+            "locale": customer.get("locale").cloned().unwrap_or(Value::Null),
+            "customer": customer.clone(),
+            "isMainContact": false,
+            "roleAssignments": connection_json(Vec::new())
+        })
+    }
+
+    fn apply_b2b_contact_input(
+        &self,
+        contact: &mut Value,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) {
+        if input.contains_key("title") {
+            contact["title"] = resolved_string_field(input, "title")
+                .map(Value::String)
+                .unwrap_or(Value::Null);
+        }
+        if input.contains_key("locale") {
+            contact["locale"] = resolved_string_field(input, "locale")
+                .map(Value::String)
+                .unwrap_or(Value::Null);
+        }
+        let mut customer = contact.get("customer").cloned().unwrap_or(Value::Null);
+        for (input_field, customer_field) in [
+            ("firstName", "firstName"),
+            ("lastName", "lastName"),
+            ("email", "email"),
+            ("phone", "phone"),
+        ] {
+            if input.contains_key(input_field) {
+                customer[customer_field] = resolved_string_field(input, input_field)
+                    .map(|value| {
+                        if input_field == "phone" {
+                            b2b_normalize_phone(&value)
+                        } else {
+                            value
+                        }
+                    })
+                    .map(Value::String)
+                    .unwrap_or(Value::Null);
+            }
+        }
+        let first = customer
+            .get("firstName")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let last = customer
+            .get("lastName")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        customer["displayName"] = json!(b2b_display_name(first, last));
+        contact["customer"] = customer;
+    }
+
+    fn b2b_company_materialized(&self, company_id: &str) -> Option<Value> {
+        let mut company = self.store.staged.b2b_companies.get(company_id)?.clone();
+        let contacts = self.b2b_contacts_for_company(company_id);
+        let main_contact = company
+            .get("mainContactId")
+            .and_then(Value::as_str)
+            .and_then(|id| self.b2b_contact_materialized(id))
+            .unwrap_or(Value::Null);
+        let default_role = self
+            .b2b_contact_roles_for_company(company_id)
+            .into_iter()
+            .find(|role| {
+                role.get("default")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false)
+            })
+            .unwrap_or_else(|| b2b_default_contact_role(company_id));
+        company["mainContact"] = main_contact;
+        company["contacts"] = connection_json(contacts.clone());
+        company["contactsCount"] = json!({ "count": contacts.len(), "precision": "EXACT" });
+        let locations = self.b2b_locations_for_company(company_id);
+        company["locations"] = connection_json(locations.clone());
+        company["locationsCount"] = json!({ "count": locations.len(), "precision": "EXACT" });
+        company["contactRoles"] = connection_json(self.b2b_contact_roles_for_company(company_id));
+        company["defaultRole"] = default_role;
+        Some(company)
+    }
+
+    fn b2b_contact_materialized(&self, contact_id: &str) -> Option<Value> {
+        if self
+            .store
+            .staged
+            .deleted_b2b_contact_ids
+            .contains(contact_id)
+        {
+            return None;
+        }
+        let mut contact = self.store.staged.b2b_contacts.get(contact_id)?.clone();
+        let company_id = contact
+            .get("companyId")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        contact["company"] = self.b2b_company_summary(&company_id).unwrap_or(Value::Null);
+        let is_main = self
+            .store
+            .staged
+            .b2b_companies
+            .get(&company_id)
+            .and_then(|company| company.get("mainContactId"))
+            .and_then(Value::as_str)
+            == Some(contact_id);
+        contact["isMainContact"] = json!(is_main);
+        contact["roleAssignments"] =
+            connection_json(self.b2b_role_assignments_for_contact(contact_id));
+        Some(contact)
+    }
+
+    fn b2b_contact_role_materialized(&self, role_id: &str) -> Option<Value> {
+        self.store
+            .staged
+            .b2b_contact_roles
+            .get(role_id)
+            .cloned()
+            .or_else(|| {
+                self.store
+                    .staged
+                    .b2b_companies
+                    .keys()
+                    .map(|company_id| b2b_default_contact_role(company_id))
+                    .find(|role| role.get("id").and_then(Value::as_str) == Some(role_id))
+            })
+    }
+
+    fn b2b_company_location_materialized(&self, location_id: &str) -> Option<Value> {
+        let mut location = self
+            .store
+            .staged
+            .b2b_locations
+            .get(location_id)
+            .cloned()
+            .or_else(|| {
+                (location_id == b2b_synthetic_seed_company_location_id())
+                    .then(|| b2b_synthetic_seed_company_location(location_id))
+            })?;
+        location["roleAssignments"] =
+            connection_json(self.b2b_role_assignments_for_location(location_id));
+        if let Some(company_id) = location.get("companyId").and_then(Value::as_str) {
+            location["company"] = self.b2b_company_summary(company_id).unwrap_or(Value::Null);
+        }
+        Some(location)
+    }
+
+    fn b2b_role_assignment_materialized(&self, assignment_id: &str) -> Option<Value> {
+        if self
+            .store
+            .staged
+            .deleted_b2b_contact_role_assignment_ids
+            .contains(assignment_id)
+        {
+            return None;
+        }
+        let mut assignment = self
+            .store
+            .staged
+            .b2b_contact_role_assignments
+            .get(assignment_id)?
+            .clone();
+        let contact_id = assignment
+            .get("companyContactId")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let role_id = assignment
+            .get("companyContactRoleId")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let location_id = assignment
+            .get("companyLocationId")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        assignment["companyContact"] = self.b2b_contact_summary(&contact_id).unwrap_or(Value::Null);
+        assignment["role"] = self
+            .b2b_contact_role_materialized(&role_id)
+            .unwrap_or(Value::Null);
+        assignment["companyLocation"] = self
+            .b2b_company_location_summary(&location_id)
+            .unwrap_or(Value::Null);
+        Some(assignment)
+    }
+
+    fn b2b_node_materialized(&self, id: &str) -> Option<Value> {
+        match shopify_gid_resource_type(id) {
+            Some("CompanyContact") => self.b2b_contact_materialized(id),
+            Some("CompanyContactRole") => self.b2b_contact_role_materialized(id),
+            Some("CompanyContactRoleAssignment") => self.b2b_role_assignment_materialized(id),
+            Some("CompanyLocation") => self.b2b_company_location_materialized(id),
+            Some("CompanyAddress") => self.b2b_company_address_materialized(id),
+            _ => None,
+        }
+    }
+
+    fn b2b_company_address_materialized(&self, address_id: &str) -> Option<Value> {
+        self.store
+            .staged
+            .b2b_locations
+            .values()
+            .filter_map(|location| location.get("billingAddress"))
+            .find(|address| address.get("id").and_then(Value::as_str) == Some(address_id))
+            .cloned()
+    }
+
+    fn b2b_company_summary(&self, company_id: &str) -> Option<Value> {
+        let company = self.store.staged.b2b_companies.get(company_id)?;
+        Some(json!({
+            "id": company.get("id").cloned().unwrap_or_else(|| json!(company_id)),
+            "name": company.get("name").cloned().unwrap_or(Value::Null)
+        }))
+    }
+
+    fn b2b_contact_summary(&self, contact_id: &str) -> Option<Value> {
+        let contact = self.store.staged.b2b_contacts.get(contact_id)?;
+        Some(json!({
+            "id": contact.get("id").cloned().unwrap_or_else(|| json!(contact_id)),
+            "title": contact.get("title").cloned().unwrap_or(Value::Null)
+        }))
+    }
+
+    fn b2b_company_location_summary(&self, location_id: &str) -> Option<Value> {
+        let location = self
+            .store
+            .staged
+            .b2b_locations
+            .get(location_id)
+            .cloned()
+            .or_else(|| {
+                (location_id == b2b_synthetic_seed_company_location_id())
+                    .then(|| b2b_synthetic_seed_company_location(location_id))
+            })?;
+        Some(json!({
+            "id": location.get("id").cloned().unwrap_or_else(|| json!(location_id)),
+            "name": location.get("name").cloned().unwrap_or(Value::Null)
+        }))
+    }
+
+    fn b2b_contacts_for_company(&self, company_id: &str) -> Vec<Value> {
+        let ordered_ids = self
+            .store
+            .staged
+            .b2b_companies
+            .get(company_id)
+            .and_then(|company| company.get("contactIds"))
+            .and_then(Value::as_array)
+            .map(|ids| {
+                ids.iter()
+                    .filter_map(|id| id.as_str().map(str::to_string))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let mut contacts = Vec::new();
+        for contact_id in ordered_ids {
+            if let Some(contact) = self.b2b_contact_materialized(&contact_id) {
+                contacts.push(contact);
+            }
+        }
+        for contact in self.store.staged.b2b_contacts.values() {
+            let Some(contact_id) = contact.get("id").and_then(Value::as_str) else {
+                continue;
+            };
+            if contact.get("companyId").and_then(Value::as_str) == Some(company_id)
+                && !contacts
+                    .iter()
+                    .any(|existing| existing.get("id").and_then(Value::as_str) == Some(contact_id))
+            {
+                if let Some(materialized) = self.b2b_contact_materialized(contact_id) {
+                    contacts.push(materialized);
+                }
+            }
+        }
+        contacts
+    }
+
+    fn b2b_locations_for_company(&self, company_id: &str) -> Vec<Value> {
+        let ordered_ids = self
+            .store
+            .staged
+            .b2b_companies
+            .get(company_id)
+            .and_then(|company| company.get("locationIds"))
+            .and_then(Value::as_array)
+            .map(|ids| {
+                ids.iter()
+                    .filter_map(|id| id.as_str().map(str::to_string))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let mut locations = Vec::new();
+        for location_id in ordered_ids {
+            if let Some(location) = self.b2b_company_location_materialized(&location_id) {
+                locations.push(location);
+            }
+        }
+        for location in self.store.staged.b2b_locations.values() {
+            let Some(location_id) = location.get("id").and_then(Value::as_str) else {
+                continue;
+            };
+            if location.get("companyId").and_then(Value::as_str) == Some(company_id)
+                && !locations
+                    .iter()
+                    .any(|existing| existing.get("id").and_then(Value::as_str) == Some(location_id))
+            {
+                if let Some(materialized) = self.b2b_company_location_materialized(location_id) {
+                    locations.push(materialized);
+                }
+            }
+        }
+        locations
+    }
+
+    fn b2b_contact_roles_for_company(&self, company_id: &str) -> Vec<Value> {
+        let mut roles = self
+            .store
+            .staged
+            .b2b_contact_roles
+            .values()
+            .filter(|role| role.get("companyId").and_then(Value::as_str) == Some(company_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        if roles.is_empty() {
+            roles.push(b2b_default_contact_role(company_id));
+        }
+        roles.sort_by_key(|role| {
+            match role.get("name").and_then(Value::as_str).unwrap_or_default() {
+                "Location admin" => 0,
+                "Ordering only" => 1,
+                _ => 2,
+            }
+        });
+        roles
+    }
+
+    fn b2b_role_assignments_for_contact(&self, contact_id: &str) -> Vec<Value> {
+        self.store
+            .staged
+            .b2b_contact_role_assignments
+            .values()
+            .filter(|assignment| {
+                assignment.get("companyContactId").and_then(Value::as_str) == Some(contact_id)
+            })
+            .filter_map(|assignment| {
+                assignment
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .and_then(|id| self.b2b_role_assignment_materialized(id))
+            })
+            .collect()
+    }
+
+    fn b2b_role_assignments_for_location(&self, location_id: &str) -> Vec<Value> {
+        self.store
+            .staged
+            .b2b_contact_role_assignments
+            .values()
+            .filter(|assignment| {
+                assignment.get("companyLocationId").and_then(Value::as_str) == Some(location_id)
+            })
+            .filter_map(|assignment| {
+                assignment
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .and_then(|id| self.b2b_role_assignment_materialized(id))
+            })
+            .collect()
+    }
+
+    fn ensure_b2b_contact_role(&mut self, company_id: &str, name: &str, default: bool) -> Value {
+        let role = b2b_contact_role(company_id, name, default);
+        let id = role
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        self.store
+            .staged
+            .b2b_contact_roles
+            .entry(id)
+            .or_insert_with(|| role.clone())
+            .clone()
+    }
+
+    fn stage_b2b_company_location(
+        &mut self,
+        company_id: &str,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> String {
+        let id = synthetic_shopify_gid("CompanyLocation", self.store.staged.next_b2b_company_id);
+        self.store.staged.next_b2b_company_id += 1;
+        let name = resolved_string_field(input, "name").unwrap_or_else(|| "HQ".to_string());
+        let billing_address = resolved_object_field(input, "billingAddress")
+            .map(|address| b2b_company_address_json(&id, &address))
+            .unwrap_or(Value::Null);
+        let location = json!({
+            "id": id,
+            "companyId": company_id,
+            "name": name,
+            "phone": resolved_string_field(input, "phone").map(Value::String).unwrap_or(Value::Null),
+            "billingAddress": billing_address,
+            "taxSettings": {
+                "taxRegistrationId": Value::Null,
+                "taxExempt": false,
+                "taxExemptions": []
+            },
+            "roleAssignments": connection_json(Vec::new())
+        });
+        self.store.staged.b2b_locations.insert(id.clone(), location);
+        if let Some(company) = self.store.staged.b2b_companies.get_mut(company_id) {
+            let mut ids = company
+                .get("locationIds")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            if !ids.iter().any(|existing| existing.as_str() == Some(&id)) {
+                ids.push(json!(id.clone()));
+            }
+            company["locationIds"] = Value::Array(ids);
+        }
+        id
+    }
+
+    fn append_b2b_company_contact(&mut self, company_id: &str, contact_id: &str) {
+        let Some(company) = self.store.staged.b2b_companies.get_mut(company_id) else {
+            return;
+        };
+        let mut ids = company
+            .get("contactIds")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        if !ids.iter().any(|id| id.as_str() == Some(contact_id)) {
+            ids.push(json!(contact_id));
+        }
+        company["contactIds"] = Value::Array(ids);
+    }
+
+    fn remove_b2b_company_contact(&mut self, company_id: &str, contact_id: &str) {
+        let Some(company) = self.store.staged.b2b_companies.get_mut(company_id) else {
+            return;
+        };
+        if company.get("mainContactId").and_then(Value::as_str) == Some(contact_id) {
+            company["mainContactId"] = Value::Null;
+        }
+        let ids = company
+            .get("contactIds")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|id| id.as_str() != Some(contact_id))
+            .collect::<Vec<_>>();
+        company["contactIds"] = Value::Array(ids);
+    }
+
+    fn b2b_contact_exists(&self, contact_id: &str) -> bool {
+        self.store.staged.b2b_contacts.contains_key(contact_id)
+            && !self
+                .store
+                .staged
+                .deleted_b2b_contact_ids
+                .contains(contact_id)
+    }
+
+    fn b2b_delete_contact(&mut self, contact_id: &str) -> bool {
+        if !self.b2b_contact_exists(contact_id) {
+            return false;
+        }
+        let company_id = self
+            .store
+            .staged
+            .b2b_contacts
+            .get(contact_id)
+            .and_then(|contact| contact.get("companyId"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_default();
+        self.remove_b2b_company_contact(&company_id, contact_id);
+        self.store.staged.b2b_contacts.remove(contact_id);
+        self.store
+            .staged
+            .deleted_b2b_contact_ids
+            .insert(contact_id.to_string());
+        let assignment_ids = self
+            .store
+            .staged
+            .b2b_contact_role_assignments
+            .values()
+            .filter(|assignment| {
+                assignment.get("companyContactId").and_then(Value::as_str) == Some(contact_id)
+            })
+            .filter_map(|assignment| assignment.get("id").and_then(Value::as_str))
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        for assignment_id in assignment_ids {
+            self.store
+                .staged
+                .b2b_contact_role_assignments
+                .remove(&assignment_id);
+            self.store
+                .staged
+                .deleted_b2b_contact_role_assignment_ids
+                .insert(assignment_id);
+        }
+        true
+    }
+
+    fn b2b_create_role_assignment(
+        &mut self,
+        contact_id: &str,
+        role_id: &str,
+        location_id: &str,
+        bulk_index: Option<usize>,
+    ) -> Result<String, Value> {
+        if !self.b2b_contact_exists(contact_id) {
+            return Err(b2b_company_user_error(
+                vec!["companyContactId"],
+                "Resource requested does not exist.",
+                "RESOURCE_NOT_FOUND",
+                None,
+            ));
+        }
+        if self
+            .b2b_company_location_materialized(location_id)
+            .is_none()
+        {
+            return Err(b2b_indexed_role_assignment_error(
+                bulk_index,
+                "companyLocationId",
+            ));
+        }
+        if self.b2b_contact_role_materialized(role_id).is_none() {
+            return Err(b2b_indexed_role_assignment_error(
+                bulk_index,
+                "companyContactRoleId",
+            ));
+        }
+        let duplicate = self
+            .store
+            .staged
+            .b2b_contact_role_assignments
+            .values()
+            .any(|assignment| {
+                assignment.get("companyContactId").and_then(Value::as_str) == Some(contact_id)
+                    && assignment
+                        .get("companyContactRoleId")
+                        .and_then(Value::as_str)
+                        == Some(role_id)
+                    && assignment.get("companyLocationId").and_then(Value::as_str)
+                        == Some(location_id)
+            });
+        if duplicate {
+            return Err(json!({
+                "field": Value::Null,
+                "message": "Contact already has this role at this location.",
+                "code": "LIMIT_REACHED"
+            }));
+        }
+        let id = synthetic_shopify_gid(
+            "CompanyContactRoleAssignment",
+            self.store.staged.next_b2b_contact_role_assignment_id,
+        );
+        self.store.staged.next_b2b_contact_role_assignment_id += 1;
+        self.store
+            .staged
+            .deleted_b2b_contact_role_assignment_ids
+            .remove(&id);
+        self.store.staged.b2b_contact_role_assignments.insert(
+            id.clone(),
+            json!({
+                "id": id,
+                "companyContactId": contact_id,
+                "companyContactRoleId": role_id,
+                "companyLocationId": location_id
+            }),
+        );
+        Ok(id)
+    }
+
+    fn b2b_revoke_role_assignment(
+        &mut self,
+        contact_id: &str,
+        assignment_id: &str,
+        bulk_index: Option<usize>,
+    ) -> Result<String, Value> {
+        let exists = self
+            .store
+            .staged
+            .b2b_contact_role_assignments
+            .get(assignment_id)
+            .is_some_and(|assignment| {
+                assignment.get("companyContactId").and_then(Value::as_str) == Some(contact_id)
+            });
+        if !exists {
+            let field = bulk_index
+                .map(|index| json!(["roleAssignmentIds", index.to_string()]))
+                .unwrap_or_else(|| json!(["companyContactRoleAssignmentId"]));
+            return Err(json!({
+                "field": field,
+                "message": "Resource requested does not exist.",
+                "code": "RESOURCE_NOT_FOUND"
+            }));
+        }
+        self.store
+            .staged
+            .b2b_contact_role_assignments
+            .remove(assignment_id);
+        self.store
+            .staged
+            .deleted_b2b_contact_role_assignment_ids
+            .insert(assignment_id.to_string());
+        Ok(assignment_id.to_string())
     }
 
     pub(in crate::proxy) fn products_mutation_tail_helper_response(
@@ -727,8 +2377,6 @@ impl DraftProxy {
             && self.has_products_tail_staged_resource_id("gid://shopify/Job/2")
         {
             selected_json(&product_tail_full_sync_job(), &field.selection)
-        } else if let Some(job) = self.store.staged.collection_jobs.get(&id) {
-            selected_json(job, &field.selection)
         } else {
             Value::Null
         }
@@ -816,6 +2464,16 @@ impl DraftProxy {
                     );
                 }
                 let response = (self.upstream_transport)(request.clone());
+                if operation_type == OperationType::Query
+                    && root_fields.iter().any(|field| {
+                        matches!(
+                            field.as_str(),
+                            "node" | "nodes" | "product" | "products" | "productVariant"
+                        )
+                    })
+                {
+                    self.observe_product_passthrough_response(&response);
+                }
                 if operation_type == OperationType::Mutation
                     && matches!(
                         root_field,
@@ -847,7 +2505,11 @@ impl DraftProxy {
                 }
                 _ => false,
             },
-            "customerByIdentifier" => !self.store.staged.customers.is_empty(),
+            "customerByIdentifier" => !self.customer_effective_records().is_empty(),
+            "customers" | "customersCount" => {
+                !self.store.staged.customers.is_empty()
+                    || !self.store.staged.deleted_customer_ids.is_empty()
+            }
             _ => false,
         })
     }
@@ -861,9 +2523,9 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "customer" => Some(self.customer_read_field(field)),
                 "customerByIdentifier" => Some(self.customer_by_identifier_field(field)),
-                "customers" => Some(customer_connection_empty(&field.selection)),
+                "customers" => Some(self.customer_connection_field(field)),
                 "customersCount" => Some(selected_json(
-                    &json!({ "count": 177, "precision": "EXACT" }),
+                    &json!({ "count": 177usize.saturating_sub(self.store.staged.deleted_customer_ids.len()), "precision": "EXACT" }),
                     &field.selection,
                 )),
                 _ => None,
@@ -923,33 +2585,92 @@ impl DraftProxy {
         let Some(ResolvedValue::Object(identifier)) = field.arguments.get("identifier") else {
             return Value::Null;
         };
-        let customer = match identifier
-            .get("emailAddress")
-            .or_else(|| identifier.get("email"))
-        {
-            Some(ResolvedValue::String(email)) => {
-                self.store.staged.customers.values().find(|customer| {
+        let customer = match identifier.get("email") {
+            Some(ResolvedValue::String(email)) => self
+                .customer_effective_records()
+                .into_iter()
+                .find(|customer| {
                     customer.get("email").and_then(Value::as_str) == Some(email.as_str())
-                })
+                }),
+            _ if matches!(
+                identifier.get("emailAddress"),
+                Some(ResolvedValue::String(_))
+            ) =>
+            {
+                let Some(ResolvedValue::String(email)) = identifier.get("emailAddress") else {
+                    return Value::Null;
+                };
+                self.customer_effective_records()
+                    .into_iter()
+                    .find(|customer| {
+                        customer.get("email").and_then(Value::as_str) == Some(email.as_str())
+                            || customer["defaultEmailAddress"]["emailAddress"].as_str()
+                                == Some(email.as_str())
+                    })
             }
             _ => match identifier.get("id") {
-                Some(ResolvedValue::String(id)) => self.store.staged.customers.get(id),
-                _ => match identifier
-                    .get("phoneNumber")
-                    .or_else(|| identifier.get("phone"))
-                {
-                    Some(ResolvedValue::String(phone)) => {
-                        self.store.staged.customers.values().find(|customer| {
+                Some(ResolvedValue::String(id)) => self
+                    .store
+                    .staged
+                    .customers
+                    .get(id)
+                    .filter(|_| !self.store.staged.deleted_customer_ids.contains(id))
+                    .cloned(),
+                _ => match identifier.get("phone") {
+                    Some(ResolvedValue::String(phone)) => self
+                        .customer_effective_records()
+                        .into_iter()
+                        .find(|customer| {
                             customer.get("phone").and_then(Value::as_str) == Some(phone.as_str())
-                        })
+                        }),
+                    _ if matches!(
+                        identifier.get("phoneNumber"),
+                        Some(ResolvedValue::String(_))
+                    ) =>
+                    {
+                        let Some(ResolvedValue::String(phone)) = identifier.get("phoneNumber")
+                        else {
+                            return Value::Null;
+                        };
+                        self.customer_effective_records()
+                            .into_iter()
+                            .find(|customer| {
+                                customer.get("phone").and_then(Value::as_str)
+                                    == Some(phone.as_str())
+                                    || customer["defaultPhoneNumber"]["phoneNumber"].as_str()
+                                        == Some(phone.as_str())
+                            })
                     }
                     _ => None,
                 },
             },
         };
         customer
+            .as_ref()
             .map(|customer| selected_json(customer, &field.selection))
             .unwrap_or(Value::Null)
+    }
+
+    pub(in crate::proxy) fn customer_connection_field(&self, field: &RootFieldSelection) -> Value {
+        selected_connection_json_with_args(
+            self.customer_effective_records()
+                .into_iter()
+                .filter(|customer| customer_matches_search_query(customer, &field.arguments))
+                .collect(),
+            &field.arguments,
+            &field.selection,
+            value_id_cursor,
+        )
+    }
+
+    pub(in crate::proxy) fn customer_effective_records(&self) -> Vec<Value> {
+        self.store
+            .staged
+            .customers
+            .iter()
+            .filter(|(id, _)| !self.store.staged.deleted_customer_ids.contains(*id))
+            .map(|(_, customer)| customer.clone())
+            .collect()
     }
 
     pub(in crate::proxy) fn customer_create(
@@ -1020,10 +2741,8 @@ impl DraftProxy {
             "loyalty": null,
             "metafield": null,
             "metafields": { "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null } },
-            "defaultEmailAddress": default_email_address_value(&email),
-            "defaultPhoneNumber": phone.as_ref().map(|phone| default_phone_number_value(phone)).unwrap_or(Value::Null),
-            "emailMarketingConsent": email_marketing_consent_value(&email),
-            "smsMarketingConsent": phone.as_ref().map(|phone| sms_marketing_consent_value(phone)).unwrap_or(Value::Null),
+            "defaultEmailAddress": if email.is_empty() { Value::Null } else { json!({ "emailAddress": email }) },
+            "defaultPhoneNumber": phone.as_ref().map(|phone| json!({ "phoneNumber": phone })).unwrap_or(Value::Null),
             "defaultAddress": null,
             "createdAt": timestamp,
             "updatedAt": timestamp
@@ -1121,15 +2840,7 @@ impl DraftProxy {
                 object.insert(
                     "defaultPhoneNumber".to_string(),
                     phone
-                        .as_ref()
-                        .map(|value| default_phone_number_value(value))
-                        .unwrap_or(Value::Null),
-                );
-                object.insert(
-                    "smsMarketingConsent".to_string(),
-                    phone
-                        .as_ref()
-                        .map(|value| sms_marketing_consent_value(value))
+                        .map(|value| json!({ "phoneNumber": value }))
                         .unwrap_or(Value::Null),
                 );
             }
@@ -1244,250 +2955,6 @@ impl DraftProxy {
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
 
-    pub(in crate::proxy) fn customer_marketing_consent_update(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> Response {
-        let Some(fields) = root_fields(query, variables) else {
-            return json_error(400, "Could not parse GraphQL operation");
-        };
-        let mut data = serde_json::Map::new();
-        let mut errors = Vec::new();
-        for field in fields {
-            let outcome =
-                self.customer_marketing_consent_update_field(&field, request, query, variables);
-            if let Some(error) = outcome.top_level_error {
-                errors.push(error);
-                data.insert(field.response_key.clone(), Value::Null);
-            } else {
-                data.insert(
-                    field.response_key.clone(),
-                    selected_json(&outcome.payload, &field.selection),
-                );
-            }
-        }
-
-        let mut response = serde_json::Map::new();
-        if !errors.is_empty() {
-            response.insert("errors".to_string(), Value::Array(errors));
-        }
-        response.insert("data".to_string(), Value::Object(data));
-        ok_json(Value::Object(response))
-    }
-
-    fn customer_marketing_consent_update_field(
-        &mut self,
-        field: &RootFieldSelection,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> CustomerConsentOutcome {
-        let is_email = field.name == "customerEmailMarketingConsentUpdate";
-        let consent_key = if is_email {
-            "emailMarketingConsent"
-        } else {
-            "smsMarketingConsent"
-        };
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let customer_id = resolved_string_field(&input, "customerId").unwrap_or_default();
-        let consent = resolved_object_field(&input, consent_key).unwrap_or_default();
-        let marketing_state = resolved_string_field(&consent, "marketingState").unwrap_or_default();
-
-        if matches!(marketing_state.as_str(), "NOT_SUBSCRIBED" | "REDACTED")
-            || (is_email && marketing_state == "INVALID")
-        {
-            self.record_customer_consent_log(
-                request,
-                query,
-                variables,
-                &field.name,
-                Vec::new(),
-                "failed",
-            );
-            return CustomerConsentOutcome {
-                payload: Value::Null,
-                top_level_error: Some(customer_consent_invalid_state_error(
-                    field,
-                    &marketing_state,
-                )),
-            };
-        }
-
-        let Some(existing_customer) =
-            self.taggable_resource_staged_or_hydrated("Customer", &customer_id, request)
-        else {
-            let user_error = if is_email {
-                json!({
-                    "field": ["input", "customerId"],
-                    "message": "Customer not found",
-                    "code": "INVALID"
-                })
-            } else {
-                json!({
-                    "field": Value::Null,
-                    "message": "Customer not found",
-                    "code": Value::Null
-                })
-            };
-            self.record_customer_consent_log(
-                request,
-                query,
-                variables,
-                &field.name,
-                Vec::new(),
-                "failed",
-            );
-            return CustomerConsentOutcome {
-                payload: customer_consent_payload(Value::Null, vec![user_error]),
-                top_level_error: None,
-            };
-        };
-
-        let marketing_opt_in_level = resolved_string_field(&consent, "marketingOptInLevel")
-            .unwrap_or_else(|| current_consent_opt_in_level(&existing_customer, is_email));
-        let consent_updated_at = resolved_string_field(&consent, "consentUpdatedAt");
-
-        if let Some(consent_updated_at) = consent_updated_at.as_deref() {
-            if customer_consent_updated_at_is_future(consent_updated_at) {
-                self.record_customer_consent_log(
-                    request,
-                    query,
-                    variables,
-                    &field.name,
-                    Vec::new(),
-                    "failed",
-                );
-                let customer = if is_email {
-                    existing_customer.clone()
-                } else {
-                    Value::Null
-                };
-                return CustomerConsentOutcome {
-                    payload: customer_consent_payload(
-                        customer,
-                        vec![customer_consent_user_error(
-                            vec!["input", consent_key, "consentUpdatedAt"],
-                            "Consent updated at must not be in the future",
-                            "INVALID",
-                        )],
-                    ),
-                    top_level_error: None,
-                };
-            }
-        }
-
-        if marketing_state == "PENDING" && marketing_opt_in_level != "CONFIRMED_OPT_IN" {
-            self.record_customer_consent_log(
-                request,
-                query,
-                variables,
-                &field.name,
-                Vec::new(),
-                "failed",
-            );
-            let customer = if is_email {
-                existing_customer.clone()
-            } else {
-                Value::Null
-            };
-            return CustomerConsentOutcome {
-                payload: customer_consent_payload(
-                    customer,
-                    vec![customer_consent_user_error(
-                        vec!["input", consent_key, "marketingOptInLevel"],
-                        "Marketing opt in level must be confirmed opt-in for pending consent state",
-                        "INVALID",
-                    )],
-                ),
-                top_level_error: None,
-            };
-        }
-
-        if !is_email && !customer_has_default_phone(&existing_customer) {
-            self.record_customer_consent_log(
-                request,
-                query,
-                variables,
-                &field.name,
-                Vec::new(),
-                "failed",
-            );
-            return CustomerConsentOutcome {
-                payload: customer_consent_payload(
-                    Value::Null,
-                    vec![customer_consent_user_error(
-                        vec!["input", "smsMarketingConsent"],
-                        "A phone number is required to set the SMS consent state.",
-                        "INVALID",
-                    )],
-                ),
-                top_level_error: None,
-            };
-        }
-
-        if is_email && !customer_has_default_email(&existing_customer) {
-            self.record_customer_consent_log(
-                request,
-                query,
-                variables,
-                &field.name,
-                vec![customer_id],
-                "staged",
-            );
-            return CustomerConsentOutcome {
-                payload: customer_consent_payload(existing_customer, Vec::new()),
-                top_level_error: None,
-            };
-        }
-
-        let updated_at = consent_updated_at
-            .or_else(|| current_consent_updated_at(&existing_customer, is_email))
-            .unwrap_or_else(|| "2026-04-25T01:41:06Z".to_string());
-        let mut customer = existing_customer;
-        apply_customer_marketing_consent(
-            &mut customer,
-            is_email,
-            &marketing_state,
-            &marketing_opt_in_level,
-            &updated_at,
-        );
-        self.store
-            .staged
-            .customers
-            .insert(customer_id.clone(), customer.clone());
-        self.record_customer_consent_log(
-            request,
-            query,
-            variables,
-            &field.name,
-            vec![customer_id],
-            "staged",
-        );
-        CustomerConsentOutcome {
-            payload: customer_consent_payload(customer, Vec::new()),
-            top_level_error: None,
-        }
-    }
-
-    fn record_customer_consent_log(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        root_field: &str,
-        staged_ids: Vec<String>,
-        status: &str,
-    ) {
-        self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
-        if status != "staged" {
-            if let Some(entry) = self.log_entries.last_mut() {
-                set_log_status(entry, status);
-            }
-        }
-    }
-
     pub(in crate::proxy) fn customer_set_guard_response(
         &self,
         query: &str,
@@ -1528,188 +2995,1081 @@ impl DraftProxy {
             "data": { response_key: selected_json(&payload, &payload_selection) }
         })))
     }
+
+    pub(in crate::proxy) fn customer_merge_erasure_mutation_response(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        parsed_root_fields: &[String],
+    ) -> Option<Response> {
+        if operation_type != OperationType::Mutation
+            || parsed_root_fields.is_empty()
+            || !parsed_root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "customerMerge" | "customerRequestDataErasure" | "customerCancelDataErasure"
+                )
+            })
+        {
+            return None;
+        }
+
+        let fields = root_fields(query, variables)?;
+        if let Some(errors) = customer_merge_top_level_errors(query, variables, &fields) {
+            return Some(ok_json(json!({ "errors": errors })));
+        }
+
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let (payload, status, staged_ids) = match field.name.as_str() {
+                "customerMerge" => self.customer_merge_payload(&field),
+                "customerRequestDataErasure" => self.customer_data_erasure_payload(&field, true),
+                "customerCancelDataErasure" => self.customer_data_erasure_payload(&field, false),
+                _ => return None,
+            };
+            self.record_customer_side_effect_log(
+                request,
+                query,
+                variables,
+                &field.name,
+                staged_ids,
+                status,
+            );
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&payload, &field.selection),
+            );
+        }
+        Some(ok_json(json!({ "data": Value::Object(data) })))
+    }
+
+    pub(in crate::proxy) fn customer_merge_query_response(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        parsed_root_fields: &[String],
+    ) -> Option<Response> {
+        if operation_type != OperationType::Query || parsed_root_fields.is_empty() {
+            return None;
+        }
+        let fields = root_fields(query, variables)?;
+        let has_customer_merge_job_reference = self.has_customer_merge_job_reference(&fields);
+        if parsed_root_fields.iter().all(|field| {
+            matches!(
+                field.as_str(),
+                "customer"
+                    | "customers"
+                    | "customersCount"
+                    | "customerByIdentifier"
+                    | "customerMergeJobStatus"
+                    | "job"
+                    | "node"
+            )
+        }) && (parsed_root_fields
+            .iter()
+            .any(|field| field == "customerMergeJobStatus")
+            || has_customer_merge_job_reference
+            || self.should_handle_customer_overlay_read(query, &fields))
+        {
+            let mut data = serde_json::Map::new();
+            for field in fields {
+                let value = match field.name.as_str() {
+                    "customer" => self.customer_read_field(&field),
+                    "customerByIdentifier" => self.customer_by_identifier_field(&field),
+                    "customers" => self.customer_connection_field(&field),
+                    "customersCount" => selected_json(
+                        &json!({ "count": 177usize.saturating_sub(self.store.staged.deleted_customer_ids.len()), "precision": "EXACT" }),
+                        &field.selection,
+                    ),
+                    "customerMergeJobStatus" => self.customer_merge_job_status_field(&field),
+                    "job" => self.customer_merge_job_node_field(&field),
+                    "node" if customer_merge_job_node_field(&field) => {
+                        self.customer_merge_job_node_field(&field)
+                    }
+                    "node" => return None,
+                    _ => return None,
+                };
+                data.insert(field.response_key.clone(), value);
+            }
+            return Some(ok_json(json!({ "data": Value::Object(data) })));
+        }
+        if parsed_root_fields
+            .iter()
+            .all(|field| field == "customerMergeJobStatus")
+        {
+            let mut data = serde_json::Map::new();
+            for field in fields {
+                data.insert(
+                    field.response_key.clone(),
+                    self.customer_merge_job_status_field(&field),
+                );
+            }
+            return Some(ok_json(json!({ "data": Value::Object(data) })));
+        }
+        if parsed_root_fields
+            .iter()
+            .all(|field| matches!(field.as_str(), "job" | "node"))
+        {
+            if !has_customer_merge_job_reference {
+                return None;
+            }
+            let data = self.customer_merge_job_node_fields(&fields)?;
+            return Some(ok_json(json!({ "data": data })));
+        }
+        None
+    }
+
+    fn customer_merge_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let one_id = resolved_string_arg(&field.arguments, "customerOneId").unwrap_or_default();
+        let two_id = resolved_string_arg(&field.arguments, "customerTwoId").unwrap_or_default();
+        if one_id == two_id {
+            return (
+                customer_merge_payload_json(
+                    None,
+                    None,
+                    vec![customer_merge_user_error(
+                        Value::Null,
+                        "Customers IDs should not match",
+                        "INVALID_CUSTOMER_ID",
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        if let Some(error) = self.customer_merge_unknown_error(&one_id, "customerOneId") {
+            return (
+                customer_merge_payload_json(None, None, vec![error]),
+                "failed",
+                Vec::new(),
+            );
+        }
+        if let Some(error) = self.customer_merge_unknown_error(&two_id, "customerTwoId") {
+            return (
+                customer_merge_payload_json(None, None, vec![error]),
+                "failed",
+                Vec::new(),
+            );
+        }
+
+        let blocker_errors = self.customer_merge_blocker_errors(&one_id, &two_id);
+        if !blocker_errors.is_empty() {
+            return (
+                customer_merge_payload_json(None, None, blocker_errors),
+                "failed",
+                Vec::new(),
+            );
+        }
+
+        let result_id = two_id.clone();
+        let source_id = one_id.clone();
+        let mut result = self
+            .store
+            .staged
+            .customers
+            .get(&result_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        let source = self
+            .store
+            .staged
+            .customers
+            .get(&source_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        let override_fields =
+            resolved_object_field(&field.arguments, "overrideFields").unwrap_or_default();
+        apply_customer_merge_overrides(&mut result, &source, &override_fields);
+        normalize_merged_customer_defaults(&mut result);
+
+        self.store
+            .staged
+            .customers
+            .insert(result_id.clone(), result);
+        self.store.staged.customers.remove(&source_id);
+        self.store
+            .staged
+            .deleted_customer_ids
+            .insert(source_id.clone());
+        self.store
+            .staged
+            .merged_customer_ids
+            .insert(source_id.clone(), result_id.clone());
+        if let Some(source_orders) = self.store.staged.customer_orders.remove(&source_id) {
+            self.store
+                .staged
+                .customer_orders
+                .entry(result_id.clone())
+                .or_default()
+                .extend(source_orders);
+        }
+
+        let job_id = self.next_proxy_synthetic_gid("Job");
+        let request = customer_merge_request_json(&job_id, &result_id, Vec::new());
+        self.store
+            .staged
+            .customer_merge_requests
+            .insert(job_id.clone(), request);
+        (
+            customer_merge_payload_json(Some(result_id.as_str()), Some(&job_id), Vec::new()),
+            "staged",
+            vec![source_id, result_id, job_id],
+        )
+    }
+
+    fn customer_data_erasure_payload(
+        &mut self,
+        field: &RootFieldSelection,
+        request_erasure: bool,
+    ) -> (Value, &'static str, Vec<String>) {
+        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        if !self.customer_exists(&customer_id) {
+            return (
+                customer_data_erasure_payload_json(
+                    None,
+                    vec![customer_data_erasure_user_error(
+                        "Customer does not exist",
+                        "DOES_NOT_EXIST",
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        if request_erasure {
+            self.store.staged.customer_data_erasure_requests.insert(
+                customer_id.clone(),
+                json!({ "customerId": customer_id, "status": "REQUESTED" }),
+            );
+            return (
+                customer_data_erasure_payload_json(Some(&customer_id), Vec::new()),
+                "staged",
+                vec![customer_id],
+            );
+        }
+        let is_pending = self
+            .store
+            .staged
+            .customer_data_erasure_requests
+            .get(&customer_id)
+            .and_then(|request| request["status"].as_str())
+            == Some("REQUESTED");
+        if !is_pending {
+            return (
+                customer_data_erasure_payload_json(
+                    None,
+                    vec![customer_data_erasure_user_error(
+                        "Customer's data is not scheduled for erasure",
+                        "NOT_BEING_ERASED",
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        self.store.staged.customer_data_erasure_requests.insert(
+            customer_id.clone(),
+            json!({ "customerId": customer_id, "status": "CANCELED" }),
+        );
+        (
+            customer_data_erasure_payload_json(Some(&customer_id), Vec::new()),
+            "staged",
+            vec![customer_id],
+        )
+    }
+
+    fn customer_merge_unknown_error(&self, id: &str, field: &str) -> Option<Value> {
+        if self.customer_exists(id) {
+            return None;
+        }
+        Some(customer_merge_user_error(
+            json!([field]),
+            &format!("Customer does not exist with ID {}", resource_id_tail(id)),
+            "INVALID_CUSTOMER_ID",
+        ))
+    }
+
+    fn customer_exists(&self, id: &str) -> bool {
+        !id.is_empty()
+            && self.store.staged.customers.contains_key(id)
+            && !self.store.staged.deleted_customer_ids.contains(id)
+    }
+
+    fn customer_merge_blocker_errors(&self, one_id: &str, two_id: &str) -> Vec<Value> {
+        let one = self.store.staged.customers.get(one_id);
+        let two = self.store.staged.customers.get(two_id);
+        let mut errors = Vec::new();
+        let combined_tags = one
+            .into_iter()
+            .chain(two)
+            .flat_map(customer_tags)
+            .collect::<BTreeSet<_>>();
+        if combined_tags.len() > 250 {
+            errors.push(customer_merge_user_error(
+                json!(["customerOneId"]),
+                "Customers must have 250 tags or less.",
+                "INVALID_CUSTOMER",
+            ));
+            errors.push(customer_merge_user_error(
+                json!(["customerTwoId"]),
+                "Customers must have 250 tags or less.",
+                "INVALID_CUSTOMER",
+            ));
+        }
+        let combined_note_len = one
+            .and_then(|customer| customer["note"].as_str())
+            .unwrap_or_default()
+            .chars()
+            .count()
+            + two
+                .and_then(|customer| customer["note"].as_str())
+                .unwrap_or_default()
+                .chars()
+                .count();
+        if combined_note_len > 5000 {
+            errors.push(customer_merge_user_error(
+                json!(["customerOneId"]),
+                "Customer notes must be 5,000 characters or less.",
+                "INVALID_CUSTOMER",
+            ));
+            errors.push(customer_merge_user_error(
+                json!(["customerTwoId"]),
+                "Customer notes must be 5,000 characters or less.",
+                "INVALID_CUSTOMER",
+            ));
+        }
+        for (id, field_name) in [(one_id, "customerOneId"), (two_id, "customerTwoId")] {
+            if self.customer_has_assigned_gift_card(id) {
+                let name = self
+                    .store
+                    .staged
+                    .customers
+                    .get(id)
+                    .and_then(|customer| customer["displayName"].as_str())
+                    .filter(|name| !name.is_empty())
+                    .unwrap_or("Customer");
+                errors.push(customer_merge_user_error(
+                    json!([field_name]),
+                    &format!("{name} has gift cards and can’t be merged."),
+                    "INVALID_CUSTOMER",
+                ));
+            }
+            if self.customer_has_subscription_contract(id) {
+                errors.push(customer_merge_user_error(
+                    json!([field_name]),
+                    "Customers with subscription contracts can’t be merged.",
+                    "INVALID_CUSTOMER",
+                ));
+            }
+        }
+        errors
+    }
+
+    fn customer_has_assigned_gift_card(&self, customer_id: &str) -> bool {
+        self.store.staged.gift_cards.values().any(|card| {
+            card["customer"]["id"].as_str() == Some(customer_id)
+                || card["customerId"].as_str() == Some(customer_id)
+        })
+    }
+
+    fn customer_has_subscription_contract(&self, customer_id: &str) -> bool {
+        self.store
+            .staged
+            .customer_payment_method_customer_index
+            .get(customer_id)
+            .into_iter()
+            .flatten()
+            .filter_map(|id| self.store.staged.customer_payment_methods.get(id))
+            .any(|method| {
+                method["activeSubscriptionContracts"]["nodes"]
+                    .as_array()
+                    .is_some_and(|nodes| !nodes.is_empty())
+            })
+    }
+
+    fn customer_merge_job_status_field(&self, field: &RootFieldSelection) -> Value {
+        let job_id = resolved_string_arg(&field.arguments, "jobId").unwrap_or_default();
+        self.store
+            .staged
+            .customer_merge_requests
+            .get(&job_id)
+            .map(|request| selected_json(request, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn customer_merge_job_node_fields(&self, fields: &[RootFieldSelection]) -> Option<Value> {
+        let mut handled_any = false;
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = self.customer_merge_job_node_field(field);
+            if !value.is_null() {
+                handled_any = true;
+            }
+            data.insert(field.response_key.clone(), value);
+        }
+        handled_any.then_some(Value::Object(data))
+    }
+
+    fn has_customer_merge_job_reference(&self, fields: &[RootFieldSelection]) -> bool {
+        fields.iter().any(|field| match field.name.as_str() {
+            "customerMergeJobStatus" => resolved_string_arg(&field.arguments, "jobId")
+                .as_deref()
+                .is_some_and(|id| self.store.staged.customer_merge_requests.contains_key(id)),
+            "job" | "node" => resolved_string_arg(&field.arguments, "id")
+                .as_deref()
+                .is_some_and(|id| self.store.staged.customer_merge_requests.contains_key(id)),
+            _ => false,
+        })
+    }
+
+    fn customer_merge_job_node_field(&self, field: &RootFieldSelection) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        self.store
+            .staged
+            .customer_merge_requests
+            .get(&id)
+            .map(customer_merge_job_from_request)
+            .map(|job| selected_json(&job, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn record_customer_side_effect_log(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        staged_ids: Vec<String>,
+        status: &str,
+    ) {
+        self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
+        if status != "staged" {
+            if let Some(entry) = self.log_entries.last_mut() {
+                set_log_status(entry, status);
+            }
+        }
+    }
 }
 
-struct CustomerConsentOutcome {
-    payload: Value,
-    top_level_error: Option<Value>,
+fn customer_merge_top_level_errors(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    fields: &[RootFieldSelection],
+) -> Option<Vec<Value>> {
+    let operation_path = parsed_document(query, variables)
+        .map(|document| document.operation_path)
+        .unwrap_or_else(|| "mutation".to_string());
+    let mut errors = Vec::new();
+    for field in fields.iter().filter(|field| field.name == "customerMerge") {
+        let missing = ["customerOneId", "customerTwoId"]
+            .into_iter()
+            .filter(|argument| !field.raw_arguments.contains_key(*argument))
+            .collect::<Vec<_>>();
+        if !missing.is_empty() {
+            errors.push(json!({
+                "message": format!(
+                    "Field 'customerMerge' is missing required arguments: {}",
+                    missing.join(", ")
+                ),
+                "locations": [{ "line": field.location.line, "column": field.location.column }],
+                "path": [operation_path.clone(), field.response_key.clone()],
+                "extensions": {
+                    "code": "missingRequiredArguments",
+                    "className": "Field",
+                    "name": "customerMerge",
+                    "arguments": missing.join(", ")
+                }
+            }));
+        }
+        for argument in ["customerOneId", "customerTwoId"] {
+            if matches!(
+                field.raw_arguments.get(argument),
+                Some(RawArgumentValue::String(value)) if value.is_empty()
+            ) {
+                errors.push(json!({
+                    "message": "Invalid global id ''",
+                    "locations": [{ "line": field.location.line, "column": field.location.column }],
+                    "path": [operation_path.clone(), field.response_key.clone(), argument],
+                    "extensions": {
+                        "code": "argumentLiteralsIncompatible",
+                        "typeName": "CoercionError"
+                    }
+                }));
+            }
+        }
+    }
+    (!errors.is_empty()).then_some(errors)
 }
 
-fn customer_consent_payload(customer: Value, user_errors: Vec<Value>) -> Value {
+fn customer_merge_payload_json(
+    resulting_customer_id: Option<&str>,
+    job_id: Option<&str>,
+    user_errors: Vec<Value>,
+) -> Value {
     json!({
-        "customer": customer,
+        "resultingCustomerId": resulting_customer_id.map(Value::from).unwrap_or(Value::Null),
+        "job": job_id.map(|id| json!({ "__typename": "Job", "id": id, "done": false, "query": Value::Null })).unwrap_or(Value::Null),
         "userErrors": user_errors
     })
 }
 
-fn customer_consent_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
+fn customer_merge_request_json(
+    job_id: &str,
+    resulting_customer_id: &str,
+    errors: Vec<Value>,
+) -> Value {
+    json!({
+        "__typename": "CustomerMergeRequest",
+        "jobId": job_id,
+        "resultingCustomerId": resulting_customer_id,
+        "status": "COMPLETED",
+        "customerMergeErrors": errors
+    })
+}
+
+fn customer_merge_job_from_request(request: &Value) -> Value {
+    json!({
+        "__typename": "Job",
+        "id": request["jobId"].clone(),
+        "done": true,
+        "query": { "__typename": "QueryRoot" }
+    })
+}
+
+fn customer_merge_user_error(field: Value, message: &str, code: &str) -> Value {
     json!({
         "field": field,
+        "message": message,
+        "code": code,
+        "errorFields": field,
+        "block_type": code
+    })
+}
+
+fn customer_data_erasure_payload_json(customer_id: Option<&str>, user_errors: Vec<Value>) -> Value {
+    json!({
+        "customerId": customer_id.map(Value::from).unwrap_or(Value::Null),
+        "userErrors": user_errors
+    })
+}
+
+fn customer_data_erasure_user_error(message: &str, code: &str) -> Value {
+    json!({
+        "field": ["customerId"],
         "message": message,
         "code": code
     })
 }
 
-fn customer_consent_invalid_state_error(field: &RootFieldSelection, state: &str) -> Value {
-    json!({
-        "message": format!("Cannot specify {state} as a marketing state input"),
-        "locations": [{ "line": field.location.line, "column": field.location.column }],
-        "extensions": { "code": "INVALID" },
-        "path": [field.response_key.clone()]
-    })
+fn customer_tags(customer: &Value) -> Vec<String> {
+    customer["tags"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|tag| tag.as_str().map(str::to_string))
+        .collect()
 }
 
-fn customer_has_default_email(customer: &Value) -> bool {
-    customer
-        .get("defaultEmailAddress")
-        .and_then(|contact| contact.get("emailAddress"))
-        .and_then(Value::as_str)
-        .is_some_and(|email| !email.trim().is_empty())
-}
-
-fn customer_has_default_phone(customer: &Value) -> bool {
-    customer
-        .get("defaultPhoneNumber")
-        .and_then(|contact| contact.get("phoneNumber"))
-        .and_then(Value::as_str)
-        .is_some_and(|phone| !phone.trim().is_empty())
-}
-
-fn current_consent_opt_in_level(customer: &Value, is_email: bool) -> String {
-    let contact_key = if is_email {
-        "defaultEmailAddress"
-    } else {
-        "defaultPhoneNumber"
+fn customer_matches_search_query(
+    customer: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    let Some(query) = resolved_string_arg(arguments, "query") else {
+        return true;
     };
-    customer
-        .get(contact_key)
-        .and_then(|contact| contact.get("marketingOptInLevel"))
-        .and_then(Value::as_str)
-        .unwrap_or("SINGLE_OPT_IN")
-        .to_string()
+    let query = query.trim();
+    if query.is_empty() {
+        return true;
+    }
+    if let Some(email) = query.strip_prefix("email:") {
+        return customer.get("email").and_then(Value::as_str) == Some(email.trim_matches('"'));
+    }
+    if let Some(tag) = query.strip_prefix("tag:") {
+        let tag = tag.trim_matches('"');
+        return customer_tags(customer).iter().any(|value| value == tag);
+    }
+    customer.get("email").and_then(Value::as_str) == Some(query)
+        || customer_tags(customer).iter().any(|value| value == query)
 }
 
-fn current_consent_updated_at(customer: &Value, is_email: bool) -> Option<String> {
-    let contact_key = if is_email {
-        "defaultEmailAddress"
-    } else {
-        "defaultPhoneNumber"
-    };
-    customer
-        .get(contact_key)
-        .and_then(|contact| contact.get("marketingUpdatedAt"))
-        .and_then(Value::as_str)
-        .map(ToString::to_string)
+fn customer_merge_job_node_field(field: &RootFieldSelection) -> bool {
+    resolved_string_arg(&field.arguments, "id")
+        .as_deref()
+        .is_some_and(|id| shopify_gid_resource_type(id) == Some("Job"))
 }
 
-fn customer_consent_updated_at_is_future(value: &str) -> bool {
-    let Some(updated_at) = parse_rfc3339_epoch_seconds(value) else {
-        return false;
-    };
-    let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) else {
-        return false;
-    };
-    updated_at > now.as_secs() as i64
-}
-
-fn apply_customer_marketing_consent(
-    customer: &mut Value,
-    is_email: bool,
-    marketing_state: &str,
-    marketing_opt_in_level: &str,
-    updated_at: &str,
+fn apply_customer_merge_overrides(
+    result: &mut Value,
+    source: &Value,
+    override_fields: &BTreeMap<String, ResolvedValue>,
 ) {
-    let Some(customer_object) = customer.as_object_mut() else {
-        return;
-    };
-    if is_email {
-        if let Some(contact) = customer_object
-            .get_mut("defaultEmailAddress")
-            .and_then(Value::as_object_mut)
-        {
-            contact.insert("marketingState".to_string(), json!(marketing_state));
-            contact.insert(
-                "marketingOptInLevel".to_string(),
-                json!(marketing_opt_in_level),
-            );
-            contact.insert("marketingUpdatedAt".to_string(), json!(updated_at));
+    for (override_key, target_field) in [
+        ("customerIdOfEmailToKeep", "email"),
+        ("customerIdOfPhoneNumberToKeep", "phone"),
+        ("customerIdOfFirstNameToKeep", "firstName"),
+        ("customerIdOfLastNameToKeep", "lastName"),
+    ] {
+        let Some(target_id) = resolved_string_field(override_fields, override_key) else {
+            continue;
+        };
+        let target = if result["id"].as_str() == Some(target_id.as_str()) {
+            result.clone()
+        } else if source["id"].as_str() == Some(target_id.as_str()) {
+            source.clone()
+        } else {
+            continue;
+        };
+        if let Some(value) = target.get(target_field).cloned() {
+            result[target_field] = value;
         }
-        customer_object.insert(
-            "emailMarketingConsent".to_string(),
-            json!({
-                "marketingState": marketing_state,
-                "marketingOptInLevel": marketing_opt_in_level,
-                "consentUpdatedAt": updated_at
-            }),
-        );
+    }
+    if let Some(note) = resolved_string_field(override_fields, "note") {
+        result["note"] = json!(note);
+    } else if result["note"].is_null() && !source["note"].is_null() {
+        result["note"] = source["note"].clone();
+    }
+    if let Some(tags) = override_fields.get("tags") {
+        if let ResolvedValue::List(tags) = tags {
+            let mut tags = tags
+                .iter()
+                .filter_map(|tag| match tag {
+                    ResolvedValue::String(tag) => Some(tag.clone()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            tags.sort();
+            result["tags"] = json!(tags);
+        }
     } else {
-        if let Some(contact) = customer_object
-            .get_mut("defaultPhoneNumber")
-            .and_then(Value::as_object_mut)
-        {
-            contact.insert("marketingState".to_string(), json!(marketing_state));
-            contact.insert(
-                "marketingOptInLevel".to_string(),
-                json!(marketing_opt_in_level),
-            );
-            contact.insert("marketingUpdatedAt".to_string(), json!(updated_at));
-            contact.insert("marketingCollectedFrom".to_string(), json!("OTHER"));
+        let mut tags = customer_tags(result)
+            .into_iter()
+            .chain(customer_tags(source))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        tags.sort();
+        result["tags"] = json!(tags);
+    }
+    let first = result["firstName"].as_str().unwrap_or_default();
+    let last = result["lastName"].as_str().unwrap_or_default();
+    result["displayName"] = json!([first, last]
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" "));
+    if let Some(email) = result["email"].as_str() {
+        result["defaultEmailAddress"] = json!({ "emailAddress": email });
+    }
+    if let Some(phone) = result["phone"].as_str() {
+        result["defaultPhoneNumber"] = json!({ "phoneNumber": phone });
+    }
+}
+
+fn normalize_merged_customer_defaults(customer: &mut Value) {
+    if customer["numberOfOrders"].is_null() {
+        customer["numberOfOrders"] = json!("0");
+    }
+    if customer["lastOrder"].is_null() {
+        customer["lastOrder"] = Value::Null;
+    }
+    if customer["addressesV2"].is_null() {
+        customer["addressesV2"] = empty_nodes_connection();
+    }
+    if customer["metafields"].is_null() {
+        customer["metafields"] = empty_nodes_connection();
+    }
+    customer["updatedAt"] = json!("2026-05-05T15:13:52Z");
+}
+
+fn empty_nodes_connection() -> Value {
+    json!({
+        "nodes": [],
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": Value::Null,
+            "endCursor": Value::Null
         }
-        customer_object.insert(
-            "smsMarketingConsent".to_string(),
-            json!({
-                "marketingState": marketing_state,
-                "marketingOptInLevel": marketing_opt_in_level,
-                "consentUpdatedAt": updated_at,
-                "consentCollectedFrom": "OTHER"
-            }),
-        );
-    }
-}
-
-pub(in crate::proxy) fn default_email_address_value(email: &str) -> Value {
-    if email.is_empty() {
-        return Value::Null;
-    }
-    json!({
-        "emailAddress": email,
-        "marketingState": "NOT_SUBSCRIBED",
-        "marketingOptInLevel": "SINGLE_OPT_IN",
-        "marketingUpdatedAt": Value::Null
     })
 }
 
-pub(in crate::proxy) fn default_phone_number_value(phone: &str) -> Value {
-    json!({
-        "phoneNumber": phone,
-        "marketingState": "NOT_SUBSCRIBED",
-        "marketingOptInLevel": "SINGLE_OPT_IN",
-        "marketingUpdatedAt": Value::Null,
-        "marketingCollectedFrom": Value::Null
+fn b2b_contact_query_root(field: &str) -> bool {
+    matches!(
+        field,
+        "company" | "companyContact" | "companyContactRole" | "companyLocation" | "node"
+    )
+}
+
+fn b2b_contact_mutation_root(field: &str) -> bool {
+    matches!(
+        field,
+        "companyContactCreate"
+            | "companyContactUpdate"
+            | "companyContactDelete"
+            | "companyContactsDelete"
+            | "companyAssignCustomerAsContact"
+            | "companyContactRemoveFromCompany"
+            | "companyAssignMainContact"
+            | "companyRevokeMainContact"
+            | "companyContactAssignRole"
+            | "companyContactAssignRoles"
+            | "companyContactRevokeRole"
+            | "companyContactRevokeRoles"
+            | "companyLocationAssignRoles"
+            | "companyLocationRevokeRoles"
+            | "companyLocationUpdate"
+            | "companyLocationAssignAddress"
+            | "companyAddressDelete"
+    )
+}
+
+fn b2b_node_query_field(field: &RootFieldSelection) -> bool {
+    let Some(id) = resolved_string_arg(&field.arguments, "id") else {
+        return false;
+    };
+    matches!(
+        shopify_gid_resource_type(&id),
+        Some(
+            "CompanyContact"
+                | "CompanyContactRole"
+                | "CompanyContactRoleAssignment"
+                | "CompanyLocation"
+                | "CompanyAddress"
+        )
+    )
+}
+
+const B2B_TAX_EXEMPTION_VALUES: &[&str] = &[
+    "CA_STATUS_CARD_EXEMPTION",
+    "CA_BC_RESELLER_EXEMPTION",
+    "CA_MB_RESELLER_EXEMPTION",
+    "CA_SK_RESELLER_EXEMPTION",
+    "CA_DIPLOMAT_EXEMPTION",
+    "CA_BC_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_MB_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_NS_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_PE_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_SK_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_BC_PRODUCTION_AND_MACHINERY_EXEMPTION",
+    "CA_SK_PRODUCTION_AND_MACHINERY_EXEMPTION",
+    "CA_BC_SUB_CONTRACTOR_EXEMPTION",
+    "CA_SK_SUB_CONTRACTOR_EXEMPTION",
+    "CA_BC_CONTRACTOR_EXEMPTION",
+    "CA_SK_CONTRACTOR_EXEMPTION",
+    "CA_ON_PURCHASE_EXEMPTION",
+    "CA_MB_FARMER_EXEMPTION",
+    "CA_NS_FARMER_EXEMPTION",
+    "CA_SK_FARMER_EXEMPTION",
+    "EU_REVERSE_CHARGE_EXEMPTION_RULE",
+    "US_AL_RESELLER_EXEMPTION",
+    "US_AK_RESELLER_EXEMPTION",
+    "US_AZ_RESELLER_EXEMPTION",
+    "US_AR_RESELLER_EXEMPTION",
+    "US_CA_RESELLER_EXEMPTION",
+    "US_CO_RESELLER_EXEMPTION",
+    "US_CT_RESELLER_EXEMPTION",
+    "US_DE_RESELLER_EXEMPTION",
+    "US_FL_RESELLER_EXEMPTION",
+    "US_GA_RESELLER_EXEMPTION",
+    "US_HI_RESELLER_EXEMPTION",
+    "US_ID_RESELLER_EXEMPTION",
+    "US_IL_RESELLER_EXEMPTION",
+    "US_IN_RESELLER_EXEMPTION",
+    "US_IA_RESELLER_EXEMPTION",
+    "US_KS_RESELLER_EXEMPTION",
+    "US_KY_RESELLER_EXEMPTION",
+    "US_LA_RESELLER_EXEMPTION",
+    "US_ME_RESELLER_EXEMPTION",
+    "US_MD_RESELLER_EXEMPTION",
+    "US_MA_RESELLER_EXEMPTION",
+    "US_MI_RESELLER_EXEMPTION",
+    "US_MN_RESELLER_EXEMPTION",
+    "US_MS_RESELLER_EXEMPTION",
+    "US_MO_RESELLER_EXEMPTION",
+    "US_MT_RESELLER_EXEMPTION",
+    "US_NE_RESELLER_EXEMPTION",
+    "US_NV_RESELLER_EXEMPTION",
+    "US_NH_RESELLER_EXEMPTION",
+    "US_NJ_RESELLER_EXEMPTION",
+    "US_NM_RESELLER_EXEMPTION",
+    "US_NY_RESELLER_EXEMPTION",
+    "US_NC_RESELLER_EXEMPTION",
+    "US_ND_RESELLER_EXEMPTION",
+    "US_OH_RESELLER_EXEMPTION",
+    "US_OK_RESELLER_EXEMPTION",
+    "US_OR_RESELLER_EXEMPTION",
+    "US_PA_RESELLER_EXEMPTION",
+    "US_RI_RESELLER_EXEMPTION",
+    "US_SC_RESELLER_EXEMPTION",
+    "US_SD_RESELLER_EXEMPTION",
+    "US_TN_RESELLER_EXEMPTION",
+    "US_TX_RESELLER_EXEMPTION",
+    "US_UT_RESELLER_EXEMPTION",
+    "US_VT_RESELLER_EXEMPTION",
+    "US_VA_RESELLER_EXEMPTION",
+    "US_WA_RESELLER_EXEMPTION",
+    "US_WV_RESELLER_EXEMPTION",
+    "US_WI_RESELLER_EXEMPTION",
+    "US_WY_RESELLER_EXEMPTION",
+    "US_DC_RESELLER_EXEMPTION",
+];
+
+fn b2b_tax_exemption_coercion_error(query: &str, fields: &[RootFieldSelection]) -> Option<Value> {
+    fields.iter().find_map(|field| {
+        ["exemptionsToAssign", "exemptionsToRemove"]
+            .into_iter()
+            .find_map(|argument_name| {
+                b2b_tax_exemption_argument_coercion_error(query, field, argument_name)
+            })
     })
 }
 
-pub(in crate::proxy) fn email_marketing_consent_value(email: &str) -> Value {
-    if email.is_empty() {
-        return Value::Null;
+fn b2b_tax_exemption_argument_coercion_error(
+    query: &str,
+    field: &RootFieldSelection,
+    argument_name: &str,
+) -> Option<Value> {
+    let raw_argument = field.raw_arguments.get(argument_name)?;
+    match raw_argument {
+        RawArgumentValue::Variable { name, value } => {
+            let ResolvedValue::List(values) = value.as_ref()? else {
+                return None;
+            };
+            let (index, invalid) =
+                values
+                    .iter()
+                    .enumerate()
+                    .find_map(|(index, value)| match value {
+                        ResolvedValue::String(value)
+                            if !B2B_TAX_EXEMPTION_VALUES.contains(&value.as_str()) =>
+                        {
+                            Some((index, value.as_str()))
+                        }
+                        _ => None,
+                    })?;
+            Some(b2b_tax_exemption_invalid_variable_error(
+                query, name, values, index, invalid,
+            ))
+        }
+        RawArgumentValue::List(values) => {
+            let invalid = values.iter().find_map(|value| match value {
+                RawArgumentValue::Enum(value)
+                    if !B2B_TAX_EXEMPTION_VALUES.contains(&value.as_str()) =>
+                {
+                    Some(value.as_str())
+                }
+                _ => None,
+            })?;
+            Some(b2b_tax_exemption_invalid_literal_error(
+                argument_name,
+                invalid,
+            ))
+        }
+        _ => None,
     }
+}
+
+fn b2b_tax_exemption_invalid_variable_error(
+    query: &str,
+    variable_name: &str,
+    values: &[ResolvedValue],
+    index: usize,
+    invalid: &str,
+) -> Value {
+    let expected = B2B_TAX_EXEMPTION_VALUES.join(", ");
+    let explanation = format!("Expected \"{invalid}\" to be one of: {expected}");
+    let variable = variable_definition_info(query, variable_name);
+    let variable_type = variable
+        .as_ref()
+        .map(|definition| definition.type_display.as_str())
+        .unwrap_or("[TaxExemption!]");
+    let location = variable
+        .as_ref()
+        .map(|definition| definition.location)
+        .unwrap_or(SourceLocation { line: 1, column: 1 });
     json!({
-        "marketingState": "NOT_SUBSCRIBED",
-        "marketingOptInLevel": "SINGLE_OPT_IN",
-        "consentUpdatedAt": Value::Null
+        "message": format!(
+            "Variable ${variable_name} of type {variable_type} was provided invalid value for {index} ({explanation})"
+        ),
+        "locations": [{ "line": location.line, "column": location.column }],
+        "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": Value::Array(values.iter().map(resolved_value_json).collect()),
+            "problems": [{
+                "path": [index],
+                "explanation": explanation
+            }]
+        }
     })
 }
 
-pub(in crate::proxy) fn sms_marketing_consent_value(phone: &str) -> Value {
-    if phone.is_empty() {
-        return Value::Null;
-    }
+fn b2b_tax_exemption_invalid_literal_error(argument_name: &str, invalid: &str) -> Value {
     json!({
-        "marketingState": "NOT_SUBSCRIBED",
-        "marketingOptInLevel": "SINGLE_OPT_IN",
-        "consentUpdatedAt": Value::Null,
-        "consentCollectedFrom": Value::Null
+        "message": format!(
+            "Argument '{argument_name}' has an invalid value [{invalid}]. Expected type '[TaxExemption!]'. Did you mean CA_STATUS_CARD_EXEMPTION?"
+        ),
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "argumentName": argument_name
+        }
     })
+}
+
+fn b2b_company_contact_payload(company_contact: Option<&Value>, user_errors: Vec<Value>) -> Value {
+    json!({
+        "companyContact": company_contact.cloned().unwrap_or(Value::Null),
+        "userErrors": user_errors
+    })
+}
+
+fn b2b_company_contact_delete_payload(
+    id: Option<&str>,
+    id_field: &str,
+    user_errors: Vec<Value>,
+) -> Value {
+    json!({
+        id_field: id.map(|id| json!(id)).unwrap_or(Value::Null),
+        "userErrors": user_errors
+    })
+}
+
+fn b2b_company_contact_input_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    field_prefix: &[&str],
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    for (field, label) in [
+        ("firstName", "First name"),
+        ("lastName", "Last name"),
+        ("title", "Title"),
+    ] {
+        let Some(value) = resolved_string_field(input, field) else {
+            continue;
+        };
+        let mut path = field_prefix.to_vec();
+        path.push(field);
+        if value.chars().count() > 255 {
+            errors.push(b2b_company_user_error(
+                path.clone(),
+                &format!("{label} is too long"),
+                "TOO_LONG",
+                None,
+            ));
+        }
+        if b2b_contains_html_tags(&value) {
+            errors.push(b2b_company_user_error(
+                path,
+                &format!("{label} contains HTML tags"),
+                "CONTAINS_HTML_TAGS",
+                None,
+            ));
+        }
+    }
+    errors
+}
+
+fn b2b_indexed_role_assignment_error(index: Option<usize>, field: &str) -> Value {
+    let error_field = index
+        .map(|index| json!(["rolesToAssign", index.to_string(), field]))
+        .unwrap_or_else(|| json!([field]));
+    json!({
+        "field": error_field,
+        "message": "Resource requested does not exist.",
+        "code": "RESOURCE_NOT_FOUND"
+    })
+}
+
+fn b2b_default_contact_role(company_id: &str) -> Value {
+    b2b_contact_role(company_id, "Ordering only", true)
+}
+
+fn b2b_contact_role(company_id: &str, name: &str, default: bool) -> Value {
+    let suffix = if name == "Ordering only" {
+        resource_id_tail(company_id).to_string()
+    } else {
+        format!(
+            "{}-{}",
+            resource_id_tail(company_id),
+            name.to_ascii_lowercase().replace(' ', "-")
+        )
+    };
+    let role_id = synthetic_shopify_gid("CompanyContactRole", suffix);
+    json!({
+        "id": role_id,
+        "companyId": company_id,
+        "name": name,
+        "note": Value::Null,
+        "default": default
+    })
+}
+
+fn b2b_company_address_json(location_id: &str, address: &BTreeMap<String, ResolvedValue>) -> Value {
+    let id = synthetic_shopify_gid(
+        "CompanyAddress",
+        format!("{}-billing", resource_id_tail(location_id)),
+    );
+    json!({
+        "id": id,
+        "address1": resolved_string_field(address, "address1").unwrap_or_default(),
+        "address2": resolved_string_field(address, "address2").unwrap_or_default(),
+        "city": resolved_string_field(address, "city").unwrap_or_default(),
+        "province": resolved_string_field(address, "province").unwrap_or_default(),
+        "provinceCode": resolved_string_field(address, "provinceCode").unwrap_or_default(),
+        "country": resolved_string_field(address, "country").unwrap_or_default(),
+        "countryCode": resolved_string_field(address, "countryCode")
+            .or_else(|| resolved_string_field(address, "countryCodeV2"))
+            .unwrap_or_default(),
+        "zip": resolved_string_field(address, "zip").unwrap_or_default(),
+        "phone": resolved_string_field(address, "phone").map(Value::String).unwrap_or(Value::Null)
+    })
+}
+
+fn b2b_contact_customer_json(
+    customer_id: &str,
+    first_name: &str,
+    last_name: &str,
+    email: &str,
+    phone: Option<&str>,
+) -> Value {
+    json!({
+        "id": customer_id,
+        "firstName": first_name,
+        "lastName": last_name,
+        "displayName": b2b_display_name(first_name, last_name),
+        "email": if email.is_empty() { Value::Null } else { json!(email) },
+        "phone": phone.map(|phone| json!(phone)).unwrap_or(Value::Null)
+    })
+}
+
+fn b2b_normalize_phone(phone: &str) -> String {
+    if phone.starts_with('+') {
+        return phone.to_string();
+    }
+    let digits = phone
+        .chars()
+        .filter(|character| character.is_ascii_digit())
+        .collect::<String>();
+    if digits.len() == 10 {
+        format!("+1{digits}")
+    } else if digits.len() == 11 && digits.starts_with('1') {
+        format!("+{digits}")
+    } else {
+        phone.to_string()
+    }
+}
+
+fn b2b_display_name(first_name: &str, last_name: &str) -> String {
+    [first_name, last_name]
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn customer_update_inline_consent_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {

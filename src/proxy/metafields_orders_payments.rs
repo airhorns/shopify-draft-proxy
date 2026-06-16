@@ -1251,10 +1251,6 @@ pub(in crate::proxy) fn normalize_customer_tags(tags: Vec<String>) -> Vec<String
     normalize_taggable_tags(tags)
 }
 
-pub(in crate::proxy) fn customer_connection_empty(selection: &[SelectedField]) -> Value {
-    selected_empty_connection_json(selection)
-}
-
 pub(in crate::proxy) fn customer_loyalty_metafield(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
