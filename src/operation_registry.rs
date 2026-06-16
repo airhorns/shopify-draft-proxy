@@ -594,14 +594,6 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_query("orderSavedSearches", CapabilityDomain::SavedSearches),
     local_query("productSavedSearches", CapabilityDomain::SavedSearches),
     local_mutation("savedSearchCreate", CapabilityDomain::SavedSearches),
-    local_mutation(
-        "customerGenerateAccountActivationUrl",
-        CapabilityDomain::Customers,
-    ),
-    local_mutation(
-        "customerSendAccountInviteEmail",
-        CapabilityDomain::Customers,
-    ),
     local_query("bulkOperation", CapabilityDomain::BulkOperations),
     local_query("bulkOperations", CapabilityDomain::BulkOperations),
     local_query("currentBulkOperation", CapabilityDomain::BulkOperations),

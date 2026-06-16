@@ -241,44 +241,6 @@ function resolveSpecialVariables(
   return value;
 }
 
-function collectHydratableInventoryIds(value: unknown, ids = new Set<string>()): Set<string> {
-  if (Array.isArray(value)) {
-    for (const entry of value) collectHydratableInventoryIds(entry, ids);
-    return ids;
-  }
-  if (typeof value !== 'object' || value === null) return ids;
-  for (const [key, entry] of Object.entries(value)) {
-    if (
-      typeof entry === 'string' &&
-      (key === 'inventoryItemId' || key === 'id' || key === 'inventoryLevelId') &&
-      (entry.startsWith('gid://shopify/InventoryItem/') || entry.startsWith('gid://shopify/InventoryLevel/'))
-    ) {
-      ids.add(entry);
-    }
-    collectHydratableInventoryIds(entry, ids);
-  }
-  return ids;
-}
-
-async function hydrateInventoryNodes(
-  proxy: DraftProxy,
-  request: {
-    variables: Record<string, unknown>;
-    headers: Record<string, string>;
-    path: string;
-  },
-): Promise<void> {
-  const ids = [...collectHydratableInventoryIds(request.variables)].sort();
-  if (ids.length === 0) return;
-  await sendProxyRequest(proxy, {
-    path: request.path,
-    headers: request.headers,
-    query:
-      'query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: ["available", "on_hand", "committed", "incoming", "reserved"]) { name quantity updatedAt } } } } } } }',
-    variables: { ids },
-  });
-}
-
 async function loadRequest(
   request: ProxyRequestSpec | undefined,
   capture: unknown,
@@ -341,44 +303,6 @@ type CassetteServer = {
   close: () => Promise<void>;
 };
 
-<<<<<<< ours
-=======
-function stableJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map((entry) => stableJson(entry)).join(',')}]`;
-  if (isPlainObject(value))
-    return `{${Object.keys(value)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`)
-      .join(',')}}`;
-  return JSON.stringify(value);
-}
-
-function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): boolean {
-  try {
-    const parsed = JSON.parse(body) as Record<string, unknown>;
-    const variablesMatch = stableJson(parsed['variables'] ?? {}) === stableJson(call.variables ?? {});
-    const query = typeof parsed['query'] === 'string' ? parsed['query'] : '';
-    const operationName = typeof parsed['operationName'] === 'string' ? parsed['operationName'] : '';
-    const isSyntheticNodeCassette =
-      call.operationName === 'ProductsHydrateNodes' ||
-      call.query?.startsWith('sha:') ||
-      call.query ===
-        'hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration' ||
-      call.query ===
-        'recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration';
-    const canMatchSynthesizedNodeQuery = isSyntheticNodeCassette && /\bnode(?:s)?\s*\(/u.test(query);
-    return (
-      variablesMatch &&
-      (canMatchSynthesizedNodeQuery ||
-        parsed['query'] === call.query ||
-        (call.query === undefined && call.operationName === operationName && operationName.length > 0))
-    );
-  } catch {
-    return false;
-  }
-}
-
->>>>>>> theirs
 async function startCassetteServer(): Promise<CassetteServer> {
   let calls: RecordedUpstreamCall[] = [];
   let fallbackResponse: { response: ProxyResponse; call: RecordedUpstreamCall } | null = null;
@@ -639,17 +563,10 @@ async function runSpec(
             !target.proxyLogPath &&
             captureResponseForTarget(capture, target) !== null,
         ) ?? spec.comparison?.targets?.find((target) => captureResponseForTarget(capture, target) !== null);
-<<<<<<< ours
       const primaryFallbackResponse =
         captureResponseForRequest(capture, primaryRequest) ??
         (primaryFallbackTarget ? captureResponseForTarget(capture, primaryFallbackTarget) : null);
       cassette.setFallbackResponse(primaryFallbackResponse, primaryRequest);
-=======
-      cassette.setFallbackResponse(
-        primaryFallbackTarget ? captureResponseForTarget(capture, primaryFallbackTarget) : null,
-      );
-      await hydrateInventoryNodes(proxy, primaryRequest);
->>>>>>> theirs
       primaryResponse = await sendProxyRequest(proxy, primaryRequest);
       previousResponse = primaryResponse;
     }
@@ -681,11 +598,7 @@ async function runSpec(
       } else if (target.proxyRequest) {
         const request = await loadRequest(target.proxyRequest, capture, primaryResponse, previousResponse, namedResponses);
         if (request === null) throw new Error(`${target.name}: target proxyRequest did not resolve to a request`);
-<<<<<<< ours
         cassette.setFallbackResponse(captureResponseForTarget(capture, target), request);
-=======
-        await hydrateInventoryNodes(proxy, request);
->>>>>>> theirs
         const targetResponse = await sendProxyRequest(proxy, request);
         if (!target.isolatedProxy && target.preserveProxyState !== true) {
           mainState = proxy.dumpState('1970-01-01T00:00:00.000Z');

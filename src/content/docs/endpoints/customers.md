@@ -7,7 +7,6 @@ The customers group has Rust runtime local slices for the documented parity-back
 
 ## Current support and limitations
 
-`src/operation_registry.rs` still keeps customer roots conservative: registry presence alone is not support. The support claims below are based on Rust runtime handlers in `src/proxy.rs` plus checked-in parity specs, tests, and fixtures.
 
 ### Supported roots
 

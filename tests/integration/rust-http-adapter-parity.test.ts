@@ -202,15 +202,9 @@ describe('Rust HTTP adapter route surface', () => {
             delegatedAccessTokens: {},
             customers: {},
             deletedCustomerIds: [],
-<<<<<<< ours
             mergedCustomerIds: {},
             customerMergeRequests: {},
             customerDataErasureRequests: {},
-=======
-            customerAddresses: {},
-            customerAddressOrder: {},
-            customerAddressOwners: {},
->>>>>>> theirs
             b2bCompanies: {},
             b2bLocations: {},
             b2bContacts: {},

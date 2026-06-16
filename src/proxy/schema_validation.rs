@@ -261,7 +261,14 @@ fn validate_resolved_input_object(
         if let Some(problem) = validate_resolved_scalar(field_value, &field_schema.type_ref) {
             let mut nested_path = problem_path.to_vec();
             nested_path.push(field_name.clone());
-            problems.push(variable_problem_with_message(&nested_path, &problem));
+            if problem.include_message {
+                problems.push(variable_problem_with_message(
+                    &nested_path,
+                    &problem.explanation,
+                ));
+            } else {
+                problems.push(variable_problem(&nested_path, &problem.explanation));
+            }
         }
         let Some(nested_input_object) = schema.input_objects.get(&field_schema.type_ref.named_type)
         else {
@@ -282,16 +289,59 @@ fn validate_resolved_input_object(
     problems
 }
 
-fn validate_resolved_scalar(value: &ResolvedValue, type_ref: &SchemaTypeRef) -> Option<String> {
-    if type_ref.named_type != "Decimal" {
-        return None;
+struct ScalarValidationProblem {
+    explanation: String,
+    include_message: bool,
+}
+
+fn validate_resolved_scalar(
+    value: &ResolvedValue,
+    type_ref: &SchemaTypeRef,
+) -> Option<ScalarValidationProblem> {
+    match type_ref.named_type.as_str() {
+        "Decimal" => {
+            let ResolvedValue::String(raw) = value else {
+                return None;
+            };
+            raw.parse::<f64>().err().map(|_| ScalarValidationProblem {
+                explanation: format!("invalid decimal '{raw}'"),
+                include_message: true,
+            })
+        }
+        "FulfillmentEventStatus" => {
+            let ResolvedValue::String(raw) = value else {
+                return None;
+            };
+            (!fulfillment_event_status_is_allowed(raw)).then(|| ScalarValidationProblem {
+                explanation: fulfillment_event_status_expected_message(raw),
+                include_message: false,
+            })
+        }
+        _ => None,
     }
-    let ResolvedValue::String(raw) = value else {
-        return None;
-    };
-    raw.parse::<f64>()
-        .err()
-        .map(|_| format!("invalid decimal '{raw}'"))
+}
+
+fn fulfillment_event_status_is_allowed(status: &str) -> bool {
+    matches!(
+        status,
+        "LABEL_PURCHASED"
+            | "LABEL_PRINTED"
+            | "READY_FOR_PICKUP"
+            | "CONFIRMED"
+            | "IN_TRANSIT"
+            | "OUT_FOR_DELIVERY"
+            | "ATTEMPTED_DELIVERY"
+            | "DELAYED"
+            | "DELIVERED"
+            | "FAILURE"
+            | "CARRIER_PICKED_UP"
+    )
+}
+
+fn fulfillment_event_status_expected_message(status: &str) -> String {
+    format!(
+        "Expected \"{status}\" to be one of: LABEL_PURCHASED, LABEL_PRINTED, READY_FOR_PICKUP, CONFIRMED, IN_TRANSIT, OUT_FOR_DELIVERY, ATTEMPTED_DELIVERY, DELAYED, DELIVERED, FAILURE, CARRIER_PICKED_UP"
+    )
 }
 
 fn root_argument_not_accepted_error(
