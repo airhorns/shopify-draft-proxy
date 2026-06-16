@@ -69,7 +69,7 @@ impl DraftProxy {
                 let mut data = serde_json::Map::new();
                 for field in fields {
                     let (payload, status, staged_ids) =
-                        self.b2b_location_buyer_experience_update_payload(&field);
+                        self.b2b_company_location_update_payload(&field);
                     self.record_mutation_log_entry(
                         request,
                         query,
@@ -588,6 +588,35 @@ impl DraftProxy {
                 "failed",
                 Vec::new(),
             );
+        }
+
+        if let Some(external_id) = resolved_string_field(&input, "externalId") {
+            let errors = b2b_location_external_id_errors(
+                &external_id,
+                vec!["input", "externalId"],
+                &self.store.staged.b2b_locations,
+                Some(&location_id),
+            );
+            if !errors.is_empty() {
+                return (
+                    b2b_company_location_payload(None, errors),
+                    "failed",
+                    Vec::new(),
+                );
+            }
+        }
+
+        if let Some(buyer_experience) =
+            resolved_object_field(&input, "buyerExperienceConfiguration")
+        {
+            let errors = b2b_location_buyer_experience_errors(&buyer_experience);
+            if !errors.is_empty() {
+                return (
+                    b2b_company_location_payload(None, errors),
+                    "failed",
+                    Vec::new(),
+                );
+            }
         }
 
         if let Some(name) = resolved_string_field(&input, "name") {

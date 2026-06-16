@@ -1488,18 +1488,18 @@ pub(in crate::proxy) fn b2b_company_external_id_errors(
     if external_id.chars().count() > 64 {
         return vec![b2b_company_user_error(
             field,
-            "External ID is too long",
+            "External Id must be 64 characters or less.",
             "TOO_LONG",
             None,
         )];
     }
-    if !external_id
-        .chars()
-        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
-    {
+    // Allowed characters mirror Shopify's externalId charset exactly.
+    const EXTERNAL_ID_ALLOWED: &str =
+        r#"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*(){}[]\/?<>_-~.,;:'"`"#;
+    if !external_id.chars().all(|ch| EXTERNAL_ID_ALLOWED.contains(ch)) {
         return vec![b2b_company_user_error(
             field,
-            "External ID contains invalid characters",
+            r#"External Id can only contain numbers, letters, and some special characters, including !@#$%^&*(){}[]\/?<>_-~,.;:'`""#,
             "INVALID",
             Some(json!("external_id_contains_invalid_chars")),
         )];
@@ -1511,7 +1511,46 @@ pub(in crate::proxy) fn b2b_company_external_id_errors(
     if duplicate {
         return vec![b2b_company_user_error(
             field,
-            "External ID has already been taken",
+            "External id has already been taken.",
+            "TAKEN",
+            Some(json!("duplicate_external_id")),
+        )];
+    }
+    Vec::new()
+}
+
+pub(in crate::proxy) fn b2b_location_external_id_errors(
+    external_id: &str,
+    field: Vec<&str>,
+    locations: &BTreeMap<String, Value>,
+    current_location_id: Option<&str>,
+) -> Vec<Value> {
+    if external_id.chars().count() > 64 {
+        return vec![b2b_company_user_error(
+            field,
+            "External Id must be 64 characters or less.",
+            "TOO_LONG",
+            None,
+        )];
+    }
+    const EXTERNAL_ID_ALLOWED: &str =
+        r#"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*(){}[]\/?<>_-~.,;:'"`"#;
+    if !external_id.chars().all(|ch| EXTERNAL_ID_ALLOWED.contains(ch)) {
+        return vec![b2b_company_user_error(
+            field,
+            r#"External Id can only contain numbers, letters, and some special characters, including !@#$%^&*(){}[]\/?<>_-~,.;:'`""#,
+            "INVALID",
+            Some(json!("external_id_contains_invalid_chars")),
+        )];
+    }
+    let duplicate = locations.iter().any(|(id, location)| {
+        Some(id.as_str()) != current_location_id
+            && location["externalId"].as_str() == Some(external_id)
+    });
+    if duplicate {
+        return vec![b2b_company_user_error(
+            field,
+            "External id has already been taken.",
             "TAKEN",
             Some(json!("duplicate_external_id")),
         )];
