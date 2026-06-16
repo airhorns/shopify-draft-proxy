@@ -727,6 +727,8 @@ impl DraftProxy {
             && self.has_products_tail_staged_resource_id("gid://shopify/Job/2")
         {
             selected_json(&product_tail_full_sync_job(), &field.selection)
+        } else if let Some(job) = self.store.staged.collection_jobs.get(&id) {
+            selected_json(job, &field.selection)
         } else {
             Value::Null
         }

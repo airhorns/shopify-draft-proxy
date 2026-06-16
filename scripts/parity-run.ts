@@ -302,6 +302,7 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
     const operationName = typeof parsed['operationName'] === 'string' ? parsed['operationName'] : '';
     const isSyntheticNodeCassette =
       call.query?.startsWith('sha:') ||
+      (call.query?.startsWith('hand-synthesized') && call.query.includes('mutation hydration')) ||
       call.query ===
         'hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration' ||
       call.query === 'hand-synthesized from checked-in setupOptionsResponse for HAR-545 bulk validation hydration' ||

@@ -5663,3 +5663,497 @@ fn supported_product_variant_mutation_keeps_capability_metadata_in_log() {
         })
     );
 }
+
+#[test]
+fn collection_lifecycle_mutations_stage_locally_without_upstream_writes() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_base_products(vec![
+        ProductRecord {
+            id: "gid://shopify/Product/first".to_string(),
+            title: "First Product".to_string(),
+            handle: "first-product".to_string(),
+            status: "ACTIVE".to_string(),
+            ..ProductRecord::default()
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/second".to_string(),
+            title: "Second Product".to_string(),
+            handle: "second-product".to_string(),
+            status: "ACTIVE".to_string(),
+            ..ProductRecord::default()
+        },
+    ])
+    .with_upstream_transport({
+        let upstream_calls = Arc::clone(&upstream_calls);
+        move |request| {
+            upstream_calls.lock().unwrap().push(request.body);
+            shopify_draft_proxy::proxy::Response {
+                status: 599,
+                headers: Default::default(),
+                body: json!({"errors": [{"message": "upstream should not be called"}]}),
+            }
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection {
+              id
+              title
+              handle
+              sortOrder
+              products(first: 10) { nodes { id } }
+              hasFirst: hasProduct(id: "gid://shopify/Product/first")
+              productsCount { count precision }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Local Collection",
+                "sortOrder": "MANUAL",
+                "products": ["gid://shopify/Product/first"]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["collectionCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["collectionCreate"]["collection"]["products"]["nodes"],
+        json!([{ "id": "gid://shopify/Product/first" }])
+    );
+    assert_eq!(
+        create.body["data"]["collectionCreate"]["collection"]["hasFirst"],
+        json!(true)
+    );
+    assert_eq!(
+        create.body["data"]["collectionCreate"]["collection"]["productsCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+    let collection_id = create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateCollection($input: CollectionInput!) {
+          collectionUpdate(input: $input) {
+            collection { id title handle sortOrder }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": collection_id, "title": "Updated Collection" } }),
+    ));
+    assert_eq!(
+        update.body["data"]["collectionUpdate"]["collection"]["title"],
+        json!("Updated Collection")
+    );
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddProducts($id: ID!, $productIds: [ID!]!) {
+          collectionAddProducts(id: $id, productIds: $productIds) {
+            collection {
+              id
+              products(first: 10) { nodes { id title handle } }
+              hasFirst: hasProduct(id: "gid://shopify/Product/first")
+              productsCount { count precision }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": collection_id,
+            "productIds": ["gid://shopify/Product/first", "gid://shopify/Product/second"]
+        }),
+    ));
+    assert_eq!(
+        add.body["data"]["collectionAddProducts"],
+        json!({
+            "collection": null,
+            "userErrors": [{
+                "field": ["productIds"],
+                "message": "Product is already included in this collection"
+            }]
+        })
+    );
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddProducts($id: ID!, $productIds: [ID!]!) {
+          collectionAddProducts(id: $id, productIds: $productIds) {
+            collection {
+              id
+              products(first: 10) { nodes { id title handle } }
+              hasFirst: hasProduct(id: "gid://shopify/Product/first")
+              productsCount { count precision }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": collection_id,
+            "productIds": ["gid://shopify/Product/second"]
+        }),
+    ));
+    assert_eq!(
+        add.body["data"]["collectionAddProducts"]["collection"]["products"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(
+        add.body["data"]["collectionAddProducts"]["collection"]["hasFirst"],
+        json!(true)
+    );
+
+    let remove = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RemoveProducts($id: ID!, $productIds: [ID!]!) {
+          collectionRemoveProducts(id: $id, productIds: $productIds) {
+            job { __typename id done query { __typename } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": collection_id,
+            "productIds": ["gid://shopify/Product/second"]
+        }),
+    ));
+    assert_eq!(
+        remove.body["data"]["collectionRemoveProducts"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        remove.body["data"]["collectionRemoveProducts"]["job"]["done"],
+        json!(false)
+    );
+    assert_eq!(
+        remove.body["data"]["collectionRemoveProducts"]["job"]["query"],
+        Value::Null
+    );
+    let remove_job_id = remove.body["data"]["collectionRemoveProducts"]["job"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let job = proxy.process_request(json_graphql_request(
+        r#"
+        query CollectionJob($id: ID!) {
+          job(id: $id) { __typename id done query { __typename } }
+        }
+        "#,
+        json!({ "id": remove_job_id }),
+    ));
+    assert_eq!(job.body["data"]["job"]["__typename"], json!("Job"));
+    assert_eq!(job.body["data"]["job"]["done"], json!(true));
+    assert_eq!(
+        job.body["data"]["job"]["query"],
+        json!({ "__typename": "QueryRoot" })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query CollectionRead($collectionId: ID!, $productId: ID!) {
+          collection(id: $collectionId) {
+            id
+            title
+            products(first: 10) { nodes { id } }
+            productsCount { count precision }
+          }
+          product(id: $productId) {
+            id
+            collections(first: 10) { nodes { id title handle } }
+          }
+        }
+        "#,
+        json!({
+            "collectionId": collection_id,
+            "productId": "gid://shopify/Product/first"
+        }),
+    ));
+    assert_eq!(
+        read.body["data"]["collection"]["products"]["nodes"],
+        json!([{ "id": "gid://shopify/Product/first" }])
+    );
+    assert_eq!(
+        read.body["data"]["collection"]["productsCount"],
+        json!({ "count": 1, "precision": "EXACT" })
+    );
+    assert_eq!(
+        read.body["data"]["product"]["collections"]["nodes"][0]["id"],
+        json!(collection_id)
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteCollection($input: CollectionDeleteInput!) {
+          collectionDelete(input: $input) {
+            deletedCollectionId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": collection_id } }),
+    ));
+    assert_eq!(
+        delete.body["data"]["collectionDelete"]["deletedCollectionId"],
+        json!(collection_id)
+    );
+    let after_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query DeletedCollectionRead($id: ID!) {
+          collection(id: $id) { id }
+          product(id: "gid://shopify/Product/first") {
+            collections(first: 10) { nodes { id } }
+          }
+        }
+        "#,
+        json!({ "id": collection_id }),
+    ));
+    assert_eq!(after_delete.body["data"]["collection"], Value::Null);
+    assert_eq!(
+        after_delete.body["data"]["product"]["collections"]["nodes"],
+        json!([])
+    );
+    assert!(upstream_calls.lock().unwrap().is_empty());
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().unwrap();
+    for root in [
+        "collectionCreate",
+        "collectionUpdate",
+        "collectionAddProducts",
+        "collectionRemoveProducts",
+        "collectionDelete",
+    ] {
+        assert!(
+            entries.iter().any(
+                |entry| entry["interpreted"]["primaryRootField"] == json!(root)
+                    && entry["status"] == json!("staged")
+                    && entry["rawBody"].as_str().unwrap_or_default().contains(root)
+            ),
+            "missing staged log entry for {root}: {log}"
+        );
+    }
+}
+
+#[test]
+fn collection_validations_and_reorder_are_store_backed() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![
+        ProductRecord {
+            id: "gid://shopify/Product/first".to_string(),
+            title: "First Product".to_string(),
+            handle: "first-product".to_string(),
+            status: "ACTIVE".to_string(),
+            ..ProductRecord::default()
+        },
+        ProductRecord {
+            id: "gid://shopify/Product/second".to_string(),
+            title: "Second Product".to_string(),
+            handle: "second-product".to_string(),
+            status: "ACTIVE".to_string(),
+            ..ProductRecord::default()
+        },
+    ]);
+
+    let long_title = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LongCollectionTitle($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "T".repeat(256) } }),
+    ));
+    assert_eq!(
+        long_title.body["data"]["collectionCreate"]["userErrors"],
+        json!([{
+            "field": ["title"],
+            "message": "Title is too long (maximum is 255 characters)"
+        }])
+    );
+
+    let invalid_sort = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidCollectionSort($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "Invalid Sort", "sortOrder": "NOT_REAL" } }),
+    ));
+    assert_eq!(
+        invalid_sort.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        invalid_sort.body["errors"][0]["extensions"]["problems"][0]["path"],
+        json!(["sortOrder"])
+    );
+
+    let smart_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SmartCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id ruleSet { rules { column relation condition } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Smart Collection",
+                "ruleSet": {
+                    "appliedDisjunctively": false,
+                    "rules": [{ "column": "TITLE", "relation": "CONTAINS", "condition": "First" }]
+                }
+            }
+        }),
+    ));
+    let smart_id = smart_create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let smart_add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SmartAdd($id: ID!, $productIds: [ID!]!) {
+          collectionAddProductsV2(id: $id, productIds: $productIds) {
+            job { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": smart_id,
+            "productIds": ["gid://shopify/Product/first"]
+        }),
+    ));
+    assert_eq!(
+        smart_add.body["data"]["collectionAddProductsV2"]["job"],
+        Value::Null
+    );
+    assert_eq!(
+        smart_add.body["data"]["collectionAddProductsV2"]["userErrors"],
+        json!([{
+            "field": ["id"],
+            "message": "Can't manually add products to a smart collection"
+        }])
+    );
+
+    let custom_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomCollection($input: CollectionInput!) {
+          collectionCreate(input: $input) {
+            collection { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "title": "Manual Collection", "sortOrder": "MANUAL" } }),
+    ));
+    let custom_id = custom_create.body["data"]["collectionCreate"]["collection"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let add_v2 = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AddV2($id: ID!, $productIds: [ID!]!) {
+          collectionAddProductsV2(id: $id, productIds: $productIds) {
+            job { id done query { __typename } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": custom_id,
+            "productIds": ["gid://shopify/Product/first", "gid://shopify/Product/second"]
+        }),
+    ));
+    assert_eq!(
+        add_v2.body["data"]["collectionAddProductsV2"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        add_v2.body["data"]["collectionAddProductsV2"]["job"]["done"],
+        json!(false)
+    );
+    assert_eq!(
+        add_v2.body["data"]["collectionAddProductsV2"]["job"]["query"],
+        Value::Null
+    );
+
+    let reorder = proxy.process_request(json_graphql_request(
+        r#"
+        mutation Reorder($id: ID!, $moves: [MoveInput!]!) {
+          collectionReorderProducts(id: $id, moves: $moves) {
+            job { id done }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": custom_id,
+            "moves": [{ "id": "gid://shopify/Product/second", "newPosition": "0" }]
+        }),
+    ));
+    assert_eq!(
+        reorder.body["data"]["collectionReorderProducts"]["userErrors"],
+        json!([])
+    );
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReorderedCollection($id: ID!) {
+          collection(id: $id) {
+            products(first: 10, sortKey: MANUAL) { nodes { id } }
+          }
+        }
+        "#,
+        json!({ "id": custom_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["collection"]["products"]["nodes"],
+        json!([
+            { "id": "gid://shopify/Product/second" },
+            { "id": "gid://shopify/Product/first" }
+        ])
+    );
+
+    let too_many = proxy.process_request(json_graphql_request(
+        r#"
+        mutation TooMany($id: ID!, $productIds: [ID!]!) {
+          collectionRemoveProducts(id: $id, productIds: $productIds) {
+            job { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": custom_id, "productIds": vec!["gid://shopify/Product/first"; 251] }),
+    ));
+    assert_eq!(
+        too_many.body["errors"][0]["extensions"]["code"],
+        json!("MAX_INPUT_SIZE_EXCEEDED")
+    );
+}

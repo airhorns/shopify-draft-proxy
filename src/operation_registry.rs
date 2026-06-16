@@ -233,10 +233,13 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("productUpdate", CapabilityDomain::Products),
     local_mutation("productDelete", CapabilityDomain::Products),
     local_mutation("productChangeStatus", CapabilityDomain::Products),
-    local_mutation("productVariantsBulkCreate", CapabilityDomain::Products),
-    local_mutation("productVariantsBulkUpdate", CapabilityDomain::Products),
-    local_mutation("productVariantsBulkDelete", CapabilityDomain::Products),
-    local_mutation("productVariantsBulkReorder", CapabilityDomain::Products),
+    local_mutation("collectionCreate", CapabilityDomain::Products),
+    local_mutation("collectionUpdate", CapabilityDomain::Products),
+    local_mutation("collectionDelete", CapabilityDomain::Products),
+    local_mutation("collectionAddProducts", CapabilityDomain::Products),
+    local_mutation("collectionAddProductsV2", CapabilityDomain::Products),
+    local_mutation("collectionRemoveProducts", CapabilityDomain::Products),
+    local_mutation("collectionReorderProducts", CapabilityDomain::Products),
     local_mutation("productVariantCreate", CapabilityDomain::Products),
     local_mutation("productVariantUpdate", CapabilityDomain::Products),
     local_mutation("productVariantDelete", CapabilityDomain::Products),
@@ -306,9 +309,6 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("discountCodeActivate", CapabilityDomain::Discounts),
     local_mutation("discountCodeDeactivate", CapabilityDomain::Discounts),
     local_mutation("discountCodeDelete", CapabilityDomain::Discounts),
-    local_mutation("discountCodeBulkActivate", CapabilityDomain::Discounts),
-    local_mutation("discountCodeBulkDeactivate", CapabilityDomain::Discounts),
-    local_mutation("discountCodeBulkDelete", CapabilityDomain::Discounts),
     local_mutation("discountRedeemCodeBulkAdd", CapabilityDomain::Discounts),
     local_mutation(
         "discountCodeRedeemCodeBulkDelete",
@@ -333,7 +333,6 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("discountAutomaticActivate", CapabilityDomain::Discounts),
     local_mutation("discountAutomaticDeactivate", CapabilityDomain::Discounts),
     local_mutation("discountAutomaticDelete", CapabilityDomain::Discounts),
-    local_mutation("discountAutomaticBulkDelete", CapabilityDomain::Discounts),
     local_query("metaobject", CapabilityDomain::Metaobjects),
     local_query("metaobjectByHandle", CapabilityDomain::Metaobjects),
     local_query("metaobjects", CapabilityDomain::Metaobjects),
@@ -368,70 +367,8 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
         "giftCardSendNotificationToRecipient",
         CapabilityDomain::GiftCards,
     ),
-    local_mutation(
-        "customerEmailMarketingConsentUpdate",
-        CapabilityDomain::Customers,
-    ),
-    local_mutation(
-        "customerSmsMarketingConsentUpdate",
-        CapabilityDomain::Customers,
-    ),
     local_mutation("locationAdd", CapabilityDomain::StoreProperties),
     local_mutation("locationActivate", CapabilityDomain::StoreProperties),
-    local_query("fulfillmentOrder", CapabilityDomain::ShippingFulfillments),
-    local_query("fulfillmentOrders", CapabilityDomain::ShippingFulfillments),
-    local_query(
-        "manualHoldsFulfillmentOrders",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrderHold",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrderReleaseHold",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrderMove",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrderOpen",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrderCancel",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrderReportProgress",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrdersSetFulfillmentDeadline",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrderSplit",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrderMerge",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrderClose",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrderReschedule",
-        CapabilityDomain::ShippingFulfillments,
-    ),
-    local_mutation(
-        "fulfillmentOrdersReroute",
-        CapabilityDomain::ShippingFulfillments,
-    ),
 ];
 
 const fn local_query(name: &'static str, domain: CapabilityDomain) -> LocalDispatchRoot {
