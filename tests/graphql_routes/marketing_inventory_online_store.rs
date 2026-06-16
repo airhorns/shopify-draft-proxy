@@ -136,6 +136,256 @@ fn marketing_external_activity_lifecycle_stages_updates_engagements_and_reads_ba
 }
 
 #[test]
+fn marketing_external_activity_stages_spend_schedule_and_referring_domain() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($input: MarketingActivityCreateExternalInput!) {
+          createExternal: marketingActivityCreateExternal(input: $input) {
+            marketingActivity {
+              id
+              adSpend { amount currencyCode }
+              scheduledToStartAt
+              scheduledToEndAt
+              referringDomain
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "title": "Spring promo",
+            "remoteId": "external-field-roundtrip",
+            "status": "ACTIVE",
+            "tactic": "AD",
+            "marketingChannelType": "SEARCH",
+            "utm": {"campaign": "external-field-roundtrip", "source": "ads", "medium": "cpc"},
+            "adSpend": {"amount": "25.00", "currencyCode": "USD"},
+            "scheduledStart": "2026-05-01T00:00:00Z",
+            "scheduledEnd": "2026-05-31T00:00:00Z",
+            "referringDomain": "https://ads.example.com"
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["createExternal"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["createExternal"]["marketingActivity"]["adSpend"],
+        json!({"amount": "25.0", "currencyCode": "USD"})
+    );
+    assert_eq!(
+        create.body["data"]["createExternal"]["marketingActivity"]["scheduledToStartAt"],
+        json!("2026-05-01T00:00:00Z")
+    );
+    assert_eq!(
+        create.body["data"]["createExternal"]["marketingActivity"]["scheduledToEndAt"],
+        json!("2026-05-31T00:00:00Z")
+    );
+    assert_eq!(
+        create.body["data"]["createExternal"]["marketingActivity"]["referringDomain"],
+        json!("https://ads.example.com")
+    );
+    let activity_id = create.body["data"]["createExternal"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingActivityRead($id: ID!, $remoteIds: [String!]) {
+          marketingActivity(id: $id) {
+            adSpend { amount currencyCode }
+            scheduledToStartAt
+            scheduledToEndAt
+            referringDomain
+          }
+          marketingActivities(first: 10, remoteIds: $remoteIds) {
+            nodes {
+              adSpend { amount currencyCode }
+              scheduledToStartAt
+              scheduledToEndAt
+              referringDomain
+            }
+          }
+        }
+        "#,
+        json!({
+            "id": activity_id,
+            "remoteIds": ["external-field-roundtrip"]
+        }),
+    ));
+    let expected = json!({
+        "adSpend": {"amount": "25.0", "currencyCode": "USD"},
+        "scheduledToStartAt": "2026-05-01T00:00:00Z",
+        "scheduledToEndAt": "2026-05-31T00:00:00Z",
+        "referringDomain": "https://ads.example.com"
+    });
+    assert_eq!(read.body["data"]["marketingActivity"], expected);
+    assert_eq!(
+        read.body["data"]["marketingActivities"]["nodes"][0],
+        expected
+    );
+}
+
+#[test]
+fn marketing_external_activity_update_and_upsert_preserve_omitted_spend_schedule_and_domain() {
+    let mut proxy = snapshot_proxy();
+    let setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle(
+          $updateSeed: MarketingActivityCreateExternalInput!
+          $upsertSeed: MarketingActivityUpsertExternalInput!
+        ) {
+          updateSeed: marketingActivityCreateExternal(input: $updateSeed) {
+            marketingActivity { id }
+            userErrors { field message code }
+          }
+          upsertSeed: marketingActivityUpsertExternal(input: $upsertSeed) {
+            marketingActivity { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "updateSeed": {
+                "title": "Update preserve seed",
+                "remoteId": "external-update-preserve",
+                "status": "ACTIVE",
+                "tactic": "AD",
+                "marketingChannelType": "SEARCH",
+                "utm": {"campaign": "external-update-preserve", "source": "ads", "medium": "cpc"},
+                "adSpend": {"amount": "25.00", "currencyCode": "USD"},
+                "scheduledStart": "2026-05-01T00:00:00Z",
+                "scheduledEnd": "2026-05-31T00:00:00Z",
+                "referringDomain": "https://ads.example.com"
+            },
+            "upsertSeed": {
+                "title": "Upsert preserve seed",
+                "remoteId": "external-upsert-preserve",
+                "status": "ACTIVE",
+                "tactic": "AD",
+                "marketingChannelType": "SEARCH",
+                "utm": {"campaign": "external-upsert-preserve", "source": "ads", "medium": "cpc"},
+                "adSpend": {"amount": "45.00", "currencyCode": "USD"},
+                "scheduledStart": "2026-07-01T00:00:00Z",
+                "scheduledEnd": "2026-07-31T00:00:00Z",
+                "referringDomain": "https://ads-upsert.example.com"
+            }
+        }),
+    ));
+    assert_eq!(setup.body["data"]["updateSeed"]["userErrors"], json!([]));
+    assert_eq!(setup.body["data"]["upsertSeed"]["userErrors"], json!([]));
+    let update_activity_id = setup.body["data"]["updateSeed"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let upsert_activity_id = setup.body["data"]["upsertSeed"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let changed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycleUpdate(
+          $updateRemoteId: String!
+          $updateInput: MarketingActivityUpdateExternalInput!
+          $upsertInput: MarketingActivityUpsertExternalInput!
+        ) {
+          updateExternal: marketingActivityUpdateExternal(remoteId: $updateRemoteId, input: $updateInput) {
+            marketingActivity {
+              title
+              sourceAndMedium
+              adSpend { amount currencyCode }
+              scheduledToStartAt
+              scheduledToEndAt
+              referringDomain
+            }
+            userErrors { field message code }
+          }
+          upsertExternal: marketingActivityUpsertExternal(input: $upsertInput) {
+            marketingActivity {
+              title
+              sourceAndMedium
+              adSpend { amount currencyCode }
+              scheduledToStartAt
+              scheduledToEndAt
+              referringDomain
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "updateRemoteId": "external-update-preserve",
+            "updateInput": {"title": "Update preserve changed"},
+            "upsertInput": {
+                "remoteId": "external-upsert-preserve",
+                "title": "Upsert preserve changed",
+                "utm": {"campaign": "external-upsert-preserve", "source": "ads", "medium": "cpc"}
+            }
+        }),
+    ));
+    assert_eq!(
+        changed.body["data"]["updateExternal"]["marketingActivity"],
+        json!({
+            "title": "Update preserve changed",
+            "sourceAndMedium": "https://ads.example.com ad",
+            "adSpend": {"amount": "25.0", "currencyCode": "USD"},
+            "scheduledToStartAt": "2026-05-01T00:00:00Z",
+            "scheduledToEndAt": "2026-05-31T00:00:00Z",
+            "referringDomain": "https://ads.example.com"
+        })
+    );
+    assert_eq!(
+        changed.body["data"]["upsertExternal"]["marketingActivity"],
+        json!({
+            "title": "Upsert preserve changed",
+            "sourceAndMedium": "https://ads-upsert.example.com ad",
+            "adSpend": {"amount": "45.0", "currencyCode": "USD"},
+            "scheduledToStartAt": "2026-07-01T00:00:00Z",
+            "scheduledToEndAt": "2026-07-31T00:00:00Z",
+            "referringDomain": "https://ads-upsert.example.com"
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingActivityRead($updateActivityId: ID!, $upsertActivityId: ID!) {
+          updateActivity: marketingActivity(id: $updateActivityId) {
+            title
+            sourceAndMedium
+            adSpend { amount currencyCode }
+            scheduledToStartAt
+            scheduledToEndAt
+            referringDomain
+          }
+          upsertActivity: marketingActivity(id: $upsertActivityId) {
+            title
+            sourceAndMedium
+            adSpend { amount currencyCode }
+            scheduledToStartAt
+            scheduledToEndAt
+            referringDomain
+          }
+        }
+        "#,
+        json!({
+            "updateActivityId": update_activity_id,
+            "upsertActivityId": upsert_activity_id
+        }),
+    ));
+    assert_eq!(
+        read.body["data"]["updateActivity"],
+        changed.body["data"]["updateExternal"]["marketingActivity"]
+    );
+    assert_eq!(
+        read.body["data"]["upsertActivity"],
+        changed.body["data"]["upsertExternal"]["marketingActivity"]
+    );
+}
+
+#[test]
 fn marketing_external_activity_update_and_upsert_reject_tactic_change_from_storefront_app() {
     let mut proxy = snapshot_proxy();
     let setup = proxy.process_request(json_graphql_request(
