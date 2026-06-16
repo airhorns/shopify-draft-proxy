@@ -4095,3 +4095,48 @@ fn customer_update_inline_consent_error(field: &str, mutation: &str) -> Value {
         "message": format!("To update {field}, please use the {mutation} Mutation instead")
     })
 }
+
+pub(in crate::proxy) fn default_email_address_value(email: &str) -> Value {
+    if email.is_empty() {
+        return Value::Null;
+    }
+    json!({
+        "emailAddress": email,
+        "marketingState": "NOT_SUBSCRIBED",
+        "marketingOptInLevel": "SINGLE_OPT_IN",
+        "marketingUpdatedAt": Value::Null
+    })
+}
+
+pub(in crate::proxy) fn default_phone_number_value(phone: &str) -> Value {
+    json!({
+        "phoneNumber": phone,
+        "marketingState": "NOT_SUBSCRIBED",
+        "marketingOptInLevel": "SINGLE_OPT_IN",
+        "marketingUpdatedAt": Value::Null,
+        "marketingCollectedFrom": Value::Null
+    })
+}
+
+pub(in crate::proxy) fn email_marketing_consent_value(email: &str) -> Value {
+    if email.is_empty() {
+        return Value::Null;
+    }
+    json!({
+        "marketingState": "NOT_SUBSCRIBED",
+        "marketingOptInLevel": "SINGLE_OPT_IN",
+        "consentUpdatedAt": Value::Null
+    })
+}
+
+pub(in crate::proxy) fn sms_marketing_consent_value(phone: &str) -> Value {
+    if phone.is_empty() {
+        return Value::Null;
+    }
+    json!({
+        "marketingState": "NOT_SUBSCRIBED",
+        "marketingOptInLevel": "SINGLE_OPT_IN",
+        "consentUpdatedAt": Value::Null,
+        "consentCollectedFrom": Value::Null
+    })
+}
