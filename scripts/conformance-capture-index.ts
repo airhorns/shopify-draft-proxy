@@ -8659,8 +8659,6 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${LOCAL_RUNTIME_ROOT}gift-card-entitlement-disabled.json`,
       `${LOCAL_RUNTIME_ROOT}gift-card-create-notify.json`,
-      `${LOCAL_RUNTIME_ROOT}gift-card-notification-trial-shop.json`,
-      'config/parity-specs/gift-cards/gift-card-notification-trial-shop.json',
     ],
     cleanupBehavior:
       'No Shopify cleanup required; fixtures encode deterministic local-runtime fallback evidence for unrecordable branches.',
