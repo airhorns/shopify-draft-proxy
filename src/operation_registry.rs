@@ -440,6 +440,13 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
         "giftCardSendNotificationToRecipient",
         CapabilityDomain::GiftCards,
     ),
+    local_query("customer", CapabilityDomain::Customers),
+    local_query("customers", CapabilityDomain::Customers),
+    local_query("customersCount", CapabilityDomain::Customers),
+    local_query("customerByIdentifier", CapabilityDomain::Customers),
+    local_mutation("customerAddTaxExemptions", CapabilityDomain::Customers),
+    local_mutation("customerRemoveTaxExemptions", CapabilityDomain::Customers),
+    local_mutation("customerReplaceTaxExemptions", CapabilityDomain::Customers),
     local_query(
         "locationsAvailableForDeliveryProfilesConnection",
         CapabilityDomain::ShippingFulfillments,
