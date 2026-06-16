@@ -361,7 +361,10 @@ fn records_supported_product_mutations_in_meta_log_with_raw_replay_inputs() {
                     json!({}),
                     "productCreate",
                     "products",
-                    json!(["gid://shopify/Product/1?shopify-draft-proxy=synthetic"])
+                    json!([
+                        "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                        "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic"
+                    ])
                 ),
                 expected_local_staged_log(
                     "log-2",
@@ -394,7 +397,10 @@ fn product_mutation_outcomes_finalize_exactly_one_log_draft() {
         json!({}),
         "productCreate",
         "products",
-        json!(["gid://shopify/Product/1?shopify-draft-proxy=synthetic"]),
+        json!([
+            "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+            "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic"
+        ]),
     );
 
     let update_query = "mutation { productUpdate(product: { id: \"gid://shopify/Product/base\", title: \"Updated product\" }) { product { id title } userErrors { field message code } } }";
@@ -819,8 +825,28 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
             },
             "productOrder": ["gid://shopify/Product/1?shopify-draft-proxy=synthetic"],
             "deletedProductIds": ["gid://shopify/Product/base"],
-            "productVariants": {},
-            "productVariantOrder": [],
+            "productVariants": {
+                "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic": {
+                    "id": "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic",
+                    "productId": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                    "title": "Default Title",
+                    "sku": "",
+                    "barcode": null,
+                    "price": "0.00",
+                    "compareAtPrice": null,
+                    "taxable": true,
+                    "inventoryPolicy": "DENY",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [{ "name": "Title", "value": "Default Title" }],
+                    "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/3?shopify-draft-proxy=synthetic",
+                        "tracked": false,
+                        "requiresShipping": true
+                    },
+                    "mediaIds": []
+                }
+            },
+            "productVariantOrder": ["gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic"],
             "deletedProductVariantIds": [],
             "shippingPackages": {},
             "deletedShippingPackageIds": {},
@@ -849,14 +875,14 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
             "publicationIds": [],
             "createdPublicationIds": [],
             "savedSearches": {
-                "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic": {
-                    "id": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic",
+                "gid://shopify/SavedSearch/4?shopify-draft-proxy=synthetic": {
+                    "id": "gid://shopify/SavedSearch/4?shopify-draft-proxy=synthetic",
                     "name": "Promo products",
                     "query": "tag:promo",
                     "resourceType": "PRODUCT"
                 }
             },
-            "savedSearchOrder": ["gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic"],
+            "savedSearchOrder": ["gid://shopify/SavedSearch/4?shopify-draft-proxy=synthetic"],
             "deletedSavedSearchIds": []
         }
     });
@@ -966,7 +992,7 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
             "data": {
                 "productSavedSearches": {
                     "nodes": [{
-                        "id": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic",
+                        "id": "gid://shopify/SavedSearch/4?shopify-draft-proxy=synthetic",
                         "name": "Promo products",
                         "query": "tag:promo",
                         "resourceType": "PRODUCT"
@@ -984,7 +1010,7 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
     ));
     assert_eq!(
         next_create.body["data"]["productCreate"]["product"]["id"],
-        json!("gid://shopify/Product/3?shopify-draft-proxy=synthetic")
+        json!("gid://shopify/Product/5?shopify-draft-proxy=synthetic")
     );
 }
 

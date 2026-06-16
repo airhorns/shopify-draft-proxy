@@ -2298,7 +2298,11 @@ impl DraftProxy {
                     && has_local_dispatch
                     && matches!(
                         root_field,
-                        "productVariantCreate" | "productVariantUpdate" | "productVariantDelete"
+                        "productVariantCreate"
+                            | "productVariantUpdate"
+                            | "productVariantDelete"
+                            | "productVariantAppendMedia"
+                            | "productVariantDetachMedia"
                     ) =>
             {
                 let outcome = self.product_variant_mutation(root_field, &query, &variables);
