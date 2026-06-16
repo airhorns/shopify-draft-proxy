@@ -1176,7 +1176,7 @@ impl DraftProxy {
                     "namespace": namespace,
                     "key": key,
                     "type": metafield_type,
-                    "value": value,
+                    "value": normalize_metafield_value_string(&metafield_type, &value),
                     "jsonValue": metafield_json_value(&metafield_type, &value),
                     "compareDigest": compare_digest,
                     "createdAt": created_at,

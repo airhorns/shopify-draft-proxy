@@ -45,20 +45,439 @@ pub(in crate::proxy) fn owner_type_from_gid(id: &str) -> &'static str {
     }
 }
 
+/// Normalize a metafield `value` STRING the way Shopify echoes it back.
+/// Mirrors Gleam `normalize_metafield_value`. Most types pass through
+/// unchanged; date_time gains a `+00:00` offset, rating keys are reordered,
+/// and measurement / list-measurement values are reformatted (float-style
+/// number + UPPERCASE unit). Value strings are built manually because key
+/// order is observable and serde_json::Map sorts keys alphabetically.
+pub(in crate::proxy) fn normalize_metafield_value_string(metafield_type: &str, value: &str) -> String {
+    match metafield_type {
+        "date_time" => normalize_date_time_value(value),
+        "rating" => normalize_rating_value_string(value),
+        _ => {
+            if let Some(inner) = metafield_type.strip_prefix("list.") {
+                normalize_list_metafield_value_string(inner, value)
+            } else if is_measurement_metafield_type_name(metafield_type) {
+                normalize_measurement_value_string(value)
+            } else {
+                value.to_string()
+            }
+        }
+    }
+}
+
+/// Compute a metafield `jsonValue` from its type + raw value string.
+/// Mirrors Gleam `parse_metafield_json_value`. jsonValue is compared
+/// structurally, so these can be built with `json!`/serde maps.
 pub(in crate::proxy) fn metafield_json_value(metafield_type: &str, value: &str) -> Value {
     match metafield_type {
-        "boolean" => Value::Bool(value == "true"),
-        "number_integer" => value
-            .parse::<i64>()
-            .map(Value::from)
-            .unwrap_or_else(|_| json!(value)),
-        "json" | "rich_text_field" | "rating" | "link" | "money" => {
-            serde_json::from_str(value).unwrap_or_else(|_| json!(value))
+        "date_time" => Value::String(normalize_date_time_value(value)),
+        "number_decimal" | "float" => Value::String(value.to_string()),
+        "rating" => parse_rating_json_value(value),
+        _ => {
+            if let Some(inner) = metafield_type.strip_prefix("list.") {
+                parse_list_metafield_json_value(inner, value)
+            } else if is_measurement_metafield_type_name(metafield_type) {
+                parse_measurement_json_value(metafield_type, value)
+            } else if should_parse_metafield_json_value(metafield_type) {
+                parse_json_or_string(value)
+            } else {
+                match metafield_type {
+                    "number_integer" | "integer" => value
+                        .parse::<i64>()
+                        .map(Value::from)
+                        .unwrap_or_else(|_| Value::String(value.to_string())),
+                    "boolean" => Value::Bool(value == "true"),
+                    _ => Value::String(value.to_string()),
+                }
+            }
         }
-        value_type if value_type.starts_with("list.") || value.trim_start().starts_with('{') => {
-            serde_json::from_str(value).unwrap_or_else(|_| json!(value))
+    }
+}
+
+fn parse_json_or_string(raw: &str) -> Value {
+    serde_json::from_str(raw).unwrap_or_else(|_| Value::String(raw.to_string()))
+}
+
+/// JSON-encode a string (with surrounding quotes + escaping) so value
+/// strings can be assembled by hand while preserving key order.
+fn json_quote(value: &str) -> String {
+    Value::String(value.to_string()).to_string()
+}
+
+/// Gleam `float.to_string` renders whole values with a trailing `.0`
+/// (`5.0`, not `5`); Rust's `{}` drops it. Mirror the Gleam behavior.
+fn float_to_string(value: f64) -> String {
+    if value.is_finite() && value.fract() == 0.0 {
+        format!("{}.0", value.trunc() as i64)
+    } else {
+        format!("{value}")
+    }
+}
+
+fn normalize_date_time_value(value: &str) -> String {
+    if value.to_lowercase().ends_with('z') {
+        format!("{}+00:00", &value[..value.len() - 1])
+    } else if has_timezone_offset(value) {
+        value.to_string()
+    } else {
+        format!("{value}+00:00")
+    }
+}
+
+fn has_timezone_offset(value: &str) -> bool {
+    let chars: Vec<char> = value.chars().collect();
+    let len = chars.len();
+    if len < 6 {
+        return false;
+    }
+    let sign = chars[len - 6];
+    let colon = chars[len - 3];
+    (sign == '+' || sign == '-') && colon == ':'
+}
+
+fn should_parse_metafield_json_value(type_name: &str) -> bool {
+    type_name.starts_with("list.") || JSON_OBJECT_METAFIELD_TYPES.contains(&type_name)
+}
+
+const JSON_OBJECT_METAFIELD_TYPES: &[&str] = &[
+    "antenna_gain",
+    "area",
+    "battery_charge_capacity",
+    "battery_energy_capacity",
+    "capacitance",
+    "concentration",
+    "data_storage_capacity",
+    "data_transfer_rate",
+    "dimension",
+    "display_density",
+    "distance",
+    "duration",
+    "electric_current",
+    "electrical_resistance",
+    "energy",
+    "frequency",
+    "illuminance",
+    "inductance",
+    "json",
+    "json_string",
+    "link",
+    "luminous_flux",
+    "mass_flow_rate",
+    "money",
+    "power",
+    "pressure",
+    "rating",
+    "resolution",
+    "rich_text_field",
+    "rotational_speed",
+    "sound_level",
+    "speed",
+    "temperature",
+    "thermal_power",
+    "voltage",
+    "volume",
+    "volumetric_flow_rate",
+    "weight",
+];
+
+const MEASUREMENT_METAFIELD_TYPES: &[&str] = &[
+    "antenna_gain",
+    "area",
+    "battery_charge_capacity",
+    "battery_energy_capacity",
+    "capacitance",
+    "concentration",
+    "data_storage_capacity",
+    "data_transfer_rate",
+    "dimension",
+    "display_density",
+    "distance",
+    "duration",
+    "electric_current",
+    "electrical_resistance",
+    "energy",
+    "frequency",
+    "illuminance",
+    "inductance",
+    "luminous_flux",
+    "mass_flow_rate",
+    "power",
+    "pressure",
+    "resolution",
+    "rotational_speed",
+    "sound_level",
+    "speed",
+    "temperature",
+    "thermal_power",
+    "voltage",
+    "volume",
+    "volumetric_flow_rate",
+    "weight",
+];
+
+fn is_measurement_metafield_type_name(type_name: &str) -> bool {
+    MEASUREMENT_METAFIELD_TYPES.contains(&type_name)
+}
+
+fn json_string_field(fields: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
+    match fields.get(key) {
+        Some(Value::String(value)) => Some(value.clone()),
+        _ => None,
+    }
+}
+
+/// Read a numeric field as a `jsonValue` number: ints stay ints, floats
+/// collapse to ints when whole. Mirrors Gleam `json_number_field`.
+fn json_number_field(fields: &serde_json::Map<String, Value>, key: &str) -> Option<Value> {
+    match fields.get(key) {
+        Some(Value::Number(number)) => {
+            if let Some(int_value) = number.as_i64() {
+                Some(Value::from(int_value))
+            } else {
+                number.as_f64().map(json_number_from_float)
+            }
         }
-        _ => json!(value),
+        Some(Value::String(text)) => {
+            if let Ok(int_value) = text.parse::<i64>() {
+                Some(Value::from(int_value))
+            } else {
+                text.parse::<f64>().ok().map(json_number_from_float)
+            }
+        }
+        _ => None,
+    }
+}
+
+fn json_number_from_float(value: f64) -> Value {
+    if value.is_finite() && value.fract() == 0.0 {
+        Value::from(value.trunc() as i64)
+    } else {
+        Value::from(value)
+    }
+}
+
+/// Read a numeric field as a value-STRING component: ints render `n.0`,
+/// floats render via `float_to_string`. Mirrors Gleam
+/// `json_number_string_field`.
+fn json_number_string_field(fields: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
+    match fields.get(key) {
+        Some(Value::Number(number)) => {
+            if let Some(int_value) = number.as_i64() {
+                Some(format!("{int_value}.0"))
+            } else {
+                number.as_f64().map(float_to_string)
+            }
+        }
+        Some(Value::String(text)) => {
+            if let Ok(int_value) = text.parse::<i64>() {
+                Some(format!("{int_value}.0"))
+            } else {
+                text.parse::<f64>().ok().map(float_to_string)
+            }
+        }
+        _ => None,
+    }
+}
+
+fn normalize_list_measurement_unit(type_name: &str, unit: &str) -> String {
+    let lowered = unit.to_lowercase();
+    match (type_name, lowered.as_str()) {
+        ("dimension", "centimeters") => "cm".to_string(),
+        ("volume", "milliliters") => "ml".to_string(),
+        ("weight", "kilograms") => "kg".to_string(),
+        _ => lowered,
+    }
+}
+
+fn normalize_measurement_value_string(raw: &str) -> String {
+    match serde_json::from_str::<Value>(raw) {
+        Ok(Value::Object(fields)) => {
+            match (
+                json_number_string_field(&fields, "value"),
+                json_string_field(&fields, "unit"),
+            ) {
+                (Some(value_string), Some(unit)) => format!(
+                    "{{\"value\":{},\"unit\":{}}}",
+                    value_string,
+                    json_quote(&unit.to_uppercase())
+                ),
+                _ => raw.to_string(),
+            }
+        }
+        _ => raw.to_string(),
+    }
+}
+
+fn normalize_measurement_json_object(
+    type_name: &str,
+    item: &Value,
+    list_json_unit: bool,
+) -> Option<Value> {
+    let fields = item.as_object()?;
+    let value = json_number_field(fields, "value")?;
+    let unit = json_string_field(fields, "unit")?;
+    let normalized_unit = if list_json_unit {
+        normalize_list_measurement_unit(type_name, &unit).to_lowercase()
+    } else {
+        unit.to_uppercase()
+    };
+    Some(json!({ "value": value, "unit": normalized_unit }))
+}
+
+fn parse_measurement_json_value(type_name: &str, raw: &str) -> Value {
+    serde_json::from_str::<Value>(raw)
+        .ok()
+        .as_ref()
+        .and_then(|parsed| normalize_measurement_json_object(type_name, parsed, false))
+        .unwrap_or_else(|| parse_json_or_string(raw))
+}
+
+fn serialize_measurement_value_object(item: &Value) -> Option<String> {
+    let fields = item.as_object()?;
+    let value_string = json_number_string_field(fields, "value")?;
+    let unit = json_string_field(fields, "unit")?;
+    Some(format!(
+        "{{\"value\":{},\"unit\":{}}}",
+        value_string,
+        json_quote(&unit.to_uppercase())
+    ))
+}
+
+fn rating_parts(value: &Value) -> Option<(String, String, String)> {
+    let fields = value.as_object()?;
+    let scale_min = json_string_field(fields, "scale_min")?;
+    let scale_max = json_string_field(fields, "scale_max")?;
+    let rating = json_string_field(fields, "value")?;
+    Some((scale_min, scale_max, rating))
+}
+
+fn rating_object_value(value: &Value) -> Option<Value> {
+    rating_parts(value).map(|(scale_min, scale_max, rating)| {
+        json!({ "scale_min": scale_min, "scale_max": scale_max, "value": rating })
+    })
+}
+
+fn rating_value_object_string(value: &Value) -> Option<String> {
+    rating_parts(value).map(|(scale_min, scale_max, rating)| {
+        format!(
+            "{{\"scale_min\":{},\"scale_max\":{},\"value\":{}}}",
+            json_quote(&scale_min),
+            json_quote(&scale_max),
+            json_quote(&rating)
+        )
+    })
+}
+
+fn parse_rating_json_value(raw: &str) -> Value {
+    serde_json::from_str::<Value>(raw)
+        .ok()
+        .as_ref()
+        .and_then(rating_object_value)
+        .unwrap_or_else(|| parse_json_or_string(raw))
+}
+
+fn normalize_rating_value_string(raw: &str) -> String {
+    serde_json::from_str::<Value>(raw)
+        .ok()
+        .as_ref()
+        .and_then(rating_value_object_string)
+        .unwrap_or_else(|| raw.to_string())
+}
+
+fn parse_list_metafield_json_value(type_name: &str, raw: &str) -> Value {
+    match serde_json::from_str::<Value>(raw) {
+        Ok(Value::Array(items)) => {
+            let mapped = items
+                .iter()
+                .map(|item| match type_name {
+                    "date_time" => match item {
+                        Value::String(text) => Value::String(normalize_date_time_value(text)),
+                        _ => item.clone(),
+                    },
+                    "number_decimal" | "float" => list_decimal_json_item(item),
+                    "rating" => rating_object_value(item).unwrap_or_else(|| item.clone()),
+                    _ => {
+                        if is_measurement_metafield_type_name(type_name) {
+                            normalize_measurement_json_object(type_name, item, true)
+                                .unwrap_or_else(|| item.clone())
+                        } else {
+                            item.clone()
+                        }
+                    }
+                })
+                .collect();
+            Value::Array(mapped)
+        }
+        Ok(other) => other,
+        Err(_) => Value::String(raw.to_string()),
+    }
+}
+
+fn list_decimal_json_item(item: &Value) -> Value {
+    match item {
+        Value::Number(number) => {
+            if let Some(int_value) = number.as_i64() {
+                Value::String(int_value.to_string())
+            } else if let Some(float_value) = number.as_f64() {
+                Value::String(float_to_string(float_value))
+            } else {
+                item.clone()
+            }
+        }
+        Value::String(text) => Value::String(text.clone()),
+        _ => item.clone(),
+    }
+}
+
+fn normalize_list_metafield_value_string(type_name: &str, raw: &str) -> String {
+    match serde_json::from_str::<Value>(raw) {
+        Ok(Value::Array(items)) => match type_name {
+            "date_time" => {
+                let parts: Vec<String> = items
+                    .iter()
+                    .map(|item| match item {
+                        Value::String(text) => json_quote(&normalize_date_time_value(text)),
+                        _ => item.to_string(),
+                    })
+                    .collect();
+                format!("[{}]", parts.join(","))
+            }
+            "number_decimal" | "float" => {
+                let parts: Vec<String> = items
+                    .iter()
+                    .map(|item| list_decimal_json_item(item).to_string())
+                    .collect();
+                format!("[{}]", parts.join(","))
+            }
+            "rating" => {
+                let parts: Vec<String> = items
+                    .iter()
+                    .map(|item| rating_value_object_string(item).unwrap_or_else(|| item.to_string()))
+                    .collect();
+                format!("[{}]", parts.join(","))
+            }
+            _ => {
+                if is_measurement_metafield_type_name(type_name) {
+                    let serialized: Vec<Option<String>> =
+                        items.iter().map(serialize_measurement_value_object).collect();
+                    if serialized.iter().all(Option::is_some) {
+                        let joined = serialized
+                            .into_iter()
+                            .flatten()
+                            .collect::<Vec<_>>()
+                            .join(",");
+                        format!("[{joined}]")
+                    } else {
+                        raw.to_string()
+                    }
+                } else {
+                    raw.to_string()
+                }
+            }
+        },
+        _ => raw.to_string(),
     }
 }
 
