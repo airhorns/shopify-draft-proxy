@@ -2398,9 +2398,14 @@ impl DraftProxy {
             .all(|field| matches!(field.name.as_str(), "order" | "orders" | "ordersCount"));
         if all_reads {
             let staged_order_read = fields.iter().any(|field| match field.name.as_str() {
-                "order" => resolved_string_arg(&field.arguments, "id")
-                    .is_some_and(|id| self.store.staged.orders.contains_key(&id)),
-                "orders" | "ordersCount" => !self.store.staged.orders.is_empty(),
+                "order" => resolved_string_arg(&field.arguments, "id").is_some_and(|id| {
+                    self.store.staged.orders.contains_key(&id)
+                        || self.store.staged.deleted_order_ids.contains(&id)
+                }),
+                "orders" | "ordersCount" => {
+                    !self.store.staged.orders.is_empty()
+                        || !self.store.staged.deleted_order_ids.is_empty()
+                }
                 _ => false,
             });
             if !staged_order_read {
@@ -3449,16 +3454,8 @@ impl DraftProxy {
         }
         if root_field == "orderDelete" {
             let field = field?;
-            return Some(data_response(
-                &field.response_key,
-                selected_json(
-                    &json!({
-                        "deletedId": Value::Null,
-                        "userErrors": [orders_error(&["orderId"], "Order does not exist", "NOT_FOUND")]
-                    }),
-                    &field.selection,
-                ),
-            ));
+            let payload = self.stage_order_delete(request, query, variables, &field)?;
+            return Some(data_response(&field.response_key, payload));
         }
         if root_field == "orderUpdate"
             && resolved_object_field(variables, "input")
@@ -3598,6 +3595,120 @@ impl DraftProxy {
             ));
         }
         None
+    }
+
+    fn stage_order_delete(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        field: &RootFieldSelection,
+    ) -> Option<Value> {
+        let order_id = resolved_string_arg(&field.arguments, "orderId")?;
+        if !self.store.staged.orders.contains_key(&order_id) {
+            return Some(selected_json(
+                &json!({
+                    "deletedId": Value::Null,
+                    "userErrors": [orders_error(&["orderId"], "Order does not exist", "NOT_FOUND")]
+                }),
+                &field.selection,
+            ));
+        }
+
+        self.delete_staged_order(&order_id);
+        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            request,
+            query,
+            variables,
+            root_field: "orderDelete",
+            staged_resource_ids: vec![order_id.clone()],
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally staged orderDelete in shopify-draft-proxy.",
+            },
+        });
+        Some(selected_json(
+            &json!({
+                "deletedId": order_id,
+                "userErrors": []
+            }),
+            &field.selection,
+        ))
+    }
+
+    fn delete_staged_order(&mut self, order_id: &str) {
+        self.store.staged.orders.remove(order_id);
+        self.store
+            .staged
+            .deleted_order_ids
+            .insert(order_id.to_string());
+
+        for orders in self.store.staged.customer_orders.values_mut() {
+            orders.retain(|order| order["id"].as_str() != Some(order_id));
+        }
+        self.store
+            .staged
+            .customer_orders
+            .retain(|_, orders| !orders.is_empty());
+
+        if let Some(terms_id) = self.store.staged.payment_terms_owner_index.remove(order_id) {
+            self.store.staged.payment_terms.remove(&terms_id);
+        }
+
+        if let Some(return_ids) = self.store.staged.returns_by_order.remove(order_id) {
+            for return_id in return_ids {
+                if let Some(record) = self.store.staged.returns.remove(&return_id) {
+                    if let Some(nodes) = record["reverseFulfillmentOrders"]["nodes"].as_array() {
+                        for node in nodes {
+                            if let Some(reverse_id) = node["id"].as_str() {
+                                self.remove_reverse_fulfillment_order(reverse_id);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        self.store.staged.order_customer_orders.remove(order_id);
+        self.store
+            .staged
+            .order_customer_cancelled_ids
+            .remove(order_id);
+        self.store
+            .staged
+            .order_customer_b2b_order_ids
+            .remove(order_id);
+        if self
+            .store
+            .staged
+            .order_payment_transaction_order_id
+            .as_deref()
+            == Some(order_id)
+        {
+            self.store.staged.order_payment_transaction_order_id = None;
+            self.store.staged.order_payment_parent_transaction_id = None;
+            self.store.staged.order_payment_transaction_state = None;
+        }
+    }
+
+    fn remove_reverse_fulfillment_order(&mut self, reverse_id: &str) {
+        self.store
+            .staged
+            .reverse_fulfillment_orders
+            .remove(reverse_id);
+        let delivery_ids = self
+            .store
+            .staged
+            .reverse_deliveries
+            .iter()
+            .filter(|(_, delivery)| {
+                delivery["reverseFulfillmentOrder"]["id"].as_str() == Some(reverse_id)
+            })
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>();
+        for delivery_id in delivery_ids {
+            self.store.staged.reverse_deliveries.remove(&delivery_id);
+        }
     }
 
     pub(in crate::proxy) fn order_payment_transaction_local_data(
@@ -4170,6 +4281,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn order_customer_error_paths_data(
         &mut self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Option<Value> {
@@ -4183,7 +4295,9 @@ impl DraftProxy {
                     self.order_customer_paths_assign_customer(&field)
                 }
                 "orderCreate" => self.order_customer_paths_order_create(&field),
-                "orderCancel" => self.order_customer_paths_cancel_order(&field),
+                "orderCancel" => {
+                    self.order_customer_paths_cancel_order(request, query, variables, &field)
+                }
                 "orderCustomerSet" => Some(self.order_customer_set_error_paths(&field)),
                 "orderCustomerRemove" => Some(self.order_customer_remove_error_paths(&field)),
                 _ => None,
@@ -4313,6 +4427,9 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn order_customer_paths_cancel_order(
         &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
         field: &RootFieldSelection,
     ) -> Option<Value> {
         let order_id = resolved_string_arg(&field.arguments, "orderId")?;
@@ -4350,17 +4467,86 @@ impl DraftProxy {
                 &field.selection,
             ));
         }
-        if !self
+
+        if self.store.staged.orders.contains_key(&order_id) {
+            let already_cancelled = self
+                .store
+                .staged
+                .orders
+                .get(&order_id)
+                .and_then(|order| order.get("cancelledAt"))
+                .is_some_and(|cancelled_at| !cancelled_at.is_null());
+            if already_cancelled {
+                return Some(selected_json(
+                    &error_payload("orderId", "Order has already been cancelled", "INVALID"),
+                    &field.selection,
+                ));
+            }
+
+            let reason =
+                resolved_string_arg(&field.arguments, "reason").unwrap_or_else(|| "OTHER".into());
+            let timestamp = self.order_cancel_timestamp();
+            let job_id = format!(
+                "gid://shopify/Job/{}?shopify-draft-proxy=synthetic",
+                self.log_entries.len() + 1
+            );
+            let order = self
+                .store
+                .staged
+                .orders
+                .get_mut(&order_id)
+                .expect("staged order existence was checked before mutation");
+            order["closed"] = json!(true);
+            order["closedAt"] = json!(timestamp.clone());
+            order["cancelledAt"] = json!(timestamp);
+            order["cancelReason"] = json!(reason);
+            order["updatedAt"] = order["cancelledAt"].clone();
+            let order = order.clone();
+            if let Some(customer_id) = order["customer"]["id"].as_str() {
+                if let Some(customer_orders) =
+                    self.store.staged.customer_orders.get_mut(customer_id)
+                {
+                    for customer_order in customer_orders {
+                        if customer_order["id"].as_str() == Some(order_id.as_str()) {
+                            *customer_order = order.clone();
+                        }
+                    }
+                }
+            }
+            self.record_orders_local_log_entry(OrdersLocalLogEntry {
+                request,
+                query,
+                variables,
+                root_field: "orderCancel",
+                staged_resource_ids: vec![order_id],
+                outcome: OrdersLocalLogOutcome {
+                    status: "staged",
+                    notes: "Locally staged orderCancel in shopify-draft-proxy.",
+                },
+            });
+            return Some(selected_json(
+                &json!({
+                    "order": order,
+                    "job": { "id": job_id, "done": false },
+                    "orderCancelUserErrors": [],
+                    "userErrors": []
+                }),
+                &field.selection,
+            ));
+        }
+
+        let Some(mut order) = self
             .store
             .staged
             .order_customer_orders
-            .contains_key(&order_id)
-        {
+            .get(&order_id)
+            .cloned()
+        else {
             return Some(selected_json(
                 &error_payload("orderId", "Order does not exist", "NOT_FOUND"),
                 &field.selection,
             ));
-        }
+        };
         if self
             .store
             .staged
@@ -4376,15 +4562,44 @@ impl DraftProxy {
             .staged
             .order_customer_cancelled_ids
             .insert(order_id.clone());
+        let reason =
+            resolved_string_arg(&field.arguments, "reason").unwrap_or_else(|| "OTHER".into());
+        let timestamp = self.order_cancel_timestamp();
+        order["closed"] = json!(true);
+        order["closedAt"] = json!(timestamp.clone());
+        order["cancelledAt"] = json!(timestamp);
+        order["cancelReason"] = json!(reason);
+        self.store
+            .staged
+            .order_customer_orders
+            .insert(order_id.clone(), order.clone());
+        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            request,
+            query,
+            variables,
+            root_field: "orderCancel",
+            staged_resource_ids: vec![order_id.clone()],
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally staged orderCancel in shopify-draft-proxy.",
+            },
+        });
         Some(selected_json(
             &json!({
-                "order": { "id": order_id },
+                "order": order,
                 "job": { "id": "gid://shopify/Job/order-customer-cancel", "done": false },
                 "orderCancelUserErrors": [],
                 "userErrors": []
             }),
             &field.selection,
         ))
+    }
+
+    fn order_cancel_timestamp(&self) -> String {
+        format!(
+            "2024-01-01T00:00:{:02}.000Z",
+            (self.log_entries.len() + 1) % 60
+        )
     }
 
     pub(in crate::proxy) fn order_customer_set_error_paths(
