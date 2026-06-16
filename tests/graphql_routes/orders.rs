@@ -3932,6 +3932,305 @@ fn order_mark_as_paid_rejects_unknown_and_non_markable_orders_without_staging() 
 }
 
 #[test]
+fn order_mark_as_paid_stages_from_stored_order_without_money_selection() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMarkableOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id displayFinancialStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "markable-order@example.test",
+                "currency": "CAD",
+                "presentmentCurrency": "USD",
+                "financialStatus": "PENDING",
+                "lineItems": [{
+                    "title": "markable",
+                    "quantity": 1,
+                    "priceSet": {
+                        "shopMoney": { "amount": "17.01", "currencyCode": "CAD" },
+                        "presentmentMoney": { "amount": "12.50", "currencyCode": "USD" }
+                    },
+                    "taxable": false
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let mark = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarkAsPaidWithoutMoneySelection($input: OrderMarkAsPaidInput!) {
+          orderMarkAsPaid(input: $input) {
+            order { id displayFinancialStatus }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": order_id.clone() } }),
+    ));
+    assert_eq!(mark.status, 200);
+    assert_eq!(
+        mark.body["data"]["orderMarkAsPaid"]["order"],
+        json!({
+            "id": order_id,
+            "displayFinancialStatus": "PAID"
+        })
+    );
+    assert_eq!(
+        mark.body["data"]["orderMarkAsPaid"]["userErrors"],
+        json!([])
+    );
+
+    let read_after = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadPaidOrder($id: ID!) {
+          order(id: $id) {
+            id
+            displayFinancialStatus
+            totalOutstandingSet {
+              shopMoney { amount currencyCode }
+              presentmentMoney { amount currencyCode }
+            }
+            totalReceivedSet {
+              shopMoney { amount currencyCode }
+              presentmentMoney { amount currencyCode }
+            }
+            netPaymentSet {
+              shopMoney { amount currencyCode }
+              presentmentMoney { amount currencyCode }
+            }
+            paymentGatewayNames
+            transactions {
+              id
+              kind
+              status
+              gateway
+              amountSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+            }
+          }
+        }
+        "#,
+        json!({ "id": mark.body["data"]["orderMarkAsPaid"]["order"]["id"].clone() }),
+    ));
+    let paid_order = &read_after.body["data"]["order"];
+    assert_eq!(paid_order["displayFinancialStatus"], json!("PAID"));
+    assert_eq!(
+        paid_order["totalOutstandingSet"],
+        json!({
+            "shopMoney": { "amount": "0.0", "currencyCode": "CAD" },
+            "presentmentMoney": { "amount": "0.0", "currencyCode": "USD" }
+        })
+    );
+    assert_eq!(
+        paid_order["totalReceivedSet"],
+        json!({
+            "shopMoney": { "amount": "17.01", "currencyCode": "CAD" },
+            "presentmentMoney": { "amount": "17.01", "currencyCode": "USD" }
+        })
+    );
+    assert_eq!(paid_order["netPaymentSet"], paid_order["totalReceivedSet"]);
+    assert_eq!(paid_order["paymentGatewayNames"], json!(["manual"]));
+    assert_eq!(paid_order["transactions"].as_array().unwrap().len(), 1);
+    assert_eq!(paid_order["transactions"][0]["kind"], json!("SALE"));
+    assert_eq!(
+        paid_order["transactions"][0]["amountSet"],
+        paid_order["totalReceivedSet"]
+    );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().expect("log entries");
+    assert_eq!(entries.len(), 2);
+    assert!(entries[1]["rawBody"]
+        .as_str()
+        .expect("raw body")
+        .contains("MarkAsPaidWithoutMoneySelection"));
+}
+
+#[test]
+fn order_mark_as_paid_rejects_unknown_and_non_markable_orders_without_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownMarkAsPaid($input: OrderMarkAsPaidInput!) {
+          orderMarkAsPaid(input: $input) {
+            order { id totalOutstandingSet { presentmentMoney { amount currencyCode } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Order/999999" } }),
+    ));
+    assert_eq!(unknown.status, 200);
+    assert_eq!(
+        unknown.body["data"]["orderMarkAsPaid"]["order"],
+        Value::Null
+    );
+    assert_eq!(
+        unknown.body["data"]["orderMarkAsPaid"]["userErrors"][0]["field"],
+        json!(["id"])
+    );
+    assert_eq!(
+        unknown.body["data"]["orderMarkAsPaid"]["userErrors"][0]["message"],
+        json!("Order does not exist")
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+    assert_eq!(
+        proxy.get_state_snapshot()["stagedState"]["orders"],
+        json!({})
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateRepeatMarkAsPaidOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id displayFinancialStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "repeat-mark-paid@example.test",
+                "currency": "USD",
+                "financialStatus": "PENDING",
+                "lineItems": [{
+                    "title": "repeat mark paid",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } },
+                    "taxLines": [{
+                        "title": "Tax",
+                        "rate": 0.125,
+                        "priceSet": { "shopMoney": { "amount": "1.50", "currencyCode": "USD" } }
+                    }]
+                }]
+            }
+        }),
+    ));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let mark_query = r#"
+        mutation MarkAsPaidMoneySelection($input: OrderMarkAsPaidInput!) {
+          orderMarkAsPaid(input: $input) {
+            order {
+              id
+              displayFinancialStatus
+              totalOutstandingSet {
+                shopMoney { amount currencyCode }
+                presentmentMoney { amount currencyCode }
+              }
+              transactions {
+                kind
+                status
+                gateway
+                amountSet {
+                  shopMoney { amount currencyCode }
+                  presentmentMoney { amount currencyCode }
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#;
+    let first = proxy.process_request(json_graphql_request(
+        mark_query,
+        json!({ "input": { "id": order_id.clone() } }),
+    ));
+    assert_eq!(
+        first.body["data"]["orderMarkAsPaid"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        first.body["data"]["orderMarkAsPaid"]["order"]["transactions"][0]["amountSet"]["shopMoney"]
+            ["amount"],
+        json!("13.5")
+    );
+
+    let repeat = proxy.process_request(json_graphql_request(
+        mark_query,
+        json!({ "input": { "id": order_id.clone() } }),
+    ));
+    assert_eq!(
+        repeat.body["data"]["orderMarkAsPaid"]["userErrors"][0]["field"],
+        json!(["id"])
+    );
+    assert_eq!(
+        repeat.body["data"]["orderMarkAsPaid"]["userErrors"][0]["message"],
+        json!("Order cannot be marked as paid.")
+    );
+    assert_eq!(
+        repeat.body["data"]["orderMarkAsPaid"]["order"]["transactions"]
+            .as_array()
+            .expect("transactions")
+            .len(),
+        1
+    );
+
+    let cancelled_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateCancelledMarkAsPaidOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id displayFinancialStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "cancelled-mark-paid@example.test",
+                "currency": "USD",
+                "financialStatus": "PENDING",
+                "lineItems": [{
+                    "title": "cancel then mark paid",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    let cancelled_id = cancelled_create.body["data"]["orderCreate"]["order"]["id"].clone();
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CancelBeforeMarkAsPaid($orderId: ID!, $reason: OrderCancelReason!, $restock: Boolean!) {
+          orderCancel(orderId: $orderId, reason: $reason, restock: $restock) {
+            order { id cancelledAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "orderId": cancelled_id.clone(), "reason": "OTHER", "restock": false }),
+    ));
+    assert_eq!(cancel.body["data"]["orderCancel"]["userErrors"], json!([]));
+    let cancelled_mark = proxy.process_request(json_graphql_request(
+        mark_query,
+        json!({ "input": { "id": cancelled_id } }),
+    ));
+    assert_eq!(
+        cancelled_mark.body["data"]["orderMarkAsPaid"]["userErrors"][0]["message"],
+        json!("Order cannot be marked as paid.")
+    );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().expect("log entries");
+    let staged_mark_as_paid_entries = entries
+        .iter()
+        .filter(|entry| entry["interpreted"]["primaryRootField"] == "orderMarkAsPaid")
+        .count();
+    assert_eq!(staged_mark_as_paid_entries, 1);
+}
+
+#[test]
 fn money_bag_presentment_replays_order_payment_refund_and_edit_shapes() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-05/orders/money-bag-presentment-parity.json"
