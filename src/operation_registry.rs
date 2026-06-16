@@ -294,6 +294,7 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("companyDelete", CapabilityDomain::B2b),
     local_mutation("companiesDelete", CapabilityDomain::B2b),
     local_mutation("companyAddressDelete", CapabilityDomain::B2b),
+    local_mutation("companyLocationsDelete", CapabilityDomain::B2b),
     local_mutation("tagsAdd", CapabilityDomain::Products),
     local_mutation("tagsRemove", CapabilityDomain::Products),
     local_mutation("productCreate", CapabilityDomain::Products),

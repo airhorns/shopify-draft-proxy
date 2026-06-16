@@ -2354,10 +2354,57 @@ impl DraftProxy {
             root_field,
         );
 
-        if b2b_passthrough_mutation_succeeded(&response) {
-            for company_id in company_ids {
-                self.b2b_delete_company(&company_id);
-            }
+        for company_id in b2b_passthrough_deleted_request_ids(&response, &company_ids) {
+            self.b2b_delete_company(&company_id);
+        }
+        response
+    }
+
+    /// Forwards companyLocationDelete/companyLocationsDelete upstream, then removes only
+    /// the locations the authoritative response reports as actually deleted (skipping
+    /// those blocked by deletable checks or reported as not found) so subsequent reads
+    /// stop surfacing the deleted locations while retaining the blocked ones.
+    pub(in crate::proxy) fn b2b_company_locations_delete_with_cascade(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        parsed_root_fields: &[String],
+        root_field: &str,
+    ) -> Response {
+        let location_ids = root_fields(query, variables)
+            .map(|fields| {
+                fields
+                    .iter()
+                    .flat_map(|field| match field.name.as_str() {
+                        "companyLocationDelete" => {
+                            resolved_string_arg(&field.arguments, "companyLocationId")
+                                .or_else(|| resolved_string_arg(&field.arguments, "id"))
+                                .into_iter()
+                                .collect::<Vec<String>>()
+                        }
+                        "companyLocationsDelete" => resolved_string_list_field_unsorted(
+                            &field.arguments,
+                            "companyLocationIds",
+                        ),
+                        _ => Vec::new(),
+                    })
+                    .collect::<Vec<String>>()
+            })
+            .unwrap_or_default();
+
+        let response = self.dispatch_unknown_passthrough_or_legacy_error(
+            request,
+            query,
+            variables,
+            operation_type,
+            parsed_root_fields,
+            root_field,
+        );
+
+        for location_id in b2b_passthrough_deleted_request_ids(&response, &location_ids) {
+            self.b2b_delete_company_location(&location_id);
         }
         response
     }
@@ -4182,6 +4229,61 @@ where
 /// A contact delete/remove is treated as successful (and therefore cascades to
 /// local state) only when the upstream payload returns without transport errors
 /// and every mutation payload reports an empty `userErrors` list.
+/// Given an authoritative upstream delete response and the request-ordered ids that
+/// were submitted, returns the subset the response reports as actually deleted — the
+/// request indices that carry no `userErrors` entry. Bulk deletes report per-index
+/// failures via a numeric tail on the error `field` (e.g. `["companyIds", "2"]`), so a
+/// partially-rejected bulk delete (some blocked by deletable checks, some succeeding)
+/// only removes the indices that survived. Single-id deletes have no positional index
+/// and are treated as all-or-nothing.
+fn b2b_passthrough_deleted_request_ids(
+    response: &Response,
+    requested_ids: &[String],
+) -> Vec<String> {
+    if response.status >= 400 {
+        return Vec::new();
+    }
+    let Some(data) = response.body.get("data").filter(|data| !data.is_null()) else {
+        return Vec::new();
+    };
+    let mut failed_indices = std::collections::HashSet::new();
+    let mut unindexed_error = false;
+    if let Some(payloads) = data.as_object() {
+        for payload in payloads.values() {
+            let Some(errors) = payload.get("userErrors").and_then(Value::as_array) else {
+                continue;
+            };
+            for error in errors {
+                match error
+                    .get("field")
+                    .and_then(Value::as_array)
+                    .and_then(|field| field.last())
+                    .and_then(Value::as_str)
+                    .and_then(|last| last.parse::<usize>().ok())
+                {
+                    Some(index) => {
+                        failed_indices.insert(index);
+                    }
+                    None => unindexed_error = true,
+                }
+            }
+        }
+    }
+    if requested_ids.len() <= 1 {
+        return if failed_indices.is_empty() && !unindexed_error {
+            requested_ids.to_vec()
+        } else {
+            Vec::new()
+        };
+    }
+    requested_ids
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| !failed_indices.contains(index))
+        .map(|(_, id)| id.clone())
+        .collect()
+}
+
 fn b2b_passthrough_mutation_succeeded(response: &Response) -> bool {
     if response.status >= 400 {
         return false;

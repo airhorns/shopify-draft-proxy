@@ -130,6 +130,21 @@ fn draft_order_create_input_email(field: &RootFieldSelection) -> Option<String> 
     resolved_string_field(&input, "email")
 }
 
+/// Extracts the `(companyId, companyContactId, companyLocationId)` triple from a
+/// draftOrderCreate `input.purchasingEntity.purchasingCompany`, when present.
+fn draft_order_purchasing_company(
+    field: &RootFieldSelection,
+) -> Option<(Option<String>, Option<String>, Option<String>)> {
+    let input = resolved_object_field(&field.arguments, "input")?;
+    let purchasing_entity = resolved_object_field(&input, "purchasingEntity")?;
+    let purchasing_company = resolved_object_field(&purchasing_entity, "purchasingCompany")?;
+    Some((
+        resolved_string_field(&purchasing_company, "companyId"),
+        resolved_string_field(&purchasing_company, "companyContactId"),
+        resolved_string_field(&purchasing_company, "companyLocationId"),
+    ))
+}
+
 fn draft_order_create_first_line_title(field: &RootFieldSelection) -> Option<String> {
     let input = resolved_object_field(&field.arguments, "input")?;
     let line_items = resolved_object_list_field(&input, "lineItems");
@@ -2615,7 +2630,8 @@ impl DraftProxy {
                             };
                         Some(self.stage_completable_draft_order(field, status, "10.0", "CAD"))
                     }
-                    _ => None,
+                    _ => draft_order_purchasing_company(field)
+                        .map(|purchasing| self.stage_b2b_purchasing_draft_order(field, purchasing)),
                 }
             }
             "draftOrderComplete" => {
@@ -3491,6 +3507,57 @@ impl DraftProxy {
         data_response(&field.response_key, payload)
     }
 
+    /// Stages an OPEN B2B draft order that carries a `purchasingEntity.purchasingCompany`,
+    /// retaining the company/contact/location references so a later `draftOrderComplete`
+    /// can surface them on the completed order's `purchasingEntity`. This mirrors how live
+    /// Shopify links a B2B draft order to the purchasing company, which is the state that
+    /// blocks downstream company/location deletion in the deletable-check scenarios.
+    fn stage_b2b_purchasing_draft_order(
+        &mut self,
+        field: &RootFieldSelection,
+        purchasing: (Option<String>, Option<String>, Option<String>),
+    ) -> Value {
+        let id = format!(
+            "gid://shopify/DraftOrder/{}",
+            self.store.staged.next_draft_order_id
+        );
+        self.store.staged.next_draft_order_id += 1;
+        let name = format!("#D{}", self.store.staged.draft_orders.len() + 1);
+        let (company_id, contact_id, location_id) = purchasing;
+        let id_ref = |value: &Option<String>| {
+            value
+                .as_ref()
+                .map(|id| json!({ "id": id }))
+                .unwrap_or(Value::Null)
+        };
+        let purchasing_entity = json!({
+            "__typename": "PurchasingCompany",
+            "company": id_ref(&company_id),
+            "contact": id_ref(&contact_id),
+            "location": id_ref(&location_id),
+        });
+        let amount = draft_order_total_amount(field);
+        let line_item = draft_order_line_item_record(field);
+        let draft_order = json!({
+            "id": id,
+            "name": name,
+            "status": "OPEN",
+            "__draftProxyFinancialStatus": "PENDING",
+            "__draftProxyLineItems": [line_item],
+            "__draftProxyPurchasingEntity": purchasing_entity,
+            "totalPriceSet": order_money_set(&amount, "CAD")
+        });
+        self.store
+            .staged
+            .draft_orders
+            .insert(id.clone(), draft_order.clone());
+        let payload = selected_json(
+            &json!({ "draftOrder": draft_order, "userErrors": [] }),
+            &field.selection,
+        );
+        data_response(&field.response_key, payload)
+    }
+
     fn complete_staged_draft_order(&mut self, field: &RootFieldSelection) -> Value {
         let Some(id) = resolved_string_arg(&field.arguments, "id") else {
             return selected_json(
@@ -3536,7 +3603,7 @@ impl DraftProxy {
             field.arguments.get("paymentPending"),
             Some(ResolvedValue::Bool(true))
         );
-        let order = json!({
+        let mut order = json!({
             "id": order_id,
             "name": format!("#{}", self.store.staged.orders.len() + 1),
             "sourceName": "347082227713",
@@ -3547,6 +3614,11 @@ impl DraftProxy {
                 "nodes": draft_order["__draftProxyLineItems"].as_array().cloned().unwrap_or_default()
             }
         });
+        if let Some(purchasing_entity) = draft_order.get("__draftProxyPurchasingEntity") {
+            if !purchasing_entity.is_null() {
+                order["purchasingEntity"] = purchasing_entity.clone();
+            }
+        }
         draft_order["status"] = json!("COMPLETED");
         draft_order["completedAt"] = json!("2024-01-01T00:00:02.000Z");
         draft_order["order"] = order.clone();
