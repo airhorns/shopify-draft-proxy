@@ -1376,24 +1376,24 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[
                 "customerEmailMarketingConsentUpdate",
                 "CustomerEmailMarketingConsentUpdate",
             ],
-            &[],
+            &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
             "customerSmsMarketingConsentUpdate",
             OperationType::Mutation,
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[
                 "customerSmsMarketingConsentUpdate",
                 "CustomerSmsMarketingConsentUpdate",
             ],
-            &[],
+            &["tests/graphql_routes/admin_app_shipping.rs"],
         ),
         registry_entry(
             "customerAddTaxExemptions",

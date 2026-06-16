@@ -4229,7 +4229,7 @@ impl DraftProxy {
         )
     }
 
-    fn taggable_resource_staged_or_hydrated(
+    pub(in crate::proxy) fn taggable_resource_staged_or_hydrated(
         &mut self,
         resource_type: &str,
         id: &str,

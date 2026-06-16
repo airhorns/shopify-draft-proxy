@@ -2753,7 +2753,7 @@ fn feedback_generated_at_is_future(generated_at: &str) -> bool {
     generated_at > now.as_secs() as i64
 }
 
-fn parse_rfc3339_epoch_seconds(value: &str) -> Option<i64> {
+pub(in crate::proxy) fn parse_rfc3339_epoch_seconds(value: &str) -> Option<i64> {
     let bytes = value.as_bytes();
     if bytes.len() < 20 {
         return None;

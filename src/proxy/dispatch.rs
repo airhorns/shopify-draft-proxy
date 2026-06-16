@@ -1241,6 +1241,17 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "customerEmailMarketingConsentUpdate" | "customerSmsMarketingConsentUpdate"
+                )
+            })
+        {
+            return self.customer_marketing_consent_update(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && root_field == "customerUpdate"
             && is_local_customer_update_document(&query, &variables)
         {
