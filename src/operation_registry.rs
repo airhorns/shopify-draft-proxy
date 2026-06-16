@@ -332,6 +332,9 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("discountCodeActivate", CapabilityDomain::Discounts),
     local_mutation("discountCodeDeactivate", CapabilityDomain::Discounts),
     local_mutation("discountCodeDelete", CapabilityDomain::Discounts),
+    local_mutation("discountCodeBulkActivate", CapabilityDomain::Discounts),
+    local_mutation("discountCodeBulkDeactivate", CapabilityDomain::Discounts),
+    local_mutation("discountCodeBulkDelete", CapabilityDomain::Discounts),
     local_mutation("discountRedeemCodeBulkAdd", CapabilityDomain::Discounts),
     local_mutation(
         "discountCodeRedeemCodeBulkDelete",
@@ -358,6 +361,7 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("discountAutomaticActivate", CapabilityDomain::Discounts),
     local_mutation("discountAutomaticDeactivate", CapabilityDomain::Discounts),
     local_mutation("discountAutomaticDelete", CapabilityDomain::Discounts),
+    local_mutation("discountAutomaticBulkDelete", CapabilityDomain::Discounts),
     local_query("metaobject", CapabilityDomain::Metaobjects),
     local_query("metaobjectByHandle", CapabilityDomain::Metaobjects),
     local_query("metaobjects", CapabilityDomain::Metaobjects),
