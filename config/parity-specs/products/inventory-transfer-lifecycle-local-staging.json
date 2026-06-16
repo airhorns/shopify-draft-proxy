@@ -4,6 +4,9 @@
     "inventoryTransfer",
     "inventoryTransfers",
     "inventoryTransferCreate",
+    "inventoryTransferEdit",
+    "inventoryTransferSetItems",
+    "inventoryTransferDuplicate",
     "inventoryTransferMarkAsReadyToShip",
     "inventoryTransferCancel",
     "inventoryTransferDelete"
@@ -35,6 +38,114 @@
             "path": "$.inventoryTransfer.name",
             "matcher": "non-empty-string",
             "reason": "Transfer names are assigned by Shopify in the live store and by the local proxy's deterministic synthetic sequence during parity replay."
+          }
+        ]
+      },
+      {
+        "name": "draft-edit-mutation-data",
+        "capturePath": "$.draftEdit.data.inventoryTransferEdit",
+        "proxyPath": "$.data.inventoryTransferEdit",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-edit.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.inventoryTransferCreate.inventoryTransfer.id"
+            },
+            "input": {
+              "originId": {
+                "fromCapturePath": "$.setup.originLocation.id"
+              },
+              "destinationId": {
+                "fromCapturePath": "$.setup.destinationLocation.id"
+              },
+              "note": "inventory transfer conformance edited",
+              "tags": ["inventory-transfer-conformance", "edited"],
+              "referenceName": {
+                "fromCapturePath": "$.workflow.editDraft.variables.input.referenceName"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryTransfer.id",
+            "matcher": "shopify-gid:InventoryTransfer",
+            "reason": "The local proxy keeps the synthetic transfer ID from the primary draft create."
+          },
+          {
+            "path": "$.inventoryTransfer.name",
+            "matcher": "non-empty-string",
+            "reason": "Transfer names are assigned by Shopify in the live store and by the local proxy's deterministic synthetic sequence during parity replay."
+          },
+          {
+            "path": "$.inventoryTransfer.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:InventoryTransferLineItem",
+            "reason": "The local proxy generates stable session-local transfer line item IDs."
+          }
+        ]
+      },
+      {
+        "name": "draft-set-items-mutation-data",
+        "capturePath": "$.draftSetItems.data.inventoryTransferSetItems",
+        "proxyPath": "$.data.inventoryTransferSetItems",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-set-items.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.inventoryTransferCreate.inventoryTransfer.id"
+              },
+              "lineItems": [
+                {
+                  "inventoryItemId": {
+                    "fromCapturePath": "$.setup.inventoryItemId"
+                  },
+                  "quantity": 3
+                }
+              ]
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryTransfer.id",
+            "matcher": "shopify-gid:InventoryTransfer",
+            "reason": "The local proxy keeps the synthetic transfer ID from the primary draft create."
+          },
+          {
+            "path": "$.inventoryTransfer.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:InventoryTransferLineItem",
+            "reason": "The local proxy generates stable session-local transfer line item IDs."
+          }
+        ]
+      },
+      {
+        "name": "draft-duplicate-mutation-data",
+        "capturePath": "$.draftDuplicate.data.inventoryTransferDuplicate",
+        "proxyPath": "$.data.inventoryTransferDuplicate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-transfer-duplicate.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.inventoryTransferCreate.inventoryTransfer.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.inventoryTransfer.id",
+            "matcher": "shopify-gid:InventoryTransfer",
+            "reason": "The local proxy generates a new synthetic transfer ID for the duplicate."
+          },
+          {
+            "path": "$.inventoryTransfer.name",
+            "matcher": "non-empty-string",
+            "reason": "Transfer names are assigned by Shopify in the live store and by the local proxy's deterministic synthetic sequence during parity replay."
+          },
+          {
+            "path": "$.inventoryTransfer.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:InventoryTransferLineItem",
+            "reason": "The local proxy generates stable session-local transfer line item IDs."
           }
         ]
       },
@@ -92,5 +203,5 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-transfer-lifecycle-local-staging.json"
   ],
   "runtimeTestFiles": ["tests/integration/inventory-transfer-flow.test.ts"],
-  "notes": "Replays the captured Shopify draft create, ready transition, downstream inventory reservation read, cancel transition, and non-draft delete guardrail through the local proxy harness. The scenario earns its local product-backed inventory item and origin/destination inventory levels through cassette-backed upstream hydration before replay, while the runtime test continues to cover edit/set/remove/duplicate/delete draft branches, empty reads, validation guardrails, raw log ordering, and no runtime Shopify writes."
+  "notes": "Replays the captured Shopify draft create, draft edit, draft set-items, draft duplicate, ready transition, downstream inventory reservation read, cancel transition, and non-draft delete guardrail through the local proxy harness. The scenario earns its local product-backed inventory item and origin/destination inventory levels through cassette-backed upstream hydration before replay, while the runtime test continues to cover remove/delete draft branches, empty reads, validation guardrails, raw log ordering, and no runtime Shopify writes."
 }
