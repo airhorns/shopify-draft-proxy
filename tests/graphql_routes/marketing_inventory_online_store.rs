@@ -3962,7 +3962,346 @@ fn metaobject_create_rejects_duplicate_field_keys() {
 }
 
 #[test]
+<<<<<<< ours
 fn metaobject_entry_lifecycle_dispatches_by_root_field_and_definition_state() {
+=======
+fn metaobject_definition_delete_rejects_protected_definitions_from_restored_metadata() {
+    let mut app_managed_proxy = snapshot_proxy();
+    let app_definition_id = "gid://shopify/MetaobjectDefinition/9001001";
+    restore_metaobject_definition(
+        &mut app_managed_proxy,
+        metaobject_definition_with_metadata(
+            app_definition_id,
+            "app_managed_definition",
+            json!({"appConfigManaged": true}),
+        ),
+    );
+
+    let entry = app_managed_proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateProtectedDefinitionEntry($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle type displayName }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"metaobject": {
+            "type": "app_managed_definition",
+            "handle": "kept-entry",
+            "fields": [{"key": "title", "value": "Kept entry"}]
+        }}),
+    ));
+    assert_eq!(
+        entry.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    let entry_id = entry.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let app_delete = app_managed_proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteAppManagedDefinition($id: ID!) {
+          metaobjectDefinitionDelete(id: $id) {
+            deletedId
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"id": app_definition_id}),
+    ));
+    assert_eq!(
+        app_delete.body["data"]["metaobjectDefinitionDelete"],
+        json!({
+            "deletedId": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "App-managed metaobject definitions cannot be deleted by other apps.",
+                "code": "APP_CONFIG_MANAGED",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let app_read = app_managed_proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAfterAppManagedDefinitionDelete($definitionId: ID!, $entryId: ID!) {
+          definition: metaobjectDefinition(id: $definitionId) { id type metaobjectsCount appConfigManaged }
+          entry: metaobject(id: $entryId) { id handle type displayName }
+        }
+        "#,
+        json!({"definitionId": app_definition_id, "entryId": entry_id}),
+    ));
+    assert_eq!(
+        app_read.body["data"]["definition"],
+        json!({
+            "id": app_definition_id,
+            "type": "app_managed_definition",
+            "metaobjectsCount": 1,
+            "appConfigManaged": true
+        })
+    );
+    assert_eq!(
+        app_read.body["data"]["entry"]["displayName"],
+        json!("Kept entry")
+    );
+    let app_log = app_managed_proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        ..Default::default()
+    });
+    assert_eq!(app_log.body["entries"].as_array().unwrap().len(), 1);
+
+    let mut standard_proxy = snapshot_proxy();
+    let standard_definition_id = "gid://shopify/MetaobjectDefinition/9001002";
+    restore_metaobject_definition(
+        &mut standard_proxy,
+        metaobject_definition_with_metadata(
+            standard_definition_id,
+            "shopify--dependent-template",
+            json!({
+                "standardTemplate": {"type": "shopify--dependent-template", "name": "Dependent Template"},
+                "standardTemplateId": "gid://shopify/StandardMetaobjectDefinitionTemplate/9002002",
+                "standardTemplateDependentOnApp": true
+            }),
+        ),
+    );
+
+    let standard_delete = standard_proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteDependentStandardDefinition($id: ID!) {
+          metaobjectDefinitionDelete(id: $id) {
+            deletedId
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"id": standard_definition_id}),
+    ));
+    assert_eq!(
+        standard_delete.body["data"]["metaobjectDefinitionDelete"],
+        json!({
+            "deletedId": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Standard metaobject definition is in use by an installed app.",
+                "code": "STANDARD_METAOBJECT_DEFINITION_DEPENDENT_ON_APP",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let standard_read = standard_proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAfterDependentStandardDefinitionDelete($id: ID!) {
+          metaobjectDefinition(id: $id) {
+            id
+            type
+            standardTemplate { type name }
+            standardTemplateId
+            standardTemplateDependentOnApp
+          }
+        }
+        "#,
+        json!({"id": standard_definition_id}),
+    ));
+    assert_eq!(
+        standard_read.body["data"]["metaobjectDefinition"],
+        json!({
+            "id": standard_definition_id,
+            "type": "shopify--dependent-template",
+            "standardTemplate": {"type": "shopify--dependent-template", "name": "Dependent Template"},
+            "standardTemplateId": "gid://shopify/StandardMetaobjectDefinitionTemplate/9002002",
+            "standardTemplateDependentOnApp": true
+        })
+    );
+}
+
+#[test]
+fn metaobject_definition_delete_keeps_unprotected_cascade_and_not_found_behavior() {
+    let mut proxy = snapshot_proxy();
+
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteMissingDefinition($id: ID!) {
+          metaobjectDefinitionDelete(id: $id) {
+            deletedId
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/MetaobjectDefinition/missing"}),
+    ));
+    assert_eq!(
+        missing.body["data"]["metaobjectDefinitionDelete"],
+        json!({
+            "deletedId": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Record not found",
+                "code": "RECORD_NOT_FOUND",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let definition_id = "gid://shopify/MetaobjectDefinition/9001003";
+    restore_metaobject_definition(
+        &mut proxy,
+        metaobject_definition_with_metadata(definition_id, "unprotected_definition", json!({})),
+    );
+    let entry = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateUnprotectedDefinitionEntry($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle type displayName }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"metaobject": {
+            "type": "unprotected_definition",
+            "handle": "deleted-entry",
+            "fields": [{"key": "title", "value": "Deleted entry"}]
+        }}),
+    ));
+    assert_eq!(
+        entry.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    let entry_id = entry.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let deleted = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteUnprotectedDefinition($id: ID!) {
+          metaobjectDefinitionDelete(id: $id) {
+            deletedId
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"id": definition_id}),
+    ));
+    assert_eq!(
+        deleted.body["data"]["metaobjectDefinitionDelete"],
+        json!({"deletedId": definition_id, "userErrors": []})
+    );
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        ..Default::default()
+    });
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 2);
+    assert!(log.body["entries"][1]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("DeleteUnprotectedDefinition"));
+    assert_eq!(
+        log.body["entries"][1]["stagedResourceIds"],
+        json!([definition_id])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAfterUnprotectedDefinitionDelete($definitionId: ID!, $entryId: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+          definition: metaobjectDefinition(id: $definitionId) { id }
+          byType: metaobjectDefinitionByType(type: $type) { id }
+          entry: metaobject(id: $entryId) { id }
+          byHandle: metaobjectByHandle(handle: $handle) { id }
+          catalog: metaobjects(type: $type, first: 10) { nodes { id } }
+        }
+        "#,
+        json!({
+            "definitionId": definition_id,
+            "entryId": entry_id,
+            "handle": {"type": "unprotected_definition", "handle": "deleted-entry"},
+            "type": "unprotected_definition"
+        }),
+    ));
+    assert_eq!(read.body["data"]["definition"], Value::Null);
+    assert_eq!(read.body["data"]["byType"], Value::Null);
+    assert_eq!(read.body["data"]["entry"], Value::Null);
+    assert_eq!(read.body["data"]["byHandle"], Value::Null);
+    assert_eq!(read.body["data"]["catalog"]["nodes"], json!([]));
+}
+
+fn restore_metaobject_definition(proxy: &mut DraftProxy, definition: Value) {
+    let id = definition["id"]
+        .as_str()
+        .expect("test definition must include an id")
+        .to_string();
+    let dump = proxy.process_request(Request {
+        method: "POST".to_string(),
+        path: "/__meta/dump".to_string(),
+        body: json!({ "createdAt": "2026-06-16T00:00:00.000Z" }).to_string(),
+        ..Default::default()
+    });
+    assert_eq!(dump.status, 200);
+    let mut dump_body = dump.body;
+    let mut definitions = serde_json::Map::new();
+    definitions.insert(id, definition);
+    dump_body["state"]["stagedState"]["metaobjectDefinitions"] = Value::Object(definitions);
+    let restore = proxy.process_request(Request {
+        method: "POST".to_string(),
+        path: "/__meta/restore".to_string(),
+        body: dump_body.to_string(),
+        ..Default::default()
+    });
+    assert_eq!(restore.status, 200);
+}
+
+fn metaobject_definition_with_metadata(id: &str, meta_type: &str, metadata: Value) -> Value {
+    let mut definition = json!({
+        "id": id,
+        "type": meta_type,
+        "name": "Protected Definition",
+        "description": null,
+        "displayNameKey": "title",
+        "access": {"admin": "PUBLIC_READ_WRITE", "storefront": "NONE", "customerAccount": "NONE"},
+        "capabilities": {
+            "publishable": {"enabled": false},
+            "translatable": {"enabled": false},
+            "renderable": {"enabled": false, "data": null},
+            "onlineStore": {"enabled": false, "data": null}
+        },
+        "fieldDefinitions": [{
+            "key": "title",
+            "name": "Title",
+            "description": null,
+            "required": true,
+            "type": {"name": "single_line_text_field", "category": "TEXT"},
+            "validations": [],
+            "capabilities": {"adminFilterable": {"enabled": false}}
+        }],
+        "hasThumbnailField": false,
+        "metaobjectsCount": 0,
+        "standardTemplate": null,
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "updatedAt": "2024-01-01T00:00:00.000Z"
+    });
+    let definition_object = definition
+        .as_object_mut()
+        .expect("test definition must be an object");
+    for (key, value) in metadata
+        .as_object()
+        .expect("test metadata must be an object")
+    {
+        definition_object.insert(key.clone(), value.clone());
+    }
+    definition
+}
+
+#[test]
+fn metaobject_definition_mutation_public_argument_shape_is_schema_validated() {
+>>>>>>> theirs
     let mut proxy = snapshot_proxy();
 
     let definition = proxy.process_request(json_graphql_request(

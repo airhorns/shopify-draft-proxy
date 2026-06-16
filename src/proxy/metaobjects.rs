@@ -2344,6 +2344,483 @@ impl DraftProxy {
             &field.selection,
         )
     }
+<<<<<<< ours
+=======
+
+    fn metaobject_definition_delete(
+        &mut self,
+        field: &RootFieldSelection,
+        staged_ids: &mut Vec<String>,
+    ) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(definition) = self.metaobject_definition_by_id(&id) else {
+            return selected_json(
+                &json!({
+                    "deletedId": null,
+                    "userErrors": [metaobject_user_error(vec!["id"], "Record not found", "RECORD_NOT_FOUND", Value::Null, Value::Null)]
+                }),
+                &field.selection,
+            );
+        };
+        if let Some(error) = Self::metaobject_definition_delete_protection_error(&definition) {
+            return selected_json(
+                &json!({
+                    "deletedId": null,
+                    "userErrors": [error]
+                }),
+                &field.selection,
+            );
+        }
+        let meta_type = definition["type"].as_str().unwrap_or_default().to_string();
+        let ids_to_delete = self
+            .store
+            .staged
+            .metaobjects
+            .values()
+            .filter(|record| record.get("type").and_then(Value::as_str) == Some(meta_type.as_str()))
+            .filter_map(|record| record.get("id").and_then(Value::as_str).map(str::to_string))
+            .collect::<Vec<_>>();
+        for metaobject_id in ids_to_delete {
+            self.store.staged.metaobjects.remove(&metaobject_id);
+            self.store
+                .staged
+                .deleted_metaobject_ids
+                .insert(metaobject_id);
+        }
+        self.store.staged.metaobject_definitions.remove(&id);
+        self.store
+            .staged
+            .deleted_metaobject_definition_ids
+            .insert(id.clone());
+        staged_ids.push(id.clone());
+        selected_json(
+            &json!({"deletedId": id, "userErrors": []}),
+            &field.selection,
+        )
+    }
+
+    fn metaobject_definition_delete_protection_error(definition: &Value) -> Option<Value> {
+        if definition
+            .get("appConfigManaged")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            return Some(metaobject_user_error(
+                vec!["id"],
+                "App-managed metaobject definitions cannot be deleted by other apps.",
+                "APP_CONFIG_MANAGED",
+                Value::Null,
+                Value::Null,
+            ));
+        }
+        if Self::metaobject_definition_delete_has_dependent_standard_template(definition) {
+            return Some(metaobject_user_error(
+                vec!["id"],
+                "Standard metaobject definition is in use by an installed app.",
+                "STANDARD_METAOBJECT_DEFINITION_DEPENDENT_ON_APP",
+                Value::Null,
+                Value::Null,
+            ));
+        }
+        None
+    }
+
+    fn metaobject_definition_delete_has_dependent_standard_template(definition: &Value) -> bool {
+        let dependent_on_app = definition
+            .get("standardTemplateDependentOnApp")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let has_standard_template_id = definition
+            .get("standardTemplateId")
+            .and_then(Value::as_str)
+            .is_some_and(|id| !id.is_empty());
+        let has_standard_template = definition
+            .get("standardTemplate")
+            .is_some_and(|value| !value.is_null());
+        dependent_on_app && (has_standard_template_id || has_standard_template)
+    }
+
+    fn metaobject_definition_update_is_immutable(&self, definition: &Value) -> bool {
+        definition
+            .get("appConfigManaged")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+            || definition
+                .get("standardTemplate")
+                .is_some_and(|value| !value.is_null())
+            || definition
+                .get("type")
+                .and_then(Value::as_str)
+                .is_some_and(metaobject_definition_type_is_reserved)
+    }
+
+    fn metaobject_definition_display_name_update_is_linked_immutable(
+        &self,
+        definition: &Value,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        let Some(next_display_name_key) =
+            input.get("displayNameKey").and_then(resolved_value_string)
+        else {
+            return false;
+        };
+        if definition.get("displayNameKey").and_then(Value::as_str)
+            == Some(next_display_name_key.as_str())
+        {
+            return false;
+        }
+        definition
+            .get("id")
+            .and_then(Value::as_str)
+            .is_some_and(|id| {
+                self.store
+                    .staged
+                    .product_option_linked_metaobject_definition_ids
+                    .contains(id)
+            })
+    }
+
+    fn metaobject_definition_update_scalar_errors(
+        &self,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> Vec<Value> {
+        let mut errors = Vec::new();
+        if let Some(name) = input.get("name").and_then(resolved_value_string) {
+            if name.trim().is_empty() {
+                errors.push(metaobject_user_error(
+                    vec!["definition", "name"],
+                    "Name can't be blank",
+                    "BLANK",
+                    Value::Null,
+                    Value::Null,
+                ));
+            } else if name.chars().count() > 255 {
+                errors.push(metaobject_user_error(
+                    vec!["definition", "name"],
+                    "Name is too long (maximum is 255 characters)",
+                    "TOO_LONG",
+                    Value::Null,
+                    Value::Null,
+                ));
+            }
+        }
+        if let Some(description) = input.get("description").and_then(resolved_value_string) {
+            if description.chars().count() > 255 {
+                errors.push(metaobject_user_error(
+                    vec!["definition", "description"],
+                    "Description is too long (maximum is 255 characters)",
+                    "TOO_LONG",
+                    Value::Null,
+                    Value::Null,
+                ));
+            }
+        }
+        if let Some(meta_type) = resolved_string_field(input, "type") {
+            let resolved_type = self.resolved_metaobject_definition_type_for_validation(&meta_type);
+            if resolved_type.trim().is_empty() {
+                errors.push(metaobject_user_error(
+                    vec!["definition", "type"],
+                    "Type can't be blank",
+                    "BLANK",
+                    Value::Null,
+                    Value::Null,
+                ));
+            } else if resolved_type.chars().count() < 3 {
+                errors.push(metaobject_user_error(
+                    vec!["definition", "type"],
+                    "Type is too short (minimum is 3 characters)",
+                    "TOO_SHORT",
+                    Value::Null,
+                    Value::Null,
+                ));
+            } else if resolved_type.chars().count() > 255 {
+                errors.push(metaobject_user_error(
+                    vec!["definition", "type"],
+                    "Type is too long (maximum is 255 characters)",
+                    "TOO_LONG",
+                    Value::Null,
+                    Value::Null,
+                ));
+            } else if !resolved_type
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+            {
+                errors.push(metaobject_user_error(
+                    vec!["definition", "type"],
+                    "Type contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.",
+                    "INVALID",
+                    Value::Null,
+                    Value::Null,
+                ));
+            }
+        }
+        errors
+    }
+
+    fn metaobject_definition_updated_fields(
+        &self,
+        definition: &Value,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> (Vec<Value>, Vec<Value>) {
+        let existing_fields = definition["fieldDefinitions"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let mut by_key = existing_fields
+            .iter()
+            .filter_map(|field| {
+                field
+                    .get("key")
+                    .and_then(Value::as_str)
+                    .map(|key| (key.to_string(), field.clone()))
+            })
+            .collect::<BTreeMap<_, _>>();
+        let mut order = existing_fields
+            .iter()
+            .filter_map(|field| field.get("key").and_then(Value::as_str).map(str::to_string))
+            .collect::<Vec<_>>();
+        let mut touched_order = Vec::new();
+        let reset_field_order = resolved_bool_field(input, "resetFieldOrder").unwrap_or(false);
+        let operations = resolved_object_list_field(input, "fieldDefinitions");
+        let mut errors = Vec::new();
+
+        for (index, operation) in operations.into_iter().enumerate() {
+            let index = index.to_string();
+            if let Some(create) = resolved_object_field(&operation, "create") {
+                let key = resolved_string_field(&create, "key").unwrap_or_default();
+                let create_path = vec![
+                    "definition".to_string(),
+                    "fieldDefinitions".to_string(),
+                    index.clone(),
+                    "create".to_string(),
+                ];
+                let key_errors = metaobject_field_key_validation_errors(create_path.clone(), &key);
+                if !key_errors.is_empty() {
+                    errors.extend(key_errors);
+                    continue;
+                }
+                if by_key.contains_key(&key) {
+                    errors.push(metaobject_user_error_owned(
+                        vec![
+                            "definition".to_string(),
+                            "fieldDefinitions".to_string(),
+                            index,
+                            "create".to_string(),
+                            "key".to_string(),
+                        ],
+                        &format!("Field definition \"{key}\" is already taken"),
+                        "OBJECT_FIELD_TAKEN",
+                        json!(key),
+                        Value::Null,
+                    ));
+                    continue;
+                }
+                let field_type = metaobject_field_definition_type(&create);
+                if let Some(error) =
+                    metaobject_field_type_validation_error(create_path, &key, &field_type)
+                {
+                    errors.push(error);
+                    continue;
+                }
+                by_key.insert(key.clone(), metaobject_field_definition_record(create));
+                if !order.iter().any(|candidate| candidate == &key) {
+                    order.push(key.clone());
+                }
+                if !touched_order.iter().any(|candidate| candidate == &key) {
+                    touched_order.push(key);
+                }
+            } else if let Some(update) = resolved_object_field(&operation, "update") {
+                let key = resolved_string_field(&update, "key").unwrap_or_default();
+                let Some(existing) = by_key.get(&key).cloned() else {
+                    errors.push(metaobject_user_error_owned(
+                        vec![
+                            "definition".to_string(),
+                            "fieldDefinitions".to_string(),
+                            index,
+                            "update".to_string(),
+                            "key".to_string(),
+                        ],
+                        &format!("Field definition \"{key}\" does not exist"),
+                        "UNDEFINED_OBJECT_FIELD",
+                        json!(key),
+                        Value::Null,
+                    ));
+                    continue;
+                };
+                if let Some(field_type) = resolved_string_field(&update, "type") {
+                    if let Some(error) = metaobject_field_type_validation_error(
+                        vec![
+                            "definition".to_string(),
+                            "fieldDefinitions".to_string(),
+                            index.clone(),
+                            "update".to_string(),
+                        ],
+                        &key,
+                        &field_type,
+                    ) {
+                        errors.push(error);
+                        continue;
+                    }
+                }
+                let updated = metaobject_updated_field_definition(existing, &update);
+                by_key.insert(key.clone(), updated);
+                if !touched_order.iter().any(|candidate| candidate == &key) {
+                    touched_order.push(key);
+                }
+            } else if let Some(delete) = resolved_object_field(&operation, "delete") {
+                let key = resolved_string_field(&delete, "key").unwrap_or_default();
+                if !by_key.contains_key(&key) {
+                    errors.push(metaobject_user_error_owned(
+                        vec![
+                            "definition".to_string(),
+                            "fieldDefinitions".to_string(),
+                            index,
+                            "delete".to_string(),
+                            "key".to_string(),
+                        ],
+                        &format!("Field definition \"{key}\" does not exist"),
+                        "UNDEFINED_OBJECT_FIELD",
+                        json!(key),
+                        Value::Null,
+                    ));
+                    continue;
+                }
+                by_key.remove(&key);
+                order.retain(|candidate| candidate != &key);
+            }
+        }
+
+        let next_order = if reset_field_order {
+            touched_order
+                .into_iter()
+                .filter(|key| by_key.contains_key(key))
+                .chain(order.into_iter().filter(|key| by_key.contains_key(key)))
+                .fold(Vec::<String>::new(), |mut acc, key| {
+                    if !acc.iter().any(|candidate| candidate == &key) {
+                        acc.push(key);
+                    }
+                    acc
+                })
+        } else {
+            order
+        };
+        let updated_fields = next_order
+            .into_iter()
+            .filter_map(|key| by_key.remove(&key))
+            .collect::<Vec<_>>();
+        (errors, updated_fields)
+    }
+
+    fn metaobject_definition_update_capability_errors(
+        &self,
+        prospective_definition: &Value,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> Vec<Value> {
+        let mut errors = Vec::new();
+        let Some(capabilities) = resolved_object_field(input, "capabilities") else {
+            return errors;
+        };
+        let Some(renderable) = resolved_object_field(&capabilities, "renderable") else {
+            return errors;
+        };
+        if resolved_bool_field(&renderable, "enabled") != Some(true) {
+            return errors;
+        }
+        let Some(data) = resolved_object_field(&renderable, "data") else {
+            return errors;
+        };
+        for data_key in ["metaTitleKey", "metaDescriptionKey"] {
+            let Some(field_key) = resolved_string_field(&data, data_key) else {
+                continue;
+            };
+            let field_definition = prospective_definition["fieldDefinitions"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find(|field| field.get("key").and_then(Value::as_str) == Some(field_key.as_str()));
+            let Some(field_definition) = field_definition else {
+                errors.push(metaobject_user_error(
+                    vec!["definition", "capabilities", "renderable"],
+                    &format!("Field definition \"{field_key}\" does not exist"),
+                    "INVALID",
+                    Value::Null,
+                    Value::Null,
+                ));
+                continue;
+            };
+            let field_type = field_definition["type"]["name"]
+                .as_str()
+                .unwrap_or_default();
+            if !matches!(
+                field_type,
+                "single_line_text_field" | "multi_line_text_field" | "rich_text_field"
+            ) {
+                let shopify_key = match data_key {
+                    "metaTitleKey" => "meta_title_key",
+                    "metaDescriptionKey" => "meta_description_key",
+                    _ => data_key,
+                };
+                errors.push(metaobject_user_error(
+                    vec!["definition", "capabilities", "renderable"],
+                    &format!(
+                        "Renderable Capability \"{shopify_key}\" cannot reference the field definition \"{field_key}\" of type \"{field_type}\". Only single_line_text_field, multi_line_text_field, rich_text_field definitions are allowed."
+                    ),
+                    "FIELD_TYPE_INVALID",
+                    Value::Null,
+                    Value::Null,
+                ));
+            }
+        }
+        errors
+    }
+
+    fn apply_metaobject_definition_access(
+        &self,
+        definition: &mut Value,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) {
+        let Some(access) = resolved_object_field(input, "access") else {
+            return;
+        };
+        if !definition.get("access").is_some_and(Value::is_object) {
+            definition["access"] = json!({});
+        }
+        for key in ["admin", "storefront", "customerAccount"] {
+            if let Some(value) = resolved_string_field(&access, key) {
+                definition["access"][key] = json!(value);
+            }
+        }
+    }
+
+    fn apply_metaobject_definition_capabilities(
+        &self,
+        definition: &mut Value,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        let Some(capabilities) = resolved_object_field(input, "capabilities") else {
+            return false;
+        };
+        if !definition.get("capabilities").is_some_and(Value::is_object) {
+            definition["capabilities"] = metaobject_definition_capabilities(&BTreeMap::new());
+        }
+        for key in ["publishable", "translatable", "renderable"] {
+            let Some(capability) = resolved_object_field(&capabilities, key) else {
+                continue;
+            };
+            if !definition["capabilities"]
+                .get(key)
+                .is_some_and(Value::is_object)
+            {
+                definition["capabilities"][key] = json!({"enabled": false});
+            }
+            if let Some(enabled) = resolved_bool_field(&capability, "enabled") {
+                definition["capabilities"][key]["enabled"] = json!(enabled);
+            }
+            if let Some(data) = capability.get("data") {
+                definition["capabilities"][key]["data"] = resolved_value_json(data);
+            }
+        }
+>>>>>>> theirs
 
     fn metaobject_definition_update(
         &mut self,
