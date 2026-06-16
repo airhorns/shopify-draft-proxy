@@ -1,0 +1,92 @@
+{
+  "scenarioId": "marketing-activity-create-external-read-after-write",
+  "scenarioStatus": "captured",
+  "assertionKinds": ["downstream-read-parity", "payload-shape", "local-staging"],
+  "operationNames": [
+    "marketingActivityCreateExternal",
+    "marketingActivityUpdateExternal",
+    "marketingActivity",
+    "marketingActivities"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-activity-create-external-read-after-write.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-activity-create-external-read-after-write.graphql",
+    "variablesCapturePath": "$.operations.primary.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-external-readback-fields",
+        "capturePath": "$.operations.primary.response.payload.data.createExternal.marketingActivity",
+        "proxyPath": "$.data.createExternal.marketingActivity",
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:MarketingActivity",
+            "reason": "Shopify and the local proxy allocate independent marketing activity IDs."
+          }
+        ]
+      },
+      {
+        "name": "update-omitted-fields-preserve",
+        "capturePath": "$.operations.primary.response.payload.data.updateExternal.marketingActivity",
+        "proxyPath": "$.data.updateExternal.marketingActivity",
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:MarketingActivity",
+            "reason": "Shopify and the local proxy allocate independent marketing activity IDs."
+          }
+        ]
+      },
+      {
+        "name": "singular-read-after-update",
+        "capturePath": "$.operations.readAfterUpdate.response.payload.data.marketingActivity",
+        "proxyPath": "$.data.marketingActivity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-create-external-read-after-write-read.graphql",
+          "variables": {
+            "activityId": {
+              "fromPrimaryProxyPath": "$.data.updateExternal.marketingActivity.id"
+            },
+            "remoteIds": [
+              {
+                "fromCapturePath": "$.operations.primary.variables.remoteId"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": []
+      },
+      {
+        "name": "connection-read-after-update",
+        "capturePath": "$.operations.readAfterUpdate.response.payload.data.marketingActivities.nodes[0]",
+        "proxyPath": "$.data.marketingActivities.nodes[0]",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/marketing/marketing-activity-create-external-read-after-write-read.graphql",
+          "variables": {
+            "activityId": {
+              "fromPrimaryProxyPath": "$.data.updateExternal.marketingActivity.id"
+            },
+            "remoteIds": [
+              {
+                "fromCapturePath": "$.operations.primary.variables.remoteId"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": []
+      }
+    ]
+  },
+  "notes": "Captured against Admin GraphQL 2026-04 with create input adSpend, scheduledStart, scheduledEnd, and referringDomain followed by an update omitting those fields. The public MarketingActivity type exposes adSpend, and the nested MarketingEvent exposes scheduledToEndAt; live introspection on this API version does not expose MarketingActivity.scheduledToStartAt, MarketingActivity.scheduledToEndAt, or MarketingActivity.referringDomain, so focused Rust route tests cover local staging/preservation for those stored fields while parity asserts the public read-back surface Shopify currently permits."
+}

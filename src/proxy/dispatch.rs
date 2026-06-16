@@ -235,7 +235,7 @@ impl DraftProxy {
         }
 
         if let Some(data) =
-            self.order_payment_transaction_local_data(root_field, &query, &variables)
+            self.order_payment_transaction_local_data(request, root_field, &query, &variables)
         {
             return ok_json(data);
         }
@@ -268,6 +268,17 @@ impl DraftProxy {
 
         if let Some(data) = self.payment_terms_local_data(request, &query, &variables) {
             return ok_json(data);
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "paymentTermsTemplates")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": payment_terms_templates_query_data(&fields) }));
+            }
         }
 
         if root_field == "paymentReminderSend" {
@@ -804,13 +815,53 @@ impl DraftProxy {
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
-                    "location" | "locationByIdentifier" | "locations"
+                    "availableCarrierServices"
+                        | "location"
+                        | "locationByIdentifier"
+                        | "locations"
+                        | "locationsAvailableForDeliveryProfilesConnection"
+                )
+            })
+            && operation
+                .root_fields
+                .iter()
+                .any(|field| field == "availableCarrierServices")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return self.shipping_settings_read_response(request, &fields);
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "location"
+                        | "locationByIdentifier"
+                        | "locations"
+                        | "locationsAvailableForDeliveryProfilesConnection"
                 )
             })
             && (self.config.read_mode == ReadMode::Snapshot || self.has_staged_locations())
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.location_read_data(&fields) }));
+                let mut data = self.location_read_data(&fields);
+                merge_json_object_fields(
+                    &mut data,
+                    self.delivery_profile_locations_read_data(&fields),
+                );
+                return ok_json(json!({ "data": data }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "locationsAvailableForDeliveryProfilesConnection")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return self.delivery_profile_locations_read_response(request, &fields);
             }
         }
 
@@ -1148,6 +1199,9 @@ impl DraftProxy {
                 if let Some(data) = self.gift_card_node_read_data(&fields) {
                     return ok_json(json!({ "data": data }));
                 }
+                if let Some(data) = self.media_file_node_read_data(&fields) {
+                    return ok_json(json!({ "data": data }));
+                }
             }
             if let Some(data) =
                 local_node_read_fields(&query, &variables, Some(&self.store.staged.backup_region))
@@ -1448,9 +1502,20 @@ impl DraftProxy {
         if operation.operation_type == OperationType::Mutation
             && matches!(
                 root_field,
-                "shippingPackageUpdate" | "shippingPackageMakeDefault" | "shippingPackageDelete"
+                "locationLocalPickupEnable"
+                    | "locationLocalPickupDisable"
+                    | "shippingPackageUpdate"
+                    | "shippingPackageMakeDefault"
+                    | "shippingPackageDelete"
             )
         {
+            if matches!(
+                root_field,
+                "locationLocalPickupEnable" | "locationLocalPickupDisable"
+            ) {
+                return self
+                    .location_local_pickup_mutation(root_field, &query, &variables, request);
+            }
             return self.shipping_package_mutation(root_field, &query, &variables, request);
         }
 
@@ -1846,25 +1911,6 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && query.contains("validationUpdate")
-            && (query.contains("validation: { functionId:")
-                || query.contains("validation: { functionHandle:"))
-        {
-            return ok_json(json!({
-                "errors": [{
-                    "message": "Field 'functionId' is not defined on ValidationUpdateInput",
-                    "locations": [{ "line": 2, "column": 43 }],
-                    "path": ["mutation ValidationUpdateRebind", "validationUpdate", "validation", "functionId"],
-                    "extensions": {
-                        "code": "argumentLiteralsIncompatible",
-                        "typeName": "InputObject",
-                        "argumentName": "functionId"
-                    }
-                }]
-            }));
-        }
-
-        if operation.operation_type == OperationType::Mutation
             && query.contains("CartTransformCreateInvalidWrapper")
         {
             return ok_json(json!({
@@ -1999,11 +2045,6 @@ impl DraftProxy {
                     return ok_json(json!({ "data": data }));
                 }
             }
-            if let Some(data) =
-                self.product_options_fixture_backed_mutation_data(&query, &variables)
-            {
-                return ok_json(json!({ "data": data }));
-            }
             if !operation.root_fields.is_empty()
                 && operation.root_fields.iter().all(|field| {
                     matches!(
@@ -2081,16 +2122,6 @@ impl DraftProxy {
                         "data": self.collection_membership_downstream_read_data(&fields)
                     }));
                 }
-            }
-            if query.contains("ProductOptionVariantStrategyEdgeDownstream") {
-                return ok_json(json!({
-                    "data": product_bulk_create_strategy_downstream_data(&variables)
-                }));
-            }
-            if query.contains("ProductOptionLifecycleDownstream") {
-                return ok_json(json!({
-                    "data": self.product_option_lifecycle_downstream_data(&variables)
-                }));
             }
             if query.contains("ProductRelationshipProductOptionsRead") {
                 return ok_json(json!({
@@ -2179,6 +2210,7 @@ impl DraftProxy {
                             | "inventoryProperties"
                             | "inventoryTransfer"
                             | "inventoryTransfers"
+                            | "inventoryShipment"
                     )
                 });
                 let has_product_overlay_fields = operation.root_fields.iter().any(|field| {
@@ -2204,7 +2236,9 @@ impl DraftProxy {
                         "data": self.product_overlay_read_fields(&query, &variables)
                     }))
                 } else {
-                    (self.upstream_transport)(request.clone())
+                    let response = (self.upstream_transport)(request.clone());
+                    self.observe_product_passthrough_response(&response);
+                    response
                 }
             }
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
@@ -2218,6 +2252,7 @@ impl DraftProxy {
                             | "inventoryProperties"
                             | "inventoryTransfer"
                             | "inventoryTransfers"
+                            | "inventoryShipment"
                     ) =>
             {
                 if let Some(fields) = root_fields(&query, &variables) {
@@ -2248,6 +2283,20 @@ impl DraftProxy {
                 if has_local_dispatch && root_field == "productChangeStatus" =>
             {
                 let outcome = self.product_change_status(request, &query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "productOptionsCreate"
+                            | "productOptionUpdate"
+                            | "productOptionsDelete"
+                            | "productOptionsReorder"
+                    ) =>
+            {
+                let outcome = self.product_option_mutation(root_field, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
@@ -2298,6 +2347,15 @@ impl DraftProxy {
                             | "inventoryTransferRemoveItems"
                             | "inventoryTransferCancel"
                             | "inventoryTransferDelete"
+                            | "inventoryShipmentCreate"
+                            | "inventoryShipmentCreateInTransit"
+                            | "inventoryShipmentAddItems"
+                            | "inventoryShipmentRemoveItems"
+                            | "inventoryShipmentUpdateItemQuantities"
+                            | "inventoryShipmentSetTracking"
+                            | "inventoryShipmentMarkInTransit"
+                            | "inventoryShipmentReceive"
+                            | "inventoryShipmentDelete"
                     ) =>
             {
                 if let Some(fields) = root_fields(&query, &variables) {
@@ -2461,5 +2519,14 @@ impl DraftProxy {
                 ),
             ),
         }
+    }
+}
+
+fn merge_json_object_fields(target: &mut Value, source: Value) {
+    let (Value::Object(target), Value::Object(source)) = (target, source) else {
+        return;
+    };
+    for (key, value) in source {
+        target.insert(key, value);
     }
 }

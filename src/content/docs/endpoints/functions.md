@@ -40,7 +40,8 @@ Validation behavior:
 - `validationCreate` rejects missing or multiple identifiers, unresolved references, and known non-validation API types without staging.
 - Omitted or explicit `null` title uses the resolved Function-derived title; explicit empty string is preserved.
 - Omitted `enable` / `enabled` defaults to `false`, activation is capped at 25 active validations, and validation-owned metafields persist for downstream reads.
-- `validationUpdate` rejects Function rebinding input shape, applies the same active-validation cap, and upserts non-empty metafield input by `(namespace, key)` while preserving unrelated rows.
+- `validationUpdate` rejects Function rebinding input shape before resolver execution because public `ValidationUpdateInput` does not expose `functionId` or `functionHandle`. Inline literals return Shopify's captured top-level `argumentLiteralsIncompatible` field-not-defined error, while variable-bound input returns top-level `INVALID_VARIABLE`; neither branch produces mutation-scoped `userErrors`.
+- Valid `validationUpdate` input applies the same active-validation cap and upserts non-empty metafield input by `(namespace, key)` while preserving unrelated rows.
 - Invalid validation metafields reject the entire mutation before staging with index-scoped userErrors. Downstream `validation`, `validations`, `metafields(...)`, and `metafield(namespace:, key:)` reads expose persisted rows.
 
 Cart transform behavior:
@@ -77,6 +78,7 @@ Function catalog and guardrails:
 - `fixtures/conformance/local-runtime/2026-04/functions/functions-validation-max-cap.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-live-owner-metadata-read.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-create-error-shape.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-update-rebind-variable.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/validation-create-title-fallback-parity.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-metafields-input-validation.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-update-metafields-upsert.json`
@@ -87,6 +89,7 @@ Function catalog and guardrails:
 - `config/parity-specs/functions/functions-create-guardrails.json`
 - `config/parity-specs/functions/functions-validation-create-validation.json`
 - `config/parity-specs/functions/functions-validation-update-shape.json`
+- `config/parity-specs/functions/functions-validation-update-rebind-variable.json`
 - `config/parity-specs/functions/functions-validation-max-cap.json`
 - `config/parity-specs/functions/functions-live-owner-metadata-read.json`
 - `config/parity-specs/functions/functions-validation-create-error-shape.json`

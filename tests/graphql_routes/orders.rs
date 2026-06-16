@@ -2028,6 +2028,219 @@ fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
 }
 
 #[test]
+fn payment_terms_create_update_reprojects_from_template_catalog() {
+    let create_query = r#"
+        mutation PaymentTermsTemplateProjectionCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {
+          paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {
+            paymentTerms {
+              id
+              dueInDays
+              paymentTermsName
+              paymentTermsType
+              translatedName
+              paymentSchedules(first: 2) {
+                nodes {
+                  id
+                  issuedAt
+                  dueAt
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let update_query = r#"
+        mutation PaymentTermsTemplateProjectionUpdate($input: PaymentTermsUpdateInput!) {
+          paymentTermsUpdate(input: $input) {
+            paymentTerms {
+              id
+              dueInDays
+              paymentTermsName
+              paymentTermsType
+              translatedName
+              paymentSchedules(first: 2) {
+                nodes {
+                  id
+                  issuedAt
+                  dueAt
+                }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let mut proxy = snapshot_proxy();
+
+    let templates = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/payments/payment-terms-templates-read.graphql"),
+        json!({ "type": "NET" }),
+    ));
+    assert_eq!(templates.status, 200);
+    assert_eq!(
+        templates.body["data"]["all"]
+            .as_array()
+            .and_then(|nodes| nodes
+                .iter()
+                .find(|node| node["id"] == json!("gid://shopify/PaymentTermsTemplate/2")))
+            .map(|node| node["name"].clone()),
+        Some(json!("Net 7"))
+    );
+    assert!(templates.body["data"]["filtered"]
+        .as_array()
+        .is_some_and(|nodes| nodes
+            .iter()
+            .all(|node| node["paymentTermsType"] == json!("NET"))));
+
+    let mut create_attrs_for_log = Vec::new();
+
+    for (reference_id, attrs, expected_name, expected_type, expected_due_days, schedule_count) in [
+        (
+            "gid://shopify/DraftOrder/fixed-template",
+            json!({
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+                "paymentSchedules": [{ "dueAt": "2026-07-01T00:00:00Z" }]
+            }),
+            "Fixed",
+            "FIXED",
+            Value::Null,
+            1_usize,
+        ),
+        (
+            "gid://shopify/DraftOrder/net-7-template",
+            json!({
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/2",
+                "paymentSchedules": [{ "issuedAt": "2026-07-01T00:00:00Z" }]
+            }),
+            "Net 7",
+            "NET",
+            json!(7),
+            1_usize,
+        ),
+        (
+            "gid://shopify/DraftOrder/fulfillment-template",
+            json!({
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/9"
+            }),
+            "Due on fulfillment",
+            "FULFILLMENT",
+            Value::Null,
+            0_usize,
+        ),
+    ] {
+        let create = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({ "referenceId": reference_id, "attrs": attrs.clone() }),
+        ));
+        assert_eq!(create.status, 200);
+        assert_eq!(
+            create.body["data"]["paymentTermsCreate"]["userErrors"],
+            json!([])
+        );
+        let terms = &create.body["data"]["paymentTermsCreate"]["paymentTerms"];
+        assert_eq!(terms["paymentTermsName"], json!(expected_name));
+        assert_eq!(terms["paymentTermsType"], json!(expected_type));
+        assert_eq!(terms["translatedName"], json!(expected_name));
+        assert_eq!(terms["dueInDays"], expected_due_days);
+        assert_eq!(
+            terms["paymentSchedules"]["nodes"].as_array().map(Vec::len),
+            Some(schedule_count)
+        );
+        create_attrs_for_log.push(attrs);
+    }
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(
+        log["entries"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|entry| entry["interpreted"]["rootFields"] == json!(["paymentTermsCreate"]))
+            .count(),
+        create_attrs_for_log.len()
+    );
+    for attrs in create_attrs_for_log {
+        let entry = log["entries"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|entry| entry["variables"]["attrs"] == attrs)
+            .expect("paymentTermsCreate log should preserve original variables");
+        assert!(entry["rawBody"]
+            .as_str()
+            .is_some_and(|raw| raw.contains("paymentTermsCreate")));
+        assert_eq!(entry["status"], json!("staged"));
+    }
+
+    for (
+        payment_terms_id,
+        attrs,
+        expected_name,
+        expected_type,
+        expected_due_days,
+        schedule_count,
+    ) in [
+        (
+            "gid://shopify/PaymentTerms/fixed-update",
+            json!({
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+                "paymentSchedules": [{ "dueAt": "2026-08-01T00:00:00Z" }]
+            }),
+            "Fixed",
+            "FIXED",
+            Value::Null,
+            1_usize,
+        ),
+        (
+            "gid://shopify/PaymentTerms/net-7-update",
+            json!({
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/2",
+                "paymentSchedules": [{ "issuedAt": "2026-08-01T00:00:00Z" }]
+            }),
+            "Net 7",
+            "NET",
+            json!(7),
+            1_usize,
+        ),
+        (
+            "gid://shopify/PaymentTerms/fulfillment-update",
+            json!({
+                "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/9"
+            }),
+            "Due on fulfillment",
+            "FULFILLMENT",
+            Value::Null,
+            0_usize,
+        ),
+    ] {
+        let update = proxy.process_request(json_graphql_request(
+            update_query,
+            json!({
+                "input": {
+                    "paymentTermsId": payment_terms_id,
+                    "paymentTermsAttributes": attrs
+                }
+            }),
+        ));
+        assert_eq!(update.status, 200);
+        assert_eq!(
+            update.body["data"]["paymentTermsUpdate"]["userErrors"],
+            json!([])
+        );
+        let terms = &update.body["data"]["paymentTermsUpdate"]["paymentTerms"];
+        assert_eq!(terms["paymentTermsName"], json!(expected_name));
+        assert_eq!(terms["paymentTermsType"], json!(expected_type));
+        assert_eq!(terms["translatedName"], json!(expected_name));
+        assert_eq!(terms["dueInDays"], expected_due_days);
+        assert_eq!(
+            terms["paymentSchedules"]["nodes"].as_array().map(Vec::len),
+            Some(schedule_count)
+        );
+    }
+}
+
+#[test]
 fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
     let create_fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json"
@@ -2397,6 +2610,163 @@ fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
         read_after_void.body["data"]["order"]["displayFinancialStatus"],
         json!("VOIDED")
     );
+}
+
+#[test]
+fn order_payment_transactions_use_order_transaction_state_not_magic_values() {
+    let mut proxy = snapshot_proxy();
+
+    let create_a = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-create-local-staging.graphql"
+        ),
+        json!({
+            "order": {
+                "currency": "CAD",
+                "transactions": [{
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": { "shopMoney": { "amount": "42.00", "currencyCode": "CAD" } }
+                }],
+                "lineItems": [{
+                    "title": "capture arbitrary amount",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "42.00", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+    let order_a_id = create_a.body["data"]["orderCreate"]["order"]["id"].clone();
+    let parent_a_id =
+        create_a.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone();
+
+    let capture_a = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-capture-local-staging.graphql"
+        ),
+        json!({
+            "input": {
+                "id": order_a_id,
+                "parentTransactionId": parent_a_id,
+                "amount": "42.00",
+                "currency": "CAD"
+            }
+        }),
+    ));
+    assert_eq!(
+        capture_a.body["data"]["orderCapture"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        capture_a.body["data"]["orderCapture"]["transaction"]["amountSet"]["shopMoney"]["amount"],
+        json!("42.0")
+    );
+    assert_ne!(
+        capture_a.body["data"]["orderCapture"]["transaction"]["id"],
+        json!("gid://shopify/OrderTransaction/7")
+    );
+    assert_eq!(
+        capture_a.body["data"]["orderCapture"]["order"]["displayFinancialStatus"],
+        json!("PAID")
+    );
+
+    let create_b = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-create-local-staging.graphql"
+        ),
+        json!({
+            "order": {
+                "currency": "CAD",
+                "transactions": [{
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": { "shopMoney": { "amount": "20.00", "currencyCode": "CAD" } }
+                }],
+                "lineItems": [{
+                    "title": "over capture computed",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "20.00", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+    let order_b_id = create_b.body["data"]["orderCreate"]["order"]["id"].clone();
+    let parent_b_id =
+        create_b.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone();
+
+    let over_capture_b = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-capture-local-staging.graphql"
+        ),
+        json!({
+            "input": {
+                "id": order_b_id,
+                "parentTransactionId": parent_b_id.clone(),
+                "amount": "30.00",
+                "currency": "CAD"
+            }
+        }),
+    ));
+    assert_eq!(
+        over_capture_b.body["data"]["orderCapture"]["transaction"],
+        Value::Null
+    );
+    assert_eq!(
+        over_capture_b.body["data"]["orderCapture"]["userErrors"][0]["field"],
+        json!(["amount"])
+    );
+
+    let void_b = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-void-local-staging.graphql"
+        ),
+        json!({ "id": parent_b_id }),
+    ));
+    assert_eq!(
+        void_b.body["data"]["transactionVoid"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        void_b.body["data"]["transactionVoid"]["transaction"]["kind"],
+        json!("VOID")
+    );
+    assert_eq!(
+        void_b.body["data"]["transactionVoid"]["transaction"]["amountSet"]["shopMoney"]["amount"],
+        json!("20.0")
+    );
+
+    let missing_void = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-void-local-staging.graphql"
+        ),
+        json!({ "id": "gid://shopify/OrderTransaction/does-not-exist" }),
+    ));
+    assert_eq!(
+        missing_void.body["data"]["transactionVoid"]["userErrors"][0]["field"],
+        json!(["parentTransactionId"])
+    );
+    assert_eq!(
+        missing_void.body["data"]["transactionVoid"]["userErrors"][0]["message"],
+        json!("Transaction does not exist")
+    );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().expect("log entries");
+    assert_eq!(entries.len(), 4);
+    assert!(entries[0]["rawBody"]
+        .as_str()
+        .expect("raw body")
+        .contains("OrderPaymentCreate"));
+    assert!(entries[1]["rawBody"]
+        .as_str()
+        .expect("raw body")
+        .contains("OrderPaymentCapture"));
+    assert!(entries[3]["rawBody"]
+        .as_str()
+        .expect("raw body")
+        .contains("OrderPaymentVoid"));
 }
 
 #[test]
