@@ -350,10 +350,16 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| matches!(field.as_str(), "metaobjectCreate" | "metaobjectDelete"))
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "metaobjectCreate"
+                        | "metaobjectUpdate"
+                        | "metaobjectUpsert"
+                        | "metaobjectDelete"
+                        | "metaobjectBulkDelete"
+                )
+            })
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return self.metaobject_mutation(&fields, request, &query, &variables);
@@ -1957,6 +1963,13 @@ impl DraftProxy {
                 self.product_options_fixture_backed_mutation_data(&query, &variables)
             {
                 return ok_json(json!({ "data": data }));
+            }
+            if root_field == "productOptionsCreate" {
+                if let Some(outcome) =
+                    self.product_options_create_linked_metaobjects(&query, &variables)
+                {
+                    return self.finalize_mutation_outcome(request, &query, &variables, outcome);
+                }
             }
             if !operation.root_fields.is_empty()
                 && operation.root_fields.iter().all(|field| {
