@@ -340,6 +340,147 @@ impl DraftProxy {
         }
     }
 
+    /// Links a company contact to an existing Customer by email, or provisions a
+    /// fresh synthetic Customer when none matches, returning its gid. Shopify
+    /// always exposes a company contact's underlying customer record.
+    pub(in crate::proxy) fn b2b_provision_contact_customer(
+        &mut self,
+        email: &str,
+        first_name: Option<String>,
+        last_name: Option<String>,
+    ) -> String {
+        if let Some((id, _)) = self.store.staged.customers.iter().find(|(_, customer)| {
+            customer["email"].as_str().map(str::to_ascii_lowercase)
+                == Some(email.to_ascii_lowercase())
+        }) {
+            return id.clone();
+        }
+        let id = self.next_proxy_synthetic_gid("Customer");
+        let first = first_name.unwrap_or_default();
+        let last = last_name.unwrap_or_default();
+        let display_name = [first.as_str(), last.as_str()]
+            .into_iter()
+            .filter(|part| !part.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+        let customer = json!({
+            "id": id,
+            "firstName": first,
+            "lastName": last,
+            "displayName": display_name,
+            "email": email,
+            "phone": Value::Null,
+            "state": "DISABLED",
+            "verifiedEmail": true,
+            "defaultEmailAddress": { "emailAddress": email },
+            "defaultPhoneNumber": Value::Null,
+            "defaultAddress": Value::Null,
+            "taxExempt": false,
+            "taxExemptions": [],
+            "tags": []
+        });
+        self.store.staged.customers.insert(id.clone(), customer);
+        id
+    }
+
+    /// Handles companyAssignCustomerAsContact against locally-staged b2b state.
+    /// Returns None when the target company is not in local state, so callers can
+    /// defer to other handlers (e.g. the order-customer-error-path scenario, which
+    /// uses a sentinel company that is never staged in `b2b_companies`).
+    pub(in crate::proxy) fn b2b_assign_customer_as_contact_response(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Response> {
+        let fields = root_fields(query, variables)?;
+        let field = fields
+            .iter()
+            .find(|field| field.name == "companyAssignCustomerAsContact")?;
+        let company_id = resolved_string_arg(&field.arguments, "companyId")?;
+        if !self.store.staged.b2b_companies.contains_key(&company_id) {
+            return None;
+        }
+        let (payload, status, staged_ids) =
+            self.b2b_company_assign_customer_as_contact_payload(field);
+        self.record_mutation_log_entry(request, query, variables, &field.name, staged_ids);
+        if status == "failed" {
+            if let Some(entry) = self.log_entries.last_mut() {
+                set_log_status(entry, status);
+            }
+        }
+        let mut data = serde_json::Map::new();
+        data.insert(
+            field.response_key.clone(),
+            self.b2b_payload_selected_json(&payload, &field.selection),
+        );
+        Some(ok_json(json!({ "data": Value::Object(data) })))
+    }
+
+    fn b2b_company_assign_customer_as_contact_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let Some(customer) = self.store.staged.customers.get(&customer_id).cloned() else {
+            let error = b2b_company_user_error(
+                vec!["customerId"],
+                "Customer does not exist.",
+                "RESOURCE_NOT_FOUND",
+                None,
+            );
+            return (json!({ "companyContact": null, "userErrors": [error] }), "failed", Vec::new());
+        };
+        if customer["email"].as_str().map(str::trim).unwrap_or_default().is_empty() {
+            let error = b2b_company_user_error(
+                vec!["companyId"],
+                "Customer must have an email address.",
+                "INVALID_INPUT",
+                None,
+            );
+            return (json!({ "companyContact": null, "userErrors": [error] }), "failed", Vec::new());
+        }
+        let already_contact = self
+            .store
+            .staged
+            .b2b_contacts
+            .values()
+            .any(|contact| contact["customerId"].as_str() == Some(customer_id.as_str()));
+        if already_contact {
+            let error = b2b_company_user_error(
+                vec!["companyId"],
+                "Customer is already associated with a company contact.",
+                "INVALID_INPUT",
+                None,
+            );
+            return (json!({ "companyContact": null, "userErrors": [error] }), "failed", Vec::new());
+        }
+        let contact_id = self.next_proxy_synthetic_gid("CompanyContact");
+        let contact = json!({
+            "id": contact_id,
+            "companyId": company_id,
+            "customerId": customer_id,
+            "firstName": customer["firstName"].clone(),
+            "lastName": customer["lastName"].clone(),
+            // companyAssignCustomerAsContact takes no title, so the contact has none.
+            "title": Value::Null,
+            "locale": "en",
+            // A customer assigned to an existing company never becomes its main
+            // contact, so isMainContact reads back false.
+            "isMainContact": false
+        });
+        self.store
+            .staged
+            .b2b_contacts
+            .insert(contact_id.clone(), contact.clone());
+        if let Some(mut company) = self.store.staged.b2b_companies.get(&company_id).cloned() {
+            b2b_push_json_id(&mut company, "contactIds", &contact_id);
+            self.store.staged.b2b_companies.insert(company_id, company);
+        }
+        (json!({ "companyContact": contact, "userErrors": [] }), "staged", vec![contact_id])
+    }
+
     pub(in crate::proxy) fn b2b_company_create_payload(
         &mut self,
         field: &RootFieldSelection,
@@ -359,6 +500,19 @@ impl DraftProxy {
             if !location_errors.is_empty() {
                 return (
                     b2b_company_payload(None, location_errors),
+                    "failed",
+                    Vec::new(),
+                );
+            }
+        }
+        // The nested companyContact is likewise validated before anything is staged:
+        // a malformed email rejects the whole create under its own field path.
+        if let Some(nested_contact) = resolved_object_field(&input, "companyContact") {
+            let contact_errors =
+                b2b_contact_input_errors(&nested_contact, &["input", "companyContact"]);
+            if !contact_errors.is_empty() {
+                return (
+                    b2b_company_payload(None, contact_errors),
                     "failed",
                     Vec::new(),
                 );
@@ -415,6 +569,15 @@ impl DraftProxy {
         let mut main_contact_id: Option<String> = None;
         if let Some(contact_input) = resolved_object_field(&input, "companyContact") {
             let contact_id = self.next_proxy_synthetic_gid("CompanyContact");
+            // A company contact supplied with an email links to (or provisions) a
+            // Customer record, which reads back as companyContact.customer.
+            let customer_id = resolved_string_field(&contact_input, "email").map(|email| {
+                self.b2b_provision_contact_customer(
+                    &email,
+                    resolved_string_field(&contact_input, "firstName"),
+                    resolved_string_field(&contact_input, "lastName"),
+                )
+            });
             let contact = json!({
                 "id": contact_id,
                 "title": resolved_string_field(&contact_input, "title")
@@ -423,6 +586,7 @@ impl DraftProxy {
                 "firstName": resolved_string_field(&contact_input, "firstName").map(Value::String).unwrap_or(Value::Null),
                 "lastName": resolved_string_field(&contact_input, "lastName").map(Value::String).unwrap_or(Value::Null),
                 "companyId": id,
+                "customerId": customer_id.map(Value::String).unwrap_or(Value::Null),
                 // Shopify defaults a new company contact's locale to the shop's
                 // primary locale ("en" for this store) when none is supplied.
                 "locale": resolved_string_field(&contact_input, "locale").unwrap_or_else(|| "en".to_string()),
@@ -1357,6 +1521,9 @@ impl DraftProxy {
                 "company" if !value.is_null() => {
                     self.b2b_company_selected_json(value, &selection.selection)
                 }
+                "companyContact" if !value.is_null() => {
+                    self.b2b_company_contact_selected_json(value, &selection.selection)
+                }
                 "companyLocation" if !value.is_null() => {
                     self.b2b_company_location_selected_json(value, &selection.selection)
                 }
@@ -1486,6 +1653,16 @@ impl DraftProxy {
                         .map(|company| {
                             self.b2b_company_selected_json(company, &selection.selection)
                         })
+                        .unwrap_or(Value::Null),
+                )
+            }
+            "customer" => {
+                let customer = contact["customerId"]
+                    .as_str()
+                    .and_then(|id| self.store.staged.customers.get(id));
+                Some(
+                    customer
+                        .map(|customer| selected_json(customer, &selection.selection))
                         .unwrap_or(Value::Null),
                 )
             }
@@ -3286,6 +3463,39 @@ fn b2b_location_input_errors(
         let mut field = prefix.to_vec();
         field.push("taxExempt");
         errors.push(b2b_company_user_error(field, "Invalid input.", "INVALID_INPUT", None));
+    }
+    errors
+}
+
+/// Validation for a CompanyContactInput supplied to companyCreate (nested under
+/// `["input","companyContact"]`). A malformed email surfaces as
+/// "Email is invalid"/INVALID on the email field path; HTML markup in a name
+/// surfaces as a generic "Invalid input."/INVALID_INPUT on the parent input path,
+/// matching live Admin's BusinessCustomerUserError shape.
+fn b2b_contact_input_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    prefix: &[&str],
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if let Some(email) = resolved_string_field(input, "email") {
+        if !is_valid_customer_email(&email) {
+            let mut field = prefix.to_vec();
+            field.push("email");
+            errors.push(b2b_company_user_error(field, "Email is invalid", "INVALID", None));
+        }
+    }
+    for name_field in ["firstName", "lastName"] {
+        if let Some(value) = resolved_string_field(input, name_field) {
+            if b2b_contains_html_tags(&value) {
+                errors.push(b2b_company_user_error(
+                    prefix.to_vec(),
+                    "Invalid input.",
+                    "INVALID_INPUT",
+                    None,
+                ));
+                break;
+            }
+        }
     }
     errors
 }

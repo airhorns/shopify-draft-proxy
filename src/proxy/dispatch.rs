@@ -1757,7 +1757,11 @@ impl DraftProxy {
                             )
                         }),
                     "companyAssignCustomerAsContact" => {
-                        if let Some(data) =
+                        if let Some(response) = self
+                            .b2b_assign_customer_as_contact_response(request, &query, &variables)
+                        {
+                            response
+                        } else if let Some(data) =
                             self.order_customer_error_paths_data(request, &query, &variables)
                         {
                             ok_json(data)
