@@ -2650,6 +2650,117 @@ fn gift_card_trial_shop_assignment_rejects_customer_and_recipient_assignment() {
 }
 
 #[test]
+fn gift_card_notification_trial_shop_rejects_customer_and_recipient_notifications() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardNotificationTrialShop($id: ID!) {
+          customerNotification: giftCardSendNotificationToCustomer(id: $id) { giftCard { id } userErrors { field code message } }
+          recipientNotification: giftCardSendNotificationToRecipient(id: $id) { giftCard { id } userErrors { field code message } }
+        }"#,
+        json!({ "id": "gid://shopify/GiftCard/trial-update-card" }),
+    ));
+
+    let trial_error = json!([{
+        "field": ["base"],
+        "code": "INVALID",
+        "message": "Notifications are not available on trial shops."
+    }]);
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "customerNotification": { "giftCard": null, "userErrors": trial_error },
+            "recipientNotification": { "giftCard": null, "userErrors": trial_error }
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
+#[test]
+fn gift_card_notification_entitlement_wins_before_trial_and_trial_wins_before_card_state() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardNotificationPriority {
+          entitlementBeforeTrial: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/disabled-entitlement-trial-notification") { giftCard { id } userErrors { field code message } }
+          trialBeforeMissing: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/trial-missing-notification") { giftCard { id } userErrors { field code message } }
+          trialBeforeNotifyDisabled: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/trial-notify-disabled-notification") { giftCard { id } userErrors { field code message } }
+          trialBeforeExpired: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/trial-expired-notification") { giftCard { id } userErrors { field code message } }
+          trialBeforeDeactivated: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/trial-deactivated-notification") { giftCard { id } userErrors { field code message } }
+          trialBeforeNoCustomer: giftCardSendNotificationToCustomer(id: "gid://shopify/GiftCard/trial-no-customer-notification") { giftCard { id } userErrors { field code message } }
+          trialBeforeNoContact: giftCardSendNotificationToRecipient(id: "gid://shopify/GiftCard/trial-no-contact-notification") { giftCard { id } userErrors { field code message } }
+        }"#,
+        json!({}),
+    ));
+
+    let entitlement_error = json!([{ "field": ["base"], "code": null, "message": "Gift cards are unavailable on your plan." }]);
+    let trial_error = json!([{
+        "field": ["base"],
+        "code": "INVALID",
+        "message": "Notifications are not available on trial shops."
+    }]);
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "entitlementBeforeTrial": { "giftCard": null, "userErrors": entitlement_error },
+            "trialBeforeMissing": { "giftCard": null, "userErrors": trial_error },
+            "trialBeforeNotifyDisabled": { "giftCard": null, "userErrors": trial_error },
+            "trialBeforeExpired": { "giftCard": null, "userErrors": trial_error },
+            "trialBeforeDeactivated": { "giftCard": null, "userErrors": trial_error },
+            "trialBeforeNoCustomer": { "giftCard": null, "userErrors": trial_error },
+            "trialBeforeNoContact": { "giftCard": null, "userErrors": trial_error }
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
+#[test]
+fn gift_card_notification_uses_hydrated_trial_shop_plan() {
+    let mut proxy = snapshot_proxy();
+    let dump = proxy
+        .process_request(request_with_body(
+            "POST",
+            "/__meta/dump",
+            &json!({ "createdAt": "2026-06-16T00:00:00.000Z" }).to_string(),
+        ))
+        .body;
+    let mut restored = dump.clone();
+    restored["state"]["baseState"]["shop"]["plan"] = json!({
+        "partnerDevelopment": false,
+        "publicDisplayName": "Trial",
+        "shopifyPlus": false
+    });
+    let restore = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &restored.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"mutation GiftCardNotificationTrialPlan($id: ID!) {
+          customerNotification: giftCardSendNotificationToCustomer(id: $id) { giftCard { id } userErrors { field code message } }
+          recipientNotification: giftCardSendNotificationToRecipient(id: $id) { giftCard { id } userErrors { field code message } }
+        }"#,
+        json!({ "id": "gid://shopify/GiftCard/654773256498" }),
+    ));
+
+    let trial_error = json!([{
+        "field": ["base"],
+        "code": "INVALID",
+        "message": "Notifications are not available on trial shops."
+    }]);
+    assert_eq!(
+        response.body["data"],
+        json!({
+            "customerNotification": { "giftCard": null, "userErrors": trial_error },
+            "recipientNotification": { "giftCard": null, "userErrors": trial_error }
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
+#[test]
 fn gift_card_transaction_validation_rejects_state_currency_dates_and_allows_success_credit() {
     let mut proxy = snapshot_proxy();
 

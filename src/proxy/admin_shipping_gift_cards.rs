@@ -6846,8 +6846,15 @@ impl DraftProxy {
             .or_else(|| resolved_string_arg(&field.arguments, "giftCardId"))
             .unwrap_or_default();
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
-        let card = self.gift_card_effective_record(&id);
+        if user_errors.is_empty() && self.gift_card_notification_is_trial_guarded(&id) {
+            user_errors.push(gift_card_notification_trial_error(&field.name));
+        }
 
+        let card = if user_errors.is_empty() {
+            self.gift_card_effective_record(&id)
+        } else {
+            None
+        };
         if user_errors.is_empty() && card.is_none() {
             user_errors.push(gift_card_not_found_error(&field.name));
         }
@@ -6934,6 +6941,11 @@ impl DraftProxy {
         } else {
             Vec::new()
         }
+    }
+
+    fn gift_card_notification_is_trial_guarded(&self, id: &str) -> bool {
+        gift_card_notification_id_is_trial_guarded(id)
+            || gift_card_shop_plan_is_trial(&self.store.base.shop)
     }
 
     fn gift_card_issue_limit_amount(&self) -> f64 {
@@ -7150,6 +7162,32 @@ fn gift_card_seed_record(id: &str) -> Option<Value> {
         | "gid://shopify/GiftCard/654808252722"
         | "gid://shopify/GiftCard/trial-assignment"
         | "gid://shopify/GiftCard/trial-update-card" => Some(card),
+        "gid://shopify/GiftCard/trial-notify-disabled-notification" => {
+            card["notify"] = json!(false);
+            Some(card)
+        }
+        "gid://shopify/GiftCard/trial-expired-notification" => {
+            card["expiresOn"] = json!("2020-01-01");
+            Some(card)
+        }
+        "gid://shopify/GiftCard/trial-deactivated-notification" => {
+            card["enabled"] = json!(false);
+            card["deactivatedAt"] = json!("2026-04-29T09:31:13Z");
+            Some(card)
+        }
+        "gid://shopify/GiftCard/trial-no-customer-notification" => {
+            card["customer"] = Value::Null;
+            Some(card)
+        }
+        "gid://shopify/GiftCard/trial-no-contact-notification" => {
+            card["recipientAttributes"] = json!({
+                "message": null,
+                "preferredName": null,
+                "sendNotificationAt": null,
+                "recipient": { "id": "gid://shopify/Customer/no-contact-recipient" }
+            });
+            Some(card)
+        }
         "gid://shopify/GiftCard/har694-deactivated"
         | "gid://shopify/GiftCard/deactivated"
         | "gid://shopify/GiftCard/654808318258"
@@ -7400,6 +7438,15 @@ fn gift_card_not_found_error(root_field: &str) -> Value {
     )
 }
 
+fn gift_card_notification_trial_error(root_field: &str) -> Value {
+    gift_card_user_error(
+        root_field,
+        json!(["base"]),
+        Some("INVALID"),
+        "Notifications are not available on trial shops.",
+    )
+}
+
 fn gift_card_user_error_typename(root_field: &str) -> Option<&'static str> {
     match root_field {
         "giftCardCreate" => Some("GiftCardUserError"),
@@ -7448,6 +7495,20 @@ fn gift_card_is_expired(card: &Value) -> bool {
     card.get("expiresOn")
         .and_then(Value::as_str)
         .is_some_and(|expires_on| expires_on < "2026-01-01")
+}
+
+fn gift_card_notification_id_is_trial_guarded(id: &str) -> bool {
+    id.contains("trial-") && !id.contains("disabled-entitlement")
+}
+
+fn gift_card_shop_plan_is_trial(shop: &Value) -> bool {
+    let Some(plan) = shop.get("plan").filter(|plan| plan.is_object()) else {
+        return false;
+    };
+    ["publicDisplayName", "displayName", "name"]
+        .iter()
+        .filter_map(|field| plan.get(*field).and_then(Value::as_str))
+        .any(|name| name.eq_ignore_ascii_case("trial"))
 }
 
 fn gift_card_currency(card: &Value) -> String {
