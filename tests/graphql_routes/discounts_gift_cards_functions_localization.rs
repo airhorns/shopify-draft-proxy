@@ -103,6 +103,565 @@ fn discount_stage_locally_roots_dispatch_by_root_field_not_operation_name_or_ali
 }
 
 #[test]
+fn app_discount_roots_stage_locally_with_function_metadata_and_downstream_reads() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let upstream_call_log = Arc::clone(&upstream_calls);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        upstream_call_log.lock().unwrap().push(request.body.clone());
+        assert!(
+            !request.body.contains("discountCodeAppCreate")
+                && !request.body.contains("discountCodeAppUpdate")
+                && !request.body.contains("discountAutomaticAppCreate")
+                && !request.body.contains("discountAutomaticAppUpdate"),
+            "app-discount mutations must not be sent upstream"
+        );
+        shopify_draft_proxy::proxy::Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "shopifyFunctions": {
+                        "nodes": [{
+                            "id": "gid://shopify/ShopifyFunction/discount-local",
+                            "title": "Local volume discount",
+                            "handle": "discount-local",
+                            "apiType": "discount",
+                            "description": "Captured local Function metadata",
+                            "appKey": "app-key-local",
+                            "app": null
+                        }]
+                    }
+                }
+            }),
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrdinaryOperationName($codeInput: DiscountCodeAppInput!, $automaticInput: DiscountAutomaticAppInput!) {
+          codeAlias: discountCodeAppCreate(codeAppDiscount: $codeInput) {
+            codeAppDiscount {
+              __typename
+              discountId
+              title
+              status
+              usageLimit
+              combinesWith { orderDiscounts productDiscounts shippingDiscounts }
+              codes(first: 5) { nodes { code } }
+              appDiscountType { appKey functionId title description }
+            }
+            userErrors { field message code extraInfo }
+          }
+          automaticAlias: discountAutomaticAppCreate(automaticAppDiscount: $automaticInput) {
+            automaticAppDiscount {
+              __typename
+              discountId
+              title
+              status
+              recurringCycleLimit
+              appDiscountType { appKey functionId title description }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "codeInput": {
+                "title": "App code",
+                "code": "APPLOCAL",
+                "startsAt": "2024-01-01T00:00:00Z",
+                "functionHandle": "discount-local",
+                "usageLimit": 10,
+                "combinesWith": {
+                    "orderDiscounts": true,
+                    "productDiscounts": false,
+                    "shippingDiscounts": true
+                },
+                "discountClasses": ["ORDER"]
+            },
+            "automaticInput": {
+                "title": "App automatic",
+                "startsAt": "2024-01-01T00:00:00Z",
+                "functionHandle": "discount-local",
+                "recurringCycleLimit": 0,
+                "discountClasses": ["ORDER"]
+            }
+        }),
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    assert_eq!(
+        create.body["data"]["codeAlias"]["codeAppDiscount"],
+        json!({
+            "__typename": "DiscountCodeApp",
+            "discountId": create.body["data"]["codeAlias"]["codeAppDiscount"]["discountId"].clone(),
+            "title": "App code",
+            "status": "ACTIVE",
+            "usageLimit": 10,
+            "combinesWith": {
+                "orderDiscounts": true,
+                "productDiscounts": false,
+                "shippingDiscounts": true
+            },
+            "codes": { "nodes": [{ "code": "APPLOCAL" }] },
+            "appDiscountType": {
+                "appKey": "app-key-local",
+                "functionId": "discount-local",
+                "title": "Local volume discount",
+                "description": "Captured local Function metadata"
+            }
+        })
+    );
+    assert_eq!(
+        create.body["data"]["automaticAlias"]["automaticAppDiscount"]["recurringCycleLimit"],
+        json!(0)
+    );
+    assert_eq!(
+        create.body["data"]["automaticAlias"]["automaticAppDiscount"]["appDiscountType"]
+            ["functionId"],
+        json!("discount-local")
+    );
+    assert_eq!(create.body["data"]["codeAlias"]["userErrors"], json!([]));
+    assert_eq!(
+        create.body["data"]["automaticAlias"]["userErrors"],
+        json!([])
+    );
+
+    let code_id = create.body["data"]["codeAlias"]["codeAppDiscount"]["discountId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let automatic_id = create.body["data"]["automaticAlias"]["automaticAppDiscount"]["discountId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateAppDiscounts(
+          $codeId: ID!
+          $automaticId: ID!
+          $codeInput: DiscountCodeAppInput!
+          $automaticInput: DiscountAutomaticAppInput!
+        ) {
+          codeUpdateAlias: discountCodeAppUpdate(id: $codeId, codeAppDiscount: $codeInput) {
+            codeAppDiscount {
+              discountId
+              title
+              usageLimit
+              combinesWith { orderDiscounts productDiscounts shippingDiscounts }
+              codes(first: 5) { nodes { code } }
+              appDiscountType { functionId }
+            }
+            userErrors { field message code extraInfo }
+          }
+          automaticUpdateAlias: discountAutomaticAppUpdate(id: $automaticId, automaticAppDiscount: $automaticInput) {
+            automaticAppDiscount {
+              discountId
+              title
+              recurringCycleLimit
+              appDiscountType { functionId }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "codeId": code_id,
+            "automaticId": automatic_id,
+            "codeInput": {
+                "title": "App code updated",
+                "code": "APPLOCALUP",
+                "startsAt": "2024-01-01T00:00:00Z",
+                "functionId": "gid://shopify/ShopifyFunction/discount-local",
+                "usageLimit": 7,
+                "combinesWith": {
+                    "orderDiscounts": false,
+                    "productDiscounts": true,
+                    "shippingDiscounts": false
+                },
+                "discountClasses": ["ORDER"]
+            },
+            "automaticInput": {
+                "title": "App automatic updated",
+                "startsAt": "2024-01-01T00:00:00Z",
+                "functionId": "gid://shopify/ShopifyFunction/discount-local",
+                "recurringCycleLimit": 3,
+                "discountClasses": ["ORDER"]
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    assert_eq!(
+        update.body["data"]["codeUpdateAlias"]["codeAppDiscount"],
+        json!({
+            "discountId": code_id,
+            "title": "App code updated",
+            "usageLimit": 7,
+            "combinesWith": {
+                "orderDiscounts": false,
+                "productDiscounts": true,
+                "shippingDiscounts": false
+            },
+            "codes": { "nodes": [{ "code": "APPLOCALUP" }] },
+            "appDiscountType": { "functionId": "discount-local" }
+        })
+    );
+    assert_eq!(
+        update.body["data"]["automaticUpdateAlias"]["automaticAppDiscount"],
+        json!({
+            "discountId": automatic_id,
+            "title": "App automatic updated",
+            "recurringCycleLimit": 3,
+            "appDiscountType": { "functionId": "discount-local" }
+        })
+    );
+    assert_eq!(
+        update.body["data"]["codeUpdateAlias"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["automaticUpdateAlias"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query AppDiscountRead($codeId: ID!, $automaticId: ID!, $code: String!) {
+          codeDiscountNode(id: $codeId) {
+            codeDiscount {
+              ... on DiscountCodeApp {
+                title
+                appDiscountType { functionId }
+                codes(first: 5) { nodes { code } }
+              }
+            }
+          }
+          codeDiscountNodeByCode(code: $code) { id }
+          automaticDiscountNode(id: $automaticId) {
+            automaticDiscount {
+              ... on DiscountAutomaticApp {
+                title
+                recurringCycleLimit
+                appDiscountType { functionId }
+              }
+            }
+          }
+          discountNodes(first: 5) {
+            nodes { discount { __typename } }
+          }
+          discountNodesCount(query: "status:active") { count precision }
+        }
+        "#,
+        json!({ "codeId": code_id, "automaticId": automatic_id, "code": "APPLOCALUP" }),
+    ));
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["codeDiscountNode"]["codeDiscount"]["title"],
+        json!("App code updated")
+    );
+    assert_eq!(
+        read.body["data"]["codeDiscountNodeByCode"]["id"],
+        json!(code_id)
+    );
+    assert_eq!(
+        read.body["data"]["automaticDiscountNode"]["automaticDiscount"]["recurringCycleLimit"],
+        json!(3)
+    );
+    assert_eq!(
+        read.body["data"]["discountNodesCount"],
+        json!({ "count": 2, "precision": "EXACT" })
+    );
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeactivateAppAutomatic($id: ID!) {
+          discountAutomaticDeactivate(id: $id) {
+            automaticDiscountNode {
+              id
+              automaticDiscount {
+                __typename
+                ... on DiscountAutomaticApp {
+                  status
+                  appDiscountType { functionId }
+                }
+              }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({ "id": automatic_id }),
+    ));
+    assert_eq!(deactivate.status, 200);
+    assert_eq!(
+        deactivate.body["data"]["discountAutomaticDeactivate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["status"],
+        json!("EXPIRED")
+    );
+    assert_eq!(
+        deactivate.body["data"]["discountAutomaticDeactivate"]["automaticDiscountNode"]
+            ["automaticDiscount"]["appDiscountType"]["functionId"],
+        json!("discount-local")
+    );
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"].as_array().unwrap().len(), 5);
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("OrdinaryOperationName"));
+    assert_eq!(log["entries"][0]["stagedResourceIds"], json!([code_id]));
+}
+
+#[test]
+fn app_discount_validation_errors_are_local_and_do_not_stage_nodes() {
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let upstream_call_count = Arc::clone(&upstream_calls);
+    let mut proxy = configured_proxy(ReadMode::Snapshot, None).with_upstream_transport(move |_| {
+        *upstream_call_count.lock().unwrap() += 1;
+        shopify_draft_proxy::proxy::Response {
+            status: 500,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "snapshot app-discount validation should not hit upstream" }] }),
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppDiscountValidation(
+          $missingCode: DiscountCodeAppInput!
+          $multipleCode: DiscountCodeAppInput!
+          $unknownIdCode: DiscountCodeAppInput!
+          $wrongApiCode: DiscountCodeAppInput!
+          $blankAutomatic: DiscountAutomaticAppInput!
+          $emptyCustomersCode: DiscountCodeAppInput!
+        ) {
+          missingCode: discountCodeAppCreate(codeAppDiscount: $missingCode) {
+            codeAppDiscount { discountId }
+            userErrors { field message code extraInfo }
+          }
+          multipleCode: discountCodeAppCreate(codeAppDiscount: $multipleCode) {
+            codeAppDiscount { discountId }
+            userErrors { field message code extraInfo }
+          }
+          unknownIdCode: discountCodeAppCreate(codeAppDiscount: $unknownIdCode) {
+            codeAppDiscount { discountId }
+            userErrors { field message code extraInfo }
+          }
+          wrongApiCode: discountCodeAppCreate(codeAppDiscount: $wrongApiCode) {
+            codeAppDiscount { discountId }
+            userErrors { field message code extraInfo }
+          }
+          blankAutomatic: discountAutomaticAppCreate(automaticAppDiscount: $blankAutomatic) {
+            automaticAppDiscount { discountId }
+            userErrors { field message code extraInfo }
+          }
+          emptyCustomersCode: discountCodeAppCreate(codeAppDiscount: $emptyCustomersCode) {
+            codeAppDiscount { discountId }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "missingCode": {
+                "title": "Missing function",
+                "code": "MISSINGFUNCTIONLOCAL",
+                "startsAt": "2024-01-01T00:00:00Z",
+                "discountClasses": ["ORDER"]
+            },
+            "multipleCode": {
+                "title": "Multiple function",
+                "code": "MULTIFUNCTIONLOCAL",
+                "startsAt": "2024-01-01T00:00:00Z",
+                "functionId": "gid://shopify/ShopifyFunction/discount-local",
+                "functionHandle": "discount-local",
+                "discountClasses": ["ORDER"]
+            },
+            "unknownIdCode": {
+                "title": "Unknown function",
+                "code": "UNKNOWNFUNCTIONLOCAL",
+                "startsAt": "2024-01-01T00:00:00Z",
+                "functionId": "gid://shopify/ShopifyFunction/unknown",
+                "discountClasses": ["ORDER"]
+            },
+            "wrongApiCode": {
+                "title": "Wrong API",
+                "code": "WRONGAPILOCAL",
+                "startsAt": "2024-01-01T00:00:00Z",
+                "functionHandle": "conformance-cart-transform",
+                "discountClasses": ["ORDER"]
+            },
+            "blankAutomatic": {
+                "title": "",
+                "startsAt": "2024-01-01T00:00:00Z",
+                "functionHandle": "discount-local",
+                "discountClasses": ["ORDER"]
+            },
+            "emptyCustomersCode": {
+                "title": "Empty customers",
+                "code": "EMPTYCUSTOMERSLOCAL",
+                "startsAt": "2024-01-01T00:00:00Z",
+                "functionHandle": "discount-local",
+                "discountClasses": ["ORDER"],
+                "customerSelection": { "customers": { "add": [] } }
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["missingCode"]["userErrors"],
+        json!([{
+            "field": ["codeAppDiscount", "functionHandle"],
+            "message": "Function id can't be blank.",
+            "code": "MISSING_FUNCTION_IDENTIFIER",
+            "extraInfo": null
+        }])
+    );
+    assert_eq!(
+        response.body["data"]["multipleCode"]["userErrors"],
+        json!([{
+            "field": ["codeAppDiscount"],
+            "message": "Only one of functionId or functionHandle is allowed.",
+            "code": "MULTIPLE_FUNCTION_IDENTIFIERS",
+            "extraInfo": null
+        }])
+    );
+    assert_eq!(
+        response.body["data"]["unknownIdCode"]["userErrors"][0]["field"],
+        json!(["codeAppDiscount", "functionId"])
+    );
+    assert_eq!(
+        response.body["data"]["unknownIdCode"]["userErrors"][0]["code"],
+        json!("INVALID")
+    );
+    assert_eq!(
+        response.body["data"]["wrongApiCode"]["userErrors"],
+        json!([{
+            "field": ["codeAppDiscount", "functionHandle"],
+            "message": "Unexpected Function API. The provided function must implement one of the following extension targets: [product_discounts, order_discounts, shipping_discounts, discount].",
+            "code": null,
+            "extraInfo": null
+        }])
+    );
+    assert_eq!(
+        response.body["data"]["blankAutomatic"]["userErrors"],
+        json!([{
+            "field": ["automaticAppDiscount", "title"],
+            "message": "Title can't be blank.",
+            "code": "INVALID",
+            "extraInfo": null
+        }])
+    );
+    assert_eq!(
+        response.body["data"]["emptyCustomersCode"]["userErrors"],
+        json!([{
+            "field": ["codeAppDiscount", "customerSelection"],
+            "message": "a minimum of one prerequisite segment or prerequisite customer must be provided",
+            "code": "INVALID",
+            "extraInfo": null
+        }])
+    );
+    for key in [
+        "missingCode",
+        "multipleCode",
+        "unknownIdCode",
+        "wrongApiCode",
+        "emptyCustomersCode",
+    ] {
+        assert_eq!(response.body["data"][key]["codeAppDiscount"], json!(null));
+    }
+    assert_eq!(
+        response.body["data"]["blankAutomatic"]["automaticAppDiscount"],
+        json!(null)
+    );
+    assert_eq!(
+        proxy.get_state_snapshot()["stagedState"]["discounts"],
+        json!({})
+    );
+    assert_eq!(*upstream_calls.lock().unwrap(), 0);
+}
+
+#[test]
+fn app_discount_create_can_hydrate_function_metadata_by_id_without_mutation_passthrough() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<String>::new()));
+    let upstream_call_log = Arc::clone(&upstream_calls);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        upstream_call_log.lock().unwrap().push(request.body.clone());
+        assert!(!request.body.contains("discountCodeAppCreate"));
+        shopify_draft_proxy::proxy::Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "shopifyFunction": {
+                        "id": "gid://shopify/ShopifyFunction/id-only-discount",
+                        "title": "ID-only discount",
+                        "handle": "id-only-discount",
+                        "apiType": "discount",
+                        "description": "Function metadata fetched by id",
+                        "appKey": "app-key-id-only",
+                        "app": null
+                    }
+                }
+            }),
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AppDiscountByFunctionId($input: DiscountCodeAppInput!) {
+          discountCodeAppCreate(codeAppDiscount: $input) {
+            codeAppDiscount {
+              discountId
+              title
+              appDiscountType { appKey functionId title description }
+            }
+            userErrors { field message code extraInfo }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "ID-only app discount",
+                "code": "APPIDONLY",
+                "startsAt": "2024-01-01T00:00:00Z",
+                "functionId": "gid://shopify/ShopifyFunction/id-only-discount",
+                "discountClasses": ["ORDER"]
+            }
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(upstream_calls.lock().unwrap().len(), 1);
+    assert_eq!(
+        response.body["data"]["discountCodeAppCreate"]["codeAppDiscount"]["appDiscountType"],
+        json!({
+            "appKey": "app-key-id-only",
+            "functionId": "id-only-discount",
+            "title": "ID-only discount",
+            "description": "Function metadata fetched by id"
+        })
+    );
+    assert_eq!(
+        response.body["data"]["discountCodeAppCreate"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
 fn discount_generic_handler_validates_input_and_handles_lifecycle_by_arguments() {
     let mut proxy = snapshot_proxy();
 
