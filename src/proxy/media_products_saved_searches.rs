@@ -1071,6 +1071,10 @@ impl DraftProxy {
         ok_json(json!({"data": Value::Object(data)}))
     }
 
+    // metafieldsSet/metafieldsDelete read their `metafields` list from the
+    // resolved root-field arguments so inline-document forms work, not only the
+    // `$metafields` variable form (matches the Gleam reference, which reads from
+    // the field arguments). Falls back to top-level variables for safety.
     pub(in crate::proxy) fn owner_metafields_set(
         &mut self,
         request: &Request,
@@ -1080,7 +1084,7 @@ impl DraftProxy {
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "metafieldsSet".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
-        let inputs = list_object_arg(variables, "metafields");
+        let inputs = metafields_mutation_inputs(query, variables, "metafieldsSet");
         let mut user_errors = metafields_set_input_errors(&inputs);
         user_errors.extend(metafields_set_definition_user_errors(
             &inputs,
@@ -1225,7 +1229,7 @@ impl DraftProxy {
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "metafieldsDelete".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
-        let inputs = list_object_arg(variables, "metafields");
+        let inputs = metafields_mutation_inputs(query, variables, "metafieldsDelete");
         // A delete targeting another app's reserved namespace is not permitted;
         // Shopify rejects the whole batch before deleting anything.
         if inputs.iter().any(|input| {
@@ -3575,6 +3579,27 @@ impl DraftProxy {
         } else {
             MutationFieldOutcome::unlogged(value)
         }
+    }
+}
+
+// Resolves the `metafields` input list for a metafieldsSet/metafieldsDelete
+// root field from the parsed document arguments (covering both inline and
+// `$metafields` variable forms), falling back to the raw top-level variables.
+fn metafields_mutation_inputs(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    root_name: &str,
+) -> Vec<BTreeMap<String, ResolvedValue>> {
+    let from_field = root_fields(query, variables)
+        .unwrap_or_default()
+        .into_iter()
+        .find(|field| field.name == root_name)
+        .map(|field| list_object_field(&field.arguments, "metafields"))
+        .unwrap_or_default();
+    if from_field.is_empty() {
+        list_object_arg(variables, "metafields")
+    } else {
+        from_field
     }
 }
 

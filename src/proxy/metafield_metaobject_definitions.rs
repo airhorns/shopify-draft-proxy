@@ -1403,29 +1403,87 @@ impl DraftProxy {
                 });
             }
         };
+        // Deprecated standardMetafieldDefinitionEnable inputs translate into
+        // their modern capability/access equivalents before validation, matching
+        // Shopify's behavior of mapping the legacy flags onto the structured
+        // inputs (useAsAdminFilter -> capabilities.adminFilterable, etc.).
+        let args = translate_standard_enable_deprecated_args(arguments);
         let mut definition =
-            self.metafield_definition_from_input(request, arguments, Some(&template));
+            self.metafield_definition_from_input(request, &args, Some(&template));
         definition["ownerType"] = json!(owner_type);
-        if template.namespace == "shopify" && resolved_object_field(arguments, "access").is_none() {
+        if template.namespace == "shopify" && resolved_object_field(&args, "access").is_none() {
             definition["access"] = json!({
                 "admin": "PUBLIC_READ_WRITE",
                 "storefront": "PUBLIC_READ",
                 "customerAccount": "NONE"
             });
         }
+        // Unstructured metafields already exist for this owner/namespace/key:
+        // unless forceEnable is set or an effective definition already exists,
+        // Shopify refuses to promote the loose metafields into a definition.
+        let metafield_type = definition["type"]["name"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        let namespace = definition["namespace"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        let key = definition["key"].as_str().unwrap_or_default().to_string();
+        let has_existing_definition = self
+            .store
+            .staged
+            .metafield_definitions
+            .get(&(namespace.clone(), key.clone()))
+            .is_some_and(|existing| existing["ownerType"].as_str() == Some(owner_type));
+        if resolved_bool_field(&args, "forceEnable") != Some(true)
+            && !has_existing_definition
+            && self.metafield_definition_has_unstructured_metafields(owner_type, &namespace, &key)
+        {
+            return json!({
+                "createdDefinition": Value::Null,
+                "userErrors": [metafield_definition_user_error(
+                    "StandardMetafieldDefinitionEnableUserError",
+                    Value::Null,
+                    "Unstructured metafields already exist for this owner type, namespace, and key.",
+                    "UNSTRUCTURED_ALREADY_EXISTS"
+                )]
+            });
+        }
+        // The deprecated useAsCollectionCondition flag on an ineligible type
+        // reports TYPE_NOT_ALLOWED_FOR_CONDITIONS rather than the generic
+        // INVALID_CAPABILITY surfaced for explicit capability inputs.
+        if resolved_bool_field(arguments, "useAsCollectionCondition") == Some(true)
+            && metafield_definition_capability_enabled(&args, "smartCollectionCondition")
+            && !metafield_definition_capability_eligible(
+                "smartCollectionCondition",
+                owner_type,
+                &metafield_type,
+            )
+        {
+            return json!({
+                "createdDefinition": Value::Null,
+                "userErrors": [metafield_definition_user_error(
+                    "StandardMetafieldDefinitionEnableUserError",
+                    Value::Null,
+                    "Definition type is not allowed for smart collection conditions.",
+                    "TYPE_NOT_ALLOWED_FOR_CONDITIONS"
+                )]
+            });
+        }
         if let Some(error) = metafield_definition_capability_input_error(
-            arguments,
+            &args,
             "StandardMetafieldDefinitionEnableUserError",
             Value::Null,
             owner_type,
-            definition["type"]["name"].as_str().unwrap_or_default(),
+            &metafield_type,
         ) {
             return json!({
                 "createdDefinition": Value::Null,
                 "userErrors": [error]
             });
         }
-        if metafield_definition_capabilities_will_enable_admin_filterable(arguments, None)
+        if metafield_definition_capabilities_will_enable_admin_filterable(&args, None)
             && self.metafield_definition_admin_filterable_count(owner_type)
                 >= ADMIN_FILTERABLE_DEFINITION_LIMIT
         {
@@ -1439,7 +1497,7 @@ impl DraftProxy {
                 )]
             });
         }
-        if resolved_bool_field(arguments, "pin") == Some(true) {
+        if resolved_bool_field(&args, "pin") == Some(true) {
             if metafield_definition_has_constraints(&definition) {
                 return json!({
                     "createdDefinition": Value::Null,
@@ -1468,11 +1526,6 @@ impl DraftProxy {
                 definition["key"].as_str().unwrap_or_default(),
             ));
         }
-        let namespace = definition["namespace"]
-            .as_str()
-            .unwrap_or_default()
-            .to_string();
-        let key = definition["key"].as_str().unwrap_or_default().to_string();
         if let Some(id) = definition["id"].as_str() {
             staged_ids.push(id.to_string());
         }
@@ -1484,6 +1537,33 @@ impl DraftProxy {
             "createdDefinition": public_metafield_definition_value(definition),
             "userErrors": []
         })
+    }
+
+    // True when loose (unstructured) metafields already exist for this owner
+    // type, namespace, and key — used to gate standard-definition promotion when
+    // forceEnable is not set. Mirrors the Gleam effective-metafield filter,
+    // honoring tombstoned deletions.
+    fn metafield_definition_has_unstructured_metafields(
+        &self,
+        owner_type: &str,
+        namespace: &str,
+        key: &str,
+    ) -> bool {
+        self.store
+            .staged
+            .owner_metafields
+            .iter()
+            .any(|(owner_id, metafields)| {
+                !self.store.staged.deleted_owner_metafields.contains(&(
+                    owner_id.clone(),
+                    namespace.to_string(),
+                    key.to_string(),
+                )) && metafields.iter().any(|metafield| {
+                    metafield.get("ownerType").and_then(Value::as_str) == Some(owner_type)
+                        && metafield.get("namespace").and_then(Value::as_str) == Some(namespace)
+                        && metafield.get("key").and_then(Value::as_str) == Some(key)
+                })
+            })
     }
 }
 
@@ -1550,6 +1630,74 @@ const STANDARD_METAFIELD_DEFINITION_TEMPLATES: &[StandardMetafieldDefinitionTemp
         validations: &[],
     },
 ];
+
+// Translates deprecated standardMetafieldDefinitionEnable arguments into their
+// modern structured equivalents: useAsCollectionCondition/useAsAdminFilter map
+// onto capabilities, and visibleToStorefrontApi maps onto access.storefront. A
+// deprecated flag never overrides an explicitly-provided structured input.
+fn translate_standard_enable_deprecated_args(
+    args: &BTreeMap<String, ResolvedValue>,
+) -> BTreeMap<String, ResolvedValue> {
+    let mut translated = args.clone();
+    translate_standard_enable_deprecated_capability(
+        &mut translated,
+        "useAsCollectionCondition",
+        "smartCollectionCondition",
+    );
+    translate_standard_enable_deprecated_capability(
+        &mut translated,
+        "useAsAdminFilter",
+        "adminFilterable",
+    );
+    translate_standard_enable_deprecated_storefront_access(&mut translated);
+    translated
+}
+
+fn translate_standard_enable_deprecated_capability(
+    args: &mut BTreeMap<String, ResolvedValue>,
+    deprecated_key: &str,
+    capability_key: &str,
+) {
+    let Some(enabled) = resolved_bool_field(args, deprecated_key) else {
+        return;
+    };
+    let mut capabilities = resolved_object_field(args, "capabilities").unwrap_or_default();
+    if capabilities.contains_key(capability_key) {
+        return;
+    }
+    let mut capability = BTreeMap::new();
+    capability.insert("enabled".to_string(), ResolvedValue::Bool(enabled));
+    capabilities.insert(capability_key.to_string(), ResolvedValue::Object(capability));
+    args.insert("capabilities".to_string(), ResolvedValue::Object(capabilities));
+}
+
+fn translate_standard_enable_deprecated_storefront_access(
+    args: &mut BTreeMap<String, ResolvedValue>,
+) {
+    let Some(visible) = resolved_bool_field(args, "visibleToStorefrontApi") else {
+        return;
+    };
+    let mut access = resolved_object_field(args, "access").unwrap_or_default();
+    if access.contains_key("storefront") {
+        return;
+    }
+    let storefront = if visible { "PUBLIC_READ" } else { "NONE" };
+    access.insert(
+        "storefront".to_string(),
+        ResolvedValue::String(storefront.to_string()),
+    );
+    args.insert("access".to_string(), ResolvedValue::Object(access));
+}
+
+fn metafield_definition_capability_enabled(
+    args: &BTreeMap<String, ResolvedValue>,
+    capability_key: &str,
+) -> bool {
+    resolved_object_field(args, "capabilities")
+        .and_then(|capabilities| resolved_object_field(&capabilities, capability_key))
+        .and_then(|capability| resolved_bool_field(&capability, "enabled"))
+        == Some(true)
+}
 
 fn metafield_definition_user_error(
     typename: &str,
