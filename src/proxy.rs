@@ -239,6 +239,7 @@ struct StagedState {
     inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
     next_inventory_quantity_timestamp: u64,
     inventory_transfers: BTreeMap<String, InventoryTransferRecord>,
+    inventory_shipments: BTreeMap<String, InventoryShipmentRecord>,
     metaobject_definitions: BTreeMap<String, Value>,
     deleted_metaobject_definition_ids: BTreeSet<String>,
     metaobjects: BTreeMap<String, Value>,
@@ -323,6 +324,35 @@ struct InventoryTransferLineItemRecord {
     id: String,
     inventory_item_id: String,
     quantity: i64,
+}
+
+#[derive(Clone)]
+struct InventoryShipmentRecord {
+    id: String,
+    name: String,
+    status: String,
+    transfer_id: Option<String>,
+    movement_id: Option<String>,
+    tracking: Option<InventoryShipmentTrackingRecord>,
+    line_items: Vec<InventoryShipmentLineItemRecord>,
+}
+
+#[derive(Clone, Default)]
+struct InventoryShipmentTrackingRecord {
+    tracking_number: Option<String>,
+    company: Option<String>,
+    tracking_url: Option<String>,
+    arrives_at: Option<String>,
+}
+
+#[derive(Clone)]
+struct InventoryShipmentLineItemRecord {
+    id: String,
+    inventory_item_id: String,
+    transfer_line_item_id: Option<String>,
+    quantity: i64,
+    accepted_quantity: i64,
+    rejected_quantity: i64,
 }
 
 #[derive(Clone)]
@@ -494,6 +524,7 @@ impl Default for StagedState {
             inventory_quantity_updated_at: BTreeMap::new(),
             next_inventory_quantity_timestamp: 0,
             inventory_transfers: BTreeMap::new(),
+            inventory_shipments: BTreeMap::new(),
             metaobject_definitions: BTreeMap::new(),
             deleted_metaobject_definition_ids: BTreeSet::new(),
             metaobjects: BTreeMap::new(),

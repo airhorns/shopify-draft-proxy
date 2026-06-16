@@ -1628,6 +1628,568 @@ fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store()
 }
 
 #[test]
+fn inventory_shipment_unknown_transfer_returns_user_error_without_logging() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-create-validation.graphql"
+        ),
+        json!({"input": {
+            "inventoryTransferId": "gid://shopify/InventoryTransfer/missing",
+            "lineItems": [{
+                "inventoryTransferLineItemId": "gid://shopify/InventoryTransferLineItem/missing",
+                "inventoryItemId": "gid://shopify/InventoryItem/ship-missing",
+                "quantity": 1
+            }]
+        }}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["inventoryShipmentCreate"]["inventoryShipment"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["inventoryShipmentCreate"]["userErrors"],
+        json!([{
+            "field": ["transferId"],
+            "message": "The specified inventory transfer could not be found.",
+            "code": "NOT_FOUND"
+        }])
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
+#[test]
+fn inventory_shipment_lifecycle_stages_locally_updates_inventory_and_preserves_log_order() {
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let calls = upstream_calls.clone();
+    let mut proxy = snapshot_proxy().with_upstream_transport(move |_request| {
+        *calls.lock().unwrap() += 1;
+        panic!("inventory shipment roots must not call upstream")
+    });
+
+    let create_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-create-in-transit.graphql"
+        ),
+        json!({"input": {
+            "movementId": "gid://shopify/InventoryTransfer/ship-movement",
+            "trackingInput": {
+                "trackingNumber": "1Z999",
+                "company": "UPS",
+                "trackingUrl": "https://example.test/track/1Z999",
+                "arrivesAt": "2026-04-30T00:00:00.000Z"
+            },
+            "lineItems": [{
+                "inventoryItemId": "gid://shopify/InventoryItem/ship-item",
+                "quantity": 5
+            }]
+        }}),
+    ));
+    assert_eq!(
+        create_response.body["data"]["inventoryShipmentCreateInTransit"]["inventoryShipment"]
+            ["status"],
+        json!("IN_TRANSIT")
+    );
+    assert_eq!(
+        create_response.body["data"]["inventoryShipmentCreateInTransit"]["inventoryShipment"]
+            ["tracking"]["company"],
+        json!("UPS")
+    );
+    let shipment_id = create_response.body["data"]["inventoryShipmentCreateInTransit"]
+        ["inventoryShipment"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let shipment_line_item_id = create_response.body["data"]["inventoryShipmentCreateInTransit"]
+        ["inventoryShipment"]["lineItems"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let detail_response = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-shipment-detail.graphql"),
+        json!({"id": shipment_id}),
+    ));
+    assert_eq!(
+        detail_response.body["data"]["inventoryShipment"]["status"],
+        json!("IN_TRANSIT")
+    );
+    assert_eq!(
+        detail_response.body["data"]["inventoryShipment"]["lineItems"]["nodes"][0]
+            ["unreceivedQuantity"],
+        json!(5)
+    );
+
+    let inventory_after_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-inventory-read.graphql"
+        ),
+        json!({"id": "gid://shopify/InventoryItem/ship-item"}),
+    ));
+    assert!(inventory_has_level_quantities(
+        &inventory_after_create,
+        json!([
+            {"name": "available", "quantity": 1},
+            {"name": "on_hand", "quantity": 1},
+            {"name": "incoming", "quantity": 5}
+        ])
+    ));
+
+    let receive_response = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-shipment-receive.graphql"),
+        json!({"id": shipment_id, "lineItems": [{
+            "shipmentLineItemId": shipment_line_item_id,
+            "quantity": 3,
+            "reason": "ACCEPTED"
+        }]}),
+    ));
+    assert_eq!(
+        receive_response.body["data"]["inventoryShipmentReceive"]["inventoryShipment"]["status"],
+        json!("PARTIALLY_RECEIVED")
+    );
+    assert_eq!(
+        receive_response.body["data"]["inventoryShipmentReceive"]["inventoryShipment"]
+            ["totalAcceptedQuantity"],
+        json!(3)
+    );
+
+    let update_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-update-quantities.graphql"
+        ),
+        json!({"id": shipment_id, "items": [{
+            "shipmentLineItemId": shipment_line_item_id,
+            "quantity": 6
+        }]}),
+    ));
+    assert_eq!(
+        update_response.body["data"]["inventoryShipmentUpdateItemQuantities"]["shipment"]
+            ["lineItemTotalQuantity"],
+        json!(6)
+    );
+    assert_eq!(
+        update_response.body["data"]["inventoryShipmentUpdateItemQuantities"]["updatedLineItems"]
+            [0]["unreceivedQuantity"],
+        json!(3)
+    );
+
+    let inventory_after_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-inventory-read.graphql"
+        ),
+        json!({"id": "gid://shopify/InventoryItem/ship-item"}),
+    ));
+    assert!(inventory_has_level_quantities(
+        &inventory_after_update,
+        json!([
+            {"name": "available", "quantity": 4},
+            {"name": "on_hand", "quantity": 4},
+            {"name": "incoming", "quantity": 3}
+        ])
+    ));
+
+    let delete_response = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-shipment-delete.graphql"),
+        json!({"id": shipment_id}),
+    ));
+    assert_eq!(
+        delete_response.body["data"]["inventoryShipmentDelete"]["userErrors"],
+        json!([])
+    );
+
+    let inventory_after_delete = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-inventory-read.graphql"
+        ),
+        json!({"id": "gid://shopify/InventoryItem/ship-item"}),
+    ));
+    assert!(inventory_has_level_quantities(
+        &inventory_after_delete,
+        json!([
+            {"name": "available", "quantity": 4},
+            {"name": "on_hand", "quantity": 4},
+            {"name": "incoming", "quantity": 0}
+        ])
+    ));
+
+    let log = proxy.get_log_snapshot();
+    let roots: Vec<Value> = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["interpreted"]["operationName"].clone())
+        .collect();
+    assert_eq!(
+        roots,
+        vec![
+            json!("inventoryShipmentCreateInTransit"),
+            json!("inventoryShipmentReceive"),
+            json!("inventoryShipmentUpdateItemQuantities"),
+            json!("inventoryShipmentDelete")
+        ]
+    );
+    assert_eq!(*upstream_calls.lock().unwrap(), 0);
+}
+
+#[test]
+fn inventory_shipment_validation_guards_reject_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let transfer_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-transfer-create-ready.graphql"
+        ),
+        json!({"input": {
+            "originLocationId": "gid://shopify/Location/1",
+            "destinationLocationId": "gid://shopify/Location/2",
+            "lineItems": [{
+                "inventoryItemId": "gid://shopify/InventoryItem/guard-item",
+                "quantity": 2
+            }]
+        }}),
+    ));
+    let transfer = &transfer_response.body["data"]["inventoryTransferCreateAsReadyToShip"]
+        ["inventoryTransfer"];
+    let transfer_id = transfer["id"].as_str().unwrap().to_string();
+    let transfer_line_item_id = transfer["lineItems"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let line_item_not_member = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-create-validation.graphql"
+        ),
+        json!({"input": {
+            "inventoryTransferId": transfer_id,
+            "lineItems": [{
+                "inventoryTransferLineItemId": "gid://shopify/InventoryTransferLineItem/not-member",
+                "inventoryItemId": "gid://shopify/InventoryItem/guard-item",
+                "quantity": 1
+            }]
+        }}),
+    ));
+    assert_eq!(
+        line_item_not_member.body["data"]["inventoryShipmentCreate"]["userErrors"][0]["code"],
+        json!("NOT_FOUND")
+    );
+
+    let quantity_exceeds = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-create-validation.graphql"
+        ),
+        json!({"input": {
+            "inventoryTransferId": transfer_id,
+            "lineItems": [{
+                "inventoryTransferLineItemId": transfer_line_item_id,
+                "inventoryItemId": "gid://shopify/InventoryItem/guard-item",
+                "quantity": 3
+            }]
+        }}),
+    ));
+    assert_eq!(
+        quantity_exceeds.body["data"]["inventoryShipmentCreate"]["userErrors"][0]["code"],
+        json!("QUANTITY_EXCEEDS_REMAINING")
+    );
+
+    let bad_tracking = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-create-validation.graphql"
+        ),
+        json!({"input": {
+            "inventoryTransferId": transfer_id,
+            "trackingInput": {"carrier": "BAD_CARRIER", "url": "not-a-url"},
+            "lineItems": [{
+                "inventoryTransferLineItemId": transfer_line_item_id,
+                "inventoryItemId": "gid://shopify/InventoryItem/guard-item",
+                "quantity": 1
+            }]
+        }}),
+    ));
+    assert_eq!(
+        bad_tracking.body["data"]["inventoryShipmentCreate"]["userErrors"],
+        json!([
+            {
+                "field": ["input", "trackingInput", "carrier"],
+                "message": "Carrier is not included in the list.",
+                "code": "INVALID"
+            },
+            {
+                "field": ["input", "trackingInput", "url"],
+                "message": "Tracking URL is invalid.",
+                "code": "INVALID"
+            }
+        ])
+    );
+
+    let create_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-create-validation.graphql"
+        ),
+        json!({"input": {
+            "inventoryTransferId": transfer_id,
+            "lineItems": [{
+                "inventoryTransferLineItemId": transfer_line_item_id,
+                "inventoryItemId": "gid://shopify/InventoryItem/guard-item",
+                "quantity": 1
+            }]
+        }}),
+    ));
+    let shipment_id = create_response.body["data"]["inventoryShipmentCreate"]["inventoryShipment"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let shipment_line_item_id = create_response.body["data"]["inventoryShipmentCreate"]
+        ["inventoryShipment"]["lineItems"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let add_exceeds = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-add-items-validation.graphql"
+        ),
+        json!({"id": shipment_id, "lineItems": [{
+            "inventoryTransferLineItemId": transfer_line_item_id,
+            "inventoryItemId": "gid://shopify/InventoryItem/guard-item",
+            "quantity": 2
+        }]}),
+    ));
+    assert_eq!(
+        add_exceeds.body["data"]["inventoryShipmentAddItems"]["userErrors"][0]["code"],
+        json!("QUANTITY_EXCEEDS_REMAINING")
+    );
+
+    let aggregate_add_exceeds = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-add-items-validation.graphql"
+        ),
+        json!({"id": shipment_id, "lineItems": [
+            {
+                "inventoryTransferLineItemId": transfer_line_item_id,
+                "inventoryItemId": "gid://shopify/InventoryItem/guard-item",
+                "quantity": 1
+            },
+            {
+                "inventoryTransferLineItemId": transfer_line_item_id,
+                "inventoryItemId": "gid://shopify/InventoryItem/guard-item",
+                "quantity": 1
+            }
+        ]}),
+    ));
+    assert_eq!(
+        aggregate_add_exceeds.body["data"]["inventoryShipmentAddItems"]["userErrors"][0]["code"],
+        json!("QUANTITY_EXCEEDS_REMAINING")
+    );
+
+    let update_exceeds = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-update-quantities.graphql"
+        ),
+        json!({"id": shipment_id, "items": [{
+            "shipmentLineItemId": shipment_line_item_id,
+            "quantity": 3
+        }]}),
+    ));
+    assert_eq!(
+        update_exceeds.body["data"]["inventoryShipmentUpdateItemQuantities"]["userErrors"][0]
+            ["code"],
+        json!("QUANTITY_EXCEEDS_REMAINING")
+    );
+
+    let receive_draft = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-shipment-receive.graphql"),
+        json!({"id": shipment_id, "lineItems": [{
+            "shipmentLineItemId": shipment_line_item_id,
+            "quantity": 1,
+            "reason": "ACCEPTED"
+        }]}),
+    ));
+    assert_eq!(
+        receive_draft.body["data"]["inventoryShipmentReceive"]["userErrors"][0],
+        json!({
+            "field": ["id"],
+            "message": "Only in-transit shipments can be received.",
+            "code": "INVALID_STATE"
+        })
+    );
+}
+
+#[test]
+fn inventory_shipment_draft_mutators_stage_tracking_items_and_in_transit_state() {
+    let mut proxy = snapshot_proxy();
+    let transfer_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-transfer-create-ready.graphql"
+        ),
+        json!({"input": {
+            "originLocationId": "gid://shopify/Location/1",
+            "destinationLocationId": "gid://shopify/Location/2",
+            "lineItems": [{
+                "inventoryItemId": "gid://shopify/InventoryItem/mutator-item",
+                "quantity": 3
+            }]
+        }}),
+    ));
+    let transfer = &transfer_response.body["data"]["inventoryTransferCreateAsReadyToShip"]
+        ["inventoryTransfer"];
+    let transfer_id = transfer["id"].as_str().unwrap().to_string();
+    let transfer_line_item_id = transfer["lineItems"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let create_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-create-validation.graphql"
+        ),
+        json!({"input": {
+            "inventoryTransferId": transfer_id,
+            "lineItems": [{
+                "inventoryTransferLineItemId": transfer_line_item_id,
+                "inventoryItemId": "gid://shopify/InventoryItem/mutator-item",
+                "quantity": 1
+            }]
+        }}),
+    ));
+    let shipment_id = create_response.body["data"]["inventoryShipmentCreate"]["inventoryShipment"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let tracking_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ShipmentTracking($id: ID!, $trackingInput: InventoryShipmentTrackingInput!) {
+          inventoryShipmentSetTracking(id: $id, trackingInput: $trackingInput) {
+            inventoryShipment {
+              id
+              status
+              tracking { company trackingNumber trackingUrl arrivesAt }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": shipment_id, "trackingInput": {
+            "carrier": "UPS",
+            "trackingNumber": "1Z888",
+            "url": "https://example.test/track/1Z888",
+            "arrivesAt": "2026-05-01T00:00:00.000Z"
+        }}),
+    ));
+    assert_eq!(
+        tracking_response.body["data"]["inventoryShipmentSetTracking"]["inventoryShipment"]
+            ["tracking"]["company"],
+        json!("UPS")
+    );
+
+    let add_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-add-items-validation.graphql"
+        ),
+        json!({"id": shipment_id, "lineItems": [{
+            "inventoryTransferLineItemId": transfer_line_item_id,
+            "inventoryItemId": "gid://shopify/InventoryItem/mutator-item",
+            "quantity": 1
+        }]}),
+    ));
+    assert_eq!(
+        add_response.body["data"]["inventoryShipmentAddItems"]["inventoryShipment"]
+            ["lineItemTotalQuantity"],
+        json!(2)
+    );
+    let added_line_item_id = add_response.body["data"]["inventoryShipmentAddItems"]["addedItems"]
+        [0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let aggregate_update_exceeds = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-update-quantities.graphql"
+        ),
+        json!({"id": shipment_id, "items": [{
+            "shipmentLineItemId": create_response.body["data"]["inventoryShipmentCreate"]
+                ["inventoryShipment"]["lineItems"]["nodes"][0]["id"],
+            "quantity": 3
+        }]}),
+    ));
+    assert_eq!(
+        aggregate_update_exceeds.body["data"]["inventoryShipmentUpdateItemQuantities"]
+            ["userErrors"][0]["code"],
+        json!("QUANTITY_EXCEEDS_REMAINING")
+    );
+
+    let remove_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ShipmentRemoveItems($id: ID!, $shipmentLineItemIds: [ID!]!) {
+          inventoryShipmentRemoveItems(id: $id, shipmentLineItemIds: $shipmentLineItemIds) {
+            inventoryShipment { id status lineItemTotalQuantity }
+            removedLineItemIds
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": shipment_id, "shipmentLineItemIds": [added_line_item_id]}),
+    ));
+    assert_eq!(
+        remove_response.body["data"]["inventoryShipmentRemoveItems"]["inventoryShipment"]
+            ["lineItemTotalQuantity"],
+        json!(1)
+    );
+
+    let mark_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ShipmentMarkInTransit($id: ID!) {
+          inventoryShipmentMarkInTransit(id: $id) {
+            inventoryShipment {
+              id
+              status
+              lineItems(first: 10) { nodes { id unreceivedQuantity } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": shipment_id}),
+    ));
+    assert_eq!(
+        mark_response.body["data"]["inventoryShipmentMarkInTransit"]["inventoryShipment"]["status"],
+        json!("IN_TRANSIT")
+    );
+
+    let inventory_after_mark = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-inventory-read.graphql"
+        ),
+        json!({"id": "gid://shopify/InventoryItem/mutator-item"}),
+    ));
+    assert!(inventory_has_level_quantities(
+        &inventory_after_mark,
+        json!([
+            {"name": "available", "quantity": 0},
+            {"name": "on_hand", "quantity": 0},
+            {"name": "incoming", "quantity": 1}
+        ])
+    ));
+}
+
+fn inventory_has_level_quantities(
+    response: &shopify_draft_proxy::proxy::Response,
+    expected: Value,
+) -> bool {
+    response.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|node| node["quantities"] == expected)
+}
+
+#[test]
 fn selling_plan_downstream_reads_replay_captured_membership_shapes() {
     let lifecycle: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-lifecycle.json"
