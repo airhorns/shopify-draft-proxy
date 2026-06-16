@@ -2037,6 +2037,332 @@ fn customer_set_id_and_unknown_identifier_guards_do_not_stage_or_log() {
 }
 
 #[test]
+fn data_sale_opt_out_stages_existing_customer_and_downstream_reads_without_upstream_mutation() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateParityPlan($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email defaultEmailAddress { emailAddress } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "email": "hermes-data-sale-local@example.com" } }),
+    ));
+    assert_eq!(create.status, 200);
+    let id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let mutation_query = r#"
+        mutation DataSaleOptOut($email: String!) {
+          dataSaleOptOut(email: $email) {
+            customerId
+            userErrors { field message code }
+          }
+        }
+        "#;
+    let opt_out = proxy.process_request(json_graphql_request(
+        mutation_query,
+        json!({ "email": "hermes-data-sale-local@example.com" }),
+    ));
+    assert_eq!(opt_out.status, 200);
+    assert_eq!(
+        opt_out.body["data"]["dataSaleOptOut"],
+        json!({ "customerId": id, "userErrors": [] })
+    );
+
+    let repeat = proxy.process_request(json_graphql_request(
+        mutation_query,
+        json!({ "email": "hermes-data-sale-local@example.com" }),
+    ));
+    assert_eq!(
+        repeat.body["data"]["dataSaleOptOut"],
+        json!({ "customerId": id, "userErrors": [] })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DataSaleOptOutDownstream($id: ID!, $identifier: CustomerIdentifierInput!, $query: String!, $first: Int!) {
+          customer(id: $id) { id email dataSaleOptOut defaultEmailAddress { emailAddress } }
+          customerByIdentifier(identifier: $identifier) { id email dataSaleOptOut defaultEmailAddress { emailAddress } }
+          customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {
+            nodes { id email dataSaleOptOut }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+        "#,
+        json!({
+            "id": id,
+            "identifier": { "id": id },
+            "query": "__customer_parity_no_match__",
+            "first": 5
+        }),
+    ));
+    let expected_customer = json!({
+        "id": id,
+        "email": "hermes-data-sale-local@example.com",
+        "dataSaleOptOut": true,
+        "defaultEmailAddress": { "emailAddress": "hermes-data-sale-local@example.com" }
+    });
+    assert_eq!(read.body["data"]["customer"], expected_customer);
+    assert_eq!(read.body["data"]["customerByIdentifier"], expected_customer);
+    assert_eq!(
+        read.body["data"]["customers"],
+        json!({
+            "nodes": [],
+            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+        })
+    );
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"][1]["status"], json!("staged"));
+    assert_eq!(
+        log["entries"][1]["interpreted"]["capability"],
+        json!({
+            "operationName": "dataSaleOptOut",
+            "domain": "privacy",
+            "execution": "stage-locally"
+        })
+    );
+    assert!(log["entries"][1]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("dataSaleOptOut"));
+}
+
+#[test]
+fn data_sale_opt_out_resolves_existing_upstream_customer_id_without_forwarding_mutation() {
+    let forwarded = Arc::new(Mutex::new(Vec::<String>::new()));
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let forwarded = Arc::clone(&forwarded);
+        move |request| {
+            forwarded.lock().unwrap().push(request.body.clone());
+            if request.body.contains("DataSaleOptOutCustomerLookup") {
+                return Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "customerByIdentifier": {
+                                "id": "gid://shopify/Customer/10582642524466",
+                                "email": "hermes-data-sale-upstream@example.com",
+                                "dataSaleOptOut": false,
+                                "defaultEmailAddress": {
+                                    "emailAddress": "hermes-data-sale-upstream@example.com"
+                                }
+                            }
+                        }
+                    }),
+                };
+            }
+            Response {
+                status: 500,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "mutation should not be forwarded" }] }),
+            }
+        }
+    });
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DataSaleOptOut($email: String!) {
+          dataSaleOptOut(email: $email) {
+            customerId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "email": "hermes-data-sale-upstream@example.com" }),
+    ));
+    assert_eq!(
+        response.body["data"]["dataSaleOptOut"],
+        json!({
+            "customerId": "gid://shopify/Customer/10582642524466",
+            "userErrors": []
+        })
+    );
+    let forwarded = forwarded.lock().unwrap();
+    assert_eq!(forwarded.len(), 1);
+    assert!(forwarded[0].contains("DataSaleOptOutCustomerLookup"));
+    assert!(!forwarded[0].contains("mutation DataSaleOptOut"));
+}
+
+#[test]
+fn data_sale_opt_out_validation_and_sanitization_boundaries_match_captured_shape() {
+    let mut proxy = snapshot_proxy();
+    let mutation = r#"
+        mutation DataSaleOptOut($email: String!) {
+          dataSaleOptOut(email: $email) {
+            customerId
+            userErrors { field message code }
+          }
+        }
+        "#;
+    for email in ["not-an-email", "", "   ", "tab\tinside@example.com"] {
+        let response =
+            proxy.process_request(json_graphql_request(mutation, json!({ "email": email })));
+        assert_eq!(response.status, 200);
+        assert_eq!(
+            response.body["data"]["dataSaleOptOut"],
+            json!({
+                "customerId": null,
+                "userErrors": [{
+                    "field": null,
+                    "message": "Data sale opt out failed.",
+                    "code": "FAILED"
+                }]
+            })
+        );
+    }
+
+    let whitespace = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({ "email": "hermes data\nsale@example.com" }),
+    ));
+    let id = whitespace.body["data"]["dataSaleOptOut"]["customerId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(id.starts_with("gid://shopify/Customer/"));
+    assert_eq!(
+        whitespace.body["data"]["dataSaleOptOut"]["userErrors"],
+        json!([])
+    );
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DataSaleOptOutWhitespaceDownstream($id: ID!, $identifier: CustomerIdentifierInput!) {
+          customer(id: $id) { id email dataSaleOptOut defaultEmailAddress { emailAddress } }
+          customerByIdentifier(identifier: $identifier) { id email dataSaleOptOut defaultEmailAddress { emailAddress } }
+        }
+        "#,
+        json!({ "id": id, "identifier": { "id": id } }),
+    ));
+    assert_eq!(
+        read.body["data"]["customer"]["email"],
+        json!("hermesdatasale@example.com")
+    );
+    assert_eq!(
+        read.body["data"]["customerByIdentifier"]["dataSaleOptOut"],
+        json!(true)
+    );
+}
+
+#[test]
+fn data_sale_opt_out_missing_or_null_email_is_schema_coercion_error() {
+    let mut proxy = snapshot_proxy();
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DataSaleOptOutMissingEmail {
+          dataSaleOptOut {
+            customerId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(missing.status, 200);
+    assert!(missing.body.get("data").is_none());
+    assert_eq!(
+        missing.body["errors"][0]["extensions"]["code"],
+        json!("missingRequiredArguments")
+    );
+
+    let explicit_null = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DataSaleOptOutNullEmail($email: String!) {
+          dataSaleOptOut(email: $email) {
+            customerId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "email": null }),
+    ));
+    assert_eq!(explicit_null.status, 200);
+    assert!(explicit_null.body.get("data").is_none());
+    assert_eq!(
+        explicit_null.body["errors"][0]["extensions"]["code"],
+        json!("missingRequiredArguments")
+    );
+}
+
+#[test]
+fn data_sale_opt_out_unknown_valid_email_creates_customer_defaults_and_tag_search_read() {
+    let mut proxy = snapshot_proxy();
+    let mutation = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DataSaleOptOut($email: String!) {
+          dataSaleOptOut(email: $email) {
+            customerId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "email": "hermes-data-sale-defaults@example.com" }),
+    ));
+    let id = mutation.body["data"]["dataSaleOptOut"]["customerId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        mutation.body["data"]["dataSaleOptOut"]["userErrors"],
+        json!([])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query DataSaleOptOutNewCustomerDefaultsRead($id: ID!) {
+          customer(id: $id) {
+            id email tags locale verifiedEmail state dataSaleOptOut defaultEmailAddress { emailAddress }
+          }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+    assert_eq!(
+        read.body["data"]["customer"],
+        json!({
+            "id": id,
+            "email": "hermes-data-sale-defaults@example.com",
+            "tags": ["created-by-dns-form"],
+            "locale": "en",
+            "verifiedEmail": true,
+            "state": "DISABLED",
+            "dataSaleOptOut": true,
+            "defaultEmailAddress": { "emailAddress": "hermes-data-sale-defaults@example.com" }
+        })
+    );
+
+    let search = proxy.process_request(json_graphql_request(
+        r#"
+        query DataSaleOptOutDnsTagSearch($query: String!, $first: Int!) {
+          customers(query: $query, first: $first) {
+            nodes { id email tags }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({ "query": "tag:created-by-dns-form", "first": 5 }),
+    ));
+    assert_eq!(
+        search.body["data"]["customers"]["nodes"],
+        json!([{
+            "id": id,
+            "email": "hermes-data-sale-defaults@example.com",
+            "tags": ["created-by-dns-form"]
+        }])
+    );
+    assert_eq!(
+        search.body["data"]["customers"]["pageInfo"]["hasNextPage"],
+        json!(false)
+    );
+}
+
+#[test]
 fn quantity_pricing_by_variant_update_returns_seeded_variant_ids_for_b2b_quantity_rules() {
     let mut proxy = snapshot_proxy();
 
