@@ -1,0 +1,369 @@
+{
+  "fixtureKind": "local-runtime-order-update-snapshot-staging",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-06-15T00:00:00.000Z",
+  "storeDomain": "local-runtime.myshopify.com",
+  "summary": "Executable local-runtime fixture for orderCreate -> orderUpdate -> downstream order reads using only public proxy GraphQL requests.",
+  "create": {
+    "variables": {
+      "order": {
+        "email": "order-update-snapshot-before@example.com",
+        "note": "order update snapshot baseline",
+        "tags": ["snapshot-baseline"],
+        "currency": "CAD",
+        "lineItems": [
+          {
+            "title": "Order update snapshot item",
+            "quantity": 2,
+            "priceSet": {
+              "shopMoney": {
+                "amount": "12.00",
+                "currencyCode": "CAD"
+              }
+            }
+          }
+        ]
+      },
+      "options": {
+        "inventoryBehaviour": "BYPASS",
+        "sendReceipt": false,
+        "sendFulfillmentReceipt": false
+      }
+    }
+  },
+  "update": {
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Order/1",
+        "email": "order-update-snapshot-after@example.com",
+        "phone": "+16135551111",
+        "poNumber": "PO-SNAPSHOT-123",
+        "note": "order update snapshot after",
+        "tags": ["snapshot-after", "vip"],
+        "customAttributes": [
+          {
+            "key": "source",
+            "value": "snapshot-staging"
+          }
+        ],
+        "shippingAddress": {
+          "firstName": "Ada",
+          "lastName": "Lovelace",
+          "address1": "190 MacLaren",
+          "address2": "Suite 200",
+          "company": "Analytical Engines Ltd",
+          "city": "Sudbury",
+          "province": "Ontario",
+          "provinceCode": "ON",
+          "country": "Canada",
+          "countryCode": "CA",
+          "zip": "K2P0V6",
+          "phone": "+16135552222"
+        },
+        "metafields": [
+          {
+            "namespace": "custom",
+            "key": "gift",
+            "type": "single_line_text_field",
+            "value": "wrapped"
+          }
+        ]
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Order/1"
+    }
+  },
+  "expected": {
+    "create": {
+      "data": {
+        "orderCreate": {
+          "order": {
+            "customAttributes": [],
+            "customer": {
+              "displayName": "order-update-snapshot-before@example.com",
+              "email": "order-update-snapshot-before@example.com",
+              "id": "gid://shopify/Customer/1"
+            },
+            "email": "order-update-snapshot-before@example.com",
+            "id": "gid://shopify/Order/1",
+            "lineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/LineItem/1",
+                  "quantity": 2,
+                  "title": "Order update snapshot item"
+                }
+              ]
+            },
+            "name": "#1",
+            "note": "order update snapshot baseline",
+            "phone": null,
+            "poNumber": null,
+            "shippingAddress": null,
+            "tags": ["snapshot-baseline"],
+            "updatedAt": "2024-01-01T00:00:01.000Z"
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "update": {
+      "data": {
+        "orderUpdate": {
+          "order": {
+            "customAttributes": [
+              {
+                "key": "source",
+                "value": "snapshot-staging"
+              }
+            ],
+            "customer": {
+              "displayName": "order-update-snapshot-before@example.com",
+              "email": "order-update-snapshot-after@example.com",
+              "id": "gid://shopify/Customer/1"
+            },
+            "email": "order-update-snapshot-after@example.com",
+            "gift": {
+              "id": "gid://shopify/Metafield/11",
+              "key": "gift",
+              "namespace": "custom",
+              "type": "single_line_text_field",
+              "value": "wrapped"
+            },
+            "id": "gid://shopify/Order/1",
+            "lineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/LineItem/1",
+                  "quantity": 2,
+                  "title": "Order update snapshot item"
+                }
+              ]
+            },
+            "metafields": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metafield/11",
+                  "key": "gift",
+                  "namespace": "custom",
+                  "type": "single_line_text_field",
+                  "value": "wrapped"
+                }
+              ]
+            },
+            "name": "#1",
+            "note": "order update snapshot after",
+            "phone": "+16135551111",
+            "poNumber": "PO-SNAPSHOT-123",
+            "shippingAddress": {
+              "address1": "190 MacLaren",
+              "address2": "Suite 200",
+              "city": "Sudbury",
+              "country": "Canada",
+              "countryCodeV2": "CA",
+              "firstName": "Ada",
+              "lastName": "Lovelace",
+              "phone": "+16135552222",
+              "province": "Ontario",
+              "provinceCode": "ON",
+              "zip": "K2P0V6"
+            },
+            "tags": ["snapshot-after", "vip"],
+            "updatedAt": "2024-01-01T00:00:02.000Z"
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "downstreamRead": {
+      "data": {
+        "byId": {
+          "customAttributes": [
+            {
+              "key": "source",
+              "value": "snapshot-staging"
+            }
+          ],
+          "customer": {
+            "email": "order-update-snapshot-after@example.com"
+          },
+          "email": "order-update-snapshot-after@example.com",
+          "gift": {
+            "id": "gid://shopify/Metafield/11",
+            "key": "gift",
+            "namespace": "custom",
+            "type": "single_line_text_field",
+            "value": "wrapped"
+          },
+          "id": "gid://shopify/Order/1",
+          "lineItems": {
+            "nodes": [
+              {
+                "id": "gid://shopify/LineItem/1",
+                "quantity": 2,
+                "title": "Order update snapshot item"
+              }
+            ]
+          },
+          "metafields": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Metafield/11",
+                "key": "gift",
+                "namespace": "custom",
+                "type": "single_line_text_field",
+                "value": "wrapped"
+              }
+            ]
+          },
+          "name": "#1",
+          "note": "order update snapshot after",
+          "phone": "+16135551111",
+          "poNumber": "PO-SNAPSHOT-123",
+          "shippingAddress": {
+            "countryCodeV2": "CA",
+            "phone": "+16135552222",
+            "provinceCode": "ON"
+          },
+          "tags": ["snapshot-after", "vip"],
+          "updatedAt": "2024-01-01T00:00:02.000Z"
+        },
+        "orders": {
+          "nodes": [
+            {
+              "email": "order-update-snapshot-after@example.com",
+              "id": "gid://shopify/Order/1",
+              "note": "order update snapshot after",
+              "tags": ["snapshot-after", "vip"]
+            }
+          ]
+        },
+        "ordersCount": {
+          "count": 1,
+          "precision": "EXACT"
+        }
+      }
+    },
+    "logEntries": [
+      {
+        "id": "gid://shopify/MutationLogEntry/1",
+        "interpreted": {
+          "capability": {
+            "domain": "orders",
+            "execution": "stage-locally",
+            "operationName": "orderCreate"
+          },
+          "operationName": "orderCreate",
+          "operationType": "mutation",
+          "primaryRootField": "orderCreate",
+          "rootFields": ["orderCreate"]
+        },
+        "notes": "Locally staged orderCreate in shopify-draft-proxy.",
+        "operationName": "orderCreate",
+        "path": "/admin/api/2026-04/graphql.json",
+        "query": "mutation OrderUpdateSnapshotStagingCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      updatedAt\n      email\n      phone\n      poNumber\n      note\n      tags\n      customer {\n        id\n        email\n        displayName\n      }\n      customAttributes {\n        key\n        value\n      }\n      shippingAddress {\n        firstName\n        lastName\n        address1\n        address2\n        company\n        city\n        province\n        provinceCode\n        country\n        countryCodeV2\n        zip\n        phone\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          title\n          quantity\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "rawBody": "{\"query\":\"mutation OrderUpdateSnapshotStagingCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\\n  orderCreate(order: $order, options: $options) {\\n    order {\\n      id\\n      name\\n      updatedAt\\n      email\\n      phone\\n      poNumber\\n      note\\n      tags\\n      customer {\\n        id\\n        email\\n        displayName\\n      }\\n      customAttributes {\\n        key\\n        value\\n      }\\n      shippingAddress {\\n        firstName\\n        lastName\\n        address1\\n        address2\\n        company\\n        city\\n        province\\n        provinceCode\\n        country\\n        countryCodeV2\\n        zip\\n        phone\\n      }\\n      lineItems(first: 5) {\\n        nodes {\\n          id\\n          title\\n          quantity\\n        }\\n      }\\n    }\\n    userErrors {\\n      field\\n      message\\n    }\\n  }\\n}\\n\",\"variables\":{\"order\":{\"email\":\"order-update-snapshot-before@example.com\",\"note\":\"order update snapshot baseline\",\"tags\":[\"snapshot-baseline\"],\"currency\":\"CAD\",\"lineItems\":[{\"title\":\"Order update snapshot item\",\"quantity\":2,\"priceSet\":{\"shopMoney\":{\"amount\":\"12.00\",\"currencyCode\":\"CAD\"}}}]},\"options\":{\"inventoryBehaviour\":\"BYPASS\",\"sendReceipt\":false,\"sendFulfillmentReceipt\":false}}}",
+        "stagedResourceIds": ["gid://shopify/Order/1"],
+        "status": "staged",
+        "variables": {
+          "options": {
+            "inventoryBehaviour": "BYPASS",
+            "sendFulfillmentReceipt": false,
+            "sendReceipt": false
+          },
+          "order": {
+            "currency": "CAD",
+            "email": "order-update-snapshot-before@example.com",
+            "lineItems": [
+              {
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "12.00",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "quantity": 2,
+                "title": "Order update snapshot item"
+              }
+            ],
+            "note": "order update snapshot baseline",
+            "tags": ["snapshot-baseline"]
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MutationLogEntry/2",
+        "interpreted": {
+          "capability": {
+            "domain": "orders",
+            "execution": "stage-locally",
+            "operationName": "orderUpdate"
+          },
+          "operationName": "orderUpdate",
+          "operationType": "mutation",
+          "primaryRootField": "orderUpdate",
+          "rootFields": ["orderUpdate"]
+        },
+        "notes": "Locally staged orderUpdate in shopify-draft-proxy.",
+        "operationName": "orderUpdate",
+        "path": "/admin/api/2026-04/graphql.json",
+        "query": "mutation OrderUpdateSnapshotStaging($input: OrderInput!) {\n  orderUpdate(input: $input) {\n    order {\n      id\n      name\n      updatedAt\n      email\n      phone\n      poNumber\n      note\n      tags\n      customer {\n        id\n        email\n        displayName\n      }\n      customAttributes {\n        key\n        value\n      }\n      shippingAddress {\n        firstName\n        lastName\n        address1\n        address2\n        company\n        city\n        province\n        provinceCode\n        country\n        countryCodeV2\n        zip\n        phone\n      }\n      gift: metafield(namespace: \"custom\", key: \"gift\") {\n        id\n        namespace\n        key\n        type\n        value\n      }\n      metafields(first: 10) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          title\n          quantity\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "rawBody": "{\"query\":\"mutation OrderUpdateSnapshotStaging($input: OrderInput!) {\\n  orderUpdate(input: $input) {\\n    order {\\n      id\\n      name\\n      updatedAt\\n      email\\n      phone\\n      poNumber\\n      note\\n      tags\\n      customer {\\n        id\\n        email\\n        displayName\\n      }\\n      customAttributes {\\n        key\\n        value\\n      }\\n      shippingAddress {\\n        firstName\\n        lastName\\n        address1\\n        address2\\n        company\\n        city\\n        province\\n        provinceCode\\n        country\\n        countryCodeV2\\n        zip\\n        phone\\n      }\\n      gift: metafield(namespace: \\\"custom\\\", key: \\\"gift\\\") {\\n        id\\n        namespace\\n        key\\n        type\\n        value\\n      }\\n      metafields(first: 10) {\\n        nodes {\\n          id\\n          namespace\\n          key\\n          type\\n          value\\n        }\\n      }\\n      lineItems(first: 5) {\\n        nodes {\\n          id\\n          title\\n          quantity\\n        }\\n      }\\n    }\\n    userErrors {\\n      field\\n      message\\n      code\\n    }\\n  }\\n}\\n\",\"variables\":{\"input\":{\"id\":\"gid://shopify/Order/1\",\"email\":\"order-update-snapshot-after@example.com\",\"phone\":\"+16135551111\",\"poNumber\":\"PO-SNAPSHOT-123\",\"note\":\"order update snapshot after\",\"tags\":[\"snapshot-after\",\"vip\"],\"customAttributes\":[{\"key\":\"source\",\"value\":\"snapshot-staging\"}],\"shippingAddress\":{\"firstName\":\"Ada\",\"lastName\":\"Lovelace\",\"address1\":\"190 MacLaren\",\"address2\":\"Suite 200\",\"company\":\"Analytical Engines Ltd\",\"city\":\"Sudbury\",\"province\":\"Ontario\",\"provinceCode\":\"ON\",\"country\":\"Canada\",\"countryCode\":\"CA\",\"zip\":\"K2P0V6\",\"phone\":\"+16135552222\"},\"metafields\":[{\"namespace\":\"custom\",\"key\":\"gift\",\"type\":\"single_line_text_field\",\"value\":\"wrapped\"}]}}}",
+        "stagedResourceIds": ["gid://shopify/Order/1"],
+        "status": "staged",
+        "variables": {
+          "input": {
+            "customAttributes": [
+              {
+                "key": "source",
+                "value": "snapshot-staging"
+              }
+            ],
+            "email": "order-update-snapshot-after@example.com",
+            "id": "gid://shopify/Order/1",
+            "metafields": [
+              {
+                "key": "gift",
+                "namespace": "custom",
+                "type": "single_line_text_field",
+                "value": "wrapped"
+              }
+            ],
+            "note": "order update snapshot after",
+            "phone": "+16135551111",
+            "poNumber": "PO-SNAPSHOT-123",
+            "shippingAddress": {
+              "address1": "190 MacLaren",
+              "address2": "Suite 200",
+              "city": "Sudbury",
+              "company": "Analytical Engines Ltd",
+              "country": "Canada",
+              "countryCode": "CA",
+              "firstName": "Ada",
+              "lastName": "Lovelace",
+              "phone": "+16135552222",
+              "province": "Ontario",
+              "provinceCode": "ON",
+              "zip": "K2P0V6"
+            },
+            "tags": ["snapshot-after", "vip"]
+          }
+        }
+      }
+    ]
+  },
+  "evidence": {
+    "source": "Rust local-runtime recorder plus existing live Shopify orderUpdate happy-path fixture",
+    "liveCaptureFiles": [
+      "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json"
+    ],
+    "notes": [
+      "The local-runtime fixture proves snapshot staging and read-after-write mechanics without runtime Shopify writes.",
+      "The linked live fixture remains the Shopify evidence for valid orderUpdate note/tags behavior; the expanded simple-field snapshot slice is additionally covered by Rust runtime tests."
+    ]
+  },
+  "upstreamCalls": []
+}

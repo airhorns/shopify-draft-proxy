@@ -1,0 +1,59 @@
+query OrderUpdateSnapshotStagingRead($id: ID!) {
+  byId: order(id: $id) {
+    id
+    name
+    updatedAt
+    email
+    phone
+    poNumber
+    note
+    tags
+    customer {
+      email
+    }
+    customAttributes {
+      key
+      value
+    }
+    shippingAddress {
+      provinceCode
+      countryCodeV2
+      phone
+    }
+    gift: metafield(namespace: "custom", key: "gift") {
+      id
+      namespace
+      key
+      type
+      value
+    }
+    metafields(first: 10) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+      }
+    }
+    lineItems(first: 5) {
+      nodes {
+        id
+        title
+        quantity
+      }
+    }
+  }
+  orders(first: 5) {
+    nodes {
+      id
+      email
+      note
+      tags
+    }
+  }
+  ordersCount {
+    count
+    precision
+  }
+}

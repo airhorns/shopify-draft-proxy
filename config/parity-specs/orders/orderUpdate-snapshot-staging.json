@@ -1,0 +1,104 @@
+{
+  "scenarioId": "orderUpdate-snapshot-staging",
+  "operationNames": ["orderCreate", "orderUpdate", "order", "orders", "ordersCount"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "read-after-write",
+    "downstream-read-parity",
+    "mutation-log-raw-body",
+    "no-upstream-passthrough",
+    "local-runtime-backed"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/orders/orderUpdate-snapshot-staging.json",
+    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderUpdate-snapshot-staging-create.graphql",
+    "variablesPath": "config/parity-requests/orders/orderUpdate-snapshot-staging-create.variables.json",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-baseline-order",
+        "capturePath": "$.expected.create",
+        "proxyPath": "$"
+      },
+      {
+        "name": "order-update-stages-simple-fields",
+        "capturePath": "$.expected.update",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderUpdate-snapshot-staging.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              },
+              "email": "order-update-snapshot-after@example.com",
+              "phone": "+16135551111",
+              "poNumber": "PO-SNAPSHOT-123",
+              "note": "order update snapshot after",
+              "tags": ["snapshot-after", "vip"],
+              "customAttributes": [
+                {
+                  "key": "source",
+                  "value": "snapshot-staging"
+                }
+              ],
+              "shippingAddress": {
+                "firstName": "Ada",
+                "lastName": "Lovelace",
+                "address1": "190 MacLaren",
+                "address2": "Suite 200",
+                "company": "Analytical Engines Ltd",
+                "city": "Sudbury",
+                "province": "Ontario",
+                "provinceCode": "ON",
+                "country": "Canada",
+                "countryCode": "CA",
+                "zip": "K2P0V6",
+                "phone": "+16135552222"
+              },
+              "metafields": [
+                {
+                  "namespace": "custom",
+                  "key": "gift",
+                  "type": "single_line_text_field",
+                  "value": "wrapped"
+                }
+              ]
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "downstream-order-reads-reflect-update",
+        "capturePath": "$.expected.downstreamRead",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderUpdate-snapshot-staging-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "mutation-log-retains-raw-create-and-update",
+        "capturePath": "$.expected.logEntries",
+        "proxyLogPath": "$.entries"
+      }
+    ]
+  },
+  "notes": "Executable local-runtime snapshot staging proof for orderUpdate over a public orderCreate setup. The scenario stages note, tags, customAttributes, email, phone, poNumber, shippingAddress, and an order-scoped metafield; then it verifies immediate order(id:), orders, and ordersCount read-after-write plus raw mutation-log retention. The existing live Shopify fixture remains linked as note/tags happy-path evidence, while this local-runtime fixture intentionally performs no Shopify writes."
+}
