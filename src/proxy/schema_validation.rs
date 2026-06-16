@@ -206,6 +206,16 @@ fn validate_raw_input_object(
         let Some(field_schema) = input_object.get(field_name) else {
             continue;
         };
+        if let Some(error) = raw_enum_literal_error(
+            input_type_name,
+            field_name,
+            &field_schema.type_ref,
+            field_value,
+            path,
+            context,
+        ) {
+            errors.push(error);
+        }
         let Some(nested_input_object) = schema.input_objects.get(&field_schema.type_ref.named_type)
         else {
             continue;
@@ -264,7 +274,7 @@ fn validate_resolved_input_object(
         let Some(field_schema) = input_object.get(field_name) else {
             continue;
         };
-        if let Some(problem) = validate_resolved_scalar(field_value, &field_schema.type_ref) {
+        if let Some(problem) = validate_resolved_leaf(field_value, &field_schema.type_ref) {
             let mut nested_path = problem_path.to_vec();
             nested_path.push(field_name.clone());
             problems.push(variable_problem_with_message(&nested_path, &problem));
@@ -288,16 +298,65 @@ fn validate_resolved_input_object(
     problems
 }
 
-fn validate_resolved_scalar(value: &ResolvedValue, type_ref: &SchemaTypeRef) -> Option<String> {
-    if type_ref.named_type != "Decimal" {
-        return None;
+fn validate_resolved_leaf(value: &ResolvedValue, type_ref: &SchemaTypeRef) -> Option<String> {
+    if type_ref.named_type == "Decimal" {
+        let ResolvedValue::String(raw) = value else {
+            return None;
+        };
+        return raw
+            .parse::<f64>()
+            .err()
+            .map(|_| format!("invalid decimal '{raw}'"));
     }
     let ResolvedValue::String(raw) = value else {
         return None;
     };
-    raw.parse::<f64>()
-        .err()
-        .map(|_| format!("invalid decimal '{raw}'"))
+    enum_literal_allowed(&type_ref.named_type, raw).and_then(|allowed| {
+        if allowed {
+            None
+        } else {
+            Some(format!(
+                "Expected value to be one of: {}",
+                enum_literal_valid_values(&type_ref.named_type)?.join(", ")
+            ))
+        }
+    })
+}
+
+fn raw_enum_literal_error(
+    input_type_name: &str,
+    argument_name: &str,
+    type_ref: &SchemaTypeRef,
+    value: &RawArgumentValue,
+    path: &[String],
+    context: ValidationContext<'_>,
+) -> Option<Value> {
+    let RawArgumentValue::Enum(raw) = value else {
+        return None;
+    };
+    enum_literal_allowed(&type_ref.named_type, raw)
+        .filter(|allowed| !allowed)
+        .map(|_| {
+            argument_literals_incompatible_error(
+                input_type_name,
+                argument_name,
+                raw,
+                &type_ref.named_type,
+                path,
+                context,
+            )
+        })
+}
+
+fn enum_literal_allowed(type_name: &str, raw: &str) -> Option<bool> {
+    enum_literal_valid_values(type_name).map(|values| values.contains(&raw))
+}
+
+fn enum_literal_valid_values(type_name: &str) -> Option<&'static [&'static str]> {
+    match type_name {
+        "MetaobjectCustomerAccountAccess" => Some(&["NONE", "READ"]),
+        _ => None,
+    }
 }
 
 fn root_argument_not_accepted_error(
@@ -460,7 +519,7 @@ fn inline_argument_value_location(
     let value_offset = query[after_colon..]
         .char_indices()
         .find_map(|(offset, ch)| (!ch.is_whitespace()).then_some(after_colon + offset))?;
-    source_location_for_offset(query, value_offset)
+    source_location_for_byte_offset(query, value_offset)
 }
 
 fn find_argument_name_with_colon(haystack: &str, argument_name: &str) -> Option<usize> {
@@ -485,23 +544,28 @@ fn find_argument_name_with_colon(haystack: &str, argument_name: &str) -> Option<
     None
 }
 
-fn is_graphql_name_char(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || ch == '_'
-}
-
-fn source_location_for_offset(query: &str, byte_index: usize) -> Option<SourceLocation> {
-    if byte_index > query.len() {
-        return None;
-    }
-    let line = query[..byte_index]
-        .bytes()
-        .filter(|byte| *byte == b'\n')
-        .count()
-        + 1;
-    let line_start = query[..byte_index].rfind('\n').map_or(0, |index| index + 1);
-    Some(SourceLocation {
-        line,
-        column: byte_index - line_start + 1,
+fn argument_literals_incompatible_error(
+    input_type_name: &str,
+    argument_name: &str,
+    raw_value: &str,
+    expected_type_name: &str,
+    path: &[String],
+    context: ValidationContext<'_>,
+) -> Value {
+    let location_field = path.last().map(String::as_str).unwrap_or(argument_name);
+    let location = raw_input_object_field_value_location(context.query, location_field)
+        .unwrap_or(context.field_location);
+    json!({
+        "message": format!(
+            "Argument '{argument_name}' on InputObject '{input_type_name}' has an invalid value ({raw_value}). Expected type '{expected_type_name}'."
+        ),
+        "locations": [{ "line": location.line, "column": location.column }],
+        "path": input_error_path(context, path, argument_name),
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "InputObject",
+            "argumentName": argument_name
+        }
     })
 }
 
@@ -607,6 +671,44 @@ fn local_extension_input_field(input_type_name: &str, field_name: &str) -> bool 
         (input_type_name, field_name),
         ("GiftCardCreateInput", "notify")
     )
+}
+
+fn raw_input_object_field_value_location(query: &str, field_name: &str) -> Option<SourceLocation> {
+    let mut offset = 0;
+    while let Some(relative_index) = query[offset..].find(field_name) {
+        let name_start = offset + relative_index;
+        let name_end = name_start + field_name.len();
+        if !graphql_name_boundary(query, name_start, name_end) {
+            offset = name_end;
+            continue;
+        }
+        let colon_index = query[name_end..]
+            .char_indices()
+            .find_map(|(index, ch)| match ch {
+                ':' => Some(name_end + index),
+                ch if ch.is_whitespace() => None,
+                _ => Some(usize::MAX),
+            })?;
+        if colon_index == usize::MAX {
+            offset = name_end;
+            continue;
+        }
+        let value_start = query[colon_index + 1..]
+            .char_indices()
+            .find_map(|(index, ch)| (!ch.is_whitespace()).then_some(colon_index + 1 + index))?;
+        return source_location_for_byte_offset(query, value_start);
+    }
+    None
+}
+
+fn graphql_name_boundary(query: &str, start: usize, end: usize) -> bool {
+    let before = query[..start].chars().next_back();
+    let after = query[end..].chars().next();
+    !before.is_some_and(is_graphql_name_char) && !after.is_some_and(is_graphql_name_char)
+}
+
+fn is_graphql_name_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || ch == '_'
 }
 
 fn public_admin_input_schema() -> &'static AdminInputSchema {
