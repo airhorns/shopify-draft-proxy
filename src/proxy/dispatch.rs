@@ -1770,6 +1770,15 @@ impl DraftProxy {
                             )
                         }
                     }
+                    "companyContactDelete" | "companyContactsDelete"
+                    | "companyContactRemoveFromCompany" => self.b2b_contact_delete_with_cascade(
+                        request,
+                        &query,
+                        &variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    ),
                     _ => json_error(
                         501,
                         &format!("No Rust b2b dispatcher implemented for root field: {root_field}"),

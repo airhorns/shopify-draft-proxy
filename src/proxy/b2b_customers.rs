@@ -1768,6 +1768,122 @@ impl DraftProxy {
         }
     }
 
+    /// Cascade-delete a company contact and every artifact that referenced it,
+    /// mirroring Shopify: `companyContactDelete`, `companyContactsDelete`, and
+    /// `companyContactRemoveFromCompany` all clear the contact's location-side
+    /// role assignments and detach it from the owning company.
+    fn b2b_delete_company_contact(&mut self, contact_id: &str) {
+        let removed = self.store.staged.b2b_contacts.remove(contact_id);
+        self.store
+            .staged
+            .deleted_b2b_contact_ids
+            .insert(contact_id.to_string());
+
+        // Detach the contact from its company: drop it from `contactIds` and
+        // clear `mainContactId` when it was the main contact.
+        if let Some(company_id) = removed
+            .as_ref()
+            .and_then(|contact| contact["companyId"].as_str())
+            .map(str::to_string)
+        {
+            if let Some(mut company) = self.store.staged.b2b_companies.get(&company_id).cloned() {
+                b2b_retain_json_ids(&mut company, "contactIds", |id| id != contact_id);
+                if company["mainContactId"].as_str() == Some(contact_id) {
+                    company["mainContactId"] = Value::Null;
+                }
+                self.store.staged.b2b_companies.insert(company_id, company);
+            }
+        }
+
+        // Cascade-remove every role assignment that pointed at this contact,
+        // dropping the assignment ids from each location's `roleAssignmentIds`.
+        let assignment_ids: Vec<String> = self
+            .store
+            .staged
+            .b2b_role_assignments
+            .iter()
+            .filter(|(_, assignment)| {
+                assignment["companyContactId"].as_str() == Some(contact_id)
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
+        for assignment_id in assignment_ids {
+            let removed_assignment = self
+                .store
+                .staged
+                .b2b_role_assignments
+                .remove(&assignment_id);
+            if let Some(location_id) = removed_assignment
+                .as_ref()
+                .and_then(|assignment| assignment["companyLocationId"].as_str())
+                .map(str::to_string)
+            {
+                self.b2b_remove_location_assignment_id(
+                    &location_id,
+                    "roleAssignmentIds",
+                    &assignment_id,
+                );
+            }
+            self.store
+                .staged
+                .deleted_b2b_contact_role_assignment_ids
+                .insert(assignment_id);
+        }
+    }
+
+    /// Forward a contact delete/remove mutation to the recorded upstream for its
+    /// authoritative payload (which carries Shopify's exact `userErrors` shape),
+    /// then cascade-clean locally staged state for any targeted contact that the
+    /// digital twin actually staged — but only when the upstream delete
+    /// succeeded, so a rejected delete leaves staged state untouched.
+    pub(in crate::proxy) fn b2b_contact_delete_with_cascade(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        parsed_root_fields: &[String],
+        root_field: &str,
+    ) -> Response {
+        let contact_ids = root_fields(query, variables)
+            .map(|fields| {
+                fields
+                    .iter()
+                    .flat_map(|field| match field.name.as_str() {
+                        "companyContactDelete" | "companyContactRemoveFromCompany" => {
+                            resolved_string_arg(&field.arguments, "companyContactId")
+                                .into_iter()
+                                .collect::<Vec<String>>()
+                        }
+                        "companyContactsDelete" => resolved_string_list_field_unsorted(
+                            &field.arguments,
+                            "companyContactIds",
+                        ),
+                        _ => Vec::new(),
+                    })
+                    .collect::<Vec<String>>()
+            })
+            .unwrap_or_default();
+
+        let response = self.dispatch_unknown_passthrough_or_legacy_error(
+            request,
+            query,
+            variables,
+            operation_type,
+            parsed_root_fields,
+            root_field,
+        );
+
+        if b2b_contact_delete_succeeded(&response) {
+            for contact_id in contact_ids {
+                if self.store.staged.b2b_contacts.contains_key(&contact_id) {
+                    self.b2b_delete_company_contact(&contact_id);
+                }
+            }
+        }
+        response
+    }
+
     fn b2b_remove_location_assignment_id(
         &mut self,
         location_id: &str,
@@ -3325,6 +3441,31 @@ where
             )
         })
         .unwrap_or_else(|| nullable_selected_json(value, selections))
+}
+
+/// A contact delete/remove is treated as successful (and therefore cascades to
+/// local state) only when the upstream payload returns without transport errors
+/// and every mutation payload reports an empty `userErrors` list.
+fn b2b_contact_delete_succeeded(response: &Response) -> bool {
+    if response.status >= 400 {
+        return false;
+    }
+    let Some(data) = response.body.get("data") else {
+        return false;
+    };
+    if data.is_null() {
+        return false;
+    }
+    if let Some(payloads) = data.as_object() {
+        for payload in payloads.values() {
+            if let Some(errors) = payload.get("userErrors").and_then(Value::as_array) {
+                if !errors.is_empty() {
+                    return false;
+                }
+            }
+        }
+    }
+    true
 }
 
 fn b2b_json_id_list(record: &Value, field: &str) -> Vec<String> {
