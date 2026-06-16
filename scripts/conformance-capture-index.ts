@@ -3506,6 +3506,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'localization',
+    captureId: 'localization-translations-unknown-resource',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-translations-unknown-resource-conformance.mts',
+    purpose:
+      'translationsRegister and translationsRemove for an unknown/non-existent resource ID return NOT_FOUND userErrors without staging any translations.',
+    requiredAuthScopes: ['read_products', 'read_translations', 'write_translations', 'read_locales', 'write_locales'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-translations-unknown-resource.json`,
+      'config/parity-specs/localization/localization-translations-unknown-resource.json',
+      'config/parity-requests/localization/localization-translations-unknown-resource.graphql',
+      'config/parity-requests/localization/localization-unknown-resource-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable product, uses a non-existent GID for unknown-resource validation, then deletes the disposable product during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'markets',
     captureId: 'markets',
     scriptPath: 'scripts/capture-market-conformance.mts',
@@ -4963,6 +4981,45 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior: 'Creates disposable pages and deletes every successful pageCreate result during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
+    captureId: 'online-store-integration-root-dispatch-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-online-store-integration-root-dispatch-local-runtime.ts',
+    purpose:
+      'Online store integration root dispatch: ensure themeCreate, themeUpdate, themeDelete, and themePublish route through the local dispatcher and return correct staged responses.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}online-store/online-store-integration-root-dispatch-local-runtime.json`,
+      'config/parity-specs/online-store/online-store-integration-root-dispatch-local-runtime.json',
+      'config/parity-requests/online-store/online-store-integration-root-dispatch-local-runtime.graphql',
+      'config/parity-requests/online-store/online-store-integration-root-dispatch-delete-local-runtime.graphql',
+      'config/parity-requests/online-store/online-store-integration-root-dispatch-read-local-runtime.graphql',
+    ],
+    cleanupBehavior:
+      'Local-runtime only. Creates disposable themes through the proxy; cleanup is embedded in the capture script.',
+    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
+  },
+  {
+    domain: 'online-store',
+    captureId: 'online-store-theme-publish-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-online-store-theme-publish-local-runtime.ts',
+    purpose:
+      'themePublish demotes the previous main theme and sets the published theme as new main; downstream reads reflect updated role.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}online-store/theme-publish-demotes-previous-main.json`,
+      'config/parity-specs/online-store/theme-publish-demotes-previous-main.json',
+      'config/parity-requests/online-store/theme-publish-create-main.graphql',
+      'config/parity-requests/online-store/theme-publish-create-unpublished.graphql',
+      'config/parity-requests/online-store/theme-publish-publish.graphql',
+      'config/parity-requests/online-store/theme-publish-read.graphql',
+    ],
+    cleanupBehavior:
+      'Local-runtime only; all theme records are staged locally and no Shopify store state is modified.',
+    expectedStatusChecks: ['targeted-runtime-test', 'conformance:parity', 'conformance:check', 'rust:test'],
   },
   {
     domain: 'collections',
