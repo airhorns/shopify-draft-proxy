@@ -264,6 +264,23 @@ impl DraftProxy {
                 user_errors,
             );
         }
+        let staged_upload_file_size = self.bulk_operation_staged_upload_size(&staged_upload_path);
+        let max_file_size = self
+            .config
+            .bulk_operation_run_mutation_max_input_file_size_bytes
+            .unwrap_or(DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES);
+        if staged_upload_file_size
+            .flatten()
+            .is_some_and(|file_size| file_size > max_file_size)
+        {
+            return bulk_operation_run_mutation_error_response(
+                &response_key,
+                &payload_selection,
+                vec![bulk_operation_run_mutation_file_size_too_large_user_error(
+                    max_file_size,
+                )],
+            );
+        }
         if let Some(operation_id) = self.in_progress_mutation_bulk_operation_id() {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
@@ -275,26 +292,11 @@ impl DraftProxy {
                 })],
             );
         }
-        let Some(file_size) = self.bulk_operation_staged_upload_size(&staged_upload_path) else {
+        if staged_upload_file_size.is_none() {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
                 &payload_selection,
                 vec![bulk_operation_run_mutation_no_such_file_user_error()],
-            );
-        };
-        let max_file_size = self
-            .config
-            .bulk_operation_run_mutation_max_input_file_size_bytes
-            .unwrap_or(DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES);
-        if file_size.unwrap_or(0) > max_file_size {
-            return bulk_operation_run_mutation_error_response(
-                &response_key,
-                &payload_selection,
-                vec![json!({
-                    "field": ["stagedUploadPath"],
-                    "message": "The JSONL file exceeds the maximum allowed size of 100 MB.",
-                    "code": "INVALID_MUTATION"
-                })],
             );
         }
 
@@ -595,12 +597,11 @@ impl DraftProxy {
             .into_iter()
             .enumerate()
             .map(|(index, input)| {
-                let content_type = resolved_string_field(&input, "contentType")
-                    .unwrap_or_else(|| "IMAGE".to_string());
-                let resource_type = media_file_gid_type(&content_type);
-                let id = self.next_proxy_synthetic_gid(resource_type);
                 let original_source =
                     resolved_string_field(&input, "originalSource").unwrap_or_default();
+                let content_type = media_file_create_content_type(&input, &original_source);
+                let resource_type = media_file_gid_type(&content_type);
+                let id = self.next_proxy_synthetic_gid(resource_type);
                 let filename = resolved_string_field(&input, "filename")
                     .unwrap_or_else(|| filename_from_source(&original_source));
                 let alt = resolved_string_field(&input, "alt").unwrap_or_default();
@@ -1047,12 +1048,13 @@ impl DraftProxy {
                 .filter(|(id, _)| !self.store.staged.deleted_media_file_ids.contains(*id))
                 .map(|(_, file)| file.clone())
                 .collect::<Vec<_>>();
-            files.sort_by_key(|file| {
-                file.get("id")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string()
-            });
+            files.sort_by_key(media_file_sort_id);
+            if matches!(
+                field.arguments.get("reverse"),
+                Some(ResolvedValue::Bool(true))
+            ) {
+                files.reverse();
+            }
             data.insert(
                 field.response_key,
                 selected_connection_json_with_args(
@@ -1064,6 +1066,51 @@ impl DraftProxy {
             );
         }
         ok_json(json!({"data": Value::Object(data)}))
+    }
+
+    pub(in crate::proxy) fn media_file_node_read_data(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Option<Value> {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "node" => {
+                    let id = resolved_string_arg(&field.arguments, "id")?;
+                    self.media_file_node_value(&id, &field.selection)?
+                }
+                "nodes" => {
+                    let ids = match field.arguments.get("ids")? {
+                        ResolvedValue::List(ids) => ids,
+                        _ => return None,
+                    };
+                    Value::Array(
+                        ids.iter()
+                            .map(|id| match id {
+                                ResolvedValue::String(id) => {
+                                    self.media_file_node_value(id, &field.selection)
+                                }
+                                _ => None,
+                            })
+                            .collect::<Option<Vec<_>>>()?,
+                    )
+                }
+                _ => return None,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Some(Value::Object(data))
+    }
+
+    fn media_file_node_value(&self, id: &str, selection: &[SelectedField]) -> Option<Value> {
+        if self.store.staged.deleted_media_file_ids.contains(id) {
+            return Some(Value::Null);
+        }
+        self.store
+            .staged
+            .media_files
+            .get(id)
+            .map(|file| selected_json(file, selection))
     }
 
     pub(in crate::proxy) fn media_product_read(
@@ -1586,8 +1633,7 @@ impl DraftProxy {
             "product" => {
                 let product = self.store.product_by_id(owner_id)?;
                 let variants = self.store.product_variants_for_product(owner_id);
-                let base =
-                    self.product_json_with_selling_plan_overlay(product, &variants, selections);
+                let base = product_json_with_variants(product, &variants, selections);
                 Some(
                     self.owner_metafield_overlay_owner_json_with_product_variants(
                         root_field,
@@ -1600,7 +1646,7 @@ impl DraftProxy {
             }
             "productVariant" => {
                 let variant = self.store.product_variant_by_id(owner_id)?;
-                let base = self.product_variant_json_with_selling_plan_overlay(
+                let base = product_variant_json(
                     variant,
                     self.store.product_by_id(&variant.product_id),
                     selections,
@@ -1759,7 +1805,7 @@ impl DraftProxy {
         let render_variant =
             |entry: &VariantEntry, selections: &[SelectedField]| match &entry.source {
                 VariantSource::Record(variant) => {
-                    let base = self.product_variant_json_with_selling_plan_overlay(
+                    let base = product_variant_json(
                         variant,
                         self.store.product_by_id(&variant.product_id),
                         selections,
@@ -2148,12 +2194,6 @@ impl DraftProxy {
                 "productsCount" => Some(self.products_count_field(field)),
                 "productByIdentifier" => Some(self.product_by_identifier_field(field)),
                 "productVariant" => Some(self.product_variant_by_id_field(field)),
-                "sellingPlanGroup" | "sellingPlanGroups" => Some(
-                    self.selling_plan_group_query_data(std::slice::from_ref(field))
-                        .get(&field.response_key)
-                        .cloned()
-                        .unwrap_or(Value::Null),
-                ),
                 "inventoryItem" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
                     self.product_inventory_item_by_id_value(&id, &field.selection)
@@ -2182,8 +2222,7 @@ impl DraftProxy {
         match self.product_record_by_id(id) {
             Some(product) => {
                 let variants = self.store.product_variants_for_product(&product.id);
-                let base =
-                    self.product_json_with_selling_plan_overlay(product, &variants, selection);
+                let base = product_json_with_variants(product, &variants, selection);
                 self.owner_metafield_overlay_owner_json_with_product_variants(
                     "product",
                     &product.id,
@@ -2225,8 +2264,7 @@ impl DraftProxy {
         match product {
             Some(product) => {
                 let variants = self.store.product_variants_for_product(&product.id);
-                let base =
-                    self.product_json_with_selling_plan_overlay(product, &variants, selection);
+                let base = product_json_with_variants(product, &variants, selection);
                 self.owner_metafield_overlay_owner_json_with_product_variants(
                     "product",
                     &product.id,
@@ -2268,7 +2306,7 @@ impl DraftProxy {
                 Value::Null
             };
         };
-        let base = self.product_variant_json_with_selling_plan_overlay(
+        let base = product_variant_json(
             variant,
             self.store.product_by_id(&variant.product_id),
             selection,
@@ -2313,11 +2351,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn has_product_overlay_state(&self) -> bool {
-        self.store.has_product_state() || self.store.has_selling_plan_group_state()
-    }
-
-    pub(in crate::proxy) fn has_collection_overlay_state(&self) -> bool {
-        self.store.has_collection_state()
+        self.store.has_product_state()
     }
 
     pub(in crate::proxy) fn products_connection_value(
@@ -2351,8 +2385,7 @@ impl DraftProxy {
             root_selection,
             |product, selections| {
                 let variants = self.store.product_variants_for_product(&product.id);
-                let base =
-                    self.product_json_with_selling_plan_overlay(product, &variants, selections);
+                let base = product_json_with_variants(product, &variants, selections);
                 self.owner_metafield_overlay_owner_json_with_product_variants(
                     "product",
                     &product.id,
@@ -2363,6 +2396,48 @@ impl DraftProxy {
             },
             |product| product_cursor(product).to_string(),
         )
+    }
+
+    pub(in crate::proxy) fn product_variants_bulk_delete_passthrough(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        self.record_passthrough_log_entry(
+            request,
+            query,
+            variables,
+            &["productVariantsBulkDelete".to_string()],
+            "productVariantsBulkDelete",
+        );
+        let response = (self.upstream_transport)(request.clone());
+        if let Some(product) = response
+            .body
+            .pointer("/data/productVariantsBulkDelete/product")
+            .and_then(product_state_from_json)
+        {
+            self.store.stage_observed_product(product);
+        }
+        let deleted_variant_ids = resolved_string_list_arg(variables, "variantsIds");
+        let mut hydrate_ids = Vec::new();
+        if let Some(product_id) = resolved_string_arg(variables, "productId").or_else(|| {
+            response
+                .body
+                .pointer("/data/productVariantsBulkDelete/product/id")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        }) {
+            hydrate_ids.push(product_id);
+        }
+        hydrate_ids.extend(deleted_variant_ids.clone());
+        hydrate_ids.sort();
+        hydrate_ids.dedup();
+        self.hydrate_product_nodes_for_observation(hydrate_ids);
+        for variant_id in deleted_variant_ids {
+            self.store.delete_product_variant(&variant_id);
+        }
+        response
     }
 
     pub(in crate::proxy) fn products_count_field(&self, field: &RootFieldSelection) -> Value {
@@ -2406,144 +2481,6 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn effective_product_count(&self) -> usize {
         self.store.product_count()
-    }
-
-    pub(in crate::proxy) fn product_set_fixture_backed_mutation_data(
-        &mut self,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json"
-        ))
-        .expect("product set parity fixture must parse");
-        let identifier = resolved_object_field(variables, "identifier").unwrap_or_default();
-        if resolved_string_field(&identifier, "id").is_some() {
-            self.store.staged.product_set_updated = true;
-            Some(fixture["update"]["mutation"]["response"]["data"].clone())
-        } else {
-            self.store.staged.product_set_updated = false;
-            Some(fixture["mutation"]["response"]["data"].clone())
-        }
-    }
-
-    pub(in crate::proxy) fn product_set_downstream_read_data(&self) -> Value {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json"
-        ))
-        .expect("product set parity fixture must parse");
-        if self.store.staged.product_set_updated {
-            fixture["update"]["downstreamRead"]["data"].clone()
-        } else {
-            fixture["downstreamRead"]["data"].clone()
-        }
-    }
-
-    pub(in crate::proxy) fn product_options_fixture_backed_mutation_data(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
-        let product_id = resolved_string_field(variables, "productId")?;
-        let fixture_name = if query.contains("ProductOptionsCreateParityPlan")
-            && product_id == "gid://shopify/Product/10172064891186"
-        {
-            "product-options-create-parity.json"
-        } else if query.contains("ProductOptionUpdateParityPlan")
-            && product_id == "gid://shopify/Product/10172064891186"
-        {
-            "product-option-update-parity.json"
-        } else if query.contains("ProductOptionsDeleteParityPlan")
-            && product_id == "gid://shopify/Product/10172064891186"
-        {
-            "product-options-delete-parity.json"
-        } else if query.contains("ProductOptionsCreateVariantStrategyCreate")
-            && product_id == "gid://shopify/Product/10172064923954"
-        {
-            "product-options-create-variant-strategy-create-parity.json"
-        } else if query.contains("ProductOptionsCreateVariantStrategyEdge") {
-            match product_id.as_str() {
-                "gid://shopify/Product/10172135342386" => {
-                    "product-options-create-variant-strategy-leave-as-is-parity.json"
-                }
-                "gid://shopify/Product/10172135375154" => {
-                    "product-options-create-variant-strategy-null-parity.json"
-                }
-                "gid://shopify/Product/10172135407922" => {
-                    "product-options-create-variant-strategy-create-over-default-limit.json"
-                }
-                _ => return None,
-            }
-        } else {
-            return None;
-        };
-        self.store.staged.product_option_fixture = Some(fixture_name.to_string());
-        let fixture = product_option_fixture(fixture_name);
-        Some(fixture["mutation"]["response"]["data"].clone())
-    }
-
-    pub(in crate::proxy) fn product_options_create_linked_metaobjects(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<MutationOutcome> {
-        let product_id = resolved_string_field(variables, "productId")?;
-        let mut linked_sets = Vec::new();
-        for option in resolved_object_list_field(variables, "options") {
-            let Some(linked_metafield) = resolved_object_field(&option, "linkedMetafield") else {
-                continue;
-            };
-            let ids = resolved_string_list_field(&linked_metafield, "values")
-                .into_iter()
-                .filter(|id| shopify_gid_resource_type(id) == Some("Metaobject"))
-                .collect::<BTreeSet<_>>();
-            if ids.len() > 1 {
-                linked_sets.push(ids);
-            }
-        }
-        if linked_sets.is_empty() {
-            return None;
-        }
-        self.store
-            .staged
-            .linked_product_option_metaobject_sets
-            .extend(linked_sets);
-
-        let product = self
-            .product_record_by_id(&product_id)
-            .map(product_summary_json)
-            .unwrap_or_else(|| json!({"id": product_id.clone()}));
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let payload = selected_json(
-            &json!({
-                "product": product,
-                "userErrors": []
-            }),
-            &payload_selection,
-        );
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "productOptionsCreate".to_string());
-        Some(MutationOutcome::staged(
-            ok_json(json!({"data": {response_key: payload}})),
-            LogDraft::staged("productOptionsCreate", "products", vec![product_id]),
-        ))
-    }
-
-    pub(in crate::proxy) fn product_option_lifecycle_downstream_data(
-        &self,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
-        let id = resolved_string_field(variables, "id").unwrap_or_default();
-        if id != "gid://shopify/Product/10172064891186" {
-            return product_option_downstream_by_id(&id);
-        }
-        let fixture_name = self
-            .store
-            .staged
-            .product_option_fixture
-            .as_deref()
-            .unwrap_or("product-options-create-parity.json");
-        let fixture = product_option_fixture(fixture_name);
-        fixture["downstreamRead"]["data"].clone()
     }
 
     pub(in crate::proxy) fn product_create(
@@ -2678,14 +2615,6 @@ impl DraftProxy {
         let status =
             resolved_string_field(&input, "status").unwrap_or_else(|| "ACTIVE".to_string());
         let timestamp = self.next_product_timestamp();
-        let variant_id = self.next_proxy_synthetic_gid("ProductVariant");
-        let inventory_item_id = self.next_proxy_synthetic_gid("InventoryItem");
-        let variant = product_variant_record_from_create_input(
-            &BTreeMap::new(),
-            variant_id.clone(),
-            id.clone(),
-            inventory_item_id,
-        );
         let product = ProductRecord {
             id: id.clone(),
             created_at: timestamp.clone(),
@@ -2704,12 +2633,11 @@ impl DraftProxy {
             total_inventory: 0,
             tracks_inventory: false,
             media: Vec::new(),
-            variants: vec![product_variant_state_json(&variant)],
+            variants: Vec::new(),
             collections: Vec::new(),
             extra_fields: BTreeMap::new(),
         };
         self.store.stage_product(product.clone());
-        self.store.stage_product_variant(variant);
 
         let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
         let payload_selection = root_field_selection(query).unwrap_or_default();
@@ -2721,7 +2649,7 @@ impl DraftProxy {
                     response_key: product_mutation_payload_json(&product, &payload_selection, &product_selection)
                 }
             })),
-            LogDraft::staged("productCreate", "products", vec![id, variant_id]),
+            LogDraft::staged("productCreate", "products", vec![id]),
         )
     }
 
@@ -2843,7 +2771,6 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn product_variant_mutation(
         &mut self,
-        request: &Request,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
@@ -2852,18 +2779,6 @@ impl DraftProxy {
             "productVariantCreate" => self.product_variant_create(query, variables),
             "productVariantUpdate" => self.product_variant_update(query, variables),
             "productVariantDelete" => self.product_variant_delete(query, variables),
-            "productVariantsBulkCreate" => {
-                self.product_variants_bulk_create(request, query, variables)
-            }
-            "productVariantsBulkUpdate" => {
-                self.product_variants_bulk_update(request, query, variables)
-            }
-            "productVariantsBulkDelete" => {
-                self.product_variants_bulk_delete(request, query, variables)
-            }
-            "productVariantsBulkReorder" => {
-                self.product_variants_bulk_reorder(request, query, variables)
-            }
             _ => MutationOutcome::response(json_error(
                 400,
                 "No mutation dispatcher implemented for product variant root",
@@ -3003,499 +2918,6 @@ impl DraftProxy {
         )
     }
 
-    fn product_variants_bulk_create(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let Some(field) =
-            Self::product_variant_bulk_root_field(query, variables, "productVariantsBulkCreate")
-        else {
-            return MutationOutcome::response(json_error(
-                400,
-                "No productVariantsBulkCreate root field found",
-            ));
-        };
-        let product_id = resolved_string_arg(&field.arguments, "productId").unwrap_or_default();
-        let variants_input = Self::resolved_object_list_arg(&field.arguments, "variants");
-        if variants_input.len() > 2048 {
-            return MutationOutcome::response(Self::product_variant_bulk_input_size_error(
-                &field,
-                variants_input.len(),
-            ));
-        }
-        let Some(product) = self
-            .product_for_bulk_variant_mutation(request, &product_id)
-            .cloned()
-        else {
-            return MutationOutcome::response(self.product_variants_bulk_response(
-                &field,
-                "productVariantsBulkCreate",
-                None,
-                Some(Vec::new()),
-                vec![Self::bulk_user_error(
-                    &["productId"],
-                    "Product does not exist",
-                    Some("PRODUCT_DOES_NOT_EXIST"),
-                )],
-            ));
-        };
-
-        let mut user_errors = Vec::new();
-        for (index, input) in variants_input.iter().enumerate() {
-            user_errors.extend(product_variant_input_user_errors_with_prefix(
-                input,
-                &["variants".to_string(), index.to_string()],
-            ));
-            user_errors.extend(Self::product_variant_bulk_option_user_errors(
-                input, &product, index, false,
-            ));
-            user_errors
-                .extend(self.product_variant_bulk_inventory_location_user_errors(input, index));
-        }
-        if Self::product_variant_effective_count_after_create(
-            &self.store,
-            &product.id,
-            variants_input.len(),
-        ) > 2048
-        {
-            user_errors.push(Self::bulk_user_error(
-                &["variants"],
-                "Product cannot have more than 2048 variants",
-                Some("TOO_MANY_VARIANTS"),
-            ));
-        }
-        if !user_errors.is_empty() {
-            return MutationOutcome::response(self.product_variants_bulk_response(
-                &field,
-                "productVariantsBulkCreate",
-                None,
-                Some(Vec::new()),
-                user_errors,
-            ));
-        }
-
-        let mut created_variants = Vec::new();
-        for input in variants_input {
-            let variant_id = self.next_proxy_synthetic_gid("ProductVariant");
-            let inventory_item_id = self.next_proxy_synthetic_gid("InventoryItem");
-            let mut variant = product_variant_record_from_create_input(
-                &input,
-                variant_id,
-                product.id.clone(),
-                inventory_item_id,
-            );
-            Self::normalize_bulk_variant_title(&mut variant);
-            created_variants.push(variant);
-        }
-        for variant in &created_variants {
-            self.store.stage_product_variant(variant.clone());
-        }
-
-        let mut staged_ids = vec![product.id.clone()];
-        staged_ids.extend(created_variants.iter().map(|variant| variant.id.clone()));
-        MutationOutcome::staged(
-            self.product_variants_bulk_response(
-                &field,
-                "productVariantsBulkCreate",
-                self.store.product_by_id(&product.id),
-                Some(created_variants),
-                Vec::new(),
-            ),
-            LogDraft::staged("productVariantsBulkCreate", "products", staged_ids),
-        )
-    }
-
-    fn product_variants_bulk_update(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let Some(field) =
-            Self::product_variant_bulk_root_field(query, variables, "productVariantsBulkUpdate")
-        else {
-            return MutationOutcome::response(json_error(
-                400,
-                "No productVariantsBulkUpdate root field found",
-            ));
-        };
-        let product_id = resolved_string_arg(&field.arguments, "productId").unwrap_or_default();
-        let variants_input = Self::resolved_object_list_arg(&field.arguments, "variants");
-        let Some(product) = self
-            .product_for_bulk_variant_mutation(request, &product_id)
-            .cloned()
-        else {
-            return MutationOutcome::response(self.product_variants_bulk_response(
-                &field,
-                "productVariantsBulkUpdate",
-                None,
-                None,
-                vec![Self::bulk_user_error(
-                    &["productId"],
-                    "Product does not exist",
-                    Some("PRODUCT_DOES_NOT_EXIST"),
-                )],
-            ));
-        };
-        if variants_input.is_empty() {
-            return MutationOutcome::response(self.product_variants_bulk_response(
-                &field,
-                "productVariantsBulkUpdate",
-                None,
-                None,
-                vec![json!({
-                    "field": Value::Null,
-                    "message": "Something went wrong, please try again.",
-                    "code": Value::Null,
-                })],
-            ));
-        }
-
-        let mut user_errors = Vec::new();
-        let mut updated_variants = Vec::new();
-        for (index, input) in variants_input.iter().enumerate() {
-            let prefix = ["variants".to_string(), index.to_string()];
-            let Some(variant_id) = resolved_string_field(input, "id") else {
-                user_errors.push(Self::bulk_user_error(
-                    &["variants", &index.to_string(), "id"],
-                    "Product variant is missing ID attribute",
-                    Some("PRODUCT_VARIANT_ID_MISSING"),
-                ));
-                continue;
-            };
-            let Some(existing) = self.store.product_variant_by_id(&variant_id).cloned() else {
-                user_errors.push(Self::bulk_user_error(
-                    &["variants", &index.to_string(), "id"],
-                    "Product variant does not exist",
-                    Some("PRODUCT_VARIANT_DOES_NOT_EXIST"),
-                ));
-                continue;
-            };
-            if existing.product_id != product.id {
-                user_errors.push(Self::bulk_user_error(
-                    &["variants", &index.to_string(), "id"],
-                    "Product variant does not exist",
-                    Some("PRODUCT_VARIANT_DOES_NOT_EXIST"),
-                ));
-                continue;
-            }
-            if input.contains_key("inventoryQuantities") {
-                user_errors.push(Self::bulk_user_error(
-                    &["variants", &index.to_string(), "inventoryQuantities"],
-                    "Inventory quantities can only be provided during create. To update inventory for existing variants, use inventoryAdjustQuantities.",
-                    Some("NO_INVENTORY_QUANTITIES_ON_VARIANTS_UPDATE"),
-                ));
-            }
-            user_errors.extend(product_variant_input_user_errors_with_prefix(
-                input, &prefix,
-            ));
-            user_errors.extend(Self::product_variant_bulk_option_user_errors(
-                input, &product, index, true,
-            ));
-            let mut variant = existing;
-            apply_product_variant_input(&mut variant, input);
-            Self::normalize_bulk_variant_title(&mut variant);
-            updated_variants.push(variant);
-        }
-        if !user_errors.is_empty() {
-            return MutationOutcome::response(self.product_variants_bulk_response(
-                &field,
-                "productVariantsBulkUpdate",
-                Some(&product),
-                None,
-                user_errors,
-            ));
-        }
-
-        for variant in &updated_variants {
-            self.store.stage_product_variant(variant.clone());
-        }
-        let mut staged_ids = vec![product.id.clone()];
-        staged_ids.extend(updated_variants.iter().map(|variant| variant.id.clone()));
-        MutationOutcome::staged(
-            self.product_variants_bulk_response(
-                &field,
-                "productVariantsBulkUpdate",
-                self.store.product_by_id(&product.id),
-                Some(updated_variants),
-                Vec::new(),
-            ),
-            LogDraft::staged("productVariantsBulkUpdate", "products", staged_ids),
-        )
-    }
-
-    fn product_variants_bulk_delete(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let Some(field) =
-            Self::product_variant_bulk_root_field(query, variables, "productVariantsBulkDelete")
-        else {
-            return MutationOutcome::response(json_error(
-                400,
-                "No productVariantsBulkDelete root field found",
-            ));
-        };
-        let product_id = resolved_string_arg(&field.arguments, "productId").unwrap_or_default();
-        let variant_ids = resolved_string_list_arg(&field.arguments, "variantsIds");
-        let Some(product) = self
-            .product_for_bulk_variant_mutation(request, &product_id)
-            .cloned()
-        else {
-            return MutationOutcome::response(self.product_variants_bulk_response(
-                &field,
-                "productVariantsBulkDelete",
-                None,
-                None,
-                vec![Self::bulk_user_error(
-                    &["productId"],
-                    "Product does not exist",
-                    Some("PRODUCT_DOES_NOT_EXIST"),
-                )],
-            ));
-        };
-
-        let mut user_errors = Vec::new();
-        for (index, variant_id) in variant_ids.iter().enumerate() {
-            let belongs_to_product = self
-                .store
-                .product_variant_by_id(variant_id)
-                .is_some_and(|variant| variant.product_id == product.id);
-            if !belongs_to_product {
-                user_errors.push(Self::bulk_user_error(
-                    &["variantsIds", &index.to_string()],
-                    "At least one variant does not belong to the product",
-                    Some("AT_LEAST_ONE_VARIANT_DOES_NOT_BELONG_TO_THE_PRODUCT"),
-                ));
-            }
-        }
-        if !user_errors.is_empty() {
-            return MutationOutcome::response(self.product_variants_bulk_response(
-                &field,
-                "productVariantsBulkDelete",
-                None,
-                None,
-                user_errors,
-            ));
-        }
-
-        for variant_id in &variant_ids {
-            self.store.delete_product_variant(variant_id);
-        }
-        MutationOutcome::staged(
-            self.product_variants_bulk_response(
-                &field,
-                "productVariantsBulkDelete",
-                self.store.product_by_id(&product.id),
-                None,
-                Vec::new(),
-            ),
-            LogDraft::staged(
-                "productVariantsBulkDelete",
-                "products",
-                std::iter::once(product.id.clone())
-                    .chain(variant_ids.iter().cloned())
-                    .collect(),
-            ),
-        )
-    }
-
-    fn product_variants_bulk_reorder(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let Some(field) =
-            Self::product_variant_bulk_root_field(query, variables, "productVariantsBulkReorder")
-        else {
-            return MutationOutcome::response(json_error(
-                400,
-                "No productVariantsBulkReorder root field found",
-            ));
-        };
-        let product_id = resolved_string_arg(&field.arguments, "productId").unwrap_or_default();
-        let positions = Self::resolved_object_list_arg(&field.arguments, "positions");
-        let position_variant_ids = positions
-            .iter()
-            .filter_map(|position| resolved_string_field(position, "id"))
-            .collect::<Vec<_>>();
-        let Some(product) = self
-            .product_for_bulk_variant_mutation_with_variant_ids(
-                request,
-                &product_id,
-                &position_variant_ids,
-            )
-            .cloned()
-        else {
-            return MutationOutcome::response(self.product_variants_bulk_response(
-                &field,
-                "productVariantsBulkReorder",
-                None,
-                None,
-                vec![Self::bulk_user_error(
-                    &["productId"],
-                    "Product does not exist",
-                    Some("PRODUCT_DOES_NOT_EXIST"),
-                )],
-            ));
-        };
-
-        let mut user_errors = Vec::new();
-        let mut ordered_positions = Vec::new();
-        for (index, position) in positions.iter().enumerate() {
-            let Some(variant_id) = resolved_string_field(position, "id") else {
-                user_errors.push(Self::bulk_user_error(
-                    &["positions", &index.to_string(), "id"],
-                    "Product variant is missing ID attribute",
-                    Some("PRODUCT_VARIANT_ID_MISSING"),
-                ));
-                continue;
-            };
-            if self
-                .store
-                .product_variant_by_id(&variant_id)
-                .is_none_or(|variant| variant.product_id != product.id)
-            {
-                user_errors.push(Self::bulk_user_error(
-                    &["positions", &index.to_string(), "id"],
-                    "Product variant does not exist",
-                    Some("PRODUCT_VARIANT_DOES_NOT_EXIST"),
-                ));
-                continue;
-            }
-            let position_value = resolved_int_field(position, "position").unwrap_or(index as i64);
-            ordered_positions.push((position_value, index, variant_id));
-        }
-        if !user_errors.is_empty() {
-            return MutationOutcome::response(self.product_variants_bulk_response(
-                &field,
-                "productVariantsBulkReorder",
-                None,
-                None,
-                user_errors,
-            ));
-        }
-
-        ordered_positions.sort_by(|left, right| left.0.cmp(&right.0).then(left.1.cmp(&right.1)));
-        let ordered_ids = ordered_positions
-            .into_iter()
-            .map(|(_, _, variant_id)| variant_id)
-            .collect::<Vec<_>>();
-        self.store
-            .reorder_product_variants(&product.id, &ordered_ids);
-        MutationOutcome::staged(
-            self.product_variants_bulk_response(
-                &field,
-                "productVariantsBulkReorder",
-                self.store.product_by_id(&product.id),
-                None,
-                Vec::new(),
-            ),
-            LogDraft::staged(
-                "productVariantsBulkReorder",
-                "products",
-                std::iter::once(product.id.clone())
-                    .chain(ordered_ids)
-                    .collect(),
-            ),
-        )
-    }
-
-    fn product_variants_bulk_response(
-        &self,
-        field: &RootFieldSelection,
-        _root_field: &str,
-        product: Option<&ProductRecord>,
-        variants: Option<Vec<ProductVariantRecord>>,
-        user_errors: Vec<Value>,
-    ) -> Response {
-        let payload =
-            self.product_variants_bulk_payload_json(field, product, variants, user_errors);
-        ok_json(json!({
-            "data": {
-                field.response_key.clone(): payload
-            }
-        }))
-    }
-
-    fn product_variants_bulk_payload_json(
-        &self,
-        field: &RootFieldSelection,
-        product: Option<&ProductRecord>,
-        variants: Option<Vec<ProductVariantRecord>>,
-        user_errors: Vec<Value>,
-    ) -> Value {
-        let root_field = field.name.as_str();
-        selected_payload_json(&field.selection, |selection| {
-            match selection.name.as_str() {
-                "product" => Some(match product {
-                    Some(product) => {
-                        let variants = self.store.product_variants_for_product(&product.id);
-                        product_json_with_variants(product, &variants, &selection.selection)
-                    }
-                    None => Value::Null,
-                }),
-                "productVariants" => Some(match variants.as_ref() {
-                    Some(variants) => Value::Array(
-                        variants
-                            .iter()
-                            .map(|variant| {
-                                product_variant_json(
-                                    variant,
-                                    self.store.product_by_id(&variant.product_id),
-                                    &selection.selection,
-                                )
-                            })
-                            .collect(),
-                    ),
-                    None if root_field == "productVariantsBulkCreate" => Value::Array(Vec::new()),
-                    None => Value::Null,
-                }),
-                "userErrors" => Some(Value::Array(
-                    user_errors
-                        .iter()
-                        .map(|error| selected_json(error, &selection.selection))
-                        .collect(),
-                )),
-                _ => None,
-            }
-        })
-    }
-
-    fn product_for_bulk_variant_mutation(
-        &mut self,
-        request: &Request,
-        product_id: &str,
-    ) -> Option<&ProductRecord> {
-        self.product_for_bulk_variant_mutation_with_variant_ids(request, product_id, &[])
-    }
-
-    fn product_for_bulk_variant_mutation_with_variant_ids(
-        &mut self,
-        request: &Request,
-        product_id: &str,
-        variant_ids: &[String],
-    ) -> Option<&ProductRecord> {
-        if self.store.product_by_id(product_id).is_none()
-            && self.config.read_mode == ReadMode::LiveHybrid
-        {
-            let mut hydrate_ids = vec![product_id.to_string()];
-            hydrate_ids.extend(variant_ids.iter().cloned());
-            if hydrate_ids.len() > 1 {
-                let mut tail = hydrate_ids.split_off(1);
-                tail.sort();
-                hydrate_ids.extend(tail);
-            }
-            self.hydrate_product_nodes_for_observation_with_request(request, hydrate_ids);
-        }
-        self.store.product_by_id(product_id)
-    }
-
     fn product_variant_success_response(
         &self,
         query: &str,
@@ -3566,16 +2988,12 @@ impl DraftProxy {
                 "product" => Some(match product {
                     Some(product) => {
                         let variants = self.store.product_variants_for_product(&product.id);
-                        self.product_json_with_selling_plan_overlay(
-                            product,
-                            &variants,
-                            &product_selection,
-                        )
+                        product_json_with_variants(product, &variants, &product_selection)
                     }
                     None => Value::Null,
                 }),
                 "productVariant" => Some(match variant {
-                    Some(variant) => self.product_variant_json_with_selling_plan_overlay(
+                    Some(variant) => product_variant_json(
                         variant,
                         self.store.product_by_id(&variant.product_id),
                         &variant_selection,
@@ -3591,196 +3009,6 @@ impl DraftProxy {
                 _ => None,
             }
         })
-    }
-
-    fn product_variant_bulk_root_field(
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        root_field: &str,
-    ) -> Option<RootFieldSelection> {
-        root_fields(query, variables)?
-            .into_iter()
-            .find(|field| field.name == root_field)
-    }
-
-    fn resolved_object_list_arg(
-        arguments: &BTreeMap<String, ResolvedValue>,
-        name: &str,
-    ) -> Vec<BTreeMap<String, ResolvedValue>> {
-        match arguments.get(name) {
-            Some(ResolvedValue::List(values)) => values
-                .iter()
-                .filter_map(|value| match value {
-                    ResolvedValue::Object(object) => Some(object.clone()),
-                    _ => None,
-                })
-                .collect(),
-            _ => Vec::new(),
-        }
-    }
-
-    fn product_variant_bulk_input_size_error(field: &RootFieldSelection, size: usize) -> Response {
-        ok_json(json!({
-            "errors": [{
-                "message": format!(
-                    "The input array size of {} is greater than the maximum allowed of 2048.",
-                    size
-                ),
-                "locations": [{
-                    "line": field.location.line,
-                    "column": field.location.column
-                }],
-                "path": [field.name, "variants"],
-                "extensions": {
-                    "code": "MAX_INPUT_SIZE_EXCEEDED"
-                }
-            }]
-        }))
-    }
-
-    fn bulk_user_error(field: &[&str], message: &str, code: Option<&str>) -> Value {
-        json!({
-            "field": field,
-            "message": message,
-            "code": code
-                .map(|code| Value::String(code.to_string()))
-                .unwrap_or(Value::Null),
-        })
-    }
-
-    fn product_variant_bulk_option_user_errors(
-        input: &BTreeMap<String, ResolvedValue>,
-        product: &ProductRecord,
-        index: usize,
-        update: bool,
-    ) -> Vec<Value> {
-        let options = resolved_object_list_field(input, "optionValues");
-        let mut errors = Vec::new();
-        let mut names = BTreeSet::new();
-        let product_option_names = Self::product_option_names(product);
-        for (option_index, option) in options.iter().enumerate() {
-            let option_name = resolved_string_field(option, "optionName")
-                .or_else(|| resolved_string_field(option, "name"))
-                .unwrap_or_default();
-            if !option_name.is_empty() && !names.insert(option_name.clone()) {
-                errors.push(Self::bulk_user_error(
-                    &["variants", &index.to_string(), "optionValues"],
-                    &format!("Duplicated option name '{}'", option_name),
-                    Some("INVALID_INPUT"),
-                ));
-                break;
-            }
-            if (option_name.is_empty()
-                && (option.contains_key("optionId") || option.contains_key("id")))
-                || (!option_name.is_empty()
-                    && !product_option_names.is_empty()
-                    && !product_option_names.contains(&option_name))
-            {
-                errors.push(Self::bulk_user_error(
-                    &[
-                        "variants",
-                        &index.to_string(),
-                        "optionValues",
-                        &option_index.to_string(),
-                    ],
-                    "Option does not exist",
-                    Some(if update {
-                        "OPTION_DOES_NOT_EXIST"
-                    } else {
-                        "INVALID_INPUT"
-                    }),
-                ));
-                break;
-            }
-        }
-        if errors.is_empty() && !update {
-            for option_name in product_option_names {
-                if !names.contains(&option_name) {
-                    errors.push(Self::bulk_user_error(
-                        &["variants", &index.to_string()],
-                        &format!("You need to add option values for {}", option_name),
-                        Some("NEED_TO_ADD_OPTION_VALUES"),
-                    ));
-                    break;
-                }
-            }
-        }
-        errors
-    }
-
-    fn product_variant_bulk_inventory_location_user_errors(
-        &self,
-        input: &BTreeMap<String, ResolvedValue>,
-        index: usize,
-    ) -> Vec<Value> {
-        let variant_title = resolved_product_variant_selected_options(input)
-            .iter()
-            .map(|option| option.value.as_str())
-            .collect::<Vec<_>>()
-            .join(" / ");
-        if resolved_object_list_field(input, "inventoryQuantities")
-            .iter()
-            .any(|quantity| {
-                resolved_string_field(quantity, "locationId")
-                    .is_some_and(|location_id| !self.bulk_variant_location_exists(&location_id))
-            })
-        {
-            vec![Self::bulk_user_error(
-                &["variants", &index.to_string(), "inventoryQuantities"],
-                &format!(
-                    "Quantity for {} couldn't be set because the location was deleted.",
-                    if variant_title.is_empty() {
-                        "variant"
-                    } else {
-                        &variant_title
-                    }
-                ),
-                Some("TRACKED_VARIANT_LOCATION_NOT_FOUND"),
-            )]
-        } else {
-            Vec::new()
-        }
-    }
-
-    fn bulk_variant_location_exists(&self, location_id: &str) -> bool {
-        location_id == "gid://shopify/Location/1"
-            || self.store.staged.locations.contains_key(location_id)
-            || self
-                .store
-                .staged
-                .fulfillment_service_locations
-                .contains_key(location_id)
-    }
-
-    fn product_option_names(product: &ProductRecord) -> BTreeSet<String> {
-        product
-            .extra_fields
-            .get("options")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|option| option.get("name").and_then(Value::as_str))
-            .map(str::to_string)
-            .collect()
-    }
-
-    fn product_variant_effective_count_after_create(
-        store: &Store,
-        product_id: &str,
-        create_count: usize,
-    ) -> usize {
-        store.product_variants_for_product(product_id).len() + create_count
-    }
-
-    fn normalize_bulk_variant_title(variant: &mut ProductVariantRecord) {
-        if variant.title == "Default Title" && !variant.selected_options.is_empty() {
-            variant.title = variant
-                .selected_options
-                .iter()
-                .map(|option| option.value.as_str())
-                .collect::<Vec<_>>()
-                .join(" / ");
-        }
     }
 
     fn product_variant_delete_response(
@@ -4233,7 +3461,7 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn taggable_resource_staged_or_hydrated(
+    fn taggable_resource_staged_or_hydrated(
         &mut self,
         resource_type: &str,
         id: &str,
@@ -4668,6 +3896,13 @@ impl DraftProxy {
     }
 }
 
+fn media_file_sort_id(file: &Value) -> u64 {
+    file.get("id")
+        .and_then(Value::as_str)
+        .and_then(|id| resource_id_tail(id).parse::<u64>().ok())
+        .unwrap_or_default()
+}
+
 fn taggable_record_tags(record: &Value) -> Vec<String> {
     record
         .get("tags")
@@ -4890,6 +4125,15 @@ fn bulk_operation_run_mutation_no_such_file_user_error() -> Value {
         "field": null,
         "message": "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
         "code": "NO_SUCH_FILE"
+    })
+}
+
+fn bulk_operation_run_mutation_file_size_too_large_user_error(max_file_size_bytes: u64) -> Value {
+    let max_size_mb = max_file_size_bytes / (1024 * 1024);
+    json!({
+        "field": null,
+        "message": format!("The input file size exceeds the maximum allowed size of {max_size_mb} MB."),
+        "code": "INVALID_STAGED_UPLOAD_FILE"
     })
 }
 
@@ -5117,7 +4361,7 @@ fn owner_product_variant_state_from_observed_json(value: &Value) -> Option<Produ
             tracked: inventory_item
                 .and_then(|item| item.get("tracked"))
                 .and_then(Value::as_bool)
-                .unwrap_or(false),
+                .unwrap_or(true),
             requires_shipping: inventory_item
                 .and_then(|item| item.get("requiresShipping"))
                 .and_then(Value::as_bool)
@@ -5238,8 +4482,9 @@ fn media_quota_errors(request: &Request, inputs: &[BTreeMap<String, ResolvedValu
         .iter()
         .enumerate()
         .filter_map(|(index, input)| {
-            let content_type =
-                resolved_string_field(input, "contentType").unwrap_or_else(|| "IMAGE".to_string());
+            let original_source =
+                resolved_string_field(input, "originalSource").unwrap_or_default();
+            let content_type = media_file_create_content_type(input, &original_source);
             let code = if content_type == "VIDEO" && requested.contains("VIDEO_THROTTLE_EXCEEDED") {
                 Some("VIDEO_THROTTLE_EXCEEDED")
             } else if content_type == "MODEL_3D" && requested.contains("MODEL3D_THROTTLE_EXCEEDED")
@@ -5606,6 +4851,7 @@ fn media_file_record(
 ) -> Value {
     let typename = media_file_gid_type(content_type);
     let mime_type = mime_type_for_filename(filename, content_type);
+    let media_content_type = media_file_media_content_type(content_type);
     let mut file = json!({
         "__typename": typename,
         "id": id,
@@ -5619,7 +4865,9 @@ fn media_file_record(
         "displayName": filename,
         "fileErrors": [],
         "fileWarnings": [],
-        "mimeType": mime_type
+        "mimeType": mime_type,
+        "mediaContentType": media_content_type,
+        "status": file_status
     });
     match typename {
         "MediaImage" => {
@@ -5693,6 +4941,33 @@ fn media_file_gid_type(content_type: &str) -> &'static str {
     }
 }
 
+fn media_file_media_content_type(content_type: &str) -> &'static str {
+    match content_type {
+        "IMAGE" => "IMAGE",
+        "VIDEO" => "VIDEO",
+        "EXTERNAL_VIDEO" => "EXTERNAL_VIDEO",
+        "MODEL_3D" => "MODEL_3D",
+        "FILE" => "GENERIC_FILE",
+        _ => "IMAGE",
+    }
+}
+
+fn media_file_create_content_type(
+    input: &BTreeMap<String, ResolvedValue>,
+    original_source: &str,
+) -> String {
+    resolved_string_field(input, "contentType")
+        .unwrap_or_else(|| inferred_media_file_create_content_type(original_source).to_string())
+}
+
+fn inferred_media_file_create_content_type(source: &str) -> &'static str {
+    match file_extension(source).as_str() {
+        "gif" | "heic" | "heif" | "jpeg" | "jpg" | "png" | "webp" => "IMAGE",
+        "m4v" | "mov" | "mp4" | "mpeg" | "mpg" | "ogv" | "webm" => "VIDEO",
+        _ => "FILE",
+    }
+}
+
 fn duplicate_mode_allowed(mode: &str, content_type: Option<&str>) -> bool {
     matches!(
         (mode, content_type),
@@ -5721,13 +4996,17 @@ fn filename_from_source(source: &str) -> String {
 }
 
 fn file_extension(value: &str) -> String {
-    value
-        .split('?')
+    let path_tail = value
+        .split(['?', '#'])
         .next()
         .unwrap_or(value)
+        .rsplit('/')
+        .next()
+        .unwrap_or(value);
+    path_tail
         .rsplit('.')
         .next()
-        .filter(|extension| *extension != value)
+        .filter(|extension| *extension != path_tail)
         .unwrap_or_default()
         .to_ascii_lowercase()
 }
@@ -5736,12 +5015,24 @@ fn mime_type_for_filename(filename: &str, content_type: &str) -> &'static str {
     match (content_type, file_extension(filename).as_str()) {
         ("IMAGE", "png") => "image/png",
         ("IMAGE", "gif") => "image/gif",
+        ("IMAGE", "heic") => "image/heic",
+        ("IMAGE", "heif") => "image/heif",
         ("IMAGE", "webp") => "image/webp",
         ("IMAGE", _) => "image/jpeg",
+        ("VIDEO", "m4v") => "video/x-m4v",
         ("VIDEO", "mov") => "video/quicktime",
+        ("VIDEO", "mpeg") | ("VIDEO", "mpg") => "video/mpeg",
+        ("VIDEO", "ogv") => "video/ogg",
+        ("VIDEO", "webm") => "video/webm",
         ("VIDEO", _) => "video/mp4",
         ("MODEL_3D", "glb") => "model/gltf-binary",
         ("MODEL_3D", "usdz") => "model/vnd.usdz+zip",
+        ("FILE", "csv") => "text/csv",
+        ("FILE", "json") => "application/json",
+        ("FILE", "jsonl") => "application/jsonl",
+        ("FILE", "pdf") => "application/pdf",
+        ("FILE", "txt") => "text/plain",
+        ("FILE", "zip") => "application/zip",
         _ => "application/octet-stream",
     }
 }

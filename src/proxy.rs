@@ -150,6 +150,22 @@ pub struct ProductVariantInventoryItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct ProductOperationRecord {
+    id: String,
+    kind: ProductOperationKind,
+    product_id: Option<String>,
+    new_product_id: Option<String>,
+    user_errors: Vec<Value>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+enum ProductOperationKind {
+    Set,
+    Duplicate,
+    Bundle,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct SavedSearchRecord {
     id: String,
     name: String,
@@ -259,7 +275,7 @@ struct StagedState {
     media_files: BTreeMap<String, Value>,
     deleted_media_file_ids: BTreeSet<String>,
     online_store_integrations: BTreeMap<String, Value>,
-    product_set_updated: bool,
+    product_operations: BTreeMap<String, ProductOperationRecord>,
     product_delete_operations: BTreeMap<String, String>,
     selling_plan_group_downstream_step: usize,
     mandate_payment_keys: BTreeSet<String>,
@@ -304,6 +320,9 @@ struct StagedState {
     order_payment_transaction_order_id: Option<String>,
     order_payment_parent_transaction_id: Option<String>,
     order_payment_next_transaction_id: u64,
+    order_payment_transaction_order_id: Option<String>,
+    order_payment_parent_transaction_id: Option<String>,
+    order_payment_transaction_state: Option<String>,
     order_edit_existing_mode: Option<String>,
     function_validation: Option<Value>,
     function_cart_transform: Option<Value>,
@@ -556,7 +575,7 @@ impl Default for StagedState {
             media_files: BTreeMap::new(),
             deleted_media_file_ids: BTreeSet::new(),
             online_store_integrations: BTreeMap::new(),
-            product_set_updated: false,
+            product_operations: BTreeMap::new(),
             product_delete_operations: BTreeMap::new(),
             selling_plan_group_downstream_step: 0,
             mandate_payment_keys: BTreeSet::new(),
@@ -601,6 +620,9 @@ impl Default for StagedState {
             order_payment_transaction_order_id: None,
             order_payment_parent_transaction_id: None,
             order_payment_next_transaction_id: 3,
+            order_payment_transaction_order_id: None,
+            order_payment_parent_transaction_id: None,
+            order_payment_transaction_state: None,
             order_edit_existing_mode: None,
             function_validation: None,
             function_cart_transform: None,
@@ -1260,6 +1282,7 @@ mod metafields_orders_payments;
 mod metaobjects;
 mod online_store_orders_payments;
 mod product_helpers;
+mod product_operations;
 mod product_options;
 mod resolved_values;
 mod resource_ids;
@@ -1301,6 +1324,8 @@ pub(in crate::proxy) use self::metaobjects::*;
 pub(in crate::proxy) use self::online_store_orders_payments::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::product_helpers::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::product_operations::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::product_options::*;
 #[allow(unused_imports)]
