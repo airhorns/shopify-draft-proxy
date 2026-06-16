@@ -604,6 +604,25 @@ impl DraftProxy {
             );
         }
 
+        // externalId length/charset/uniqueness is validated against every staged
+        // location, so it lives here (with store access) rather than in the
+        // input-only helper.
+        if let Some(external_id) = resolved_string_field(&input, "externalId") {
+            let external_id_errors = b2b_location_external_id_errors(
+                &external_id,
+                vec!["input", "externalId"],
+                &self.store.staged.b2b_locations,
+                None,
+            );
+            if !external_id_errors.is_empty() {
+                return (
+                    b2b_company_location_payload(None, external_id_errors),
+                    "failed",
+                    Vec::new(),
+                );
+            }
+        }
+
         let (location, staged_ids) = self.b2b_build_company_location(&company_id, &company, &input);
         let location_id = location["id"]
             .as_str()
