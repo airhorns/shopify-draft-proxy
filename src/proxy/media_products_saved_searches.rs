@@ -5,11 +5,10 @@ const TAGGABLE_ORDER_HYDRATE_QUERY: &str =
     "query OrdersOrderHydrate($id: ID!) {\n  order(id: $id) { id name tags }\n}";
 const TAGGABLE_DRAFT_ORDER_HYDRATE_QUERY: &str =
     "query OrdersDraftOrderHydrate($id: ID!) {\n  draftOrder(id: $id) { id name tags }\n}";
-pub(in crate::proxy) const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str = "query CustomerHydrate($id: ID!) {\n  customer(id: $id) {\n    id firstName lastName displayName email legacyResourceId locale note\n    canDelete verifiedEmail dataSaleOptOut taxExempt taxExemptions state tags\n    numberOfOrders createdAt updatedAt\n    amountSpent { amount currencyCode }\n    defaultEmailAddress { emailAddress marketingState marketingOptInLevel marketingUpdatedAt }\n    defaultPhoneNumber { phoneNumber marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom }\n    emailMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt }\n    smsMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt consentCollectedFrom }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n    metafields(first: 250) { nodes { id namespace key type value compareDigest createdAt updatedAt } }\n    orders(first: 10, sortKey: CREATED_AT, reverse: true) { nodes { id name email createdAt currentTotalPriceSet { shopMoney { amount currencyCode } } } pageInfo { startCursor endCursor } }\n    storeCreditAccounts(first: 50) { nodes { id balance { amount currencyCode } } }\n  }\n}";
+const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str = "query CustomerHydrate($id: ID!) {\n  customer(id: $id) {\n    id firstName lastName displayName email legacyResourceId locale note\n    canDelete verifiedEmail dataSaleOptOut taxExempt taxExemptions state tags\n    numberOfOrders createdAt updatedAt\n    amountSpent { amount currencyCode }\n    defaultEmailAddress { emailAddress marketingState marketingOptInLevel marketingUpdatedAt }\n    defaultPhoneNumber { phoneNumber marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom }\n    emailMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt }\n    smsMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt consentCollectedFrom }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n    metafields(first: 250) { nodes { id namespace key type value compareDigest createdAt updatedAt } }\n    orders(first: 10, sortKey: CREATED_AT, reverse: true) { nodes { id name email createdAt currentTotalPriceSet { shopMoney { amount currencyCode } } } pageInfo { startCursor endCursor } }\n    storeCreditAccounts(first: 50) { nodes { id balance { amount currencyCode } } }\n  }\n}";
 const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
-const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n    }\n  }\n}";
+const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n    }\n  }\n}";
 const OWNER_METAFIELD_HYDRATE_QUERY: &str = "query OwnerMetafieldsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Collection { id title handle metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Customer { id displayName email metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Order { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Company { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } }";
-const BULK_OPERATION_HYDRATE_QUERY: &str = "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }";
 
 impl DraftProxy {
     pub(in crate::proxy) fn bulk_operation_read_response(
@@ -183,7 +182,7 @@ impl DraftProxy {
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
             );
         }
-        if let Some(operation_id) = self.throttled_query_bulk_operation_id(request) {
+        if let Some(operation_id) = self.in_progress_query_bulk_operation_id() {
             let payload = json!({
                 "bulkOperation": null,
                 "userErrors": [{
@@ -202,12 +201,9 @@ impl DraftProxy {
             7_000_000_000_000_u64 + self.next_synthetic_id
         );
         self.next_synthetic_id += 1;
-        let count = if query.contains("GroupObjects") {
-            "1432"
-        } else {
-            "1424"
-        };
-        let created_at = if query.contains("GroupObjects") {
+        let group_objects = resolved_bool_field(&arguments, "groupObjects").unwrap_or(false);
+        let count = if group_objects { "1432" } else { "1424" };
+        let created_at = if group_objects {
             "2026-05-05T15:11:57Z"
         } else {
             "2026-04-27T20:34:58Z"
@@ -265,24 +261,7 @@ impl DraftProxy {
                 user_errors,
             );
         }
-        let staged_upload_file_size = self.bulk_operation_staged_upload_size(&staged_upload_path);
-        let max_file_size = self
-            .config
-            .bulk_operation_run_mutation_max_input_file_size_bytes
-            .unwrap_or(DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES);
-        if staged_upload_file_size
-            .flatten()
-            .is_some_and(|file_size| file_size > max_file_size)
-        {
-            return bulk_operation_run_mutation_error_response(
-                &response_key,
-                &payload_selection,
-                vec![bulk_operation_run_mutation_file_size_too_large_user_error(
-                    max_file_size,
-                )],
-            );
-        }
-        if let Some(operation_id) = self.throttled_mutation_bulk_operation_id(request) {
+        if let Some(operation_id) = self.in_progress_mutation_bulk_operation_id() {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
                 &payload_selection,
@@ -293,11 +272,26 @@ impl DraftProxy {
                 })],
             );
         }
-        if staged_upload_file_size.is_none() {
+        let Some(file_size) = self.bulk_operation_staged_upload_size(&staged_upload_path) else {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
                 &payload_selection,
                 vec![bulk_operation_run_mutation_no_such_file_user_error()],
+            );
+        };
+        let max_file_size = self
+            .config
+            .bulk_operation_run_mutation_max_input_file_size_bytes
+            .unwrap_or(DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES);
+        if file_size.unwrap_or(0) > max_file_size {
+            return bulk_operation_run_mutation_error_response(
+                &response_key,
+                &payload_selection,
+                vec![json!({
+                    "field": ["stagedUploadPath"],
+                    "message": "The JSONL file exceeds the maximum allowed size of 100 MB.",
+                    "code": "INVALID_MUTATION"
+                })],
             );
         }
 
@@ -343,37 +337,34 @@ impl DraftProxy {
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
 
-    fn throttled_query_bulk_operation_id(&self, request: &Request) -> Option<String> {
-        self.throttled_bulk_operation_id("QUERY", request)
-    }
-
-    fn throttled_mutation_bulk_operation_id(&self, request: &Request) -> Option<String> {
-        self.throttled_bulk_operation_id("MUTATION", request)
-    }
-
-    fn throttled_bulk_operation_id(
-        &self,
-        operation_type: &str,
-        request: &Request,
-    ) -> Option<String> {
-        let mut operation_ids = self
-            .store
+    fn in_progress_query_bulk_operation_id(&self) -> Option<String> {
+        self.store
             .staged
             .bulk_operations
             .iter()
-            .filter(|(_, operation)| {
-                operation.get("type").and_then(Value::as_str) == Some(operation_type)
-                    && bulk_operation_is_non_terminal(operation)
+            .find(|(_, operation)| {
+                operation.get("type").and_then(Value::as_str) == Some("QUERY")
+                    && !matches!(
+                        operation.get("status").and_then(Value::as_str),
+                        Some("COMPLETED" | "FAILED" | "CANCELED" | "EXPIRED")
+                    )
             })
             .map(|(id, _)| id.clone())
-            .collect::<Vec<_>>();
+    }
 
-        if operation_ids.len() < bulk_operation_concurrent_limit(request) {
-            return None;
-        }
-
-        operation_ids.sort();
-        Some(operation_ids.join(", "))
+    fn in_progress_mutation_bulk_operation_id(&self) -> Option<String> {
+        self.store
+            .staged
+            .bulk_operations
+            .iter()
+            .find(|(_, operation)| {
+                operation.get("type").and_then(Value::as_str) == Some("MUTATION")
+                    && !matches!(
+                        operation.get("status").and_then(Value::as_str),
+                        Some("COMPLETED" | "FAILED" | "CANCELED" | "EXPIRED")
+                    )
+            })
+            .map(|(id, _)| id.clone())
     }
 
     fn bulk_operation_staged_upload_size(&self, staged_upload_path: &str) -> Option<Option<u64>> {
@@ -425,61 +416,23 @@ impl DraftProxy {
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
             );
         }
-        let operation = self
-            .bulk_operation_cancel_hydrate_cold_operation(request, &id)
-            .unwrap_or_else(|| {
-                let (query_text, created_at, operation_type) =
-                    Self::bulk_operation_cancel_nonterminal_seed(request, &id);
-                bulk_operation_record_with_type(
-                    &id,
-                    "CANCELING",
-                    operation_type,
-                    query_text,
-                    "0",
-                    created_at,
-                    "113499",
-                )
-            });
+        let (query_text, created_at, operation_type) =
+            Self::bulk_operation_cancel_nonterminal_seed(request, &id);
+        let operation = bulk_operation_record_with_type(
+            &id,
+            "CANCELING",
+            operation_type,
+            query_text,
+            "0",
+            created_at,
+            "113499",
+        );
         self.store
             .staged
             .bulk_operations
             .insert(id.clone(), operation.clone());
         let payload = json!({ "bulkOperation": operation, "userErrors": [] });
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
-    }
-
-    fn bulk_operation_cancel_hydrate_cold_operation(
-        &self,
-        request: &Request,
-        id: &str,
-    ) -> Option<Value> {
-        if self.config.read_mode != ReadMode::LiveHybrid
-            || self.store.staged.bulk_operations.contains_key(id)
-        {
-            return None;
-        }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
-                "query": BULK_OPERATION_HYDRATE_QUERY,
-                "operationName": "BulkOperationHydrate",
-                "variables": { "id": id }
-            })
-            .to_string(),
-        });
-        let mut operation = response
-            .body
-            .get("data")
-            .and_then(|data| data.get("bulkOperation"))
-            .filter(|operation| operation.is_object())?
-            .clone();
-        if bulk_operation_status_is_terminal(operation.get("status").and_then(Value::as_str)) {
-            return None;
-        }
-        operation["status"] = json!("CANCELING");
-        Some(operation)
     }
 
     fn bulk_operation_cancel_nonterminal_seed(
@@ -639,11 +592,12 @@ impl DraftProxy {
             .into_iter()
             .enumerate()
             .map(|(index, input)| {
-                let original_source =
-                    resolved_string_field(&input, "originalSource").unwrap_or_default();
-                let content_type = media_file_create_content_type(&input, &original_source);
+                let content_type = resolved_string_field(&input, "contentType")
+                    .unwrap_or_else(|| "IMAGE".to_string());
                 let resource_type = media_file_gid_type(&content_type);
                 let id = self.next_proxy_synthetic_gid(resource_type);
+                let original_source =
+                    resolved_string_field(&input, "originalSource").unwrap_or_default();
                 let filename = resolved_string_field(&input, "filename")
                     .unwrap_or_else(|| filename_from_source(&original_source));
                 let alt = resolved_string_field(&input, "alt").unwrap_or_default();
@@ -904,12 +858,20 @@ impl DraftProxy {
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "stagedUploadsCreate".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
-        if query.contains("StagedUploadUserErrorsShapeCode") {
+        let user_error_selection =
+            selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
+        if user_error_selection
+            .iter()
+            .any(|field| field.name == "code")
+        {
+            let operation_path = parsed_document(query, variables)
+                .map(|document| document.operation_path)
+                .unwrap_or_else(|| "mutation".to_string());
             return MutationOutcome::response(ok_json(json!({
                 "errors": [{
                     "message": "Field 'code' doesn't exist on type 'UserError'",
                     "locations": [{"line": 7, "column": 9}],
-                    "path": ["mutation StagedUploadUserErrorsShapeCode", "stagedUploadsCreate", "userErrors", "code"],
+                    "path": [operation_path, "stagedUploadsCreate", "userErrors", "code"],
                     "extensions": {"code": "undefinedField", "typeName": "UserError", "fieldName": "code"}
                 }]
             })));
@@ -1090,13 +1052,12 @@ impl DraftProxy {
                 .filter(|(id, _)| !self.store.staged.deleted_media_file_ids.contains(*id))
                 .map(|(_, file)| file.clone())
                 .collect::<Vec<_>>();
-            files.sort_by_key(media_file_sort_id);
-            if matches!(
-                field.arguments.get("reverse"),
-                Some(ResolvedValue::Bool(true))
-            ) {
-                files.reverse();
-            }
+            files.sort_by_key(|file| {
+                file.get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string()
+            });
             data.insert(
                 field.response_key,
                 selected_connection_json_with_args(
@@ -1105,94 +1066,6 @@ impl DraftProxy {
                     &field.selection,
                     value_id_cursor,
                 ),
-            );
-        }
-        ok_json(json!({"data": Value::Object(data)}))
-    }
-
-    pub(in crate::proxy) fn media_file_node_read_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Option<Value> {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
-                "node" => {
-                    let id = resolved_string_arg(&field.arguments, "id")?;
-                    self.media_file_node_value(&id, &field.selection)?
-                }
-                "nodes" => {
-                    let ids = match field.arguments.get("ids")? {
-                        ResolvedValue::List(ids) => ids,
-                        _ => return None,
-                    };
-                    Value::Array(
-                        ids.iter()
-                            .map(|id| match id {
-                                ResolvedValue::String(id) => {
-                                    self.media_file_node_value(id, &field.selection)
-                                }
-                                _ => None,
-                            })
-                            .collect::<Option<Vec<_>>>()?,
-                    )
-                }
-                _ => return None,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Some(Value::Object(data))
-    }
-
-    fn media_file_node_value(&self, id: &str, selection: &[SelectedField]) -> Option<Value> {
-        if self.store.staged.deleted_media_file_ids.contains(id) {
-            return Some(Value::Null);
-        }
-        self.store
-            .staged
-            .media_files
-            .get(id)
-            .map(|file| selected_json(file, selection))
-    }
-
-    pub(in crate::proxy) fn media_product_read(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let mut data = serde_json::Map::new();
-        for field in root_fields(query, variables).unwrap_or_default() {
-            if field.name != "product" {
-                continue;
-            }
-            let id = field
-                .arguments
-                .get("id")
-                .or_else(|| field.arguments.get("productId"))
-                .and_then(|value| match value {
-                    ResolvedValue::String(value) => Some(value.clone()),
-                    _ => None,
-                })
-                .unwrap_or_else(|| {
-                    resolved_string_arg(variables, "id")
-                        .or_else(|| resolved_string_arg(variables, "productId"))
-                        .unwrap_or_default()
-                });
-            let product = match id.as_str() {
-                "gid://shopify/Product/429001" => json!({
-                    "id": id,
-                    "title": "File reference target",
-                    "media": {"nodes": [], "pageInfo": media_page_info(None)}
-                }),
-                "gid://shopify/Product/9264121479401" => json!({
-                    "id": id,
-                    "media": {"nodes": [], "pageInfo": media_page_info(None)}
-                }),
-                _ => Value::Null,
-            };
-            data.insert(
-                field.response_key,
-                selected_json(&product, &field.selection),
             );
         }
         ok_json(json!({"data": Value::Object(data)}))
@@ -2097,125 +1970,6 @@ impl DraftProxy {
             .collect()
     }
 
-    pub(in crate::proxy) fn metafields_app_namespace_mutation(
-        &mut self,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let metafields = list_object_arg(variables, "metafields");
-        if metafields.iter().any(|input| {
-            resolved_string_field(input, "namespace")
-                .map(|namespace| namespace.starts_with("app--999999999999--"))
-                .unwrap_or(false)
-        }) {
-            let payload = if root_field == "metafieldsSet" {
-                json!({"metafields": [], "userErrors": [{"field": ["metafields", "0"], "message": "Access to this namespace and key on Metafields for this resource type is not allowed.", "code": "APP_NOT_AUTHORIZED", "elementIndex": null}]})
-            } else {
-                json!({"deletedMetafields": [], "userErrors": [{"field": ["metafields"], "message": "Access to this namespace and key on Metafields for this resource type is not allowed."}]})
-            };
-            return ok_json(
-                json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
-            );
-        }
-
-        if root_field == "metafieldsDelete" {
-            let mut deleted = Vec::new();
-            for input in metafields {
-                let owner_id = resolved_string_field(&input, "ownerId").unwrap_or_default();
-                let namespace = canonical_app_metafield_namespace(
-                    resolved_string_field(&input, "namespace").as_deref(),
-                );
-                let key = resolved_string_field(&input, "key").unwrap_or_default();
-                self.store.staged.app_metafields.remove(&(
-                    owner_id.clone(),
-                    namespace.clone(),
-                    key.clone(),
-                ));
-                deleted.push(json!({"ownerId": owner_id, "namespace": namespace, "key": key}));
-            }
-            let payload = json!({"deletedMetafields": deleted, "userErrors": []});
-            return ok_json(
-                json!({"data": {response_key: selected_json(&payload, &payload_selection)}}),
-            );
-        }
-
-        let mut records = Vec::new();
-        for input in metafields {
-            let owner_id = resolved_string_field(&input, "ownerId").unwrap_or_default();
-            let namespace = canonical_app_metafield_namespace(
-                resolved_string_field(&input, "namespace").as_deref(),
-            );
-            let key = resolved_string_field(&input, "key").unwrap_or_default();
-            let record = json!({
-                "id": format!("gid://shopify/Metafield/{}", self.store.staged.app_metafields.len() + 1),
-                "namespace": namespace,
-                "key": key,
-                "type": resolved_string_field(&input, "type").unwrap_or_else(|| "single_line_text_field".to_string()),
-                "value": resolved_string_field(&input, "value").unwrap_or_default()
-            });
-            self.store
-                .staged
-                .app_metafields
-                .insert((owner_id, namespace, key), record.clone());
-            records.push(record);
-        }
-        let payload = json!({"metafields": records, "userErrors": []});
-        ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
-    }
-
-    pub(in crate::proxy) fn metafields_app_namespace_product_read(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let mut data = serde_json::Map::new();
-        for field in root_fields(query, variables).unwrap_or_default() {
-            if field.name != "product" {
-                continue;
-            }
-            let Some(ResolvedValue::String(product_id)) = field.arguments.get("id") else {
-                data.insert(field.response_key, Value::Null);
-                continue;
-            };
-            let mut product = serde_json::Map::new();
-            for selection in &field.selection {
-                let value = match selection.name.as_str() {
-                    "id" => Some(json!(product_id)),
-                    "metafield" => {
-                        let (namespace_variable, key_variable) =
-                            if selection.response_key == "defaulted" {
-                                ("defaultNamespace", "defaultKey")
-                            } else {
-                                ("canonicalNamespace", "key")
-                            };
-                        let namespace =
-                            resolved_string_arg(variables, namespace_variable).unwrap_or_default();
-                        let key = resolved_string_arg(variables, key_variable).unwrap_or_default();
-                        let record = self.store.staged.app_metafields.get(&(
-                            product_id.clone(),
-                            namespace,
-                            key,
-                        ));
-                        Some(
-                            record
-                                .map(|record| selected_json(record, &selection.selection))
-                                .unwrap_or(Value::Null),
-                        )
-                    }
-                    _ => None,
-                };
-                if let Some(value) = value {
-                    product.insert(selection.response_key.clone(), value);
-                }
-            }
-            data.insert(field.response_key, Value::Object(product));
-        }
-        ok_json(json!({"data": Value::Object(data)}))
-    }
-
     pub(in crate::proxy) fn product_overlay_read_fields(
         &self,
         query: &str,
@@ -2235,6 +1989,7 @@ impl DraftProxy {
                 "products" => Some(self.products_connection_field(field)),
                 "productsCount" => Some(self.products_count_field(field)),
                 "productByIdentifier" => Some(self.product_by_identifier_field(field)),
+                "productOperation" => Some(self.product_operation_by_id_field(field)),
                 "productVariant" => Some(self.product_variant_by_id_field(field)),
                 "inventoryItem" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
@@ -2247,6 +2002,38 @@ impl DraftProxy {
             }
         }
         Value::Object(fields)
+    }
+
+    pub(in crate::proxy) fn product_operation_by_id_field(
+        &self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        self.product_delete_operation_value_by_id(&id, &field.selection)
+            .unwrap_or(Value::Null)
+    }
+
+    pub(in crate::proxy) fn product_delete_operation_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
+        self.store
+            .staged
+            .product_delete_operations
+            .get(id)
+            .map(|deleted_product_id| {
+                selected_json(
+                    &json!({
+                        "__typename": "ProductDeleteOperation",
+                        "id": id,
+                        "status": "COMPLETE",
+                        "deletedProductId": deleted_product_id,
+                        "userErrors": []
+                    }),
+                    selection,
+                )
+            })
     }
 
     pub(in crate::proxy) fn product_by_id_field(&self, field: &RootFieldSelection) -> Value {
@@ -2440,48 +2227,6 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn product_variants_bulk_delete_passthrough(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        self.record_passthrough_log_entry(
-            request,
-            query,
-            variables,
-            &["productVariantsBulkDelete".to_string()],
-            "productVariantsBulkDelete",
-        );
-        let response = (self.upstream_transport)(request.clone());
-        if let Some(product) = response
-            .body
-            .pointer("/data/productVariantsBulkDelete/product")
-            .and_then(product_state_from_json)
-        {
-            self.store.stage_observed_product(product);
-        }
-        let deleted_variant_ids = resolved_string_list_arg(variables, "variantsIds");
-        let mut hydrate_ids = Vec::new();
-        if let Some(product_id) = resolved_string_arg(variables, "productId").or_else(|| {
-            response
-                .body
-                .pointer("/data/productVariantsBulkDelete/product/id")
-                .and_then(Value::as_str)
-                .map(str::to_string)
-        }) {
-            hydrate_ids.push(product_id);
-        }
-        hydrate_ids.extend(deleted_variant_ids.clone());
-        hydrate_ids.sort();
-        hydrate_ids.dedup();
-        self.hydrate_product_nodes_for_observation(hydrate_ids);
-        for variant_id in deleted_variant_ids {
-            self.store.delete_product_variant(&variant_id);
-        }
-        response
-    }
-
     pub(in crate::proxy) fn products_count_field(&self, field: &RootFieldSelection) -> Value {
         if let Some(ResolvedValue::String(query)) = field.arguments.get("query") {
             if query.contains("status:") {
@@ -2525,36 +2270,6 @@ impl DraftProxy {
         self.store.product_count()
     }
 
-    pub(in crate::proxy) fn product_set_fixture_backed_mutation_data(
-        &mut self,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json"
-        ))
-        .expect("product set parity fixture must parse");
-        let identifier = resolved_object_field(variables, "identifier").unwrap_or_default();
-        if resolved_string_field(&identifier, "id").is_some() {
-            self.store.staged.product_set_updated = true;
-            Some(fixture["update"]["mutation"]["response"]["data"].clone())
-        } else {
-            self.store.staged.product_set_updated = false;
-            Some(fixture["mutation"]["response"]["data"].clone())
-        }
-    }
-
-    pub(in crate::proxy) fn product_set_downstream_read_data(&self) -> Value {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json"
-        ))
-        .expect("product set parity fixture must parse");
-        if self.store.staged.product_set_updated {
-            fixture["update"]["downstreamRead"]["data"].clone()
-        } else {
-            fixture["downstreamRead"]["data"].clone()
-        }
-    }
-
     pub(in crate::proxy) fn product_create(
         &mut self,
         request: &Request,
@@ -2580,7 +2295,7 @@ impl DraftProxy {
                 }
             })));
         };
-        if query.contains("ProductCreateNoKeyOnCreate") && input.contains_key("variants") {
+        if input.contains_key("variants") {
             return MutationOutcome::response(ok_json(json!({
                 "errors": [{
                     "message": "Variable $input of type ProductInput! was provided invalid value for variants (Field is not defined on ProductInput)",
@@ -2597,7 +2312,7 @@ impl DraftProxy {
             })));
         }
 
-        if query.contains("ProductCreateNoKeyOnCreate") && input.contains_key("id") {
+        if input.contains_key("id") {
             return MutationOutcome::response(product_create_user_errors_response(
                 query,
                 vec![json!({
@@ -2605,10 +2320,6 @@ impl DraftProxy {
                     "message": "id cannot be specified during creation"
                 })],
             ));
-        }
-
-        if let Some(data) = combined_listing_product_create_data(query, &input) {
-            return MutationOutcome::response(ok_json(json!({ "data": data })));
         }
 
         let Some(title) =
@@ -2677,18 +2388,15 @@ impl DraftProxy {
             }
         }
 
-        let id = if query.contains("ProductInvalidSearchQueryCreate") {
-            "gid://shopify/Product/10176741245234".to_string()
-        } else {
-            self.next_proxy_synthetic_gid("Product")
-        };
-        let variant_id = self.next_proxy_synthetic_gid("ProductVariant");
-        let inventory_item_id = self.next_proxy_synthetic_gid("InventoryItem");
+        let id = self.next_proxy_synthetic_gid("Product");
         let handle =
             resolved_string_field(&input, "handle").unwrap_or_else(|| slugify_handle(&title));
         let status =
             resolved_string_field(&input, "status").unwrap_or_else(|| "ACTIVE".to_string());
         let timestamp = self.next_product_timestamp();
+        let extra_fields = resolved_string_field(&input, "combinedListingRole")
+            .map(|role| BTreeMap::from([("combinedListingRole".to_string(), json!(role))]))
+            .unwrap_or_default();
         let product = ProductRecord {
             id: id.clone(),
             created_at: timestamp.clone(),
@@ -2709,35 +2417,21 @@ impl DraftProxy {
             media: Vec::new(),
             variants: Vec::new(),
             collections: Vec::new(),
-            extra_fields: BTreeMap::new(),
+            extra_fields,
         };
         self.store.stage_product(product.clone());
-        let default_variant =
-            product_default_variant_record(&product, variant_id.clone(), inventory_item_id);
-        self.store.stage_product_variant(default_variant.clone());
 
         let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
         let payload_selection = root_field_selection(query).unwrap_or_default();
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "productCreate".to_string());
-        let payload = selected_payload_json(&payload_selection, |selection| {
-            match selection.name.as_str() {
-                "product" => Some(product_json_with_variants(
-                    &product,
-                    std::slice::from_ref(&default_variant),
-                    &product_selection,
-                )),
-                "userErrors" => Some(json!([])),
-                _ => None,
-            }
-        });
         MutationOutcome::staged(
             ok_json(json!({
                 "data": {
-                    response_key: payload
+                    response_key: product_mutation_payload_json(&product, &payload_selection, &product_selection)
                 }
             })),
-            LogDraft::staged("productCreate", "products", vec![id, variant_id]),
+            LogDraft::staged("productCreate", "products", vec![id]),
         )
     }
 
@@ -2867,227 +2561,11 @@ impl DraftProxy {
             "productVariantCreate" => self.product_variant_create(query, variables),
             "productVariantUpdate" => self.product_variant_update(query, variables),
             "productVariantDelete" => self.product_variant_delete(query, variables),
-            "productVariantAppendMedia" | "productVariantDetachMedia" => {
-                self.product_variant_media_mutation(root_field, query, variables)
-            }
             _ => MutationOutcome::response(json_error(
                 400,
                 "No mutation dispatcher implemented for product variant root",
             )),
         }
-    }
-
-    fn product_variant_media_mutation(
-        &mut self,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
-        let variant_media = resolved_object_list_field(variables, "variantMedia");
-        self.hydrate_product_variant_media_owner_state(&product_id, &variant_media);
-        let user_errors =
-            self.product_variant_media_user_errors(root_field, &product_id, &variant_media);
-
-        if !user_errors.is_empty() {
-            let payload = self.product_variant_media_payload_json(
-                &payload_selection,
-                &product_id,
-                Vec::new(),
-                user_errors,
-            );
-            return MutationOutcome::response(ok_json(json!({
-                "data": { response_key: payload }
-            })));
-        }
-
-        let mut changed_variant_ids = Vec::new();
-        for item in &variant_media {
-            let Some(variant_id) = resolved_string_field(item, "variantId") else {
-                continue;
-            };
-            let media_ids = resolved_string_list_field_unsorted(item, "mediaIds");
-            let Some(mut variant) = self.store.product_variant_by_id(&variant_id).cloned() else {
-                continue;
-            };
-            match root_field {
-                "productVariantAppendMedia" => {
-                    for media_id in media_ids {
-                        if !variant
-                            .media_ids
-                            .iter()
-                            .any(|existing| existing == &media_id)
-                        {
-                            variant.media_ids.push(media_id);
-                        }
-                    }
-                }
-                "productVariantDetachMedia" => {
-                    let removals = media_ids.into_iter().collect::<BTreeSet<_>>();
-                    variant
-                        .media_ids
-                        .retain(|media_id| !removals.contains(media_id));
-                }
-                _ => {}
-            }
-            changed_variant_ids.push(variant.id.clone());
-            self.store.stage_product_variant(variant);
-        }
-
-        let payload = self.product_variant_media_payload_json(
-            &payload_selection,
-            &product_id,
-            changed_variant_ids.clone(),
-            Vec::new(),
-        );
-        MutationOutcome::staged(
-            ok_json(json!({ "data": { response_key: payload } })),
-            LogDraft::staged(
-                root_field,
-                "products",
-                std::iter::once(product_id)
-                    .chain(changed_variant_ids)
-                    .collect(),
-            ),
-        )
-    }
-
-    fn hydrate_product_variant_media_owner_state(
-        &mut self,
-        product_id: &str,
-        variant_media: &[BTreeMap<String, ResolvedValue>],
-    ) {
-        if self.config.read_mode != ReadMode::LiveHybrid {
-            return;
-        }
-        let mut ids = Vec::new();
-        if !product_id.is_empty() && self.store.product_by_id(product_id).is_none() {
-            ids.push(product_id.to_string());
-        }
-        for item in variant_media {
-            let Some(variant_id) = resolved_string_field(item, "variantId") else {
-                continue;
-            };
-            if self.store.product_variant_by_id(&variant_id).is_none() {
-                ids.push(variant_id);
-            }
-        }
-        ids.sort();
-        ids.dedup();
-        self.hydrate_product_nodes_for_observation(ids);
-    }
-
-    fn product_variant_media_user_errors(
-        &self,
-        root_field: &str,
-        product_id: &str,
-        variant_media: &[BTreeMap<String, ResolvedValue>],
-    ) -> Vec<Value> {
-        let mut user_errors = Vec::new();
-        for (entry_index, item) in variant_media.iter().enumerate() {
-            let variant_id = resolved_string_field(item, "variantId").unwrap_or_default();
-            let media_ids = resolved_string_list_field_unsorted(item, "mediaIds");
-            let Some(variant) = self.store.product_variant_by_id(&variant_id) else {
-                user_errors.push(product_variant_media_user_error(
-                    &["variantMedia", &entry_index.to_string(), "variantId"],
-                    "Variant does not exist on the specified product.",
-                    "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT",
-                ));
-                continue;
-            };
-            if variant.product_id != product_id {
-                user_errors.push(product_variant_media_user_error(
-                    &["variantMedia", &entry_index.to_string(), "variantId"],
-                    "Variant does not exist on the specified product.",
-                    "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT",
-                ));
-                continue;
-            }
-            for media_id in media_ids {
-                let media = self.store.product_media_by_id(product_id, &media_id);
-                if media.is_none() {
-                    user_errors.push(product_variant_media_user_error(
-                        &["variantMedia", &entry_index.to_string(), "mediaIds"],
-                        "Media does not exist on the specified product.",
-                        "MEDIA_DOES_NOT_EXIST_ON_PRODUCT",
-                    ));
-                    continue;
-                }
-                if root_field == "productVariantAppendMedia"
-                    && media
-                        .as_ref()
-                        .and_then(|media| media.get("status"))
-                        .and_then(Value::as_str)
-                        != Some("READY")
-                {
-                    user_errors.push(product_variant_media_user_error(
-                        &["variantMedia", &entry_index.to_string(), "mediaIds"],
-                        "Non-ready media cannot be attached to variants.",
-                        "NON_READY_MEDIA",
-                    ));
-                    continue;
-                }
-                if root_field == "productVariantDetachMedia"
-                    && !variant
-                        .media_ids
-                        .iter()
-                        .any(|existing| existing == &media_id)
-                {
-                    user_errors.push(product_variant_media_user_error(
-                        &["variantMedia", &entry_index.to_string(), "variantId"],
-                        "The specified media is not attached to the specified variant.",
-                        "MEDIA_IS_NOT_ATTACHED_TO_VARIANT",
-                    ));
-                }
-            }
-        }
-        user_errors
-    }
-
-    fn product_variant_media_payload_json(
-        &self,
-        payload_selection: &[SelectedField],
-        product_id: &str,
-        variant_ids: Vec<String>,
-        user_errors: Vec<Value>,
-    ) -> Value {
-        selected_payload_json(payload_selection, |selection| {
-            match selection.name.as_str() {
-                "product" => Some(match self.store.product_by_id(product_id) {
-                    Some(product) if user_errors.is_empty() => {
-                        let variants = self.store.product_variants_for_product(product_id);
-                        product_json_with_variants(product, &variants, &selection.selection)
-                    }
-                    _ => Value::Null,
-                }),
-                "productVariants" => Some(if user_errors.is_empty() {
-                    Value::Array(
-                        variant_ids
-                            .iter()
-                            .filter_map(|variant_id| self.store.product_variant_by_id(variant_id))
-                            .map(|variant| {
-                                product_variant_json(
-                                    variant,
-                                    self.store.product_by_id(&variant.product_id),
-                                    &selection.selection,
-                                )
-                            })
-                            .collect(),
-                    )
-                } else {
-                    Value::Null
-                }),
-                "userErrors" => Some(Value::Array(
-                    user_errors
-                        .iter()
-                        .map(|error| selected_json(error, &selection.selection))
-                        .collect(),
-                )),
-                _ => None,
-            }
-        })
     }
 
     fn product_variant_create(
@@ -3404,318 +2882,6 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn product_publication_mutation(
-        &mut self,
-        root_field: &str,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        request: &Request,
-    ) -> MutationOutcome {
-        let fields = root_fields(query, variables).unwrap_or_default();
-        let Some(field) = fields.iter().find(|field| field.name == root_field) else {
-            return MutationOutcome::response(json_error(
-                400,
-                "No product publication mutation root field found",
-            ));
-        };
-        let response_key = field.response_key.clone();
-        let payload_selection = field.selection.clone();
-        let product_selection =
-            selected_child_selection(&payload_selection, "product").unwrap_or_default();
-        let input = match field.arguments.get("input") {
-            Some(ResolvedValue::Object(input)) => input.clone(),
-            _ => BTreeMap::new(),
-        };
-        let product_id = resolved_string_field(&input, "id").unwrap_or_default();
-        let local_product = self.store.product_staged_or_base(&product_id);
-        let enforce_known_publication_state = local_product
-            .as_ref()
-            .is_some_and(product_publication_state_known);
-        let mut product = local_product
-            .or_else(|| self.hydrate_product_for_publication(&product_id, request))
-            .unwrap_or_else(|| {
-                let timestamp = default_product_timestamp(&product_id);
-                ProductRecord {
-                    id: product_id.clone(),
-                    created_at: timestamp.clone(),
-                    updated_at: timestamp,
-                    status: "ACTIVE".to_string(),
-                    ..ProductRecord::default()
-                }
-            });
-
-        let targets = product_publication_input_entries(&input);
-        let user_errors = self.product_publication_user_errors(
-            root_field,
-            &product,
-            &targets,
-            enforce_known_publication_state,
-        );
-        if user_errors.is_empty() {
-            let mut existing = product_publication_entries(&product);
-            match root_field {
-                "productPublish" => {
-                    for target in &targets {
-                        let Some(publication_id) = target.target_id() else {
-                            continue;
-                        };
-                        if !existing
-                            .iter()
-                            .any(|entry| entry.publication_id == publication_id)
-                        {
-                            existing.push(ProductPublicationEntry {
-                                publication_id: publication_id.to_string(),
-                                publish_date: target.publish_date.clone(),
-                                published_at: Some(
-                                    target
-                                        .publish_date
-                                        .clone()
-                                        .unwrap_or_else(|| self.next_product_timestamp()),
-                                ),
-                            });
-                        }
-                    }
-                }
-                "productUnpublish" => {
-                    let remove_ids = targets
-                        .iter()
-                        .filter_map(ProductPublicationInputEntry::target_id)
-                        .collect::<BTreeSet<_>>();
-                    existing.retain(|entry| !remove_ids.contains(entry.publication_id.as_str()));
-                }
-                _ => {}
-            }
-            product.updated_at = self.next_product_updated_at(&product.updated_at);
-            set_product_publication_entries(&mut product, existing);
-            self.store.stage_product(product.clone());
-        }
-
-        let payload = selected_payload_json(&payload_selection, |selection| {
-            match selection.name.as_str() {
-                "product" => Some(product_json(&product, &product_selection)),
-                "userErrors" => Some(selected_product_publication_user_errors(
-                    &user_errors,
-                    &selection.selection,
-                )),
-                _ => None,
-            }
-        });
-        let response = ok_json(json!({ "data": { response_key: payload } }));
-        if user_errors.is_empty() {
-            MutationOutcome::staged(
-                response,
-                LogDraft::staged(root_field, "products", vec![product_id]),
-            )
-        } else {
-            MutationOutcome::response(response)
-        }
-    }
-
-    fn hydrate_product_for_publication(
-        &self,
-        id: &str,
-        request: &Request,
-    ) -> Option<ProductRecord> {
-        if id.is_empty() || self.config.read_mode == ReadMode::Snapshot {
-            return None;
-        }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
-                "query": TAGGABLE_PRODUCT_HYDRATE_QUERY,
-                "variables": { "ids": [id] }
-            })
-            .to_string(),
-        });
-        if !(200..300).contains(&response.status) {
-            return None;
-        }
-        let record = response.body["data"]["nodes"]
-            .as_array()
-            .and_then(|nodes| nodes.first())
-            .cloned()
-            .unwrap_or(Value::Null);
-        if record.is_null() {
-            return None;
-        }
-        Some(product_record_from_hydrated_json(&record))
-    }
-
-    fn product_publication_user_errors(
-        &self,
-        root_field: &str,
-        product: &ProductRecord,
-        targets: &[ProductPublicationInputEntry],
-        enforce_known_publication_state: bool,
-    ) -> Vec<Value> {
-        let mut seen = BTreeSet::new();
-        let mut errors = Vec::new();
-        for target in targets {
-            let field_index = target.index.to_string();
-            if let Some(channel_id) = target.channel_id.as_deref() {
-                if channel_id == "gid://shopify/Channel/999999999999" {
-                    errors.push(json!({
-                        "field": ["productPublications", field_index, "publicationId"],
-                        "message": "Channel does not exist or is not publishable"
-                    }));
-                    continue;
-                }
-            }
-            match target.target_id() {
-                Some("") | None => errors.push(json!({
-                    "field": ["productPublications", field_index, "publicationId"],
-                    "message": "PublicationId cannot be empty"
-                })),
-                Some("gid://shopify/Publication/999999999999") => errors.push(json!({
-                    "field": ["productPublications", field_index, "publicationId"],
-                    "message": "Publication does not exist or is not publishable"
-                })),
-                Some(id)
-                    if self.store.has_known_publication_catalog()
-                        && !self.store.has_publication_id(id) =>
-                {
-                    errors.push(json!({
-                        "field": ["productPublications", field_index, "publicationId"],
-                        "message": "Publication does not exist or is not publishable"
-                    }));
-                }
-                Some(id) if !seen.insert(id.to_string()) => {
-                    errors.push(json!({
-                        "field": ["productPublications", field_index, "publicationId"],
-                        "message": "The same publication was specified more than once"
-                    }));
-                }
-                Some(id)
-                    if root_field == "productPublish"
-                        && enforce_known_publication_state
-                        && product_is_published_on_publication(product, id) =>
-                {
-                    errors.push(json!({
-                        "field": ["productPublications", field_index, "publicationId"],
-                        "message": "Product is already published on this publication"
-                    }));
-                }
-                Some(id)
-                    if root_field == "productUnpublish"
-                        && enforce_known_publication_state
-                        && !product_is_published_on_publication(product, id) =>
-                {
-                    errors.push(json!({
-                        "field": ["productPublications", field_index, "publicationId"],
-                        "message": "Product is not published on this publication"
-                    }));
-                }
-                Some(_) => {}
-            }
-            if target
-                .publish_date
-                .as_deref()
-                .map(product_publication_publish_date_is_before_1970)
-                .unwrap_or(false)
-            {
-                errors.push(json!({
-                    "field": ["productPublications", field_index, "publishDate"],
-                    "message": "Publish date must be a date after the year 1969"
-                }));
-            }
-        }
-        errors
-    }
-
-    pub(in crate::proxy) fn product_relationship_options_read_data(
-        &self,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
-        let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
-        if product_id == "gid://shopify/Product/10172011938098" {
-            return product_relationship_roots_fixture()["optionDownstreamRead"]["response"]
-                ["data"]
-                .clone();
-        }
-        if self
-            .store
-            .product_by_id(&product_id)
-            .map(|product| product.title.contains("product-options-reorder-validation"))
-            .unwrap_or(false)
-        {
-            return product_options_reorder_validation_fixture()["captures"]["downstreamRead"]
-                ["result"]["data"]
-                .clone();
-        }
-        json!({ "product": null })
-    }
-
-    pub(in crate::proxy) fn product_delete_async_source_create(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> MutationOutcome {
-        let Some(input) = product_input(query, variables) else {
-            return MutationOutcome::response(json_error(400, "productSet requires input"));
-        };
-        let title = resolved_string_field(&input, "title").unwrap_or_default();
-        let id = self.next_proxy_synthetic_gid("Product");
-        let timestamp = self.next_product_timestamp();
-        let product = ProductRecord {
-            id: id.clone(),
-            created_at: timestamp.clone(),
-            updated_at: timestamp,
-            title,
-            handle: resolved_string_field(&input, "handle")
-                .unwrap_or_else(|| "async-delete-source-1778096279651".to_string()),
-            status: resolved_string_field(&input, "status").unwrap_or_else(|| "DRAFT".to_string()),
-            description_html: String::new(),
-            vendor: String::new(),
-            product_type: String::new(),
-            tags: Vec::new(),
-            template_suffix: String::new(),
-            seo_title: String::new(),
-            seo_description: String::new(),
-            total_inventory: 0,
-            tracks_inventory: false,
-            media: Vec::new(),
-            variants: Vec::new(),
-            collections: Vec::new(),
-            extra_fields: BTreeMap::new(),
-        };
-        self.store.stage_product(product.clone());
-
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
-        MutationOutcome::staged(
-            ok_json(json!({
-                "data": {
-                    root_field_response_key(query).unwrap_or_else(|| "productSet".to_string()): product_mutation_payload_json(&product, &payload_selection, &product_selection)
-                }
-            })),
-            LogDraft::staged("productSet", "products", vec![id]),
-        )
-    }
-
-    pub(in crate::proxy) fn product_delete_operation_read_data(&self, node: bool) -> Value {
-        let product_id = self
-            .store
-            .staged
-            .product_delete_operations
-            .get("gid://shopify/ProductDeleteOperation/80067887410")
-            .cloned()
-            .unwrap_or_else(|| "gid://shopify/Product/10178931687730".to_string());
-        let operation = json!({
-            "__typename": "ProductDeleteOperation",
-            "id": "gid://shopify/ProductDeleteOperation/80067887410",
-            "status": if node { "COMPLETE" } else { "ACTIVE" },
-            "deletedProductId": product_id,
-            "userErrors": []
-        });
-        if node {
-            json!({ "node": operation })
-        } else {
-            json!({ "productOperation": operation })
-        }
-    }
-
     pub(in crate::proxy) fn product_change_status(
         &mut self,
         request: &Request,
@@ -3985,7 +3151,7 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn taggable_resource_staged_or_hydrated(
+    fn taggable_resource_staged_or_hydrated(
         &mut self,
         resource_type: &str,
         id: &str,
@@ -4061,40 +3227,6 @@ impl DraftProxy {
                 .draft_order_tags
                 .insert(id.to_string(), taggable_record_tags(&record));
         }
-    }
-
-    pub(in crate::proxy) fn should_handle_taggable_resource_overlay_read(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> bool {
-        fields.iter().any(|field| {
-            matches!(
-                field.name.as_str(),
-                "order" | "customer" | "article" | "draftOrder"
-            ) && resolved_string_arg(&field.arguments, "id").is_some_and(|id| {
-                self.store.staged.taggable_resources.contains_key(&id)
-                    || self.store.staged.customers.contains_key(&id)
-            })
-        })
-    }
-
-    pub(in crate::proxy) fn taggable_resource_overlay_read_fields(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
-                "customer" => self.customer_read_field(field),
-                "order" | "article" | "draftOrder" => resolved_string_arg(&field.arguments, "id")
-                    .and_then(|id| self.store.staged.taggable_resources.get(&id).cloned())
-                    .map(|record| selected_json(&record, &field.selection))
-                    .unwrap_or(Value::Null),
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
     }
 
     pub(in crate::proxy) fn record_mutation_log_entry(
@@ -4420,13 +3552,6 @@ impl DraftProxy {
     }
 }
 
-fn media_file_sort_id(file: &Value) -> u64 {
-    file.get("id")
-        .and_then(Value::as_str)
-        .and_then(|id| resource_id_tail(id).parse::<u64>().ok())
-        .unwrap_or_default()
-}
-
 fn taggable_record_tags(record: &Value) -> Vec<String> {
     record
         .get("tags")
@@ -4510,56 +3635,6 @@ fn product_record_from_hydrated_json(record: &Value) -> ProductRecord {
             .unwrap_or_default(),
         extra_fields: product_extra_fields_from_json(record),
     }
-}
-
-struct ProductPublicationInputEntry {
-    index: usize,
-    publication_id: Option<String>,
-    channel_id: Option<String>,
-    publish_date: Option<String>,
-}
-
-impl ProductPublicationInputEntry {
-    fn target_id(&self) -> Option<&str> {
-        self.publication_id
-            .as_deref()
-            .or(self.channel_id.as_deref())
-    }
-}
-
-fn product_publication_input_entries(
-    input: &BTreeMap<String, ResolvedValue>,
-) -> Vec<ProductPublicationInputEntry> {
-    resolved_object_list_field(input, "productPublications")
-        .into_iter()
-        .enumerate()
-        .map(|(index, publication)| ProductPublicationInputEntry {
-            index,
-            publication_id: resolved_string_field(&publication, "publicationId"),
-            channel_id: resolved_string_field(&publication, "channelId"),
-            publish_date: resolved_string_field(&publication, "publishDate"),
-        })
-        .collect()
-}
-
-fn selected_product_publication_user_errors(
-    errors: &[Value],
-    selections: &[SelectedField],
-) -> Value {
-    Value::Array(
-        errors
-            .iter()
-            .map(|error| selected_json(error, selections))
-            .collect(),
-    )
-}
-
-fn product_publication_publish_date_is_before_1970(value: &str) -> bool {
-    value
-        .get(..4)
-        .and_then(|year| year.parse::<i32>().ok())
-        .map(|year| year < 1970)
-        .unwrap_or(false)
 }
 
 fn bulk_operation_run_query_user_errors(query_text: &str) -> Option<Vec<Value>> {
@@ -4699,15 +3774,6 @@ fn bulk_operation_run_mutation_no_such_file_user_error() -> Value {
         "field": null,
         "message": "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
         "code": "NO_SUCH_FILE"
-    })
-}
-
-fn bulk_operation_run_mutation_file_size_too_large_user_error(max_file_size_bytes: u64) -> Value {
-    let max_size_mb = max_file_size_bytes / (1024 * 1024);
-    json!({
-        "field": null,
-        "message": format!("The input file size exceeds the maximum allowed size of {max_size_mb} MB."),
-        "code": "INVALID_STAGED_UPLOAD_FILE"
     })
 }
 
@@ -4942,14 +4008,6 @@ fn owner_product_variant_state_from_observed_json(value: &Value) -> Option<Produ
                 .unwrap_or(true),
             extra_fields: BTreeMap::new(),
         },
-        media_ids: value
-            .get("media")
-            .and_then(|connection| connection.get("nodes"))
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(|media| media.get("id").and_then(Value::as_str).map(str::to_string))
-            .collect(),
         extra_fields: BTreeMap::new(),
     })
 }
@@ -5064,9 +4122,8 @@ fn media_quota_errors(request: &Request, inputs: &[BTreeMap<String, ResolvedValu
         .iter()
         .enumerate()
         .filter_map(|(index, input)| {
-            let original_source =
-                resolved_string_field(input, "originalSource").unwrap_or_default();
-            let content_type = media_file_create_content_type(input, &original_source);
+            let content_type =
+                resolved_string_field(input, "contentType").unwrap_or_else(|| "IMAGE".to_string());
             let code = if content_type == "VIDEO" && requested.contains("VIDEO_THROTTLE_EXCEEDED") {
                 Some("VIDEO_THROTTLE_EXCEEDED")
             } else if content_type == "MODEL_3D" && requested.contains("MODEL3D_THROTTLE_EXCEEDED")
@@ -5433,7 +4490,6 @@ fn media_file_record(
 ) -> Value {
     let typename = media_file_gid_type(content_type);
     let mime_type = mime_type_for_filename(filename, content_type);
-    let media_content_type = media_file_media_content_type(content_type);
     let mut file = json!({
         "__typename": typename,
         "id": id,
@@ -5447,9 +4503,7 @@ fn media_file_record(
         "displayName": filename,
         "fileErrors": [],
         "fileWarnings": [],
-        "mimeType": mime_type,
-        "mediaContentType": media_content_type,
-        "status": file_status
+        "mimeType": mime_type
     });
     match typename {
         "MediaImage" => {
@@ -5523,33 +4577,6 @@ fn media_file_gid_type(content_type: &str) -> &'static str {
     }
 }
 
-fn media_file_media_content_type(content_type: &str) -> &'static str {
-    match content_type {
-        "IMAGE" => "IMAGE",
-        "VIDEO" => "VIDEO",
-        "EXTERNAL_VIDEO" => "EXTERNAL_VIDEO",
-        "MODEL_3D" => "MODEL_3D",
-        "FILE" => "GENERIC_FILE",
-        _ => "IMAGE",
-    }
-}
-
-fn media_file_create_content_type(
-    input: &BTreeMap<String, ResolvedValue>,
-    original_source: &str,
-) -> String {
-    resolved_string_field(input, "contentType")
-        .unwrap_or_else(|| inferred_media_file_create_content_type(original_source).to_string())
-}
-
-fn inferred_media_file_create_content_type(source: &str) -> &'static str {
-    match file_extension(source).as_str() {
-        "gif" | "heic" | "heif" | "jpeg" | "jpg" | "png" | "webp" => "IMAGE",
-        "m4v" | "mov" | "mp4" | "mpeg" | "mpg" | "ogv" | "webm" => "VIDEO",
-        _ => "FILE",
-    }
-}
-
 fn duplicate_mode_allowed(mode: &str, content_type: Option<&str>) -> bool {
     matches!(
         (mode, content_type),
@@ -5578,17 +4605,13 @@ fn filename_from_source(source: &str) -> String {
 }
 
 fn file_extension(value: &str) -> String {
-    let path_tail = value
-        .split(['?', '#'])
+    value
+        .split('?')
         .next()
         .unwrap_or(value)
-        .rsplit('/')
-        .next()
-        .unwrap_or(value);
-    path_tail
         .rsplit('.')
         .next()
-        .filter(|extension| *extension != path_tail)
+        .filter(|extension| *extension != value)
         .unwrap_or_default()
         .to_ascii_lowercase()
 }
@@ -5597,24 +4620,12 @@ fn mime_type_for_filename(filename: &str, content_type: &str) -> &'static str {
     match (content_type, file_extension(filename).as_str()) {
         ("IMAGE", "png") => "image/png",
         ("IMAGE", "gif") => "image/gif",
-        ("IMAGE", "heic") => "image/heic",
-        ("IMAGE", "heif") => "image/heif",
         ("IMAGE", "webp") => "image/webp",
         ("IMAGE", _) => "image/jpeg",
-        ("VIDEO", "m4v") => "video/x-m4v",
         ("VIDEO", "mov") => "video/quicktime",
-        ("VIDEO", "mpeg") | ("VIDEO", "mpg") => "video/mpeg",
-        ("VIDEO", "ogv") => "video/ogg",
-        ("VIDEO", "webm") => "video/webm",
         ("VIDEO", _) => "video/mp4",
         ("MODEL_3D", "glb") => "model/gltf-binary",
         ("MODEL_3D", "usdz") => "model/vnd.usdz+zip",
-        ("FILE", "csv") => "text/csv",
-        ("FILE", "json") => "application/json",
-        ("FILE", "jsonl") => "application/jsonl",
-        ("FILE", "pdf") => "application/pdf",
-        ("FILE", "txt") => "text/plain",
-        ("FILE", "zip") => "application/zip",
         _ => "application/octet-stream",
     }
 }
@@ -5915,27 +4926,6 @@ fn bulk_operation_sort_value(operation: &Value, sort_key: &str) -> String {
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string()
-}
-
-fn bulk_operation_concurrent_limit(request: &Request) -> usize {
-    if admin_graphql_version(&request.path)
-        .is_some_and(|version| version_at_least(version, 2026, 1))
-    {
-        5
-    } else {
-        1
-    }
-}
-
-fn bulk_operation_is_non_terminal(operation: &Value) -> bool {
-    !bulk_operation_status_is_terminal(operation.get("status").and_then(Value::as_str))
-}
-
-fn bulk_operation_status_is_terminal(status: Option<&str>) -> bool {
-    matches!(
-        status,
-        Some("COMPLETED" | "FAILED" | "CANCELED" | "EXPIRED")
-    )
 }
 
 fn bulk_operation_matches_query(

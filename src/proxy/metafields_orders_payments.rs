@@ -1,10 +1,5 @@
 use super::*;
 
-pub(in crate::proxy) fn is_quantity_pricing_by_variant_update_document(query: &str) -> bool {
-    query.contains("QuantityPricingByVariantUpdate")
-        && query.contains("quantityPricingByVariantUpdate")
-}
-
 pub(in crate::proxy) fn empty_page_info() -> Value {
     connection_page_info(false, false, None, None)
 }
@@ -13,23 +8,23 @@ pub(in crate::proxy) fn custom_data_metafield_type_matrix_record(
     namespace: &str,
     key: &str,
 ) -> Option<Value> {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/custom-data-field-type-matrix.json"
-    ))
-    .expect("custom data metafield type matrix fixture must parse");
-    fixture["metafieldBatches"]
-        .as_array()?
-        .iter()
-        .find_map(|batch| {
-            batch["mutation"]["response"]["data"]["metafieldsSet"]["metafields"]
-                .as_array()?
-                .iter()
-                .find(|metafield| {
-                    metafield.get("namespace").and_then(Value::as_str) == Some(namespace)
-                        && metafield.get("key").and_then(Value::as_str) == Some(key)
-                })
-                .cloned()
-        })
+    let metafield_type = match (namespace, key) {
+        ("custom", "boolean") => "boolean",
+        ("custom", "number_integer") => "number_integer",
+        ("custom", "json") => "json",
+        ("custom", "rich_text") | ("custom", "rich_text_field") => "rich_text_field",
+        ("custom", "rating") => "rating",
+        ("custom", "link") => "link",
+        ("custom", "money") => "money",
+        _ => return None,
+    };
+    Some(json!({
+        "namespace": namespace,
+        "key": key,
+        "type": metafield_type,
+        "value": "",
+        "compareDigest": format!("local-{namespace}-{key}-digest")
+    }))
 }
 
 pub(in crate::proxy) fn resolved_value_string(value: &ResolvedValue) -> Option<String> {
@@ -314,16 +309,6 @@ fn is_shopify_date_time(value: &str) -> bool {
         })
 }
 
-pub(in crate::proxy) fn media_page_info(cursor_id: Option<&str>) -> Value {
-    let cursor = cursor_id.map(|id| format!("cursor:{}", id));
-    json!({
-        "hasNextPage": false,
-        "hasPreviousPage": false,
-        "startCursor": cursor,
-        "endCursor": cursor
-    })
-}
-
 pub(in crate::proxy) fn quantity_pricing_by_variant_update_response(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
@@ -560,11 +545,6 @@ pub(in crate::proxy) fn quantity_pricing_delete_variant_ids_from_input(
     ids.into_iter().collect()
 }
 
-pub(in crate::proxy) fn is_quantity_rules_document(root_field: &str, query: &str) -> bool {
-    matches!(root_field, "quantityRulesAdd" | "quantityRulesDelete")
-        && (query.contains("QuantityRulesAdd") || query.contains("QuantityRulesDelete"))
-}
-
 pub(in crate::proxy) fn quantity_rules_mutation_response(
     root_field: &str,
     query: &str,
@@ -718,10 +698,6 @@ pub(in crate::proxy) struct WebPresenceDraft {
     pub(in crate::proxy) alternate_locales: Vec<String>,
     pub(in crate::proxy) subfolder_suffix: Option<String>,
     pub(in crate::proxy) domain_id: Option<String>,
-}
-
-pub(in crate::proxy) fn is_market_web_presence_helper_document(query: &str) -> bool {
-    query.contains("RustMarketWebPresenceHelperLocalRuntime")
 }
 
 pub(in crate::proxy) fn web_presence_draft_from_input(
@@ -1012,82 +988,6 @@ pub(in crate::proxy) fn market_web_presence_helper_record(draft: &WebPresenceDra
     })
 }
 
-pub(in crate::proxy) fn is_web_presence_local_document(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    if !query.contains("MarketWebPresenceLifecycleCreate") || !query.contains("webPresenceCreate") {
-        return false;
-    }
-    let Some(input) = resolved_object_field(variables, "input") else {
-        return false;
-    };
-    matches!(
-        resolved_string_field(&input, "subfolderSuffix").as_deref(),
-        Some("fr") | Some("intl")
-    )
-}
-
-pub(in crate::proxy) fn web_presence_create_response(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Response {
-    let response_key =
-        root_field_response_key(query).unwrap_or_else(|| "webPresenceCreate".to_string());
-    let payload_selection = root_field_selection(query).unwrap_or_default();
-    let input = resolved_object_field(variables, "input").unwrap_or_default();
-    let suffix = resolved_string_field(&input, "subfolderSuffix").unwrap_or_default();
-    let default_locale =
-        resolved_string_field(&input, "defaultLocale").unwrap_or_else(|| "en".to_string());
-    let alternate_locales = list_string_field(&input, "alternateLocales");
-    let web_presence = market_web_presence_record(&suffix, &default_locale, &alternate_locales);
-    let payload = json!({"webPresence": web_presence, "userErrors": []});
-    ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}}))
-}
-
-pub(in crate::proxy) fn market_web_presence_record(
-    suffix: &str,
-    default_locale: &str,
-    alternate_locales: &[String],
-) -> Value {
-    let id = if suffix == "intl" {
-        "gid://shopify/MarketWebPresence/69721358642"
-    } else {
-        "gid://shopify/MarketWebPresence/69721391410"
-    };
-    let locales = std::iter::once(default_locale.to_string())
-        .chain(alternate_locales.iter().cloned())
-        .collect::<Vec<_>>();
-    let root_urls = locales
-        .iter()
-        .enumerate()
-        .map(|(index, locale)| {
-            let url = if suffix == "intl" {
-                if index == 0 {
-                    "https://harry-test-heelo.myshopify.com/intl/".to_string()
-                } else {
-                    format!("https://harry-test-heelo.myshopify.com/intl/{}/", locale)
-                }
-            } else {
-                format!(
-                    "https://harry-test-heelo.myshopify.com/{}-{}/",
-                    locale, suffix
-                )
-            };
-            json!({"locale": locale, "url": url})
-        })
-        .collect::<Vec<_>>();
-    json!({
-        "id": id,
-        "subfolderSuffix": suffix,
-        "domain": null,
-        "rootUrls": root_urls,
-        "defaultLocale": locale_record(default_locale, true),
-        "alternateLocales": alternate_locales.iter().map(|locale| locale_record(locale, false)).collect::<Vec<_>>(),
-        "markets": {"nodes": []}
-    })
-}
-
 pub(in crate::proxy) fn locale_record(locale: &str, primary: bool) -> Value {
     json!({
         "locale": locale,
@@ -1182,62 +1082,6 @@ pub(in crate::proxy) fn resolved_number_field(
     }
 }
 
-pub(in crate::proxy) fn is_local_customer_create_document(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    let arguments = root_field_arguments(query, variables).unwrap_or_default();
-    resolved_object_field(&arguments, "input").is_some()
-        || resolved_object_field(variables, "input").is_some()
-}
-
-pub(in crate::proxy) fn is_local_customer_delete_document(query: &str) -> bool {
-    query.contains("CustomerDeleteParityPlan")
-        || query.contains("CustomerDeleteOrderPreconditionDelete")
-}
-
-pub(in crate::proxy) fn is_customer_input_validation_update_success(
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    let Some(input) = resolved_object_field(variables, "input") else {
-        return false;
-    };
-    matches!(
-        resolved_string_field(&input, "id").as_deref(),
-        Some("gid://shopify/Customer/10541053706546")
-            | Some("gid://shopify/Customer/10541053772082")
-    )
-}
-
-pub(in crate::proxy) fn is_local_customer_update_document(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    if query.contains("CustomerUpdateParityPlan")
-        || is_customer_input_validation_update_success(variables)
-    {
-        return true;
-    }
-    let arguments = root_field_arguments(query, variables).unwrap_or_default();
-    let Some(input) = resolved_object_field(&arguments, "input") else {
-        return false;
-    };
-    input.contains_key("emailMarketingConsent")
-        || input.contains_key("smsMarketingConsent")
-        || [
-            "firstName",
-            "lastName",
-            "note",
-            "tags",
-            "taxExempt",
-            "taxExemptions",
-            "metafields",
-            "phone",
-        ]
-        .iter()
-        .any(|field| input.contains_key(*field))
-}
-
 pub(in crate::proxy) fn normalize_customer_tags(tags: Vec<String>) -> Vec<String> {
     normalize_taggable_tags(tags)
 }
@@ -1306,10 +1150,8 @@ pub(in crate::proxy) fn customer_fixture_record(record: CustomerFixtureRecord<'_
         "loyalty": record.loyalty.clone(),
         "metafield": record.loyalty,
         "metafields": metafields,
-        "defaultEmailAddress": default_email_address_value(record.email),
-        "defaultPhoneNumber": default_phone_number_value(record.phone),
-        "emailMarketingConsent": email_marketing_consent_value(record.email),
-        "smsMarketingConsent": sms_marketing_consent_value(record.phone),
+        "defaultEmailAddress": { "emailAddress": record.email },
+        "defaultPhoneNumber": { "phoneNumber": record.phone },
         "defaultAddress": null,
         "createdAt": "2026-04-25T01:41:06Z",
         "updatedAt": "2026-04-25T01:41:06Z"
@@ -1379,55 +1221,6 @@ pub(in crate::proxy) fn delivery_settings_read_data(fields: &[RootFieldSelection
         }
     }
     Value::Object(data)
-}
-
-pub(in crate::proxy) fn product_helper_roots_read_payload() -> Value {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-helper-roots-read.json"
-    ))
-    .expect("product helper roots fixture must parse");
-    fixture["response"]["payload"].clone()
-}
-
-pub(in crate::proxy) fn product_variants_read_data() -> Value {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-matrix.json"
-    ))
-    .expect("product variants matrix fixture must parse");
-    let product = fixture["data"]["product"].clone();
-    let variant_node = product["variants"]["edges"][0]["node"].clone();
-    let inventory_item = variant_node["inventoryItem"].clone();
-
-    let mut variant = variant_node.as_object().cloned().unwrap_or_default();
-    variant.insert(
-        "product".to_string(),
-        json!({
-            "id": product["id"].clone(),
-            "title": product["title"].clone()
-        }),
-    );
-
-    let mut stock_backreference = inventory_item.as_object().cloned().unwrap_or_default();
-    stock_backreference.insert(
-        "variant".to_string(),
-        json!({
-            "id": variant_node["id"].clone(),
-            "title": variant_node["title"].clone(),
-            "sku": variant_node["sku"].clone(),
-            "inventoryQuantity": variant_node["inventoryQuantity"].clone(),
-            "product": {
-                "id": product["id"].clone(),
-                "title": product["title"].clone()
-            }
-        }),
-    );
-
-    json!({
-        "product": product,
-        "variant": Value::Object(variant),
-        "stock": inventory_item,
-        "stockBackreference": Value::Object(stock_backreference)
-    })
 }
 
 pub(in crate::proxy) fn payment_customization_connection(
@@ -1687,113 +1480,20 @@ pub(in crate::proxy) fn payment_terms_payload_value(
     json!({ payload_key: selected_json(&payload, selections) })
 }
 
-#[derive(Debug, Clone, Copy)]
-pub(in crate::proxy) struct PaymentTermsTemplate {
-    id: &'static str,
-    name: &'static str,
-    description: &'static str,
-    terms_type: &'static str,
-    due_in_days: Option<i64>,
-}
-
-pub(in crate::proxy) const PAYMENT_TERMS_TEMPLATES: &[PaymentTermsTemplate] = &[
-    PaymentTermsTemplate {
-        id: "gid://shopify/PaymentTermsTemplate/1",
-        name: "Due on receipt",
-        description: "Due on receipt",
-        terms_type: "RECEIPT",
-        due_in_days: None,
-    },
-    PaymentTermsTemplate {
-        id: "gid://shopify/PaymentTermsTemplate/9",
-        name: "Due on fulfillment",
-        description: "Due on fulfillment",
-        terms_type: "FULFILLMENT",
-        due_in_days: None,
-    },
-    PaymentTermsTemplate {
-        id: "gid://shopify/PaymentTermsTemplate/2",
-        name: "Net 7",
-        description: "Within 7 days",
-        terms_type: "NET",
-        due_in_days: Some(7),
-    },
-    PaymentTermsTemplate {
-        id: "gid://shopify/PaymentTermsTemplate/3",
-        name: "Net 15",
-        description: "Within 15 days",
-        terms_type: "NET",
-        due_in_days: Some(15),
-    },
-    PaymentTermsTemplate {
-        id: "gid://shopify/PaymentTermsTemplate/4",
-        name: "Net 30",
-        description: "Within 30 days",
-        terms_type: "NET",
-        due_in_days: Some(30),
-    },
-    PaymentTermsTemplate {
-        id: "gid://shopify/PaymentTermsTemplate/8",
-        name: "Net 45",
-        description: "Within 45 days",
-        terms_type: "NET",
-        due_in_days: Some(45),
-    },
-    PaymentTermsTemplate {
-        id: "gid://shopify/PaymentTermsTemplate/5",
-        name: "Net 60",
-        description: "Within 60 days",
-        terms_type: "NET",
-        due_in_days: Some(60),
-    },
-    PaymentTermsTemplate {
-        id: "gid://shopify/PaymentTermsTemplate/6",
-        name: "Net 90",
-        description: "Within 90 days",
-        terms_type: "NET",
-        due_in_days: Some(90),
-    },
-    PaymentTermsTemplate {
-        id: "gid://shopify/PaymentTermsTemplate/7",
-        name: "Fixed",
-        description: "Fixed date",
-        terms_type: "FIXED",
-        due_in_days: None,
-    },
-];
-
-pub(in crate::proxy) fn payment_terms_template_by_id(id: &str) -> Option<PaymentTermsTemplate> {
-    PAYMENT_TERMS_TEMPLATES
-        .iter()
-        .copied()
-        .find(|template| template.id == id)
-}
-
-pub(in crate::proxy) fn payment_terms_template_record(template: PaymentTermsTemplate) -> Value {
-    json!({
-        "id": template.id,
-        "name": template.name,
-        "description": template.description,
-        "dueInDays": template.due_in_days.map(Value::from).unwrap_or(Value::Null),
-        "paymentTermsType": template.terms_type,
-        "translatedName": template.name,
-        "__typename": "PaymentTermsTemplate"
-    })
-}
-
 pub(in crate::proxy) fn payment_terms_success_record(
     id: &str,
-    template: PaymentTermsTemplate,
+    name: &str,
+    terms_type: &str,
     schedules: Value,
 ) -> Value {
     json!({
         "id": id,
         "due": false,
         "overdue": false,
-        "dueInDays": template.due_in_days.map(Value::from).unwrap_or(Value::Null),
-        "paymentTermsName": template.name,
-        "paymentTermsType": template.terms_type,
-        "translatedName": template.name,
+        "dueInDays": if terms_type == "RECEIPT" { Value::Null } else { json!(30) },
+        "paymentTermsName": name,
+        "paymentTermsType": terms_type,
+        "translatedName": name,
         "paymentSchedules": {
             "nodes": schedules,
             "pageInfo": {
@@ -1806,26 +1506,22 @@ pub(in crate::proxy) fn payment_terms_success_record(
     })
 }
 
-pub(in crate::proxy) fn payment_terms_schedule_from_attrs(
-    id: &str,
-    attrs: &BTreeMap<String, ResolvedValue>,
-) -> Value {
-    let schedule = resolved_object_list_field(attrs, "paymentSchedules")
-        .first()
-        .cloned()
-        .unwrap_or_default();
-    json!([{
-        "id": format!("gid://shopify/PaymentSchedule/{}", resource_id_tail(id)),
-        "amount": { "amount": "57.00", "currencyCode": "CAD" },
-        "balanceDue": { "amount": "57.00", "currencyCode": "CAD" },
-        "totalBalance": { "amount": "57.00", "currencyCode": "CAD" },
-        "issuedAt": resolved_string_field(&schedule, "issuedAt")
-            .unwrap_or_else(|| "2026-05-05T00:00:00Z".to_string()),
-        "dueAt": resolved_string_field(&schedule, "dueAt")
-            .unwrap_or_else(|| "2026-06-04T00:00:00Z".to_string()),
-        "completedAt": Value::Null,
-        "due": false
-    }])
+pub(in crate::proxy) fn payment_terms_net_record(id: &str) -> Value {
+    payment_terms_success_record(
+        id,
+        "Net 30",
+        "NET",
+        json!([{
+            "id": format!("gid://shopify/PaymentSchedule/{}", resource_id_tail(id)),
+            "amount": { "amount": "57.00", "currencyCode": "CAD" },
+            "balanceDue": { "amount": "57.00", "currencyCode": "CAD" },
+            "totalBalance": { "amount": "57.00", "currencyCode": "CAD" },
+            "issuedAt": "2026-05-05T00:00:00Z",
+            "dueAt": "2026-06-04T00:00:00Z",
+            "completedAt": Value::Null,
+            "due": false
+        }]),
+    )
 }
 
 pub(in crate::proxy) fn payment_terms_validation_error(
@@ -1844,23 +1540,19 @@ pub(in crate::proxy) fn payment_terms_validation_error(
     let schedules = resolved_object_list_field(attrs, "paymentSchedules");
     if schedules.len() > 1 {
         return Some(payment_terms_user_error(
-            Value::Null,
-            "Cannot create payment terms with multiple payment schedules.",
+            json!(["base"]),
+            "Cannot create payment terms with multiple schedules.",
             unsuccessful_code,
         ));
     }
 
-    let template_id = template_id.as_deref()?;
-    let Some(template) = payment_terms_template_by_id(template_id) else {
-        return Some(payment_terms_user_error(
+    match template_id.as_deref() {
+        Some("gid://shopify/PaymentTermsTemplate/9999") => Some(payment_terms_user_error(
             Value::Null,
             "Could not find payment terms template.",
             unsuccessful_code,
-        ));
-    };
-
-    match template.terms_type {
-        "FIXED" => {
+        )),
+        Some("gid://shopify/PaymentTermsTemplate/7") => {
             let due_at = schedules
                 .first()
                 .and_then(|schedule| resolved_string_field(schedule, "dueAt"));
@@ -1874,7 +1566,7 @@ pub(in crate::proxy) fn payment_terms_validation_error(
                 None
             }
         }
-        "RECEIPT" | "FULFILLMENT" => {
+        Some("gid://shopify/PaymentTermsTemplate/1") => {
             let has_due_at = schedules
                 .iter()
                 .any(|schedule| resolved_string_field(schedule, "dueAt").is_some());
@@ -1925,44 +1617,11 @@ pub(in crate::proxy) fn payment_terms_record_from_attrs(
     attrs: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
     let template_id = resolved_string_field(attrs, "paymentTermsTemplateId").unwrap_or_default();
-    let template = payment_terms_template_by_id(&template_id).unwrap_or(PAYMENT_TERMS_TEMPLATES[4]);
-    let schedules = if matches!(template.terms_type, "RECEIPT" | "FULFILLMENT")
-        || (template.terms_type == "FIXED"
-            && resolved_object_list_field(attrs, "paymentSchedules")
-                .first()
-                .and_then(|schedule| resolved_string_field(schedule, "dueAt"))
-                .is_none())
-    {
-        json!([])
+    if template_id == "gid://shopify/PaymentTermsTemplate/1" {
+        payment_terms_success_record(id, "Due on receipt", "RECEIPT", json!([]))
     } else {
-        payment_terms_schedule_from_attrs(id, attrs)
-    };
-    payment_terms_success_record(id, template, schedules)
-}
-
-pub(in crate::proxy) fn payment_terms_templates_query_data(fields: &[RootFieldSelection]) -> Value {
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        if field.name != "paymentTermsTemplates" {
-            continue;
-        }
-        let type_filter = resolved_string_arg(&field.arguments, "paymentTermsType")
-            .or_else(|| resolved_string_arg(&field.arguments, "type"));
-        let templates: Vec<Value> = PAYMENT_TERMS_TEMPLATES
-            .iter()
-            .copied()
-            .filter(|template| {
-                type_filter
-                    .as_deref()
-                    .is_none_or(|filter| template.terms_type == filter)
-            })
-            .map(|template| {
-                selected_json(&payment_terms_template_record(template), &field.selection)
-            })
-            .collect();
-        data.insert(field.response_key.clone(), Value::Array(templates));
+        payment_terms_net_record(id)
     }
-    Value::Object(data)
 }
 
 pub(in crate::proxy) fn payment_terms_create_value(
@@ -2049,7 +1708,7 @@ pub(in crate::proxy) fn payment_terms_update_value(
         )),
         "gid://shopify/PaymentTerms/channel-policy-update" => Some(payment_terms_user_error(
             Value::Null,
-            "Cannot set payment terms for orders placed on this channel.",
+            "Cannot create payment terms on an Order where the sales channel does not allow payment terms.",
             "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
         )),
         _ => payment_terms_validation_error(&attrs, "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"),
@@ -2627,7 +2286,11 @@ impl DraftProxy {
         if !fields.iter().all(|field| {
             matches!(
                 field.name.as_str(),
-                "orderCreate" | "refundCreate" | "orderEditBegin" | "orderEditCommit"
+                "orderCreate"
+                    | "orderMarkAsPaid"
+                    | "refundCreate"
+                    | "orderEditBegin"
+                    | "orderEditCommit"
             )
         }) {
             return None;
@@ -2675,6 +2338,34 @@ impl DraftProxy {
                 "orderCreate" => {
                     let order = self.stage_money_bag_order(&field);
                     staged_ids.push(order["id"].as_str().unwrap_or_default().to_string());
+                    selected_json(
+                        &json!({ "order": order, "userErrors": [] }),
+                        &field.selection,
+                    )
+                }
+                "orderMarkAsPaid" => {
+                    let input =
+                        resolved_object_field(&field.arguments, "input").unwrap_or_default();
+                    let id = resolved_string_field(&input, "id").unwrap_or_default();
+                    let mut order = self
+                        .store
+                        .staged
+                        .orders
+                        .get(&id)
+                        .cloned()
+                        .unwrap_or_else(|| self.money_bag_default_order(&id));
+                    let amount_set = order["totalOutstandingSet"].clone();
+                    order["totalOutstandingSet"] =
+                        money_bag_set("0.0", money_bag_currency(&amount_set));
+                    order["totalReceivedSet"] = amount_set.clone();
+                    order["transactions"] = json!([{
+                        "kind": "SALE",
+                        "status": "SUCCESS",
+                        "gateway": "manual",
+                        "amountSet": amount_set
+                    }]);
+                    self.store.staged.orders.insert(id.clone(), order.clone());
+                    staged_ids.push(id);
                     selected_json(
                         &json!({ "order": order, "userErrors": [] }),
                         &field.selection,
@@ -2732,7 +2423,7 @@ impl DraftProxy {
                         .values()
                         .next()
                         .cloned()
-                        .unwrap_or(Value::Null);
+                        .unwrap_or_else(|| self.money_bag_default_order("gid://shopify/Order/1"));
                     selected_json(
                         &json!({
                             "order": order,
@@ -2818,6 +2509,17 @@ impl DraftProxy {
             order.clone(),
         );
         order
+    }
+
+    fn money_bag_default_order(&self, id: &str) -> Value {
+        json!({
+            "id": id,
+            "currentTotalPriceSet": money_bag_set("13.5", "USD"),
+            "totalPriceSet": money_bag_set("13.5", "USD"),
+            "totalOutstandingSet": money_bag_set("13.5", "USD"),
+            "totalReceivedSet": money_bag_set("0.0", "USD"),
+            "transactions": []
+        })
     }
 
     pub(in crate::proxy) fn customer_payment_method_local_data(
@@ -3982,34 +3684,9 @@ impl DraftProxy {
             .unwrap_or_else(|| "OTHER".to_string());
         let reason_note =
             resolved_string_field(&first_item, "returnReasonNote").unwrap_or_default();
-        // Build return name as #<order-name>-R<n>, matching Shopify's format.
-        // Look up the staged order; fall back to uppercased GID suffix for synthetic orders.
-        let order_name_prefix = self
-            .store
-            .staged
-            .orders
-            .get(&order_id)
-            .and_then(|o| o.get("name").and_then(|n| n.as_str()).map(str::to_string))
-            .unwrap_or_else(|| {
-                let suffix = order_id
-                    .split('/')
-                    .last()
-                    .unwrap_or("unknown")
-                    .to_uppercase()
-                    .replace('-', "-");
-                format!("#{suffix}")
-            });
-        let return_number = self
-            .store
-            .staged
-            .returns_by_order
-            .get(&order_id)
-            .map(|v| v.len() + 1)
-            .unwrap_or(1);
-        let return_name = format!("{order_name_prefix}-R{return_number}");
         let mut return_record = json!({
             "id": return_id,
-            "name": return_name,
+            "name": format!("#R{}", self.store.staged.returns.len() + 1),
             "status": status,
             "closedAt": Value::Null,
             "totalQuantity": quantity,

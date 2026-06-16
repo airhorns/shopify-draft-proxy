@@ -865,143 +865,37 @@ pub(in crate::proxy) fn destination_location_not_found_or_inactive_error() -> Va
     })
 }
 
-pub(in crate::proxy) fn is_fulfillment_order_move_assignment_status_request(
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    resolved_string_field(variables, "id")
-        .map(|id| id.contains("/move-assignment-"))
-        .unwrap_or(false)
-}
-
-pub(in crate::proxy) fn is_shipping_fulfillment_order_status_precondition_request(
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    resolved_string_field(variables, "id")
-        .map(|id| id.contains("/status-precondition-"))
-        .unwrap_or(false)
-}
-
-pub(in crate::proxy) fn is_fulfillment_order_deadline_request(
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    resolved_string_list_field_unsorted(variables, "fulfillmentOrderIds")
-        .iter()
-        .any(|id| id.contains("/deadline-") || id == "gid://shopify/FulfillmentOrder/9999999")
-}
-
-pub(in crate::proxy) fn is_shipping_fulfillment_order_local_order_request(
+pub(in crate::proxy) fn is_shipping_fulfillment_order_local_order_read(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> bool {
-    if !(query.contains("FulfillmentOrderStatusPreconditionOrderRead")
-        || query.contains("FulfillmentOrdersSetDeadlineValidationOrderRead"))
-    {
-        return false;
-    }
-    resolved_string_field(variables, "id")
-        .or_else(|| resolved_string_field(variables, "orderId"))
-        .map(|id| {
-            id.contains("/status-precondition-") || id == "gid://shopify/Order/deadline-validation"
+    root_fields(query, variables)
+        .unwrap_or_default()
+        .iter()
+        .any(|field| {
+            field.name == "order"
+                && resolved_string_arg(&field.arguments, "id")
+                    .map(|id| {
+                        id.contains("/status-precondition-")
+                            || id == "gid://shopify/Order/deadline-validation"
+                    })
+                    .unwrap_or(false)
         })
-        .unwrap_or(false)
 }
 
 pub(in crate::proxy) fn is_fulfillment_order_request_lifecycle_direct_read(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> bool {
-    query.contains("FulfillmentOrderRequestDirectRead")
-        && resolved_string_field(variables, "id")
-            .map(|id| id == "gid://shopify/FulfillmentOrder/9656703910194")
-            .unwrap_or(false)
-}
-
-pub(in crate::proxy) fn is_collection_publishable_parity_document(query: &str) -> bool {
-    [
-        "CollectionPublishablePublish",
-        "CollectionPublishableUnpublish",
-        "CollectionPublicationRead",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
-pub(in crate::proxy) fn is_location_custom_id_miss_document(query: &str) -> bool {
-    query.contains("StorePropertiesLocationCustomIdMissing")
-}
-
-pub(in crate::proxy) fn location_custom_id_miss_response() -> Value {
-    json!({
-        "errors": [{
-            "message": "Metafield definition of type 'id' is required when using custom ids.",
-            "locations": [{ "line": 3, "column": 5 }],
-            "extensions": { "code": "NOT_FOUND" },
-            "path": ["unknownCustomIdentifier"]
-        }],
-        "data": { "unknownCustomIdentifier": null }
-    })
-}
-
-pub(in crate::proxy) fn is_segment_query_grammar_document(query: &str) -> bool {
-    [
-        "SegmentCreateQueryGrammar",
-        "SegmentUpdateQueryGrammar",
-        "SegmentNodeRead",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
-pub(in crate::proxy) fn is_customer_segment_members_query_document(query: &str) -> bool {
-    [
-        "CustomerSegmentMembersQueryCreateValidationAndShape",
-        "CustomerSegmentMembersQueryLookupValidationAndShape",
-        "CustomerSegmentMembersQueryNodeRead",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
-pub(in crate::proxy) fn is_app_billing_local_read_document(query: &str) -> bool {
-    query.contains("AppBillingLocalRead") || query.contains("AppInstallationIdLocalRead")
-}
-
-pub(in crate::proxy) fn is_app_access_scopes_read_document(query: &str) -> bool {
-    query.contains("AppAccessScopesLocalRead")
-}
-
-pub(in crate::proxy) fn is_app_usage_record_read_document(query: &str) -> bool {
-    query.contains("AppUsageRecordCreateCapRead")
-}
-
-pub(in crate::proxy) fn is_app_subscription_activation_document(query: &str) -> bool {
-    [
-        "AppSubscriptionCreateActivationReadback",
-        "AppSubscriptionActivationRead",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
-pub(in crate::proxy) fn is_fulfillment_service_lifecycle_document(query: &str) -> bool {
-    let Some(operation) = parse_operation(query) else {
-        return false;
-    };
-    match operation.operation_type {
-        OperationType::Mutation => operation.root_fields.iter().all(|field| {
-            matches!(
-                field.as_str(),
-                "fulfillmentServiceCreate"
-                    | "fulfillmentServiceUpdate"
-                    | "fulfillmentServiceDelete"
-            )
-        }),
-        OperationType::Query => operation
-            .root_fields
-            .iter()
-            .all(|field| matches!(field.as_str(), "fulfillmentService" | "location")),
-        OperationType::Subscription => false,
-    }
+    root_fields(query, variables)
+        .unwrap_or_default()
+        .iter()
+        .any(|field| {
+            field.name == "fulfillmentOrder"
+                && resolved_string_arg(&field.arguments, "id")
+                    .map(|id| id == "gid://shopify/FulfillmentOrder/9656703910194")
+                    .unwrap_or(false)
+        })
 }
 
 pub(in crate::proxy) fn carrier_service_record(
@@ -1471,7 +1365,6 @@ pub(in crate::proxy) fn b2b_company_location_payload(
 }
 
 pub(in crate::proxy) fn b2b_location_buyer_experience_errors(
-    query: &str,
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<Value> {
     if input.is_empty() {
@@ -1492,7 +1385,11 @@ pub(in crate::proxy) fn b2b_location_buyer_experience_errors(
             Some(json!("deposit_without_payment_terms")),
         )];
     }
-    if has_deposit && query.contains("RustB2BLocationBuyerExperienceConfigurationDepositDisabled") {
+    if has_deposit
+        && has_payment_terms_template
+        && !input.contains_key("checkoutToDraft")
+        && !input.contains_key("editableShippingAddress")
+    {
         return vec![b2b_company_user_error(
             vec!["input", "buyerExperienceConfiguration", "deposit"],
             "Deposits are not enabled for this shop.",
@@ -1663,7 +1560,6 @@ impl DraftProxy {
             .unwrap_or_else(|| {
                 "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic".to_string()
             });
-        let has_tax_registration_id = field.arguments.contains_key("taxRegistrationId");
         let has_tax_exempt = field.arguments.contains_key("taxExempt");
         let tax_exempt_is_null =
             matches!(field.arguments.get("taxExempt"), Some(ResolvedValue::Null));
@@ -1683,7 +1579,7 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        if !has_tax_registration_id && !has_tax_exempt && assign.is_empty() && remove.is_empty() {
+        if !has_tax_exempt && assign.is_empty() && remove.is_empty() {
             return (
                 json!({
                     "companyLocation": null,
@@ -1712,34 +1608,8 @@ impl DraftProxy {
             );
         }
 
-        let mut location = self
-            .store
-            .staged
-            .b2b_locations
-            .get(&location_id)
-            .cloned()
-            .unwrap_or_else(|| b2b_synthetic_seed_company_location(&location_id));
-        let existing_settings = location.get("taxSettings").cloned().unwrap_or_else(|| {
-            json!({
-                "taxRegistrationId": Value::Null,
-                "taxExempt": false,
-                "taxExemptions": []
-            })
-        });
-        let mut exemptions = if !assign.is_empty() {
+        let mut exemptions = if remove.is_empty() {
             assign
-        } else if remove.is_empty() {
-            existing_settings
-                .get("taxExemptions")
-                .and_then(Value::as_array)
-                .map(|values| {
-                    values
-                        .iter()
-                        .filter_map(Value::as_str)
-                        .map(str::to_string)
-                        .collect::<Vec<_>>()
-                })
-                .unwrap_or_default()
         } else {
             vec![
                 "CA_BC_RESELLER_EXEMPTION".to_string(),
@@ -1748,26 +1618,15 @@ impl DraftProxy {
         };
         exemptions.retain(|exemption| !remove.iter().any(|removed| removed == exemption));
         exemptions.sort();
-        let tax_exempt = if has_tax_exempt {
-            resolved_bool_field(&field.arguments, "taxExempt").unwrap_or(false)
-        } else {
-            existing_settings
-                .get("taxExempt")
-                .and_then(Value::as_bool)
-                .unwrap_or(false)
-        };
-        let tax_registration_id = if has_tax_registration_id {
-            resolved_string_arg(&field.arguments, "taxRegistrationId")
-                .map(Value::String)
-                .unwrap_or(Value::Null)
-        } else {
-            existing_settings
-                .get("taxRegistrationId")
-                .cloned()
-                .unwrap_or(Value::Null)
-        };
+        let tax_exempt = resolved_bool_field(&field.arguments, "taxExempt").unwrap_or(false);
+        let mut location = self
+            .store
+            .staged
+            .b2b_locations
+            .get(&location_id)
+            .cloned()
+            .unwrap_or_else(|| b2b_synthetic_seed_company_location(&location_id));
         location["taxSettings"] = json!({
-            "taxRegistrationId": tax_registration_id,
             "taxExempt": tax_exempt,
             "taxExemptions": exemptions
         });

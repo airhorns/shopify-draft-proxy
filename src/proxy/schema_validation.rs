@@ -1,7 +1,7 @@
 use super::*;
 
 use crate::graphql::ParsedDocument;
-use std::{collections::BTreeSet, sync::OnceLock};
+use std::sync::OnceLock;
 
 #[derive(Debug, Clone)]
 struct SchemaTypeRef {
@@ -28,7 +28,6 @@ struct AdminInputSchema {
 
 #[derive(Debug, Clone, Copy)]
 struct ValidationContext<'a> {
-    query: &'a str,
     operation_path: &'a str,
     response_key: &'a str,
     field_location: SourceLocation,
@@ -51,10 +50,6 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
     if document.operation_type != OperationType::Mutation {
         return Vec::new();
     }
-    let direct_errors = customer_tax_exemption_input_errors(&document);
-    if !direct_errors.is_empty() {
-        return direct_errors;
-    }
     let schema = public_admin_input_schema();
     let mut errors = Vec::new();
     for field in &document.root_fields {
@@ -62,7 +57,6 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
             continue;
         };
         let context = ValidationContext {
-            query,
             operation_path: &document.operation_path,
             response_key: &field.response_key,
             field_location: field.location,
@@ -99,211 +93,6 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
         }
     }
     errors
-}
-
-fn customer_tax_exemption_input_errors(document: &ParsedDocument) -> Vec<Value> {
-    let mut errors = Vec::new();
-    for field in document.root_fields.iter().filter(|field| {
-        matches!(
-            field.name.as_str(),
-            "customerAddTaxExemptions"
-                | "customerRemoveTaxExemptions"
-                | "customerReplaceTaxExemptions"
-        )
-    }) {
-        let Some(argument) = field.raw_arguments.get("taxExemptions") else {
-            continue;
-        };
-        match argument {
-            RawArgumentValue::Variable { name, value } => {
-                let invalid_values = value
-                    .as_ref()
-                    .map(invalid_tax_exemption_values)
-                    .unwrap_or_default();
-                if let Some((path, first)) = invalid_values.first() {
-                    let definition = document.variable_definitions.get(name);
-                    let variable_type = definition
-                        .map(|definition| definition.type_display.as_str())
-                        .unwrap_or("[TaxExemption!]!");
-                    let location = definition
-                        .map(|definition| definition.location)
-                        .unwrap_or(field.location);
-                    errors.push(invalid_tax_exemption_variable_error(
-                        name,
-                        variable_type,
-                        location,
-                        value.as_ref().unwrap_or(&ResolvedValue::Null),
-                        path.clone(),
-                        first,
-                    ));
-                }
-            }
-            _ => {
-                let invalid_values = invalid_raw_tax_exemption_values(argument);
-                if let Some(first) = invalid_values.first() {
-                    errors.push(invalid_tax_exemption_literal_error(field, first));
-                }
-            }
-        }
-    }
-    errors
-}
-
-fn invalid_tax_exemption_values(value: &ResolvedValue) -> Vec<(Value, String)> {
-    match value {
-        ResolvedValue::String(value) if !valid_tax_exemption(value) => {
-            vec![(json!(0), value.clone())]
-        }
-        ResolvedValue::List(values) => values
-            .iter()
-            .enumerate()
-            .filter_map(|(index, value)| match value {
-                ResolvedValue::String(value) if !valid_tax_exemption(value) => {
-                    Some((json!(index), value.clone()))
-                }
-                _ => None,
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-
-fn invalid_raw_tax_exemption_values(value: &RawArgumentValue) -> Vec<String> {
-    match value {
-        RawArgumentValue::String(value) | RawArgumentValue::Enum(value)
-            if !valid_tax_exemption(value) =>
-        {
-            vec![value.clone()]
-        }
-        RawArgumentValue::List(values) => values
-            .iter()
-            .flat_map(invalid_raw_tax_exemption_values)
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-
-fn valid_tax_exemption(value: &str) -> bool {
-    TAX_EXEMPTION_VALUES.contains(&value)
-}
-
-fn invalid_tax_exemption_variable_error(
-    variable_name: &str,
-    variable_type: &str,
-    location: SourceLocation,
-    value: &ResolvedValue,
-    problem_path: Value,
-    invalid_value: &str,
-) -> Value {
-    let expected = tax_exemption_values_display();
-    let explanation = format!("Expected \"{invalid_value}\" to be one of: {expected}");
-    json!({
-        "message": format!(
-            "Variable ${variable_name} of type {variable_type} was provided invalid value for 0 ({explanation})"
-        ),
-        "locations": [{ "line": location.line, "column": location.column }],
-        "extensions": {
-            "code": "INVALID_VARIABLE",
-            "value": resolved_value_json(value),
-            "problems": [{
-                "path": [problem_path],
-                "explanation": explanation
-            }]
-        }
-    })
-}
-
-fn invalid_tax_exemption_literal_error(field: &RootFieldSelection, invalid_value: &str) -> Value {
-    json!({
-        "message": format!(
-            "Argument 'taxExemptions' has an invalid value [{invalid_value}]. Expected type '[TaxExemption!]!'. Did you mean CA_STATUS_CARD_EXEMPTION?"
-        ),
-        "locations": [{ "line": field.location.line, "column": field.location.column }],
-        "path": [field.response_key.clone(), "taxExemptions"],
-        "extensions": {
-            "code": "argumentLiteralsIncompatible",
-            "argumentName": "taxExemptions"
-        }
-    })
-}
-
-const TAX_EXEMPTION_VALUES: &[&str] = &[
-    "CA_STATUS_CARD_EXEMPTION",
-    "CA_BC_RESELLER_EXEMPTION",
-    "CA_MB_RESELLER_EXEMPTION",
-    "CA_SK_RESELLER_EXEMPTION",
-    "CA_DIPLOMAT_EXEMPTION",
-    "CA_BC_COMMERCIAL_FISHERY_EXEMPTION",
-    "CA_MB_COMMERCIAL_FISHERY_EXEMPTION",
-    "CA_NS_COMMERCIAL_FISHERY_EXEMPTION",
-    "CA_PE_COMMERCIAL_FISHERY_EXEMPTION",
-    "CA_SK_COMMERCIAL_FISHERY_EXEMPTION",
-    "CA_BC_PRODUCTION_AND_MACHINERY_EXEMPTION",
-    "CA_SK_PRODUCTION_AND_MACHINERY_EXEMPTION",
-    "CA_BC_SUB_CONTRACTOR_EXEMPTION",
-    "CA_SK_SUB_CONTRACTOR_EXEMPTION",
-    "CA_BC_CONTRACTOR_EXEMPTION",
-    "CA_SK_CONTRACTOR_EXEMPTION",
-    "CA_ON_PURCHASE_EXEMPTION",
-    "CA_MB_FARMER_EXEMPTION",
-    "CA_NS_FARMER_EXEMPTION",
-    "CA_SK_FARMER_EXEMPTION",
-    "EU_REVERSE_CHARGE_EXEMPTION_RULE",
-    "US_AL_RESELLER_EXEMPTION",
-    "US_AK_RESELLER_EXEMPTION",
-    "US_AZ_RESELLER_EXEMPTION",
-    "US_AR_RESELLER_EXEMPTION",
-    "US_CA_RESELLER_EXEMPTION",
-    "US_CO_RESELLER_EXEMPTION",
-    "US_CT_RESELLER_EXEMPTION",
-    "US_DE_RESELLER_EXEMPTION",
-    "US_FL_RESELLER_EXEMPTION",
-    "US_GA_RESELLER_EXEMPTION",
-    "US_HI_RESELLER_EXEMPTION",
-    "US_ID_RESELLER_EXEMPTION",
-    "US_IL_RESELLER_EXEMPTION",
-    "US_IN_RESELLER_EXEMPTION",
-    "US_IA_RESELLER_EXEMPTION",
-    "US_KS_RESELLER_EXEMPTION",
-    "US_KY_RESELLER_EXEMPTION",
-    "US_LA_RESELLER_EXEMPTION",
-    "US_ME_RESELLER_EXEMPTION",
-    "US_MD_RESELLER_EXEMPTION",
-    "US_MA_RESELLER_EXEMPTION",
-    "US_MI_RESELLER_EXEMPTION",
-    "US_MN_RESELLER_EXEMPTION",
-    "US_MS_RESELLER_EXEMPTION",
-    "US_MO_RESELLER_EXEMPTION",
-    "US_MT_RESELLER_EXEMPTION",
-    "US_NE_RESELLER_EXEMPTION",
-    "US_NV_RESELLER_EXEMPTION",
-    "US_NH_RESELLER_EXEMPTION",
-    "US_NJ_RESELLER_EXEMPTION",
-    "US_NM_RESELLER_EXEMPTION",
-    "US_NY_RESELLER_EXEMPTION",
-    "US_NC_RESELLER_EXEMPTION",
-    "US_ND_RESELLER_EXEMPTION",
-    "US_OH_RESELLER_EXEMPTION",
-    "US_OK_RESELLER_EXEMPTION",
-    "US_OR_RESELLER_EXEMPTION",
-    "US_PA_RESELLER_EXEMPTION",
-    "US_RI_RESELLER_EXEMPTION",
-    "US_SC_RESELLER_EXEMPTION",
-    "US_SD_RESELLER_EXEMPTION",
-    "US_TN_RESELLER_EXEMPTION",
-    "US_TX_RESELLER_EXEMPTION",
-    "US_UT_RESELLER_EXEMPTION",
-    "US_VT_RESELLER_EXEMPTION",
-    "US_VA_RESELLER_EXEMPTION",
-    "US_WA_RESELLER_EXEMPTION",
-    "US_WV_RESELLER_EXEMPTION",
-    "US_WI_RESELLER_EXEMPTION",
-    "US_WY_RESELLER_EXEMPTION",
-    "US_DC_RESELLER_EXEMPTION",
-];
-
-fn tax_exemption_values_display() -> String {
-    TAX_EXEMPTION_VALUES.join(", ")
 }
 
 fn validate_argument_value(
@@ -494,50 +283,15 @@ fn validate_resolved_input_object(
 }
 
 fn validate_resolved_scalar(value: &ResolvedValue, type_ref: &SchemaTypeRef) -> Option<String> {
+    if type_ref.named_type != "Decimal" {
+        return None;
+    }
     let ResolvedValue::String(raw) = value else {
         return None;
     };
-    if let Some(allowed_values) = enum_allowed_values(&type_ref.named_type) {
-        if allowed_values.iter().any(|allowed| allowed == raw) {
-            return None;
-        }
-        return Some(format!(
-            "Expected \"{raw}\" to be one of: {}",
-            allowed_values.join(", ")
-        ));
-    }
-    match type_ref.named_type.as_str() {
-        "Decimal" => raw
-            .parse::<f64>()
-            .err()
-            .map(|_| format!("invalid decimal '{raw}'")),
-        "DateTime" => parse_rfc3339_epoch_seconds(raw)
-            .is_none()
-            .then(|| format!("invalid DateTime '{raw}'")),
-        _ => None,
-    }
-}
-
-fn enum_allowed_values(type_name: &str) -> Option<&'static [&'static str]> {
-    match type_name {
-        "CustomerMarketingOptInLevel" => Some(&["SINGLE_OPT_IN", "CONFIRMED_OPT_IN", "UNKNOWN"]),
-        "CustomerEmailMarketingState" => Some(&[
-            "INVALID",
-            "NOT_SUBSCRIBED",
-            "PENDING",
-            "SUBSCRIBED",
-            "UNSUBSCRIBED",
-            "REDACTED",
-        ]),
-        "CustomerSmsMarketingState" => Some(&[
-            "NOT_SUBSCRIBED",
-            "PENDING",
-            "SUBSCRIBED",
-            "UNSUBSCRIBED",
-            "REDACTED",
-        ]),
-        _ => None,
-    }
+    raw.parse::<f64>()
+        .err()
+        .map(|_| format!("invalid decimal '{raw}'"))
 }
 
 fn root_argument_not_accepted_error(
@@ -545,11 +299,9 @@ fn root_argument_not_accepted_error(
     argument_name: &str,
     context: ValidationContext<'_>,
 ) -> Value {
-    let location = root_argument_name_location(context.query, field, argument_name)
-        .unwrap_or(context.field_location);
     json!({
         "message": format!("Field '{}' doesn't accept argument '{}'", field.name, argument_name),
-        "locations": [{ "line": location.line, "column": location.column }],
+        "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
         "path": [context.operation_path, context.response_key, argument_name],
         "extensions": {
             "code": "argumentNotAccepted",
@@ -558,30 +310,6 @@ fn root_argument_not_accepted_error(
             "argumentName": argument_name
         }
     })
-}
-
-fn root_argument_name_location(
-    query: &str,
-    field: &RootFieldSelection,
-    argument_name: &str,
-) -> Option<SourceLocation> {
-    let start = byte_offset_for_location(query, field.location)?;
-    let mut search_start = start;
-    while search_start <= query.len() {
-        let offset = query[search_start..].find(argument_name)? + search_start;
-        let after_name = offset + argument_name.len();
-        let next_non_whitespace =
-            query[after_name..]
-                .char_indices()
-                .find_map(|(inner_offset, ch)| {
-                    (!ch.is_whitespace()).then_some(after_name + inner_offset)
-                })?;
-        if query[next_non_whitespace..].starts_with(':') {
-            return source_location_for_byte_offset(query, offset);
-        }
-        search_start = after_name;
-    }
-    None
 }
 
 fn required_root_argument_error(
@@ -705,43 +433,6 @@ fn input_error_path(context: ValidationContext<'_>, path: &[String], argument_na
     Value::Array(segments)
 }
 
-fn byte_offset_for_location(query: &str, location: SourceLocation) -> Option<usize> {
-    let mut line = 1;
-    let mut column = 1;
-    for (offset, ch) in query.char_indices() {
-        if line == location.line && column == location.column {
-            return Some(offset);
-        }
-        if ch == '\n' {
-            line += 1;
-            column = 1;
-        } else {
-            column += 1;
-        }
-    }
-    (line == location.line && column == location.column).then_some(query.len())
-}
-
-fn source_location_for_byte_offset(query: &str, target_offset: usize) -> Option<SourceLocation> {
-    if target_offset > query.len() || !query.is_char_boundary(target_offset) {
-        return None;
-    }
-    let mut line = 1;
-    let mut column = 1;
-    for (offset, ch) in query.char_indices() {
-        if offset == target_offset {
-            return Some(SourceLocation { line, column });
-        }
-        if ch == '\n' {
-            line += 1;
-            column = 1;
-        } else {
-            column += 1;
-        }
-    }
-    (target_offset == query.len()).then_some(SourceLocation { line, column })
-}
-
 fn local_extension_input_field(input_type_name: &str, field_name: &str) -> bool {
     matches!(
         (input_type_name, field_name),
@@ -752,267 +443,369 @@ fn local_extension_input_field(input_type_name: &str, field_name: &str) -> bool 
 fn public_admin_input_schema() -> &'static AdminInputSchema {
     static SCHEMA: OnceLock<AdminInputSchema> = OnceLock::new();
     SCHEMA.get_or_init(|| {
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/gift-cards/gift-card-create-validation.json"
-        ))
-        .unwrap_or_else(|_| json!({}));
-        let mut schema = schema_from_fixture(&fixture).unwrap_or_default();
-        register_fulfillment_service_fields(&mut schema);
+        let mut schema = AdminInputSchema::default();
+        extend_gift_card_input_schema(&mut schema);
         extend_discount_basic_input_schema(&mut schema);
-        extend_customer_consent_input_schema(&mut schema);
         schema
     })
 }
 
-fn extend_customer_consent_input_schema(schema: &mut AdminInputSchema) {
-    extend_configured_mutation_input_schema(
-        schema,
-        &[
-            "customerEmailMarketingConsentUpdate",
-            "customerSmsMarketingConsentUpdate",
-        ],
+fn input_field(type_ref: SchemaTypeRef) -> SchemaInputField {
+    SchemaInputField { type_ref }
+}
+
+fn mutation_arg(type_ref: SchemaTypeRef) -> SchemaArgument {
+    SchemaArgument { type_ref }
+}
+
+fn extend_gift_card_input_schema(schema: &mut AdminInputSchema) {
+    schema.input_objects.insert(
+        "GiftCardCreateInput".to_string(),
+        BTreeMap::from([
+            ("initialValue".to_string(), input_field(non_null("Decimal"))),
+            ("code".to_string(), input_field(named("String"))),
+            ("customerId".to_string(), input_field(named("ID"))),
+            ("expiresOn".to_string(), input_field(named("Date"))),
+            ("note".to_string(), input_field(named("String"))),
+            (
+                "recipientAttributes".to_string(),
+                input_field(named("GiftCardRecipientInput")),
+            ),
+            ("templateSuffix".to_string(), input_field(named("String"))),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "giftCardCreate".to_string(),
+        BTreeMap::from([(
+            "input".to_string(),
+            mutation_arg(non_null("GiftCardCreateInput")),
+        )]),
     );
 }
 
-fn register_fulfillment_service_fields(schema: &mut AdminInputSchema) {
-    for (field_name, arguments) in [
-        (
-            "fulfillmentServiceCreate",
-            &[
-                ("name", "String"),
-                ("callbackUrl", "URL"),
-                ("trackingSupport", "Boolean"),
-                ("inventoryManagement", "Boolean"),
-                ("requiresShippingMethod", "Boolean"),
-            ][..],
-        ),
-        (
-            "fulfillmentServiceUpdate",
-            &[
-                ("id", "ID"),
-                ("name", "String"),
-                ("callbackUrl", "URL"),
-                ("trackingSupport", "Boolean"),
-                ("inventoryManagement", "Boolean"),
-                ("requiresShippingMethod", "Boolean"),
-            ][..],
-        ),
-    ] {
-        schema.mutation_fields.insert(
-            field_name.to_string(),
-            arguments
-                .iter()
-                .map(|(argument_name, type_name)| {
-                    (
-                        (*argument_name).to_string(),
-                        SchemaArgument {
-                            type_ref: scalar_type_ref(type_name),
-                        },
-                    )
-                })
-                .collect(),
-        );
-    }
+fn extend_discount_basic_input_schema(schema: &mut AdminInputSchema) {
+    schema.input_objects.insert(
+        "DiscountCodeBasicInput".to_string(),
+        BTreeMap::from([
+            (
+                "combinesWith".to_string(),
+                input_field(named("DiscountCombinesWithInput")),
+            ),
+            ("title".to_string(), input_field(named("String"))),
+            ("startsAt".to_string(), input_field(named("DateTime"))),
+            ("endsAt".to_string(), input_field(named("DateTime"))),
+            (
+                "appliesOncePerCustomer".to_string(),
+                input_field(named("Boolean")),
+            ),
+            ("code".to_string(), input_field(named("String"))),
+            (
+                "customerSelection".to_string(),
+                input_field(named("DiscountCustomerSelectionInput")),
+            ),
+            ("usageLimit".to_string(), input_field(named("Int"))),
+            (
+                "context".to_string(),
+                input_field(named("DiscountContextInput")),
+            ),
+            ("tags".to_string(), input_field(list_of_non_null("String"))),
+            (
+                "minimumRequirement".to_string(),
+                input_field(named("DiscountMinimumRequirementInput")),
+            ),
+            (
+                "customerGets".to_string(),
+                input_field(named("DiscountCustomerGetsInput")),
+            ),
+            ("recurringCycleLimit".to_string(), input_field(named("Int"))),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountAutomaticBasicInput".to_string(),
+        BTreeMap::from([
+            (
+                "combinesWith".to_string(),
+                input_field(named("DiscountCombinesWithInput")),
+            ),
+            ("title".to_string(), input_field(named("String"))),
+            ("startsAt".to_string(), input_field(named("DateTime"))),
+            ("endsAt".to_string(), input_field(named("DateTime"))),
+            (
+                "context".to_string(),
+                input_field(named("DiscountContextInput")),
+            ),
+            ("tags".to_string(), input_field(list_of_non_null("String"))),
+            (
+                "minimumRequirement".to_string(),
+                input_field(named("DiscountMinimumRequirementInput")),
+            ),
+            (
+                "customerGets".to_string(),
+                input_field(named("DiscountCustomerGetsInput")),
+            ),
+            ("recurringCycleLimit".to_string(), input_field(named("Int"))),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountCombinesWithInput".to_string(),
+        BTreeMap::from([
+            (
+                "productDiscounts".to_string(),
+                input_field(named("Boolean")),
+            ),
+            ("orderDiscounts".to_string(), input_field(named("Boolean"))),
+            (
+                "shippingDiscounts".to_string(),
+                input_field(named("Boolean")),
+            ),
+            (
+                "productDiscountsWithTagsOnSameCartLine".to_string(),
+                input_field(named("ProductDiscountsWithTagsOnSameCartLineInput")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "ProductDiscountsWithTagsOnSameCartLineInput".to_string(),
+        BTreeMap::from([
+            ("add".to_string(), input_field(list_of_non_null("String"))),
+            (
+                "remove".to_string(),
+                input_field(list_of_non_null("String")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountCustomerSelectionInput".to_string(),
+        BTreeMap::from([
+            ("all".to_string(), input_field(named("Boolean"))),
+            (
+                "customers".to_string(),
+                input_field(named("DiscountCustomersInput")),
+            ),
+            (
+                "customerSegments".to_string(),
+                input_field(named("DiscountCustomerSegmentsInput")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountContextInput".to_string(),
+        BTreeMap::from([
+            (
+                "all".to_string(),
+                input_field(named("DiscountBuyerSelection")),
+            ),
+            (
+                "customers".to_string(),
+                input_field(named("DiscountCustomersInput")),
+            ),
+            (
+                "customerSegments".to_string(),
+                input_field(named("DiscountCustomerSegmentsInput")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountCustomersInput".to_string(),
+        BTreeMap::from([
+            ("add".to_string(), input_field(list_of_non_null("ID"))),
+            ("remove".to_string(), input_field(list_of_non_null("ID"))),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountCustomerSegmentsInput".to_string(),
+        BTreeMap::from([
+            ("add".to_string(), input_field(list_of_non_null("ID"))),
+            ("remove".to_string(), input_field(list_of_non_null("ID"))),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountMinimumRequirementInput".to_string(),
+        BTreeMap::from([
+            (
+                "quantity".to_string(),
+                input_field(named("DiscountMinimumQuantityInput")),
+            ),
+            (
+                "subtotal".to_string(),
+                input_field(named("DiscountMinimumSubtotalInput")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountMinimumQuantityInput".to_string(),
+        BTreeMap::from([(
+            "greaterThanOrEqualToQuantity".to_string(),
+            input_field(named("UnsignedInt64")),
+        )]),
+    );
+    schema.input_objects.insert(
+        "DiscountMinimumSubtotalInput".to_string(),
+        BTreeMap::from([(
+            "greaterThanOrEqualToSubtotal".to_string(),
+            input_field(named("Decimal")),
+        )]),
+    );
+    schema.input_objects.insert(
+        "DiscountCustomerGetsInput".to_string(),
+        BTreeMap::from([
+            (
+                "value".to_string(),
+                input_field(named("DiscountCustomerGetsValueInput")),
+            ),
+            (
+                "items".to_string(),
+                input_field(named("DiscountItemsInput")),
+            ),
+            (
+                "appliesOnOneTimePurchase".to_string(),
+                input_field(named("Boolean")),
+            ),
+            (
+                "appliesOnSubscription".to_string(),
+                input_field(named("Boolean")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountCustomerGetsValueInput".to_string(),
+        BTreeMap::from([
+            (
+                "discountOnQuantity".to_string(),
+                input_field(named("DiscountOnQuantityInput")),
+            ),
+            ("percentage".to_string(), input_field(named("Float"))),
+            (
+                "discountAmount".to_string(),
+                input_field(named("DiscountAmountInput")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountItemsInput".to_string(),
+        BTreeMap::from([
+            (
+                "products".to_string(),
+                input_field(named("DiscountProductsInput")),
+            ),
+            (
+                "collections".to_string(),
+                input_field(named("DiscountCollectionsInput")),
+            ),
+            ("all".to_string(), input_field(named("Boolean"))),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountProductsInput".to_string(),
+        BTreeMap::from([
+            (
+                "productsToAdd".to_string(),
+                input_field(list_of_non_null("ID")),
+            ),
+            (
+                "productsToRemove".to_string(),
+                input_field(list_of_non_null("ID")),
+            ),
+            (
+                "productVariantsToAdd".to_string(),
+                input_field(list_of_non_null("ID")),
+            ),
+            (
+                "productVariantsToRemove".to_string(),
+                input_field(list_of_non_null("ID")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountCollectionsInput".to_string(),
+        BTreeMap::from([
+            ("add".to_string(), input_field(list_of_non_null("ID"))),
+            ("remove".to_string(), input_field(list_of_non_null("ID"))),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountOnQuantityInput".to_string(),
+        BTreeMap::from([
+            ("quantity".to_string(), input_field(named("UnsignedInt64"))),
+            (
+                "effect".to_string(),
+                input_field(named("DiscountEffectInput")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountEffectInput".to_string(),
+        BTreeMap::from([
+            ("percentage".to_string(), input_field(named("Float"))),
+            ("amount".to_string(), input_field(named("Decimal"))),
+        ]),
+    );
+    schema.input_objects.insert(
+        "DiscountAmountInput".to_string(),
+        BTreeMap::from([
+            ("amount".to_string(), input_field(named("Decimal"))),
+            (
+                "appliesOnEachItem".to_string(),
+                input_field(named("Boolean")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "discountCodeBasicCreate".to_string(),
+        BTreeMap::from([(
+            "basicCodeDiscount".to_string(),
+            mutation_arg(non_null("DiscountCodeBasicInput")),
+        )]),
+    );
+    schema.mutation_fields.insert(
+        "discountCodeBasicUpdate".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "basicCodeDiscount".to_string(),
+                mutation_arg(non_null("DiscountCodeBasicInput")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "discountAutomaticBasicCreate".to_string(),
+        BTreeMap::from([(
+            "automaticBasicDiscount".to_string(),
+            mutation_arg(non_null("DiscountAutomaticBasicInput")),
+        )]),
+    );
+    schema.mutation_fields.insert(
+        "discountAutomaticBasicUpdate".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "automaticBasicDiscount".to_string(),
+                mutation_arg(non_null("DiscountAutomaticBasicInput")),
+            ),
+        ]),
+    );
 }
 
-fn scalar_type_ref(type_name: &str) -> SchemaTypeRef {
+fn named(name: &str) -> SchemaTypeRef {
     SchemaTypeRef {
-        display: type_name.to_string(),
-        named_type: type_name.to_string(),
+        display: name.to_string(),
+        named_type: name.to_string(),
         non_null: false,
     }
 }
 
-fn extend_discount_basic_input_schema(schema: &mut AdminInputSchema) {
-    extend_configured_mutation_input_schema(
-        schema,
-        &[
-            "discountCodeBasicCreate",
-            "discountCodeBasicUpdate",
-            "discountAutomaticBasicCreate",
-            "discountAutomaticBasicUpdate",
-        ],
-    );
-}
-
-fn extend_configured_mutation_input_schema(schema: &mut AdminInputSchema, mutation_names: &[&str]) {
-    let config: Value = serde_json::from_str(include_str!(
-        "../../config/admin-graphql-mutation-schema.json"
-    ))
-    .unwrap_or_else(|_| json!({}));
-    let Some(mutations) = config["mutations"].as_array() else {
-        return;
-    };
-    let Some(input_objects) = config["inputObjects"].as_array() else {
-        return;
-    };
-    let mut visited = BTreeSet::new();
-    for mutation in mutations {
-        let Some(name) = mutation["name"].as_str() else {
-            continue;
-        };
-        if !mutation_names
-            .iter()
-            .any(|mutation_name| mutation_name == &name)
-        {
-            continue;
-        }
-        let Some(args) = mutation["args"].as_array() else {
-            continue;
-        };
-        let parsed_args = args
-            .iter()
-            .filter_map(|arg| {
-                Some((
-                    arg["name"].as_str()?.to_string(),
-                    SchemaArgument {
-                        type_ref: schema_type_ref(&arg["type"])?,
-                    },
-                ))
-            })
-            .collect::<BTreeMap<_, _>>();
-        for arg in parsed_args.values() {
-            collect_input_object_schema(
-                &arg.type_ref.named_type,
-                input_objects,
-                &mut schema.input_objects,
-                &mut visited,
-            );
-        }
-        schema.mutation_fields.insert(name.to_string(), parsed_args);
+fn non_null(name: &str) -> SchemaTypeRef {
+    SchemaTypeRef {
+        display: format!("{name}!"),
+        named_type: name.to_string(),
+        non_null: true,
     }
 }
 
-fn collect_input_object_schema(
-    type_name: &str,
-    input_objects: &[Value],
-    schema_input_objects: &mut BTreeMap<String, BTreeMap<String, SchemaInputField>>,
-    visited: &mut BTreeSet<String>,
-) {
-    if !visited.insert(type_name.to_string()) {
-        return;
-    }
-    let Some(input_object) = input_objects
-        .iter()
-        .find(|input_object| input_object["name"].as_str() == Some(type_name))
-    else {
-        return;
-    };
-    let Some(fields) = input_object["inputFields"].as_array() else {
-        return;
-    };
-    let parsed_fields = fields
-        .iter()
-        .filter_map(|field| {
-            Some((
-                field["name"].as_str()?.to_string(),
-                SchemaInputField {
-                    type_ref: schema_type_ref(&field["type"])?,
-                },
-            ))
-        })
-        .collect::<BTreeMap<_, _>>();
-    for field in parsed_fields.values() {
-        collect_input_object_schema(
-            &field.type_ref.named_type,
-            input_objects,
-            schema_input_objects,
-            visited,
-        );
-    }
-    schema_input_objects.insert(type_name.to_string(), parsed_fields);
-}
-
-fn schema_from_fixture(fixture: &Value) -> Option<AdminInputSchema> {
-    let data = &fixture["operations"]["schema"]["response"]["payload"]["data"];
-    let mut schema = AdminInputSchema::default();
-
-    let type_name = "GiftCardCreateInput";
-    let fields = data[uncapitalize_type_alias(type_name)]["inputFields"].as_array()?;
-    schema.input_objects.insert(
-        type_name.to_string(),
-        fields
-            .iter()
-            .filter_map(|field| {
-                Some((
-                    field["name"].as_str()?.to_string(),
-                    SchemaInputField {
-                        type_ref: schema_type_ref(&field["type"])?,
-                    },
-                ))
-            })
-            .collect(),
-    );
-
-    let mutation_fields = data["mutationRoot"]["fields"].as_array()?;
-    for mutation_field in mutation_fields {
-        let Some(field_name) = mutation_field["name"].as_str() else {
-            continue;
-        };
-        let Some(args) = mutation_field["args"].as_array() else {
-            continue;
-        };
-        let parsed_args = args
-            .iter()
-            .filter_map(|arg| {
-                Some((
-                    arg["name"].as_str()?.to_string(),
-                    SchemaArgument {
-                        type_ref: schema_type_ref(&arg["type"])?,
-                    },
-                ))
-            })
-            .collect::<BTreeMap<_, _>>();
-        if !parsed_args
-            .values()
-            .any(|arg| schema.input_objects.contains_key(&arg.type_ref.named_type))
-        {
-            continue;
-        }
-        schema
-            .mutation_fields
-            .insert(field_name.to_string(), parsed_args);
-    }
-
-    Some(schema)
-}
-
-fn uncapitalize_type_alias(type_name: &str) -> String {
-    let mut chars = type_name.chars();
-    let Some(first) = chars.next() else {
-        return String::new();
-    };
-    format!(
-        "{}{}",
-        first.to_ascii_lowercase(),
-        chars.collect::<String>()
-    )
-}
-
-fn schema_type_ref(type_value: &Value) -> Option<SchemaTypeRef> {
-    let kind = type_value["kind"].as_str()?;
-    match kind {
-        "NON_NULL" => {
-            let mut inner = schema_type_ref(&type_value["ofType"])?;
-            inner.display.push('!');
-            inner.non_null = true;
-            Some(inner)
-        }
-        "LIST" => {
-            let inner = schema_type_ref(&type_value["ofType"])?;
-            Some(SchemaTypeRef {
-                display: format!("[{}]", inner.display),
-                named_type: inner.named_type,
-                non_null: false,
-            })
-        }
-        _ => {
-            let name = type_value["name"].as_str()?.to_string();
-            Some(SchemaTypeRef {
-                display: name.clone(),
-                named_type: name,
-                non_null: false,
-            })
-        }
+fn list_of_non_null(name: &str) -> SchemaTypeRef {
+    SchemaTypeRef {
+        display: format!("[{name}!]"),
+        named_type: name.to_string(),
+        non_null: false,
     }
 }
