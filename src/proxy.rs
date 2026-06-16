@@ -21,6 +21,7 @@ pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 1
 const RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
 const LOCAL_APP_SUBSCRIPTION_ACTIVATION_ID: &str = "gid://shopify/AppSubscription/expected";
 const LOCAL_APP_PURCHASE_ONE_TIME_ID: &str = "gid://shopify/AppPurchaseOneTime/expected";
+const LOCALIZATION_BASELINE_PRODUCT_ID: &str = "gid://shopify/Product/9801098789170";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReadMode {
@@ -189,6 +190,7 @@ struct BaseState {
     publication_count: Option<usize>,
     available_locales: BTreeMap<String, String>,
     shop_locales: BTreeMap<String, Value>,
+    localization_product_ids: BTreeSet<String>,
 }
 
 #[derive(Clone)]
@@ -758,6 +760,10 @@ impl Store {
             }),
         );
         store
+            .base
+            .localization_product_ids
+            .insert(LOCALIZATION_BASELINE_PRODUCT_ID.to_string());
+        store
     }
 
     fn clear_staged(&mut self) {
@@ -913,6 +919,11 @@ impl Store {
 
     fn has_product(&self, id: &str) -> bool {
         self.product_by_id(id).is_some()
+    }
+
+    fn has_localization_product(&self, id: &str) -> bool {
+        !self.staged.products.is_tombstoned(id)
+            && (self.has_product(id) || self.base.localization_product_ids.contains(id))
     }
 
     fn stage_product(&mut self, product: ProductRecord) {

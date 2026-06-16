@@ -177,6 +177,7 @@ describe('Rust HTTP adapter route surface', () => {
                 published: true,
               }),
             }),
+            localizationProductIds: ['gid://shopify/Product/9801098789170'],
           },
           stagedState: {
             products: {},
