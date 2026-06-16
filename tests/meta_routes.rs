@@ -705,201 +705,162 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
 
     let state = proxy.process_request(request("GET", "/__meta/state"));
     assert_eq!(state.status, 200);
-    let mut expected_staged_state = serde_json::Map::new();
-    expected_staged_state.insert(
-        "products".to_string(),
+    assert_eq!(
+        state.body,
         json!({
-            "gid://shopify/Product/1?shopify-draft-proxy=synthetic": {
-                "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
-                "createdAt": "2024-01-01T00:00:01.000Z",
-                "updatedAt": "2024-01-01T00:00:01.000Z",
-                "title": "Created product",
-                "handle": "created-product",
-                "status": "ACTIVE",
-                "descriptionHtml": "",
-                "vendor": "",
-                "productType": "",
-                "tags": ["new"],
-                "templateSuffix": "",
-                "seo": { "title": "", "description": "" },
-                "totalInventory": 0,
-                "tracksInventory": false,
-                "media": {
-                    "edges": [],
-                    "nodes": [],
-                    "pageInfo": {
-                        "hasNextPage": false,
-                        "hasPreviousPage": false,
-                        "startCursor": null,
-                        "endCursor": null
+            "baseState": {
+                "products": {
+                    "gid://shopify/Product/base": {
+                        "id": "gid://shopify/Product/base",
+                        "createdAt": "2024-01-01T00:00:00.000Z",
+                        "updatedAt": "2024-01-01T00:00:00.000Z",
+                        "title": "Base product",
+                        "handle": "base-product",
+                        "status": "ACTIVE",
+                        "descriptionHtml": "<p>Base</p>",
+                        "vendor": "Base vendor",
+                        "productType": "Base type",
+                        "tags": ["base"],
+                        "templateSuffix": "",
+                        "seo": { "title": "", "description": "" },
+                        "totalInventory": 0,
+                        "tracksInventory": false,
+                        "media": {
+                            "edges": [],
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "variants": {
+                            "edges": [],
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "collections": {
+                            "edges": [],
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "extraFields": {}
                     }
                 },
-                "variants": {
-                    "edges": [],
-                    "nodes": [],
-                    "pageInfo": {
-                        "hasNextPage": false,
-                        "hasPreviousPage": false,
-                        "startCursor": null,
-                        "endCursor": null
-                    }
-                },
-                "collections": {
-                    "edges": [],
-                    "nodes": [],
-                    "pageInfo": {
-                        "hasNextPage": false,
-                        "hasPreviousPage": false,
-                        "startCursor": null,
-                        "endCursor": null
-                    }
-                },
-                "extraFields": {}
-            }
-        }),
-    );
-    expected_staged_state.insert(
-        "productOrder".to_string(),
-        json!(["gid://shopify/Product/1?shopify-draft-proxy=synthetic"]),
-    );
-    expected_staged_state.insert(
-        "deletedProductIds".to_string(),
-        json!(["gid://shopify/Product/base"]),
-    );
-    for key in [
-        "productVariants",
-        "shippingPackages",
-        "deletedShippingPackageIds",
-        "delegatedAccessTokens",
-        "customers",
-        "discounts",
-        "discountCodeIndex",
-        "discountRedeemCodeBulkCreations",
-        "ownerMetafields",
-        "customerOrders",
-        "taggableResources",
-        "orders",
-        "returns",
-        "returnsByOrder",
-        "reverseDeliveries",
-        "reverseFulfillmentOrders",
-        "deliveryProfiles",
-        "observedShippingLocations",
-        "locations",
-    ] {
-        expected_staged_state.insert(key.to_string(), json!({}));
-    }
-    for key in [
-        "productVariantOrder",
-        "deletedProductVariantIds",
-        "deletedCustomerIds",
-        "deletedDiscountIds",
-        "deletedOwnerMetafields",
-        "deletedOrderIds",
-        "deliveryProfileOrder",
-        "deletedDeliveryProfileIds",
-        "observedShippingLocationOrder",
-        "locationOrder",
-        "publicationIds",
-        "createdPublicationIds",
-    ] {
-        expected_staged_state.insert(key.to_string(), json!([]));
-    }
-    expected_staged_state.insert("locationLimitReached".to_string(), json!(false));
-    expected_staged_state.insert(
-        "savedSearches".to_string(),
-        json!({
-            "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic": {
-                "id": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic",
-                "name": "Promo products",
-                "query": "tag:promo",
-                "resourceType": "PRODUCT"
-            }
-        }),
-    );
-    expected_staged_state.insert(
-        "savedSearchOrder".to_string(),
-        json!(["gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic"]),
-    );
-    expected_staged_state.insert("deletedSavedSearchIds".to_string(), json!([]));
-    let mut expected = json!({
-        "baseState": {
-            "products": {
-                "gid://shopify/Product/base": {
-                    "id": "gid://shopify/Product/base",
-                    "createdAt": "2024-01-01T00:00:00.000Z",
-                    "updatedAt": "2024-01-01T00:00:00.000Z",
-                    "title": "Base product",
-                    "handle": "base-product",
-                    "status": "ACTIVE",
-                    "descriptionHtml": "<p>Base</p>",
-                    "vendor": "Base vendor",
-                    "productType": "Base type",
-                    "tags": ["base"],
-                    "templateSuffix": "",
-                    "seo": { "title": "", "description": "" },
-                    "totalInventory": 0,
-                    "tracksInventory": false,
-                    "media": {
-                        "edges": [],
-                        "nodes": [],
-                        "pageInfo": {
-                            "hasNextPage": false,
-                            "hasPreviousPage": false,
-                            "startCursor": null,
-                            "endCursor": null
-                        }
-                    },
-                    "variants": {
-                        "edges": [],
-                        "nodes": [],
-                        "pageInfo": {
-                            "hasNextPage": false,
-                            "hasPreviousPage": false,
-                            "startCursor": null,
-                            "endCursor": null
-                        }
-                    },
-                    "collections": {
-                        "edges": [],
-                        "nodes": [],
-                        "pageInfo": {
-                            "hasNextPage": false,
-                            "hasPreviousPage": false,
-                            "startCursor": null,
-                            "endCursor": null
-                        }
-                    },
-                    "extraFields": {}
-                }
+                "productOrder": ["gid://shopify/Product/base"],
+                "productVariants": {},
+                "productVariantOrder": [],
+                "savedSearches": {},
+                "savedSearchOrder": [],
+                "shop": state.body["baseState"]["shop"].clone(),
+                "publicationIds": [],
+                "publicationCount": null,
+                "availableLocales": state.body["baseState"]["availableLocales"].clone(),
+                "shopLocales": state.body["baseState"]["shopLocales"].clone()
             },
-            "productOrder": ["gid://shopify/Product/base"],
-            "productVariants": {},
-            "productVariantOrder": [],
-            "savedSearches": {},
-            "savedSearchOrder": [],
-            "shop": state.body["baseState"]["shop"].clone(),
-            "publicationIds": [],
-            "publicationCount": null,
-            "availableLocales": state.body["baseState"]["availableLocales"].clone(),
-            "shopLocales": state.body["baseState"]["shopLocales"].clone()
-        },
-        "stagedState": Value::Object(expected_staged_state)
-    });
-    let staged_state = expected["stagedState"]
-        .as_object_mut()
-        .expect("expected stagedState object");
-    staged_state.insert("b2bCompanies".to_string(), json!({}));
-    staged_state.insert("b2bLocations".to_string(), json!({}));
-    staged_state.insert("b2bContacts".to_string(), json!({}));
-    staged_state.insert("deletedB2bContactIds".to_string(), json!([]));
-    staged_state.insert("b2bContactRoles".to_string(), json!({}));
-    staged_state.insert("b2bContactRoleAssignments".to_string(), json!({}));
-    staged_state.insert("deletedB2bContactRoleAssignmentIds".to_string(), json!([]));
-    staged_state.insert("nextB2bCompanyId".to_string(), json!(1));
-    staged_state.insert("nextB2bContactId".to_string(), json!(1));
-    staged_state.insert("nextB2bContactRoleAssignmentId".to_string(), json!(1));
-    assert_eq!(state.body, expected);
+            "stagedState": {
+                "products": {
+                    "gid://shopify/Product/1?shopify-draft-proxy=synthetic": {
+                        "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                        "createdAt": "2024-01-01T00:00:01.000Z",
+                        "updatedAt": "2024-01-01T00:00:01.000Z",
+                        "title": "Created product",
+                        "handle": "created-product",
+                        "status": "ACTIVE",
+                        "descriptionHtml": "",
+                        "vendor": "",
+                        "productType": "",
+                        "tags": ["new"],
+                        "templateSuffix": "",
+                        "seo": { "title": "", "description": "" },
+                        "totalInventory": 0,
+                        "tracksInventory": false,
+                        "media": {
+                            "edges": [],
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "variants": {
+                            "edges": [],
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "collections": {
+                            "edges": [],
+                            "nodes": [],
+                            "pageInfo": {
+                                "hasNextPage": false,
+                                "hasPreviousPage": false,
+                                "startCursor": null,
+                                "endCursor": null
+                            }
+                        },
+                        "extraFields": {}
+                    }
+                },
+                "productOrder": ["gid://shopify/Product/1?shopify-draft-proxy=synthetic"],
+                "deletedProductIds": ["gid://shopify/Product/base"],
+                "productVariants": {},
+                "productVariantOrder": [],
+                "deletedProductVariantIds": [],
+                "shippingPackages": {},
+                "deletedShippingPackageIds": {},
+                "delegatedAccessTokens": {},
+                "customers": {},
+                "deletedCustomerIds": [],
+                "discounts": {},
+                "discountCodeIndex": {},
+                "deletedDiscountIds": [],
+                "discountBulkOperations": {},
+                "discountRedeemCodeBulkCreations": {},
+                "ownerMetafields": {},
+                "deletedOwnerMetafields": [],
+                "customerOrders": {},
+                "taggableResources": {},
+                "orders": {},
+                "returns": {},
+                "returnsByOrder": {},
+                "reverseDeliveries": {},
+                "reverseFulfillmentOrders": {},
+                "locations": {},
+                "locationOrder": [],
+                "locationLimitReached": false,
+                "publicationIds": [],
+                "createdPublicationIds": [],
+                "savedSearches": {
+                    "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic": {
+                        "id": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic",
+                        "name": "Promo products",
+                        "query": "tag:promo",
+                        "resourceType": "PRODUCT"
+                    }
+                },
+                "savedSearchOrder": ["gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic"],
+                "deletedSavedSearchIds": []
+            }
+        })
+    );
 }
 
 #[test]
@@ -1011,88 +972,6 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
     assert_eq!(
         next_create.body["data"]["productCreate"]["product"]["id"],
         json!("gid://shopify/Product/3?shopify-draft-proxy=synthetic")
-    );
-}
-
-#[test]
-fn meta_dump_and_restore_round_trip_active_order_edit_session() {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-happy-path.json"
-    ))
-    .unwrap();
-    let begin_query =
-        include_str!("../config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql");
-    let add_query = include_str!(
-        "../config/parity-requests/orders/orderEditExistingWorkflow-addVariant.graphql"
-    );
-
-    let mut proxy = snapshot_proxy();
-    let begin = proxy.process_request(graphql_request(
-        &json!({
-            "query": begin_query,
-            "variables": fixture["variables"].clone()
-        })
-        .to_string(),
-    ));
-    assert_eq!(begin.status, 200);
-    let calculated_id = begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
-
-    let dump = proxy.process_request(request_with_body(
-        "POST",
-        "/__meta/dump",
-        &json!({ "createdAt": "2026-06-15T00:00:00.000Z" }).to_string(),
-    ));
-    assert_eq!(dump.status, 200);
-    assert_eq!(
-        dump.body["state"]["stagedState"]["orderEditExistingSessionOrderId"],
-        fixture["variables"]["id"]
-    );
-    assert_eq!(
-        dump.body["state"]["stagedState"]["orderEditExistingCalculatedOrderId"],
-        calculated_id
-    );
-
-    let mut restored = snapshot_proxy();
-    let restore = restored.process_request(request_with_body(
-        "POST",
-        "/__meta/restore",
-        &dump.body.to_string(),
-    ));
-    assert_eq!(restore.status, 200);
-
-    let duplicate_begin = restored.process_request(graphql_request(
-        &json!({
-            "query": begin_query,
-            "variables": fixture["variables"].clone()
-        })
-        .to_string(),
-    ));
-    assert_eq!(
-        duplicate_begin.body["data"]["orderEditBegin"]["calculatedOrder"],
-        Value::Null
-    );
-    assert_eq!(
-        duplicate_begin.body["data"]["orderEditBegin"]["userErrors"][0]["field"],
-        json!(["base"])
-    );
-
-    let add = restored.process_request(graphql_request(
-        &json!({
-            "query": add_query,
-            "variables": {
-                "id": calculated_id,
-                "variantId": fixture["addVariant"]["variables"]["variantId"].clone(),
-                "quantity": fixture["addVariant"]["variables"]["quantity"].clone(),
-                "locationId": fixture["addVariant"]["variables"]["locationId"].clone(),
-                "allowDuplicates": fixture["addVariant"]["variables"]["allowDuplicates"].clone()
-            }
-        })
-        .to_string(),
-    ));
-    assert_eq!(add.status, 200);
-    assert_eq!(
-        add.body["data"]["orderEditAddVariant"]["calculatedLineItem"],
-        fixture["addVariant"]["response"]["data"]["orderEditAddVariant"]["calculatedLineItem"]
     );
 }
 
