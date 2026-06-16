@@ -52,7 +52,24 @@ pub(in crate::proxy) fn metafield_json_value(metafield_type: &str, value: &str) 
             .parse::<i64>()
             .map(Value::from)
             .unwrap_or_else(|_| json!(value)),
-        "json" | "rich_text_field" | "rating" | "link" | "money" => {
+        "number_decimal" => json!(value),
+        "date_time" => json!(canonical_metafield_date_time_value(value)),
+        "rating" => canonical_metafield_rating_json_value(value).unwrap_or_else(|| json!(value)),
+        value_type if is_metafield_measurement_type(value_type) => {
+            canonical_metafield_measurement_json_value(value, false).unwrap_or_else(|| json!(value))
+        }
+        "list.date_time" => canonical_metafield_list_date_time_json_value(value)
+            .unwrap_or_else(|| serde_json::from_str(value).unwrap_or_else(|_| json!([value]))),
+        "list.rating" => canonical_metafield_list_rating_json_value(value)
+            .unwrap_or_else(|| serde_json::from_str(value).unwrap_or_else(|_| json!([value]))),
+        value_type
+            if value_type.starts_with("list.")
+                && is_metafield_measurement_type(value_type.trim_start_matches("list.")) =>
+        {
+            canonical_metafield_list_measurement_json_value(value)
+                .unwrap_or_else(|| serde_json::from_str(value).unwrap_or_else(|_| json!([value])))
+        }
+        "json" | "rich_text_field" | "link" | "money" => {
             serde_json::from_str(value).unwrap_or_else(|_| json!(value))
         }
         value_type if value_type.starts_with("list.") || value.trim_start().starts_with('{') => {
@@ -60,6 +77,223 @@ pub(in crate::proxy) fn metafield_json_value(metafield_type: &str, value: &str) 
         }
         _ => json!(value),
     }
+}
+
+pub(in crate::proxy) fn metafield_storage_value(metafield_type: &str, value: &str) -> String {
+    match metafield_type {
+        "date_time" => canonical_metafield_date_time_value(value),
+        "rating" => canonical_metafield_rating_value(value).unwrap_or_else(|| value.to_string()),
+        value_type if is_metafield_measurement_type(value_type) => {
+            canonical_metafield_measurement_value(value).unwrap_or_else(|| value.to_string())
+        }
+        "list.date_time" => {
+            canonical_metafield_list_date_time_value(value).unwrap_or_else(|| value.to_string())
+        }
+        "list.rating" => {
+            canonical_metafield_list_rating_value(value).unwrap_or_else(|| value.to_string())
+        }
+        value_type
+            if value_type.starts_with("list.")
+                && is_metafield_measurement_type(value_type.trim_start_matches("list.")) =>
+        {
+            canonical_metafield_list_measurement_value(value).unwrap_or_else(|| value.to_string())
+        }
+        _ => value.to_string(),
+    }
+}
+
+fn canonical_metafield_date_time_value(value: &str) -> String {
+    if value.ends_with('Z') || value.rfind(['+', '-']).is_some_and(|index| index > 10) {
+        value.to_string()
+    } else {
+        format!("{value}+00:00")
+    }
+}
+
+fn canonical_metafield_list_date_time_value(value: &str) -> Option<String> {
+    let values = serde_json::from_str::<Value>(value).ok()?;
+    let values = values.as_array()?;
+    let values = values
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .map(canonical_metafield_date_time_value)
+                .map(Value::from)
+                .unwrap_or_else(|| value.clone())
+        })
+        .collect::<Vec<_>>();
+    serde_json::to_string(&values).ok()
+}
+
+fn canonical_metafield_list_date_time_json_value(value: &str) -> Option<Value> {
+    serde_json::from_str::<Value>(&canonical_metafield_list_date_time_value(value)?).ok()
+}
+
+fn canonical_metafield_rating_value(value: &str) -> Option<String> {
+    let rating = serde_json::from_str::<Value>(value).ok()?;
+    canonical_metafield_rating_object_value(&rating)
+}
+
+fn canonical_metafield_list_rating_value(value: &str) -> Option<String> {
+    let values = serde_json::from_str::<Value>(value).ok()?;
+    let values = values.as_array()?;
+    let values = values
+        .iter()
+        .map(canonical_metafield_rating_object_value)
+        .collect::<Option<Vec<_>>>()?;
+    Some(format!("[{}]", values.join(",")))
+}
+
+fn canonical_metafield_rating_json_value(value: &str) -> Option<Value> {
+    serde_json::from_str::<Value>(&canonical_metafield_rating_value(value)?).ok()
+}
+
+fn canonical_metafield_list_rating_json_value(value: &str) -> Option<Value> {
+    serde_json::from_str::<Value>(&canonical_metafield_list_rating_value(value)?).ok()
+}
+
+fn canonical_metafield_rating_object_value(value: &Value) -> Option<String> {
+    let scale_min = value.get("scale_min")?;
+    let scale_max = value.get("scale_max")?;
+    let rating_value = value.get("value")?;
+    Some(format!(
+        "{{\"scale_min\":{},\"scale_max\":{},\"value\":{}}}",
+        serde_json::to_string(scale_min).ok()?,
+        serde_json::to_string(scale_max).ok()?,
+        serde_json::to_string(rating_value).ok()?
+    ))
+}
+
+fn canonical_metafield_measurement_value(value: &str) -> Option<String> {
+    let value = serde_json::from_str::<Value>(value).ok()?;
+    canonical_metafield_measurement_object_value(&value)
+}
+
+fn canonical_metafield_list_measurement_value(value: &str) -> Option<String> {
+    let values = serde_json::from_str::<Value>(value).ok()?;
+    let values = values.as_array()?;
+    let values = values
+        .iter()
+        .map(canonical_metafield_measurement_object_value)
+        .collect::<Option<Vec<_>>>()?;
+    Some(format!("[{}]", values.join(",")))
+}
+
+fn canonical_metafield_measurement_object_value(value: &Value) -> Option<String> {
+    let measurement_value = value.get("value")?;
+    let unit = value.get("unit")?.as_str()?;
+    Some(format!(
+        "{{\"value\":{},\"unit\":\"{}\"}}",
+        canonical_metafield_measurement_number(measurement_value)?,
+        canonical_metafield_measurement_value_unit(unit)
+    ))
+}
+
+fn canonical_metafield_measurement_number(value: &Value) -> Option<String> {
+    if let Some(number) = value.as_i64() {
+        Some(format!("{number}.0"))
+    } else if let Some(number) = value.as_f64() {
+        if number.fract() == 0.0 {
+            Some(format!("{number:.1}"))
+        } else {
+            Some(number.to_string())
+        }
+    } else if let Some(value) = value.as_str() {
+        value.parse::<f64>().ok().map(|number| {
+            if number.fract() == 0.0 {
+                format!("{number:.1}")
+            } else {
+                number.to_string()
+            }
+        })
+    } else {
+        None
+    }
+}
+
+fn canonical_metafield_measurement_json_value(value: &str, list_unit: bool) -> Option<Value> {
+    let mut value = serde_json::from_str::<Value>(value).ok()?;
+    canonicalize_metafield_measurement_json_object(&mut value, list_unit)?;
+    Some(value)
+}
+
+fn canonical_metafield_list_measurement_json_value(value: &str) -> Option<Value> {
+    let mut value = serde_json::from_str::<Value>(value).ok()?;
+    let values = value.as_array_mut()?;
+    for value in values {
+        canonicalize_metafield_measurement_json_object(value, true)?;
+    }
+    Some(value)
+}
+
+fn canonicalize_metafield_measurement_json_object(
+    value: &mut Value,
+    list_unit: bool,
+) -> Option<()> {
+    let unit = value.get("unit")?.as_str()?.to_string();
+    value["unit"] = json!(if list_unit {
+        canonical_metafield_measurement_json_list_unit(&unit)
+    } else {
+        canonical_metafield_measurement_value_unit(&unit)
+    });
+    Some(())
+}
+
+fn canonical_metafield_measurement_value_unit(unit: &str) -> String {
+    match unit {
+        "cm" => "CENTIMETERS".to_string(),
+        "ml" => "MILLILITERS".to_string(),
+        "kg" => "KILOGRAMS".to_string(),
+        _ => unit.to_ascii_uppercase(),
+    }
+}
+
+fn canonical_metafield_measurement_json_list_unit(unit: &str) -> String {
+    match unit {
+        "centimeters" | "CENTIMETERS" => "cm".to_string(),
+        "milliliters" | "MILLILITERS" => "ml".to_string(),
+        "kilograms" | "KILOGRAMS" => "kg".to_string(),
+        _ => unit.to_ascii_lowercase(),
+    }
+}
+
+fn is_metafield_measurement_type(metafield_type: &str) -> bool {
+    matches!(
+        metafield_type,
+        "antenna_gain"
+            | "area"
+            | "battery_charge_capacity"
+            | "battery_energy_capacity"
+            | "capacitance"
+            | "concentration"
+            | "data_storage_capacity"
+            | "data_transfer_rate"
+            | "dimension"
+            | "display_density"
+            | "distance"
+            | "duration"
+            | "electric_current"
+            | "electrical_resistance"
+            | "energy"
+            | "frequency"
+            | "illuminance"
+            | "inductance"
+            | "luminous_flux"
+            | "mass_flow_rate"
+            | "power"
+            | "pressure"
+            | "resolution"
+            | "rotational_speed"
+            | "sound_level"
+            | "speed"
+            | "temperature"
+            | "thermal_power"
+            | "voltage"
+            | "volume"
+            | "volumetric_flow_rate"
+            | "weight"
+    )
 }
 
 pub(in crate::proxy) fn canonical_app_metafield_namespace(namespace: Option<&str>) -> String {
@@ -1480,20 +1714,113 @@ pub(in crate::proxy) fn payment_terms_payload_value(
     json!({ payload_key: selected_json(&payload, selections) })
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(in crate::proxy) struct PaymentTermsTemplate {
+    id: &'static str,
+    name: &'static str,
+    description: &'static str,
+    terms_type: &'static str,
+    due_in_days: Option<i64>,
+}
+
+pub(in crate::proxy) const PAYMENT_TERMS_TEMPLATES: &[PaymentTermsTemplate] = &[
+    PaymentTermsTemplate {
+        id: "gid://shopify/PaymentTermsTemplate/1",
+        name: "Due on receipt",
+        description: "Due on receipt",
+        terms_type: "RECEIPT",
+        due_in_days: None,
+    },
+    PaymentTermsTemplate {
+        id: "gid://shopify/PaymentTermsTemplate/9",
+        name: "Due on fulfillment",
+        description: "Due on fulfillment",
+        terms_type: "FULFILLMENT",
+        due_in_days: None,
+    },
+    PaymentTermsTemplate {
+        id: "gid://shopify/PaymentTermsTemplate/2",
+        name: "Net 7",
+        description: "Within 7 days",
+        terms_type: "NET",
+        due_in_days: Some(7),
+    },
+    PaymentTermsTemplate {
+        id: "gid://shopify/PaymentTermsTemplate/3",
+        name: "Net 15",
+        description: "Within 15 days",
+        terms_type: "NET",
+        due_in_days: Some(15),
+    },
+    PaymentTermsTemplate {
+        id: "gid://shopify/PaymentTermsTemplate/4",
+        name: "Net 30",
+        description: "Within 30 days",
+        terms_type: "NET",
+        due_in_days: Some(30),
+    },
+    PaymentTermsTemplate {
+        id: "gid://shopify/PaymentTermsTemplate/8",
+        name: "Net 45",
+        description: "Within 45 days",
+        terms_type: "NET",
+        due_in_days: Some(45),
+    },
+    PaymentTermsTemplate {
+        id: "gid://shopify/PaymentTermsTemplate/5",
+        name: "Net 60",
+        description: "Within 60 days",
+        terms_type: "NET",
+        due_in_days: Some(60),
+    },
+    PaymentTermsTemplate {
+        id: "gid://shopify/PaymentTermsTemplate/6",
+        name: "Net 90",
+        description: "Within 90 days",
+        terms_type: "NET",
+        due_in_days: Some(90),
+    },
+    PaymentTermsTemplate {
+        id: "gid://shopify/PaymentTermsTemplate/7",
+        name: "Fixed",
+        description: "Fixed date",
+        terms_type: "FIXED",
+        due_in_days: None,
+    },
+];
+
+pub(in crate::proxy) fn payment_terms_template_by_id(id: &str) -> Option<PaymentTermsTemplate> {
+    PAYMENT_TERMS_TEMPLATES
+        .iter()
+        .copied()
+        .find(|template| template.id == id)
+}
+
+pub(in crate::proxy) fn payment_terms_template_record(template: PaymentTermsTemplate) -> Value {
+    json!({
+        "id": template.id,
+        "name": template.name,
+        "description": template.description,
+        "dueInDays": template.due_in_days.map(Value::from).unwrap_or(Value::Null),
+        "paymentTermsType": template.terms_type,
+        "translatedName": template.name,
+        "__typename": "PaymentTermsTemplate"
+    })
+}
+
 pub(in crate::proxy) fn payment_terms_success_record(
     id: &str,
-    name: &str,
-    terms_type: &str,
+    template: PaymentTermsTemplate,
     schedules: Value,
 ) -> Value {
     json!({
         "id": id,
         "due": false,
         "overdue": false,
-        "dueInDays": if terms_type == "RECEIPT" { Value::Null } else { json!(30) },
-        "paymentTermsName": name,
-        "paymentTermsType": terms_type,
-        "translatedName": name,
+        "dueInDays": template.due_in_days.map(Value::from).unwrap_or(Value::Null),
+        "paymentTermsName": template.name,
+        "paymentTermsType": template.terms_type,
+        "translatedName": template.name,
         "paymentSchedules": {
             "nodes": schedules,
             "pageInfo": {
@@ -1506,22 +1833,26 @@ pub(in crate::proxy) fn payment_terms_success_record(
     })
 }
 
-pub(in crate::proxy) fn payment_terms_net_record(id: &str) -> Value {
-    payment_terms_success_record(
-        id,
-        "Net 30",
-        "NET",
-        json!([{
-            "id": format!("gid://shopify/PaymentSchedule/{}", resource_id_tail(id)),
-            "amount": { "amount": "57.00", "currencyCode": "CAD" },
-            "balanceDue": { "amount": "57.00", "currencyCode": "CAD" },
-            "totalBalance": { "amount": "57.00", "currencyCode": "CAD" },
-            "issuedAt": "2026-05-05T00:00:00Z",
-            "dueAt": "2026-06-04T00:00:00Z",
-            "completedAt": Value::Null,
-            "due": false
-        }]),
-    )
+pub(in crate::proxy) fn payment_terms_schedule_from_attrs(
+    id: &str,
+    attrs: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let schedule = resolved_object_list_field(attrs, "paymentSchedules")
+        .first()
+        .cloned()
+        .unwrap_or_default();
+    json!([{
+        "id": format!("gid://shopify/PaymentSchedule/{}", resource_id_tail(id)),
+        "amount": { "amount": "57.00", "currencyCode": "CAD" },
+        "balanceDue": { "amount": "57.00", "currencyCode": "CAD" },
+        "totalBalance": { "amount": "57.00", "currencyCode": "CAD" },
+        "issuedAt": resolved_string_field(&schedule, "issuedAt")
+            .unwrap_or_else(|| "2026-05-05T00:00:00Z".to_string()),
+        "dueAt": resolved_string_field(&schedule, "dueAt")
+            .unwrap_or_else(|| "2026-06-04T00:00:00Z".to_string()),
+        "completedAt": Value::Null,
+        "due": false
+    }])
 }
 
 pub(in crate::proxy) fn payment_terms_validation_error(
@@ -1546,13 +1877,17 @@ pub(in crate::proxy) fn payment_terms_validation_error(
         ));
     }
 
-    match template_id.as_deref() {
-        Some("gid://shopify/PaymentTermsTemplate/9999") => Some(payment_terms_user_error(
+    let template_id = template_id.as_deref()?;
+    let Some(template) = payment_terms_template_by_id(template_id) else {
+        return Some(payment_terms_user_error(
             Value::Null,
             "Could not find payment terms template.",
             unsuccessful_code,
-        )),
-        Some("gid://shopify/PaymentTermsTemplate/7") => {
+        ));
+    };
+
+    match template.terms_type {
+        "FIXED" => {
             let due_at = schedules
                 .first()
                 .and_then(|schedule| resolved_string_field(schedule, "dueAt"));
@@ -1566,7 +1901,7 @@ pub(in crate::proxy) fn payment_terms_validation_error(
                 None
             }
         }
-        Some("gid://shopify/PaymentTermsTemplate/1") => {
+        "RECEIPT" | "FULFILLMENT" => {
             let has_due_at = schedules
                 .iter()
                 .any(|schedule| resolved_string_field(schedule, "dueAt").is_some());
@@ -1617,11 +1952,44 @@ pub(in crate::proxy) fn payment_terms_record_from_attrs(
     attrs: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
     let template_id = resolved_string_field(attrs, "paymentTermsTemplateId").unwrap_or_default();
-    if template_id == "gid://shopify/PaymentTermsTemplate/1" {
-        payment_terms_success_record(id, "Due on receipt", "RECEIPT", json!([]))
+    let template = payment_terms_template_by_id(&template_id).unwrap_or(PAYMENT_TERMS_TEMPLATES[4]);
+    let schedules = if matches!(template.terms_type, "RECEIPT" | "FULFILLMENT")
+        || (template.terms_type == "FIXED"
+            && resolved_object_list_field(attrs, "paymentSchedules")
+                .first()
+                .and_then(|schedule| resolved_string_field(schedule, "dueAt"))
+                .is_none())
+    {
+        json!([])
     } else {
-        payment_terms_net_record(id)
+        payment_terms_schedule_from_attrs(id, attrs)
+    };
+    payment_terms_success_record(id, template, schedules)
+}
+
+pub(in crate::proxy) fn payment_terms_templates_query_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        if field.name != "paymentTermsTemplates" {
+            continue;
+        }
+        let type_filter = resolved_string_arg(&field.arguments, "paymentTermsType")
+            .or_else(|| resolved_string_arg(&field.arguments, "type"));
+        let templates: Vec<Value> = PAYMENT_TERMS_TEMPLATES
+            .iter()
+            .copied()
+            .filter(|template| {
+                type_filter
+                    .as_deref()
+                    .is_none_or(|filter| template.terms_type == filter)
+            })
+            .map(|template| {
+                selected_json(&payment_terms_template_record(template), &field.selection)
+            })
+            .collect();
+        data.insert(field.response_key.clone(), Value::Array(templates));
     }
+    Value::Object(data)
 }
 
 pub(in crate::proxy) fn payment_terms_create_value(

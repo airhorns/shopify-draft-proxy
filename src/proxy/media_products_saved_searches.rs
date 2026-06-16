@@ -261,6 +261,23 @@ impl DraftProxy {
                 user_errors,
             );
         }
+        let staged_upload_file_size = self.bulk_operation_staged_upload_size(&staged_upload_path);
+        let max_file_size = self
+            .config
+            .bulk_operation_run_mutation_max_input_file_size_bytes
+            .unwrap_or(DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES);
+        if staged_upload_file_size
+            .flatten()
+            .is_some_and(|file_size| file_size > max_file_size)
+        {
+            return bulk_operation_run_mutation_error_response(
+                &response_key,
+                &payload_selection,
+                vec![bulk_operation_run_mutation_file_size_too_large_user_error(
+                    max_file_size,
+                )],
+            );
+        }
         if let Some(operation_id) = self.in_progress_mutation_bulk_operation_id() {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
@@ -271,27 +288,12 @@ impl DraftProxy {
                     "code": "OPERATION_IN_PROGRESS"
                 })],
             );
-        }
-        let Some(file_size) = self.bulk_operation_staged_upload_size(&staged_upload_path) else {
+        };
+        if staged_upload_file_size.is_none() {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
                 &payload_selection,
                 vec![bulk_operation_run_mutation_no_such_file_user_error()],
-            );
-        };
-        let max_file_size = self
-            .config
-            .bulk_operation_run_mutation_max_input_file_size_bytes
-            .unwrap_or(DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES);
-        if file_size.unwrap_or(0) > max_file_size {
-            return bulk_operation_run_mutation_error_response(
-                &response_key,
-                &payload_selection,
-                vec![json!({
-                    "field": ["stagedUploadPath"],
-                    "message": "The JSONL file exceeds the maximum allowed size of 100 MB.",
-                    "code": "INVALID_MUTATION"
-                })],
             );
         }
 
@@ -592,14 +594,14 @@ impl DraftProxy {
             .into_iter()
             .enumerate()
             .map(|(index, input)| {
-                let content_type = resolved_string_field(&input, "contentType")
-                    .unwrap_or_else(|| "IMAGE".to_string());
-                let resource_type = media_file_gid_type(&content_type);
-                let id = self.next_proxy_synthetic_gid(resource_type);
                 let original_source =
                     resolved_string_field(&input, "originalSource").unwrap_or_default();
                 let filename = resolved_string_field(&input, "filename")
                     .unwrap_or_else(|| filename_from_source(&original_source));
+                let content_type = resolved_string_field(&input, "contentType")
+                    .unwrap_or_else(|| inferred_media_content_type(&filename, &original_source));
+                let resource_type = media_file_gid_type(&content_type);
+                let id = self.next_proxy_synthetic_gid(resource_type);
                 let alt = resolved_string_field(&input, "alt").unwrap_or_default();
                 let created_at = format!("2024-01-01T00:00:{:02}.000Z", index + 1);
                 let file = media_file_record(
@@ -611,6 +613,9 @@ impl DraftProxy {
                     "UPLOADED",
                     &created_at,
                 );
+                if !self.store.staged.media_files.contains_key(&id) {
+                    self.store.staged.media_file_order.push(id.clone());
+                }
                 self.store.staged.media_files.insert(id, file.clone());
                 file
             })
@@ -733,6 +738,9 @@ impl DraftProxy {
                 }
             }
             file["updatedAt"] = json!("2024-01-01T00:00:59.000Z");
+            if !self.store.staged.media_files.contains_key(&id) {
+                self.store.staged.media_file_order.push(id.clone());
+            }
             self.store
                 .staged
                 .media_files
@@ -781,6 +789,10 @@ impl DraftProxy {
             self.store.staged.deleted_media_file_ids.insert(id.clone());
             self.store.staged.media_files.remove(id);
         }
+        self.store
+            .staged
+            .media_file_order
+            .retain(|id| !ids.contains(id));
         let payload = json!({"deletedFileIds": ids, "userErrors": []});
         MutationOutcome::staged(
             ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}})),
@@ -1047,17 +1059,18 @@ impl DraftProxy {
             let mut files = self
                 .store
                 .staged
-                .media_files
+                .media_file_order
                 .iter()
-                .filter(|(id, _)| !self.store.staged.deleted_media_file_ids.contains(*id))
-                .map(|(_, file)| file.clone())
+                .filter(|id| !self.store.staged.deleted_media_file_ids.contains(*id))
+                .filter_map(|id| self.store.staged.media_files.get(id).cloned())
                 .collect::<Vec<_>>();
-            files.sort_by_key(|file| {
-                file.get("id")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string()
-            });
+            for (id, file) in &self.store.staged.media_files {
+                if !self.store.staged.deleted_media_file_ids.contains(id)
+                    && !self.store.staged.media_file_order.contains(id)
+                {
+                    files.push(file.clone());
+                }
+            }
             data.insert(
                 field.response_key,
                 selected_connection_json_with_args(
@@ -1125,7 +1138,8 @@ impl DraftProxy {
                         .map(str::to_string)
                 })
                 .unwrap_or_else(|| "single_line_text_field".to_string());
-            let value = resolved_string_field(&input, "value").unwrap_or_default();
+            let input_value = resolved_string_field(&input, "value").unwrap_or_default();
+            let value = metafield_storage_value(&metafield_type, &input_value);
             let index = self
                 .store
                 .staged
@@ -1177,7 +1191,7 @@ impl DraftProxy {
                     "key": key,
                     "type": metafield_type,
                     "value": value,
-                    "jsonValue": metafield_json_value(&metafield_type, &value),
+                    "jsonValue": metafield_json_value(&metafield_type, &input_value),
                     "compareDigest": compare_digest,
                     "createdAt": created_at,
                     "updatedAt": updated_at,
@@ -3215,6 +3229,10 @@ impl DraftProxy {
                 .staged
                 .customers
                 .insert(id.to_string(), record.clone());
+            self.store
+                .staged
+                .taggable_resources
+                .insert(id.to_string(), record.clone());
         } else {
             self.store
                 .staged
@@ -3774,6 +3792,17 @@ fn bulk_operation_run_mutation_no_such_file_user_error() -> Value {
         "field": null,
         "message": "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
         "code": "NO_SUCH_FILE"
+    })
+}
+
+fn bulk_operation_run_mutation_file_size_too_large_user_error(max_file_size: u64) -> Value {
+    json!({
+        "field": null,
+        "message": format!(
+            "The input file size exceeds the maximum allowed size of {} MB.",
+            max_file_size / 1024 / 1024
+        ),
+        "code": "INVALID_STAGED_UPLOAD_FILE"
     })
 }
 
@@ -4605,15 +4634,35 @@ fn filename_from_source(source: &str) -> String {
 }
 
 fn file_extension(value: &str) -> String {
-    value
+    let path_segment = value
         .split('?')
         .next()
         .unwrap_or(value)
+        .rsplit('/')
+        .next()
+        .unwrap_or(value);
+    path_segment
         .rsplit('.')
         .next()
-        .filter(|extension| *extension != value)
+        .filter(|extension| *extension != path_segment)
         .unwrap_or_default()
         .to_ascii_lowercase()
+}
+
+fn inferred_media_content_type(filename: &str, original_source: &str) -> String {
+    let extension = file_extension(filename);
+    let extension = if extension.is_empty() {
+        file_extension(original_source)
+    } else {
+        extension
+    };
+    match extension.as_str() {
+        "jpg" | "jpeg" | "png" | "gif" | "webp" => "IMAGE",
+        "mp4" | "mov" => "VIDEO",
+        "glb" | "usdz" => "MODEL_3D",
+        _ => "FILE",
+    }
+    .to_string()
 }
 
 fn mime_type_for_filename(filename: &str, content_type: &str) -> &'static str {
@@ -4626,6 +4675,9 @@ fn mime_type_for_filename(filename: &str, content_type: &str) -> &'static str {
         ("VIDEO", _) => "video/mp4",
         ("MODEL_3D", "glb") => "model/gltf-binary",
         ("MODEL_3D", "usdz") => "model/vnd.usdz+zip",
+        ("FILE", "pdf") => "application/pdf",
+        ("FILE", "txt") => "text/plain",
+        ("FILE", "zip") => "application/zip",
         _ => "application/octet-stream",
     }
 }

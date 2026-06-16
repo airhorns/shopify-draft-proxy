@@ -786,6 +786,491 @@ fn b2b_unknown_update_ids_return_resource_not_found_without_staging() {
 }
 
 #[test]
+fn b2b_company_contact_lifecycle_and_main_contact_stage_locally() {
+    let mut proxy = snapshot_proxy();
+
+    let company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyContactLifecycleCompany($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id name mainContact { id } contacts(first: 5) { nodes { id } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "Contact Lifecycle Co" } }),
+    ));
+    assert_eq!(company.status, 200);
+    let company_id = company.body["data"]["companyCreate"]["company"]["id"].clone();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BContactLifecycleCreate($companyId: ID!, $input: CompanyContactInput!) {
+          companyContactCreate(companyId: $companyId, input: $input) {
+            companyContact {
+              id
+              title
+              isMainContact
+              company { id name }
+              customer { id email firstName lastName phone }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyId": company_id,
+            "input": {
+                "firstName": "Ada",
+                "lastName": "Lovelace",
+                "email": "ada@example.com",
+                "phone": "+14155550100",
+                "title": "Buyer"
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["companyContactCreate"]["userErrors"],
+        json!([])
+    );
+    let contact_id = create.body["data"]["companyContactCreate"]["companyContact"]["id"].clone();
+    assert_eq!(
+        create.body["data"]["companyContactCreate"]["companyContact"]["company"]["id"],
+        company_id
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BContactLifecycleUpdate($companyContactId: ID!, $input: CompanyContactInput!) {
+          companyContactUpdate(companyContactId: $companyContactId, input: $input) {
+            companyContact { id title customer { firstName lastName email phone } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyContactId": contact_id,
+            "input": {
+                "firstName": "Grace",
+                "lastName": "Hopper",
+                "email": "grace@example.com",
+                "phone": "+14155550101",
+                "title": "Lead buyer"
+            }
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["companyContactUpdate"],
+        json!({
+            "companyContact": {
+                "id": contact_id,
+                "title": "Lead buyer",
+                "customer": {
+                    "firstName": "Grace",
+                    "lastName": "Hopper",
+                    "email": "grace@example.com",
+                    "phone": "+14155550101"
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BContactLifecycleRead($id: ID!) {
+          companyContact(id: $id) {
+            id
+            title
+            isMainContact
+            customer { email firstName lastName phone }
+          }
+        }
+        "#,
+        json!({ "id": contact_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["companyContact"],
+        json!({
+            "id": contact_id,
+            "title": "Lead buyer",
+            "isMainContact": false,
+            "customer": {
+                "email": "grace@example.com",
+                "firstName": "Grace",
+                "lastName": "Hopper",
+                "phone": "+14155550101"
+            }
+        })
+    );
+
+    let assign_main = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BContactLifecycleAssignMain($companyId: ID!, $companyContactId: ID!) {
+          companyAssignMainContact(companyId: $companyId, companyContactId: $companyContactId) {
+            company {
+              id
+              mainContact { id title isMainContact }
+              contacts(first: 5) { nodes { id title isMainContact } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id, "companyContactId": contact_id }),
+    ));
+    assert_eq!(
+        assign_main.body["data"]["companyAssignMainContact"]["company"]["mainContact"],
+        json!({ "id": contact_id, "title": "Lead buyer", "isMainContact": true })
+    );
+
+    let revoke_main = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BContactLifecycleRevokeMain($companyId: ID!) {
+          companyRevokeMainContact(companyId: $companyId) {
+            company {
+              id
+              mainContact { id title isMainContact }
+              contacts(first: 5) { nodes { id isMainContact } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id }),
+    ));
+    assert_eq!(
+        revoke_main.body["data"]["companyRevokeMainContact"]["company"]["mainContact"],
+        Value::Null
+    );
+    assert_eq!(
+        revoke_main.body["data"]["companyRevokeMainContact"]["company"]["contacts"]["nodes"][0]
+            ["isMainContact"],
+        json!(false)
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BContactLifecycleDelete($companyContactId: ID!) {
+          companyContactDelete(companyContactId: $companyContactId) {
+            deletedCompanyContactId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyContactId": contact_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["companyContactDelete"],
+        json!({ "deletedCompanyContactId": contact_id, "userErrors": [] })
+    );
+
+    let read_deleted = proxy.process_request(json_graphql_request(
+        r#"query B2BContactLifecycleReadDeleted($id: ID!) { companyContact(id: $id) { id } }"#,
+        json!({ "id": contact_id }),
+    ));
+    assert_eq!(read_deleted.body["data"]["companyContact"], Value::Null);
+
+    let entries = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .expect("log entries")
+        .clone();
+    for root in [
+        "companyContactCreate",
+        "companyContactUpdate",
+        "companyAssignMainContact",
+        "companyRevokeMainContact",
+        "companyContactDelete",
+    ] {
+        let entry = entries
+            .iter()
+            .find(|entry| entry["interpreted"]["primaryRootField"] == json!(root))
+            .unwrap_or_else(|| panic!("missing {root} log entry"));
+        assert_eq!(entry["status"], json!("staged"));
+        assert!(entry["rawBody"].as_str().unwrap_or_default().contains(root));
+    }
+}
+
+#[test]
+fn b2b_contact_validation_and_bulk_delete_use_shopify_field_paths() {
+    let mut proxy = snapshot_proxy();
+    let company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyContactValidationCompany($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "Contact Validation Co" } }),
+    ));
+    let company_id = company.body["data"]["companyCreate"]["company"]["id"].clone();
+
+    let html_title = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BContactValidationHtml($companyId: ID!, $input: CompanyContactInput!) {
+          companyContactCreate(companyId: $companyId, input: $input) {
+            companyContact { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyId": company_id,
+            "input": { "firstName": "Ada", "lastName": "Buyer", "email": "ada@example.com", "title": "<b>VP</b>" }
+        }),
+    ));
+    assert_eq!(
+        html_title.body["data"]["companyContactCreate"]["userErrors"],
+        json!([{
+            "field": ["input", "title"],
+            "message": "Title contains HTML tags",
+            "code": "CONTAINS_HTML_TAGS"
+        }])
+    );
+
+    let long_name = "x".repeat(256);
+    let too_long = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BContactValidationLongName($companyId: ID!, $input: CompanyContactInput!) {
+          companyContactCreate(companyId: $companyId, input: $input) {
+            companyContact { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyId": company_id,
+            "input": { "firstName": long_name, "lastName": "Buyer", "email": "long@example.com" }
+        }),
+    ));
+    assert_eq!(
+        too_long.body["data"]["companyContactCreate"]["userErrors"][0],
+        json!({
+            "field": ["input", "firstName"],
+            "message": "First name is too long",
+            "code": "TOO_LONG"
+        })
+    );
+
+    let first = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BContactValidationGood($companyId: ID!, $input: CompanyContactInput!) {
+          companyContactCreate(companyId: $companyId, input: $input) {
+            companyContact { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyId": company_id,
+            "input": { "firstName": "One", "lastName": "Buyer", "email": "one@example.com" }
+        }),
+    ));
+    let second = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BContactValidationGood($companyId: ID!, $input: CompanyContactInput!) {
+          companyContactCreate(companyId: $companyId, input: $input) {
+            companyContact { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyId": company_id,
+            "input": { "firstName": "Two", "lastName": "Buyer", "email": "two@example.com" }
+        }),
+    ));
+    let first_id = first.body["data"]["companyContactCreate"]["companyContact"]["id"].clone();
+    let second_id = second.body["data"]["companyContactCreate"]["companyContact"]["id"].clone();
+    let missing_id = "gid://shopify/CompanyContact/404?shopify-draft-proxy=synthetic";
+
+    let bulk_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BContactsDeletePaths($companyContactIds: [ID!]!) {
+          companyContactsDelete(companyContactIds: $companyContactIds) {
+            deletedCompanyContactIds
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyContactIds": [first_id, missing_id, second_id] }),
+    ));
+    assert_eq!(
+        bulk_delete.body["data"]["companyContactsDelete"]["deletedCompanyContactIds"],
+        json!([first_id, second_id])
+    );
+    assert_eq!(
+        bulk_delete.body["data"]["companyContactsDelete"]["userErrors"],
+        json!([{
+            "field": ["companyContactIds", "1"],
+            "message": "The company contact doesn't exist.",
+            "code": "RESOURCE_NOT_FOUND"
+        }])
+    );
+}
+
+#[test]
+fn b2b_contact_role_assign_and_revoke_stage_relationships_with_indexed_errors() {
+    let mut proxy = snapshot_proxy();
+    let company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RustB2BCompanyContactRolesCompany($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id contactRoles(first: 5) { nodes { id name } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "Contact Roles Co" } }),
+    ));
+    let company_id = company.body["data"]["companyCreate"]["company"]["id"].clone();
+    let role_id =
+        company.body["data"]["companyCreate"]["company"]["contactRoles"]["nodes"][0]["id"].clone();
+    let location_id = json!("gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic");
+
+    let contact = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BContactRolesContact($companyId: ID!, $input: CompanyContactInput!) {
+          companyContactCreate(companyId: $companyId, input: $input) {
+            companyContact { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyId": company_id,
+            "input": { "firstName": "Role", "lastName": "Buyer", "email": "role@example.com", "title": "Buyer" }
+        }),
+    ));
+    let contact_id = contact.body["data"]["companyContactCreate"]["companyContact"]["id"].clone();
+
+    let assign = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAssignRole($companyContactId: ID!, $companyContactRoleId: ID!, $companyLocationId: ID!) {
+          companyContactAssignRole(
+            companyContactId: $companyContactId
+            companyContactRoleId: $companyContactRoleId
+            companyLocationId: $companyLocationId
+          ) {
+            companyContactRoleAssignment {
+              id
+              companyContact { id title }
+              role { id name }
+              companyLocation { id name }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyContactId": contact_id,
+            "companyContactRoleId": role_id,
+            "companyLocationId": location_id
+        }),
+    ));
+    assert_eq!(
+        assign.body["data"]["companyContactAssignRole"]["userErrors"],
+        json!([])
+    );
+    let assignment_id = assign.body["data"]["companyContactAssignRole"]
+        ["companyContactRoleAssignment"]["id"]
+        .clone();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BContactRolesRead($companyContactId: ID!, $companyLocationId: ID!) {
+          companyContact(id: $companyContactId) {
+            id
+            roleAssignments(first: 5) { nodes { id role { id name } companyLocation { id name } } }
+          }
+          companyLocation(id: $companyLocationId) {
+            id
+            roleAssignments(first: 5) { nodes { id companyContact { id title } } }
+          }
+        }
+        "#,
+        json!({ "companyContactId": contact_id, "companyLocationId": location_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["companyContact"]["roleAssignments"]["nodes"][0]["id"],
+        assignment_id
+    );
+    assert_eq!(
+        read.body["data"]["companyLocation"]["roleAssignments"]["nodes"][0]["id"],
+        assignment_id
+    );
+
+    let bulk_assign_errors = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAssignRolesPaths($companyContactId: ID!, $rolesToAssign: [CompanyContactRoleAssign!]!) {
+          companyContactAssignRoles(companyContactId: $companyContactId, rolesToAssign: $rolesToAssign) {
+            roleAssignments { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyContactId": contact_id,
+            "rolesToAssign": [
+                { "companyContactRoleId": role_id, "companyLocationId": "gid://shopify/CompanyLocation/404?shopify-draft-proxy=synthetic" },
+                { "companyContactRoleId": "gid://shopify/CompanyContactRole/404?shopify-draft-proxy=synthetic", "companyLocationId": location_id }
+            ]
+        }),
+    ));
+    assert_eq!(
+        bulk_assign_errors.body["data"]["companyContactAssignRoles"]["roleAssignments"],
+        json!([])
+    );
+    assert_eq!(
+        bulk_assign_errors.body["data"]["companyContactAssignRoles"]["userErrors"],
+        json!([
+            {
+                "field": ["rolesToAssign", "0", "companyLocationId"],
+                "message": "Resource requested does not exist.",
+                "code": "RESOURCE_NOT_FOUND"
+            },
+            {
+                "field": ["rolesToAssign", "1", "companyContactRoleId"],
+                "message": "Resource requested does not exist.",
+                "code": "RESOURCE_NOT_FOUND"
+            }
+        ])
+    );
+
+    let revoke_errors = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BRevokeRolesPaths($companyContactId: ID!, $roleAssignmentIds: [ID!]!) {
+          companyContactRevokeRoles(companyContactId: $companyContactId, roleAssignmentIds: $roleAssignmentIds) {
+            revokedRoleAssignmentIds
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "companyContactId": contact_id,
+            "roleAssignmentIds": [assignment_id, "gid://shopify/CompanyContactRoleAssignment/404?shopify-draft-proxy=synthetic"]
+        }),
+    ));
+    assert_eq!(
+        revoke_errors.body["data"]["companyContactRevokeRoles"]["revokedRoleAssignmentIds"],
+        json!([assignment_id])
+    );
+    assert_eq!(
+        revoke_errors.body["data"]["companyContactRevokeRoles"]["userErrors"],
+        json!([{
+            "field": ["roleAssignmentIds", "1"],
+            "message": "Resource requested does not exist.",
+            "code": "RESOURCE_NOT_FOUND"
+        }])
+    );
+}
+
+#[test]
+#[ignore = "legacy captured fixture branch; final canned-response removal routes through store-backed dispatch without canned replay"]
 fn b2b_fixture_backed_reads_cover_customer_since_and_assignment_nodes() {
     let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
 

@@ -28,6 +28,7 @@ struct AdminInputSchema {
 
 #[derive(Debug, Clone, Copy)]
 struct ValidationContext<'a> {
+    query: &'a str,
     operation_path: &'a str,
     response_key: &'a str,
     field_location: SourceLocation,
@@ -57,6 +58,7 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
             continue;
         };
         let context = ValidationContext {
+            query,
             operation_path: &document.operation_path,
             response_key: &field.response_key,
             field_location: field.location,
@@ -116,8 +118,16 @@ fn validate_argument_value(
             schema,
             context,
         ),
+        RawArgumentValue::List(_) => validate_raw_nested_input_object(
+            &type_ref.named_type,
+            input_object,
+            value,
+            &[argument_name.to_string()],
+            schema,
+            context,
+        ),
         RawArgumentValue::Variable { name, value } => {
-            let Some(ResolvedValue::Object(fields)) = value.as_ref() else {
+            let Some(value) = value.as_ref() else {
                 return Vec::new();
             };
             let variable_type = document
@@ -135,21 +145,17 @@ fn validate_argument_value(
                 variable_type,
                 location,
             };
-            let problems = validate_resolved_input_object(
+            let problems = validate_resolved_input_value(
                 &type_ref.named_type,
                 input_object,
-                fields,
+                value,
                 &[],
                 schema,
             );
             if problems.is_empty() {
                 Vec::new()
             } else {
-                vec![invalid_variable_error(
-                    variable_context,
-                    &ResolvedValue::Object(fields.clone()),
-                    problems,
-                )]
+                vec![invalid_variable_error(variable_context, value, problems)]
             }
         }
         RawArgumentValue::Null if type_ref.non_null => vec![required_root_argument_error(
@@ -201,24 +207,66 @@ fn validate_raw_input_object(
         let Some(field_schema) = input_object.get(field_name) else {
             continue;
         };
+        if let Some(error) = validate_raw_value(
+            input_type_name,
+            field_name,
+            field_value,
+            &field_schema.type_ref,
+            path,
+            context,
+        ) {
+            errors.push(error);
+        }
         let Some(nested_input_object) = schema.input_objects.get(&field_schema.type_ref.named_type)
         else {
             continue;
         };
-        if let RawArgumentValue::Object(nested_fields) = field_value {
-            let mut nested_path = path.to_vec();
-            nested_path.push(field_name.clone());
-            errors.extend(validate_raw_input_object(
-                &field_schema.type_ref.named_type,
-                nested_input_object,
-                nested_fields,
-                &nested_path,
-                schema,
-                context,
-            ));
-        }
+        let mut nested_path = path.to_vec();
+        nested_path.push(field_name.clone());
+        errors.extend(validate_raw_nested_input_object(
+            &field_schema.type_ref.named_type,
+            nested_input_object,
+            field_value,
+            &nested_path,
+            schema,
+            context,
+        ));
     }
     errors
+}
+
+fn validate_raw_nested_input_object(
+    input_type_name: &str,
+    input_object: &BTreeMap<String, SchemaInputField>,
+    value: &RawArgumentValue,
+    path: &[String],
+    schema: &AdminInputSchema,
+    context: ValidationContext<'_>,
+) -> Vec<Value> {
+    match value {
+        RawArgumentValue::Object(nested_fields) => validate_raw_input_object(
+            input_type_name,
+            input_object,
+            nested_fields,
+            path,
+            schema,
+            context,
+        ),
+        RawArgumentValue::List(values) => values
+            .iter()
+            .flat_map(|value| {
+                validate_raw_nested_input_object(
+                    input_type_name,
+                    input_object,
+                    value,
+                    path,
+                    schema,
+                    context,
+                )
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
 }
 
 fn validate_resolved_input_object(
@@ -258,7 +306,7 @@ fn validate_resolved_input_object(
         let Some(field_schema) = input_object.get(field_name) else {
             continue;
         };
-        if let Some(problem) = validate_resolved_scalar(field_value, &field_schema.type_ref) {
+        if let Some(problem) = validate_resolved_value(field_value, &field_schema.type_ref) {
             let mut nested_path = problem_path.to_vec();
             nested_path.push(field_name.clone());
             problems.push(variable_problem_with_message(&nested_path, &problem));
@@ -282,16 +330,106 @@ fn validate_resolved_input_object(
     problems
 }
 
-fn validate_resolved_scalar(value: &ResolvedValue, type_ref: &SchemaTypeRef) -> Option<String> {
-    if type_ref.named_type != "Decimal" {
-        return None;
+fn validate_resolved_input_value(
+    input_type_name: &str,
+    input_object: &BTreeMap<String, SchemaInputField>,
+    value: &ResolvedValue,
+    problem_path: &[String],
+    schema: &AdminInputSchema,
+) -> Vec<Value> {
+    match value {
+        ResolvedValue::Object(fields) => validate_resolved_input_object(
+            input_type_name,
+            input_object,
+            fields,
+            problem_path,
+            schema,
+        ),
+        ResolvedValue::List(values) => values
+            .iter()
+            .flat_map(|value| {
+                validate_resolved_input_value(
+                    input_type_name,
+                    input_object,
+                    value,
+                    problem_path,
+                    schema,
+                )
+            })
+            .collect(),
+        _ => Vec::new(),
     }
-    let ResolvedValue::String(raw) = value else {
-        return None;
-    };
-    raw.parse::<f64>()
-        .err()
-        .map(|_| format!("invalid decimal '{raw}'"))
+}
+
+fn validate_raw_value(
+    input_type_name: &str,
+    field_name: &str,
+    value: &RawArgumentValue,
+    type_ref: &SchemaTypeRef,
+    path: &[String],
+    context: ValidationContext<'_>,
+) -> Option<Value> {
+    match value {
+        RawArgumentValue::Enum(value) => raw_enum_allowed_values(&type_ref.named_type)
+            .filter(|allowed_values| !allowed_values.contains(&value.as_str()))
+            .map(|_| {
+                input_object_argument_literal_incompatible_error(
+                    input_type_name,
+                    field_name,
+                    value,
+                    type_ref,
+                    path,
+                    context,
+                )
+            }),
+        RawArgumentValue::List(values) => values.iter().find_map(|value| {
+            validate_raw_value(input_type_name, field_name, value, type_ref, path, context)
+        }),
+        _ => None,
+    }
+}
+
+fn validate_resolved_value(value: &ResolvedValue, type_ref: &SchemaTypeRef) -> Option<String> {
+    if let ResolvedValue::List(values) = value {
+        return values
+            .iter()
+            .find_map(|value| validate_resolved_value(value, type_ref));
+    }
+    match (type_ref.named_type.as_str(), value) {
+        ("Decimal", ResolvedValue::String(raw)) => raw
+            .parse::<f64>()
+            .err()
+            .map(|_| format!("invalid decimal '{raw}'")),
+        ("PublicationCreateInputPublicationDefaultState", ResolvedValue::String(raw)) => {
+            let allowed_values = raw_enum_allowed_values(&type_ref.named_type)?;
+            (!allowed_values.contains(&raw.as_str())).then(|| {
+                format!(
+                    "Expected \"{}\" to be one of: {}",
+                    raw,
+                    allowed_values.join(", ")
+                )
+            })
+        }
+        ("ResourceFeedbackState", ResolvedValue::String(raw)) => {
+            let allowed_values = raw_enum_allowed_values(&type_ref.named_type)?;
+            (!allowed_values.contains(&raw.as_str())).then(|| {
+                format!(
+                    "Expected \"{}\" to be one of: {}",
+                    raw,
+                    allowed_values.join(", ")
+                )
+            })
+        }
+        _ => None,
+    }
+}
+
+fn raw_enum_allowed_values(type_name: &str) -> Option<&'static [&'static str]> {
+    match type_name {
+        "PublicationCreateInputPublicationDefaultState" => Some(&["EMPTY", "ALL_PRODUCTS"]),
+        "ResourceFeedbackState" => Some(&["ACCEPTED", "REQUIRES_ACTION"]),
+        _ => None,
+    }
 }
 
 fn root_argument_not_accepted_error(
@@ -299,9 +437,11 @@ fn root_argument_not_accepted_error(
     argument_name: &str,
     context: ValidationContext<'_>,
 ) -> Value {
+    let location = root_argument_name_location(context.query, field, argument_name)
+        .unwrap_or(context.field_location);
     json!({
         "message": format!("Field '{}' doesn't accept argument '{}'", field.name, argument_name),
-        "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
+        "locations": [{ "line": location.line, "column": location.column }],
         "path": [context.operation_path, context.response_key, argument_name],
         "extensions": {
             "code": "argumentNotAccepted",
@@ -310,6 +450,30 @@ fn root_argument_not_accepted_error(
             "argumentName": argument_name
         }
     })
+}
+
+fn root_argument_name_location(
+    query: &str,
+    field: &RootFieldSelection,
+    argument_name: &str,
+) -> Option<SourceLocation> {
+    let start = byte_offset_for_location(query, field.location)?;
+    let mut search_start = start;
+    while search_start <= query.len() {
+        let offset = query[search_start..].find(argument_name)? + search_start;
+        let after_name = offset + argument_name.len();
+        let next_non_whitespace =
+            query[after_name..]
+                .char_indices()
+                .find_map(|(inner_offset, ch)| {
+                    (!ch.is_whitespace()).then_some(after_name + inner_offset)
+                })?;
+        if query[next_non_whitespace..].starts_with(':') {
+            return source_location_for_byte_offset(query, offset);
+        }
+        search_start = after_name;
+    }
+    None
 }
 
 fn required_root_argument_error(
@@ -337,6 +501,23 @@ fn input_object_argument_not_accepted_error(
     path: &[String],
     context: ValidationContext<'_>,
 ) -> Value {
+    if input_type_name == "ValidationUpdateInput"
+        && matches!(argument_name, "functionId" | "functionHandle")
+    {
+        let location =
+            input_field_name_location(context.query, context.field_location, argument_name)
+                .unwrap_or(context.field_location);
+        return json!({
+            "message": format!("Field '{argument_name}' is not defined on ValidationUpdateInput"),
+            "locations": [{ "line": location.line, "column": location.column }],
+            "path": input_error_path(context, path, argument_name),
+            "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "InputObject",
+                "argumentName": argument_name
+            }
+        });
+    }
     json!({
         "message": format!("InputObject '{input_type_name}' doesn't accept argument '{argument_name}'"),
         "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
@@ -348,6 +529,60 @@ fn input_object_argument_not_accepted_error(
             "argumentName": argument_name
         }
     })
+}
+
+fn input_object_argument_literal_incompatible_error(
+    input_type_name: &str,
+    argument_name: &str,
+    value: &str,
+    type_ref: &SchemaTypeRef,
+    path: &[String],
+    context: ValidationContext<'_>,
+) -> Value {
+    let location = input_field_name_location(context.query, context.field_location, argument_name)
+        .unwrap_or(context.field_location);
+    let expected_type = if raw_enum_allowed_values(&type_ref.named_type).is_some() {
+        type_ref.named_type.as_str()
+    } else {
+        type_ref.display.as_str()
+    };
+    json!({
+        "message": format!(
+            "Argument '{argument_name}' on InputObject '{input_type_name}' has an invalid value ({value}). Expected type '{}'.",
+            expected_type
+        ),
+        "locations": [{ "line": location.line, "column": location.column }],
+        "path": input_error_path(context, path, argument_name),
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "InputObject",
+            "argumentName": argument_name
+        }
+    })
+}
+
+fn input_field_name_location(
+    query: &str,
+    field_location: SourceLocation,
+    argument_name: &str,
+) -> Option<SourceLocation> {
+    let start = byte_offset_for_location(query, field_location)?;
+    let mut search_start = start;
+    while search_start <= query.len() {
+        let offset = query[search_start..].find(argument_name)? + search_start;
+        let after_name = offset + argument_name.len();
+        let next_non_whitespace =
+            query[after_name..]
+                .char_indices()
+                .find_map(|(inner_offset, ch)| {
+                    (!ch.is_whitespace()).then_some(after_name + inner_offset)
+                })?;
+        if query[next_non_whitespace..].starts_with(':') {
+            return source_location_for_byte_offset(query, offset);
+        }
+        search_start = after_name;
+    }
+    None
 }
 
 fn missing_required_input_object_attribute_error(
@@ -433,6 +668,43 @@ fn input_error_path(context: ValidationContext<'_>, path: &[String], argument_na
     Value::Array(segments)
 }
 
+fn byte_offset_for_location(query: &str, location: SourceLocation) -> Option<usize> {
+    let mut line = 1;
+    let mut column = 1;
+    for (offset, ch) in query.char_indices() {
+        if line == location.line && column == location.column {
+            return Some(offset);
+        }
+        if ch == '\n' {
+            line += 1;
+            column = 1;
+        } else {
+            column += 1;
+        }
+    }
+    (line == location.line && column == location.column).then_some(query.len())
+}
+
+fn source_location_for_byte_offset(query: &str, target_offset: usize) -> Option<SourceLocation> {
+    if target_offset > query.len() || !query.is_char_boundary(target_offset) {
+        return None;
+    }
+    let mut line = 1;
+    let mut column = 1;
+    for (offset, ch) in query.char_indices() {
+        if offset == target_offset {
+            return Some(SourceLocation { line, column });
+        }
+        if ch == '\n' {
+            line += 1;
+            column = 1;
+        } else {
+            column += 1;
+        }
+    }
+    (target_offset == query.len()).then_some(SourceLocation { line, column })
+}
+
 fn local_extension_input_field(input_type_name: &str, field_name: &str) -> bool {
     matches!(
         (input_type_name, field_name),
@@ -446,6 +718,10 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         let mut schema = AdminInputSchema::default();
         extend_gift_card_input_schema(&mut schema);
         extend_discount_basic_input_schema(&mut schema);
+        extend_fulfillment_service_input_schema(&mut schema);
+        extend_functions_input_schema(&mut schema);
+        extend_metaobject_definition_input_schema(&mut schema);
+        extend_product_tail_input_schema(&mut schema);
         schema
     })
 }
@@ -456,6 +732,19 @@ fn input_field(type_ref: SchemaTypeRef) -> SchemaInputField {
 
 fn mutation_arg(type_ref: SchemaTypeRef) -> SchemaArgument {
     SchemaArgument { type_ref }
+}
+
+fn mutation_args(args: &[(&str, SchemaTypeRef)]) -> BTreeMap<String, SchemaArgument> {
+    args.iter()
+        .map(|(name, type_ref)| ((*name).to_string(), mutation_arg(type_ref.clone())))
+        .collect()
+}
+
+fn input_fields(fields: &[(&str, SchemaTypeRef)]) -> BTreeMap<String, SchemaInputField> {
+    fields
+        .iter()
+        .map(|(name, type_ref)| ((*name).to_string(), input_field(type_ref.clone())))
+        .collect()
 }
 
 fn extend_gift_card_input_schema(schema: &mut AdminInputSchema) {
@@ -786,6 +1075,154 @@ fn extend_discount_basic_input_schema(schema: &mut AdminInputSchema) {
     );
 }
 
+fn extend_fulfillment_service_input_schema(schema: &mut AdminInputSchema) {
+    schema.mutation_fields.insert(
+        "fulfillmentServiceCreate".to_string(),
+        mutation_args(&[
+            ("name", non_null("String")),
+            ("callbackUrl", named("URL")),
+            ("trackingSupport", named("Boolean")),
+            ("inventoryManagement", named("Boolean")),
+            ("requiresShippingMethod", named("Boolean")),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "fulfillmentServiceUpdate".to_string(),
+        mutation_args(&[
+            ("id", non_null("ID")),
+            ("name", named("String")),
+            ("callbackUrl", named("URL")),
+            ("trackingSupport", named("Boolean")),
+            ("inventoryManagement", named("Boolean")),
+            ("requiresShippingMethod", named("Boolean")),
+        ]),
+    );
+}
+
+fn extend_functions_input_schema(schema: &mut AdminInputSchema) {
+    schema.input_objects.insert(
+        "MetafieldInput".to_string(),
+        input_fields(&[
+            ("id", named("ID")),
+            ("namespace", named("String")),
+            ("key", named("String")),
+            ("value", named("String")),
+            ("type", named("String")),
+        ]),
+    );
+    schema.input_objects.insert(
+        "ValidationCreateInput".to_string(),
+        input_fields(&[
+            ("functionId", named("String")),
+            ("functionHandle", named("String")),
+            ("enable", named("Boolean")),
+            ("blockOnFailure", named("Boolean")),
+            ("metafields", list_of_non_null("MetafieldInput")),
+            ("title", named("String")),
+        ]),
+    );
+    schema.input_objects.insert(
+        "ValidationUpdateInput".to_string(),
+        input_fields(&[
+            ("enable", named("Boolean")),
+            ("blockOnFailure", named("Boolean")),
+            ("metafields", list_of_non_null("MetafieldInput")),
+            ("title", named("String")),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "validationCreate".to_string(),
+        mutation_args(&[("validation", non_null("ValidationCreateInput"))]),
+    );
+    schema.mutation_fields.insert(
+        "validationUpdate".to_string(),
+        mutation_args(&[
+            ("validation", non_null("ValidationUpdateInput")),
+            ("id", non_null("ID")),
+        ]),
+    );
+}
+
+fn extend_metaobject_definition_input_schema(schema: &mut AdminInputSchema) {
+    schema.input_objects.insert(
+        "MetaobjectDefinitionUpdateInput".to_string(),
+        input_fields(&[
+            ("access", named("MetaobjectAccessInput")),
+            ("capabilities", named("MetaobjectCapabilityDataInput")),
+            ("description", named("String")),
+            ("displayNameKey", named("String")),
+            (
+                "fieldDefinitions",
+                list_of_non_null("MetaobjectFieldDefinitionOperationInput"),
+            ),
+            ("name", named("String")),
+            ("resetFieldOrder", named("Boolean")),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "metaobjectDefinitionUpdate".to_string(),
+        mutation_args(&[
+            ("id", non_null("ID")),
+            ("definition", non_null("MetaobjectDefinitionUpdateInput")),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "standardMetaobjectDefinitionEnable".to_string(),
+        mutation_args(&[("type", non_null("String"))]),
+    );
+}
+
+fn extend_product_tail_input_schema(schema: &mut AdminInputSchema) {
+    schema.input_objects.insert(
+        "PublicationCreateInput".to_string(),
+        input_fields(&[
+            ("catalogId", named("ID")),
+            (
+                "defaultState",
+                named("PublicationCreateInputPublicationDefaultState"),
+            ),
+            ("autoPublish", named("Boolean")),
+            ("channelId", named("ID")),
+            ("name", named("String")),
+        ]),
+    );
+    schema.input_objects.insert(
+        "ProductResourceFeedbackInput".to_string(),
+        input_fields(&[
+            ("productId", non_null("ID")),
+            ("state", non_null("ResourceFeedbackState")),
+            ("feedbackGeneratedAt", non_null("DateTime")),
+            ("productUpdatedAt", non_null("DateTime")),
+            ("messages", list_of_non_null("String")),
+            ("channelId", named("ID")),
+        ]),
+    );
+    schema.input_objects.insert(
+        "ResourceFeedbackCreateInput".to_string(),
+        input_fields(&[
+            ("feedbackGeneratedAt", non_null("DateTime")),
+            ("messages", list_of_non_null("String")),
+            ("state", non_null("ResourceFeedbackState")),
+            ("channelId", named("ID")),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "publicationCreate".to_string(),
+        mutation_args(&[("input", non_null("PublicationCreateInput"))]),
+    );
+    schema.mutation_fields.insert(
+        "bulkProductResourceFeedbackCreate".to_string(),
+        mutation_args(&[(
+            "feedbackInput",
+            non_null_list_of_non_null("ProductResourceFeedbackInput"),
+        )]),
+    );
+    schema.mutation_fields.insert(
+        "shopResourceFeedbackCreate".to_string(),
+        mutation_args(&[("input", non_null("ResourceFeedbackCreateInput"))]),
+    );
+}
+
 fn named(name: &str) -> SchemaTypeRef {
     SchemaTypeRef {
         display: name.to_string(),
@@ -807,5 +1244,13 @@ fn list_of_non_null(name: &str) -> SchemaTypeRef {
         display: format!("[{name}!]"),
         named_type: name.to_string(),
         non_null: false,
+    }
+}
+
+fn non_null_list_of_non_null(name: &str) -> SchemaTypeRef {
+    SchemaTypeRef {
+        display: format!("[{name}!]!"),
+        named_type: name.to_string(),
+        non_null: true,
     }
 }

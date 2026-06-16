@@ -262,6 +262,15 @@ impl DraftProxy {
         }
     }
 
+    pub(in crate::proxy) fn observe_product_passthrough_response(&mut self, response: &Response) {
+        if response.status >= 400 {
+            return;
+        }
+        if let Some(data) = response.body.get("data") {
+            self.stage_observed_products_from_value(data);
+        }
+    }
+
     pub(in crate::proxy) fn hydrate_product_nodes_for_observation(&mut self, ids: Vec<String>) {
         if ids.is_empty() {
             return;
@@ -333,6 +342,29 @@ impl DraftProxy {
                     self.store.stage_observed_product(product);
                 }
             }
+        }
+    }
+
+    fn stage_observed_products_from_value(&mut self, value: &Value) {
+        match value {
+            Value::Object(object) => {
+                if object
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .is_some_and(|id| id.starts_with("gid://shopify/Product/"))
+                {
+                    self.store.stage_observed_product_json(value);
+                }
+                for child in object.values() {
+                    self.stage_observed_products_from_value(child);
+                }
+            }
+            Value::Array(values) => {
+                for child in values {
+                    self.stage_observed_products_from_value(child);
+                }
+            }
+            _ => {}
         }
     }
 }
