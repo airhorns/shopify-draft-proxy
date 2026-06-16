@@ -3458,9 +3458,9 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::Metaobjects,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &["metaobjectDefinitionUpdate", "MetaobjectDefinitionUpdate"],
-            &[],
+            &["tests/graphql_routes.rs"],
         ),
         registry_entry(
             "metaobjectDefinitionDelete",
@@ -3476,12 +3476,12 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::Metaobjects,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[
                 "standardMetaobjectDefinitionEnable",
                 "StandardMetaobjectDefinitionEnable",
             ],
-            &[],
+            &["tests/graphql_routes.rs"],
         ),
         registry_entry(
             "collectionCreate",

@@ -556,6 +556,7 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         let mut schema = schema_from_fixture(&fixture).unwrap_or_default();
         register_fulfillment_service_fields(&mut schema);
         extend_discount_basic_input_schema(&mut schema);
+        extend_metaobject_definition_input_schema(&mut schema);
         extend_functions_input_schema(&mut schema);
         schema
     })
@@ -618,6 +619,17 @@ fn extend_discount_basic_input_schema(schema: &mut AdminInputSchema) {
             "discountCodeBasicUpdate",
             "discountAutomaticBasicCreate",
             "discountAutomaticBasicUpdate",
+        ],
+    );
+}
+
+fn extend_metaobject_definition_input_schema(schema: &mut AdminInputSchema) {
+    extend_mutation_input_schema(
+        schema,
+        &[
+            "metaobjectDefinitionCreate",
+            "metaobjectDefinitionUpdate",
+            "standardMetaobjectDefinitionEnable",
         ],
     );
 }

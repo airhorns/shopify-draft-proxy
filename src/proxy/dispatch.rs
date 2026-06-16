@@ -370,7 +370,12 @@ impl DraftProxy {
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
-                    "metaobject" | "metaobjectByHandle" | "metaobjects"
+                    "metaobject"
+                        | "metaobjectByHandle"
+                        | "metaobjects"
+                        | "metaobjectDefinition"
+                        | "metaobjectDefinitionByType"
+                        | "metaobjectDefinitions"
                 )
             })
         {
@@ -388,13 +393,32 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| matches!(field.as_str(), "metaobjectCreate" | "metaobjectDelete"))
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "metaobjectCreate"
+                        | "metaobjectDelete"
+                        | "metaobjectDefinitionCreate"
+                        | "metaobjectDefinitionUpdate"
+                        | "metaobjectDefinitionDelete"
+                        | "standardMetaobjectDefinitionEnable"
+                )
+            })
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return self.metaobject_mutation(&fields, request, &query, &variables);
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "urlRedirect" | "urlRedirects"))
+            && self.has_staged_url_redirects()
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.url_redirect_query_data(&fields) }));
             }
         }
 
