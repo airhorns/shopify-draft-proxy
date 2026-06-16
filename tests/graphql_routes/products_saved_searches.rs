@@ -4326,54 +4326,6 @@ fn segment_mutations_suffix_duplicate_names() {
     let create_query = r#"
         mutation AnySegmentCreateName($name: String!, $query: String!) {
           segmentCreate(name: $name, query: $query) {
-            segment { id }
-            userErrors { field message }
-          }
-        }
-    "#;
-
-    for index in 0..6000 {
-        let created = proxy.process_request(json_graphql_request(
-            create_query,
-            json!({ "name": format!("Limit Segment {index}"), "query": "number_of_orders >= 1" }),
-        ));
-        assert_eq!(
-            created.body["data"]["segmentCreate"]["userErrors"],
-            json!([]),
-            "segment {index} should stage without userErrors"
-        );
-    }
-
-    let rejected = proxy.process_request(json_graphql_request(
-        create_query,
-        json!({ "name": "Limit Segment Overflow", "query": "number_of_orders >= 1" }),
-    ));
-    assert_eq!(rejected.status, 200);
-    assert_eq!(
-        rejected.body["data"]["segmentCreate"],
-        json!({
-            "segment": null,
-            "userErrors": [{
-                "field": null,
-                "message": "Segment limit reached. Delete an existing segment to create more."
-            }]
-        })
-    );
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"]
-            .as_array()
-            .unwrap()
-            .len(),
-        6000
-    );
-}
-
-#[test]
-fn segment_mutations_suffix_duplicate_names() {
-    let mut proxy = snapshot_proxy();
-    let create_query = r#"
-        mutation AnySegmentCreateName($name: String!, $query: String!) {
-          segmentCreate(name: $name, query: $query) {
             segment { id name }
             userErrors { field message }
           }
