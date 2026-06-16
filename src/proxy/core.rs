@@ -151,9 +151,16 @@ impl DraftProxy {
                 "discounts": self.store.staged.discounts.clone(),
                 "discountCodeIndex": self.store.staged.discount_code_index.clone(),
                 "deletedDiscountIds": self.store.staged.deleted_discount_ids.iter().cloned().collect::<Vec<_>>(),
+                "discountBulkOperations": self.store.staged.discount_bulk_operations.clone(),
                 "discountRedeemCodeBulkCreations": self.store.staged.discount_redeem_code_bulk_creations.clone(),
                 "ownerMetafields": self.store.staged.owner_metafields.clone(),
-                "deletedOwnerMetafields": self.store.staged.deleted_owner_metafields.iter().map(|(owner_id, namespace, key)| json!({"ownerId": owner_id, "namespace": namespace, "key": key})).collect::<Vec<_>>()
+                "deletedOwnerMetafields": self.store.staged.deleted_owner_metafields.iter().map(|(owner_id, namespace, key)| {
+                    let mut tombstone = serde_json::Map::new();
+                    tombstone.insert("ownerId".to_string(), Value::String(owner_id.clone()));
+                    tombstone.insert("namespace".to_string(), Value::String(namespace.clone()));
+                    tombstone.insert("key".to_string(), Value::String(key.clone()));
+                    Value::Object(tombstone)
+                }).collect::<Vec<_>>()
             }
         });
         snapshot["stagedState"]["b2bCompanies"] = json!(self.store.staged.b2b_companies.clone());
@@ -711,6 +718,15 @@ impl DraftProxy {
             .flatten()
             .filter_map(|value| value.as_str().map(str::to_string))
             .collect();
+        self.store.staged.discount_bulk_operations = state["stagedState"]["discountBulkOperations"]
+            .as_object()
+            .map(|operations| {
+                operations
+                    .iter()
+                    .map(|(id, operation)| (id.clone(), operation.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
         self.store.staged.discount_redeem_code_bulk_creations = state["stagedState"]
             ["discountRedeemCodeBulkCreations"]
             .as_object()
