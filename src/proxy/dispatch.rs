@@ -272,7 +272,7 @@ impl DraftProxy {
 
         if matches!(
             root_field,
-            "orderCreate" | "order" | "orders" | "ordersCount"
+            "orderCreate" | "orderUpdate" | "order" | "orders" | "ordersCount"
         ) {
             if let Some(data) =
                 self.order_create_local_data(request, root_field, &query, &variables)

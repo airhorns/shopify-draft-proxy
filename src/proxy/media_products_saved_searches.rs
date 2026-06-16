@@ -1377,7 +1377,13 @@ impl DraftProxy {
             }
             match field.name.as_str() {
                 "collection" | "customer" | "order" | "company" => {
-                    has_non_product_owner_read = true;
+                    let owner_id = self.owner_field_id(&field, variables);
+                    if self.config.read_mode == ReadMode::Snapshot
+                        || self.owner_has_metafield_local_effects(&owner_id)
+                        || !self.owner_needs_metafield_hydration(&field.name, &owner_id)
+                    {
+                        has_non_product_owner_read = true;
+                    }
                 }
                 "product" | "productVariant" if self.config.read_mode == ReadMode::LiveHybrid => {
                     let owner_id = self.owner_field_id(&field, variables);

@@ -3671,9 +3671,9 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &["orderUpdate", "OrderUpdate"],
-            &[],
+            &["tests/graphql_routes.rs"],
         ),
         registry_entry(
             "orderClose",

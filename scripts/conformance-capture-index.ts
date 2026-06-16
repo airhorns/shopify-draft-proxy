@@ -7528,6 +7528,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-update-snapshot-staging-local-runtime',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-update-snapshot-staging-local-runtime.ts',
+    purpose:
+      'Local-runtime recording for orderCreate-backed orderUpdate happy-path staging, downstream order reads, and raw mutation-log retention.',
+    requiredAuthScopes: ['local-runtime'],
+    fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}orderUpdate-snapshot-staging.json`,
+      'config/parity-specs/orders/orderUpdate-snapshot-staging.json',
+      'config/parity-requests/orders/orderUpdate-snapshot-staging-create.graphql',
+      'config/parity-requests/orders/orderUpdate-snapshot-staging-create.variables.json',
+      'config/parity-requests/orders/orderUpdate-snapshot-staging.graphql',
+      'config/parity-requests/orders/orderUpdate-snapshot-staging-read.graphql',
+    ],
+    cleanupBehavior:
+      'Runs only against the local Rust proxy runtime through public GraphQL requests; no Shopify cleanup required.',
+    expectedStatusChecks: ['conformance:check', 'rust:test', 'targeted-runtime-test'],
+  },
+  {
+    domain: 'orders',
     captureId: 'return-decline-request-local-runtime',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-return-decline-request-local-runtime.ts',
