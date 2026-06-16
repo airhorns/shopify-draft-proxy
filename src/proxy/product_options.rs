@@ -58,6 +58,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
+        self.hydrate_product_option_owner_state(&product_id);
         let Some(mut product) = self.store.product_staged_or_base(&product_id) else {
             return MutationOutcome::response(self.product_option_payload_response(
                 query,
@@ -274,6 +275,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
+        self.hydrate_product_option_owner_state(&product_id);
         let Some(mut product) = self.store.product_staged_or_base(&product_id) else {
             return MutationOutcome::response(self.product_option_payload_response(
                 query,
@@ -401,6 +403,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
+        self.hydrate_product_option_owner_state(&product_id);
         let Some(mut product) = self.store.product_staged_or_base(&product_id) else {
             return MutationOutcome::response(self.product_options_delete_response(
                 query,
@@ -480,6 +483,7 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
+        self.hydrate_product_option_owner_state(&product_id);
         let Some(mut product) = self.store.product_staged_or_base(&product_id) else {
             return MutationOutcome::response(self.product_option_payload_response(
                 query,
@@ -530,6 +534,16 @@ impl DraftProxy {
             ),
             LogDraft::staged("productOptionsReorder", "products", vec![product_id]),
         )
+    }
+
+    fn hydrate_product_option_owner_state(&mut self, product_id: &str) {
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || product_id.is_empty()
+            || self.store.product_by_id(product_id).is_some()
+        {
+            return;
+        }
+        self.hydrate_product_nodes_for_observation(vec![product_id.to_string()]);
     }
 
     fn record_product_option_linked_metaobject_definitions(
@@ -1135,21 +1149,16 @@ fn reorder_product_option_graph(
         let mut option = graph.options[index].clone();
         let value_inputs = resolved_object_list_field(input, "values");
         if !value_inputs.is_empty() {
-            let mut values = Vec::new();
-            let mut used_value_ids = BTreeSet::new();
+            let mut values = option.values.clone();
             for value_input in &value_inputs {
                 if let Some(value) = option_value_match_for_reorder(&option, value_input) {
-                    used_value_ids.insert(value.id.clone());
-                    values.push(value.clone());
+                    if let Some(existing) =
+                        values.iter_mut().find(|existing| existing.id == value.id)
+                    {
+                        *existing = value.clone();
+                    }
                 }
             }
-            values.extend(
-                option
-                    .values
-                    .iter()
-                    .filter(|value| !used_value_ids.contains(&value.id))
-                    .cloned(),
-            );
             option.values = values;
         }
         used_ids.insert(option.id.clone());
@@ -1162,9 +1171,10 @@ fn reorder_product_option_graph(
             .filter(|option| !used_ids.contains(&option.id))
             .cloned(),
     );
-    let mut graph = ProductOptionGraph { options: reordered };
-    graph.normalize_positions();
-    graph
+    for (index, option) in reordered.iter_mut().enumerate() {
+        option.position = index + 1;
+    }
+    ProductOptionGraph { options: reordered }
 }
 
 fn option_match_for_reorder(
@@ -1332,6 +1342,7 @@ fn empty_product_variant_record(
             requires_shipping: true,
             extra_fields: BTreeMap::new(),
         },
+        media_ids: Vec::new(),
         extra_fields: BTreeMap::new(),
     }
 }

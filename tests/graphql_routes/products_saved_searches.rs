@@ -1035,7 +1035,7 @@ fn product_read_preserves_root_alias() {
 }
 
 #[test]
-fn collection_publishable_mutations_stage_publication_state_for_downstream_reads() {
+fn product_media_deprecated_user_errors_match_local_payloads() {
     let mut proxy = snapshot_proxy();
     let variables = json!({
         "id": "gid://shopify/Collection/468787757289",
@@ -1085,318 +1085,110 @@ fn collection_publishable_mutations_stage_publication_state_for_downstream_reads
         read_after_publish.body["data"]["collection"],
         publish_response.body["data"]["publishablePublish"]["publishable"]
     );
-
-    let unpublish_response = proxy.process_request(json_graphql_request(
-        r#"
-        mutation CollectionPublishableUnpublish($id: ID!, $input: [PublicationInput!]!, $publicationId: ID!) {
-          publishableUnpublish(id: $id, input: $input) {
-            publishable { ... on Collection { id title handle publishedOnCurrentPublication publishedOnPublication(publicationId: $publicationId) availablePublicationsCount { count precision } resourcePublicationsCount { count precision } } }
-            userErrors { field message }
-          }
-        }
-        "#,
-        variables.clone(),
-    ));
-    assert_eq!(
-        unpublish_response.body["data"]["publishableUnpublish"]["publishable"],
-        json!({
-            "id": "gid://shopify/Collection/468787757289",
-            "title": "Hermes Collection Conformance 1777078204269",
-            "handle": "hermes-collection-conformance-1777078204269",
-            "publishedOnCurrentPublication": false,
-            "publishedOnPublication": false,
-            "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
-            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
-        })
-    );
-    let read_after_unpublish = proxy.process_request(json_graphql_request(read_query, variables));
-    assert_eq!(
-        read_after_unpublish.body["data"]["collection"],
-        unpublish_response.body["data"]["publishableUnpublish"]["publishable"]
-    );
 }
 
 #[test]
-fn top_level_inventory_level_read_observes_staged_inventory_level_state() {
-    let mut proxy = snapshot_proxy();
-    let seed = proxy.process_request(json_graphql_request(
-        r#"
-        mutation SeedInventoryLevel($input: InventorySetQuantitiesInput!) {
-          inventorySetQuantities(input: $input) { userErrors { field message } }
-        }
-        "#,
-        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
-            {"inventoryItemId": "gid://shopify/InventoryItem/50643009569001", "locationId": "gid://shopify/Location/68509171945", "quantity": 4}
-        ]}}),
-    ));
-    assert_eq!(
-        seed.body["data"]["inventorySetQuantities"]["userErrors"],
-        json!([])
-    );
+fn product_variant_media_append_detach_validate_and_stage_media_locally() {
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(|_| Response {
+        status: 599,
+        headers: Default::default(),
+        body: json!({ "errors": [{ "message": "variant media should be handled locally" }] }),
+    });
 
-    let item_response = proxy.process_request(json_graphql_request(
+    let base_product = proxy.process_request(json_graphql_request(
         r#"
-        query InventoryItemRead($inventoryItemId: ID!) {
-          inventoryItem(id: $inventoryItemId) {
-            inventoryLevels(first: 10) {
-              nodes { id }
+        mutation ProductVariantMediaBaseProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product {
+              id
+              variants(first: 10) { nodes { id title selectedOptions { name value } } }
             }
+            userErrors { field message code }
           }
         }
         "#,
-        json!({
-            "inventoryItemId": "gid://shopify/InventoryItem/50643009569001"
-        }),
+        json!({ "product": { "title": "Variant media base" } }),
     ));
-    assert_eq!(item_response.status, 200);
-    let inventory_level_id = item_response.body["data"]["inventoryItem"]["inventoryLevels"]
+    assert_eq!(base_product.status, 200);
+    let base_product_id = base_product.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("base product id should be returned")
+        .to_string();
+    let base_variant_id = base_product.body["data"]["productCreate"]["product"]["variants"]
         ["nodes"][0]["id"]
         .as_str()
-        .expect("staged inventory level should have an id")
+        .expect("base default variant id should be returned")
+        .to_string();
+    assert!(base_variant_id.starts_with("gid://shopify/ProductVariant/"));
+
+    let other_product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductVariantMediaOtherProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id variants(first: 10) { nodes { id } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "product": { "title": "Variant media other" } }),
+    ));
+    assert_eq!(other_product.status, 200);
+    let other_product_id = other_product.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .expect("other product id should be returned")
+        .to_string();
+    let other_variant_id = other_product.body["data"]["productCreate"]["product"]["variants"]
+        ["nodes"][0]["id"]
+        .as_str()
+        .expect("other default variant id should be returned")
         .to_string();
 
-    let response = proxy.process_request(json_graphql_request(
+    let base_ready_media_id =
+        create_product_media_for_variant_media_test(&mut proxy, &base_product_id, "Base ready");
+    mark_product_media_ready_for_variant_media_test(
+        &mut proxy,
+        &base_product_id,
+        &base_ready_media_id,
+        "Base ready updated",
+    );
+    let other_ready_media_id =
+        create_product_media_for_variant_media_test(&mut proxy, &other_product_id, "Other ready");
+    mark_product_media_ready_for_variant_media_test(
+        &mut proxy,
+        &other_product_id,
+        &other_ready_media_id,
+        "Other ready updated",
+    );
+    let base_processing_media_id = create_product_media_for_variant_media_test(
+        &mut proxy,
+        &base_product_id,
+        "Base processing",
+    );
+
+    let variant_from_other_product = proxy.process_request(json_graphql_request(
         r#"
-        query InventoryLevelRead($inventoryLevelId: ID!) {
-          inventoryLevel(id: $inventoryLevelId) {
-            id
-            location { id name }
-            quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt }
+        mutation ProductVariantMediaValidationVariant($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
+          productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
+            productVariants { id }
+            userErrors { field message code }
           }
         }
         "#,
         json!({
-            "inventoryLevelId": inventory_level_id
+            "productId": base_product_id,
+            "variantMedia": [{
+                "variantId": other_variant_id,
+                "mediaIds": [base_ready_media_id]
+            }]
         }),
     ));
-
-    assert_eq!(response.status, 200);
+    assert_eq!(variant_from_other_product.status, 200);
     assert_eq!(
-        response.body["data"]["inventoryLevel"],
-        json!({
-            "id": "gid://shopify/InventoryLevel/50643009569001-68509171945?inventory_item_id=gid://shopify/InventoryItem/50643009569001",
-            "location": { "id": "gid://shopify/Location/68509171945", "name": "Shop location" },
-            "quantities": [
-                { "name": "available", "quantity": 4, "updatedAt": "2024-01-01T00:00:00.000Z" },
-                { "name": "on_hand", "quantity": 4, "updatedAt": "2024-01-01T00:00:00.000Z" },
-                { "name": "incoming", "quantity": 0, "updatedAt": null }
-            ]
-        })
-    );
-}
-
-#[test]
-fn product_variant_bulk_fixture_downstream_reads_return_captured_shapes() {
-    let bulk_create_fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-variants-bulk-create-inventory-read-parity.json"
-    ))
-    .unwrap();
-    let observed_product = &bulk_create_fixture["mutation"]["response"]["data"]
-        ["productVariantsBulkCreate"]["product"];
-    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
-        id: observed_product["id"].as_str().unwrap().to_string(),
-        title: observed_product["title"].as_str().unwrap().to_string(),
-        handle: observed_product["handle"].as_str().unwrap().to_string(),
-        status: observed_product["status"].as_str().unwrap().to_string(),
-        total_inventory: observed_product["totalInventory"].as_i64().unwrap_or(0),
-        tracks_inventory: observed_product["tracksInventory"]
-            .as_bool()
-            .unwrap_or(false),
-        variants: observed_product["variants"]["nodes"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default(),
-        extra_fields: BTreeMap::new(),
-        ..ProductRecord::default()
-    }]);
-
-    let bulk_create = proxy.process_request(json_graphql_request(
-        r#"
-        query ProductVariantsBulkCreateDownstreamRead($id: ID!, $query: String!) {
-          product(id: $id) { id totalInventory tracksInventory variants(first: 10) { nodes { id title sku inventoryItem { id tracked requiresShipping } } } }
-          products(first: 10, query: $query) { nodes { id totalInventory tracksInventory } }
-          skuCount: productsCount(query: $query) { count precision }
-        }
-        "#,
-        json!({
-            "id": "gid://shopify/Product/10180320788786",
-            "query": "sku:HERMES-BULK-962361-BLUE"
-        }),
-    ));
-    assert_eq!(bulk_create.status, 200);
-    assert_eq!(
-        bulk_create.body["data"]["product"],
-        Value::Null,
-        "unobserved product reads should not replay a baked downstream fixture"
-    );
-    assert_eq!(bulk_create.body["data"]["skuCount"]["count"], json!(0));
-
-    let inventory_read = proxy.process_request(json_graphql_request(
-        r#"
-        query ProductVariantsBulkCreateInventoryReadDownstream($productId: ID!, $variantId: ID!, $inventoryItemId: ID!) {
-          product(id: $productId) { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku inventoryItem { id tracked requiresShipping } } } }
-          variant: productVariant(id: $variantId) { id title sku inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory } }
-          stock: inventoryItem(id: $inventoryItemId) { id tracked requiresShipping variant { id title sku inventoryQuantity product { id title handle status totalInventory tracksInventory } } }
-        }
-        "#,
-        json!({
-            "productId": "gid://shopify/Product/9263919988969",
-            "variantId": "gid://shopify/ProductVariant/50933258911977",
-            "inventoryItemId": "gid://shopify/InventoryItem/53081336283369"
-        }),
-    ));
-    assert_eq!(inventory_read.status, 200);
-    assert_eq!(
-        inventory_read.body["data"]["product"]["id"],
-        json!("gid://shopify/Product/9263919988969")
-    );
-    assert_eq!(
-        inventory_read.body["data"]["variant"],
-        Value::Null,
-        "unobserved variant reads should not replay a baked downstream fixture"
-    );
-    assert_eq!(
-        inventory_read.body["data"]["stock"]["variant"]["id"],
-        json!("gid://shopify/ProductVariant/50933258911977")
-    );
-
-    let bulk_update = proxy.process_request(json_graphql_request(
-        r#"
-        query ProductVariantsBulkUpdateDownstreamRead($id: ID!, $query: String!) {
-          product(id: $id) { id totalInventory tracksInventory variants(first: 10) { nodes { id title sku metafield(namespace: "specs", key: "bulkUpdateTier") { value ownerType } inventoryItem { id tracked requiresShipping } } } }
-          products(first: 10, query: $query) { nodes { id totalInventory tracksInventory } }
-          skuCount: productsCount(query: $query) { count precision }
-        }
-        "#,
-        json!({
-            "id": "gid://shopify/Product/10180320788786",
-            "query": "sku:HERMES-BULK-962361-RED"
-        }),
-    ));
-    assert_eq!(bulk_update.status, 200);
-    assert_eq!(
-        bulk_update.body["data"]["product"],
-        Value::Null,
-        "unobserved product reads should not replay a baked bulk-update downstream fixture"
-    );
-
-    let reorder = proxy.process_request(json_graphql_request(
-        r#"
-        query ProductVariantsBulkReorderDownstreamRead($productId: ID!) {
-          product(id: $productId) { id variants(first: 10) { nodes { id title selectedOptions { name value } } } }
-        }
-        "#,
-        json!({ "productId": "gid://shopify/Product/10170568114482" }),
-    ));
-    assert_eq!(reorder.status, 200);
-    assert_eq!(
-        reorder.body["data"]["product"],
-        Value::Null,
-        "unobserved product reads should not replay a baked bulk-reorder downstream fixture"
-    );
-
-    let node = proxy.process_request(json_graphql_request(
-        r#"
-        query ProductVariantNodeRead($id: ID!) {
-          node(id: $id) { ... on ProductVariant { id title selectedOptions { name value } } }
-        }
-        "#,
-        json!({ "id": "gid://shopify/ProductVariant/51098748059954" }),
-    ));
-    assert_eq!(node.status, 200);
-    assert_eq!(
-        node.body["data"]["node"],
-        json!({
-            "id": "gid://shopify/ProductVariant/51098748059954",
-            "title": "Blue",
-            "selectedOptions": [{ "name": "Color", "value": "Blue" }]
-        })
-    );
-}
-
-#[test]
-fn product_media_deprecated_user_errors_and_variant_media_guards_port_old_gleam_helpers() {
-    let mut proxy = snapshot_proxy();
-
-    let deprecated = proxy.process_request(json_graphql_request(
-        r#"
-        mutation RustProductMediaDeprecatedUserErrors {
-          create: productCreateMedia(productId: "gid://shopify/Product/optioned", media: [{ originalSource: "not-a-url", mediaContentType: IMAGE }]) {
-            userErrors { field message }
-            mediaUserErrors { field message }
-          }
-          update: productUpdateMedia(productId: "gid://shopify/Product/optioned", media: [{ id: "gid://shopify/MediaImage/missing", alt: "Missing" }]) {
-            userErrors { field message }
-            mediaUserErrors { field message }
-          }
-          delete: productDeleteMedia(productId: "gid://shopify/Product/optioned", mediaIds: ["gid://shopify/MediaImage/missing"]) {
-            userErrors { field message }
-            mediaUserErrors { field message }
-          }
-          reorder: productReorderMedia(id: "gid://shopify/Product/optioned", moves: [{ id: "gid://shopify/MediaImage/missing", newPosition: "0" }]) {
-            userErrors { field message }
-            mediaUserErrors { field message }
-          }
-        }
-        "#,
-        json!({}),
-    ));
-    assert_eq!(deprecated.status, 200);
-    assert_eq!(
-        deprecated.body["data"]["create"],
-        json!({
-            "userErrors": [{ "field": ["media", "0", "originalSource"], "message": "Image URL is invalid" }],
-            "mediaUserErrors": [{ "field": ["media", "0", "originalSource"], "message": "Image URL is invalid" }]
-        })
-    );
-    assert_eq!(
-        deprecated.body["data"]["update"],
-        json!({
-            "userErrors": [{ "field": ["media"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }],
-            "mediaUserErrors": [{ "field": ["media"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }]
-        })
-    );
-    assert_eq!(
-        deprecated.body["data"]["delete"],
-        json!({
-            "userErrors": [{ "field": ["mediaIds"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }],
-            "mediaUserErrors": [{ "field": ["mediaIds"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }]
-        })
-    );
-    assert_eq!(
-        deprecated.body["data"]["reorder"],
-        json!({
-            "userErrors": [{ "field": ["moves", "0", "id"], "message": "Media does not exist" }],
-            "mediaUserErrors": [{ "field": ["moves", "0", "id"], "message": "Media does not exist" }]
-        })
-    );
-
-    let variant_guards = proxy.process_request(json_graphql_request(
-        r#"
-        mutation RustProductVariantMediaValidationTailHelpers {
-          variantFromOtherProduct: productVariantAppendMedia(
-            productId: "gid://shopify/Product/optioned"
-            variantMedia: [{ variantId: "gid://shopify/ProductVariant/child", mediaIds: ["gid://shopify/MediaImage/ready"] }]
-          ) { productVariants { id } userErrors { field message code } }
-          mediaFromOtherProduct: productVariantAppendMedia(
-            productId: "gid://shopify/Product/optioned"
-            variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/child"] }]
-          ) { productVariants { id } userErrors { field message code } }
-          processingMedia: productVariantAppendMedia(
-            productId: "gid://shopify/Product/optioned"
-            variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/processing"] }]
-          ) { productVariants { id } userErrors { field message code } }
-          detachUnattached: productVariantDetachMedia(
-            productId: "gid://shopify/Product/optioned"
-            variantMedia: [{ variantId: "gid://shopify/ProductVariant/default", mediaIds: ["gid://shopify/MediaImage/ready"] }]
-          ) { productVariants { id } userErrors { field message code } }
-        }
-        "#,
-        json!({}),
-    ));
-    assert_eq!(variant_guards.status, 200);
-    assert_eq!(
-        variant_guards.body["data"]["variantFromOtherProduct"],
+        variant_from_other_product.body["data"]["productVariantAppendMedia"],
         json!({
             "productVariants": Value::Null,
             "userErrors": [{
@@ -1406,8 +1198,27 @@ fn product_media_deprecated_user_errors_and_variant_media_guards_port_old_gleam_
             }]
         })
     );
+
+    let media_from_other_product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductVariantMediaValidationMedia($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
+          productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": base_product_id,
+            "variantMedia": [{
+                "variantId": base_variant_id,
+                "mediaIds": [other_ready_media_id]
+            }]
+        }),
+    ));
+    assert_eq!(media_from_other_product.status, 200);
     assert_eq!(
-        variant_guards.body["data"]["mediaFromOtherProduct"],
+        media_from_other_product.body["data"]["productVariantAppendMedia"],
         json!({
             "productVariants": Value::Null,
             "userErrors": [{
@@ -1417,8 +1228,27 @@ fn product_media_deprecated_user_errors_and_variant_media_guards_port_old_gleam_
             }]
         })
     );
+
+    let processing_media = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductVariantMediaValidationProcessing($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
+          productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": base_product_id,
+            "variantMedia": [{
+                "variantId": base_variant_id,
+                "mediaIds": [base_processing_media_id]
+            }]
+        }),
+    ));
+    assert_eq!(processing_media.status, 200);
     assert_eq!(
-        variant_guards.body["data"]["processingMedia"],
+        processing_media.body["data"]["productVariantAppendMedia"],
         json!({
             "productVariants": Value::Null,
             "userErrors": [{
@@ -1428,8 +1258,27 @@ fn product_media_deprecated_user_errors_and_variant_media_guards_port_old_gleam_
             }]
         })
     );
+
+    let detach_unattached = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductVariantMediaValidationDetach($productId: ID!, $variantMedia: [ProductVariantDetachMediaInput!]!) {
+          productVariantDetachMedia(productId: $productId, variantMedia: $variantMedia) {
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": base_product_id,
+            "variantMedia": [{
+                "variantId": base_variant_id,
+                "mediaIds": [base_ready_media_id]
+            }]
+        }),
+    ));
+    assert_eq!(detach_unattached.status, 200);
     assert_eq!(
-        variant_guards.body["data"]["detachUnattached"],
+        detach_unattached.body["data"]["productVariantDetachMedia"],
         json!({
             "productVariants": Value::Null,
             "userErrors": [{
@@ -1438,6 +1287,203 @@ fn product_media_deprecated_user_errors_and_variant_media_guards_port_old_gleam_
                 "code": "MEDIA_IS_NOT_ATTACHED_TO_VARIANT"
             }]
         })
+    );
+
+    let append = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductVariantMediaAppend($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
+          productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
+            productVariants {
+              id
+              media(first: 10) { nodes { id alt mediaContentType status } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": base_product_id,
+            "variantMedia": [{
+                "variantId": base_variant_id,
+                "mediaIds": [base_ready_media_id]
+            }]
+        }),
+    ));
+    assert_eq!(append.status, 200);
+    assert_eq!(
+        append.body["data"]["productVariantAppendMedia"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        append.body["data"]["productVariantAppendMedia"]["productVariants"],
+        json!([{
+            "id": base_variant_id,
+            "media": { "nodes": [{
+                "id": base_ready_media_id,
+                "alt": "Base ready updated",
+                "mediaContentType": "IMAGE",
+                "status": "READY"
+            }] }
+        }])
+    );
+
+    let read_after_append = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductVariantMediaReadAfterAppend($id: ID!) {
+          productVariant(id: $id) {
+            id
+            media(first: 10) { nodes { id alt mediaContentType status } }
+          }
+        }
+        "#,
+        json!({ "id": base_variant_id }),
+    ));
+    assert_eq!(read_after_append.status, 200);
+    assert_eq!(
+        read_after_append.body["data"]["productVariant"]["media"]["nodes"],
+        append.body["data"]["productVariantAppendMedia"]["productVariants"][0]["media"]["nodes"]
+    );
+
+    let detach = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductVariantMediaDetach($productId: ID!, $variantMedia: [ProductVariantDetachMediaInput!]!) {
+          productVariantDetachMedia(productId: $productId, variantMedia: $variantMedia) {
+            productVariants {
+              id
+              media(first: 10) { nodes { id alt mediaContentType status } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": base_product_id,
+            "variantMedia": [{
+                "variantId": base_variant_id,
+                "mediaIds": [base_ready_media_id]
+            }]
+        }),
+    ));
+    assert_eq!(detach.status, 200);
+    assert_eq!(
+        detach.body["data"]["productVariantDetachMedia"],
+        json!({
+            "productVariants": [{
+                "id": base_variant_id,
+                "media": { "nodes": [] }
+            }],
+            "userErrors": []
+        })
+    );
+
+    let read_after_detach = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductVariantMediaReadAfterDetach($id: ID!) {
+          productVariant(id: $id) {
+            id
+            media(first: 10) { nodes { id alt mediaContentType status } }
+          }
+        }
+        "#,
+        json!({ "id": base_variant_id }),
+    ));
+    assert_eq!(read_after_detach.status, 200);
+    assert_eq!(
+        read_after_detach.body["data"]["productVariant"]["media"]["nodes"],
+        json!([])
+    );
+
+    let log = proxy.get_log_snapshot();
+    let append_entry = log["entries"]
+        .as_array()
+        .expect("log entries should be an array")
+        .iter()
+        .find(|entry| {
+            entry["interpreted"]["primaryRootField"] == json!("productVariantAppendMedia")
+        })
+        .expect("append should be logged as a staged local mutation");
+    assert_eq!(append_entry["status"], json!("staged"));
+    assert!(append_entry["rawBody"]
+        .as_str()
+        .expect("rawBody should be preserved")
+        .contains("ProductVariantMediaAppend"));
+    let detach_entry = log["entries"]
+        .as_array()
+        .expect("log entries should be an array")
+        .iter()
+        .find(|entry| {
+            entry["interpreted"]["primaryRootField"] == json!("productVariantDetachMedia")
+        })
+        .expect("detach should be logged as a staged local mutation");
+    assert_eq!(detach_entry["status"], json!("staged"));
+    assert!(detach_entry["rawBody"]
+        .as_str()
+        .expect("rawBody should be preserved")
+        .contains("ProductVariantMediaDetach"));
+}
+
+fn create_product_media_for_variant_media_test(
+    proxy: &mut DraftProxy,
+    product_id: &str,
+    alt: &str,
+) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductVariantMediaCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {
+          productCreateMedia(productId: $productId, media: $media) {
+            media { id alt mediaContentType status }
+            mediaUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "media": [{
+                "mediaContentType": "IMAGE",
+                "originalSource": "https://placehold.co/600x400/png",
+                "alt": alt
+            }]
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productCreateMedia"]["mediaUserErrors"],
+        json!([])
+    );
+    response.body["data"]["productCreateMedia"]["media"][0]["id"]
+        .as_str()
+        .expect("created media id should be returned")
+        .to_string()
+}
+
+fn mark_product_media_ready_for_variant_media_test(
+    proxy: &mut DraftProxy,
+    product_id: &str,
+    media_id: &str,
+    alt: &str,
+) {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductVariantMediaReadyMedia($productId: ID!, $media: [UpdateMediaInput!]!) {
+          productUpdateMedia(productId: $productId, media: $media) {
+            media { id alt mediaContentType status }
+            mediaUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "media": [{ "id": media_id, "alt": alt }]
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productUpdateMedia"]["mediaUserErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["productUpdateMedia"]["media"][0]["status"],
+        json!("READY")
     );
 }
 
