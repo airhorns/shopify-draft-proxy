@@ -1169,6 +1169,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-create-content-type-inference',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-create-content-type-inference-conformance.ts',
+    purpose:
+      'fileCreate omitted-contentType inference for image, video, document, and extensionless source URLs plus downstream files/node read-after-write.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}file-create-content-type-inference.json`,
+      'config/parity-specs/media/file_create_content_type_inference.json',
+      'config/parity-requests/media/file-create-content-type-inference-create.graphql',
+      'config/parity-requests/media/file-create-content-type-inference-files-read.graphql',
+      'config/parity-requests/media/file-create-content-type-inference-video-node.graphql',
+      'config/parity-requests/media/file-create-content-type-inference-generic-node.graphql',
+    ],
+    cleanupBehavior: 'Creates disposable image, video, document, and extensionless files, then deletes them.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-cascade-variant-media-clear',
     scriptPath: 'scripts/capture-media-file-cascade-variant-media-clear-conformance.mts',
     purpose:
@@ -1471,6 +1490,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}product-option-update-parity.json`,
       `${CAPTURE_ROOT}product-options-delete-parity.json`,
       `${CAPTURE_ROOT}product-options-create-variant-strategy-create-parity.json`,
+      'config/parity-specs/products/productOptionsCreate-parity-plan.json',
+      'config/parity-specs/products/productOptionUpdate-parity-plan.json',
+      'config/parity-specs/products/productOptionsDelete-parity-plan.json',
+      'config/parity-requests/products/product-option-lifecycle-hydrate-nodes.graphql',
     ],
     cleanupBehavior: 'Creates disposable products/options and deletes the products in best-effort cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -5250,6 +5273,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-orders-count.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-orders-invalid-email-query.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/fulfillment-cancel-parity.json',
+      'config/parity-specs/orders/fulfillment-lifecycle-create-update-cancel.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/fulfillment-create-preconditions.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/fulfillment-cancel-inline-missing-id.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/fulfillment-cancel-inline-null-id.json',
@@ -6758,7 +6782,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Local-runtime order payment parity robustness coverage that replays captured order payment staging evidence through unrelated client operation names.',
     requiredAuthScopes: ['local-runtime fixture evidence; no live Shopify write required'],
     fixtureOutputs: [
+      'config/parity-specs/orders/order-payment-transaction-local-staging.json',
       'config/parity-specs/orders/order-payment-transaction-non-recording-operation-name.json',
+      'config/parity-specs/orders/order-payment-transaction-void-local-staging.json',
       'config/parity-requests/orders/order-payment-non-recording-capture.graphql',
       'config/parity-requests/orders/order-payment-non-recording-create.graphql',
       'config/parity-requests/orders/order-payment-non-recording-mandate.graphql',
@@ -6900,6 +6926,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates a disposable draft order for each validation case, deletes payment terms for success cases, then deletes every draft order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
+    captureId: 'payment-terms-create-template-reprojection',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-terms-template-reprojection-conformance.ts',
+    purpose: 'paymentTermsCreate successful template reprojection for FIXED, non-30 NET, and FULFILLMENT templates.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-terms-create-template-reprojection.json`,
+      'config/parity-specs/payments/payment-terms-create-template-reprojection.json',
+      'config/parity-requests/payments/payment-terms-template-reprojection-order-create.graphql',
+      'config/parity-requests/payments/payment-terms-create-template-reprojection.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable Orders, records one successful paymentTermsCreate per target template, deletes payment terms, then cancels every Order.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
