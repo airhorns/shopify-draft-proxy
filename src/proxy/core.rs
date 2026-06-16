@@ -294,6 +294,34 @@ impl DraftProxy {
                 .cloned()
                 .collect::<Vec<_>>());
         }
+        // Markets-domain staged maps. The parity runner restores mainState
+        // before every downstream target, so these MUST round-trip or
+        // read-after-write across targets (catalog delete, price-list
+        // lifecycle, web-presence update, market localization, etc.) wipes
+        // the record staged by the primary op. Emit conditionally (only when
+        // non-empty) so specs asserting on the whole proxy state ($) don't see
+        // spurious empty keys.
+        if !self.store.staged.markets.is_empty() {
+            snapshot["stagedState"]["markets"] = json!(self.store.staged.markets.clone());
+        }
+        if !self.store.staged.catalogs.is_empty() {
+            snapshot["stagedState"]["catalogs"] = json!(self.store.staged.catalogs.clone());
+        }
+        if !self.store.staged.price_lists.is_empty() {
+            snapshot["stagedState"]["priceLists"] = json!(self.store.staged.price_lists.clone());
+        }
+        if !self.store.staged.web_presences.is_empty() {
+            snapshot["stagedState"]["webPresences"] =
+                json!(self.store.staged.web_presences.clone());
+        }
+        if !self.store.staged.shop_locales.is_empty() {
+            snapshot["stagedState"]["stagedShopLocales"] =
+                json!(self.store.staged.shop_locales.clone());
+        }
+        if !self.store.staged.localization_translations.is_empty() {
+            snapshot["stagedState"]["localizationTranslations"] =
+                json!(self.store.staged.localization_translations.clone());
+        }
         snapshot
     }
 
@@ -932,6 +960,63 @@ impl DraftProxy {
             .and_then(Value::as_u64)
             .unwrap_or(1)
             .max(1);
+        // Markets-domain staged maps — symmetric with the conditional emit in
+        // state_snapshot. Missing keys restore to empty (the default).
+        self.store.staged.markets = state["stagedState"]
+            .get("markets")
+            .and_then(Value::as_object)
+            .map(|markets| {
+                markets
+                    .iter()
+                    .map(|(id, market)| (id.clone(), market.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.catalogs = state["stagedState"]
+            .get("catalogs")
+            .and_then(Value::as_object)
+            .map(|catalogs| {
+                catalogs
+                    .iter()
+                    .map(|(id, catalog)| (id.clone(), catalog.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.price_lists = state["stagedState"]
+            .get("priceLists")
+            .and_then(Value::as_object)
+            .map(|price_lists| {
+                price_lists
+                    .iter()
+                    .map(|(id, price_list)| (id.clone(), price_list.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.web_presences = state["stagedState"]
+            .get("webPresences")
+            .and_then(Value::as_object)
+            .map(|presences| {
+                presences
+                    .iter()
+                    .map(|(id, presence)| (id.clone(), presence.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.shop_locales = state["stagedState"]
+            .get("stagedShopLocales")
+            .and_then(Value::as_object)
+            .map(|locales| {
+                locales
+                    .iter()
+                    .map(|(locale, record)| (locale.clone(), record.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.localization_translations = state["stagedState"]
+            ["localizationTranslations"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
         self.log_entries = dump["log"]["entries"]
             .as_array()
             .cloned()

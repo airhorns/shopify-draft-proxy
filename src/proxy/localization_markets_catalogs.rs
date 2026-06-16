@@ -2902,6 +2902,108 @@ impl DraftProxy {
         }
     }
 
+    /// True when any markets-domain record has been staged. Mirrors Gleam's
+    /// `has_local_markets_query_state` (minus the product check, since the Rust
+    /// markets stores are staged-only with no base layer). Once a lifecycle has
+    /// staged a market/catalog/price-list/web-presence, plural reads serve
+    /// locally (read-after-write); before that, cold reads forward upstream.
+    pub(in crate::proxy) fn has_markets_overlay_state(&self) -> bool {
+        !self.store.staged.markets.is_empty()
+            || !self.store.staged.catalogs.is_empty()
+            || !self.store.staged.price_lists.is_empty()
+            || !self.store.staged.web_presences.is_empty()
+    }
+
+    /// LiveHybrid cold-read decision for the Markets domain, ported from Gleam
+    /// `should_fetch_upstream_in_live_hybrid` (markets/queries.gleam:111). When
+    /// this returns true the dispatcher forwards the original request verbatim
+    /// upstream and hydrates the staged store from the response.
+    pub(in crate::proxy) fn markets_should_fetch_upstream(
+        &self,
+        root_field: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        match root_field {
+            "market" => !markets_variables_have_local_id(variables, &self.store.staged.markets),
+            "catalog" => !markets_variables_have_local_id(variables, &self.store.staged.catalogs),
+            "priceList" => {
+                !markets_variables_have_local_id(variables, &self.store.staged.price_lists)
+            }
+            "markets" | "catalogs" | "catalogsCount" | "priceLists" | "webPresences"
+            | "marketsResolvedValues" | "marketLocalizableResources"
+            | "marketLocalizableResourcesByIds" => !self.has_markets_overlay_state(),
+            _ => false,
+        }
+    }
+
+    /// Hydrate the staged markets stores from an upstream GraphQL response body,
+    /// ported from Gleam `hydrate_from_upstream_response` (markets/queries.gleam:644).
+    /// Records are observed as a side effect of a cold read so later targets
+    /// (read-after-write, catalog delete, market localization) resolve locally.
+    pub(in crate::proxy) fn hydrate_markets_from_upstream(&mut self, body: &Value) {
+        let Some(data) = body.get("data") else {
+            return;
+        };
+        if !data.is_object() {
+            return;
+        }
+        // Shop record (primaryDomain etc.) for web-presence reads.
+        if let Some(shop) = data.get("shop").filter(|shop| shop.is_object()) {
+            if shop.get("id").and_then(Value::as_str).is_some() {
+                merge_into_shop(&mut self.store.base.shop, shop);
+            }
+        }
+        let market_records = markets_collect_records(data, "markets", "market");
+        for record in &market_records {
+            if let Some(id) = record_gid(record, "gid://shopify/Market/") {
+                self.store.staged.markets.insert(id, record.clone());
+            }
+        }
+        // Catalogs: top-level plus nested under each market.
+        let mut catalog_records = markets_collect_records(data, "catalogs", "catalog");
+        for market in &market_records {
+            catalog_records.extend(markets_connection_nodes(market.get("catalogs")));
+        }
+        for record in &catalog_records {
+            if let Some(id) = record_gid(record, "gid://shopify/") {
+                self.store.staged.catalogs.insert(id, record.clone());
+            }
+        }
+        // Price lists: top-level plus nested under each catalog (singular field).
+        let mut price_list_records = markets_collect_records(data, "priceLists", "priceList");
+        for catalog in &catalog_records {
+            if let Some(price_list) = catalog.get("priceList").filter(|value| value.is_object()) {
+                price_list_records.push(price_list.clone());
+            }
+        }
+        for record in &price_list_records {
+            if let Some(id) = record_gid(record, "gid://shopify/PriceList/") {
+                self.store.staged.price_lists.insert(id, record.clone());
+            }
+        }
+        // Web presences: top-level plus nested under each market.
+        let mut web_presence_records = markets_collect_records(data, "webPresences", "webPresence");
+        for market in &market_records {
+            web_presence_records.extend(markets_connection_nodes(market.get("webPresences")));
+        }
+        for record in &web_presence_records {
+            if let Some(id) = record_gid(record, "gid://shopify/MarketWebPresence/") {
+                self.store.staged.web_presences.insert(id, record.clone());
+            }
+        }
+        // Products / variants (fixed-price preflight, localizable resources).
+        for product in markets_collect_records(data, "products", "product") {
+            self.store.stage_observed_product_json(&product);
+        }
+        if let Some(nodes) = data.get("productNodes").and_then(Value::as_array) {
+            for product in nodes {
+                if product.is_object() {
+                    self.store.stage_observed_product_json(product);
+                }
+            }
+        }
+    }
+
     pub(in crate::proxy) fn localization_translatable_resource_ids(&self) -> Vec<String> {
         let mut ids = self
             .store
@@ -2956,6 +3058,67 @@ impl DraftProxy {
             .into_iter()
             .find(|content| content["key"].as_str() == Some(key))
             .and_then(|content| content["digest"].as_str().map(str::to_string))
+    }
+}
+
+fn markets_variables_have_local_id(
+    variables: &BTreeMap<String, ResolvedValue>,
+    records: &BTreeMap<String, Value>,
+) -> bool {
+    variables.values().any(|value| match value {
+        ResolvedValue::String(id) => {
+            (id.starts_with("gid://shopify/") && id.contains("shopify-draft-proxy=synthetic"))
+                || records.contains_key(id)
+        }
+        _ => false,
+    })
+}
+
+fn markets_connection_nodes(value: Option<&Value>) -> Vec<Value> {
+    let Some(value) = value else {
+        return Vec::new();
+    };
+    let mut nodes = value
+        .get("nodes")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if nodes.is_empty() {
+        nodes = value
+            .get("edges")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|edge| edge.get("node").cloned())
+            .filter(|node| node.is_object())
+            .collect();
+    }
+    nodes
+}
+
+fn markets_collect_records(data: &Value, connection_key: &str, singular_key: &str) -> Vec<Value> {
+    let mut records = markets_connection_nodes(data.get(connection_key));
+    if let Some(record) = data.get(singular_key).filter(|value| value.is_object()) {
+        records.push(record.clone());
+    }
+    records
+}
+
+fn record_gid(record: &Value, prefix: &str) -> Option<String> {
+    record
+        .get("id")
+        .and_then(Value::as_str)
+        .filter(|id| id.starts_with(prefix))
+        .map(str::to_string)
+}
+
+fn merge_into_shop(shop: &mut Value, observed: &Value) {
+    let (Some(shop_object), Some(observed_object)) = (shop.as_object_mut(), observed.as_object())
+    else {
+        return;
+    };
+    for (key, value) in observed_object {
+        shop_object.insert(key.clone(), value.clone());
     }
 }
 

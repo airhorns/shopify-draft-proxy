@@ -1313,6 +1313,18 @@ impl DraftProxy {
             (CapabilityDomain::Markets, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
             {
+                // Cold LiveHybrid reads forward verbatim upstream and hydrate the
+                // staged stores as a side effect; once a lifecycle has staged
+                // markets-domain records we serve locally (read-after-write).
+                if self.config.read_mode == ReadMode::LiveHybrid
+                    && self.markets_should_fetch_upstream(root_field, &variables)
+                {
+                    let response = (self.upstream_transport)(request.clone());
+                    if response.status < 400 {
+                        self.hydrate_markets_from_upstream(&response.body);
+                    }
+                    return response;
+                }
                 if let Some(fields) = root_fields(&query, &variables) {
                     if operation
                         .root_fields
