@@ -192,6 +192,28 @@ impl DraftProxy {
         snapshot["stagedState"]["nextB2bContactId"] = json!(self.store.staged.next_b2b_contact_id);
         snapshot["stagedState"]["nextB2bContactRoleAssignmentId"] =
             json!(self.store.staged.next_b2b_contact_role_assignment_id);
+        if !self.store.staged.inventory_levels.is_empty() {
+            snapshot["stagedState"]["inventoryLevels"] =
+                inventory_levels_json(&self.store.staged.inventory_levels);
+        }
+        if !self.store.staged.inventory_level_ids.is_empty() {
+            snapshot["stagedState"]["inventoryLevelIds"] =
+                inventory_level_ids_json(&self.store.staged.inventory_level_ids);
+        }
+        if !self.store.staged.inactive_inventory_levels.is_empty() {
+            snapshot["stagedState"]["inactiveInventoryLevels"] =
+                inactive_inventory_levels_json(&self.store.staged.inactive_inventory_levels);
+        }
+        if !self.store.staged.inventory_quantity_updated_at.is_empty() {
+            snapshot["stagedState"]["inventoryQuantityUpdatedAt"] =
+                inventory_quantity_updated_at_json(
+                    &self.store.staged.inventory_quantity_updated_at,
+                );
+        }
+        if self.store.staged.next_inventory_quantity_timestamp != 0 {
+            snapshot["stagedState"]["nextInventoryQuantityTimestamp"] =
+                json!(self.store.staged.next_inventory_quantity_timestamp);
+        }
         if !self.store.staged.metaobject_definitions.is_empty() {
             snapshot["stagedState"]["metaobjectDefinitions"] =
                 json!(self.store.staged.metaobject_definitions);
@@ -600,6 +622,19 @@ impl DraftProxy {
             .get("locationOrder")
             .map(string_array_from_json)
             .unwrap_or_else(|| self.store.staged.locations.keys().cloned().collect());
+        self.store.staged.inventory_levels =
+            inventory_levels_from_json(&state["stagedState"]["inventoryLevels"]);
+        self.store.staged.inventory_level_ids =
+            inventory_level_ids_from_json(&state["stagedState"]["inventoryLevelIds"]);
+        self.store.staged.inactive_inventory_levels =
+            inactive_inventory_levels_from_json(&state["stagedState"]["inactiveInventoryLevels"]);
+        self.store.staged.inventory_quantity_updated_at = inventory_quantity_updated_at_from_json(
+            &state["stagedState"]["inventoryQuantityUpdatedAt"],
+        );
+        self.store.staged.next_inventory_quantity_timestamp = state["stagedState"]
+            .get("nextInventoryQuantityTimestamp")
+            .and_then(Value::as_u64)
+            .unwrap_or_default();
         self.store.staged.location_limit_reached = state["stagedState"]
             .get("locationLimitReached")
             .and_then(Value::as_bool)
@@ -816,5 +851,135 @@ fn string_array_from_json(value: &Value) -> Vec<String> {
         .into_iter()
         .flatten()
         .filter_map(|value| value.as_str().map(str::to_string))
+        .collect()
+}
+
+fn inventory_levels_json(levels: &BTreeMap<(String, String), BTreeMap<String, i64>>) -> Value {
+    json!(levels
+        .iter()
+        .map(|((inventory_item_id, location_id), quantities)| {
+            json!({
+                "inventoryItemId": inventory_item_id,
+                "locationId": location_id,
+                "quantities": quantities
+            })
+        })
+        .collect::<Vec<_>>())
+}
+
+fn inventory_level_ids_json(ids: &BTreeMap<(String, String), String>) -> Value {
+    json!(ids
+        .iter()
+        .map(|((inventory_item_id, location_id), id)| {
+            json!({
+                "inventoryItemId": inventory_item_id,
+                "locationId": location_id,
+                "id": id
+            })
+        })
+        .collect::<Vec<_>>())
+}
+
+fn inactive_inventory_levels_json(levels: &BTreeSet<(String, String)>) -> Value {
+    json!(levels
+        .iter()
+        .map(|(inventory_item_id, location_id)| {
+            json!({
+                "inventoryItemId": inventory_item_id,
+                "locationId": location_id
+            })
+        })
+        .collect::<Vec<_>>())
+}
+
+fn inventory_quantity_updated_at_json(
+    timestamps: &BTreeMap<(String, String, String), String>,
+) -> Value {
+    json!(timestamps
+        .iter()
+        .map(|((inventory_item_id, location_id, name), updated_at)| {
+            json!({
+                "inventoryItemId": inventory_item_id,
+                "locationId": location_id,
+                "name": name,
+                "updatedAt": updated_at
+            })
+        })
+        .collect::<Vec<_>>())
+}
+
+fn inventory_levels_from_json(value: &Value) -> BTreeMap<(String, String), BTreeMap<String, i64>> {
+    value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| {
+            let inventory_item_id = entry.get("inventoryItemId")?.as_str()?.to_string();
+            let location_id = entry.get("locationId")?.as_str()?.to_string();
+            let quantities = entry
+                .get("quantities")
+                .and_then(Value::as_object)
+                .map(|object| {
+                    object
+                        .iter()
+                        .filter_map(|(name, quantity)| {
+                            quantity.as_i64().map(|quantity| (name.clone(), quantity))
+                        })
+                        .collect::<BTreeMap<_, _>>()
+                })
+                .unwrap_or_default();
+            Some(((inventory_item_id, location_id), quantities))
+        })
+        .collect()
+}
+
+fn inventory_level_ids_from_json(value: &Value) -> BTreeMap<(String, String), String> {
+    value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| {
+            Some((
+                (
+                    entry.get("inventoryItemId")?.as_str()?.to_string(),
+                    entry.get("locationId")?.as_str()?.to_string(),
+                ),
+                entry.get("id")?.as_str()?.to_string(),
+            ))
+        })
+        .collect()
+}
+
+fn inactive_inventory_levels_from_json(value: &Value) -> BTreeSet<(String, String)> {
+    value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| {
+            Some((
+                entry.get("inventoryItemId")?.as_str()?.to_string(),
+                entry.get("locationId")?.as_str()?.to_string(),
+            ))
+        })
+        .collect()
+}
+
+fn inventory_quantity_updated_at_from_json(
+    value: &Value,
+) -> BTreeMap<(String, String, String), String> {
+    value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| {
+            Some((
+                (
+                    entry.get("inventoryItemId")?.as_str()?.to_string(),
+                    entry.get("locationId")?.as_str()?.to_string(),
+                    entry.get("name")?.as_str()?.to_string(),
+                ),
+                entry.get("updatedAt")?.as_str()?.to_string(),
+            ))
+        })
         .collect()
 }
