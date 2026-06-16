@@ -862,6 +862,14 @@ impl Store {
                 .count()
     }
 
+    fn has_known_publication_catalog(&self) -> bool {
+        !self.base.publication_ids.is_empty() || !self.staged.publication_ids.is_empty()
+    }
+
+    fn has_publication_id(&self, id: &str) -> bool {
+        self.base.publication_ids.contains(id) || self.staged.publication_ids.contains(id)
+    }
+
     fn effective_shop(&self) -> Value {
         let mut shop = self.base.shop.clone();
         shop["publicationCount"] = json!(self.effective_publication_count());
