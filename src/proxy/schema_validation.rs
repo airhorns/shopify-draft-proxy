@@ -360,9 +360,11 @@ fn root_argument_not_accepted_error(
     argument_name: &str,
     context: ValidationContext<'_>,
 ) -> Value {
+    let location = root_argument_name_location(context.query, field, argument_name)
+        .unwrap_or(context.field_location);
     json!({
         "message": format!("Field '{}' doesn't accept argument '{}'", field.name, argument_name),
-        "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
+        "locations": [{ "line": location.line, "column": location.column }],
         "path": [context.operation_path, context.response_key, argument_name],
         "extensions": {
             "code": "argumentNotAccepted",
@@ -371,6 +373,30 @@ fn root_argument_not_accepted_error(
             "argumentName": argument_name
         }
     })
+}
+
+fn root_argument_name_location(
+    query: &str,
+    field: &RootFieldSelection,
+    argument_name: &str,
+) -> Option<SourceLocation> {
+    let start = byte_offset_for_location(query, field.location)?;
+    let mut search_start = start;
+    while search_start <= query.len() {
+        let offset = query[search_start..].find(argument_name)? + search_start;
+        let after_name = offset + argument_name.len();
+        let next_non_whitespace =
+            query[after_name..]
+                .char_indices()
+                .find_map(|(inner_offset, ch)| {
+                    (!ch.is_whitespace()).then_some(after_name + inner_offset)
+                })?;
+        if query[next_non_whitespace..].starts_with(':') {
+            return source_location_for_byte_offset(query, offset);
+        }
+        search_start = after_name;
+    }
+    None
 }
 
 fn required_root_argument_error(
@@ -398,6 +424,23 @@ fn input_object_argument_not_accepted_error(
     path: &[String],
     context: ValidationContext<'_>,
 ) -> Value {
+    if input_type_name == "ValidationUpdateInput"
+        && matches!(argument_name, "functionId" | "functionHandle")
+    {
+        let location =
+            input_field_name_location(context.query, context.field_location, argument_name)
+                .unwrap_or(context.field_location);
+        return json!({
+            "message": format!("Field '{argument_name}' is not defined on ValidationUpdateInput"),
+            "locations": [{ "line": location.line, "column": location.column }],
+            "path": input_error_path(context, path, argument_name),
+            "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "InputObject",
+                "argumentName": argument_name
+            }
+        });
+    }
     json!({
         "message": format!("InputObject '{input_type_name}' doesn't accept argument '{argument_name}'"),
         "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
@@ -409,6 +452,30 @@ fn input_object_argument_not_accepted_error(
             "argumentName": argument_name
         }
     })
+}
+
+fn input_field_name_location(
+    query: &str,
+    field_location: SourceLocation,
+    argument_name: &str,
+) -> Option<SourceLocation> {
+    let start = byte_offset_for_location(query, field_location)?;
+    let mut search_start = start;
+    while search_start <= query.len() {
+        let offset = query[search_start..].find(argument_name)? + search_start;
+        let after_name = offset + argument_name.len();
+        let next_non_whitespace =
+            query[after_name..]
+                .char_indices()
+                .find_map(|(inner_offset, ch)| {
+                    (!ch.is_whitespace()).then_some(after_name + inner_offset)
+                })?;
+        if query[next_non_whitespace..].starts_with(':') {
+            return source_location_for_byte_offset(query, offset);
+        }
+        search_start = after_name;
+    }
+    None
 }
 
 fn missing_required_input_object_attribute_error(
@@ -519,6 +586,43 @@ fn input_error_path(context: ValidationContext<'_>, path: &[String], argument_na
     Value::Array(segments)
 }
 
+fn byte_offset_for_location(query: &str, location: SourceLocation) -> Option<usize> {
+    let mut line = 1;
+    let mut column = 1;
+    for (offset, ch) in query.char_indices() {
+        if line == location.line && column == location.column {
+            return Some(offset);
+        }
+        if ch == '\n' {
+            line += 1;
+            column = 1;
+        } else {
+            column += 1;
+        }
+    }
+    (line == location.line && column == location.column).then_some(query.len())
+}
+
+fn source_location_for_byte_offset(query: &str, target_offset: usize) -> Option<SourceLocation> {
+    if target_offset > query.len() || !query.is_char_boundary(target_offset) {
+        return None;
+    }
+    let mut line = 1;
+    let mut column = 1;
+    for (offset, ch) in query.char_indices() {
+        if offset == target_offset {
+            return Some(SourceLocation { line, column });
+        }
+        if ch == '\n' {
+            line += 1;
+            column = 1;
+        } else {
+            column += 1;
+        }
+    }
+    (target_offset == query.len()).then_some(SourceLocation { line, column })
+}
+
 fn local_extension_input_field(input_type_name: &str, field_name: &str) -> bool {
     matches!(
         (input_type_name, field_name),
@@ -564,26 +668,6 @@ fn is_graphql_name_char(ch: char) -> bool {
     ch.is_ascii_alphanumeric() || ch == '_'
 }
 
-fn source_location_for_byte_offset(query: &str, offset: usize) -> Option<SourceLocation> {
-    if offset > query.len() {
-        return None;
-    }
-    let mut line = 1;
-    let mut column = 1;
-    for (index, ch) in query.char_indices() {
-        if index == offset {
-            return Some(SourceLocation { line, column });
-        }
-        if ch == '\n' {
-            line += 1;
-            column = 1;
-        } else {
-            column += 1;
-        }
-    }
-    Some(SourceLocation { line, column })
-}
-
 fn public_admin_input_schema() -> &'static AdminInputSchema {
     static SCHEMA: OnceLock<AdminInputSchema> = OnceLock::new();
     SCHEMA.get_or_init(|| {
@@ -592,12 +676,91 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         ))
         .unwrap_or_else(|_| json!({}));
         let mut schema = schema_from_fixture(&fixture).unwrap_or_default();
-        extend_config_admin_input_schema(&mut schema);
+        register_fulfillment_service_fields(&mut schema);
+        extend_discount_basic_input_schema(&mut schema);
+        extend_metaobject_definition_input_schema(&mut schema);
+        extend_functions_input_schema(&mut schema);
         schema
     })
 }
 
-fn extend_config_admin_input_schema(schema: &mut AdminInputSchema) {
+fn register_fulfillment_service_fields(schema: &mut AdminInputSchema) {
+    for (field_name, arguments) in [
+        (
+            "fulfillmentServiceCreate",
+            &[
+                ("name", "String"),
+                ("callbackUrl", "URL"),
+                ("trackingSupport", "Boolean"),
+                ("inventoryManagement", "Boolean"),
+                ("requiresShippingMethod", "Boolean"),
+            ][..],
+        ),
+        (
+            "fulfillmentServiceUpdate",
+            &[
+                ("id", "ID"),
+                ("name", "String"),
+                ("callbackUrl", "URL"),
+                ("trackingSupport", "Boolean"),
+                ("inventoryManagement", "Boolean"),
+                ("requiresShippingMethod", "Boolean"),
+            ][..],
+        ),
+    ] {
+        schema.mutation_fields.insert(
+            field_name.to_string(),
+            arguments
+                .iter()
+                .map(|(argument_name, type_name)| {
+                    (
+                        (*argument_name).to_string(),
+                        SchemaArgument {
+                            type_ref: scalar_type_ref(type_name),
+                        },
+                    )
+                })
+                .collect(),
+        );
+    }
+}
+
+fn scalar_type_ref(type_name: &str) -> SchemaTypeRef {
+    SchemaTypeRef {
+        display: type_name.to_string(),
+        named_type: type_name.to_string(),
+        non_null: false,
+    }
+}
+
+fn extend_discount_basic_input_schema(schema: &mut AdminInputSchema) {
+    extend_mutation_input_schema(
+        schema,
+        &[
+            "discountCodeBasicCreate",
+            "discountCodeBasicUpdate",
+            "discountAutomaticBasicCreate",
+            "discountAutomaticBasicUpdate",
+        ],
+    );
+}
+
+fn extend_metaobject_definition_input_schema(schema: &mut AdminInputSchema) {
+    extend_mutation_input_schema(
+        schema,
+        &[
+            "metaobjectDefinitionCreate",
+            "metaobjectDefinitionUpdate",
+            "standardMetaobjectDefinitionEnable",
+        ],
+    );
+}
+
+fn extend_functions_input_schema(schema: &mut AdminInputSchema) {
+    extend_mutation_input_schema(schema, &["validationUpdate"]);
+}
+
+fn extend_mutation_input_schema(schema: &mut AdminInputSchema, mutation_names: &[&str]) {
     let config: Value = serde_json::from_str(include_str!(
         "../../config/admin-graphql-mutation-schema.json"
     ))
@@ -613,15 +776,7 @@ fn extend_config_admin_input_schema(schema: &mut AdminInputSchema) {
         let Some(name) = mutation["name"].as_str() else {
             continue;
         };
-        if !matches!(
-            name,
-            "discountCodeBasicCreate"
-                | "discountCodeBasicUpdate"
-                | "discountAutomaticBasicCreate"
-                | "discountAutomaticBasicUpdate"
-                | "metaobjectDefinitionCreate"
-                | "metaobjectDefinitionUpdate"
-        ) {
+        if !mutation_names.contains(&name) {
             continue;
         }
         let Some(args) = mutation["args"].as_array() else {
