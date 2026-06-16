@@ -2400,6 +2400,163 @@ fn order_payment_transactions_stage_capture_void_and_downstream_reads() {
 }
 
 #[test]
+fn order_payment_transactions_use_order_transaction_state_not_magic_values() {
+    let mut proxy = snapshot_proxy();
+
+    let create_a = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-create-local-staging.graphql"
+        ),
+        json!({
+            "order": {
+                "currency": "CAD",
+                "transactions": [{
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": { "shopMoney": { "amount": "42.00", "currencyCode": "CAD" } }
+                }],
+                "lineItems": [{
+                    "title": "capture arbitrary amount",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "42.00", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+    let order_a_id = create_a.body["data"]["orderCreate"]["order"]["id"].clone();
+    let parent_a_id =
+        create_a.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone();
+
+    let capture_a = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-capture-local-staging.graphql"
+        ),
+        json!({
+            "input": {
+                "id": order_a_id,
+                "parentTransactionId": parent_a_id,
+                "amount": "42.00",
+                "currency": "CAD"
+            }
+        }),
+    ));
+    assert_eq!(
+        capture_a.body["data"]["orderCapture"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        capture_a.body["data"]["orderCapture"]["transaction"]["amountSet"]["shopMoney"]["amount"],
+        json!("42.0")
+    );
+    assert_ne!(
+        capture_a.body["data"]["orderCapture"]["transaction"]["id"],
+        json!("gid://shopify/OrderTransaction/7")
+    );
+    assert_eq!(
+        capture_a.body["data"]["orderCapture"]["order"]["displayFinancialStatus"],
+        json!("PAID")
+    );
+
+    let create_b = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-create-local-staging.graphql"
+        ),
+        json!({
+            "order": {
+                "currency": "CAD",
+                "transactions": [{
+                    "kind": "AUTHORIZATION",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": { "shopMoney": { "amount": "20.00", "currencyCode": "CAD" } }
+                }],
+                "lineItems": [{
+                    "title": "over capture computed",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "20.00", "currencyCode": "CAD" } }
+                }]
+            }
+        }),
+    ));
+    let order_b_id = create_b.body["data"]["orderCreate"]["order"]["id"].clone();
+    let parent_b_id =
+        create_b.body["data"]["orderCreate"]["order"]["transactions"][0]["id"].clone();
+
+    let over_capture_b = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-capture-local-staging.graphql"
+        ),
+        json!({
+            "input": {
+                "id": order_b_id,
+                "parentTransactionId": parent_b_id.clone(),
+                "amount": "30.00",
+                "currency": "CAD"
+            }
+        }),
+    ));
+    assert_eq!(
+        over_capture_b.body["data"]["orderCapture"]["transaction"],
+        Value::Null
+    );
+    assert_eq!(
+        over_capture_b.body["data"]["orderCapture"]["userErrors"][0]["field"],
+        json!(["amount"])
+    );
+
+    let void_b = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-void-local-staging.graphql"
+        ),
+        json!({ "id": parent_b_id }),
+    ));
+    assert_eq!(
+        void_b.body["data"]["transactionVoid"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        void_b.body["data"]["transactionVoid"]["transaction"]["kind"],
+        json!("VOID")
+    );
+    assert_eq!(
+        void_b.body["data"]["transactionVoid"]["transaction"]["amountSet"]["shopMoney"]["amount"],
+        json!("20.0")
+    );
+
+    let missing_void = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-payment-void-local-staging.graphql"
+        ),
+        json!({ "id": "gid://shopify/OrderTransaction/does-not-exist" }),
+    ));
+    assert_eq!(
+        missing_void.body["data"]["transactionVoid"]["userErrors"][0]["field"],
+        json!(["parentTransactionId"])
+    );
+    assert_eq!(
+        missing_void.body["data"]["transactionVoid"]["userErrors"][0]["message"],
+        json!("Transaction does not exist")
+    );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().expect("log entries");
+    assert_eq!(entries.len(), 4);
+    assert!(entries[0]["rawBody"]
+        .as_str()
+        .expect("raw body")
+        .contains("OrderPaymentCreate"));
+    assert!(entries[1]["rawBody"]
+        .as_str()
+        .expect("raw body")
+        .contains("OrderPaymentCapture"));
+    assert!(entries[3]["rawBody"]
+        .as_str()
+        .expect("raw body")
+        .contains("OrderPaymentVoid"));
+}
+
+#[test]
 fn money_bag_presentment_replays_order_payment_refund_and_edit_shapes() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-05/orders/money-bag-presentment-parity.json"

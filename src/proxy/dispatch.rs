@@ -235,7 +235,7 @@ impl DraftProxy {
         }
 
         if let Some(data) =
-            self.order_payment_transaction_local_data(root_field, &query, &variables)
+            self.order_payment_transaction_local_data(request, root_field, &query, &variables)
         {
             return ok_json(data);
         }
