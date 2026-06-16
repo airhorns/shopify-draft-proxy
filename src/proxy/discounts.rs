@@ -3583,6 +3583,12 @@ fn cart_transform_metafield_errors(field: &RootFieldSelection) -> Vec<Value> {
     }
 }
 
+fn staged_function_id_in_use(records: &BTreeMap<String, Value>, function_id: &str) -> bool {
+    records
+        .values()
+        .any(|record| record["functionId"].as_str() == Some(function_id))
+}
+
 pub(in crate::proxy) fn cart_transform_metafields_from_field(
     field: &RootFieldSelection,
     ids: Vec<String>,
@@ -3817,6 +3823,23 @@ impl DraftProxy {
     ) -> Value {
         let function_id = resolved_field_string_arg(field, "functionId");
         let function_handle = resolved_field_string_arg(field, "functionHandle");
+        if let Some(payload) = cart_transform_identifier_error(&function_id, &function_handle) {
+            return payload;
+        }
+        if let Some(function_id) = function_id.as_deref() {
+            if staged_function_id_in_use(&self.store.staged.function_validations, function_id)
+                || staged_function_id_in_use(
+                    &self.store.staged.function_cart_transforms,
+                    function_id,
+                )
+            {
+                return cart_transform_payload_error(function_user_error(
+                    vec![json!("functionId")],
+                    "Could not enable cart transform because it is already registered",
+                    Some("FUNCTION_ALREADY_REGISTERED"),
+                ));
+            }
+        }
         let function =
             match cart_transform_function_resolution_payload(&function_id, &function_handle) {
                 Ok(function) => function,
@@ -3825,19 +3848,6 @@ impl DraftProxy {
         let errors = cart_transform_metafield_errors(field);
         if !errors.is_empty() {
             return json!({ "cartTransform": Value::Null, "userErrors": errors });
-        }
-        if self
-            .store
-            .staged
-            .function_cart_transforms
-            .values()
-            .any(|record| record["functionId"] == function["id"])
-        {
-            return cart_transform_payload_error(function_user_error(
-                vec![json!("functionId")],
-                "Could not enable cart transform because it is already registered",
-                Some("FUNCTION_ALREADY_REGISTERED"),
-            ));
         }
         let id = if self.store.staged.function_cart_transform_order.is_empty() {
             "gid://shopify/CartTransform/3".to_string()

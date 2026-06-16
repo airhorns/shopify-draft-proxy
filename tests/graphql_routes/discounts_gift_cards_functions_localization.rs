@@ -2239,6 +2239,84 @@ fn functions_cart_transform_create_validates_identifier_api_conflict_and_metafie
 }
 
 #[test]
+fn functions_cart_transform_create_function_id_detects_validation_registration_before_api_mismatch()
+{
+    let mut proxy = snapshot_proxy();
+
+    let setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RegisterValidation($validation: ValidationCreateInput!) {
+          validationCreate(validation: $validation) {
+            validation { id functionId }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "validation": {
+                "functionId": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "title": "Already registered validation",
+                "enable": true
+            }
+        }),
+    ));
+    assert_eq!(
+        setup.body["data"]["validationCreate"]["validation"]["functionId"],
+        json!("019dd44b-127f-7061-a930-422cbd4a751f")
+    );
+    assert_eq!(
+        setup.body["data"]["validationCreate"]["userErrors"],
+        json!([])
+    );
+
+    let by_id = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CartTransformById($functionId: String!) {
+          cartTransformCreate(functionId: $functionId, blockOnFailure: false) {
+            cartTransform { id functionId }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "functionId": "019dd44b-127f-7061-a930-422cbd4a751f" }),
+    ));
+    assert_eq!(
+        by_id.body["data"]["cartTransformCreate"],
+        json!({
+            "cartTransform": null,
+            "userErrors": [{
+                "field": ["functionId"],
+                "message": "Could not enable cart transform because it is already registered",
+                "code": "FUNCTION_ALREADY_REGISTERED"
+            }]
+        })
+    );
+
+    let by_handle = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CartTransformByHandle($functionHandle: String!) {
+          cartTransformCreate(functionHandle: $functionHandle, blockOnFailure: false) {
+            cartTransform { id functionId }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "functionHandle": "conformance-validation" }),
+    ));
+    assert_eq!(
+        by_handle.body["data"]["cartTransformCreate"],
+        json!({
+            "cartTransform": null,
+            "userErrors": [{
+                "field": ["functionHandle"],
+                "message": "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].",
+                "code": "FUNCTION_DOES_NOT_IMPLEMENT"
+            }]
+        })
+    );
+}
+
+#[test]
 fn localization_locale_and_translation_lifecycle_stages_reads_and_clears_locale_translations() {
     let mut proxy = snapshot_proxy();
     let title_digest = fallback_product_title_digest();
