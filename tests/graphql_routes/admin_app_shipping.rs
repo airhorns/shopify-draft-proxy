@@ -1641,21 +1641,533 @@ fn customer_create_stages_record_for_downstream_customer_reads_and_counts() {
 }
 
 #[test]
+<<<<<<< ours
 fn customer_mutations_are_operation_name_independent_and_store_backed() {
     let mut proxy = configured_proxy(
         ReadMode::Snapshot,
         Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
-    );
-
-    let invalid = proxy.process_request(json_graphql_request(
+=======
+fn customer_address_lifecycle_stages_locally_and_updates_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+    let create_customer = proxy.process_request(json_graphql_request(
         r#"
-        mutation MakeCustomer($input: CustomerInput!) {
-          made: customerCreate(input: $input) {
-            customer { id email }
+        mutation CustomerCreateParityPlan($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email firstName lastName displayName }
             userErrors { field message }
           }
         }
         "#,
+        json!({
+            "input": {
+                "email": "hermes-address@example.com",
+                "firstName": "Hermes",
+                "lastName": "Address"
+            }
+        }),
+    ));
+    let customer_id = create_customer.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let create_first = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrdinaryCreateFirstAddress($cid: ID!, $address: MailingAddressInput!) {
+          firstAddress: customerAddressCreate(customerId: $cid, address: $address, setAsDefault: true) {
+            address { id firstName lastName address1 city country countryCodeV2 province provinceCode zip name formattedArea }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "cid": customer_id,
+            "address": {
+                "address1": "1 Main St",
+                "city": "Ottawa",
+                "countryCode": "CA",
+                "provinceCode": "ON",
+                "zip": "K1A 0B1"
+            }
+        }),
+    ));
+    assert_eq!(create_first.status, 200);
+    assert_eq!(
+        create_first.body["data"]["firstAddress"]["userErrors"],
+        json!([])
+    );
+    let first_address_id = create_first.body["data"]["firstAddress"]["address"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create_first.body["data"]["firstAddress"]["address"]["firstName"],
+        json!("Hermes")
+    );
+    assert_eq!(
+        create_first.body["data"]["firstAddress"]["address"]["formattedArea"],
+        json!("Ottawa ON, Canada")
+    );
+
+    let create_second = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrdinaryCreateSecondAddress($cid: ID!, $address: MailingAddressInput!) {
+          customerAddressCreate(customerId: $cid, address: $address, setAsDefault: false) {
+            address { id address1 city country provinceCode zip formattedArea }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "cid": customer_id,
+            "address": {
+                "address1": "2 Side St",
+                "city": "Toronto",
+                "countryCode": "CA",
+                "provinceCode": "ON",
+                "zip": "M5H 2N2"
+            }
+        }),
+    ));
+    let second_address_id = create_second.body["data"]["customerAddressCreate"]["address"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update_second = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrdinaryUpdateSecondAddress($cid: ID!, $addressId: ID!, $address: MailingAddressInput!) {
+          customerAddressUpdate(customerId: $cid, addressId: $addressId, address: $address, setAsDefault: false) {
+            address { id address1 city country countryCodeV2 province provinceCode zip formattedArea }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "cid": customer_id,
+            "addressId": second_address_id,
+            "address": { "city": "Montreal", "provinceCode": "QC", "zip": "H2Y 1C6" }
+        }),
+    ));
+    assert_eq!(
+        update_second.body["data"]["customerAddressUpdate"]["address"]["formattedArea"],
+        json!("Montreal QC, Canada")
+    );
+
+    let make_default = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrdinaryMakeDefault($cid: ID!, $addressId: ID!) {
+          makeDefault: customerUpdateDefaultAddress(customerId: $cid, addressId: $addressId) {
+            customer {
+              id
+              defaultAddress { id city provinceCode formattedArea }
+              addressesV2(first: 5) {
+                nodes { id city provinceCode formattedArea }
+                edges { cursor node { id city } }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "cid": customer_id, "addressId": second_address_id }),
+    ));
+    assert_eq!(
+        make_default.body["data"]["makeDefault"]["customer"]["defaultAddress"]["id"],
+        json!(second_address_id)
+    );
+    assert_eq!(
+        make_default.body["data"]["makeDefault"]["customer"]["addressesV2"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+
+    let create_third = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrdinaryCreateThirdAddress($cid: ID!, $address: MailingAddressInput!) {
+          customerAddressCreate(customerId: $cid, address: $address) {
+            address { id city provinceCode formattedArea }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "cid": customer_id,
+            "address": {
+                "address1": "3 Null Default St",
+                "city": "Vancouver",
+                "countryCode": "CA",
+                "provinceCode": "BC",
+                "zip": "V6B 1A1"
+            }
+        }),
+    ));
+    let third_address_id = create_third.body["data"]["customerAddressCreate"]["address"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let delete_first = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrdinaryDeleteFirst($cid: ID!, $addressId: ID!) {
+          customerAddressDelete(customerId: $cid, addressId: $addressId) {
+            deletedAddressId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "cid": customer_id, "addressId": first_address_id }),
+    ));
+    assert_eq!(
+        delete_first.body["data"]["customerAddressDelete"]["deletedAddressId"],
+        json!(first_address_id)
+    );
+
+    let delete_default = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrdinaryDeleteDefault($cid: ID!, $addressId: ID!) {
+          customerAddressDelete(customerId: $cid, addressId: $addressId) {
+            deletedAddressId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "cid": customer_id, "addressId": second_address_id }),
+    ));
+    assert_eq!(
+        delete_default.body["data"]["customerAddressDelete"]["deletedAddressId"],
+        json!(second_address_id)
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query OrdinaryAddressRead($id: ID!, $identifier: CustomerIdentifierInput!) {
+          customer(id: $id) {
+            id
+            defaultAddress { id city provinceCode formattedArea }
+            addresses { id city provinceCode formattedArea }
+            addressesV2(first: 5) { nodes { id city provinceCode formattedArea } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+          }
+          customerByIdentifier(identifier: $identifier) {
+            id
+            defaultAddress { id city provinceCode formattedArea }
+            addressesV2(first: 5) { nodes { id city provinceCode formattedArea } }
+          }
+        }
+        "#,
+        json!({ "id": customer_id, "identifier": { "id": customer_id } }),
+    ));
+    assert_eq!(
+        read.body["data"]["customer"]["defaultAddress"]["id"],
+        json!(third_address_id)
+    );
+    assert_eq!(
+        read.body["data"]["customer"]["addressesV2"]["nodes"],
+        json!([{ "id": third_address_id, "city": "Vancouver", "provinceCode": "BC", "formattedArea": "Vancouver BC, Canada" }])
+    );
+    assert_eq!(
+        read.body["data"]["customerByIdentifier"]["defaultAddress"]["city"],
+        json!("Vancouver")
+    );
+
+    let log = proxy.get_log_snapshot();
+    let roots = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["interpreted"]["primaryRootField"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert!(roots.contains(&"customerAddressCreate"));
+    assert!(roots.contains(&"customerAddressUpdate"));
+    assert!(roots.contains(&"customerAddressDelete"));
+    assert!(roots.contains(&"customerUpdateDefaultAddress"));
+    assert!(log["entries"].as_array().unwrap().iter().any(|entry| {
+        entry["rawBody"]
+            .as_str()
+            .unwrap()
+            .contains("OrdinaryCreateFirstAddress")
+    }));
+}
+
+#[test]
+fn customer_address_validation_matches_captured_payload_branches() {
+    let mut proxy = snapshot_proxy();
+    let create_customer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateParityPlan($input: CustomerInput!) {
+          customerCreate(input: $input) { customer { id firstName lastName email } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "email": "hermes-address-validation@example.com", "firstName": "Hermes", "lastName": "AddressValidation" } }),
+    ));
+    let customer_id = create_customer.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let unknown_country = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownCountry($cid: ID!, $address: MailingAddressInput!) {
+          customerAddressCreate(customerId: $cid, address: $address, setAsDefault: false) {
+            address { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "cid": customer_id, "address": { "address1": "5 Invalid Country", "countryCode": "ZZ", "provinceCode": "ZZ" } }),
+    ));
+    assert_eq!(
+        unknown_country.body["data"]["customerAddressCreate"]["userErrors"],
+        json!([{ "field": ["address", "country"], "message": "Country is invalid" }])
+    );
+
+    let too_long = proxy.process_request(json_graphql_request(
+        r#"
+        mutation TooLong($cid: ID!, $address: MailingAddressInput!) {
+          customerAddressCreate(customerId: $cid, address: $address) {
+            address { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "cid": customer_id, "address": { "address1": "x".repeat(256), "countryCode": "CA", "provinceCode": "ON" } }),
+    ));
+    assert_eq!(
+        too_long.body["data"]["customerAddressCreate"]["userErrors"],
+        json!([{ "field": ["address", "address1"], "message": "Address1 is too long (maximum is 255 characters)" }])
+    );
+
+    let city_url = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UrlCity($cid: ID!, $address: MailingAddressInput!) {
+          customerAddressCreate(customerId: $cid, address: $address) {
+            address { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "cid": customer_id, "address": { "city": "https://evil.example", "countryCode": "CA", "provinceCode": "ON" } }),
+    ));
+    assert_eq!(
+        city_url.body["data"]["customerAddressCreate"]["userErrors"],
+        json!([{ "field": ["address", "city"], "message": "City cannot contain URL" }])
+    );
+
+    let create_address = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateAddress($cid: ID!, $address: MailingAddressInput!) {
+          customerAddressCreate(customerId: $cid, address: $address, setAsDefault: true) {
+            address { id address1 city countryCodeV2 provinceCode zip }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "cid": customer_id,
+            "address": {
+                "address1": "1 Main St",
+                "city": "Ottawa",
+                "countryCode": "CA",
+                "provinceCode": "ON",
+                "zip": "K1A 0B1"
+            }
+        }),
+    ));
+    let address_id = create_address.body["data"]["customerAddressCreate"]["address"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DuplicateAddress($cid: ID!, $address: MailingAddressInput!) {
+          customerAddressCreate(customerId: $cid, address: $address) {
+            address { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "cid": customer_id,
+            "address": {
+                "address1": "1 Main St",
+                "city": "Ottawa",
+                "countryCode": "CA",
+                "provinceCode": "ON",
+                "zip": "K1A 0B1"
+            }
+        }),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["customerAddressCreate"]["userErrors"],
+        json!([{ "field": ["address"], "message": "Address already exists" }])
+    );
+
+    let mismatch = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MismatchedNestedId($cid: ID!, $addressId: ID!, $address: MailingAddressInput!) {
+          customerAddressUpdate(customerId: $cid, addressId: $addressId, address: $address) {
+            address { id address1 }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "cid": customer_id,
+            "addressId": address_id,
+            "address": { "id": "gid://shopify/MailingAddress/not-this-one?model_name=CustomerAddress", "address1": "Mismatch" }
+        }),
+    ));
+    assert_eq!(
+        mismatch.body["data"]["customerAddressUpdate"]["userErrors"],
+        json!([{ "field": ["addressId"], "message": "The id of the address does not match the id in the input" }])
+    );
+
+    let unknown_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnknownDelete($cid: ID!, $addressId: ID!) {
+          customerAddressDelete(customerId: $cid, addressId: $addressId) {
+            deletedAddressId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "cid": customer_id, "addressId": "gid://shopify/MailingAddress/999?model_name=CustomerAddress" }),
+    ));
+    assert_eq!(unknown_delete.status, 200);
+    assert_eq!(
+        unknown_delete.body["errors"][0]["extensions"]["code"],
+        json!("RESOURCE_NOT_FOUND")
+    );
+    assert_eq!(
+        unknown_delete.body["data"]["customerAddressDelete"],
+        Value::Null
+    );
+
+    let other_customer = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateParityPlan($input: CustomerInput!) {
+          customerCreate(input: $input) { customer { id } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "email": "other-address-owner@example.com" } }),
+    ));
+    let other_customer_id = other_customer.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let cross_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CrossOwner($cid: ID!, $addressId: ID!, $address: MailingAddressInput!) {
+          customerAddressUpdate(customerId: $cid, addressId: $addressId, address: $address) {
+            address { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "cid": other_customer_id, "addressId": address_id, "address": { "city": "Wrong Owner" } }),
+    ));
+    assert_eq!(
+        cross_update.body["data"]["customerAddressUpdate"]["userErrors"],
+        json!([{ "field": ["addressId"], "message": "Address does not exist" }])
+    );
+}
+
+#[test]
+fn customer_create_with_addresses_seeds_default_address_and_validates_nested_input() {
+    let mut proxy = snapshot_proxy();
+    let valid = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrdinaryCreateCustomerWithAddress($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer {
+              id
+              email
+              defaultAddress { id address1 city country countryCodeV2 province provinceCode zip formattedArea }
+              addressesV2(first: 5) { nodes { id address1 city countryCodeV2 provinceCode zip formattedArea } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "customer-address-input@example.com",
+                "addresses": [{
+                    "address1": "1 Valid St",
+                    "city": "San Francisco",
+                    "countryCode": "US",
+                    "country": "Canada",
+                    "provinceCode": "CA",
+                    "zip": "94105"
+                }]
+            }
+        }),
+    ));
+    let customer = &valid.body["data"]["customerCreate"]["customer"];
+    assert_eq!(
+        valid.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        customer["defaultAddress"]["country"],
+        json!("United States")
+    );
+    assert_eq!(customer["defaultAddress"]["province"], json!("California"));
+    assert_eq!(
+        customer["defaultAddress"]["formattedArea"],
+        json!("San Francisco CA, United States")
+    );
+    assert_eq!(
+        customer["addressesV2"]["nodes"][0]["id"],
+        customer["defaultAddress"]["id"]
+>>>>>>> theirs
+    );
+
+    let invalid = proxy.process_request(json_graphql_request(
+        r#"
+<<<<<<< ours
+        mutation MakeCustomer($input: CustomerInput!) {
+          made: customerCreate(input: $input) {
+            customer { id email }
+=======
+        mutation OrdinaryCreateCustomerWithInvalidAddress($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "customer-address-invalid@example.com",
+                "addresses": [{ "address1": "x".repeat(256) }]
+            }
+        }),
+    ));
+    assert_eq!(
+        invalid.body["data"]["customerCreate"]["customer"],
+        Value::Null
+    );
+    assert_eq!(
+        invalid.body["data"]["customerCreate"]["userErrors"],
+        json!([{ "field": ["addresses", "0", "address1"], "message": "Address1 is too long (maximum is 255 characters)" }])
+    );
+
+    let blank = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrdinaryCreateCustomerWithBlankAddress($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+>>>>>>> theirs
+            userErrors { field message }
+          }
+        }
+        "#,
+<<<<<<< ours
         json!({ "input": { "firstName": "Alice", "email": "not-an-email" } }),
     ));
     assert_eq!(invalid.status, 200);
@@ -1668,6 +2180,23 @@ fn customer_mutations_are_operation_name_independent_and_store_backed() {
 
 #[test]
 fn customer_tax_exemption_roots_stage_and_project_downstream_reads() {
+=======
+        json!({
+            "input": {
+                "email": "customer-address-blank@example.com",
+                "addresses": [{ "address1": " ", "address2": " ", "city": " ", "company": " ", "zip": " ", "phone": " " }]
+            }
+        }),
+    ));
+    assert_eq!(
+        blank.body["data"]["customerCreate"]["userErrors"],
+        json!([{ "field": ["addresses", "0"], "message": "Customer address cannot be blank." }])
+    );
+}
+
+#[test]
+fn customer_update_and_delete_stage_known_fixture_customer_reads() {
+>>>>>>> theirs
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
         r#"
