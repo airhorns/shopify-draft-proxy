@@ -116,8 +116,7 @@ impl DraftProxy {
                 "publicationIds": self.store.base.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publicationCount": self.store.base.publication_count,
                 "availableLocales": self.store.base.available_locales.iter().map(|(locale, name)| (locale.clone(), json!(name))).collect::<serde_json::Map<_, _>>(),
-                "shopLocales": self.store.base.shop_locales.clone(),
-                "localizationProductIds": self.store.base.localization_product_ids.iter().cloned().collect::<Vec<_>>()
+                "shopLocales": self.store.base.shop_locales.clone()
             },
             "stagedState": {
                 "products": product_state_map_json(&self.store.staged.products.records),
@@ -134,23 +133,16 @@ impl DraftProxy {
                 "delegatedAccessTokens": self.store.staged.delegate_access_tokens.clone(),
                 "customers": self.store.staged.customers.clone(),
                 "deletedCustomerIds": self.store.staged.deleted_customer_ids.iter().cloned().collect::<Vec<_>>(),
-                "customerAddresses": self.store.staged.customer_addresses.clone(),
-                "customerAddressOrder": self.store.staged.customer_address_order.clone(),
-                "customerAddressOwners": self.store.staged.customer_address_owners.clone(),
                 "customerOrders": self.store.staged.customer_orders.clone(),
                 "mergedCustomerIds": self.store.staged.merged_customer_ids.clone(),
                 "customerMergeRequests": self.store.staged.customer_merge_requests.clone(),
                 "customerDataErasureRequests": self.store.staged.customer_data_erasure_requests.clone(),
                 "taggableResources": self.store.staged.taggable_resources.clone(),
                 "orders": self.store.staged.orders.clone(),
-                "deletedOrderIds": self.store.staged.deleted_order_ids.iter().cloned().collect::<Vec<_>>(),
                 "returns": self.store.staged.returns.clone(),
                 "returnsByOrder": self.store.staged.returns_by_order.clone(),
-                "orderReturnHydratedOrders": self.store.staged.order_return_hydrated_orders.clone(),
-                "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
+               "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
                 "reverseFulfillmentOrders": self.store.staged.reverse_fulfillment_orders.clone(),
-                "observedShippingLocations": self.store.staged.observed_shipping_locations.clone(),
-                "observedShippingLocationOrder": self.store.staged.observed_shipping_location_order.clone(),
                 "locations": self.store.staged.locations.clone(),
                 "locationOrder": self.store.staged.location_order.clone(),
                 "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
@@ -171,6 +163,13 @@ impl DraftProxy {
             .map(|(owner_id, namespace, key)| {
                 json!({"ownerId": owner_id, "namespace": namespace, "key": key})
             })
+            .collect::<Vec<_>>());
+        snapshot["stagedState"]["deletedLocationIds"] = json!(self
+            .store
+            .staged
+            .deleted_location_ids
+            .iter()
+            .cloned()
             .collect::<Vec<_>>());
         snapshot["stagedState"]["b2bCompanies"] = json!(self.store.staged.b2b_companies.clone());
         snapshot["stagedState"]["b2bLocations"] = json!(self.store.staged.b2b_locations.clone());
@@ -219,6 +218,18 @@ impl DraftProxy {
             snapshot["stagedState"]["nextInventoryQuantityTimestamp"] =
                 json!(self.store.staged.next_inventory_quantity_timestamp);
         }
+        snapshot["stagedState"]["storeCreditAccounts"] =
+            json!(self.store.staged.store_credit_accounts);
+        snapshot["stagedState"]["storeCreditAccountOrder"] =
+            json!(self.store.staged.store_credit_account_order);
+        snapshot["stagedState"]["storeCreditTransactions"] =
+            json!(self.store.staged.store_credit_transactions);
+        snapshot["stagedState"]["storeCreditTransactionOrder"] =
+            json!(self.store.staged.store_credit_transaction_order);
+        snapshot["stagedState"]["nextStoreCreditAccountId"] =
+            json!(self.store.staged.next_store_credit_account_id);
+        snapshot["stagedState"]["nextStoreCreditTransactionId"] =
+            json!(self.store.staged.next_store_credit_transaction_id);
         if !self.store.staged.metaobject_definitions.is_empty() {
             snapshot["stagedState"]["metaobjectDefinitions"] =
                 json!(self.store.staged.metaobject_definitions);
@@ -432,12 +443,6 @@ impl DraftProxy {
                     }),
                 )])
             });
-        self.store.base.localization_product_ids = state["baseState"]
-            .get("localizationProductIds")
-            .map(string_array_from_json)
-            .unwrap_or_else(|| vec![LOCALIZATION_BASELINE_PRODUCT_ID.to_string()])
-            .into_iter()
-            .collect();
         self.store.staged.publication_ids =
             string_array_from_json(&state["stagedState"]["publicationIds"])
                 .into_iter()
@@ -484,46 +489,6 @@ impl DraftProxy {
             .flatten()
             .filter_map(|value| value.as_str().map(str::to_string))
             .collect();
-        self.store.staged.customer_addresses = state["stagedState"]["customerAddresses"]
-            .as_object()
-            .map(|addresses| {
-                addresses
-                    .iter()
-                    .map(|(id, address)| (id.clone(), address.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.customer_address_order = state["stagedState"]["customerAddressOrder"]
-            .as_object()
-            .map(|addresses_by_customer| {
-                addresses_by_customer
-                    .iter()
-                    .map(|(customer_id, ids)| {
-                        (
-                            customer_id.clone(),
-                            ids.as_array()
-                                .into_iter()
-                                .flatten()
-                                .filter_map(|value| value.as_str().map(str::to_string))
-                                .collect(),
-                        )
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.customer_address_owners = state["stagedState"]["customerAddressOwners"]
-            .as_object()
-            .map(|owners| {
-                owners
-                    .iter()
-                    .filter_map(|(address_id, customer_id)| {
-                        customer_id
-                            .as_str()
-                            .map(|customer_id| (address_id.clone(), customer_id.to_string()))
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
         self.store.staged.customer_orders = state["stagedState"]["customerOrders"]
             .as_object()
             .map(|orders_by_customer| {
@@ -567,6 +532,58 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.store_credit_accounts = state["stagedState"]
+            .get("storeCreditAccounts")
+            .and_then(Value::as_object)
+            .map(|accounts| {
+                accounts
+                    .iter()
+                    .map(|(id, account)| (id.clone(), account.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.store_credit_account_order = state["stagedState"]
+            .get("storeCreditAccountOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .store_credit_accounts
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
+        self.store.staged.store_credit_transactions = state["stagedState"]
+            .get("storeCreditTransactions")
+            .and_then(Value::as_object)
+            .map(|transactions| {
+                transactions
+                    .iter()
+                    .map(|(id, transaction)| (id.clone(), transaction.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.store_credit_transaction_order = state["stagedState"]
+            .get("storeCreditTransactionOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .store_credit_transactions
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
+        self.store.staged.next_store_credit_account_id = state["stagedState"]
+            .get("nextStoreCreditAccountId")
+            .and_then(Value::as_u64)
+            .filter(|id| *id > 0)
+            .unwrap_or(1);
+        self.store.staged.next_store_credit_transaction_id = state["stagedState"]
+            .get("nextStoreCreditTransactionId")
+            .and_then(Value::as_u64)
+            .filter(|id| *id > 0)
+            .unwrap_or(1);
         self.store.staged.taggable_resources = state["stagedState"]["taggableResources"]
             .as_object()
             .map(|resources| {
@@ -585,12 +602,6 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        self.store.staged.deleted_order_ids = state["stagedState"]["deletedOrderIds"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|value| value.as_str().map(str::to_string))
-            .collect();
         self.store.staged.returns = state["stagedState"]["returns"]
             .as_object()
             .map(|returns| {
@@ -619,16 +630,6 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        self.store.staged.order_return_hydrated_orders = state["stagedState"]
-            ["orderReturnHydratedOrders"]
-            .as_object()
-            .map(|orders| {
-                orders
-                    .iter()
-                    .map(|(id, order)| (id.clone(), order.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
         self.store.staged.reverse_deliveries = state["stagedState"]["reverseDeliveries"]
             .as_object()
             .map(|deliveries| {
@@ -648,27 +649,6 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        self.store.staged.observed_shipping_locations = state["stagedState"]
-            .get("observedShippingLocations")
-            .and_then(Value::as_object)
-            .map(|locations| {
-                locations
-                    .iter()
-                    .map(|(id, location)| (id.clone(), location.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.observed_shipping_location_order = state["stagedState"]
-            .get("observedShippingLocationOrder")
-            .map(string_array_from_json)
-            .unwrap_or_else(|| {
-                self.store
-                    .staged
-                    .observed_shipping_locations
-                    .keys()
-                    .cloned()
-                    .collect()
-            });
         self.store.staged.locations = state["stagedState"]
             .get("locations")
             .and_then(Value::as_object)
@@ -683,6 +663,12 @@ impl DraftProxy {
             .get("locationOrder")
             .map(string_array_from_json)
             .unwrap_or_else(|| self.store.staged.locations.keys().cloned().collect());
+        self.store.staged.deleted_location_ids = state["stagedState"]
+            .get("deletedLocationIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.inventory_levels =
             inventory_levels_from_json(&state["stagedState"]["inventoryLevels"]);
         self.store.staged.inventory_level_ids =
@@ -819,83 +805,6 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        self.store.staged.b2b_companies = state["stagedState"]
-            .get("b2bCompanies")
-            .and_then(Value::as_object)
-            .map(|companies| {
-                companies
-                    .iter()
-                    .map(|(id, company)| (id.clone(), company.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.b2b_locations = state["stagedState"]
-            .get("b2bLocations")
-            .and_then(Value::as_object)
-            .map(|locations| {
-                locations
-                    .iter()
-                    .map(|(id, location)| (id.clone(), location.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.b2b_contacts = state["stagedState"]
-            .get("b2bContacts")
-            .and_then(Value::as_object)
-            .map(|contacts| {
-                contacts
-                    .iter()
-                    .map(|(id, contact)| (id.clone(), contact.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.deleted_b2b_contact_ids = state["stagedState"]
-            .get("deletedB2bContactIds")
-            .map(string_array_from_json)
-            .unwrap_or_default()
-            .into_iter()
-            .collect();
-        self.store.staged.b2b_contact_roles = state["stagedState"]
-            .get("b2bContactRoles")
-            .and_then(Value::as_object)
-            .map(|roles| {
-                roles
-                    .iter()
-                    .map(|(id, role)| (id.clone(), role.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.b2b_contact_role_assignments = state["stagedState"]
-            .get("b2bContactRoleAssignments")
-            .and_then(Value::as_object)
-            .map(|assignments| {
-                assignments
-                    .iter()
-                    .map(|(id, assignment)| (id.clone(), assignment.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.deleted_b2b_contact_role_assignment_ids = state["stagedState"]
-            .get("deletedB2bContactRoleAssignmentIds")
-            .map(string_array_from_json)
-            .unwrap_or_default()
-            .into_iter()
-            .collect();
-        self.store.staged.next_b2b_company_id = state["stagedState"]
-            .get("nextB2bCompanyId")
-            .and_then(Value::as_u64)
-            .unwrap_or(1)
-            .max(1);
-        self.store.staged.next_b2b_contact_id = state["stagedState"]
-            .get("nextB2bContactId")
-            .and_then(Value::as_u64)
-            .unwrap_or(1)
-            .max(1);
-        self.store.staged.next_b2b_contact_role_assignment_id = state["stagedState"]
-            .get("nextB2bContactRoleAssignmentId")
-            .and_then(Value::as_u64)
-            .unwrap_or(1)
-            .max(1);
         self.log_entries = dump["log"]["entries"]
             .as_array()
             .cloned()

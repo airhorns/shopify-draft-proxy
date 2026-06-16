@@ -1250,7 +1250,7 @@ impl DraftProxy {
                 | "reverseFulfillmentOrderDispose"
         ) {
             if let Some(data) =
-                self.order_return_local_runtime_data(root_field, &query, &variables, request)
+                self.order_return_local_runtime_data(root_field, &query, &variables)
             {
                 return ok_json(data);
             }
@@ -2252,7 +2252,7 @@ impl DraftProxy {
             )
         {
             if let Some(data) =
-                self.order_return_local_runtime_data(root_field, &query, &variables, request)
+                self.order_return_local_runtime_data(root_field, &query, &variables)
             {
                 self.record_mutation_log_entry(request, &query, &variables, root_field, Vec::new());
                 return ok_json(data);
