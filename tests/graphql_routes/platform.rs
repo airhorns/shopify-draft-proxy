@@ -975,6 +975,69 @@ fn generic_location_add_stages_location_and_downstream_reads() {
         })
     );
 
+    let omitted_optional_address = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationAddOmittedAddress($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { address { address1 city countryCode provinceCode zip } }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Generic Add Omitted Optional Address",
+                "address": { "countryCode": "CA" }
+            }
+        }),
+    ));
+    assert_eq!(
+        omitted_optional_address.body["data"]["locationAdd"],
+        json!({
+            "location": {
+                "address": {
+                    "address1": null,
+                    "city": null,
+                    "countryCode": "CA",
+                    "provinceCode": null,
+                    "zip": null
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let too_long_address = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationAddTooLongAddress($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Generic Add Too Long Address",
+                "address": {
+                    "address1": "A".repeat(256),
+                    "countryCode": "CA"
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        too_long_address.body["data"]["locationAdd"],
+        json!({
+            "location": null,
+            "userErrors": [{
+                "field": ["input", "address", "address1"],
+                "code": "TOO_LONG",
+                "message": "Use a shorter name for the street (up to 255 characters)"
+            }]
+        })
+    );
+
     let inventory_item_id = "gid://shopify/InventoryItem/generic-location-add";
     let set_quantities = r#"
         mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) {
@@ -1031,6 +1094,231 @@ fn generic_location_add_stages_location_and_downstream_reads() {
             "quantities": [{ "name": "available", "quantity": 7 }]
         }])
     );
+}
+
+#[test]
+fn generic_location_edit_stages_location_validates_and_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+    let primary = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationEditSeedPrimary($input: LocationAddInput!) {
+          locationAdd(input: $input) { location { id name } userErrors { field code message } }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Edit Primary",
+                "address": { "countryCode": "CA" }
+            }
+        }),
+    ));
+    assert_eq!(primary.status, 200);
+    let primary_id = primary.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let backup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationEditSeedBackup($input: LocationAddInput!) {
+          locationAdd(input: $input) { location { id name } userErrors { field code message } }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Edit Backup",
+                "address": {
+                    "address1": "1 Spadina",
+                    "city": "Toronto",
+                    "countryCode": "CA",
+                    "zip": "M5T 2C2"
+                }
+            }
+        }),
+    ));
+    assert_eq!(backup.status, 200);
+    let backup_id = backup.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationEditDuplicate($id: ID!, $input: LocationEditInput!) {
+          locationEdit(id: $id, input: $input) {
+            location { id }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": backup_id, "input": { "name": "Edit Primary" } }),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["locationEdit"],
+        json!({
+            "location": null,
+            "userErrors": [{
+                "field": ["input", "name"],
+                "code": "TAKEN",
+                "message": "You already have a location with this name"
+            }]
+        })
+    );
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationEditUnknown($id: ID!, $input: LocationEditInput!) {
+          locationEdit(id: $id, input: $input) {
+            location { id name }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Location/999999999999", "input": { "name": "Nope" } }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["locationEdit"],
+        json!({
+            "location": null,
+            "userErrors": [{
+                "field": ["id"],
+                "message": "Location not found."
+            }]
+        })
+    );
+
+    let invalid_country = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationEditInvalidCountry($id: ID!, $input: LocationEditInput!) {
+          locationEdit(id: $id, input: $input) {
+            location { id }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": primary_id, "input": { "address": { "countryCode": "XX" } } }),
+    ));
+    assert_eq!(
+        invalid_country.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert_eq!(
+        invalid_country.body["errors"][0]["extensions"]["problems"][0]["path"],
+        json!(["address", "countryCode"])
+    );
+
+    let edit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationEdit($id: ID!, $input: LocationEditInput!) {
+          locationEdit(id: $id, input: $input) {
+            location {
+              id
+              name
+              fulfillsOnlineOrders
+              address { address1 city countryCode zip }
+              metafield(namespace: "custom", key: "edit") { namespace key value type }
+              metafields(first: 5, namespace: "custom") {
+                nodes { namespace key value type }
+                pageInfo { hasNextPage hasPreviousPage }
+              }
+            }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "id": primary_id,
+            "input": {
+                "name": "Edited Primary",
+                "fulfillsOnlineOrders": false,
+                "address": {
+                    "address1": "2 Spadina",
+                    "city": "Ottawa",
+                    "countryCode": "CA",
+                    "zip": "K1A 0B1"
+                },
+                "metafields": [{
+                    "namespace": "custom",
+                    "key": "edit",
+                    "type": "single_line_text_field",
+                    "value": "updated"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        edit.body["data"]["locationEdit"],
+        json!({
+            "location": {
+                "id": primary_id,
+                "name": "Edited Primary",
+                "fulfillsOnlineOrders": false,
+                "address": {
+                    "address1": "2 Spadina",
+                    "city": "Ottawa",
+                    "countryCode": "CA",
+                    "zip": "K1A 0B1"
+                },
+                "metafield": {
+                    "namespace": "custom",
+                    "key": "edit",
+                    "value": "updated",
+                    "type": "single_line_text_field"
+                },
+                "metafields": {
+                    "nodes": [{
+                        "namespace": "custom",
+                        "key": "edit",
+                        "value": "updated",
+                        "type": "single_line_text_field"
+                    }],
+                    "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+                }
+            },
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query GenericLocationEditRead($id: ID!) {
+          location(id: $id) { id name fulfillsOnlineOrders address { city } }
+          locationByIdentifier(identifier: { id: $id }) { id name }
+          locations(first: 5) { nodes { id name } }
+        }
+        "#,
+        json!({ "id": primary_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["location"],
+        json!({
+            "id": primary_id,
+            "name": "Edited Primary",
+            "fulfillsOnlineOrders": false,
+            "address": { "city": "Ottawa" }
+        })
+    );
+    assert_eq!(
+        read.body["data"]["locationByIdentifier"],
+        json!({ "id": primary_id, "name": "Edited Primary" })
+    );
+    assert_eq!(
+        read.body["data"]["locations"]["nodes"][0],
+        json!({ "id": primary_id, "name": "Edited Primary" })
+    );
+
+    let log = proxy.get_log_snapshot();
+    let roots: Vec<_> = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["interpreted"]["primaryRootField"].as_str().unwrap())
+        .collect();
+    assert_eq!(roots, vec!["locationAdd", "locationAdd", "locationEdit"]);
+    assert!(log["entries"][2]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("GenericLocationEdit"));
 }
 
 #[test]
@@ -1120,6 +1408,372 @@ fn generic_location_activate_stages_state_and_scope_guards() {
                 "message": "Location not found."
             }]
         })
+    );
+}
+
+#[test]
+fn generic_location_delete_stages_tombstone_and_cascades_inventory_levels() {
+    let mut proxy = snapshot_proxy();
+    let target_add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationDeleteSeed($input: LocationAddInput!) {
+          locationAdd(input: $input) {
+            location { id name isActive hasActiveInventory }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Delete Target",
+                "address": { "countryCode": "CA" }
+            }
+        }),
+    ));
+    let target_id = target_add.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let active_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationDeleteActive($locationId: ID!) {
+          locationDelete(locationId: $locationId) {
+            deletedLocationId
+            locationDeleteUserErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "locationId": target_id }),
+    ));
+    assert_eq!(
+        active_delete.body["data"]["locationDelete"],
+        json!({
+            "deletedLocationId": null,
+            "locationDeleteUserErrors": [{
+                "field": ["locationId"],
+                "code": "LOCATION_IS_ACTIVE",
+                "message": "The location cannot be deleted while it is active."
+            }]
+        })
+    );
+
+    let inventory_item_id = "gid://shopify/InventoryItem/delete-cascade";
+    let seed_inventory = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryQuantitySet($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            inventoryAdjustmentGroup { changes { name delta location { id name } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "available",
+                "reason": "correction",
+                "ignoreCompareQuantity": true,
+                "quantities": [{
+                    "inventoryItemId": inventory_item_id,
+                    "locationId": target_id,
+                    "quantity": 5
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        seed_inventory.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let forced_inactive = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationDeleteForceInactive($id: ID!, $input: LocationEditInput!) {
+          locationEdit(id: $id, input: $input) {
+            location { id isActive hasActiveInventory }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "id": target_id, "input": { "active": false } }),
+    ));
+    assert_eq!(
+        forced_inactive.body["data"]["locationEdit"],
+        json!({
+            "location": {
+                "id": target_id,
+                "isActive": false,
+                "hasActiveInventory": true
+            },
+            "userErrors": []
+        })
+    );
+
+    let inventory_delete_guard = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationDeleteInventoryGuard($locationId: ID!) {
+          locationDelete(locationId: $locationId) {
+            deletedLocationId
+            locationDeleteUserErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "locationId": target_id }),
+    ));
+    assert_eq!(
+        inventory_delete_guard.body["data"]["locationDelete"],
+        json!({
+            "deletedLocationId": null,
+            "locationDeleteUserErrors": [{
+                "field": ["locationId"],
+                "code": "LOCATION_HAS_INVENTORY",
+                "message": "The location cannot be deleted while it has inventory."
+            }]
+        })
+    );
+
+    let cleared = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryQuantityClear($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            inventoryAdjustmentGroup { changes { name delta location { id } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "available",
+                "reason": "correction",
+                "ignoreCompareQuantity": true,
+                "quantities": [{
+                    "inventoryItemId": inventory_item_id,
+                    "locationId": target_id,
+                    "quantity": 0
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        cleared.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation GenericLocationDelete($locationId: ID!) {
+          locationDelete(locationId: $locationId) {
+            deletedLocationId
+            locationDeleteUserErrors { field code message }
+          }
+        }
+        "#,
+        json!({ "locationId": target_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["locationDelete"],
+        json!({
+            "deletedLocationId": target_id,
+            "locationDeleteUserErrors": []
+        })
+    );
+
+    let location_read = proxy.process_request(json_graphql_request(
+        r#"
+        query GenericLocationDeleteLocationRead($locationId: ID!) {
+          location(id: $locationId) { id name }
+          locationByIdentifier(identifier: { id: $locationId }) { id name }
+          locations(first: 5) { nodes { id name } }
+        }
+        "#,
+        json!({ "locationId": target_id }),
+    ));
+    assert_eq!(location_read.body["data"]["location"], Value::Null);
+    assert_eq!(
+        location_read.body["data"]["locationByIdentifier"],
+        Value::Null
+    );
+    assert_eq!(
+        location_read.body["data"]["locations"],
+        json!({ "nodes": [] })
+    );
+
+    let inventory_read = proxy.process_request(json_graphql_request(
+        r#"
+        query GenericLocationDeleteInventoryRead($locationId: ID!, $itemId: ID!) {
+          inventoryItem(id: $itemId) {
+            locationsCount { count precision }
+            inventoryLevel(locationId: $locationId) { id location { id } }
+            inventoryLevels(first: 5) { nodes { location { id } quantities(names: ["available"]) { name quantity } } }
+          }
+        }
+        "#,
+        json!({ "locationId": target_id, "itemId": inventory_item_id }),
+    ));
+    assert_eq!(
+        inventory_read.body["data"]["inventoryItem"],
+        json!({
+            "locationsCount": { "count": 0, "precision": "EXACT" },
+            "inventoryLevel": null,
+            "inventoryLevels": { "nodes": [] }
+        })
+    );
+    assert_eq!(
+        proxy.get_state_snapshot()["stagedState"]["deletedLocationIds"],
+        json!([target_id])
+    );
+}
+
+#[test]
+fn location_edit_and_delete_are_local_in_live_hybrid_mode() {
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let upstream_requests = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let calls = Arc::clone(&upstream_calls);
+    let requests = Arc::clone(&upstream_requests);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            *calls.lock().unwrap() += 1;
+            let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+            requests.lock().unwrap().push(body.clone());
+            if body["operationName"] == "StorePropertiesLocationHydrate"
+                && body["variables"]["id"] == "gid://shopify/Location/live-base"
+            {
+                Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "location": {
+                                "id": "gid://shopify/Location/live-base",
+                                "name": "Live Base",
+                                "isActive": true,
+                                "deletable": false,
+                                "fulfillsOnlineOrders": true,
+                                "hasActiveInventory": true,
+                                "hasUnfulfilledOrders": false,
+                                "isFulfillmentService": false,
+                                "shipsInventory": true
+                            }
+                        }
+                    }),
+                }
+            } else {
+                Response {
+                    status: 599,
+                    headers: Default::default(),
+                    body: json!({ "errors": [{ "message": "unexpected upstream call" }] }),
+                }
+            }
+        });
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationLiveSeed($input: LocationAddInput!) {
+          locationAdd(input: $input) { location { id name } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "name": "Live Local", "address": { "countryCode": "CA" } } }),
+    ));
+    let location_id = add.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let edit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationLiveEdit($id: ID!, $input: LocationEditInput!) {
+          locationEdit(id: $id, input: $input) {
+            location { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": location_id, "input": { "name": "Live Local Edited" } }),
+    ));
+    assert_eq!(edit.status, 200);
+    assert_eq!(
+        edit.body["data"]["locationEdit"],
+        json!({
+            "location": { "id": location_id, "name": "Live Local Edited" },
+            "userErrors": []
+        })
+    );
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationLiveForceInactive($id: ID!, $input: LocationEditInput!) {
+          locationEdit(id: $id, input: $input) {
+            location { id isActive }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": location_id, "input": { "active": false } }),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["locationEdit"]["location"]["isActive"],
+        json!(false)
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationLiveDelete($locationId: ID!) {
+          locationDelete(locationId: $locationId) {
+            deletedLocationId
+            locationDeleteUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(
+        delete.body["data"]["locationDelete"],
+        json!({
+            "deletedLocationId": location_id,
+            "locationDeleteUserErrors": []
+        })
+    );
+
+    assert_eq!(*upstream_calls.lock().unwrap(), 0);
+
+    let base_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LocationLiveBaseDelete($locationId: ID!) {
+          locationDelete(locationId: $locationId) {
+            deletedLocationId
+            locationDeleteUserErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "locationId": "gid://shopify/Location/live-base" }),
+    ));
+    assert_eq!(
+        base_delete.body["data"]["locationDelete"],
+        json!({
+            "deletedLocationId": null,
+            "locationDeleteUserErrors": [
+                {
+                    "field": ["locationId"],
+                    "message": "The location cannot be deleted while it is active.",
+                    "code": "LOCATION_IS_ACTIVE"
+                },
+                {
+                    "field": ["locationId"],
+                    "message": "The location cannot be deleted while it has inventory.",
+                    "code": "LOCATION_HAS_INVENTORY"
+                }
+            ]
+        })
+    );
+    assert_eq!(*upstream_calls.lock().unwrap(), 1);
+    let requests = upstream_requests.lock().unwrap();
+    assert_eq!(
+        requests[0]["operationName"],
+        json!("StorePropertiesLocationHydrate")
+    );
+    assert_eq!(
+        requests[0]["variables"],
+        json!({ "id": "gid://shopify/Location/live-base" })
     );
 }
 

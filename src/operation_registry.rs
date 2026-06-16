@@ -248,6 +248,7 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("inventoryAdjustQuantities", CapabilityDomain::Products),
     local_mutation("inventorySetQuantities", CapabilityDomain::Products),
     local_mutation("inventoryMoveQuantities", CapabilityDomain::Products),
+    local_mutation("inventoryActivate", CapabilityDomain::Products),
     local_mutation("inventoryTransferCreate", CapabilityDomain::Products),
     local_mutation(
         "inventoryTransferCreateAsReadyToShip",
@@ -397,7 +398,9 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
         CapabilityDomain::ShippingFulfillments,
     ),
     local_mutation("locationAdd", CapabilityDomain::StoreProperties),
+    local_mutation("locationEdit", CapabilityDomain::StoreProperties),
     local_mutation("locationActivate", CapabilityDomain::StoreProperties),
+    local_mutation("locationDelete", CapabilityDomain::StoreProperties),
     local_query("company", CapabilityDomain::B2b),
     local_query("companyContact", CapabilityDomain::B2b),
     local_query("companyContactRole", CapabilityDomain::B2b),
