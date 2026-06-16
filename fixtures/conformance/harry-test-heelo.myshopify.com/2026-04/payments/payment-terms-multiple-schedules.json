@@ -1,0 +1,242 @@
+{
+  "scenarioId": "payment-terms-multiple-schedules",
+  "capturedAt": "2026-06-15T02:56:11.595Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "upstreamCalls": [],
+  "setup": {
+    "draftOrderCreate": {
+      "query": "#graphql\n  mutation PaymentTermsMultipleSchedulesDraftCreate($input: DraftOrderInput!) {\n    draftOrderCreate(input: $input) {\n      draftOrder {\n        id\n        name\n        paymentTerms {\n          id\n        }\n        subtotalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        totalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "email": "payment-terms-multiple-schedules-1781492170093@example.com",
+          "lineItems": [
+            {
+              "title": "Payment terms multiple schedules conformance",
+              "quantity": 1,
+              "originalUnitPrice": "18.50"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "draftOrderCreate": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1266747212082",
+              "name": "#D195",
+              "paymentTerms": null,
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "18.5",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "18.5",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "paymentTermsCreate": {
+      "query": "#graphql\n  mutation PaymentTermsMultipleSchedulesCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      paymentTerms {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "referenceId": "gid://shopify/DraftOrder/1266747212082",
+        "attrs": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+          "paymentSchedules": [
+            {
+              "issuedAt": "2026-05-05T00:00:00Z"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "paymentTermsCreate": {
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/155872559410"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "create": {
+      "purpose": "paymentTermsCreate rejects more than one paymentSchedules entry with a base-scoped public userError.",
+      "query": "#graphql\n  mutation PaymentTermsMultipleSchedulesCreate($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      paymentTerms {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "referenceId": "gid://shopify/DraftOrder/1266747212082",
+        "attrs": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+          "paymentSchedules": [
+            {
+              "issuedAt": "2026-05-05T00:00:00Z"
+            },
+            {
+              "issuedAt": "2026-05-06T00:00:00Z"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "paymentTermsCreate": {
+            "paymentTerms": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Cannot create payment terms with multiple payment schedules.",
+                "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "purpose": "paymentTermsUpdate rejects more than one paymentSchedules entry with the update unsuccessful code.",
+      "query": "#graphql\n  mutation PaymentTermsMultipleSchedulesUpdate($input: PaymentTermsUpdateInput!) {\n    paymentTermsUpdate(input: $input) {\n      paymentTerms {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "paymentTermsId": "gid://shopify/PaymentTerms/155872559410",
+          "paymentTermsAttributes": {
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+            "paymentSchedules": [
+              {
+                "issuedAt": "2026-05-05T00:00:00Z"
+              },
+              {
+                "issuedAt": "2026-05-06T00:00:00Z"
+              }
+            ]
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "paymentTermsUpdate": {
+            "paymentTerms": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Cannot create payment terms with multiple payment schedules.",
+                "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "expectedSetupPayload": {
+    "data": {
+      "paymentTermsCreate": {
+        "paymentTerms": {
+          "id": "gid://shopify/PaymentTerms/155872559410"
+        },
+        "userErrors": []
+      }
+    }
+  },
+  "expectedSetupLog": [
+    {
+      "operationName": "paymentTerms",
+      "status": "staged",
+      "stagedResourceIds": ["gid://shopify/PaymentTerms/155872559410"]
+    }
+  ],
+  "cleanup": {
+    "paymentTermsDelete": {
+      "data": {
+        "paymentTermsDelete": {
+          "deletedId": "gid://shopify/PaymentTerms/155872559410",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "draftOrderDelete": {
+      "data": {
+        "draftOrderDelete": {
+          "deletedId": "gid://shopify/DraftOrder/1266747212082",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "notes": "Captured on a disposable draft order. Shopify returns field: null and message \"Cannot create payment terms with multiple payment schedules.\" for multiple paymentSchedules on both paymentTermsCreate and paymentTermsUpdate."
+}

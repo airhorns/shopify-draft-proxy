@@ -2656,9 +2656,36 @@ fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
         json!({
             "paymentTerms": Value::Null,
             "userErrors": [{
-                "field": ["base"],
-                "message": "Cannot create payment terms with multiple schedules.",
+                "field": Value::Null,
+                "message": "Cannot create payment terms with multiple payment schedules.",
                 "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+            }]
+        })
+    );
+
+    let multiple_update_schedules = proxy.process_request(json_graphql_request(
+        update_query,
+        json!({
+            "input": {
+                "paymentTermsId": "gid://shopify/PaymentTerms/draft-update",
+                "paymentTermsAttributes": {
+                    "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+                    "paymentSchedules": [
+                        { "issuedAt": "2026-05-05T00:00:00Z" },
+                        { "issuedAt": "2026-05-06T00:00:00Z" }
+                    ]
+                }
+            }
+        }),
+    ));
+    assert_eq!(
+        multiple_update_schedules.body["data"]["paymentTermsUpdate"],
+        json!({
+            "paymentTerms": Value::Null,
+            "userErrors": [{
+                "field": Value::Null,
+                "message": "Cannot create payment terms with multiple payment schedules.",
+                "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
             }]
         })
     );
@@ -3118,8 +3145,15 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         }),
     ));
     assert_eq!(
-        multiple.body,
-        create_fixture["paymentTermsCreateOnOrder"]["expected"]["multiple"]
+        multiple.body["data"]["paymentTermsCreate"],
+        json!({
+            "paymentTerms": Value::Null,
+            "userErrors": [{
+                "field": Value::Null,
+                "message": "Cannot create payment terms with multiple payment schedules.",
+                "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+            }]
+        })
     );
 
     let missing_update = proxy.process_request(json_graphql_request(

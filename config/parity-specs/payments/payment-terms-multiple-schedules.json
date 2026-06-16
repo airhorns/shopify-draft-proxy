@@ -1,0 +1,78 @@
+{
+  "scenarioId": "payment-terms-multiple-schedules",
+  "operationNames": ["paymentTermsCreate", "paymentTermsUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "no-invalid-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-multiple-schedules.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-terms-multiple-schedules-setup.graphql",
+    "variablesCapturePath": "$.setup.paymentTermsCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-valid-payment-terms",
+        "capturePath": "$.expectedSetupPayload.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.paymentTerms.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy generate independent payment terms IDs for the setup request."
+          }
+        ]
+      },
+      {
+        "name": "create-multiple-schedules-user-error",
+        "capturePath": "$.cases.create.response.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-multiple-schedules-create.graphql",
+          "variablesCapturePath": "$.cases.create.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-multiple-schedules-user-error",
+        "capturePath": "$.cases.update.response.data.paymentTermsUpdate",
+        "proxyPath": "$.data.paymentTermsUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-multiple-schedules-update.graphql",
+          "variables": {
+            "input": {
+              "paymentTermsId": {
+                "fromProxyResponse": "setup-valid-payment-terms",
+                "path": "$.data.paymentTermsCreate.paymentTerms.id"
+              },
+              "paymentTermsAttributes": {
+                "fromCapturePath": "$.cases.update.variables.input.paymentTermsAttributes"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "rejected-requests-do-not-stage",
+        "capturePath": "$.expectedSetupLog",
+        "proxyLogPath": "$.entries",
+        "selectedPaths": ["$[0].operationName", "$[0].status", "$[0].stagedResourceIds[0]"],
+        "expectedDifferences": [
+          {
+            "path": "$.0.stagedResourceIds.0",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy generate independent payment terms IDs for the only staged setup mutation."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 capture proves paymentTermsCreate and paymentTermsUpdate reject multiple paymentSchedules with field: null, the exact multiple payment schedules message, and operation-specific unsuccessful codes. The proxy replay uses a public valid paymentTermsCreate setup request before the update rejection so no hidden state is seeded, and the log target verifies the rejected branches do not stage extra local mutations."
+}
