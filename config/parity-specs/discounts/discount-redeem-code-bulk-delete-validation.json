@@ -7,9 +7,31 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-redeem-code-bulk-delete-validation.json"
   ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-delete-validation.graphql",
+    "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-delete-setup.graphql",
     "apiVersion": "2026-04",
-    "variablesCapturePath": "$.variables"
+    "variables": {
+      "input": {
+        "title": "Redeem code bulk delete validation parity",
+        "code": "HAR785BASE1778020602881",
+        "startsAt": "2026-05-07T00:00:00Z",
+        "combinesWith": {
+          "productDiscounts": false,
+          "orderDiscounts": true,
+          "shippingDiscounts": false
+        },
+        "context": {
+          "all": "ALL"
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.1
+          },
+          "items": {
+            "all": true
+          }
+        }
+      }
+    }
   },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
@@ -19,7 +41,26 @@
       {
         "name": "redeem-code-bulk-delete-validation-user-errors",
         "capturePath": "$.validation.payload.data",
-        "proxyPath": "$.data"
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-delete-validation.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "discountId": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "unknownDiscountId": "gid://shopify/DiscountCodeNode/0",
+            "ids": [
+              {
+                "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.codeDiscount.codes.nodes[0].id"
+              }
+            ],
+            "emptyIds": [],
+            "search": "code:ANY",
+            "blankSearch": "   ",
+            "savedSearchId": "gid://shopify/SavedSearch/0"
+          }
+        }
       },
       {
         "name": "redeem-code-bulk-delete-happy-baseline",
@@ -31,15 +72,17 @@
           "apiVersion": "2026-04",
           "variables": {
             "discountId": {
-              "fromCapturePath": "$.variables.discountId"
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
             },
-            "ids": {
-              "fromCapturePath": "$.variables.ids"
-            }
+            "ids": [
+              {
+                "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.codeDiscount.codes.nodes[0].id"
+              }
+            ]
           }
         }
       }
     ]
   },
-  "notes": "HAR-785 live Shopify 2026-04 evidence for discountCodeRedeemCodeBulkDelete selector validation. The disposable code discount was created with one redeem code, validation captured missing selector, too-many selectors, unknown discount, empty ids, blank search, and unknown savedSearchId, then the happy-path id delete was captured and the discount was cleaned up. Shopify serializes base selector errors with field: null, not [\"base\"], and returns the empty-ids generic error with code: null."
+  "notes": "HAR-785 live Shopify 2026-04 evidence for discountCodeRedeemCodeBulkDelete selector validation. The disposable code discount was created with one redeem code, validation captured missing selector, too-many selectors, unknown discount, empty ids, blank search, and unknown savedSearchId, then the happy-path id delete was captured and the discount was cleaned up. Proxy replay first stages an equivalent local discount through discountCodeBasicCreate, then uses generic BulkDelete operation names with the generated local DiscountCodeNode and DiscountRedeemCode GIDs so the comparison exercises root-field/argument dispatch rather than any operation-name-gated path. Shopify serializes base selector errors with field: null, not [\"base\"], and returns the empty-ids generic error with code: null."
 }
