@@ -348,6 +348,19 @@ impl DraftProxy {
         if !errors.is_empty() {
             return (b2b_company_payload(None, errors), "failed", Vec::new());
         }
+        // The nested companyLocation is validated under its own field path before
+        // anything is staged, so an invalid nested phone rejects the whole create.
+        if let Some(nested_location) = resolved_object_field(&input, "companyLocation") {
+            let location_errors =
+                b2b_location_input_errors(&nested_location, &["input", "companyLocation"]);
+            if !location_errors.is_empty() {
+                return (
+                    b2b_company_payload(None, location_errors),
+                    "failed",
+                    Vec::new(),
+                );
+            }
+        }
 
         let id = format!(
             "gid://shopify/Company/{}?shopify-draft-proxy=synthetic",
@@ -373,6 +386,7 @@ impl DraftProxy {
 
         // Shopify provisions two system-defined contact roles on every company
         // creation, ordered Location admin then Ordering only.
+        let mut ordering_only_role_id = String::new();
         for role_name in ["Location admin", "Ordering only"] {
             let role_id = self.next_proxy_synthetic_gid("CompanyContactRole");
             let role = json!({
@@ -389,9 +403,13 @@ impl DraftProxy {
                 .as_array_mut()
                 .expect("contactRoleIds must be an array")
                 .push(json!(role_id.clone()));
+            if role_name == "Ordering only" {
+                ordering_only_role_id = role_id.clone();
+            }
             staged_ids.push(role_id);
         }
 
+        let mut main_contact_id: Option<String> = None;
         if let Some(contact_input) = resolved_object_field(&input, "companyContact") {
             let contact_id = self.next_proxy_synthetic_gid("CompanyContact");
             let contact = json!({
@@ -418,6 +436,7 @@ impl DraftProxy {
                 .expect("contactIds must be an array")
                 .push(json!(contact_id.clone()));
             company["mainContactId"] = json!(contact_id);
+            main_contact_id = Some(contact_id);
         }
 
         if let Some(role_input) = resolved_object_field(&input, "companyContactRole") {
@@ -450,6 +469,29 @@ impl DraftProxy {
             .to_string();
         self.b2b_stage_location(&mut company, location, &location_id);
         staged_ids.extend(location_staged_ids);
+
+        // The contact supplied at creation is automatically granted the
+        // "Ordering only" role at the default location, mirroring Shopify's
+        // provisioning. This surfaces as mainContact.roleAssignments.
+        if let Some(contact_id) = &main_contact_id {
+            if !ordering_only_role_id.is_empty() {
+                let assignment_id = self.next_proxy_synthetic_gid("CompanyContactRoleAssignment");
+                let assignment = json!({
+                    "id": assignment_id,
+                    "companyLocationId": location_id,
+                    "companyContactId": contact_id,
+                    "companyContactRoleId": ordering_only_role_id
+                });
+                self.store
+                    .staged
+                    .b2b_role_assignments
+                    .insert(assignment_id.clone(), assignment);
+                if let Some(loc) = self.store.staged.b2b_locations.get_mut(&location_id) {
+                    b2b_push_json_id(loc, "roleAssignmentIds", &assignment_id);
+                }
+                staged_ids.push(assignment_id);
+            }
+        }
 
         self.store
             .staged
@@ -657,6 +699,24 @@ impl DraftProxy {
             }
         }
 
+        if resolved_string_field(&input, "phone")
+            .is_some_and(|phone| !phone.trim().is_empty() && b2b_normalize_phone(&phone).is_none())
+        {
+            return (
+                b2b_company_location_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["input", "phone"],
+                        "Phone is invalid",
+                        "INVALID",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+
         if let Some(name) = resolved_string_field(&input, "name") {
             location["name"] = json!(b2b_strip_html_tags(&name));
         }
@@ -667,7 +727,13 @@ impl DraftProxy {
             location["locale"] = json!(locale);
         }
         if let Some(phone) = resolved_string_field(&input, "phone") {
-            location["phone"] = json!(phone);
+            location["phone"] = if phone.trim().is_empty() {
+                Value::Null
+            } else {
+                b2b_normalize_phone(&phone)
+                    .map(Value::String)
+                    .unwrap_or(Value::Null)
+            };
         }
         if let Some(shipping_input) = resolved_object_field(&input, "shippingAddress") {
             let address_id = location["shippingAddress"]["id"]
@@ -1328,7 +1394,7 @@ impl DraftProxy {
                     &contacts,
                     &selection.arguments,
                     &selection.selection,
-                    selected_json,
+                    |contact, fields| self.b2b_company_contact_selected_json(contact, fields),
                     value_id_cursor,
                 ))
             }
@@ -1356,10 +1422,13 @@ impl DraftProxy {
             "mainContact" => {
                 let contact = company["mainContactId"]
                     .as_str()
-                    .and_then(|id| self.store.staged.b2b_contacts.get(id));
+                    .and_then(|id| self.store.staged.b2b_contacts.get(id))
+                    .cloned();
                 Some(
                     contact
-                        .map(|contact| selected_json(contact, &selection.selection))
+                        .map(|contact| {
+                            self.b2b_company_contact_selected_json(&contact, &selection.selection)
+                        })
                         .unwrap_or(Value::Null),
                 )
             }
@@ -1367,6 +1436,60 @@ impl DraftProxy {
                 .get(&selection.name)
                 .map(|value| nullable_selected_json(value, &selection.selection)),
         })
+    }
+
+    fn b2b_company_contact_selected_json(
+        &self,
+        contact: &Value,
+        selections: &[SelectedField],
+    ) -> Value {
+        selected_payload_json(selections, |selection| match selection.name.as_str() {
+            "roleAssignments" => {
+                let contact_id = contact["id"].as_str().unwrap_or_default();
+                let assignments = self.b2b_role_assignments_for_contact(contact_id);
+                Some(selected_typed_connection_with_args(
+                    &assignments,
+                    &selection.arguments,
+                    &selection.selection,
+                    |assignment, fields| self.b2b_role_assignment_selected_json(assignment, fields),
+                    value_id_cursor,
+                ))
+            }
+            "company" => {
+                let company = contact["companyId"]
+                    .as_str()
+                    .and_then(|id| self.store.staged.b2b_companies.get(id));
+                Some(
+                    company
+                        .map(|company| {
+                            self.b2b_company_selected_json(company, &selection.selection)
+                        })
+                        .unwrap_or(Value::Null),
+                )
+            }
+            _ => contact
+                .get(&selection.name)
+                .map(|value| nullable_selected_json(value, &selection.selection)),
+        })
+    }
+
+    fn b2b_role_assignments_for_contact(&self, contact_id: &str) -> Vec<Value> {
+        let mut assignments = self
+            .store
+            .staged
+            .b2b_role_assignments
+            .values()
+            .filter(|assignment| assignment["companyContactId"].as_str() == Some(contact_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        // Synthetic ids share one monotonic counter, so numeric order is
+        // creation order — the order Shopify returns role assignments in.
+        assignments.sort_by_key(|assignment| {
+            resource_id_tail(assignment["id"].as_str().unwrap_or_default())
+                .parse::<u64>()
+                .unwrap_or(0)
+        });
+        assignments
     }
 
     fn b2b_company_location_selected_json(
@@ -1430,10 +1553,13 @@ impl DraftProxy {
             "companyContact" => {
                 let contact = assignment["companyContactId"]
                     .as_str()
-                    .and_then(|id| self.store.staged.b2b_contacts.get(id));
+                    .and_then(|id| self.store.staged.b2b_contacts.get(id))
+                    .cloned();
                 Some(
                     contact
-                        .map(|contact| selected_json(contact, &selection.selection))
+                        .map(|contact| {
+                            self.b2b_company_contact_selected_json(&contact, &selection.selection)
+                        })
                         .unwrap_or(Value::Null),
                 )
             }
@@ -1535,8 +1661,16 @@ impl DraftProxy {
             "companyId": company_id,
             "externalId": resolved_string_field(input, "externalId").map(Value::String).unwrap_or(Value::Null),
             "note": resolved_string_field(input, "note").map(Value::String).unwrap_or(Value::Null),
-            "locale": resolved_string_field(input, "locale").map(Value::String).unwrap_or(Value::Null),
-            "phone": resolved_string_field(input, "phone").map(Value::String).unwrap_or(Value::Null),
+            // A new location defaults to the shop's primary locale ("en"); a
+            // supplied locale (even a malformed one) is stored verbatim.
+            "locale": resolved_string_field(input, "locale").unwrap_or_else(|| "en".to_string()),
+            // Phone is normalized to E.164; invalid values are rejected earlier
+            // by validation, so an unparseable value here degrades to null.
+            "phone": resolved_string_field(input, "phone")
+                .filter(|phone| !phone.trim().is_empty())
+                .and_then(|phone| b2b_normalize_phone(&phone))
+                .map(Value::String)
+                .unwrap_or(Value::Null),
             "shippingAddress": shipping_address.unwrap_or(Value::Null),
             "billingAddress": billing_address.unwrap_or(Value::Null),
             "billingSameAsShipping": billing_same_as_shipping,
@@ -2956,20 +3090,88 @@ fn raw_resource_feedback_state_invalid_literal(value: &RawArgumentValue) -> bool
 fn b2b_company_location_create_validation_errors(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<Value> {
+    b2b_location_input_errors(input, &["input"])
+}
+
+/// Validation shared by companyLocationCreate (prefix `["input"]`) and the nested
+/// companyLocation of companyCreate (prefix `["input","companyLocation"]`).
+/// A blank location name is not an error on create — Shopify falls back to the
+/// company name (see b2b_location_name) — and a malformed `locale` passes through
+/// unvalidated, matching live Admin.
+fn b2b_location_input_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    prefix: &[&str],
+) -> Vec<Value> {
     let mut errors = Vec::new();
     if let Some(name) = resolved_string_field(input, "name") {
-        // A blank location name is not an error on create: Shopify falls back to
-        // the company name (see b2b_location_name). Only over-length is rejected.
         if name.chars().count() > 255 {
+            let mut field = prefix.to_vec();
+            field.push("name");
             errors.push(b2b_company_user_error(
-                vec!["input", "name"],
+                field,
                 "Name is too long (maximum is 255 characters)",
                 "TOO_LONG",
                 None,
             ));
         }
     }
+    if let Some(phone) = resolved_string_field(input, "phone") {
+        if !phone.trim().is_empty() && b2b_normalize_phone(&phone).is_none() {
+            let mut field = prefix.to_vec();
+            field.push("phone");
+            errors.push(b2b_company_user_error(field, "Phone is invalid", "INVALID", None));
+        }
+    }
     errors
+}
+
+/// Shopify-style phone normalization for this US store (calling code "1").
+/// Returns the E.164 form ("+<digits>") or None when the input contains
+/// unsupported characters or the digit count falls outside 8..=15.
+fn b2b_normalize_phone(phone: &str) -> Option<String> {
+    const CALLING_CODE: &str = "1";
+    let trimmed = phone.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let supported = |c: char| {
+        c.is_ascii_digit()
+            || matches!(
+                c,
+                '+' | '\u{FF0B}'
+                    | ' '
+                    | '\t'
+                    | '\n'
+                    | '\r'
+                    | '('
+                    | ')'
+                    | '-'
+                    | '.'
+                    | '\u{2010}'
+                    | '\u{2011}'
+                    | '\u{2012}'
+                    | '\u{2013}'
+                    | '\u{2014}'
+                    | '\u{00A0}'
+            )
+    };
+    if !trimmed.chars().all(supported) {
+        return None;
+    }
+    let digits: String = trimmed.chars().filter(char::is_ascii_digit).collect();
+    let starts_with_plus = trimmed.starts_with('+') || trimmed.starts_with('\u{FF0B}');
+    let e164_digits = if starts_with_plus || (digits.starts_with(CALLING_CODE) && digits.len() > 10)
+    {
+        digits
+    } else {
+        format!("{CALLING_CODE}{digits}")
+    };
+    let len = e164_digits.len();
+    if (8..=15).contains(&len) {
+        Some(format!("+{e164_digits}"))
+    } else {
+        None
+    }
 }
 
 fn b2b_company_address_json(id: &str, input: &BTreeMap<String, ResolvedValue>) -> Value {
