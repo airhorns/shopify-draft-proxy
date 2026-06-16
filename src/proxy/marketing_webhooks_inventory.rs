@@ -519,7 +519,9 @@ impl DraftProxy {
         }
         let topic = record["topic"].as_str().unwrap_or_default();
         let format = record["format"].as_str().unwrap_or_default();
-        if uri.starts_with("pubsub://") && format.eq_ignore_ascii_case("XML") {
+        if (uri.starts_with("pubsub://") || uri.starts_with("arn:aws:events:"))
+            && !format.eq_ignore_ascii_case("JSON")
+        {
             errors.push(json!({
                 "field": ["webhookSubscription", "format"],
                 "message": "Format can only be used with format: 'json'"
