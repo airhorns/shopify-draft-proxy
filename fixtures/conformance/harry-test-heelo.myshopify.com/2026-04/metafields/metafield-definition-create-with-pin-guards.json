@@ -377,100 +377,10 @@
           "userErrors": []
         },
         "create20": {
-          "userErrors": []
-        },
-        "create21": {
-          "userErrors": []
-        },
-        "create22": {
-          "userErrors": []
-        },
-        "create23": {
-          "userErrors": []
-        },
-        "create24": {
-          "userErrors": []
-        },
-        "create25": {
-          "userErrors": []
-        },
-        "create26": {
-          "userErrors": []
-        },
-        "create27": {
-          "userErrors": []
-        },
-        "create28": {
-          "userErrors": []
-        },
-        "create29": {
-          "userErrors": []
-        },
-        "create30": {
-          "userErrors": []
-        },
-        "create31": {
-          "userErrors": []
-        },
-        "create32": {
-          "userErrors": []
-        },
-        "create33": {
-          "userErrors": []
-        },
-        "create34": {
-          "userErrors": []
-        },
-        "create35": {
-          "userErrors": []
-        },
-        "create36": {
-          "userErrors": []
-        },
-        "create37": {
-          "userErrors": []
-        },
-        "create38": {
-          "userErrors": []
-        },
-        "create39": {
-          "userErrors": []
-        },
-        "create40": {
-          "userErrors": []
-        },
-        "create41": {
-          "userErrors": []
-        },
-        "create42": {
-          "userErrors": []
-        },
-        "create43": {
-          "userErrors": []
-        },
-        "create44": {
-          "userErrors": []
-        },
-        "create45": {
-          "userErrors": []
-        },
-        "create46": {
-          "userErrors": []
-        },
-        "create47": {
-          "userErrors": []
-        },
-        "create48": {
-          "userErrors": []
-        },
-        "create49": {
-          "userErrors": []
-        },
-        "create50": {
           "createdDefinition": {
             "id": "gid://shopify/MetafieldDefinition/217268584754",
-            "key": "pin_50",
-            "pinnedPosition": 50
+            "key": "pin_20",
+            "pinnedPosition": 20
           },
           "userErrors": []
         },
@@ -479,7 +389,7 @@
           "userErrors": [
             {
               "field": ["definition"],
-              "message": "Limit of 50 pinned definitions.",
+              "message": "Limit of 20 pinned definitions.",
               "code": "PINNED_LIMIT_REACHED"
             }
           ]
@@ -614,128 +524,8 @@
         "key": "pin_19"
       },
       {
-        "id": "gid://shopify/MetafieldDefinition/217267601714",
-        "key": "pin_20"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217267634482",
-        "key": "pin_21"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217267667250",
-        "key": "pin_22"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217267700018",
-        "key": "pin_23"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217267732786",
-        "key": "pin_24"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217267765554",
-        "key": "pin_25"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217267798322",
-        "key": "pin_26"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217267831090",
-        "key": "pin_27"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217267863858",
-        "key": "pin_28"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217267896626",
-        "key": "pin_29"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217267929394",
-        "key": "pin_30"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217267962162",
-        "key": "pin_31"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217267994930",
-        "key": "pin_32"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217268027698",
-        "key": "pin_33"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217268060466",
-        "key": "pin_34"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217268093234",
-        "key": "pin_35"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217268126002",
-        "key": "pin_36"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217268158770",
-        "key": "pin_37"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217268191538",
-        "key": "pin_38"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217268224306",
-        "key": "pin_39"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217268257074",
-        "key": "pin_40"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217268289842",
-        "key": "pin_41"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217268322610",
-        "key": "pin_42"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217268355378",
-        "key": "pin_43"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217268388146",
-        "key": "pin_44"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217268420914",
-        "key": "pin_45"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217268453682",
-        "key": "pin_46"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217268486450",
-        "key": "pin_47"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217268519218",
-        "key": "pin_48"
-      },
-      {
-        "id": "gid://shopify/MetafieldDefinition/217268551986",
-        "key": "pin_49"
-      },
-      {
         "id": "gid://shopify/MetafieldDefinition/217268584754",
-        "key": "pin_50"
+        "key": "pin_20"
       }
     ],
     "restoredPinnedDefinitions": [

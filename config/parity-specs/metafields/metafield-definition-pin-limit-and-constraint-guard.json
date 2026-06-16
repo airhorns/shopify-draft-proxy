@@ -33,9 +33,9 @@
         ]
       },
       {
-        "name": "pin-fiftieth-success",
-        "capturePath": "$.primary.response.data.pin50",
-        "proxyPath": "$.data.pin50",
+        "name": "pin-twentieth-success",
+        "capturePath": "$.primary.response.data.pin20",
+        "proxyPath": "$.data.pin20",
         "expectedDifferences": [
           {
             "path": "$.pinnedDefinition.id",
@@ -46,8 +46,8 @@
       },
       {
         "name": "pin-limit-reached-userErrors",
-        "capturePath": "$.primary.response.data.pin51",
-        "proxyPath": "$.data.pin51"
+        "capturePath": "$.primary.response.data.pin21",
+        "proxyPath": "$.data.pin21"
       },
       {
         "name": "pin-constrained-definition-userErrors",
@@ -85,5 +85,5 @@
       }
     ]
   },
-  "notes": "Captured Shopify product-owner cap of 50 pinned metafield definitions after Core promoted the limit globally. The live capture temporarily unpins existing product definitions so the scenario can create and pin exactly 50 disposable definitions, observes `PINNED_LIMIT_REACHED` on the 51st pin with `Limit of 50 pinned definitions.`, verifies constrained definitions return `UNSUPPORTED_PINNING`, lists the 50 pinned definitions in descending `PINNED_POSITION` order, and then unpins one definition to keep compaction covered."
+  "notes": "Exercises the real Shopify product-owner cap of 20 pinned metafield definitions. The live capture temporarily unpins existing product definitions so the scenario can create and pin exactly 20 disposable definitions, observes `PINNED_LIMIT_REACHED` on the 21st pin with `Limit of 20 pinned definitions.`, verifies constrained definitions return `UNSUPPORTED_PINNING`, lists the 20 pinned definitions in descending `PINNED_POSITION` order, and then unpins one definition to keep compaction covered."
 }
