@@ -136,6 +136,7 @@ impl DraftProxy {
                 "customerOrders": self.store.staged.customer_orders.clone(),
                 "taggableResources": self.store.staged.taggable_resources.clone(),
                 "orders": self.store.staged.orders.clone(),
+                "deletedOrderIds": self.store.staged.deleted_order_ids.iter().cloned().collect::<Vec<_>>(),
                 "returns": self.store.staged.returns.clone(),
                 "returnsByOrder": self.store.staged.returns_by_order.clone(),
                "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
@@ -468,6 +469,12 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.deleted_order_ids = state["stagedState"]["deletedOrderIds"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|value| value.as_str().map(str::to_string))
+            .collect();
         self.store.staged.returns = state["stagedState"]["returns"]
             .as_object()
             .map(|returns| {
