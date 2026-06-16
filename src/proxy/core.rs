@@ -205,6 +205,23 @@ impl DraftProxy {
                 json!(self.store.staged.b2b_role_assignments.clone());
             snapshot["stagedState"]["b2bStaffAssignments"] =
                 json!(self.store.staged.b2b_staff_assignments.clone());
+            snapshot["stagedState"]["deletedB2bContactRoleAssignmentIds"] = json!(self
+                .store
+                .staged
+                .deleted_b2b_contact_role_assignment_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+            // These synthetic id counters MUST round-trip through dump/restore.
+            // The parity runner restores mainState before every target, so if a
+            // counter resets to 1 here a later companyCreate reuses an existing
+            // id and silently overwrites a previously-staged company/contact.
+            snapshot["stagedState"]["nextB2bCompanyId"] =
+                json!(self.store.staged.next_b2b_company_id);
+            snapshot["stagedState"]["nextB2bContactId"] =
+                json!(self.store.staged.next_b2b_contact_id);
+            snapshot["stagedState"]["nextB2bContactRoleAssignmentId"] =
+                json!(self.store.staged.next_b2b_contact_role_assignment_id);
         }
         if !self.store.staged.metaobject_definitions.is_empty() {
             snapshot["stagedState"]["metaobjectDefinitions"] =

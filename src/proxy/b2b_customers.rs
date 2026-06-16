@@ -397,8 +397,15 @@ impl DraftProxy {
                 "title": resolved_string_field(&contact_input, "title")
                     .or_else(|| resolved_string_field(&contact_input, "name"))
                     .unwrap_or_else(|| "Buyer".to_string()),
+                "firstName": resolved_string_field(&contact_input, "firstName").map(Value::String).unwrap_or(Value::Null),
+                "lastName": resolved_string_field(&contact_input, "lastName").map(Value::String).unwrap_or(Value::Null),
                 "companyId": id,
-                "locale": resolved_string_field(&contact_input, "locale").map(Value::String).unwrap_or(Value::Null)
+                // Shopify defaults a new company contact's locale to the shop's
+                // primary locale ("en" for this store) when none is supplied.
+                "locale": resolved_string_field(&contact_input, "locale").unwrap_or_else(|| "en".to_string()),
+                // The contact supplied at company creation becomes the company's
+                // main contact, so it reads back as isMainContact: true.
+                "isMainContact": true
             });
             self.store
                 .staged
@@ -474,6 +481,21 @@ impl DraftProxy {
                 Vec::new(),
             );
         };
+        if input.is_empty() {
+            return (
+                b2b_company_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["input"],
+                        "At least one attribute to change must be present",
+                        "INVALID",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
         let errors = b2b_company_update_validation_errors(
             &input,
             &self.store.staged.b2b_companies,
@@ -574,6 +596,20 @@ impl DraftProxy {
                 Vec::new(),
             );
         };
+        if input.is_empty() {
+            return (
+                b2b_company_location_payload(
+                    None,
+                    vec![json!({
+                        "field": Value::Null,
+                        "message": "Company location update input is empty.",
+                        "code": "NO_INPUT"
+                    })],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
         if resolved_string_field(&input, "name").is_some_and(|name| name.trim().is_empty()) {
             return (
                 b2b_company_location_payload(
@@ -1443,6 +1479,7 @@ impl DraftProxy {
             "name": name,
             "companyId": company_id,
             "externalId": resolved_string_field(input, "externalId").map(Value::String).unwrap_or(Value::Null),
+            "note": resolved_string_field(input, "note").map(Value::String).unwrap_or(Value::Null),
             "locale": resolved_string_field(input, "locale").map(Value::String).unwrap_or(Value::Null),
             "phone": resolved_string_field(input, "phone").map(Value::String).unwrap_or(Value::Null),
             "shippingAddress": shipping_address.unwrap_or(Value::Null),
@@ -2862,9 +2899,22 @@ fn raw_resource_feedback_state_invalid_literal(value: &RawArgumentValue) -> bool
 }
 
 fn b2b_company_location_create_validation_errors(
-    _input: &BTreeMap<String, ResolvedValue>,
+    input: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<Value> {
-    Vec::new()
+    let mut errors = Vec::new();
+    if let Some(name) = resolved_string_field(input, "name") {
+        // A blank location name is not an error on create: Shopify falls back to
+        // the company name (see b2b_location_name). Only over-length is rejected.
+        if name.chars().count() > 255 {
+            errors.push(b2b_company_user_error(
+                vec!["input", "name"],
+                "Name is too long (maximum is 255 characters)",
+                "TOO_LONG",
+                None,
+            ));
+        }
+    }
+    errors
 }
 
 fn b2b_company_address_json(id: &str, input: &BTreeMap<String, ResolvedValue>) -> Value {

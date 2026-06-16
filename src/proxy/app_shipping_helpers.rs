@@ -1406,10 +1406,17 @@ pub(in crate::proxy) fn b2b_company_create_validation_errors(
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     if let Some(name) = resolved_string_field(input, "name") {
-        if name.chars().count() > 255 {
+        if name.trim().is_empty() {
             errors.push(b2b_company_user_error(
                 vec!["input", "company", "name"],
-                "Company name is too long",
+                "Name can't be blank",
+                "BLANK",
+                None,
+            ));
+        } else if name.chars().count() > 255 {
+            errors.push(b2b_company_user_error(
+                vec!["input", "company", "name"],
+                "Name is too long (maximum is 255 characters)",
                 "TOO_LONG",
                 None,
             ));
@@ -1422,6 +1429,16 @@ pub(in crate::proxy) fn b2b_company_create_validation_errors(
             companies,
             None,
         ));
+    }
+    if let Some(note) = resolved_string_field(input, "note") {
+        if note.chars().count() > 5000 {
+            errors.push(b2b_company_user_error(
+                vec!["input", "company", "notes"],
+                "Notes is too long (maximum is 5000 characters)",
+                "TOO_LONG",
+                None,
+            ));
+        }
     }
     errors
 }
@@ -1441,10 +1458,17 @@ pub(in crate::proxy) fn b2b_company_update_validation_errors(
         ));
     }
     if let Some(name) = resolved_string_field(input, "name") {
-        if name.chars().count() > 255 {
+        if name.trim().is_empty() {
             errors.push(b2b_company_user_error(
                 vec!["input", "name"],
-                "Company name is too long",
+                "Name can't be blank",
+                "BLANK",
+                None,
+            ));
+        } else if name.chars().count() > 255 {
+            errors.push(b2b_company_user_error(
+                vec!["input", "name"],
+                "Name is too long (maximum is 255 characters)",
                 "TOO_LONG",
                 None,
             ));
@@ -1470,7 +1494,7 @@ pub(in crate::proxy) fn b2b_company_update_validation_errors(
         if note.chars().count() > 5000 {
             errors.push(b2b_company_user_error(
                 vec!["input", "notes"],
-                "Note is too long",
+                "Notes is too long (maximum is 5000 characters)",
                 "TOO_LONG",
                 None,
             ));

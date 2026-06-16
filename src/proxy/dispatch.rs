@@ -1708,7 +1708,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
             {
                 match root_field {
-                    "companyCreate" | "companyUpdate" => self
+                    "companyCreate" | "companyUpdate" | "companyLocationCreate" => self
                         .b2b_company_tail_helper_response(
                             request,
                             &query,
