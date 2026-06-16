@@ -6910,6 +6910,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'payments',
+    captureId: 'payment-terms-create-template-reprojection',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-terms-template-reprojection-conformance.ts',
+    purpose: 'paymentTermsCreate successful template reprojection for FIXED, non-30 NET, and FULFILLMENT templates.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-terms-create-template-reprojection.json`,
+      'config/parity-specs/payments/payment-terms-create-template-reprojection.json',
+      'config/parity-requests/payments/payment-terms-template-reprojection-order-create.graphql',
+      'config/parity-requests/payments/payment-terms-create-template-reprojection.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable Orders, records one successful paymentTermsCreate per target template, deletes payment terms, then cancels every Order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
     captureId: 'payment-terms-create-order-eligibility',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-payment-terms-order-eligibility-conformance.ts',

@@ -270,6 +270,17 @@ impl DraftProxy {
             return ok_json(data);
         }
 
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "paymentTermsTemplates")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": payment_terms_templates_query_data(&fields) }));
+            }
+        }
+
         if root_field == "paymentReminderSend" {
             if let Some(data) = payment_reminder_local_data(
                 &query,
