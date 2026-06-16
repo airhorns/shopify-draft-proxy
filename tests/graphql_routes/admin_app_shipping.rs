@@ -2195,7 +2195,221 @@ fn customer_tax_exemption_roots_stage_and_project_downstream_reads() {
 }
 
 #[test]
+<<<<<<< ours
 fn customer_update_and_delete_stage_known_fixture_customer_reads() {
+>>>>>>> theirs
+=======
+fn customer_outbound_side_effect_roots_buffer_locally_and_preserve_commit_inputs() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        captured_calls.lock().unwrap().push(request);
+        Response {
+            status: 599,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "unexpected runtime passthrough" }] }),
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateParityPlan($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id state }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "customer-side-effect-buffering@example.test",
+                "firstName": "Side",
+                "lastName": "Effect"
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create.body["data"]["customerCreate"]["customer"]["state"],
+        json!("DISABLED")
+    );
+
+    let activation_query = r#"
+        mutation NonRecordingActivationName($id: ID!) {
+          activationAlias: customerGenerateAccountActivationUrl(customerId: $id) {
+            accountActivationUrl
+            userErrors { field message }
+          }
+        }
+        "#;
+    let activation = proxy.process_request(json_graphql_request(
+        activation_query,
+        json!({ "id": customer_id }),
+    ));
+    assert_eq!(activation.status, 200);
+    let activation_payload = &activation.body["data"]["activationAlias"];
+    assert_eq!(activation_payload["userErrors"], json!([]));
+    let activation_url = activation_payload["accountActivationUrl"].as_str().unwrap();
+    assert!(activation_url.starts_with("https://shopify-draft-proxy.local/account/activate/"));
+    assert!(activation_url.contains("shopify-draft-proxy=local"));
+
+    let invite_query = r#"
+        mutation NonRecordingInviteName($id: ID!, $email: EmailInput) {
+          inviteAlias: customerSendAccountInviteEmail(customerId: $id, email: $email) {
+            customer { id state }
+            userErrors { field message }
+          }
+        }
+        "#;
+    let invite = proxy.process_request(json_graphql_request(
+        invite_query,
+        json!({
+            "id": customer_id,
+            "email": {
+                "subject": "Welcome",
+                "customMessage": "Please activate your account"
+            }
+        }),
+    ));
+    assert_eq!(invite.status, 200);
+    assert_eq!(invite.body["data"]["inviteAlias"]["userErrors"], json!([]));
+    assert_eq!(
+        invite.body["data"]["inviteAlias"]["customer"],
+        json!({ "id": customer_id, "state": "INVITED" })
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query SideEffectDownstreamRead($id: ID!) {
+          customer(id: $id) { id state }
+        }
+        "#,
+        json!({ "id": customer_id }),
+    ));
+    assert_eq!(
+        downstream.body["data"]["customer"],
+        json!({ "id": customer_id, "state": "INVITED" })
+    );
+
+    assert_eq!(upstream_calls.lock().unwrap().len(), 0);
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 3);
+    assert_eq!(
+        entries[1]["interpreted"]["primaryRootField"],
+        json!("customerGenerateAccountActivationUrl")
+    );
+    assert!(entries[1]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("NonRecordingActivationName"));
+    assert_eq!(
+        entries[2]["interpreted"]["primaryRootField"],
+        json!("customerSendAccountInviteEmail")
+    );
+    assert!(entries[2]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("NonRecordingInviteName"));
+}
+
+#[test]
+fn customer_outbound_side_effect_roots_return_shopify_like_validation_errors() {
+    let mut proxy = snapshot_proxy();
+
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingSideEffectCustomer($id: ID!) {
+          customerGenerateAccountActivationUrl(customerId: $id) {
+            accountActivationUrl
+            userErrors { field message }
+          }
+          customerSendAccountInviteEmail(customerId: $id) {
+            customer { id state }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Customer/999999999999999" }),
+    ));
+    assert_eq!(missing.status, 200);
+    assert_eq!(
+        missing.body["data"]["customerGenerateAccountActivationUrl"],
+        json!({
+            "accountActivationUrl": null,
+            "userErrors": [{ "field": ["customerId"], "message": "The customer can't be found." }]
+        })
+    );
+    assert_eq!(
+        missing.body["data"]["customerSendAccountInviteEmail"],
+        json!({
+            "customer": null,
+            "userErrors": [{ "field": ["customerId"], "message": "Customer can't be found" }]
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateParityPlan($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id state }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "email": "invalid-invite-input@example.test" } }),
+    ));
+    let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let invalid_invite = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidInviteEmailInput($id: ID!, $email: EmailInput) {
+          customerSendAccountInviteEmail(customerId: $id, email: $email) {
+            customer { id state }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": customer_id, "email": { "subject": "" } }),
+    ));
+    assert_eq!(
+        invalid_invite.body["data"]["customerSendAccountInviteEmail"],
+        json!({
+            "customer": null,
+            "userErrors": [{
+                "field": ["email", "subject"],
+                "message": "Subject can't be blank",
+                "code": "INVALID"
+            }]
+        })
+    );
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query InvalidInviteInputRead($id: ID!) {
+          customer(id: $id) { id state }
+        }
+        "#,
+        json!({ "id": customer_id }),
+    ));
+    assert_eq!(
+        downstream.body["data"]["customer"],
+        json!({ "id": customer_id, "state": "DISABLED" })
+    );
+}
+
+#[test]
+fn customer_by_identifier_supports_id_for_input_validation_downstream_reads() {
 >>>>>>> theirs
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(

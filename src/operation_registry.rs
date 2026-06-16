@@ -589,6 +589,32 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
         "reverseFulfillmentOrderDispose",
         CapabilityDomain::ShippingFulfillments,
     ),
+<<<<<<< ours
+=======
+    local_query("draftOrderSavedSearches", CapabilityDomain::SavedSearches),
+    local_query("fileSavedSearches", CapabilityDomain::SavedSearches),
+    local_query("orderSavedSearches", CapabilityDomain::SavedSearches),
+    local_query("productSavedSearches", CapabilityDomain::SavedSearches),
+    local_mutation("savedSearchCreate", CapabilityDomain::SavedSearches),
+    local_mutation(
+        "customerGenerateAccountActivationUrl",
+        CapabilityDomain::Customers,
+    ),
+    local_mutation(
+        "customerSendAccountInviteEmail",
+        CapabilityDomain::Customers,
+    ),
+    local_query("bulkOperation", CapabilityDomain::BulkOperations),
+    local_query("bulkOperations", CapabilityDomain::BulkOperations),
+    local_query("currentBulkOperation", CapabilityDomain::BulkOperations),
+    local_query("files", CapabilityDomain::Media),
+    local_mutation("stagedUploadsCreate", CapabilityDomain::Media),
+    local_mutation("fileAcknowledgeUpdateFailed", CapabilityDomain::Media),
+    local_mutation("fileCreate", CapabilityDomain::Media),
+    local_mutation("fileUpdate", CapabilityDomain::Media),
+    local_mutation("fileDelete", CapabilityDomain::Media),
+    local_query("discountNode", CapabilityDomain::Discounts),
+>>>>>>> theirs
     local_query("discountNodes", CapabilityDomain::Discounts),
     local_query("discountNodesCount", CapabilityDomain::Discounts),
     local_query("discountNode", CapabilityDomain::Discounts),

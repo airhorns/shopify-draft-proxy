@@ -2309,6 +2309,218 @@ impl DraftProxy {
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
 
+    pub(in crate::proxy) fn customer_outbound_side_effect_response(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Response> {
+        let fields = root_fields(query, variables)?;
+        if fields.is_empty()
+            || !fields.iter().all(|field| {
+                matches!(
+                    field.name.as_str(),
+                    "customerGenerateAccountActivationUrl"
+                        | "customerSendAccountInviteEmail"
+                        | "customerPaymentMethodSendUpdateEmail"
+                )
+            })
+        {
+            return None;
+        }
+
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let (payload, should_log) = match field.name.as_str() {
+                "customerGenerateAccountActivationUrl" => {
+                    self.customer_generate_account_activation_url_payload(&field)
+                }
+                "customerSendAccountInviteEmail" => {
+                    self.customer_send_account_invite_email_payload(&field)
+                }
+                "customerPaymentMethodSendUpdateEmail" => {
+                    self.customer_payment_method_send_update_email_payload(&field)
+                }
+                _ => return None,
+            };
+            if should_log {
+                let customer_id = resolved_string_arg(&field.arguments, "customerId")
+                    .map(|id| vec![id])
+                    .unwrap_or_default();
+                self.record_mutation_log_entry(request, query, variables, &field.name, customer_id);
+            }
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&payload, &field.selection),
+            );
+        }
+
+        Some(ok_json(json!({ "data": Value::Object(data) })))
+    }
+
+    fn customer_generate_account_activation_url_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, bool) {
+        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        let Some(customer) = self.store.staged.customers.get_mut(&customer_id) else {
+            return (
+                json!({
+                    "accountActivationUrl": Value::Null,
+                    "userErrors": [{
+                        "field": ["customerId"],
+                        "message": "The customer can't be found."
+                    }]
+                }),
+                false,
+            );
+        };
+
+        let state = customer
+            .get("state")
+            .and_then(Value::as_str)
+            .unwrap_or("DISABLED");
+        if !matches!(state, "DISABLED" | "INVITED") {
+            return (
+                json!({
+                    "accountActivationUrl": Value::Null,
+                    "userErrors": [{
+                        "field": ["customerId"],
+                        "message": "The customer account is already enabled.",
+                        "code": "ACCOUNT_ALREADY_ENABLED"
+                    }]
+                }),
+                false,
+            );
+        }
+
+        let token = customer_activation_token(&customer_id);
+        if let Some(object) = customer.as_object_mut() {
+            object.insert(
+                "accountActivationToken".to_string(),
+                Value::String(token.clone()),
+            );
+        }
+
+        (
+            json!({
+                "accountActivationUrl": format!(
+                    "https://shopify-draft-proxy.local/account/activate/{token}?shopify-draft-proxy=local"
+                ),
+                "userErrors": []
+            }),
+            true,
+        )
+    }
+
+    fn customer_send_account_invite_email_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, bool) {
+        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        if !self.store.staged.customers.contains_key(&customer_id) {
+            return (
+                json!({
+                    "customer": Value::Null,
+                    "userErrors": [{
+                        "field": ["customerId"],
+                        "message": "Customer can't be found"
+                    }]
+                }),
+                false,
+            );
+        }
+
+        let email = resolved_object_field(&field.arguments, "email").unwrap_or_default();
+        let input_errors = customer_invite_email_input_errors(&email);
+        if !input_errors.is_empty() {
+            return (
+                json!({
+                    "customer": Value::Null,
+                    "userErrors": input_errors
+                }),
+                false,
+            );
+        }
+
+        let Some(customer) = self.store.staged.customers.get_mut(&customer_id) else {
+            return (
+                json!({
+                    "customer": Value::Null,
+                    "userErrors": [{
+                        "field": ["customerId"],
+                        "message": "Customer can't be found"
+                    }]
+                }),
+                false,
+            );
+        };
+        let state = customer
+            .get("state")
+            .and_then(Value::as_str)
+            .unwrap_or("DISABLED");
+        if !matches!(state, "DISABLED" | "INVITED") {
+            return (
+                json!({
+                    "customer": Value::Null,
+                    "userErrors": [{
+                        "field": ["customerId"],
+                        "message": "The customer account is already enabled.",
+                        "code": "ACCOUNT_ALREADY_ENABLED"
+                    }]
+                }),
+                false,
+            );
+        }
+
+        if let Some(object) = customer.as_object_mut() {
+            object.insert("state".to_string(), json!("INVITED"));
+        }
+        (
+            json!({
+                "customer": customer.clone(),
+                "userErrors": []
+            }),
+            true,
+        )
+    }
+
+    fn customer_payment_method_send_update_email_payload(
+        &self,
+        field: &RootFieldSelection,
+    ) -> (Value, bool) {
+        let payment_method_id =
+            resolved_string_arg(&field.arguments, "customerPaymentMethodId").unwrap_or_default();
+        let Some(payment_method) = self
+            .store
+            .staged
+            .customer_payment_methods
+            .get(&payment_method_id)
+        else {
+            return (
+                json!({
+                    "customer": Value::Null,
+                    "userErrors": [{
+                        "field": ["customerPaymentMethodId"],
+                        "message": "Customer payment method does not exist"
+                    }]
+                }),
+                false,
+            );
+        };
+        let customer = payment_method
+            .get("customer")
+            .cloned()
+            .unwrap_or(Value::Null);
+        (
+            json!({
+                "customer": customer,
+                "userErrors": []
+            }),
+            true,
+        )
+    }
+
     pub(in crate::proxy) fn customer_order_create(
         &mut self,
         query: &str,
@@ -2739,4 +2951,98 @@ fn customer_update_inline_consent_error(field: &str, mutation: &str) -> Value {
         "field": [field],
         "message": format!("To update {field}, please use the {mutation} Mutation instead")
     })
+}
+
+fn customer_activation_token(customer_id: &str) -> String {
+    let tail = resource_id_tail(customer_id);
+    format!("local-customer-{tail}")
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect()
+}
+
+fn customer_invite_email_input_errors(email: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if matches!(resolved_string_field(email, "subject"), Some(subject) if subject.is_empty()) {
+        errors.push(customer_invite_email_error(
+            &["email", "subject"],
+            "Subject can't be blank",
+        ));
+    }
+    if resolved_string_field(email, "to")
+        .as_deref()
+        .is_some_and(customer_invite_invalid_email_address)
+    {
+        errors.push(customer_invite_email_error(
+            &["email", "to"],
+            "To is invalid",
+        ));
+    }
+    if resolved_string_field(email, "from")
+        .as_deref()
+        .is_some_and(customer_invite_invalid_email_address)
+    {
+        errors.push(customer_invite_email_error(
+            &["email", "from"],
+            "From Sender is invalid",
+        ));
+    }
+    if let Some(ResolvedValue::List(bcc_values)) = email.get("bcc") {
+        let bcc_addresses = bcc_values
+            .iter()
+            .filter_map(|value| match value {
+                ResolvedValue::String(address) => Some(address.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if bcc_addresses
+            .iter()
+            .any(|address| customer_invite_invalid_email_address(address))
+        {
+            let joined = bcc_addresses
+                .iter()
+                .map(|address| format!("{address} is not a valid bcc address"))
+                .collect::<Vec<_>>()
+                .join(" and ");
+            errors.push(customer_invite_email_error(
+                &["email", "bcc"],
+                &format!("Bcc {joined}"),
+            ));
+        }
+    }
+
+    let subject_too_long = resolved_string_field(email, "subject")
+        .map(|value| value.chars().count() > 1000)
+        .unwrap_or(false);
+    let custom_message_invalid = resolved_string_field(email, "customMessage")
+        .map(|value| value.chars().count() > 5000 || b2b_contains_html_tags(&value))
+        .unwrap_or(false);
+    if errors.is_empty() && (subject_too_long || custom_message_invalid) {
+        errors.push(customer_invite_email_error(
+            &["customerId"],
+            "Error sending account invite to customer.",
+        ));
+    }
+    errors
+}
+
+fn customer_invite_email_error(field: &[&str], message: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": "INVALID"
+    })
+}
+
+fn customer_invite_invalid_email_address(address: &str) -> bool {
+    let Some((local, domain)) = address.split_once('@') else {
+        return true;
+    };
+    local.is_empty() || domain.is_empty() || !domain.contains('.')
 }
