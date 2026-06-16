@@ -196,14 +196,27 @@ impl DraftProxy {
         selection: &[SelectedField],
     ) -> Option<Value> {
         let staged = &self.store.staged;
-        let node = staged
+        if let Some(node) = staged
             .b2b_locations
             .get(id)
             .or_else(|| staged.b2b_companies.get(id))
             .or_else(|| staged.b2b_contacts.get(id))
             .or_else(|| staged.b2b_contact_roles.get(id))
-            .or_else(|| staged.b2b_role_assignments.get(id))?;
-        Some(selected_json(node, selection))
+            .or_else(|| staged.b2b_role_assignments.get(id))
+        {
+            return Some(selected_json(node, selection));
+        }
+        // CompanyAddress entities are not stored in their own map — they live
+        // nested on each staged location's billing/shipping slot — so a node read
+        // by address id scans staged locations for the matching address.
+        for location in staged.b2b_locations.values() {
+            for slot in ["billingAddress", "shippingAddress"] {
+                if location[slot]["id"].as_str() == Some(id) {
+                    return Some(selected_json(&location[slot], selection));
+                }
+            }
+        }
+        None
     }
 
     pub(in crate::proxy) fn b2b_company_tail_helper_response(
@@ -1161,6 +1174,18 @@ impl DraftProxy {
                 Vec::new(),
             );
         };
+
+        // The assigned CompanyAddressInput is validated the same way as on
+        // create, under the `["address"]` field path, so a malformed country/zone/
+        // zip/free-text value is rejected before it mutates staged state.
+        let address_errors = b2b_address_input_errors(&address_input, &["address"]);
+        if !address_errors.is_empty() {
+            return (
+                json!({ "addresses": Value::Null, "userErrors": address_errors }),
+                "failed",
+                Vec::new(),
+            );
+        }
 
         let mut changed_addresses = Vec::new();
         let response_order = b2b_address_type_response_order(&address_types);
