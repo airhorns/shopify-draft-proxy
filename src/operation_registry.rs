@@ -256,6 +256,10 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("inventoryTransferRemoveItems", CapabilityDomain::Products),
     local_mutation("inventoryTransferCancel", CapabilityDomain::Products),
     local_mutation("inventoryTransferDelete", CapabilityDomain::Products),
+    local_mutation("customerCreate", CapabilityDomain::Customers),
+    local_mutation("customerUpdate", CapabilityDomain::Customers),
+    local_mutation("customerDelete", CapabilityDomain::Customers),
+    local_mutation("customerSet", CapabilityDomain::Customers),
     local_query(
         "automaticDiscountSavedSearches",
         CapabilityDomain::SavedSearches,

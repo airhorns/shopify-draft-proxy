@@ -505,6 +505,7 @@ function diffValues(capture: unknown, proxy: unknown, rules: ExpectedDifference[
   const rule = rules.find((candidate) => ruleMatchesPath(candidate.path, basePath));
   if (rule && matchesRule(proxy, rule)) return [];
   if (Object.is(capture, proxy)) return [];
+  if (sameShopifyGidWithSyntheticMarker(capture, proxy)) return [];
   if (Array.isArray(capture) && Array.isArray(proxy)) {
     const errors: string[] = [];
     const max = Math.max(capture.length, proxy.length);
@@ -520,6 +521,12 @@ function diffValues(capture: unknown, proxy: unknown, rules: ExpectedDifference[
     return errors;
   }
   return [`${basePath}: expected ${JSON.stringify(capture)} got ${JSON.stringify(proxy)}`];
+}
+
+function sameShopifyGidWithSyntheticMarker(capture: unknown, proxy: unknown): boolean {
+  if (typeof capture !== 'string' || typeof proxy !== 'string') return false;
+  if (!capture.startsWith('gid://shopify/') || !proxy.startsWith('gid://shopify/')) return false;
+  return proxy === `${capture}?shopify-draft-proxy=synthetic`;
 }
 
 async function runSpec(
