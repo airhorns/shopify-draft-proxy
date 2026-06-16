@@ -1,0 +1,22 @@
+mutation SegmentNameSuffixDuplicate($name: String!, $query: String!) {
+  original: segmentCreate(name: $name, query: $query) {
+    segment {
+      id
+      name
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  duplicate: segmentCreate(name: $name, query: $query) {
+    segment {
+      id
+      name
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

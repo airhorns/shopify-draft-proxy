@@ -43,6 +43,7 @@ type ComparisonTarget = {
   selectedPaths?: string[];
   excludedPaths?: string[];
   expectedDifferences?: ExpectedDifference[];
+  preserveProxyState?: boolean;
 };
 
 type ExpectedDifference = {
@@ -559,7 +560,7 @@ async function runSpec(
         await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
         primaryResponse = null;
         namedResponses.clear();
-      } else {
+      } else if (target.preserveProxyState !== true) {
         proxy.restoreState(mainState);
       }
       if (target.proxyUpload) {
@@ -570,7 +571,7 @@ async function runSpec(
         const request = await loadRequest(target.proxyRequest, capture, primaryResponse, namedResponses);
         if (request === null) throw new Error(`${target.name}: target proxyRequest did not resolve to a request`);
         const targetResponse = await sendProxyRequest(proxy, request);
-        if (!target.isolatedProxy) {
+        if (!target.isolatedProxy && target.preserveProxyState !== true) {
           mainState = proxy.dumpState('1970-01-01T00:00:00.000Z');
         }
         namedResponses.set(target.name, targetResponse);

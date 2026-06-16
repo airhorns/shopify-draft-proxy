@@ -1,0 +1,2689 @@
+{
+  "scenarioId": "segment-name-suffix-and-limit",
+  "operationNames": ["segmentCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "mutation-read-after-write"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-name-suffix-and-limit.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+    "variablesCapturePath": "$.cases[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify evidence for segmentCreate duplicate-name suffix counters `(0)`/`(1)` plus the 6000 segment limit userError. The limit setup uses public segmentCreate requests in 25-segment chunks; the proxy replay stages those same public requests before asserting the overflow response.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "segment-limit-setup-chunk-00",
+        "capturePath": "$.cases[0].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"]
+      },
+      {
+        "name": "segment-limit-setup-chunk-01",
+        "capturePath": "$.cases[1].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[1].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-02",
+        "capturePath": "$.cases[2].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[2].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-03",
+        "capturePath": "$.cases[3].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[3].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-04",
+        "capturePath": "$.cases[4].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[4].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-05",
+        "capturePath": "$.cases[5].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[5].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-06",
+        "capturePath": "$.cases[6].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[6].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-07",
+        "capturePath": "$.cases[7].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[7].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-08",
+        "capturePath": "$.cases[8].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[8].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-09",
+        "capturePath": "$.cases[9].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[9].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-10",
+        "capturePath": "$.cases[10].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[10].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-11",
+        "capturePath": "$.cases[11].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[11].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-12",
+        "capturePath": "$.cases[12].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[12].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-13",
+        "capturePath": "$.cases[13].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[13].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-14",
+        "capturePath": "$.cases[14].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[14].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-15",
+        "capturePath": "$.cases[15].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[15].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-16",
+        "capturePath": "$.cases[16].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[16].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-17",
+        "capturePath": "$.cases[17].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[17].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-18",
+        "capturePath": "$.cases[18].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[18].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-19",
+        "capturePath": "$.cases[19].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[19].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-20",
+        "capturePath": "$.cases[20].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[20].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-21",
+        "capturePath": "$.cases[21].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[21].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-22",
+        "capturePath": "$.cases[22].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[22].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-23",
+        "capturePath": "$.cases[23].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[23].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-24",
+        "capturePath": "$.cases[24].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[24].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-25",
+        "capturePath": "$.cases[25].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[25].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-26",
+        "capturePath": "$.cases[26].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[26].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-27",
+        "capturePath": "$.cases[27].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[27].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-28",
+        "capturePath": "$.cases[28].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[28].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-29",
+        "capturePath": "$.cases[29].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[29].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-30",
+        "capturePath": "$.cases[30].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[30].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-31",
+        "capturePath": "$.cases[31].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[31].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-32",
+        "capturePath": "$.cases[32].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[32].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-33",
+        "capturePath": "$.cases[33].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[33].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-34",
+        "capturePath": "$.cases[34].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[34].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-35",
+        "capturePath": "$.cases[35].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[35].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-36",
+        "capturePath": "$.cases[36].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[36].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-37",
+        "capturePath": "$.cases[37].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[37].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-38",
+        "capturePath": "$.cases[38].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[38].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-39",
+        "capturePath": "$.cases[39].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[39].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-40",
+        "capturePath": "$.cases[40].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[40].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-41",
+        "capturePath": "$.cases[41].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[41].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-42",
+        "capturePath": "$.cases[42].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[42].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-43",
+        "capturePath": "$.cases[43].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[43].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-44",
+        "capturePath": "$.cases[44].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[44].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-45",
+        "capturePath": "$.cases[45].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[45].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-46",
+        "capturePath": "$.cases[46].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[46].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-47",
+        "capturePath": "$.cases[47].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[47].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-48",
+        "capturePath": "$.cases[48].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[48].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-49",
+        "capturePath": "$.cases[49].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[49].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-50",
+        "capturePath": "$.cases[50].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[50].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-51",
+        "capturePath": "$.cases[51].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[51].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-52",
+        "capturePath": "$.cases[52].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[52].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-53",
+        "capturePath": "$.cases[53].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[53].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-54",
+        "capturePath": "$.cases[54].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[54].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-55",
+        "capturePath": "$.cases[55].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[55].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-56",
+        "capturePath": "$.cases[56].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[56].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-57",
+        "capturePath": "$.cases[57].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[57].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-58",
+        "capturePath": "$.cases[58].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[58].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-59",
+        "capturePath": "$.cases[59].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[59].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-60",
+        "capturePath": "$.cases[60].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[60].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-61",
+        "capturePath": "$.cases[61].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[61].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-62",
+        "capturePath": "$.cases[62].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[62].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-63",
+        "capturePath": "$.cases[63].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[63].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-64",
+        "capturePath": "$.cases[64].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[64].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-65",
+        "capturePath": "$.cases[65].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[65].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-66",
+        "capturePath": "$.cases[66].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[66].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-67",
+        "capturePath": "$.cases[67].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[67].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-68",
+        "capturePath": "$.cases[68].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[68].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-69",
+        "capturePath": "$.cases[69].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[69].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-70",
+        "capturePath": "$.cases[70].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[70].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-71",
+        "capturePath": "$.cases[71].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[71].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-72",
+        "capturePath": "$.cases[72].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[72].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-73",
+        "capturePath": "$.cases[73].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[73].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-74",
+        "capturePath": "$.cases[74].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[74].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-75",
+        "capturePath": "$.cases[75].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[75].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-76",
+        "capturePath": "$.cases[76].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[76].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-77",
+        "capturePath": "$.cases[77].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[77].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-78",
+        "capturePath": "$.cases[78].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[78].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-79",
+        "capturePath": "$.cases[79].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[79].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-80",
+        "capturePath": "$.cases[80].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[80].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-81",
+        "capturePath": "$.cases[81].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[81].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-82",
+        "capturePath": "$.cases[82].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[82].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-83",
+        "capturePath": "$.cases[83].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[83].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-84",
+        "capturePath": "$.cases[84].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[84].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-85",
+        "capturePath": "$.cases[85].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[85].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-86",
+        "capturePath": "$.cases[86].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[86].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-87",
+        "capturePath": "$.cases[87].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[87].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-88",
+        "capturePath": "$.cases[88].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[88].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-89",
+        "capturePath": "$.cases[89].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[89].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-90",
+        "capturePath": "$.cases[90].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[90].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-91",
+        "capturePath": "$.cases[91].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[91].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-92",
+        "capturePath": "$.cases[92].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[92].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-93",
+        "capturePath": "$.cases[93].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[93].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-94",
+        "capturePath": "$.cases[94].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[94].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-95",
+        "capturePath": "$.cases[95].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[95].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-96",
+        "capturePath": "$.cases[96].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[96].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-97",
+        "capturePath": "$.cases[97].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[97].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-98",
+        "capturePath": "$.cases[98].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[98].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-99",
+        "capturePath": "$.cases[99].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[99].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-100",
+        "capturePath": "$.cases[100].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[100].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-101",
+        "capturePath": "$.cases[101].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[101].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-102",
+        "capturePath": "$.cases[102].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[102].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-103",
+        "capturePath": "$.cases[103].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[103].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-104",
+        "capturePath": "$.cases[104].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[104].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-105",
+        "capturePath": "$.cases[105].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[105].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-106",
+        "capturePath": "$.cases[106].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[106].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-107",
+        "capturePath": "$.cases[107].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[107].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-108",
+        "capturePath": "$.cases[108].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[108].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-109",
+        "capturePath": "$.cases[109].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[109].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-110",
+        "capturePath": "$.cases[110].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[110].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-111",
+        "capturePath": "$.cases[111].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[111].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-112",
+        "capturePath": "$.cases[112].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[112].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-113",
+        "capturePath": "$.cases[113].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[113].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-114",
+        "capturePath": "$.cases[114].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[114].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-115",
+        "capturePath": "$.cases[115].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[115].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-116",
+        "capturePath": "$.cases[116].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[116].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-117",
+        "capturePath": "$.cases[117].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[117].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-118",
+        "capturePath": "$.cases[118].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[118].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-119",
+        "capturePath": "$.cases[119].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[119].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-120",
+        "capturePath": "$.cases[120].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[120].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-121",
+        "capturePath": "$.cases[121].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[121].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-122",
+        "capturePath": "$.cases[122].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[122].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-123",
+        "capturePath": "$.cases[123].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[123].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-124",
+        "capturePath": "$.cases[124].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[124].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-125",
+        "capturePath": "$.cases[125].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[125].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-126",
+        "capturePath": "$.cases[126].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[126].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-127",
+        "capturePath": "$.cases[127].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[127].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-128",
+        "capturePath": "$.cases[128].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[128].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-129",
+        "capturePath": "$.cases[129].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[129].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-130",
+        "capturePath": "$.cases[130].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[130].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-131",
+        "capturePath": "$.cases[131].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[131].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-132",
+        "capturePath": "$.cases[132].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[132].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-133",
+        "capturePath": "$.cases[133].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[133].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-134",
+        "capturePath": "$.cases[134].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[134].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-135",
+        "capturePath": "$.cases[135].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[135].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-136",
+        "capturePath": "$.cases[136].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[136].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-137",
+        "capturePath": "$.cases[137].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[137].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-138",
+        "capturePath": "$.cases[138].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[138].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-139",
+        "capturePath": "$.cases[139].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[139].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-140",
+        "capturePath": "$.cases[140].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[140].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-141",
+        "capturePath": "$.cases[141].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[141].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-142",
+        "capturePath": "$.cases[142].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[142].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-143",
+        "capturePath": "$.cases[143].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[143].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-144",
+        "capturePath": "$.cases[144].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[144].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-145",
+        "capturePath": "$.cases[145].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[145].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-146",
+        "capturePath": "$.cases[146].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[146].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-147",
+        "capturePath": "$.cases[147].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[147].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-148",
+        "capturePath": "$.cases[148].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[148].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-149",
+        "capturePath": "$.cases[149].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[149].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-150",
+        "capturePath": "$.cases[150].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[150].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-151",
+        "capturePath": "$.cases[151].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[151].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-152",
+        "capturePath": "$.cases[152].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[152].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-153",
+        "capturePath": "$.cases[153].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[153].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-154",
+        "capturePath": "$.cases[154].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[154].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-155",
+        "capturePath": "$.cases[155].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[155].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-156",
+        "capturePath": "$.cases[156].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[156].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-157",
+        "capturePath": "$.cases[157].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[157].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-158",
+        "capturePath": "$.cases[158].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[158].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-159",
+        "capturePath": "$.cases[159].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[159].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-160",
+        "capturePath": "$.cases[160].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[160].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-161",
+        "capturePath": "$.cases[161].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[161].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-162",
+        "capturePath": "$.cases[162].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[162].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-163",
+        "capturePath": "$.cases[163].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[163].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-164",
+        "capturePath": "$.cases[164].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[164].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-165",
+        "capturePath": "$.cases[165].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[165].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-166",
+        "capturePath": "$.cases[166].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[166].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-167",
+        "capturePath": "$.cases[167].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[167].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-168",
+        "capturePath": "$.cases[168].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[168].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-169",
+        "capturePath": "$.cases[169].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[169].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-170",
+        "capturePath": "$.cases[170].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[170].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-171",
+        "capturePath": "$.cases[171].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[171].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-172",
+        "capturePath": "$.cases[172].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[172].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-173",
+        "capturePath": "$.cases[173].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[173].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-174",
+        "capturePath": "$.cases[174].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[174].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-175",
+        "capturePath": "$.cases[175].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[175].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-176",
+        "capturePath": "$.cases[176].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[176].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-177",
+        "capturePath": "$.cases[177].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[177].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-178",
+        "capturePath": "$.cases[178].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[178].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-179",
+        "capturePath": "$.cases[179].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[179].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-180",
+        "capturePath": "$.cases[180].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[180].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-181",
+        "capturePath": "$.cases[181].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[181].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-182",
+        "capturePath": "$.cases[182].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[182].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-183",
+        "capturePath": "$.cases[183].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[183].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-184",
+        "capturePath": "$.cases[184].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[184].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-185",
+        "capturePath": "$.cases[185].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[185].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-186",
+        "capturePath": "$.cases[186].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[186].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-187",
+        "capturePath": "$.cases[187].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[187].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-188",
+        "capturePath": "$.cases[188].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[188].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-189",
+        "capturePath": "$.cases[189].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[189].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-190",
+        "capturePath": "$.cases[190].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[190].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-191",
+        "capturePath": "$.cases[191].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[191].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-192",
+        "capturePath": "$.cases[192].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[192].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-193",
+        "capturePath": "$.cases[193].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[193].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-194",
+        "capturePath": "$.cases[194].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[194].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-195",
+        "capturePath": "$.cases[195].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[195].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-196",
+        "capturePath": "$.cases[196].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[196].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-197",
+        "capturePath": "$.cases[197].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[197].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-198",
+        "capturePath": "$.cases[198].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[198].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-199",
+        "capturePath": "$.cases[199].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[199].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-200",
+        "capturePath": "$.cases[200].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[200].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-201",
+        "capturePath": "$.cases[201].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[201].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-202",
+        "capturePath": "$.cases[202].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[202].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-203",
+        "capturePath": "$.cases[203].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[203].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-204",
+        "capturePath": "$.cases[204].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[204].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-205",
+        "capturePath": "$.cases[205].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[205].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-206",
+        "capturePath": "$.cases[206].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[206].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-207",
+        "capturePath": "$.cases[207].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[207].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-208",
+        "capturePath": "$.cases[208].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[208].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-209",
+        "capturePath": "$.cases[209].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[209].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-210",
+        "capturePath": "$.cases[210].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[210].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-211",
+        "capturePath": "$.cases[211].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[211].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-212",
+        "capturePath": "$.cases[212].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[212].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-213",
+        "capturePath": "$.cases[213].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[213].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-214",
+        "capturePath": "$.cases[214].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[214].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-215",
+        "capturePath": "$.cases[215].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[215].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-216",
+        "capturePath": "$.cases[216].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[216].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-217",
+        "capturePath": "$.cases[217].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[217].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-218",
+        "capturePath": "$.cases[218].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[218].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-219",
+        "capturePath": "$.cases[219].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[219].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-220",
+        "capturePath": "$.cases[220].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[220].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-221",
+        "capturePath": "$.cases[221].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[221].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-222",
+        "capturePath": "$.cases[222].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[222].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-223",
+        "capturePath": "$.cases[223].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[223].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-224",
+        "capturePath": "$.cases[224].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[224].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-225",
+        "capturePath": "$.cases[225].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[225].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-226",
+        "capturePath": "$.cases[226].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[226].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-227",
+        "capturePath": "$.cases[227].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[227].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-228",
+        "capturePath": "$.cases[228].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[228].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-229",
+        "capturePath": "$.cases[229].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[229].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-230",
+        "capturePath": "$.cases[230].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[230].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-231",
+        "capturePath": "$.cases[231].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[231].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-232",
+        "capturePath": "$.cases[232].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[232].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-233",
+        "capturePath": "$.cases[233].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[233].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-234",
+        "capturePath": "$.cases[234].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[234].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-235",
+        "capturePath": "$.cases[235].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[235].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-236",
+        "capturePath": "$.cases[236].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[236].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-237",
+        "capturePath": "$.cases[237].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[237].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-238",
+        "capturePath": "$.cases[238].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[238].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-setup-chunk-239",
+        "capturePath": "$.cases[239].response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.c000.segment.name", "$.c000.userErrors", "$.c024.segment.name", "$.c024.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-setup-chunk.graphql",
+          "variablesCapturePath": "$.cases[239].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-limit-reached-message",
+        "capturePath": "$.cases[240].response.payload.data.segmentCreate",
+        "proxyPath": "$.data.segmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-limit-validation.graphql",
+          "variablesCapturePath": "$.cases[240].request.variables"
+        },
+        "preserveProxyState": true
+      },
+      {
+        "name": "segment-name-suffix-one",
+        "capturePath": "$.cases[241].response.payload.data.duplicate",
+        "proxyPath": "$.data.duplicate",
+        "isolatedProxy": true,
+        "selectedPaths": ["$.segment.name", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-name-suffix-duplicate.graphql",
+          "variablesCapturePath": "$.cases[241].request.variables"
+        }
+      },
+      {
+        "name": "segment-name-suffix-zero",
+        "capturePath": "$.cases[242].response.payload.data.duplicate",
+        "proxyPath": "$.data.duplicate",
+        "isolatedProxy": true,
+        "selectedPaths": ["$.segment.name", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-name-suffix-duplicate.graphql",
+          "variablesCapturePath": "$.cases[242].request.variables"
+        }
+      }
+    ]
+  }
+}
