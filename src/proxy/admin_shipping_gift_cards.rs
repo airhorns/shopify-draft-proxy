@@ -2767,58 +2767,190 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        if location_requires_idempotency(request, query) {
-            return ok_json(location_idempotency_required_error(
-                "locationDeactivate",
-                query,
-                variables,
-            ));
-        }
-        let Some(fields) = root_fields(query, variables) else {
-            return json_error(400, "Unable to parse locationDeactivate mutation");
+        let Some(document) = parsed_document(query, variables) else {
+            return json_error(400, "Could not parse GraphQL operation");
         };
+        let fields = document
+            .root_fields
+            .iter()
+            .filter(|field| {
+                matches!(
+                    field.name.as_str(),
+                    "segmentCreate" | "segmentUpdate" | "segmentDelete"
+                )
+            })
+            .collect::<Vec<_>>();
+        if fields.is_empty() {
+            return json_error(400, "Operation has no root field");
+        }
+        let now = "2026-01-01T00:00:00Z";
         let mut data = serde_json::Map::new();
+        let mut staged_ids = Vec::new();
         for field in fields {
-            if field.name != "locationDeactivate" {
-                continue;
+            if let Some(error) =
+                segment_required_argument_error(&field.name, field, &document.operation_path)
+            {
+                return ok_json(json!({ "errors": [error] }));
             }
-            let location_id =
-                resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
-            let destination_location_id =
-                resolved_string_field(&field.arguments, "destinationLocationId");
-            let source_location = self.location_deactivate_source_location(&location_id);
-            let errors = self
-                .location_deactivate_errors(&source_location, destination_location_id.as_deref());
-            let location = if errors.is_empty() {
-                if let Some(destination_location_id) = destination_location_id.as_deref() {
-                    self.relocate_inventory_levels_for_location(
-                        &location_id,
-                        destination_location_id,
-                    );
+            let payload_selection = field.selection.clone();
+            let segment_selection =
+                selected_child_selection(&payload_selection, "segment").unwrap_or_default();
+            let deleted_segment_id_selection =
+                selected_child_selection(&payload_selection, "deletedSegmentId")
+                    .unwrap_or_default();
+            let arguments = field.arguments.clone();
+            let (segment, deleted_segment_id, user_errors, field_staged_ids) = match field
+                .name
+                .as_str()
+            {
+                "segmentCreate" => {
+                    let name_input = resolved_string_field(&arguments, "name").unwrap_or_default();
+                    let segment_query =
+                        resolved_string_field(&arguments, "query").unwrap_or_default();
+                    let mut user_errors = segment_name_user_errors(&name_input);
+                    user_errors.extend(segment_query_user_errors(&segment_query));
+                    let name = name_input.trim().to_string();
+                    if user_errors.is_empty() && self.store.staged.segments.len() >= 6000 {
+                        user_errors.push(segment_user_error(
+                            Value::Null,
+                            "Segment limit reached. Delete an existing segment to create more.",
+                        ));
+                    }
+                    let name = if user_errors.is_empty() {
+                        match self.segment_available_name(&name, None) {
+                            Ok(name) => name,
+                            Err(error) => {
+                                user_errors.push(error);
+                                name
+                            }
+                        }
+                    } else {
+                        name
+                    };
+                    if user_errors.is_empty() {
+                        let id = self.next_proxy_synthetic_gid("Segment");
+                        let segment = json!({
+                            "__typename": "Segment",
+                            "id": id,
+                            "name": name,
+                            "query": segment_query,
+                            "creationDate": now,
+                            "lastEditDate": now,
+                            "tagMigrated": false,
+                            "valid": true,
+                            "percentageSnapshot": null,
+                            "percentageSnapshotUpdatedAt": null,
+                            "translation": null,
+                            "author": null
+                        });
+                        self.store
+                            .staged
+                            .segments
+                            .insert(id.clone(), segment.clone());
+                        (segment, Value::Null, vec![], vec![id])
+                    } else {
+                        (Value::Null, Value::Null, user_errors, Vec::new())
+                    }
                 }
-                self.record_mutation_log_entry(
-                    request,
-                    query,
-                    variables,
-                    "locationDeactivate",
-                    vec![location_id.clone()],
-                );
-                let mut location = source_location;
-                location["isActive"] = json!(false);
-                location["hasActiveInventory"] = json!(false);
-                location["deletable"] = json!(true);
-                location["deactivatable"] = json!(true);
-                self.stage_location(location.clone());
-                location
-            } else {
-                source_location
+                "segmentUpdate" => {
+                    let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+                    if let Some(response) =
+                        segment_id_top_level_error(&id, &field.response_key, field)
+                    {
+                        return response;
+                    }
+                    if !self.store.staged.segments.contains_key(&id) {
+                        (
+                            Value::Null,
+                            Value::Null,
+                            vec![segment_user_error(json!(["id"]), "Segment does not exist")],
+                            Vec::new(),
+                        )
+                    } else if !arguments.contains_key("name") && !arguments.contains_key("query") {
+                        (
+                            Value::Null,
+                            Value::Null,
+                            vec![segment_user_error(
+                                Value::Null,
+                                "At least one attribute to change must be present",
+                            )],
+                            Vec::new(),
+                        )
+                    } else {
+                        let mut user_errors = Vec::new();
+                        let name_input = resolved_string_field(&arguments, "name");
+                        let query_input = resolved_string_field(&arguments, "query");
+                        if let Some(name) = name_input.as_deref() {
+                            user_errors.extend(segment_name_user_errors(name));
+                        }
+                        if let Some(segment_query) = query_input.as_deref() {
+                            user_errors.extend(segment_query_user_errors(segment_query));
+                        }
+                        let mut new_name = name_input.as_deref().map(str::trim).map(str::to_string);
+                        if user_errors.is_empty() {
+                            if let Some(name) = new_name.as_deref() {
+                                match self.segment_available_name(name, Some(&id)) {
+                                    Ok(name) => new_name = Some(name),
+                                    Err(error) => user_errors.push(error),
+                                }
+                            }
+                        }
+                        if user_errors.is_empty() {
+                            let mut segment = self.store.staged.segments.get(&id).cloned().unwrap();
+                            if let Some(name) = new_name {
+                                segment["name"] = json!(name);
+                            }
+                            if let Some(segment_query) = query_input {
+                                segment["query"] = json!(segment_query);
+                            }
+                            segment["lastEditDate"] = json!(now);
+                            self.store
+                                .staged
+                                .segments
+                                .insert(id.clone(), segment.clone());
+                            (segment, Value::Null, vec![], vec![id])
+                        } else {
+                            (Value::Null, Value::Null, user_errors, Vec::new())
+                        }
+                    }
+                }
+                "segmentDelete" => {
+                    let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+                    if let Some(response) =
+                        segment_id_top_level_error(&id, &field.response_key, field)
+                    {
+                        return response;
+                    }
+                    if self.store.staged.segments.remove(&id).is_some() {
+                        (Value::Null, json!(id.clone()), vec![], vec![id])
+                    } else {
+                        (
+                            Value::Null,
+                            Value::Null,
+                            vec![segment_user_error(json!(["id"]), "Segment does not exist")],
+                            Vec::new(),
+                        )
+                    }
+                }
+                _ => (Value::Null, Value::Null, vec![], Vec::new()),
             };
+            staged_ids.extend(field_staged_ids);
             data.insert(
-                field.response_key,
-                location_deactivate_payload_json(location, &field.selection, errors),
+                field.response_key.clone(),
+                segment_payload_json(
+                    segment,
+                    deleted_segment_id,
+                    &payload_selection,
+                    &segment_selection,
+                    &deleted_segment_id_selection,
+                    user_errors,
+                ),
             );
         }
-        ok_json(json!({ "data": Value::Object(data) }))
+        if !staged_ids.is_empty() {
+            self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
+        }
+        ok_json(json!({ "data": data }))
     }
 
     fn location_deactivate_errors(
@@ -10138,24 +10270,17 @@ fn location_country_name(country_code: &str) -> Option<&'static str> {
     }
 }
 
-
-fn location_delete_payload_selected_json(
-    deleted_location_id: Value,
-    payload_selection: &[SelectedField],
-    user_errors: Vec<Value>,
-) -> Value {
-    selected_payload_json(payload_selection, |selection| {
-        match selection.name.as_str() {
-            "deletedLocationId" => Some(deleted_location_id.clone()),
-            "locationDeleteUserErrors" | "userErrors" => Some(Value::Array(
-                user_errors
-                    .iter()
-                    .map(|error| selected_json(error, &selection.selection))
-                    .collect(),
-            )),
-            _ => None,
-        }
-    })
+fn segment_name_suffix_base(name: &str) -> (&str, u32) {
+    let Some(prefix) = name.strip_suffix(')') else {
+        return (name, 2);
+    };
+    let Some((base, suffix)) = prefix.rsplit_once(" (") else {
+        return (name, 2);
+    };
+    let Some(number) = suffix.parse::<u32>().ok() else {
+        return (name, 2);
+    };
+    (base, number + 1)
 }
 
 
