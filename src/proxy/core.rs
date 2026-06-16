@@ -142,7 +142,8 @@ impl DraftProxy {
                 "deletedOrderIds": self.store.staged.deleted_order_ids.iter().cloned().collect::<Vec<_>>(),
                 "returns": self.store.staged.returns.clone(),
                 "returnsByOrder": self.store.staged.returns_by_order.clone(),
-               "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
+                "orderReturnHydratedOrders": self.store.staged.order_return_hydrated_orders.clone(),
+                "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
                 "reverseFulfillmentOrders": self.store.staged.reverse_fulfillment_orders.clone(),
                 "observedShippingLocations": self.store.staged.observed_shipping_locations.clone(),
                 "observedShippingLocationOrder": self.store.staged.observed_shipping_location_order.clone(),
@@ -565,6 +566,16 @@ impl DraftProxy {
                                 .collect(),
                         )
                     })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.order_return_hydrated_orders = state["stagedState"]
+            ["orderReturnHydratedOrders"]
+            .as_object()
+            .map(|orders| {
+                orders
+                    .iter()
+                    .map(|(id, order)| (id.clone(), order.clone()))
                     .collect()
             })
             .unwrap_or_default();
