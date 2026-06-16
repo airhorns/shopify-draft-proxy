@@ -185,7 +185,7 @@ fn validate_raw_input_object(
             ));
         }
     }
-    for (field_name, field_schema) in input_object {
+    for (field_name, field_schema) in input_object_field_entries(input_type_name, input_object) {
         if field_schema.type_ref.non_null
             && (!fields.contains_key(field_name)
                 || matches!(fields.get(field_name), Some(RawArgumentValue::Null)))
@@ -243,7 +243,7 @@ fn validate_resolved_input_object(
             ));
         }
     }
-    for (field_name, field_schema) in input_object {
+    for (field_name, field_schema) in input_object_field_entries(input_type_name, input_object) {
         if field_schema.type_ref.non_null
             && (!fields.contains_key(field_name)
                 || matches!(fields.get(field_name), Some(ResolvedValue::Null)))
@@ -546,6 +546,29 @@ fn local_extension_input_field(input_type_name: &str, field_name: &str) -> bool 
     )
 }
 
+fn input_object_field_entries<'a>(
+    input_type_name: &str,
+    input_object: &'a BTreeMap<String, SchemaInputField>,
+) -> Vec<(&'a String, &'a SchemaInputField)> {
+    if input_type_name != "DeliveryCarrierServiceCreateInput" {
+        return input_object.iter().collect();
+    }
+
+    let mut entries = Vec::new();
+    for field_name in ["name", "callbackUrl", "supportsServiceDiscovery", "active"] {
+        if let Some(entry) = input_object.get_key_value(field_name) {
+            entries.push(entry);
+        }
+    }
+    entries.extend(input_object.iter().filter(|(field_name, _)| {
+        !matches!(
+            field_name.as_str(),
+            "name" | "callbackUrl" | "supportsServiceDiscovery" | "active"
+        )
+    }));
+    entries
+}
+
 fn public_admin_input_schema() -> &'static AdminInputSchema {
     static SCHEMA: OnceLock<AdminInputSchema> = OnceLock::new();
     SCHEMA.get_or_init(|| {
@@ -555,6 +578,7 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         .unwrap_or_else(|_| json!({}));
         let mut schema = schema_from_fixture(&fixture).unwrap_or_default();
         register_fulfillment_service_fields(&mut schema);
+        extend_carrier_service_input_schema(&mut schema);
         extend_discount_basic_input_schema(&mut schema);
         extend_metaobject_definition_input_schema(&mut schema);
         extend_functions_input_schema(&mut schema);
@@ -636,6 +660,10 @@ fn extend_metaobject_definition_input_schema(schema: &mut AdminInputSchema) {
 
 fn extend_functions_input_schema(schema: &mut AdminInputSchema) {
     extend_mutation_input_schema(schema, &["validationUpdate"]);
+}
+
+fn extend_carrier_service_input_schema(schema: &mut AdminInputSchema) {
+    extend_mutation_input_schema(schema, &["carrierServiceCreate"]);
 }
 
 fn extend_mutation_input_schema(schema: &mut AdminInputSchema, mutation_names: &[&str]) {
