@@ -166,7 +166,7 @@ impl DraftProxy {
                     self.store.staged.b2b_companies.contains_key(&company_id)
                 }))
         {
-            if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
+            if let Some(data) = self.order_customer_error_paths_data(request, &query, &variables) {
                 return ok_json(data);
             }
         }
@@ -2164,7 +2164,7 @@ impl DraftProxy {
             root_field,
             "orderCancel" | "orderCustomerSet" | "orderCustomerRemove"
         ) {
-            if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
+            if let Some(data) = self.order_customer_error_paths_data(request, &query, &variables) {
                 return ok_json(data);
             }
         }
