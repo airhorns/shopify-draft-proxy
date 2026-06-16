@@ -615,10 +615,12 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| matches!(field.as_str(), "marketCreate" | "marketUpdate"))
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "marketCreate" | "marketUpdate" | "marketDelete"
+                )
+            })
             && (is_ported_market_create_document(&query)
                 || is_ported_market_relations_document(&query))
         {
