@@ -1,0 +1,89 @@
+{
+  "scenarioId": "bulk-operation-run-mutation-file-size",
+  "operationNames": ["stagedUploadsCreate", "bulkOperationCancel", "bulkOperationRunMutation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-guardrails", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-file-size.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-file-size-staged-upload.graphql",
+    "variablesCapturePath": "$.running.oversizedStagedUpload.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "oversized-staged-upload-user-errors",
+        "capturePath": "$.running.oversizedStagedUpload.response.data.stagedUploadsCreate.userErrors",
+        "proxyPath": "$.data.stagedUploadsCreate.userErrors"
+      },
+      {
+        "name": "cancel-hydrates-running-mutation-operation",
+        "capturePath": "$.running.cancelAfter.response.data.bulkOperationCancel",
+        "proxyPath": "$.data.bulkOperationCancel",
+        "selectedPaths": [
+          "$.bulkOperation.id",
+          "$.bulkOperation.status",
+          "$.bulkOperation.type",
+          "$.bulkOperation.errorCode",
+          "$.bulkOperation.completedAt",
+          "$.bulkOperation.objectCount",
+          "$.bulkOperation.rootObjectCount",
+          "$.bulkOperation.fileSize",
+          "$.bulkOperation.url",
+          "$.bulkOperation.partialDataUrl",
+          "$.bulkOperation.query",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-cancel-parity.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.running.firstRun.response.data.bulkOperationRunMutation.bulkOperation.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "oversized-run-mutation-bulk-operation-null",
+        "capturePath": "$.running.oversizedRun.response.data.bulkOperationRunMutation.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunMutation.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-file-size.graphql",
+          "variables": {
+            "mutation": {
+              "fromCapturePath": "$.running.oversizedRun.variables.mutation"
+            },
+            "path": {
+              "fromPrimaryProxyPath": "$.data.stagedUploadsCreate.stagedTargets[0].resourceUrl"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "oversized-run-mutation-file-size-user-errors",
+        "capturePath": "$.running.oversizedRun.response.data.bulkOperationRunMutation.userErrors",
+        "proxyPath": "$.data.bulkOperationRunMutation.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-file-size.graphql",
+          "variables": {
+            "mutation": {
+              "fromCapturePath": "$.running.oversizedRun.variables.mutation"
+            },
+            "path": {
+              "fromPrimaryProxyPath": "$.data.stagedUploadsCreate.stagedTargets[0].resourceUrl"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Captures Shopify Admin GraphQL 2026-04 returning INVALID_STAGED_UPLOAD_FILE for a >100 MB bulkOperationRunMutation JSONL upload while a mutation bulk operation is still non-terminal. The executable replay stages the oversized upload through stagedUploadsCreate, hydrates the captured non-terminal mutation operation through bulkOperationCancel, and proves the oversized file-size branch wins before throttle without checked-in large upload content."
+}

@@ -1,0 +1,20 @@
+mutation MetafieldDefinitionDeleteTypeGuardNoMetafieldsCreate($definition: MetafieldDefinitionInput!) {
+  metafieldDefinitionCreate(definition: $definition) {
+    createdDefinition {
+      id
+      name
+      namespace
+      key
+      ownerType
+      type {
+        name
+      }
+    }
+    userErrors {
+      __typename
+      field
+      message
+      code
+    }
+  }
+}
