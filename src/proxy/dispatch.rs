@@ -2085,9 +2085,6 @@ impl DraftProxy {
             if query.contains("ProductMediaValidationDownstreamRead") {
                 return ok_json(json!({ "data": product_media_validation_downstream_data() }));
             }
-            if let Some(data) = self.selling_plan_downstream_read_data(&query) {
-                return ok_json(json!({ "data": data }));
-            }
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -2135,6 +2132,8 @@ impl DraftProxy {
                             | "productsCount"
                             | "productByIdentifier"
                             | "productVariant"
+                            | "sellingPlanGroup"
+                            | "sellingPlanGroups"
                     ) =>
             {
                 let has_inventory_fields = operation.root_fields.iter().any(|field| {
@@ -2156,6 +2155,8 @@ impl DraftProxy {
                             | "productsCount"
                             | "productByIdentifier"
                             | "productVariant"
+                            | "sellingPlanGroup"
+                            | "sellingPlanGroups"
                     )
                 });
                 if has_inventory_fields && !has_product_overlay_fields {
@@ -2226,6 +2227,27 @@ impl DraftProxy {
                     ) =>
             {
                 let outcome = self.product_variant_mutation(root_field, &query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "sellingPlanGroupCreate"
+                            | "sellingPlanGroupUpdate"
+                            | "sellingPlanGroupDelete"
+                            | "sellingPlanGroupAddProducts"
+                            | "sellingPlanGroupRemoveProducts"
+                            | "sellingPlanGroupAddProductVariants"
+                            | "sellingPlanGroupRemoveProductVariants"
+                            | "productJoinSellingPlanGroups"
+                            | "productLeaveSellingPlanGroups"
+                            | "productVariantJoinSellingPlanGroups"
+                            | "productVariantLeaveSellingPlanGroups"
+                    ) =>
+            {
+                let outcome = self.selling_plan_group_mutation(root_field, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)

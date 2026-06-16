@@ -1628,51 +1628,6 @@ fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store()
 }
 
 #[test]
-fn selling_plan_downstream_reads_replay_captured_membership_shapes() {
-    let lifecycle: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-lifecycle.json"
-    ))
-    .unwrap();
-    let relationship: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-relationship-roots.json"
-    ))
-    .unwrap();
-    let mut proxy = snapshot_proxy();
-
-    let lifecycle_variables = json!({
-        "productId": "gid://shopify/Product/10171897807154",
-        "variantId": "gid://shopify/ProductVariant/51104286736690"
-    });
-    for (capture_index, label) in [
-        (4_usize, "after create"),
-        (6, "after product removal"),
-        (10, "after variant add"),
-    ] {
-        let response = proxy.process_request(json_graphql_request(
-            include_str!(
-                "../../config/parity-requests/products/selling-plan-group-downstream-read.graphql"
-            ),
-            lifecycle_variables.clone(),
-        ));
-        assert_eq!(
-            response.body["data"], lifecycle["captures"][capture_index]["response"]["data"],
-            "selling plan lifecycle downstream read {label} should match capture"
-        );
-    }
-
-    let relationship_response = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/products/product-relationship-selling-plan-membership-read.graphql"
-        ),
-        relationship["sellingPlanDownstreamRead"]["variables"].clone(),
-    ));
-    assert_eq!(
-        relationship_response.body["data"],
-        relationship["sellingPlanDownstreamRead"]["response"]["data"]
-    );
-}
-
-#[test]
 fn combined_listing_product_create_preserves_captured_parent_roles() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/combinedListingUpdate-validation.json"

@@ -1586,7 +1586,8 @@ impl DraftProxy {
             "product" => {
                 let product = self.store.product_by_id(owner_id)?;
                 let variants = self.store.product_variants_for_product(owner_id);
-                let base = product_json_with_variants(product, &variants, selections);
+                let base =
+                    self.product_json_with_selling_plan_overlay(product, &variants, selections);
                 Some(
                     self.owner_metafield_overlay_owner_json_with_product_variants(
                         root_field,
@@ -1599,7 +1600,7 @@ impl DraftProxy {
             }
             "productVariant" => {
                 let variant = self.store.product_variant_by_id(owner_id)?;
-                let base = product_variant_json(
+                let base = self.product_variant_json_with_selling_plan_overlay(
                     variant,
                     self.store.product_by_id(&variant.product_id),
                     selections,
@@ -1758,7 +1759,7 @@ impl DraftProxy {
         let render_variant =
             |entry: &VariantEntry, selections: &[SelectedField]| match &entry.source {
                 VariantSource::Record(variant) => {
-                    let base = product_variant_json(
+                    let base = self.product_variant_json_with_selling_plan_overlay(
                         variant,
                         self.store.product_by_id(&variant.product_id),
                         selections,
@@ -2147,6 +2148,12 @@ impl DraftProxy {
                 "productsCount" => Some(self.products_count_field(field)),
                 "productByIdentifier" => Some(self.product_by_identifier_field(field)),
                 "productVariant" => Some(self.product_variant_by_id_field(field)),
+                "sellingPlanGroup" | "sellingPlanGroups" => Some(
+                    self.selling_plan_group_query_data(std::slice::from_ref(field))
+                        .get(&field.response_key)
+                        .cloned()
+                        .unwrap_or(Value::Null),
+                ),
                 "inventoryItem" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
                     self.product_inventory_item_by_id_value(&id, &field.selection)
@@ -2175,7 +2182,8 @@ impl DraftProxy {
         match self.product_record_by_id(id) {
             Some(product) => {
                 let variants = self.store.product_variants_for_product(&product.id);
-                let base = product_json_with_variants(product, &variants, selection);
+                let base =
+                    self.product_json_with_selling_plan_overlay(product, &variants, selection);
                 self.owner_metafield_overlay_owner_json_with_product_variants(
                     "product",
                     &product.id,
@@ -2217,7 +2225,8 @@ impl DraftProxy {
         match product {
             Some(product) => {
                 let variants = self.store.product_variants_for_product(&product.id);
-                let base = product_json_with_variants(product, &variants, selection);
+                let base =
+                    self.product_json_with_selling_plan_overlay(product, &variants, selection);
                 self.owner_metafield_overlay_owner_json_with_product_variants(
                     "product",
                     &product.id,
@@ -2259,7 +2268,7 @@ impl DraftProxy {
                 Value::Null
             };
         };
-        let base = product_variant_json(
+        let base = self.product_variant_json_with_selling_plan_overlay(
             variant,
             self.store.product_by_id(&variant.product_id),
             selection,
@@ -2304,7 +2313,7 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn has_product_overlay_state(&self) -> bool {
-        self.store.has_product_state()
+        self.store.has_product_state() || self.store.has_selling_plan_group_state()
     }
 
     pub(in crate::proxy) fn products_connection_value(
@@ -2338,7 +2347,8 @@ impl DraftProxy {
             root_selection,
             |product, selections| {
                 let variants = self.store.product_variants_for_product(&product.id);
-                let base = product_json_with_variants(product, &variants, selections);
+                let base =
+                    self.product_json_with_selling_plan_overlay(product, &variants, selections);
                 self.owner_metafield_overlay_owner_json_with_product_variants(
                     "product",
                     &product.id,
@@ -2706,6 +2716,14 @@ impl DraftProxy {
         let status =
             resolved_string_field(&input, "status").unwrap_or_else(|| "ACTIVE".to_string());
         let timestamp = self.next_product_timestamp();
+        let variant_id = self.next_proxy_synthetic_gid("ProductVariant");
+        let inventory_item_id = self.next_proxy_synthetic_gid("InventoryItem");
+        let variant = product_variant_record_from_create_input(
+            &BTreeMap::new(),
+            variant_id.clone(),
+            id.clone(),
+            inventory_item_id,
+        );
         let product = ProductRecord {
             id: id.clone(),
             created_at: timestamp.clone(),
@@ -2724,11 +2742,12 @@ impl DraftProxy {
             total_inventory: 0,
             tracks_inventory: false,
             media: Vec::new(),
-            variants: Vec::new(),
+            variants: vec![product_variant_state_json(&variant)],
             collections: Vec::new(),
             extra_fields: BTreeMap::new(),
         };
         self.store.stage_product(product.clone());
+        self.store.stage_product_variant(variant);
 
         let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
         let payload_selection = root_field_selection(query).unwrap_or_default();
@@ -2740,7 +2759,7 @@ impl DraftProxy {
                     response_key: product_mutation_payload_json(&product, &payload_selection, &product_selection)
                 }
             })),
-            LogDraft::staged("productCreate", "products", vec![id]),
+            LogDraft::staged("productCreate", "products", vec![id, variant_id]),
         )
     }
 
@@ -3079,12 +3098,16 @@ impl DraftProxy {
                 "product" => Some(match product {
                     Some(product) => {
                         let variants = self.store.product_variants_for_product(&product.id);
-                        product_json_with_variants(product, &variants, &product_selection)
+                        self.product_json_with_selling_plan_overlay(
+                            product,
+                            &variants,
+                            &product_selection,
+                        )
                     }
                     None => Value::Null,
                 }),
                 "productVariant" => Some(match variant {
-                    Some(variant) => product_variant_json(
+                    Some(variant) => self.product_variant_json_with_selling_plan_overlay(
                         variant,
                         self.store.product_by_id(&variant.product_id),
                         &variant_selection,
