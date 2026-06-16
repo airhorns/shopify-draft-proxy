@@ -21,6 +21,7 @@ const apiVersion = '2025-01';
 const giftCardsDir = path.join(repoRoot, 'fixtures', 'conformance', 'local-runtime', apiVersion, 'gift-cards');
 const entitlementFixturePath = path.join(giftCardsDir, 'gift-card-entitlement-disabled.json');
 const notifyFixturePath = path.join(giftCardsDir, 'gift-card-create-notify.json');
+const trialNotificationFixturePath = path.join(giftCardsDir, 'gift-card-notification-trial-shop.json');
 const entitlementRequestPath = path.join(
   repoRoot,
   'config',
@@ -35,9 +36,24 @@ const notifyRequestPath = path.join(
   'gift-cards',
   'gift-card-create-notify.graphql',
 );
+const trialNotificationCustomerRequestPath = path.join(
+  repoRoot,
+  'config',
+  'parity-requests',
+  'gift-cards',
+  'gift-card-notification-to-customer.graphql',
+);
+const trialNotificationRecipientRequestPath = path.join(
+  repoRoot,
+  'config',
+  'parity-requests',
+  'gift-cards',
+  'gift-card-notification-to-recipient.graphql',
+);
 
 const entitlementMessage = 'Gift cards are unavailable on your plan.';
 const notifyDisabledMessage = 'Notifications for this gift card are disabled.';
+const trialNotificationMessage = 'Notifications are not available on trial shops.';
 
 function readObject(value: unknown, context: string): JsonRecord {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -74,13 +90,44 @@ function assertEveryUserErrorMessage(data: JsonRecord, expected: string, context
   }
 }
 
-const [entitlementQuery, notifyQuery, entitlementFixture, notifyFixture] = await Promise.all([
+function readOptionalObject(value: unknown): JsonRecord {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as JsonRecord) : {};
+}
+
+const fallbackTrialNotificationFixture: JsonRecord = {
+  scenarioId: 'gift-card-notification-trial-shop',
+  storeDomain: 'local-runtime',
+  apiVersion,
+  capturedAt: '2026-06-16T00:00:00.000Z',
+  notes: [
+    'Synthetic local-runtime fixture because the available conformance shop is not a trial shop.',
+    'The expected payload mirrors the documented Shopify/Core trial-shop notification guard for both notification roots.',
+    'Replay uses the public Admin GraphQL notification request surface and the same synthetic trial-marker convention as gift-card assignment guard fixtures.',
+  ],
+  proxyVariables: {},
+  upstreamCalls: [],
+};
+
+const [
+  entitlementQuery,
+  notifyQuery,
+  trialNotificationCustomerQuery,
+  trialNotificationRecipientQuery,
+  entitlementFixture,
+  notifyFixture,
+  trialNotificationFixture,
+] = await Promise.all([
   readFile(entitlementRequestPath, 'utf8'),
   readFile(notifyRequestPath, 'utf8'),
+  readFile(trialNotificationCustomerRequestPath, 'utf8'),
+  readFile(trialNotificationRecipientRequestPath, 'utf8'),
   readFile(entitlementFixturePath, 'utf8').then((contents) =>
     readObject(JSON.parse(contents) as unknown, 'entitlement fixture'),
   ),
   readFile(notifyFixturePath, 'utf8').then((contents) => readObject(JSON.parse(contents) as unknown, 'notify fixture')),
+  readFile(trialNotificationFixturePath, 'utf8')
+    .then((contents) => readObject(JSON.parse(contents) as unknown, 'trial notification fixture'))
+    .catch(() => fallbackTrialNotificationFixture),
 ]);
 const { createDraftProxy } = (await import('../js/src/index.js')) as {
   createDraftProxy: (options: { readMode: string; port: number; shopifyAdminOrigin: string }) => DraftProxyInstance;
@@ -116,6 +163,32 @@ try {
     throw new Error(`notify-disabled message diverged: ${JSON.stringify(notifyError['message'])}`);
   }
 
+  const trialVariables = { id: 'gid://shopify/GiftCard/trial-update-card' };
+  const trialCustomerBody = assertResponseOk(
+    await proxy.processGraphQLRequest(
+      { query: trialNotificationCustomerQuery, variables: trialVariables },
+      { apiVersion },
+    ),
+    'trial-notification-customer',
+  );
+  const trialRecipientBody = assertResponseOk(
+    await proxy.processGraphQLRequest(
+      { query: trialNotificationRecipientQuery, variables: trialVariables },
+      { apiVersion },
+    ),
+    'trial-notification-recipient',
+  );
+  assertEveryUserErrorMessage(
+    readObject(trialCustomerBody['data'], 'trial-notification-customer data'),
+    trialNotificationMessage,
+    'trial-notification-customer',
+  );
+  assertEveryUserErrorMessage(
+    readObject(trialRecipientBody['data'], 'trial-notification-recipient data'),
+    trialNotificationMessage,
+    'trial-notification-recipient',
+  );
+
   await mkdir(giftCardsDir, { recursive: true });
   await writeFile(
     entitlementFixturePath,
@@ -134,6 +207,27 @@ try {
       {
         ...notifyFixture,
         expected: notifyBody,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  await writeFile(
+    trialNotificationFixturePath,
+    `${JSON.stringify(
+      {
+        ...trialNotificationFixture,
+        notes: fallbackTrialNotificationFixture['notes'],
+        proxyVariables: {
+          ...readOptionalObject(trialNotificationFixture['proxyVariables']),
+          trialNotification: trialVariables,
+        },
+        expected: {
+          data: {
+            ...readObject(trialCustomerBody['data'], 'trial notification customer data'),
+            ...readObject(trialRecipientBody['data'], 'trial notification recipient data'),
+          },
+        },
       },
       null,
       2,

@@ -1,0 +1,41 @@
+{
+  "scenarioId": "gift-card-notification-trial-shop",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-06-16T00:00:00.000Z",
+  "notes": [
+    "Synthetic local-runtime fixture because the available conformance shop is not a trial shop.",
+    "The expected payload mirrors the documented Shopify/Core trial-shop notification guard for both notification roots.",
+    "Replay uses the public Admin GraphQL notification request surface and the same synthetic trial-marker convention as gift-card assignment guard fixtures."
+  ],
+  "proxyVariables": {
+    "trialNotification": {
+      "id": "gid://shopify/GiftCard/trial-update-card"
+    }
+  },
+  "upstreamCalls": [],
+  "expected": {
+    "data": {
+      "giftCardSendNotificationToCustomer": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "code": "INVALID",
+            "field": ["base"],
+            "message": "Notifications are not available on trial shops."
+          }
+        ]
+      },
+      "giftCardSendNotificationToRecipient": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "code": "INVALID",
+            "field": ["base"],
+            "message": "Notifications are not available on trial shops."
+          }
+        ]
+      }
+    }
+  }
+}
