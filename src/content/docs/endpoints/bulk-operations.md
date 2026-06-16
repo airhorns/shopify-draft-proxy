@@ -42,7 +42,7 @@ Query export behavior:
 - Supported export requests complete locally against effective state, write generated JSONL results, expose a synthetic result URL under `/__meta/bulk-operations/<encoded-id>/result.jsonl`, and never proxy supported export mutations upstream at runtime.
 - Immediate mutation responses return Shopify's created job shape with `status: CREATED`, `completedAt: null`, zero counters, no file/result URL, and the original query. Later reads expose a terminal completed job with counters, file size, result URL, and original query.
 - `groupObjects: true`, `groupObjects: false`, and omitted `groupObjects` all stage the same local export shape; grouped JSONL ordering is not modeled as a separate result mode.
-- Same-type in-progress operations return `OPERATION_IN_PROGRESS` without staging a second job. Valid nonblank `clientIdentifier` values scope that check locally; omitted identifiers keep broad app/shop collision behavior.
+- Same-type in-progress operations return `OPERATION_IN_PROGRESS` without staging a second job once the version-specific concurrency limit is reached. Admin API versions before 2026-01 allow one non-terminal operation per type; 2026-01 and newer allow five non-terminal query operations and five non-terminal mutation operations before the sixth same-type run throttles. Valid nonblank `clientIdentifier` values scope that check locally; omitted identifiers keep broad app/shop collision behavior.
 
 Mutation import behavior:
 
@@ -90,6 +90,8 @@ Meta API behavior:
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-allowed-roots.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-created-status.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-client-identifier-validation.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-concurrency-limit.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-concurrency-limit.json`
 - `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
 - `config/parity-specs/bulk-operations/bulk-operation-status-catalog-cancel.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-query-created-status.json`
@@ -105,6 +107,8 @@ Meta API behavior:
 - `config/parity-specs/bulk-operations/run-mutation-allowed-roots.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-created-status.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-client-identifier-validation.json`
+- `config/parity-specs/bulk-operations/bulk-operation-run-query-concurrency-limit.json`
+- `config/parity-specs/bulk-operations/bulk-operation-run-mutation-concurrency-limit.json`
 - `config/parity-specs/bulk-operations/bulk-operation-run-mutation-operation-in-progress.json`
 
 ### Validation
@@ -113,5 +117,7 @@ Meta API behavior:
 - `corepack pnpm parity -- bulk-operation-run-query-schema-roots`
 - `corepack pnpm parity -- bulk-operation-name-independent-run-roots`
 - `corepack pnpm parity -- bulk-operation-run-mutation-user-errors`
+- `corepack pnpm parity -- bulk-operation-run-query-concurrency-limit`
+- `corepack pnpm parity -- bulk-operation-run-mutation-concurrency-limit`
 - `corepack pnpm parity -- bulk-operations-read-arg-validation`
 - `corepack pnpm conformance:check`

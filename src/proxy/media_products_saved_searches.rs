@@ -9,6 +9,7 @@ const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str = "query CustomerHydrate($id: ID!) {
 const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
 const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n    }\n  }\n}";
 const OWNER_METAFIELD_HYDRATE_QUERY: &str = "query OwnerMetafieldsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Collection { id title handle metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Customer { id displayName email metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Order { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Company { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } }";
+const BULK_OPERATION_HYDRATE_QUERY: &str = "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }";
 
 impl DraftProxy {
     pub(in crate::proxy) fn bulk_operation_read_response(
@@ -182,7 +183,7 @@ impl DraftProxy {
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
             );
         }
-        if let Some(operation_id) = self.in_progress_query_bulk_operation_id() {
+        if let Some(operation_id) = self.throttled_query_bulk_operation_id(request) {
             let payload = json!({
                 "bulkOperation": null,
                 "userErrors": [{
@@ -281,7 +282,7 @@ impl DraftProxy {
                 )],
             );
         }
-        if let Some(operation_id) = self.in_progress_mutation_bulk_operation_id() {
+        if let Some(operation_id) = self.throttled_mutation_bulk_operation_id(request) {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
                 &payload_selection,
@@ -342,34 +343,37 @@ impl DraftProxy {
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
 
-    fn in_progress_query_bulk_operation_id(&self) -> Option<String> {
-        self.store
-            .staged
-            .bulk_operations
-            .iter()
-            .find(|(_, operation)| {
-                operation.get("type").and_then(Value::as_str) == Some("QUERY")
-                    && !matches!(
-                        operation.get("status").and_then(Value::as_str),
-                        Some("COMPLETED" | "FAILED" | "CANCELED" | "EXPIRED")
-                    )
-            })
-            .map(|(id, _)| id.clone())
+    fn throttled_query_bulk_operation_id(&self, request: &Request) -> Option<String> {
+        self.throttled_bulk_operation_id("QUERY", request)
     }
 
-    fn in_progress_mutation_bulk_operation_id(&self) -> Option<String> {
-        self.store
+    fn throttled_mutation_bulk_operation_id(&self, request: &Request) -> Option<String> {
+        self.throttled_bulk_operation_id("MUTATION", request)
+    }
+
+    fn throttled_bulk_operation_id(
+        &self,
+        operation_type: &str,
+        request: &Request,
+    ) -> Option<String> {
+        let mut operation_ids = self
+            .store
             .staged
             .bulk_operations
             .iter()
-            .find(|(_, operation)| {
-                operation.get("type").and_then(Value::as_str) == Some("MUTATION")
-                    && !matches!(
-                        operation.get("status").and_then(Value::as_str),
-                        Some("COMPLETED" | "FAILED" | "CANCELED" | "EXPIRED")
-                    )
+            .filter(|(_, operation)| {
+                operation.get("type").and_then(Value::as_str) == Some(operation_type)
+                    && bulk_operation_is_non_terminal(operation)
             })
             .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>();
+
+        if operation_ids.len() < bulk_operation_concurrent_limit(request) {
+            return None;
+        }
+
+        operation_ids.sort();
+        Some(operation_ids.join(", "))
     }
 
     fn bulk_operation_staged_upload_size(&self, staged_upload_path: &str) -> Option<Option<u64>> {
@@ -421,23 +425,61 @@ impl DraftProxy {
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
             );
         }
-        let (query_text, created_at, operation_type) =
-            Self::bulk_operation_cancel_nonterminal_seed(request, &id);
-        let operation = bulk_operation_record_with_type(
-            &id,
-            "CANCELING",
-            operation_type,
-            query_text,
-            "0",
-            created_at,
-            "113499",
-        );
+        let operation = self
+            .bulk_operation_cancel_hydrate_cold_operation(request, &id)
+            .unwrap_or_else(|| {
+                let (query_text, created_at, operation_type) =
+                    Self::bulk_operation_cancel_nonterminal_seed(request, &id);
+                bulk_operation_record_with_type(
+                    &id,
+                    "CANCELING",
+                    operation_type,
+                    query_text,
+                    "0",
+                    created_at,
+                    "113499",
+                )
+            });
         self.store
             .staged
             .bulk_operations
             .insert(id.clone(), operation.clone());
         let payload = json!({ "bulkOperation": operation, "userErrors": [] });
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+    }
+
+    fn bulk_operation_cancel_hydrate_cold_operation(
+        &self,
+        request: &Request,
+        id: &str,
+    ) -> Option<Value> {
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || self.store.staged.bulk_operations.contains_key(id)
+        {
+            return None;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": BULK_OPERATION_HYDRATE_QUERY,
+                "operationName": "BulkOperationHydrate",
+                "variables": { "id": id }
+            })
+            .to_string(),
+        });
+        let mut operation = response
+            .body
+            .get("data")
+            .and_then(|data| data.get("bulkOperation"))
+            .filter(|operation| operation.is_object())?
+            .clone();
+        if bulk_operation_status_is_terminal(operation.get("status").and_then(Value::as_str)) {
+            return None;
+        }
+        operation["status"] = json!("CANCELING");
+        Some(operation)
     }
 
     fn bulk_operation_cancel_nonterminal_seed(
@@ -5363,6 +5405,27 @@ fn bulk_operation_sort_value(operation: &Value, sort_key: &str) -> String {
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string()
+}
+
+fn bulk_operation_concurrent_limit(request: &Request) -> usize {
+    if admin_graphql_version(&request.path)
+        .is_some_and(|version| version_at_least(version, 2026, 1))
+    {
+        5
+    } else {
+        1
+    }
+}
+
+fn bulk_operation_is_non_terminal(operation: &Value) -> bool {
+    !bulk_operation_status_is_terminal(operation.get("status").and_then(Value::as_str))
+}
+
+fn bulk_operation_status_is_terminal(status: Option<&str>) -> bool {
+    matches!(
+        status,
+        Some("COMPLETED" | "FAILED" | "CANCELED" | "EXPIRED")
+    )
 }
 
 fn bulk_operation_matches_query(

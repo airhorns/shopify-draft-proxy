@@ -8295,6 +8295,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'bulk-operations',
+    captureId: 'bulk-operation-concurrency-limit',
+    environment: {
+      SHOPIFY_CONFORMANCE_BULK_API_VERSION: '2026-04',
+      SHOPIFY_CONFORMANCE_BULK_NEW_LIMIT_BOUNDARY: '1',
+    },
+    scriptPath: 'scripts/capture-bulk-operation-in-progress-conformance.ts',
+    purpose:
+      'bulkOperationRunQuery and bulkOperationRunMutation 2026-04 concurrency limit boundaries: five same-type non-terminal operations accepted, sixth throttled.',
+    requiredAuthScopes: ['bulk operation access through active Admin token', 'write_products'],
+    fixtureOutputs: [
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-concurrency-limit.json',
+      'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-concurrency-limit.json',
+      'config/parity-specs/bulk-operations/bulk-operation-run-query-concurrency-limit.json',
+      'config/parity-specs/bulk-operations/bulk-operation-run-mutation-concurrency-limit.json',
+    ],
+    cleanupBehavior:
+      'Cancels captured in-progress bulk operations and best-effort deletes any disposable product created by the bulk mutation.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'webhooks',
     captureId: 'webhook-subscriptions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
