@@ -1,4 +1,9 @@
 use super::*;
+use sha2::{Digest, Sha256};
+
+const FALLBACK_PRODUCT_TRANSLATION_TITLE: &str = "The Inventory Not Tracked Snowboard";
+const FALLBACK_PRODUCT_TRANSLATION_HANDLE: &str = "the-inventory-not-tracked-snowboard";
+const FALLBACK_PRODUCT_TRANSLATION_PRODUCT_TYPE: &str = "snowboard";
 
 impl DraftProxy {
     pub(in crate::proxy) fn discount_timestamps_monotonic_create_data(
@@ -2647,8 +2652,15 @@ impl DraftProxy {
                 }));
                 continue;
             }
-            if resolved_object_string(translation_input, "translatableContentDigest")
-                .is_some_and(|digest| digest.starts_with("invalid-"))
+            let key = resolved_object_string(translation_input, "key")
+                .unwrap_or_else(|| "title".to_string());
+            if self
+                .localization_translatable_content_digest(&resource_id, &key)
+                .is_some_and(|expected_digest| {
+                    resolved_object_string(translation_input, "translatableContentDigest")
+                        .as_deref()
+                        != Some(expected_digest.as_str())
+                })
             {
                 user_errors.push(json!({
                     "field": ["translations", field_index, "translatableContentDigest"],
@@ -2788,14 +2800,92 @@ impl DraftProxy {
     pub(in crate::proxy) fn localization_translatable_resource(&self, resource_id: &str) -> Value {
         json!({
             "resourceId": resource_id,
-            "translatableContent": [{
-                "key": "title",
-                "value": "Localization product",
-                "digest": "digest",
-                "locale": "en",
-                "type": "SINGLE_LINE_TEXT_FIELD"
-            }],
+            "translatableContent": self.localization_translatable_content(resource_id),
             "translations": self.store.staged.localization_translations.clone()
         })
     }
+
+    fn localization_translatable_content(&self, resource_id: &str) -> Vec<Value> {
+        if let Some(product) = self.store.product_by_id(resource_id) {
+            let mut content = vec![
+                localization_translatable_content_record(
+                    "title",
+                    &product.title,
+                    "SINGLE_LINE_TEXT_FIELD",
+                ),
+                localization_translatable_content_record("handle", &product.handle, "URI"),
+                localization_translatable_content_record(
+                    "product_type",
+                    &product.product_type,
+                    "SINGLE_LINE_TEXT_FIELD",
+                ),
+            ];
+            if !product.description_html.is_empty() {
+                content.push(localization_translatable_content_record(
+                    "body_html",
+                    &product.description_html,
+                    "HTML",
+                ));
+            }
+            if !product.seo_title.is_empty() {
+                content.push(localization_translatable_content_record(
+                    "seo_title",
+                    &product.seo_title,
+                    "SINGLE_LINE_TEXT_FIELD",
+                ));
+            }
+            if !product.seo_description.is_empty() {
+                content.push(localization_translatable_content_record(
+                    "seo_description",
+                    &product.seo_description,
+                    "MULTI_LINE_TEXT_FIELD",
+                ));
+            }
+            return content;
+        }
+
+        vec![
+            localization_translatable_content_record(
+                "title",
+                FALLBACK_PRODUCT_TRANSLATION_TITLE,
+                "SINGLE_LINE_TEXT_FIELD",
+            ),
+            localization_translatable_content_record(
+                "handle",
+                FALLBACK_PRODUCT_TRANSLATION_HANDLE,
+                "URI",
+            ),
+            localization_translatable_content_record(
+                "product_type",
+                FALLBACK_PRODUCT_TRANSLATION_PRODUCT_TYPE,
+                "SINGLE_LINE_TEXT_FIELD",
+            ),
+        ]
+    }
+
+    fn localization_translatable_content_digest(
+        &self,
+        resource_id: &str,
+        key: &str,
+    ) -> Option<String> {
+        self.localization_translatable_content(resource_id)
+            .into_iter()
+            .find(|content| content["key"].as_str() == Some(key))
+            .and_then(|content| content["digest"].as_str().map(str::to_string))
+    }
+}
+
+fn localization_translatable_content_record(key: &str, value: &str, content_type: &str) -> Value {
+    json!({
+        "key": key,
+        "value": value,
+        "digest": localization_content_digest(value),
+        "locale": "en",
+        "type": content_type
+    })
+}
+
+fn localization_content_digest(value: &str) -> String {
+    let digest = Sha256::digest(value.as_bytes());
+    format!("{digest:x}")
 }

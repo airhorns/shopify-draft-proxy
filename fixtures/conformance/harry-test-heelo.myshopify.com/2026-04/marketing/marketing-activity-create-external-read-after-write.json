@@ -1,0 +1,219 @@
+{
+  "scenarioId": "marketing-activity-create-external-read-after-write",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-06-15T02:28:24.910Z",
+  "operations": {
+    "primary": {
+      "query": "mutation MarketingActivityLifecycle(\n  $createInput: MarketingActivityCreateExternalInput!\n  $remoteId: String!\n  $updateInput: MarketingActivityUpdateExternalInput!\n) {\n  createExternal: marketingActivityCreateExternal(input: $createInput) {\n    marketingActivity {\n      id\n      adSpend {\n        amount\n        currencyCode\n      }\n      marketingEvent {\n        scheduledToEndAt\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  updateExternal: marketingActivityUpdateExternal(remoteId: $remoteId, input: $updateInput) {\n    marketingActivity {\n      id\n      title\n      adSpend {\n        amount\n        currencyCode\n      }\n      marketingEvent {\n        scheduledToEndAt\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "remoteId": "marketing-read-after-write-1781490504245-aupqed",
+        "createInput": {
+          "title": "Marketing read after write 1781490504245-aupqed",
+          "remoteId": "marketing-read-after-write-1781490504245-aupqed",
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/marketing-read-after-write-1781490504245-aupqed",
+          "tactic": "AD",
+          "marketingChannelType": "SEARCH",
+          "utm": {
+            "campaign": "marketing-read-after-write-1781490504245-aupqed",
+            "source": "ads",
+            "medium": "cpc"
+          },
+          "budget": {
+            "budgetType": "DAILY",
+            "total": {
+              "amount": "100.00",
+              "currencyCode": "USD"
+            }
+          },
+          "adSpend": {
+            "amount": "25.00",
+            "currencyCode": "USD"
+          },
+          "scheduledStart": "2026-05-01T00:00:00Z",
+          "scheduledEnd": "2026-05-31T00:00:00Z",
+          "referringDomain": "ads.example.com"
+        },
+        "updateInput": {
+          "title": "Marketing read after write updated 1781490504245-aupqed"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "createExternal": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197870420274",
+                "adSpend": {
+                  "amount": "25.0",
+                  "currencyCode": "USD"
+                },
+                "marketingEvent": {
+                  "scheduledToEndAt": "2026-05-31T00:00:00Z"
+                }
+              },
+              "userErrors": []
+            },
+            "updateExternal": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197870420274",
+                "title": "Marketing read after write updated 1781490504245-aupqed",
+                "adSpend": {
+                  "amount": "25.0",
+                  "currencyCode": "USD"
+                },
+                "marketingEvent": {
+                  "scheduledToEndAt": "2026-05-31T00:00:00Z"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 22,
+              "actualQueryCost": 22,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readAfterUpdate": {
+      "query": "query MarketingActivityRead($activityId: ID!, $remoteIds: [String!]) {\n  marketingActivity(id: $activityId) {\n    title\n    adSpend {\n      amount\n      currencyCode\n    }\n    marketingEvent {\n      scheduledToEndAt\n    }\n  }\n  marketingActivities(first: 10, remoteIds: $remoteIds) {\n    nodes {\n      title\n      adSpend {\n        amount\n        currencyCode\n      }\n      marketingEvent {\n        scheduledToEndAt\n      }\n    }\n  }\n}\n",
+      "variables": {
+        "activityId": "gid://shopify/MarketingActivity/197870420274",
+        "remoteIds": ["marketing-read-after-write-1781490504245-aupqed"]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivity": {
+              "title": "Marketing read after write updated 1781490504245-aupqed",
+              "adSpend": {
+                "amount": "25.0",
+                "currencyCode": "USD"
+              },
+              "marketingEvent": {
+                "scheduledToEndAt": "2026-05-31T00:00:00Z"
+              }
+            },
+            "marketingActivities": {
+              "nodes": [
+                {
+                  "title": "Marketing read after write updated 1781490504245-aupqed",
+                  "adSpend": {
+                    "amount": "25.0",
+                    "currencyCode": "USD"
+                  },
+                  "marketingEvent": {
+                    "scheduledToEndAt": "2026-05-31T00:00:00Z"
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1992,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "beforeByRemote": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "afterByRemote": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197870420274",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "afterById": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

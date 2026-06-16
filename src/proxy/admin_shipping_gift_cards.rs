@@ -2021,6 +2021,7 @@ impl DraftProxy {
     pub(in crate::proxy) fn has_staged_locations(&self) -> bool {
         !self.store.staged.locations.is_empty()
             || !self.store.staged.fulfillment_service_locations.is_empty()
+            || !self.store.staged.observed_shipping_locations.is_empty()
             || self.store.staged.location_limit_reached
     }
 
@@ -2162,6 +2163,8 @@ impl DraftProxy {
             "hasUnfulfilledOrders": false,
             "isFulfillmentService": false,
             "shipsInventory": true,
+            "localPickupSettingsV2": null,
+            "localPickupSettings": null,
             "address": address,
             "metafields": self.location_metafields_from_input(id, input),
             "createdAt": "2024-01-01T00:00:00.000Z",
@@ -2249,6 +2252,32 @@ impl DraftProxy {
         self.store.staged.locations.insert(id, location);
     }
 
+    fn stage_local_pickup_location(&mut self, mut location: Value) {
+        let Some(id) = location
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            return;
+        };
+        if self
+            .store
+            .staged
+            .observed_shipping_locations
+            .contains_key(&id)
+        {
+            self.store
+                .staged
+                .observed_shipping_locations
+                .insert(id.clone(), location.clone());
+        }
+        location["localPickupSettings"] = location
+            .get("localPickupSettingsV2")
+            .cloned()
+            .unwrap_or(Value::Null);
+        self.stage_location(location);
+    }
+
     fn location_for_read(&self, location_id: &str) -> Option<Value> {
         self.store
             .staged
@@ -2258,11 +2287,31 @@ impl DraftProxy {
             .or_else(|| {
                 self.store
                     .staged
+                    .observed_shipping_locations
+                    .get(location_id)
+                    .cloned()
+            })
+            .or_else(|| {
+                self.store
+                    .staged
                     .fulfillment_service_locations
                     .get(location_id)
                     .cloned()
             })
             .or_else(|| fixture_location_deactivate_state_machine_location(location_id))
+    }
+
+    fn active_local_pickup_location(&self, location_id: &str) -> Option<Value> {
+        self.location_for_read(location_id).filter(|location| {
+            location
+                .get("isActive")
+                .and_then(Value::as_bool)
+                .unwrap_or(true)
+                && !location
+                    .get("isFulfillmentService")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false)
+        })
     }
 
     fn location_source_record(&self, location_id: &str) -> Value {
@@ -2323,6 +2372,232 @@ impl DraftProxy {
             }
         }
         Value::Object(fields)
+    }
+
+    pub(in crate::proxy) fn delivery_profile_locations_read_response(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) -> Response {
+        if self.config.read_mode != ReadMode::Snapshot
+            && self.store.staged.observed_shipping_locations.is_empty()
+            && self.store.staged.locations.is_empty()
+        {
+            let response = (self.upstream_transport)(request.clone());
+            self.observe_delivery_profile_locations_response(&response);
+            return response;
+        }
+        ok_json(json!({
+            "data": self.delivery_profile_locations_read_data(fields)
+        }))
+    }
+
+    pub(in crate::proxy) fn shipping_settings_read_response(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) -> Response {
+        if self.config.read_mode != ReadMode::Snapshot
+            && self.store.staged.observed_shipping_locations.is_empty()
+            && self.store.staged.carrier_services.is_empty()
+        {
+            let response = (self.upstream_transport)(request.clone());
+            self.observe_shipping_settings_response(&response);
+            return response;
+        }
+        ok_json(json!({ "data": self.shipping_settings_read_data(fields) }))
+    }
+
+    fn shipping_settings_read_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = self.delivery_profile_locations_read_data(fields);
+        if let Value::Object(data) = &mut data {
+            for field in fields {
+                if field.name == "availableCarrierServices" {
+                    data.insert(
+                        field.response_key.clone(),
+                        self.available_carrier_services_json(&field.selection),
+                    );
+                }
+            }
+        }
+        data
+    }
+
+    fn available_carrier_services_json(&self, selection: &[SelectedField]) -> Value {
+        Value::Array(
+            self.store
+                .staged
+                .carrier_services
+                .values()
+                .map(|carrier| {
+                    selected_json(
+                        &json!({
+                            "carrierService": carrier
+                        }),
+                        selection,
+                    )
+                })
+                .collect(),
+        )
+    }
+
+    fn observe_shipping_settings_response(&mut self, response: &Response) {
+        self.observe_delivery_profile_locations_response(response);
+        if let Some(services) = response.body["data"]["availableCarrierServices"].as_array() {
+            for service_entry in services {
+                if let Some(carrier) = service_entry.get("carrierService") {
+                    self.stage_observed_carrier_service(carrier.clone());
+                }
+            }
+        }
+    }
+
+    pub(in crate::proxy) fn delivery_profile_locations_read_data(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name != "locationsAvailableForDeliveryProfilesConnection" {
+                continue;
+            }
+            data.insert(
+                field.response_key.clone(),
+                self.delivery_profile_locations_connection_json(&field.arguments, &field.selection),
+            );
+        }
+        Value::Object(data)
+    }
+
+    fn delivery_profile_locations_connection_json(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selections: &[SelectedField],
+    ) -> Value {
+        let mut locations = self.effective_shipping_locations();
+        if let Some(limit) = arguments.get("first").and_then(resolved_as_usize) {
+            locations.truncate(limit);
+        }
+        let mut fields = serde_json::Map::new();
+        for selection in selections {
+            let value = match selection.name.as_str() {
+                "nodes" => Some(Value::Array(
+                    locations
+                        .iter()
+                        .map(|location| location_selected_json(location, &selection.selection))
+                        .collect(),
+                )),
+                "edges" => Some(Value::Array(
+                    locations
+                        .iter()
+                        .map(|location| {
+                            let edge = json!({
+                                "cursor": location.get("id").and_then(Value::as_str).unwrap_or_default(),
+                                "node": location
+                            });
+                            selected_json(&edge, &selection.selection)
+                        })
+                        .collect(),
+                )),
+                "pageInfo" => Some(selected_json(
+                    &json!({
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                    }),
+                    &selection.selection,
+                )),
+                _ => None,
+            };
+            if let Some(value) = value {
+                fields.insert(selection.response_key.clone(), value);
+            }
+        }
+        Value::Object(fields)
+    }
+
+    fn effective_shipping_locations(&self) -> Vec<Value> {
+        let mut locations = Vec::new();
+        let mut seen = BTreeSet::new();
+        for id in &self.store.staged.observed_shipping_location_order {
+            if let Some(location) = self.location_for_read(id) {
+                seen.insert(id.clone());
+                locations.push(location);
+            }
+        }
+        for id in &self.store.staged.location_order {
+            if seen.contains(id) {
+                continue;
+            }
+            if let Some(location) = self.store.staged.locations.get(id).cloned() {
+                seen.insert(id.clone());
+                locations.push(location);
+            }
+        }
+        locations
+    }
+
+    fn observe_delivery_profile_locations_response(&mut self, response: &Response) {
+        let Some(nodes) = response.body["data"]["locationsAvailableForDeliveryProfilesConnection"]
+            ["nodes"]
+            .as_array()
+        else {
+            return;
+        };
+        for node in nodes {
+            self.stage_observed_shipping_location(node.clone());
+        }
+    }
+
+    fn stage_observed_carrier_service(&mut self, carrier: Value) {
+        let Some(id) = carrier
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            return;
+        };
+        self.store.staged.carrier_services.insert(id, carrier);
+    }
+
+    fn stage_observed_shipping_location(&mut self, mut location: Value) {
+        let Some(id) = location
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            return;
+        };
+        location["isActive"] = location
+            .get("isActive")
+            .cloned()
+            .unwrap_or(Value::Bool(true));
+        location["isFulfillmentService"] = location
+            .get("isFulfillmentService")
+            .cloned()
+            .unwrap_or(Value::Bool(false));
+        if location.get("localPickupSettings").is_none() {
+            location["localPickupSettings"] = location
+                .get("localPickupSettingsV2")
+                .cloned()
+                .unwrap_or(Value::Null);
+        }
+        if !self
+            .store
+            .staged
+            .observed_shipping_locations
+            .contains_key(&id)
+        {
+            self.store
+                .staged
+                .observed_shipping_location_order
+                .push(id.clone());
+        }
+        self.store
+            .staged
+            .observed_shipping_locations
+            .insert(id, location);
     }
 
     fn location_name_exists(&self, name: &str) -> bool {
@@ -2491,6 +2766,8 @@ impl DraftProxy {
             "isFulfillmentService": false,
             "deletable": false,
             "shipsInventory": false,
+            "localPickupSettingsV2": null,
+            "localPickupSettings": null,
             "address": {},
             "metafields": []
         })
@@ -4098,6 +4375,173 @@ impl DraftProxy {
 
         self.record_shipping_package_log_entry(request, query, variables, root_field, vec![id]);
         ok_json(json!({ "data": { response_key: payload } }))
+    }
+
+    pub(in crate::proxy) fn location_local_pickup_mutation(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let Some(fields) = root_fields(query, variables) else {
+            return json_error(400, "Could not parse GraphQL operation");
+        };
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let payload = match field.name.as_str() {
+                "locationLocalPickupEnable" => {
+                    self.location_local_pickup_enable_payload(&field, request, query, variables)
+                }
+                "locationLocalPickupDisable" => {
+                    self.location_local_pickup_disable_payload(&field, request, query, variables)
+                }
+                _ => continue,
+            };
+            data.insert(field.response_key, payload);
+        }
+        if data.is_empty() {
+            return json_error(
+                501,
+                &format!(
+                    "No Rust stage-locally dispatcher implemented for root field: {}",
+                    root_field
+                ),
+            );
+        }
+        ok_json(json!({ "data": Value::Object(data) }))
+    }
+
+    fn location_local_pickup_enable_payload(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let input = resolved_object_field(&field.arguments, "localPickupSettings")
+            .unwrap_or_else(|| field.arguments.clone());
+        let location_id = resolved_string_field(&input, "locationId").unwrap_or_default();
+        let pickup_time = resolved_string_field(&input, "pickupTime").unwrap_or_default();
+        let user_errors = self.location_local_pickup_enable_user_errors(
+            &location_id,
+            &pickup_time,
+            field.name.as_str(),
+        );
+        if !user_errors.is_empty() {
+            return location_local_pickup_enable_payload_selected_json(
+                Value::Null,
+                &field.selection,
+                user_errors,
+            );
+        }
+
+        let instructions = input
+            .get("instructions")
+            .and_then(|value| match value {
+                ResolvedValue::String(value) => Some(Value::String(value.clone())),
+                ResolvedValue::Null => Some(Value::Null),
+                _ => None,
+            })
+            .unwrap_or(Value::Null);
+        let settings = json!({
+            "pickupTime": pickup_time,
+            "instructions": instructions
+        });
+        let mut location = self
+            .active_local_pickup_location(&location_id)
+            .unwrap_or_else(|| self.staged_location_record(&location_id));
+        location["isActive"] = json!(true);
+        location["isFulfillmentService"] = json!(false);
+        location["localPickupSettingsV2"] = settings.clone();
+        location["localPickupSettings"] = settings.clone();
+        self.stage_local_pickup_location(location);
+        self.record_mutation_log_entry(
+            request,
+            query,
+            variables,
+            "locationLocalPickupEnable",
+            vec![location_id],
+        );
+
+        location_local_pickup_enable_payload_selected_json(settings, &field.selection, Vec::new())
+    }
+
+    fn location_local_pickup_disable_payload(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        let location_id = resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
+        let user_errors =
+            self.location_local_pickup_location_user_errors(&location_id, field.name.as_str());
+        if user_errors.is_empty() {
+            let mut location = self
+                .active_local_pickup_location(&location_id)
+                .unwrap_or_else(|| self.staged_location_record(&location_id));
+            location["isActive"] = json!(true);
+            location["isFulfillmentService"] = json!(false);
+            location["localPickupSettingsV2"] = Value::Null;
+            location["localPickupSettings"] = Value::Null;
+            self.stage_local_pickup_location(location);
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "locationLocalPickupDisable",
+                vec![location_id.clone()],
+            );
+        }
+        location_local_pickup_disable_payload_selected_json(
+            location_id,
+            &field.selection,
+            user_errors,
+        )
+    }
+
+    fn location_local_pickup_enable_user_errors(
+        &self,
+        location_id: &str,
+        pickup_time: &str,
+        root_field: &str,
+    ) -> Vec<Value> {
+        let location_errors =
+            self.location_local_pickup_location_user_errors(location_id, root_field);
+        if !location_errors.is_empty() {
+            return location_errors;
+        }
+        if !local_pickup_time_is_standard(pickup_time) {
+            return vec![json!({
+                "field": ["localPickupSettings"],
+                "message": "Custom pickup time is not allowed for local pickup settings.",
+                "code": "CUSTOM_PICKUP_TIME_NOT_ALLOWED"
+            })];
+        }
+        Vec::new()
+    }
+
+    fn location_local_pickup_location_user_errors(
+        &self,
+        location_id: &str,
+        root_field: &str,
+    ) -> Vec<Value> {
+        if self.active_local_pickup_location(location_id).is_some() {
+            return Vec::new();
+        }
+        vec![json!({
+            "field": ["localPickupSettings"],
+            "message": format!(
+                "Unable to find an active location for location ID {}",
+                location_id_display_tail(location_id)
+            ),
+            "code": if root_field == "locationLocalPickupEnable" {
+                "ACTIVE_LOCATION_NOT_FOUND"
+            } else {
+                "LOCATION_NOT_FOUND"
+            }
+        })]
     }
 
     pub(in crate::proxy) fn effective_shipping_package(&self, id: &str) -> Value {
@@ -5776,6 +6220,64 @@ fn location_activate_payload_selected_json(
             _ => None,
         }
     })
+}
+
+fn location_local_pickup_enable_payload_selected_json(
+    settings: Value,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
+            "localPickupSettings" => Some(if settings.is_null() {
+                Value::Null
+            } else {
+                selected_json(&settings, &selection.selection)
+            }),
+            "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        }
+    })
+}
+
+fn location_local_pickup_disable_payload_selected_json(
+    location_id: String,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
+            "locationId" => Some(json!(location_id)),
+            "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        }
+    })
+}
+
+fn local_pickup_time_is_standard(pickup_time: &str) -> bool {
+    matches!(
+        pickup_time,
+        "ONE_HOUR"
+            | "TWO_HOURS"
+            | "FOUR_HOURS"
+            | "TWENTY_FOUR_HOURS"
+            | "TWO_TO_FOUR_DAYS"
+            | "FIVE_OR_MORE_DAYS"
+    )
+}
+
+fn location_id_display_tail(location_id: &str) -> &str {
+    location_id.rsplit('/').next().unwrap_or(location_id)
 }
 
 fn location_selected_json(location: &Value, selections: &[SelectedField]) -> Value {

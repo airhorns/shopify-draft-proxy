@@ -1,0 +1,480 @@
+{
+  "scenarioId": "payment-terms-create-template-reprojection",
+  "capturedAt": "2026-06-15T09:37:29.994Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "upstreamCalls": [],
+  "cases": {
+    "fixed": {
+      "purpose": "FIXED template reprojects to Fixed/FIXED/null and keeps the materialized due-date schedule.",
+      "setup": {
+        "orderCreate": {
+          "query": "#graphql\n  mutation PaymentTermsTemplateReprojectionOrderCreate($order: OrderCreateOrderInput!) {\n    orderCreate(order: $order) {\n      order {\n        id\n        currentTotalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "order": {
+              "email": "payment-terms-template-reprojection-fixed-1781516246270@example.com",
+              "currency": "USD",
+              "presentmentCurrency": "CAD",
+              "lineItems": [
+                {
+                  "title": "Payment terms template reprojection fixed",
+                  "quantity": 1,
+                  "priceSet": {
+                    "shopMoney": {
+                      "amount": "18.50",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "18.50",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "response": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8822486008114",
+                  "currentTotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "18.5",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "paymentTermsCreate": {
+        "query": "#graphql\n  mutation PaymentTermsCreateTemplateReprojection($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      paymentTerms {\n        id\n        paymentTermsName\n        paymentTermsType\n        dueInDays\n        translatedName\n        paymentSchedules(first: 2) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "referenceId": "gid://shopify/Order/8822486008114",
+          "attrs": {
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+            "paymentSchedules": [
+              {
+                "dueAt": "2026-07-01T00:00:00Z"
+              }
+            ]
+          }
+        },
+        "response": {
+          "data": {
+            "paymentTermsCreate": {
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/156029026610",
+                "paymentTermsName": "Fixed",
+                "paymentTermsType": "FIXED",
+                "dueInDays": null,
+                "translatedName": "Fixed",
+                "paymentSchedules": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/PaymentSchedule/193416364338"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "cleanup": {
+        "paymentTermsDelete": {
+          "data": {
+            "paymentTermsDelete": {
+              "deletedId": "gid://shopify/PaymentTerms/156029026610",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "orderCancel": {
+          "data": {
+            "orderCancel": {
+              "orderCancelUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "net7": {
+      "purpose": "Non-30 NET template reprojects to Net 7/NET/7 and keeps the materialized schedule.",
+      "setup": {
+        "orderCreate": {
+          "query": "#graphql\n  mutation PaymentTermsTemplateReprojectionOrderCreate($order: OrderCreateOrderInput!) {\n    orderCreate(order: $order) {\n      order {\n        id\n        currentTotalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "order": {
+              "email": "payment-terms-template-reprojection-net7-1781516246270@example.com",
+              "currency": "USD",
+              "presentmentCurrency": "CAD",
+              "lineItems": [
+                {
+                  "title": "Payment terms template reprojection net7",
+                  "quantity": 1,
+                  "priceSet": {
+                    "shopMoney": {
+                      "amount": "18.50",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "18.50",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "response": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8822486171954",
+                  "currentTotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "18.5",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "paymentTermsCreate": {
+        "query": "#graphql\n  mutation PaymentTermsCreateTemplateReprojection($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      paymentTerms {\n        id\n        paymentTermsName\n        paymentTermsType\n        dueInDays\n        translatedName\n        paymentSchedules(first: 2) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "referenceId": "gid://shopify/Order/8822486171954",
+          "attrs": {
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/2",
+            "paymentSchedules": [
+              {
+                "issuedAt": "2026-07-01T00:00:00Z"
+              }
+            ]
+          }
+        },
+        "response": {
+          "data": {
+            "paymentTermsCreate": {
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/156029059378",
+                "paymentTermsName": "Net 7",
+                "paymentTermsType": "NET",
+                "dueInDays": 7,
+                "translatedName": "Net 7",
+                "paymentSchedules": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/PaymentSchedule/193416397106"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "cleanup": {
+        "paymentTermsDelete": {
+          "data": {
+            "paymentTermsDelete": {
+              "deletedId": "gid://shopify/PaymentTerms/156029059378",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "orderCancel": {
+          "data": {
+            "orderCancel": {
+              "orderCancelUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fulfillment": {
+      "purpose": "FULFILLMENT event template reprojects to Due on fulfillment/FULFILLMENT/null and returns no schedule nodes.",
+      "setup": {
+        "orderCreate": {
+          "query": "#graphql\n  mutation PaymentTermsTemplateReprojectionOrderCreate($order: OrderCreateOrderInput!) {\n    orderCreate(order: $order) {\n      order {\n        id\n        currentTotalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "order": {
+              "email": "payment-terms-template-reprojection-fulfillment-1781516246270@example.com",
+              "currency": "USD",
+              "presentmentCurrency": "CAD",
+              "lineItems": [
+                {
+                  "title": "Payment terms template reprojection fulfillment",
+                  "quantity": 1,
+                  "priceSet": {
+                    "shopMoney": {
+                      "amount": "18.50",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "18.50",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "response": {
+            "data": {
+              "orderCreate": {
+                "order": {
+                  "id": "gid://shopify/Order/8822486204722",
+                  "currentTotalPriceSet": {
+                    "shopMoney": {
+                      "amount": "18.5",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "18.5",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "paymentTermsCreate": {
+        "query": "#graphql\n  mutation PaymentTermsCreateTemplateReprojection($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {\n    paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {\n      paymentTerms {\n        id\n        paymentTermsName\n        paymentTermsType\n        dueInDays\n        translatedName\n        paymentSchedules(first: 2) {\n          nodes {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "referenceId": "gid://shopify/Order/8822486204722",
+          "attrs": {
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/9"
+          }
+        },
+        "response": {
+          "data": {
+            "paymentTermsCreate": {
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/156029092146",
+                "paymentTermsName": "Due on fulfillment",
+                "paymentTermsType": "FULFILLMENT",
+                "dueInDays": null,
+                "translatedName": "Due on fulfillment",
+                "paymentSchedules": {
+                  "nodes": []
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "cleanup": {
+        "paymentTermsDelete": {
+          "data": {
+            "paymentTermsDelete": {
+              "deletedId": "gid://shopify/PaymentTerms/156029092146",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "orderCancel": {
+          "data": {
+            "orderCancel": {
+              "orderCancelUserErrors": [],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "localMutationLogVariables": {
+      "1": {
+        "variables": {
+          "attrs": {
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/7",
+            "paymentSchedules": [
+              {
+                "dueAt": "2026-07-01T00:00:00Z"
+              }
+            ]
+          }
+        }
+      },
+      "3": {
+        "variables": {
+          "attrs": {
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/2",
+            "paymentSchedules": [
+              {
+                "issuedAt": "2026-07-01T00:00:00Z"
+              }
+            ]
+          }
+        }
+      },
+      "5": {
+        "variables": {
+          "attrs": {
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/9"
+          }
+        }
+      }
+    }
+  },
+  "notes": "Captured against disposable Orders. The scenario verifies successful paymentTermsCreate reprojects name/type/dueInDays/translatedName from FIXED, Net 7, and FULFILLMENT templates and preserves the captured schedule-node cardinality."
+}

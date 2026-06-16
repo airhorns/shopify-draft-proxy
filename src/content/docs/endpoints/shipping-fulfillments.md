@@ -10,12 +10,35 @@ order-editing shipping-line roots.
 
 ## Current support and limitations
 
-### Supported roots
+### Implemented roots
 
-The current Rust operation registry marks a bounded delivery-profile slice as
-locally implemented. Registry presence remains a local-model commitment only; it
+The current Rust operation registry marks only bounded shipping/fulfillments
+slices as implemented. Registry presence is a local-model commitment only; it
 is not a claim that the whole shipping/fulfillments domain is supported for
 arbitrary documents.
+
+The implemented read roots are:
+
+- `deliveryProfile`
+- `deliveryProfiles`
+- `locationsAvailableForDeliveryProfilesConnection`
+
+The implemented mutation roots are:
+
+- `carrierServiceCreate`
+- `carrierServiceDelete`
+- `carrierServiceUpdate`
+- `deliveryProfileCreate`
+- `deliveryProfileRemove`
+- `deliveryProfileUpdate`
+- `fulfillmentServiceCreate`
+- `fulfillmentServiceDelete`
+- `fulfillmentServiceUpdate`
+- `locationLocalPickupDisable`
+- `locationLocalPickupEnable`
+- `shippingPackageDelete`
+- `shippingPackageMakeDefault`
+- `shippingPackageUpdate`
 
 The registry-only read roots are:
 
@@ -36,7 +59,6 @@ The registry-only read roots are:
 - `deliveryPromiseProvider`
 - `deliveryPromiseSettings`
 - `deliverySettings`
-- `locationsAvailableForDeliveryProfilesConnection`
 - `fulfillmentConstraintRules`
 
 The registry-only mutation roots are:
@@ -64,17 +86,6 @@ The registry-only mutation roots are:
 - `fulfillmentOrderSplit`
 - `fulfillmentOrderSubmitCancellationRequest`
 - `fulfillmentOrderSubmitFulfillmentRequest`
-- `fulfillmentServiceCreate`
-- `fulfillmentServiceDelete`
-- `fulfillmentServiceUpdate`
-- `carrierServiceCreate`
-- `carrierServiceDelete`
-- `carrierServiceUpdate`
-- `locationLocalPickupDisable`
-- `locationLocalPickupEnable`
-- `shippingPackageDelete`
-- `shippingPackageMakeDefault`
-- `shippingPackageUpdate`
 - `fulfillmentConstraintRuleCreate`
 - `fulfillmentConstraintRuleDelete`
 - `fulfillmentConstraintRuleUpdate`
@@ -147,10 +158,17 @@ update-only input, missing-profile update/remove, default-profile remove, and
 successful nested create/update/remove branches used by the checked-in parity
 specs.
 
-Local pickup and shipping package slices stage settings on known local
-locations or package records. Pickup changes are visible through the captured
-`Location`, `locationsAvailableForDeliveryProfilesConnection`, and
-`availableCarrierServices.locations` surfaces. Shipping packages have no direct
+Local pickup mutations stage settings on active local locations and retain the
+original raw GraphQL request for commit replay. `locationLocalPickupEnable`
+accepts captured standard pickup times, rejects non-standard values with
+`CUSTOM_PICKUP_TIME_NOT_ALLOWED`, and rejects unknown or inactive locations with
+`ACTIVE_LOCATION_NOT_FOUND`. `locationLocalPickupDisable` clears the staged
+settings. Pickup changes are visible through `Location.localPickupSettingsV2`
+and `locationsAvailableForDeliveryProfilesConnection` in snapshot mode and
+after LiveHybrid reads hydrate the existing shipping locations.
+
+Shipping package slices stage changes on known package records and retain the
+original raw GraphQL request for commit replay. Shipping packages have no direct
 Admin GraphQL package read root in the captured schema, so successful staging is
 verified through local state/log behavior and targeted validation.
 
@@ -161,9 +179,8 @@ caller-visible order and return effects should be read with
 
 ### Boundaries
 
-- Most shipping/fulfillments roots remain `implemented: false` in the current
-  operation registry. Scenario-backed Rust helpers should not be described as
-  broad root support.
+- Implemented local slices should not be described as broad
+  shipping/fulfillments root support beyond their covered request families.
 - Delivery-profile support is bounded to custom-profile local staging and the
   selected read-after-write effects above. It is not full Shopify delivery
   settings emulation, carrier callback execution, checkout rate calculation, or
