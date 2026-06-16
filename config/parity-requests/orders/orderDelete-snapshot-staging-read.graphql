@@ -1,0 +1,20 @@
+query OrderDeleteSnapshotStagingRead($id: ID!, $query: String!) {
+  order(id: $id) {
+    id
+    email
+    displayFinancialStatus
+    displayFulfillmentStatus
+  }
+  orders(first: 5, query: $query) {
+    nodes {
+      id
+      email
+      displayFinancialStatus
+      displayFulfillmentStatus
+    }
+  }
+  ordersCount(query: $query) {
+    count
+    precision
+  }
+}

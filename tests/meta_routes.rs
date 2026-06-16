@@ -836,6 +836,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
             "customerOrders": {},
             "taggableResources": {},
             "orders": {},
+            "deletedOrderIds": [],
             "returns": {},
             "returnsByOrder": {},
             "reverseDeliveries": {},

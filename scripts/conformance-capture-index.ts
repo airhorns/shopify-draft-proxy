@@ -1935,6 +1935,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-delete-type-guard-no-metafields',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-delete-type-guard-no-metafields-conformance.mts',
+    purpose:
+      'metafieldDefinitionDelete id/reference type guards for product-owned definitions with no associated metafields.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-delete-type-guard-no-metafields.json`,
+      'config/parity-specs/metafields/metafield-definition-delete-type-guard-no-metafields.json',
+      'config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-create.graphql',
+      'config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-delete-no-flag.graphql',
+      'config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-delete-with-flag.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable product-owned id and reference definitions without setting metafields, captures guarded deletes, then deletes any remaining definitions with deleteAllAssociatedMetafields.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-update-constraints',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metafield-definition-update-constraints.mts',
@@ -5355,6 +5374,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-delete-snapshot-staging',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-delete-snapshot-staging-conformance.ts',
+    purpose:
+      'orderDelete success, read-after-delete cascade, repeat-delete NOT_FOUND, paid fulfilled-order delete success, and unknown-order NOT_FOUND behavior.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-delete-snapshot-staging.json`,
+      'config/parity-specs/orders/orderDelete-snapshot-staging.json',
+      'config/parity-requests/orders/orderDelete-snapshot-staging-create.graphql',
+      'config/parity-requests/orders/orderDelete-snapshot-staging-delete.graphql',
+      'config/parity-requests/orders/orderDelete-snapshot-staging-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable deletable and fulfilled orders; successful delete removes the deletable order and cleanup cancels/deletes any remaining fulfilled order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-management-mutations',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-management-conformance.ts',
@@ -5374,6 +5412,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}order-management-cleanup.json`,
       'config/parity-specs/orders/orderCancel-parity.json',
       'config/parity-specs/orders/orderCancel-restock-refundMethod-parity.json',
+      'config/parity-specs/orders/orderCancel-snapshot-staging.json',
       'config/parity-specs/orders/orderClose-parity.json',
       'config/parity-specs/orders/orderCreateManualPayment-access-denied-parity.json',
       'config/parity-specs/orders/orderCustomerRemove-parity.json',
@@ -5842,6 +5881,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-redeem-code-bulk-add-validation.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-redeem-code-bulk-delete-validation.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-redeem-code-bulk.json',
+      'config/parity-specs/discounts/discount-redeem-code-bulk-delete-validation.json',
+      'config/parity-requests/discounts/discount-redeem-code-bulk-delete-setup.graphql',
+      'config/parity-requests/discounts/discount-redeem-code-bulk-delete-validation.graphql',
+      'config/parity-requests/discounts/discount-redeem-code-bulk-delete-happy.graphql',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-status-time-window-derivation.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-timestamps-monotonic.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-update-edge-cases.json',
@@ -6125,6 +6168,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}discount-redeem-code-bulk.json`,
       'config/parity-specs/discounts/discount-redeem-code-bulk.json',
+      'config/parity-requests/discounts/discount-redeem-code-bulk-delete-setup.graphql',
+      'config/parity-requests/discounts/discount-redeem-code-bulk-live-add.graphql',
+      'config/parity-requests/discounts/discount-redeem-code-bulk-live-delete.graphql',
+      'config/parity-requests/discounts/discount-redeem-code-bulk-live-read.graphql',
     ],
     cleanupBehavior: 'Creates a disposable code discount and deletes it after redeem-code bulk probes.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,

@@ -1,0 +1,21 @@
+mutation OrderDeleteSnapshotStagingCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {
+  orderCreate(order: $order, options: $options) {
+    order {
+      id
+      email
+      displayFinancialStatus
+      displayFulfillmentStatus
+      fulfillmentOrders(first: 5) {
+        nodes {
+          id
+          status
+          requestStatus
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -623,6 +623,154 @@ fn order_cancel_state_transitions_replay_validation_guards() {
 }
 
 #[test]
+fn order_cancel_staged_order_create_chain_updates_downstream_state() {
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let upstream_calls_for_transport = Arc::clone(&upstream_calls);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |_request| {
+        *upstream_calls_for_transport.lock().unwrap() += 1;
+        Response {
+            status: 599,
+            headers: Default::default(),
+            body: json!({ "errors": [{ "message": "unexpected upstream call" }] }),
+        }
+    });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateOrderForCancel($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order { id email }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": "normal-cancel@example.com",
+                "currency": "USD",
+                "lineItems": [{
+                    "title": "Normal cancel item",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "5.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+    assert_eq!(order_id, json!("gid://shopify/Order/1"));
+
+    let cancel_query = r#"
+        mutation CancelStagedOrder(
+          $orderId: ID!
+          $reason: OrderCancelReason!
+          $refund: Boolean!
+          $restock: Boolean!
+          $notifyCustomer: Boolean!
+        ) {
+          orderCancel(
+            orderId: $orderId
+            reason: $reason
+            refund: $refund
+            restock: $restock
+            notifyCustomer: $notifyCustomer
+          ) {
+            job { id done }
+            order { id closed closedAt cancelledAt cancelReason }
+            userErrors { field message code }
+            orderCancelUserErrors { field message code }
+          }
+        }
+        "#;
+    let cancel = proxy.process_request(json_graphql_request(
+        cancel_query,
+        json!({
+            "orderId": order_id.clone(),
+            "reason": "CUSTOMER",
+            "refund": false,
+            "restock": false,
+            "notifyCustomer": false
+        }),
+    ));
+    assert_eq!(cancel.status, 200);
+    let cancel_payload = &cancel.body["data"]["orderCancel"];
+    assert_eq!(cancel_payload["userErrors"], json!([]));
+    assert_eq!(cancel_payload["orderCancelUserErrors"], json!([]));
+    assert_eq!(cancel_payload["job"]["done"], json!(false));
+    assert_eq!(cancel_payload["order"]["id"], order_id);
+    assert_eq!(cancel_payload["order"]["closed"], json!(true));
+    assert_eq!(cancel_payload["order"]["cancelReason"], json!("CUSTOMER"));
+    let cancelled_at = cancel_payload["order"]["cancelledAt"]
+        .as_str()
+        .expect("cancelledAt should be selected");
+    let closed_at = cancel_payload["order"]["closedAt"]
+        .as_str()
+        .expect("closedAt should be selected");
+    assert!(cancelled_at.starts_with("2024-01-01T00:00:"));
+    assert_eq!(closed_at, cancelled_at);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadCancelledOrder($id: ID!) {
+          order(id: $id) {
+            id
+            email
+            closed
+            closedAt
+            cancelledAt
+            cancelReason
+          }
+        }
+        "#,
+        json!({ "id": order_id.clone() }),
+    ));
+    assert_eq!(
+        read.body["data"]["order"],
+        json!({
+            "id": order_id,
+            "email": "normal-cancel@example.com",
+            "closed": true,
+            "closedAt": closed_at,
+            "cancelledAt": cancelled_at,
+            "cancelReason": "CUSTOMER"
+        })
+    );
+
+    let already_cancelled = proxy.process_request(json_graphql_request(
+        cancel_query,
+        json!({
+            "orderId": read.body["data"]["order"]["id"].clone(),
+            "reason": "CUSTOMER",
+            "refund": false,
+            "restock": false,
+            "notifyCustomer": false
+        }),
+    ));
+    assert_eq!(
+        already_cancelled.body["data"]["orderCancel"]["userErrors"],
+        json!([{ "field": ["orderId"], "message": "Order has already been cancelled", "code": "INVALID" }])
+    );
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"][0]["operationName"], json!("orderCreate"));
+    assert_eq!(log["entries"][1]["operationName"], json!("orderCancel"));
+    assert_eq!(
+        log["entries"][1]["stagedResourceIds"],
+        json!(["gid://shopify/Order/1"])
+    );
+    assert!(log["entries"][1]["rawBody"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("CancelStagedOrder"));
+    assert_eq!(*upstream_calls.lock().unwrap(), 0);
+}
+
+#[test]
 fn order_customer_set_and_remove_error_paths_replay_captured_shapes() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-04/orders/orderCustomerSet-and-Remove-error-paths.json"
@@ -3286,6 +3434,180 @@ fn remaining_order_fixture_backed_edges_replay_without_passthrough_logs() {
     assert_eq!(
         unknown_staff.body["data"]["orderUpdate"]["userErrors"],
         update_fixture["localRuntimeStaffUnknown"]["expected"]["data"]["orderUpdate"]["userErrors"]
+    );
+}
+
+#[test]
+fn order_delete_stages_local_tombstone_cascade_and_not_found_errors() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation CreateDeletableOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              email
+              displayFinancialStatus
+              displayFulfillmentStatus
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let delete_query = r#"
+        mutation DeleteOrder($orderId: ID!) {
+          orderDelete(orderId: $orderId) {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let read_query = r#"
+        query ReadDeletedOrder($id: ID!) {
+          order(id: $id) { id email }
+          orders(first: 5) { nodes { id email } }
+          ordersCount { count precision }
+        }
+    "#;
+
+    let create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "order": {
+                "email": "order-delete-success@example.com",
+                "currency": "USD",
+                "financialStatus": "PENDING",
+                "lineItems": [{
+                    "title": "Order delete success",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let delete = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "orderId": order_id.clone() }),
+    ));
+    assert_eq!(
+        delete.body["data"]["orderDelete"],
+        json!({ "deletedId": order_id, "userErrors": [] })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": delete.body["data"]["orderDelete"]["deletedId"].clone() }),
+    ));
+    assert_eq!(read.body["data"]["order"], Value::Null);
+    assert_eq!(read.body["data"]["orders"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["ordersCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[0]["operationName"], json!("orderCreate"));
+    assert_eq!(entries[1]["operationName"], json!("orderDelete"));
+    assert_eq!(entries[1]["status"], json!("staged"));
+    assert!(entries[1]["rawBody"]
+        .as_str()
+        .is_some_and(|body| body.contains("DeleteOrder")));
+
+    let repeat = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "orderId": delete.body["data"]["orderDelete"]["deletedId"].clone() }),
+    ));
+    assert_eq!(
+        repeat.body["data"]["orderDelete"]["userErrors"],
+        json!([{ "field": ["orderId"], "message": "Order does not exist", "code": "NOT_FOUND" }])
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+
+    let paid = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "order": {
+                "email": "order-delete-paid@example.com",
+                "currency": "USD",
+                "financialStatus": "PAID",
+                "lineItems": [{
+                    "title": "Order delete paid",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    let paid_id = paid.body["data"]["orderCreate"]["order"]["id"].clone();
+    let paid_delete = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "orderId": paid_id.clone() }),
+    ));
+    assert_eq!(
+        paid_delete.body["data"]["orderDelete"],
+        json!({ "deletedId": paid_id, "userErrors": [] })
+    );
+    let paid_read = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": paid_delete.body["data"]["orderDelete"]["deletedId"].clone() }),
+    ));
+    assert_eq!(paid_read.body["data"]["order"], Value::Null);
+
+    let fulfilled = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "order": {
+                "email": "order-delete-fulfilled@example.com",
+                "currency": "USD",
+                "financialStatus": "PENDING",
+                "fulfillmentStatus": "FULFILLED",
+                "lineItems": [{
+                    "title": "Order delete fulfilled",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "14.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    let fulfilled_id = fulfilled.body["data"]["orderCreate"]["order"]["id"].clone();
+    let fulfilled_delete = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "orderId": fulfilled_id.clone() }),
+    ));
+    assert_eq!(
+        fulfilled_delete.body["data"]["orderDelete"],
+        json!({ "deletedId": fulfilled_id, "userErrors": [] })
+    );
+    let fulfilled_read = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": fulfilled_delete.body["data"]["orderDelete"]["deletedId"].clone() }),
+    ));
+    assert_eq!(fulfilled_read.body["data"]["order"], Value::Null);
+
+    let unknown = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "orderId": "gid://shopify/Order/order-delete-missing" }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["orderDelete"],
+        json!({
+            "deletedId": Value::Null,
+            "userErrors": [{
+                "field": ["orderId"],
+                "message": "Order does not exist",
+                "code": "NOT_FOUND"
+            }]
+        })
     );
 }
 

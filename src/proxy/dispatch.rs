@@ -166,7 +166,7 @@ impl DraftProxy {
                     self.store.staged.b2b_companies.contains_key(&company_id)
                 }))
         {
-            if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
+            if let Some(data) = self.order_customer_error_paths_data(request, &query, &variables) {
                 return ok_json(data);
             }
         }
@@ -1768,36 +1768,6 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && query.contains("DiscountRedeemCodeBulkLiveDelete")
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| field == "discountCodeRedeemCodeBulkDelete")
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                self.store.staged.redeem_code_bulk_live_deleted_seed = true;
-                return ok_json(json!({
-                    "data": discount_redeem_code_bulk_live_delete_data(&fields)
-                }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && (query.contains("DiscountRedeemCodeBulkDeleteValidation")
-                || query.contains("DiscountRedeemCodeBulkDeleteHappy"))
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| field == "discountCodeRedeemCodeBulkDelete")
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({
-                    "data": discount_redeem_code_bulk_delete_validation_data(&fields)
-                }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
             && query.contains("DiscountRedeemCodeBulkValidation")
             && operation.root_fields.iter().all(|field| {
                 matches!(
@@ -2164,7 +2134,7 @@ impl DraftProxy {
             root_field,
             "orderCancel" | "orderCustomerSet" | "orderCustomerRemove"
         ) {
-            if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
+            if let Some(data) = self.order_customer_error_paths_data(request, &query, &variables) {
                 return ok_json(data);
             }
         }
