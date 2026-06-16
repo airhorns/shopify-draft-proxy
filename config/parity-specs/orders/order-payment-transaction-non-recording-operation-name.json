@@ -19,7 +19,103 @@
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
+    "expectedDifferences": [
+      {
+        "path": "$.data.orderCapture.transaction.id",
+        "matcher": "shopify-gid:OrderTransaction",
+        "reason": "Capture transaction IDs are allocated from per-proxy staged state instead of legacy fixture-fitted literals."
+      },
+      {
+        "path": "$.data.orderCapture.transaction.paymentId",
+        "matcher": "shopify-gid:Payment",
+        "reason": "Capture payment IDs derive from the synthetic capture transaction ID."
+      },
+      {
+        "path": "$.data.orderCapture.transaction.paymentReferenceId",
+        "matcher": "shopify-gid:PaymentReference",
+        "reason": "Capture payment reference IDs derive from the synthetic capture transaction ID."
+      },
+      {
+        "path": "$.data.orderCapture.order.transactions[1].id",
+        "matcher": "shopify-gid:OrderTransaction",
+        "reason": "Capture transaction IDs are allocated from per-proxy staged state instead of the legacy fixture-fitted /7 literal."
+      },
+      {
+        "path": "$.data.orderCapture.order.transactions[1].paymentId",
+        "matcher": "shopify-gid:Payment",
+        "reason": "Capture payment IDs derive from the synthetic capture transaction ID."
+      },
+      {
+        "path": "$.data.orderCapture.order.transactions[1].paymentReferenceId",
+        "matcher": "shopify-gid:PaymentReference",
+        "reason": "Capture payment reference IDs derive from the synthetic capture transaction ID."
+      },
+      {
+        "path": "$.data.orderCapture.order.transactions[2].id",
+        "matcher": "shopify-gid:OrderTransaction",
+        "reason": "Final capture transaction IDs are allocated from per-proxy staged state instead of the legacy fixture-fitted /11 literal."
+      },
+      {
+        "path": "$.data.orderCapture.order.transactions[2].paymentId",
+        "matcher": "shopify-gid:Payment",
+        "reason": "Final capture payment IDs derive from the synthetic capture transaction ID."
+      },
+      {
+        "path": "$.data.orderCapture.order.transactions[2].paymentReferenceId",
+        "matcher": "shopify-gid:PaymentReference",
+        "reason": "Final capture payment reference IDs derive from the synthetic capture transaction ID."
+      },
+      {
+        "path": "$.data.order.transactions[1].id",
+        "matcher": "shopify-gid:OrderTransaction",
+        "reason": "Downstream reads expose the generated capture transaction ID from staged order state."
+      },
+      {
+        "path": "$.data.order.transactions[1].paymentId",
+        "matcher": "shopify-gid:Payment",
+        "reason": "Downstream reads expose the generated capture payment ID from staged order state."
+      },
+      {
+        "path": "$.data.order.transactions[1].paymentReferenceId",
+        "matcher": "shopify-gid:PaymentReference",
+        "reason": "Downstream reads expose the generated capture payment reference ID from staged order state."
+      },
+      {
+        "path": "$.data.order.transactions[2].id",
+        "matcher": "shopify-gid:OrderTransaction",
+        "reason": "Downstream reads expose the generated final-capture transaction ID from staged order state."
+      },
+      {
+        "path": "$.data.order.transactions[2].paymentId",
+        "matcher": "shopify-gid:Payment",
+        "reason": "Downstream reads expose the generated final-capture payment ID from staged order state."
+      },
+      {
+        "path": "$.data.order.transactions[2].paymentReferenceId",
+        "matcher": "shopify-gid:PaymentReference",
+        "reason": "Downstream reads expose the generated final-capture payment reference ID from staged order state."
+      },
+      {
+        "path": "$.data.orderCreateMandatePayment.order.transactions[1].id",
+        "matcher": "shopify-gid:OrderTransaction",
+        "reason": "Mandate validation returns the staged order with generated capture transaction IDs."
+      },
+      {
+        "path": "$.data.orderCreateMandatePayment.order.transactions[1].paymentReferenceId",
+        "matcher": "shopify-gid:PaymentReference",
+        "reason": "Mandate validation returns the staged order with generated capture payment reference IDs."
+      },
+      {
+        "path": "$.data.orderCreateMandatePayment.order.transactions[2].id",
+        "matcher": "shopify-gid:OrderTransaction",
+        "reason": "Mandate validation returns the staged order with generated final-capture transaction IDs."
+      },
+      {
+        "path": "$.data.orderCreateMandatePayment.order.transactions[2].paymentReferenceId",
+        "matcher": "shopify-gid:PaymentReference",
+        "reason": "Mandate validation returns the staged order with generated final-capture payment reference IDs."
+      }
+    ],
     "targets": [
       {
         "name": "authorization-order-create-with-ordinary-name",

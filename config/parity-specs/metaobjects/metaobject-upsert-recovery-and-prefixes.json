@@ -1,6 +1,6 @@
 {
   "scenarioId": "metaobject-upsert-recovery-and-prefixes",
-  "operationNames": ["metaobjectUpsert", "metaobject", "metaobjectByHandle"],
+  "operationNames": ["metaobjectDefinitionCreate", "metaobjectUpsert", "metaobject", "metaobjectByHandle"],
   "scenarioStatus": "captured",
   "assertionKinds": ["mutation-payload-parity", "user-errors-parity", "upstream-hydration"],
   "liveCaptureFiles": [
@@ -8,25 +8,103 @@
   ],
   "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/metaobjects/metaobject-upsert-recovery-and-prefixes.graphql",
-    "variablesCapturePath": "$.cases.exactMatch.request.variables",
+    "documentCapturePath": "$.definitionCreate.request.query",
+    "variablesCapturePath": "$.definitionCreate.request.variables",
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-678 metaobjectUpsert parity. The raw public 2026-04 capture is retained under cases.*; the current conformance app still exposes the old non-key-value public schema for partitioned error fields, so proxyExpected normalizes only the userError field prefixes to the internal resolver behavior cited by the ticket while strict live payloads remain captured. Target order starts with cold exact/conflict branches so the proxy hydrates existing rows through MetaobjectHydrateByHandle; the genuine create branch runs last against a cassette miss for its handle and allows only synthetic id/updatedAt differences.",
+  "notes": "HAR-678 metaobjectUpsert parity. The raw public 2026-04 capture is retained under cases.*; the current conformance app still exposes the old non-key-value public schema for partitioned error fields, so proxyExpected normalizes only the userError field prefixes to the internal resolver behavior cited by the ticket while strict live payloads remain captured. Target order replays the captured public definition/upsert setup mutations before exact/conflict/missing/create assertions, avoiding synthesized hydration cassettes. The genuine create branch runs last and allows only synthetic id/updatedAt differences.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
+        "name": "definition-create",
+        "capturePath": "$.definitionCreate.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The proxy stages a synthetic definition ID while Shopify returns the captured live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "primary-create",
+        "capturePath": "$.cases.primaryCreate.response.data.metaobjectUpsert",
+        "proxyPath": "$.data.metaobjectUpsert",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-upsert-recovery-and-prefixes.graphql",
+          "variablesCapturePath": "$.cases.primaryCreate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy stages a synthetic metaobject ID while Shopify returns the captured live-store ID."
+          },
+          {
+            "path": "$.metaobject.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy timestamps staged rows with its synthetic clock."
+          }
+        ]
+      },
+      {
         "name": "exact-match-metaobject",
         "capturePath": "$.cases.exactMatch.response.data.metaobjectUpsert.metaobject",
-        "proxyPath": "$.data.metaobjectUpsert.metaobject"
+        "proxyPath": "$.data.metaobjectUpsert.metaobject",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-upsert-recovery-and-prefixes.graphql",
+          "variablesCapturePath": "$.cases.exactMatch.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy reads back the synthetic staged primary row ID while Shopify returns the captured live-store ID."
+          },
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy keeps the staged row timestamp from local setup while Shopify returned the captured write timestamp."
+          }
+        ]
       },
       {
         "name": "exact-match-user-errors",
         "capturePath": "$.cases.exactMatch.response.data.metaobjectUpsert.userErrors",
-        "proxyPath": "$.data.metaobjectUpsert.userErrors"
+        "proxyPath": "$.data.metaobjectUpsert.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-upsert-recovery-and-prefixes.graphql",
+          "variablesCapturePath": "$.cases.exactMatch.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "conflict-owner-create",
+        "capturePath": "$.cases.conflictOwnerCreate.response.data.metaobjectUpsert",
+        "proxyPath": "$.data.metaobjectUpsert",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-upsert-recovery-and-prefixes.graphql",
+          "variablesCapturePath": "$.cases.conflictOwnerCreate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy stages a synthetic conflict-owner row ID while Shopify returns the captured live-store ID."
+          },
+          {
+            "path": "$.metaobject.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy timestamps staged rows with its synthetic clock."
+          }
+        ]
       },
       {
         "name": "conflicting-handle-user-errors",

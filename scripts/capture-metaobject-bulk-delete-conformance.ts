@@ -163,6 +163,10 @@ function readObject(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
+function readArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
 function readPath(value: unknown, pathParts: string[]): unknown {
   let current = value;
   for (const part of pathParts) {
@@ -179,6 +183,34 @@ function readPath(value: unknown, pathParts: string[]): unknown {
 function readUserErrors(payload: unknown, pathParts: string[]): unknown[] {
   const value = readPath(payload, pathParts);
   return Array.isArray(value) ? value : [];
+}
+
+function downstreamDeleteComplete(capture: Capture): boolean {
+  return (
+    readPath(capture.response, ['data', 'first']) === null &&
+    readPath(capture.response, ['data', 'second']) === null &&
+    readArray(readPath(capture.response, ['data', 'catalog', 'nodes'])).length === 0 &&
+    readArray(readPath(capture.response, ['data', 'catalog', 'edges'])).length === 0
+  );
+}
+
+async function waitForDownstreamDelete(query: string, variables: Record<string, unknown>): Promise<Capture> {
+  for (let attempt = 0; attempt < 45; attempt += 1) {
+    const capture = await captureGraphql('downstream-after-bulk-delete-read', query, variables);
+    if (downstreamDeleteComplete(capture)) {
+      return capture;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+  throw new Error(
+    `Timed out waiting for type-scoped metaobjectBulkDelete read effect: ${JSON.stringify(
+      await captureGraphql('downstream-after-bulk-delete-timeout-read', query, variables).then(
+        (capture) => capture.response,
+      ),
+      null,
+      2,
+    )}`,
+  );
 }
 
 function assertGraphqlOk(result: ConformanceGraphqlResult, label: string): void {
@@ -386,7 +418,7 @@ try {
       'userErrors',
     ]),
   );
-  downstreamReads.push(await captureGraphql('downstream-after-bulk-delete-read', bulkReadQuery, readVariables));
+  downstreamReads.push(await waitForDownstreamDelete(bulkReadQuery, readVariables));
 } catch (error) {
   fatalError = error;
   await writeBlocker('capture', error, [...setupCaptures, ...seededReads, ...bulkDeleteCaptures, ...downstreamReads]);

@@ -68,6 +68,7 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
   - `fixtures/conformance/**`
 - For parity comparisons, prefer comparing the whole selected resource payload and carving out explicit volatile paths such as IDs, timestamps, cursors, and throttle metadata.
 - Treat `expectedDifferences` as a last resort after the proxy's operation handlers have been adjusted to compute the right response.
+- Do not change `scripts/parity-run.ts` or other parity/conformance comparison harness code to soften expectations, broaden cassette matching, ignore mismatches, or allow synthesized/canned evidence to pass. If recordings are wrong, re-record them from Shopify; if the proxy does not match recordings, fix the implementation or the captured fixture source.
 - Before handing off a fidelity PR, ensure there is executable evidence for behavior claims. Integration/unit tests prove local code paths; parity/conformance evidence proves Shopify fidelity.
 - When changing Shopify-fidelity behavior, map every changed validation branch, payload shape, or read-after-write effect to an explicit captured parity comparison target in the same PR. An existing scenario file only counts when the exact target already asserts that branch and the workpad records the target name; adjacent coverage or an unchanged broad scenario is not enough.
 - Build/recording scripts must be TypeScript (`.ts` / `.mts`) executed with `tsx` or similar. Do not add `.mjs` files anywhere in this repository.
