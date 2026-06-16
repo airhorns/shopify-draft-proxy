@@ -1144,6 +1144,35 @@ impl Store {
         )
     }
 
+    /// Resolve a variant id to its `(variant_json, product)` by scanning the
+    /// embedded variant nodes of effective products. The fixed-price preflight
+    /// stages products with their variants under `ProductRecord.variants` (raw
+    /// JSON observed from upstream), not as separate `ProductVariantRecord`s, so
+    /// this is the lookup path used by the price-list fixed-price handlers.
+    fn fixed_price_variant_lookup(&self, variant_id: &str) -> Option<(Value, ProductRecord)> {
+        if variant_id.is_empty() {
+            return None;
+        }
+        for product in self.products() {
+            if let Some(variant) = product
+                .variants
+                .iter()
+                .find(|variant| variant.get("id").and_then(Value::as_str) == Some(variant_id))
+            {
+                return Some((variant.clone(), product.clone()));
+            }
+        }
+        None
+    }
+
+    /// The embedded variant nodes for a product id, used to expand by-product
+    /// fixed-price mutations into per-variant rows.
+    fn fixed_price_variants_for_product(&self, product_id: &str) -> Vec<Value> {
+        self.product_by_id(product_id)
+            .map(|product| product.variants.clone())
+            .unwrap_or_default()
+    }
+
     fn product_variant_by_inventory_item_id(
         &self,
         inventory_item_id: &str,
