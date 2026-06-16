@@ -588,7 +588,7 @@ impl DraftProxy {
                 )]
             });
         };
-        if !delete_all && metafield_definition_has_associated_metafield(self, &definition) {
+        if !delete_all {
             let type_name = definition["type"]["name"].as_str().unwrap_or_default();
             if type_name == "id" {
                 return json!({
@@ -1944,21 +1944,6 @@ fn metafield_definition_has_constraints(definition: &Value) -> bool {
         || definition["constraints"]["values"]["nodes"]
             .as_array()
             .is_some_and(|nodes| !nodes.is_empty())
-}
-
-fn metafield_definition_has_associated_metafield(proxy: &DraftProxy, definition: &Value) -> bool {
-    let namespace = definition["namespace"].as_str().unwrap_or_default();
-    let key = definition["key"].as_str().unwrap_or_default();
-    proxy
-        .store
-        .staged
-        .owner_metafields
-        .values()
-        .flatten()
-        .any(|metafield| {
-            metafield.get("namespace").and_then(Value::as_str) == Some(namespace)
-                && metafield.get("key").and_then(Value::as_str) == Some(key)
-        })
 }
 
 fn remove_associated_metafields(
