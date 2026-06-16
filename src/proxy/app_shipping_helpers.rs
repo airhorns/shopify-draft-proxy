@@ -1466,37 +1466,6 @@ pub(in crate::proxy) fn known_deadline_fulfillment_order_status(id: &str) -> Opt
     }
 }
 
-pub(in crate::proxy) fn fulfillment_order_request_lifecycle_record(id: &str) -> Value {
-    if id == "gid://shopify/FulfillmentOrder/9656703910194" {
-        json!({
-            "id": id,
-            "status": "OPEN",
-            "requestStatus": "SUBMITTED",
-            "merchantRequests": {
-                "nodes": [{
-                    "kind": "FULFILLMENT_REQUEST",
-                    "message": "Hermes partial submit",
-                    "requestOptions": { "notify_customer": false },
-                    "responseData": null
-                }]
-            },
-            "lineItems": {
-                "nodes": [{
-                    "id": "gid://shopify/FulfillmentOrderLineItem/19457456636210",
-                    "totalQuantity": 1,
-                    "remainingQuantity": 1,
-                    "lineItem": {
-                        "id": "gid://shopify/LineItem/19308253118770",
-                        "title": "Hermes fulfillment-order request partial 20260506222236"
-                    }
-                }]
-            }
-        })
-    } else {
-        Value::Null
-    }
-}
-
 pub(in crate::proxy) fn collection_publication_record(id: String, published: bool) -> Value {
     let count = if published { 1 } else { 0 };
     json!({
@@ -1686,16 +1655,6 @@ pub(in crate::proxy) fn is_shipping_fulfillment_order_local_order_request(
             id.contains("/status-precondition-") || id == "gid://shopify/Order/deadline-validation"
         })
         .unwrap_or(false)
-}
-
-pub(in crate::proxy) fn is_fulfillment_order_request_lifecycle_direct_read(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    query.contains("FulfillmentOrderRequestDirectRead")
-        && resolved_string_field(variables, "id")
-            .map(|id| id == "gid://shopify/FulfillmentOrder/9656703910194")
-            .unwrap_or(false)
 }
 
 pub(in crate::proxy) fn product_publication_aggregate_downstream_read(

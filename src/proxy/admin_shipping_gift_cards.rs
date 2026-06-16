@@ -4709,24 +4709,6 @@ impl DraftProxy {
         })
     }
 
-    pub(in crate::proxy) fn fulfillment_order_request_lifecycle_direct_read(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| "fulfillmentOrder".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-        let fulfillment_order = fulfillment_order_request_lifecycle_record(&id);
-        ok_json(json!({
-            "data": {
-                response_key: selected_json(&fulfillment_order, &payload_selection)
-            }
-        }))
-    }
-
     pub(in crate::proxy) fn product_publishable_mutation(
         &mut self,
         root_field: &str,

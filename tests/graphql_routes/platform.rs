@@ -105,6 +105,663 @@ fn fulfillment_order_order_fixture(
     })
 }
 
+fn create_fulfillment_order_test_order(proxy: &mut DraftProxy, quantity: i64) -> (Value, Value) {
+    let create_order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateFulfillmentOrderTestOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              fulfillmentOrders(first: 5) {
+                nodes {
+                  id
+                  status
+                  requestStatus
+                  lineItems(first: 5) {
+                    nodes {
+                      id
+                      totalQuantity
+                      remainingQuantity
+                      lineItem { id title quantity fulfillableQuantity }
+                    }
+                  }
+                }
+              }
+            }
+            userErrors { field code message }
+          }
+        }
+        "#,
+        json!({
+            "order": {
+                "email": format!("fulfillment-order-{quantity}@example.test"),
+                "lineItems": [{
+                    "title": "Fulfillment order local staging",
+                    "quantity": quantity,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(
+        create_order.body["data"]["orderCreate"]["userErrors"],
+        json!([])
+    );
+    let order = create_order.body["data"]["orderCreate"]["order"].clone();
+    let fulfillment_order = order["fulfillmentOrders"]["nodes"][0].clone();
+    (order, fulfillment_order)
+}
+
+#[test]
+fn fulfillment_order_request_and_cancellation_transitions_stage_and_read_back() {
+    let mut proxy = snapshot_proxy();
+    let (order, fulfillment_order) = create_fulfillment_order_test_order(&mut proxy, 2);
+    let order_id = order["id"].clone();
+    let fulfillment_order_id = fulfillment_order["id"].clone();
+    let fulfillment_order_line_item_id = fulfillment_order["lineItems"]["nodes"][0]["id"].clone();
+
+    let submit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SubmitFulfillmentOrderRequest(
+          $id: ID!
+          $lineItems: [FulfillmentOrderLineItemInput!]
+        ) {
+          fulfillmentOrderSubmitFulfillmentRequest(
+            id: $id
+            fulfillmentOrderLineItems: $lineItems
+            message: "please ship"
+            notifyCustomer: false
+          ) {
+            originalFulfillmentOrder {
+              id
+              status
+              requestStatus
+              merchantRequests(first: 10) { nodes { kind message requestOptions responseData } }
+              lineItems(first: 5) { nodes { id totalQuantity remainingQuantity } }
+            }
+            submittedFulfillmentOrder { id status requestStatus }
+            unsubmittedFulfillmentOrder {
+              status
+              requestStatus
+              lineItems(first: 5) { nodes { totalQuantity remainingQuantity } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": fulfillment_order_id,
+            "lineItems": [{ "id": fulfillment_order_line_item_id, "quantity": 1 }]
+        }),
+    ));
+    assert_eq!(submit.status, 200);
+    let submit_payload = &submit.body["data"]["fulfillmentOrderSubmitFulfillmentRequest"];
+    assert_eq!(submit_payload["userErrors"], json!([]));
+    assert_eq!(
+        submit_payload["submittedFulfillmentOrder"]["requestStatus"],
+        json!("SUBMITTED")
+    );
+    assert_eq!(
+        submit_payload["unsubmittedFulfillmentOrder"]["requestStatus"],
+        json!("UNSUBMITTED")
+    );
+    assert_eq!(
+        submit_payload["originalFulfillmentOrder"]["merchantRequests"]["nodes"][0],
+        json!({
+            "kind": "FULFILLMENT_REQUEST",
+            "message": "please ship",
+            "requestOptions": { "notify_customer": false },
+            "responseData": null
+        })
+    );
+
+    let direct_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadFulfillmentOrder($id: ID!) {
+          fulfillmentOrder(id: $id) {
+            id
+            status
+            requestStatus
+            merchantRequests(first: 10) { nodes { kind message requestOptions responseData } }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_order_id }),
+    ));
+    assert_eq!(
+        direct_read.body["data"]["fulfillmentOrder"]["requestStatus"],
+        json!("SUBMITTED")
+    );
+
+    let accept = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AcceptFulfillmentOrderRequest($id: ID!) {
+          fulfillmentOrderAcceptFulfillmentRequest(
+            id: $id
+            message: "accepted"
+            estimatedShippedAt: "2026-04-27T00:00:00Z"
+          ) {
+            fulfillmentOrder { id status requestStatus estimatedShippedAt }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_order_id }),
+    ));
+    assert_eq!(
+        accept.body["data"]["fulfillmentOrderAcceptFulfillmentRequest"]["fulfillmentOrder"]
+            ["requestStatus"],
+        json!("ACCEPTED")
+    );
+    assert_eq!(
+        accept.body["data"]["fulfillmentOrderAcceptFulfillmentRequest"]["fulfillmentOrder"]
+            ["status"],
+        json!("IN_PROGRESS")
+    );
+
+    let submit_cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SubmitFulfillmentOrderCancellationRequest($id: ID!) {
+          fulfillmentOrderSubmitCancellationRequest(id: $id, message: "cancel please") {
+            fulfillmentOrder {
+              id
+              status
+              requestStatus
+              merchantRequests(first: 10) { nodes { kind message requestOptions responseData } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_order_id }),
+    ));
+    let submit_cancel_payload =
+        &submit_cancel.body["data"]["fulfillmentOrderSubmitCancellationRequest"];
+    assert_eq!(submit_cancel_payload["userErrors"], json!([]));
+    assert_eq!(
+        submit_cancel_payload["fulfillmentOrder"]["merchantRequests"]["nodes"][1]["kind"],
+        json!("CANCELLATION_REQUEST")
+    );
+
+    let reject_cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RejectFulfillmentOrderCancellationRequest($id: ID!) {
+          fulfillmentOrderRejectCancellationRequest(id: $id, message: "keep shipping") {
+            fulfillmentOrder { id status requestStatus }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_order_id }),
+    ));
+    assert_eq!(
+        reject_cancel.body["data"]["fulfillmentOrderRejectCancellationRequest"]["fulfillmentOrder"]
+            ["requestStatus"],
+        json!("CANCELLATION_REJECTED")
+    );
+
+    let list_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadNestedFulfillmentOrders($orderId: ID!) {
+          order(id: $orderId) {
+            id
+            fulfillmentOrders(first: 5) { nodes { id status requestStatus } }
+          }
+        }
+        "#,
+        json!({ "orderId": order_id }),
+    ));
+    assert_eq!(
+        list_read.body["data"]["order"]["fulfillmentOrders"]["nodes"][0]["requestStatus"],
+        json!("CANCELLATION_REJECTED")
+    );
+
+    let root_list_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadFulfillmentOrderRootLists {
+          fulfillmentOrders(first: 5) { nodes { id status requestStatus } }
+          assignedFulfillmentOrders(first: 5) { nodes { id status requestStatus } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        root_list_read.body["data"]["fulfillmentOrders"]["nodes"][0]["requestStatus"],
+        json!("CANCELLATION_REJECTED")
+    );
+    assert_eq!(
+        root_list_read.body["data"]["assignedFulfillmentOrders"]["nodes"][0]["requestStatus"],
+        json!("CANCELLATION_REJECTED")
+    );
+
+    let log = proxy.get_log_snapshot();
+    let operation_names = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["operationName"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        operation_names,
+        vec![
+            "orderCreate",
+            "fulfillmentOrderSubmitFulfillmentRequest",
+            "fulfillmentOrderAcceptFulfillmentRequest",
+            "fulfillmentOrderSubmitCancellationRequest",
+            "fulfillmentOrderRejectCancellationRequest"
+        ]
+    );
+    assert!(log["entries"][1]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("SubmitFulfillmentOrderRequest"));
+}
+
+#[test]
+fn fulfillment_order_reject_and_accept_cancellation_transitions_stage_locally() {
+    let mut proxy = snapshot_proxy();
+    let (_, fulfillment_order) = create_fulfillment_order_test_order(&mut proxy, 1);
+    let fulfillment_order_id = fulfillment_order["id"].clone();
+
+    let submit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SubmitForReject($id: ID!) {
+          fulfillmentOrderSubmitFulfillmentRequest(id: $id, message: "submit") {
+            originalFulfillmentOrder { id requestStatus }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_order_id }),
+    ));
+    assert_eq!(
+        submit.body["data"]["fulfillmentOrderSubmitFulfillmentRequest"]["userErrors"],
+        json!([])
+    );
+
+    let reject = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RejectFulfillmentOrderRequest($id: ID!) {
+          fulfillmentOrderRejectFulfillmentRequest(id: $id, reason: OTHER, message: "no") {
+            fulfillmentOrder { id status requestStatus }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_order_id }),
+    ));
+    assert_eq!(
+        reject.body["data"]["fulfillmentOrderRejectFulfillmentRequest"]["fulfillmentOrder"]
+            ["requestStatus"],
+        json!("REJECTED")
+    );
+
+    let submit_again = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SubmitAgain($id: ID!) {
+          fulfillmentOrderSubmitFulfillmentRequest(id: $id, message: "again") {
+            originalFulfillmentOrder { id requestStatus }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_order_id }),
+    ));
+    assert_eq!(
+        submit_again.body["data"]["fulfillmentOrderSubmitFulfillmentRequest"]
+            ["originalFulfillmentOrder"]["requestStatus"],
+        json!("SUBMITTED")
+    );
+
+    let accept = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AcceptThenCancel($id: ID!) {
+          fulfillmentOrderAcceptFulfillmentRequest(id: $id, message: "accepted") {
+            fulfillmentOrder { id status requestStatus }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_order_id }),
+    ));
+    assert_eq!(
+        accept.body["data"]["fulfillmentOrderAcceptFulfillmentRequest"]["fulfillmentOrder"]
+            ["requestStatus"],
+        json!("ACCEPTED")
+    );
+
+    let submit_cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SubmitCancel($id: ID!) {
+          fulfillmentOrderSubmitCancellationRequest(id: $id, message: "cancel") {
+            fulfillmentOrder { id status requestStatus }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_order_id }),
+    ));
+    assert_eq!(
+        submit_cancel.body["data"]["fulfillmentOrderSubmitCancellationRequest"]["fulfillmentOrder"]
+            ["requestStatus"],
+        json!("ACCEPTED")
+    );
+
+    let accept_cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AcceptCancel($id: ID!) {
+          fulfillmentOrderAcceptCancellationRequest(id: $id, message: "ok") {
+            fulfillmentOrder {
+              id
+              status
+              requestStatus
+              lineItems(first: 5) { nodes { totalQuantity remainingQuantity } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": fulfillment_order_id }),
+    ));
+    let fulfillment_order = &accept_cancel.body["data"]
+        ["fulfillmentOrderAcceptCancellationRequest"]["fulfillmentOrder"];
+    assert_eq!(fulfillment_order["status"], json!("CLOSED"));
+    assert_eq!(
+        fulfillment_order["requestStatus"],
+        json!("CANCELLATION_ACCEPTED")
+    );
+    assert_eq!(
+        fulfillment_order["lineItems"]["nodes"][0]["remainingQuantity"],
+        json!(0)
+    );
+}
+
+#[test]
+fn fulfillment_order_split_and_merge_stage_remaining_records_and_read_back() {
+    let mut proxy = snapshot_proxy();
+    let (order, fulfillment_order) = create_fulfillment_order_test_order(&mut proxy, 3);
+    let order_id = order["id"].clone();
+    let fulfillment_order_id = fulfillment_order["id"].clone();
+    let fulfillment_order_line_item_id = fulfillment_order["lineItems"]["nodes"][0]["id"].clone();
+
+    let split = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SplitFulfillmentOrder($splits: [FulfillmentOrderSplitInput!]!) {
+          fulfillmentOrderSplit(fulfillmentOrderSplits: $splits) {
+            fulfillmentOrderSplits {
+              fulfillmentOrder {
+                id
+                status
+                requestStatus
+                updatedAt
+                supportedActions { action }
+                assignedLocation { name location { id name } }
+                lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }
+              }
+              remainingFulfillmentOrder {
+                id
+                status
+                requestStatus
+                updatedAt
+                supportedActions { action }
+                assignedLocation { name location { id name } }
+                lineItems(first: 5) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }
+              }
+              replacementFulfillmentOrder { id }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "splits": [{
+                "fulfillmentOrderId": fulfillment_order_id,
+                "fulfillmentOrderLineItems": [{
+                    "id": fulfillment_order_line_item_id,
+                    "quantity": 1
+                }]
+            }]
+        }),
+    ));
+    let split_payload = &split.body["data"]["fulfillmentOrderSplit"];
+    assert_eq!(split_payload["userErrors"], json!([]));
+    let original_after_split = &split_payload["fulfillmentOrderSplits"][0]["fulfillmentOrder"];
+    let remaining_after_split =
+        &split_payload["fulfillmentOrderSplits"][0]["remainingFulfillmentOrder"];
+    assert_eq!(
+        original_after_split["lineItems"]["nodes"][0]["remainingQuantity"],
+        json!(2)
+    );
+    assert_eq!(
+        remaining_after_split["lineItems"]["nodes"][0]["remainingQuantity"],
+        json!(1)
+    );
+    assert_eq!(
+        split_payload["fulfillmentOrderSplits"][0]["replacementFulfillmentOrder"],
+        json!(null)
+    );
+    let remaining_id = remaining_after_split["id"].clone();
+
+    let list_after_split = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadNestedAfterSplit($orderId: ID!) {
+          order(id: $orderId) {
+            fulfillmentOrders(first: 5) { nodes { id lineItems(first: 5) { nodes { remainingQuantity } } } }
+          }
+        }
+        "#,
+        json!({ "orderId": order_id }),
+    ));
+    assert_eq!(
+        list_after_split.body["data"]["order"]["fulfillmentOrders"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+
+    let remaining_read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadRemainingAfterSplit($remainingId: ID!) {
+          fulfillmentOrder(id: $remainingId) {
+            id
+            lineItems(first: 5) { nodes { remainingQuantity } }
+          }
+        }
+        "#,
+        json!({ "remainingId": remaining_id }),
+    ));
+    assert_eq!(
+        remaining_read.body["data"]["fulfillmentOrder"]["lineItems"]["nodes"][0]
+            ["remainingQuantity"],
+        json!(1)
+    );
+
+    let merge = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MergeFulfillmentOrders($inputs: [FulfillmentOrderMergeInput!]!) {
+          fulfillmentOrderMerge(fulfillmentOrderMergeInputs: $inputs) {
+            fulfillmentOrderMerges {
+              fulfillmentOrder {
+                id
+                status
+                requestStatus
+                fulfillBy
+                lineItems(first: 10) { nodes { id totalQuantity remainingQuantity } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "inputs": [{
+                "mergeIntents": [
+                    { "fulfillmentOrderId": fulfillment_order_id },
+                    { "fulfillmentOrderId": remaining_id }
+                ]
+            }]
+        }),
+    ));
+    let merge_payload = &merge.body["data"]["fulfillmentOrderMerge"];
+    assert_eq!(merge_payload["userErrors"], json!([]));
+    assert_eq!(
+        merge_payload["fulfillmentOrderMerges"][0]["fulfillmentOrder"]["lineItems"]["nodes"][0]
+            ["remainingQuantity"],
+        json!(3)
+    );
+
+    let list_after_merge = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadNestedAfterMerge($orderId: ID!) {
+          order(id: $orderId) {
+            fulfillmentOrders(first: 5) { nodes { id status lineItems(first: 5) { nodes { remainingQuantity } } } }
+          }
+        }
+        "#,
+        json!({ "orderId": order_id }),
+    ));
+    let merged_nodes = list_after_merge.body["data"]["order"]["fulfillmentOrders"]["nodes"]
+        .as_array()
+        .unwrap();
+    assert_eq!(merged_nodes.len(), 2);
+    assert_eq!(merged_nodes[0]["status"], json!("OPEN"));
+    assert_eq!(merged_nodes[1]["status"], json!("CLOSED"));
+    assert_eq!(
+        merged_nodes[1]["lineItems"]["nodes"][0]["remainingQuantity"],
+        json!(0)
+    );
+
+    let root_list_after_merge = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadRootAfterMerge {
+          fulfillmentOrders(first: 5) { nodes { id } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        root_list_after_merge.body["data"]["fulfillmentOrders"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+}
+
+#[test]
+fn fulfillment_order_split_hydrates_observed_fulfillment_orders_without_order_owner() {
+    let calls = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&calls);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        let id = body["variables"]["id"].as_str().unwrap_or_default();
+        captured.lock().unwrap().push(request);
+        let fulfillment_order = match id {
+            "gid://shopify/FulfillmentOrder/live-a" => json!({
+                "id": id,
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "updatedAt": "2026-05-05T02:10:28Z",
+                "supportedActions": [{ "action": "SPLIT" }],
+                "assignedLocation": {
+                    "name": "Shop location",
+                    "location": { "id": "gid://shopify/Location/1", "name": "Shop location" }
+                },
+                "lineItems": { "nodes": [{
+                    "id": "gid://shopify/FulfillmentOrderLineItem/live-a-line",
+                    "totalQuantity": 2,
+                    "remainingQuantity": 2,
+                    "lineItem": {
+                        "id": "gid://shopify/LineItem/live-a-line",
+                        "title": "Live A",
+                        "quantity": 2,
+                        "fulfillableQuantity": 2
+                    }
+                }] }
+            }),
+            "gid://shopify/FulfillmentOrder/live-b" => json!({
+                "id": id,
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "updatedAt": "2026-05-05T02:10:29Z",
+                "supportedActions": [{ "action": "SPLIT" }],
+                "assignedLocation": {
+                    "name": "Custom location",
+                    "location": { "id": "gid://shopify/Location/2", "name": "Custom location" }
+                },
+                "lineItems": { "nodes": [{
+                    "id": "gid://shopify/FulfillmentOrderLineItem/live-b-line",
+                    "totalQuantity": 3,
+                    "remainingQuantity": 3,
+                    "lineItem": {
+                        "id": "gid://shopify/LineItem/live-b-line",
+                        "title": "Live B",
+                        "quantity": 3,
+                        "fulfillableQuantity": 3
+                    }
+                }] }
+            }),
+            _ => Value::Null,
+        };
+        Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": { "fulfillmentOrder": fulfillment_order } }),
+        }
+    });
+
+    let split = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SplitObservedFulfillmentOrders($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {
+          fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {
+            fulfillmentOrderSplits {
+              fulfillmentOrder { id lineItems(first: 5) { nodes { remainingQuantity } } }
+              remainingFulfillmentOrder { id lineItems(first: 5) { nodes { remainingQuantity } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "fulfillmentOrderSplits": [
+                {
+                    "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/live-a",
+                    "fulfillmentOrderLineItems": [{
+                        "id": "gid://shopify/FulfillmentOrderLineItem/live-a-line",
+                        "quantity": 1
+                    }]
+                },
+                {
+                    "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/live-b",
+                    "fulfillmentOrderLineItems": [{
+                        "id": "gid://shopify/FulfillmentOrderLineItem/live-b-line",
+                        "quantity": 2
+                    }]
+                }
+            ]
+        }),
+    ));
+
+    assert_eq!(split.status, 200);
+    assert_eq!(
+        split.body["data"]["fulfillmentOrderSplit"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        split.body["data"]["fulfillmentOrderSplit"]["fulfillmentOrderSplits"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(calls.lock().unwrap().len(), 2);
+}
+
 #[test]
 fn backup_region_update_handles_omitted_null_known_invalid_and_node_reads_locally() {
     let mut proxy = snapshot_proxy();
@@ -2326,6 +2983,40 @@ fn fulfillment_order_deadline_validation_is_atomic_and_stages_successful_open_or
 #[test]
 fn fulfillment_order_request_lifecycle_direct_read_preserves_submitted_request_status() {
     let mut proxy = snapshot_proxy();
+    let (_, fulfillment_order) = create_fulfillment_order_test_order(&mut proxy, 1);
+    let fulfillment_order_id = fulfillment_order["id"].clone();
+    let line_item_id = fulfillment_order["lineItems"]["nodes"][0]["id"].clone();
+
+    let submit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SubmitFulfillmentOrderForDirectRead(
+          $id: ID!
+          $lineItems: [FulfillmentOrderLineItemInput!]
+        ) {
+          fulfillmentOrderSubmitFulfillmentRequest(
+            id: $id
+            message: "Hermes partial submit"
+            notifyCustomer: false
+            fulfillmentOrderLineItems: $lineItems
+          ) {
+            submittedFulfillmentOrder { id requestStatus }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": fulfillment_order_id,
+            "lineItems": [{
+                "id": line_item_id,
+                "quantity": 1
+            }]
+        }),
+    ));
+    assert_eq!(
+        submit.body["data"]["fulfillmentOrderSubmitFulfillmentRequest"]["userErrors"],
+        json!([])
+    );
+
     let response = proxy.process_request(json_graphql_request(
         r#"
         query FulfillmentOrderRequestDirectRead($id: ID!) {
@@ -2338,7 +3029,7 @@ fn fulfillment_order_request_lifecycle_direct_read_preserves_submitted_request_s
           }
         }
         "#,
-        json!({ "id": "gid://shopify/FulfillmentOrder/9656703910194" }),
+        json!({ "id": fulfillment_order_id }),
     ));
     assert_eq!(
         response.body["data"]["fulfillmentOrder"]["requestStatus"],

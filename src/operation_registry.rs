@@ -388,12 +388,50 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
         "locationsAvailableForDeliveryProfilesConnection",
         CapabilityDomain::ShippingFulfillments,
     ),
+    local_query(
+        "assignedFulfillmentOrders",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_query("fulfillmentOrder", CapabilityDomain::ShippingFulfillments),
+    local_query("fulfillmentOrders", CapabilityDomain::ShippingFulfillments),
     local_mutation(
         "locationLocalPickupDisable",
         CapabilityDomain::ShippingFulfillments,
     ),
     local_mutation(
         "locationLocalPickupEnable",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderAcceptCancellationRequest",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderAcceptFulfillmentRequest",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderMerge",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderRejectCancellationRequest",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderRejectFulfillmentRequest",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderSplit",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderSubmitCancellationRequest",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderSubmitFulfillmentRequest",
         CapabilityDomain::ShippingFulfillments,
     ),
     local_mutation("locationAdd", CapabilityDomain::StoreProperties),

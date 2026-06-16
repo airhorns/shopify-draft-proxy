@@ -279,6 +279,13 @@ impl DraftProxy {
             {
                 return ok_json(data);
             }
+            if operation.operation_type == OperationType::Query && root_field == "order" {
+                if let Some(response) =
+                    self.order_fulfillment_live_hybrid_read_response(request, &query, &variables)
+                {
+                    return response;
+                }
+            }
         }
 
         if let Some(data) = self.draft_order_complete_local_data(root_field, &query, &variables) {
@@ -1245,6 +1252,21 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().any(|field| {
+                matches!(
+                    field.as_str(),
+                    "fulfillmentOrder" | "fulfillmentOrders" | "assignedFulfillmentOrders"
+                )
+            })
+        {
+            if let Some(data) =
+                self.fulfillment_order_local_query_data(root_field, &query, &variables)
+            {
+                return ok_json(data);
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && root_field == "order"
             && is_shipping_fulfillment_order_local_order_request(&query, &variables)
         {
@@ -1253,9 +1275,9 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Query
             && root_field == "fulfillmentOrder"
-            && is_fulfillment_order_request_lifecycle_direct_read(&query, &variables)
+            && self.config.read_mode == ReadMode::Snapshot
         {
-            return self.fulfillment_order_request_lifecycle_direct_read(&query, &variables);
+            return self.fulfillment_order_empty_read_response(&query, &variables);
         }
 
         if operation.operation_type == OperationType::Query
@@ -1625,6 +1647,26 @@ impl DraftProxy {
             && is_fulfillment_order_deadline_request(&variables)
         {
             return self.fulfillment_order_set_deadline(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && matches!(
+                root_field,
+                "fulfillmentOrderSubmitFulfillmentRequest"
+                    | "fulfillmentOrderAcceptFulfillmentRequest"
+                    | "fulfillmentOrderRejectFulfillmentRequest"
+                    | "fulfillmentOrderSubmitCancellationRequest"
+                    | "fulfillmentOrderAcceptCancellationRequest"
+                    | "fulfillmentOrderRejectCancellationRequest"
+                    | "fulfillmentOrderSplit"
+                    | "fulfillmentOrderMerge"
+            )
+        {
+            if let Some(data) =
+                self.fulfillment_order_local_mutation_data(request, root_field, &query, &variables)
+            {
+                return ok_json(data);
+            }
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -2438,6 +2480,22 @@ impl DraftProxy {
                     self.gift_card_mutation_response(&fields, request, &query, &variables)
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
+                }
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "fulfillmentOrder" | "fulfillmentOrders" | "assignedFulfillmentOrders"
+                    ) =>
+            {
+                if self.config.read_mode == ReadMode::Snapshot {
+                    self.fulfillment_order_empty_read_response(&query, &variables)
+                } else {
+                    let response = (self.upstream_transport)(request.clone());
+                    self.observe_order_fulfillment_passthrough_response(&response);
+                    response
                 }
             }
             (CapabilityDomain::Functions, CapabilityExecution::StageLocally)
