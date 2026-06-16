@@ -60,10 +60,7 @@
           },
           "userErrors": [
             {
-              "field": [
-                "input",
-                "name"
-              ],
+              "field": ["input", "name"],
               "message": "Name can't be blank"
             }
           ]
