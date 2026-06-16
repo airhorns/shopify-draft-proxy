@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use graphql_parser::query::{
-    parse_query, Definition, Field, OperationDefinition, Selection, Type, Value,
+    parse_query, Definition, Field, OperationDefinition, Selection, Type, TypeCondition, Value,
 };
 use graphql_parser::Pos;
 
@@ -60,6 +60,7 @@ pub struct SelectedField {
     pub response_key: String,
     pub arguments: BTreeMap<String, ResolvedValue>,
     pub selection: Vec<SelectedField>,
+    pub type_condition: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -233,16 +234,54 @@ fn selected_fields<'a>(
                 response_key: field.alias.unwrap_or(field.name).to_string(),
                 arguments: field_arguments(field, variables),
                 selection: selected_fields(&field.selection_set.items, variables, fragments),
+                type_condition: None,
             }],
             Selection::InlineFragment(fragment) => {
-                selected_fields(&fragment.selection_set.items, variables, fragments)
+                let type_condition = fragment
+                    .type_condition
+                    .as_ref()
+                    .map(type_condition_name)
+                    .map(str::to_string);
+                with_type_condition(
+                    selected_fields(&fragment.selection_set.items, variables, fragments),
+                    type_condition,
+                )
             }
             Selection::FragmentSpread(fragment) => fragments
                 .get(fragment.fragment_name)
-                .map(|selection_set| selected_fields(selection_set, variables, fragments))
+                .map(|fragment_selection| {
+                    with_type_condition(
+                        selected_fields(fragment_selection.selection_set, variables, fragments),
+                        fragment_selection.type_condition.map(str::to_string),
+                    )
+                })
                 .unwrap_or_default(),
         })
         .collect()
+}
+
+fn with_type_condition(
+    fields: Vec<SelectedField>,
+    type_condition: Option<String>,
+) -> Vec<SelectedField> {
+    let Some(type_condition) = type_condition else {
+        return fields;
+    };
+    fields
+        .into_iter()
+        .map(|mut field| {
+            if field.type_condition.is_none() {
+                field.type_condition = Some(type_condition.clone());
+            }
+            field
+        })
+        .collect()
+}
+
+fn type_condition_name<'a>(condition: &TypeCondition<'a, &'a str>) -> &'a str {
+    match condition {
+        TypeCondition::On(name) => name,
+    }
 }
 
 fn field_arguments<'a>(
@@ -266,7 +305,12 @@ fn raw_field_arguments<'a>(
         .collect()
 }
 
-type FragmentSelections<'a> = BTreeMap<&'a str, &'a [Selection<'a, &'a str>]>;
+struct FragmentSelection<'a> {
+    type_condition: Option<&'a str>,
+    selection_set: &'a [Selection<'a, &'a str>],
+}
+
+type FragmentSelections<'a> = BTreeMap<&'a str, FragmentSelection<'a>>;
 type VariableDefinitions<'a> = &'a [graphql_parser::query::VariableDefinition<'a, &'a str>];
 type OperationParts<'a> = (
     OperationType,
@@ -280,9 +324,13 @@ fn fragment_selections<'a>(definitions: &'a [Definition<'a, &'a str>]) -> Fragme
     definitions
         .iter()
         .filter_map(|definition| match definition {
-            Definition::Fragment(fragment) => {
-                Some((fragment.name, fragment.selection_set.items.as_slice()))
-            }
+            Definition::Fragment(fragment) => Some((
+                fragment.name,
+                FragmentSelection {
+                    type_condition: Some(type_condition_name(&fragment.type_condition)),
+                    selection_set: fragment.selection_set.items.as_slice(),
+                },
+            )),
             Definition::Operation(_) => None,
         })
         .collect()
@@ -414,8 +462,13 @@ fn collect_root_field_selections<'a>(
                 fields,
             ),
             Selection::FragmentSpread(fragment) => {
-                if let Some(selection_set) = fragments.get(fragment.fragment_name) {
-                    collect_root_field_selections(selection_set, variables, fragments, fields);
+                if let Some(fragment_selection) = fragments.get(fragment.fragment_name) {
+                    collect_root_field_selections(
+                        fragment_selection.selection_set,
+                        variables,
+                        fragments,
+                        fields,
+                    );
                 }
             }
         }

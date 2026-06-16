@@ -1199,6 +1199,9 @@ impl DraftProxy {
                 if let Some(data) = self.gift_card_node_read_data(&fields) {
                     return ok_json(json!({ "data": data }));
                 }
+                if let Some(data) = self.media_file_node_read_data(&fields) {
+                    return ok_json(json!({ "data": data }));
+                }
             }
             if let Some(data) =
                 local_node_read_fields(&query, &variables, Some(&self.store.staged.backup_region))

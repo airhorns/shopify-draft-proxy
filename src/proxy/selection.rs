@@ -4,8 +4,14 @@ pub(in crate::proxy) fn selected_json(record: &Value, selections: &[SelectedFiel
     if record.is_null() {
         return Value::Null;
     }
+    let typename = record.get("__typename").and_then(Value::as_str);
     let mut fields = serde_json::Map::new();
     for selection in selections {
+        if let Some(type_condition) = selection.type_condition.as_deref() {
+            if !type_condition_matches(record, typename, type_condition) {
+                continue;
+            }
+        }
         let Some(value) = record.get(&selection.name) else {
             continue;
         };
@@ -26,6 +32,37 @@ pub(in crate::proxy) fn selected_json(record: &Value, selections: &[SelectedFiel
         fields.insert(selection.response_key.clone(), value);
     }
     Value::Object(fields)
+}
+
+fn type_condition_matches(record: &Value, typename: Option<&str>, type_condition: &str) -> bool {
+    let Some(record_type) = record_type_name(record, typename) else {
+        return true;
+    };
+    if type_condition == record_type {
+        return true;
+    }
+
+    match type_condition {
+        "Node" => record.get("id").and_then(Value::as_str).is_some(),
+        "File" => matches!(
+            record_type,
+            "MediaImage" | "Video" | "GenericFile" | "Model3d" | "ExternalVideo"
+        ),
+        "Media" => matches!(
+            record_type,
+            "MediaImage" | "Video" | "Model3d" | "ExternalVideo"
+        ),
+        _ => false,
+    }
+}
+
+fn record_type_name<'a>(record: &'a Value, typename: Option<&'a str>) -> Option<&'a str> {
+    typename.or_else(|| {
+        record
+            .get("id")
+            .and_then(Value::as_str)
+            .and_then(shopify_gid_resource_type)
+    })
 }
 
 pub(in crate::proxy) fn nullable_selected_json(
@@ -102,6 +139,19 @@ mod tests {
             response_key: response_key.to_string(),
             arguments: Default::default(),
             selection,
+            type_condition: None,
+        }
+    }
+
+    fn typed_field(
+        name: &str,
+        response_key: &str,
+        type_condition: &str,
+        selection: Vec<SelectedField>,
+    ) -> SelectedField {
+        SelectedField {
+            type_condition: Some(type_condition.to_string()),
+            ..field(name, response_key, selection)
         }
     }
 
@@ -133,6 +183,57 @@ mod tests {
                 "legacyId": "gid://shopify/Product/1",
                 "variants": [{ "variantTitle": "Red" }],
                 "seo": null
+            })
+        );
+
+        let record_without_typename = json!({
+            "id": "gid://shopify/GenericFile/1",
+            "url": "https://cdn.example.com/spec.pdf"
+        });
+        assert_eq!(
+            selected_json(
+                &record_without_typename,
+                &[typed_field("url", "url", "GenericFile", vec![])]
+            ),
+            json!({"url": "https://cdn.example.com/spec.pdf"})
+        );
+
+        let nested_record_without_discriminator = json!({"content": "hello"});
+        assert_eq!(
+            selected_json(
+                &nested_record_without_discriminator,
+                &[typed_field(
+                    "content",
+                    "content",
+                    "OnlineStoreThemeFileBodyText",
+                    vec![]
+                )]
+            ),
+            json!({"content": "hello"})
+        );
+    }
+
+    #[test]
+    fn selected_json_filters_type_conditions_and_allows_file_interfaces() {
+        let record = json!({
+            "__typename": "GenericFile",
+            "id": "gid://shopify/GenericFile/1",
+            "url": "https://cdn.example.com/spec.pdf",
+            "image": {"url": "https://cdn.example.com/spec.pdf"}
+        });
+        let selections = vec![
+            field("__typename", "__typename", vec![]),
+            typed_field("id", "id", "File", vec![]),
+            typed_field("url", "url", "GenericFile", vec![]),
+            typed_field("image", "image", "MediaImage", vec![]),
+        ];
+
+        assert_eq!(
+            selected_json(&record, &selections),
+            json!({
+                "__typename": "GenericFile",
+                "id": "gid://shopify/GenericFile/1",
+                "url": "https://cdn.example.com/spec.pdf"
             })
         );
     }

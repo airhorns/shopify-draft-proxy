@@ -1169,6 +1169,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-create-content-type-inference',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-create-content-type-inference-conformance.ts',
+    purpose:
+      'fileCreate omitted-contentType inference for image, video, document, and extensionless source URLs plus downstream files/node read-after-write.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}file-create-content-type-inference.json`,
+      'config/parity-specs/media/file_create_content_type_inference.json',
+      'config/parity-requests/media/file-create-content-type-inference-create.graphql',
+      'config/parity-requests/media/file-create-content-type-inference-files-read.graphql',
+      'config/parity-requests/media/file-create-content-type-inference-video-node.graphql',
+      'config/parity-requests/media/file-create-content-type-inference-generic-node.graphql',
+    ],
+    cleanupBehavior: 'Creates disposable image, video, document, and extensionless files, then deletes them.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-cascade-variant-media-clear',
     scriptPath: 'scripts/capture-media-file-cascade-variant-media-clear-conformance.mts',
     purpose:
