@@ -810,7 +810,11 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
         owner_type: &str,
     ) -> Option<(String, String)> {
-        let namespace = resolved_string_field(input, "namespace")?;
+        // Definitions are stored under their canonical app namespace
+        // (`app--347082227713--<suffix>`), so an update/lookup arriving as
+        // `$app:<suffix>` must be canonicalized before keying.
+        let raw_namespace = resolved_string_field(input, "namespace")?;
+        let namespace = canonical_app_metafield_namespace(Some(&raw_namespace));
         let key = resolved_string_field(input, "key")?;
         let definition = self
             .store
@@ -1128,8 +1132,9 @@ impl DraftProxy {
                                 })
                                 .cloned()
                         } else {
-                            let namespace =
-                                resolved_string_field(&identifier, "namespace").unwrap_or_default();
+                            let namespace = canonical_app_metafield_namespace(
+                                resolved_string_field(&identifier, "namespace").as_deref(),
+                            );
                             let key = resolved_string_field(&identifier, "key").unwrap_or_default();
                             self.store
                                 .staged
@@ -1147,7 +1152,8 @@ impl DraftProxy {
                 "metafieldDefinitions" => {
                     let owner_type = resolved_string_field(&field.arguments, "ownerType")
                         .unwrap_or_else(|| "PRODUCT".to_string());
-                    let namespace = resolved_string_field(&field.arguments, "namespace");
+                    let namespace = resolved_string_field(&field.arguments, "namespace")
+                        .map(|namespace| canonical_app_metafield_namespace(Some(&namespace)));
                     let key = resolved_string_field(&field.arguments, "key");
                     let pinned_status = resolved_string_field(&field.arguments, "pinnedStatus");
                     let mut definitions = self
@@ -1636,8 +1642,16 @@ fn metafield_definition_access_denied_response(root_field: &str) -> Response {
 }
 
 fn access_denied_for_reserved_metafield_namespace(input: &BTreeMap<String, ResolvedValue>) -> bool {
-    resolved_string_field(input, "namespace").as_deref() == Some("shopify")
-        && resolved_object_field(input, "access").is_some()
+    let raw_namespace = resolved_string_field(input, "namespace");
+    // A write targeting another app's reserved namespace
+    // (`app--<other-id>--…`) is rejected with a top-level ACCESS_DENIED,
+    // since the proxy authenticates only as api client 347082227713.
+    if app_namespace_belongs_to_other_app(&canonical_app_metafield_namespace(
+        raw_namespace.as_deref(),
+    )) {
+        return true;
+    }
+    raw_namespace.as_deref() == Some("shopify") && resolved_object_field(input, "access").is_some()
 }
 
 fn metafield_definition_create_errors_for_namespace(
