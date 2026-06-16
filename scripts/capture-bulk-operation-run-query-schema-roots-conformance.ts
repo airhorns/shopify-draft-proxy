@@ -87,6 +87,13 @@ const bulkOperationCancelMutation = `#graphql
   }
 `;
 
+// Canonical mutation text the proxy forwards upstream for schema-valid bulk query roots
+// it does not synthesize locally. The strict parity cassette matches recorded `query`
+// text exactly, so this must stay byte-identical to the proxy's
+// BULK_OPERATION_RUN_QUERY_PROXY_FALLBACK_QUERY constant.
+const proxyFallbackQuery =
+  'mutation BulkOperationRunQueryProxyFallback($query: String!) { bulkOperationRunQuery(query: $query) { bulkOperation { id status type } userErrors { field message code } } }';
+
 const schemaRootQueries = {
   ordersRoot: `#graphql
 {
@@ -234,6 +241,7 @@ const fixture: Record<string, unknown> = {
   upstreamCalls: [
     {
       operationName: 'BulkOperationRunQueryProxyFallback',
+      query: proxyFallbackQuery,
       variables: asRecord(asRecord(ordersRoot['run'])?.['variables']) ?? {},
       response: {
         status: asRecord(ordersRoot['run'])?.['status'] ?? 200,
@@ -242,6 +250,7 @@ const fixture: Record<string, unknown> = {
     },
     {
       operationName: 'BulkOperationRunQueryProxyFallback',
+      query: proxyFallbackQuery,
       variables: asRecord(asRecord(draftOrdersWarningsList['run'])?.['variables']) ?? {},
       response: {
         status: asRecord(draftOrdersWarningsList['run'])?.['status'] ?? 200,

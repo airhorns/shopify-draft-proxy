@@ -1108,6 +1108,105 @@ fn bulk_operation_run_mutation_allows_five_mutation_operations_before_2026_04_th
     );
 }
 
+fn mutation_bulk_operation_fixture(id: &str) -> Value {
+    json!({
+        "id": id,
+        "status": "CREATED",
+        "type": "MUTATION",
+        "errorCode": null,
+        "createdAt": "2026-06-01T00:00:00Z",
+        "completedAt": null,
+        "objectCount": "0",
+        "rootObjectCount": "0",
+        "fileSize": null,
+        "url": null,
+        "partialDataUrl": null,
+        "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }"
+    })
+}
+
+fn live_hybrid_proxy_with_bulk_operation_hydration(
+    operations: BTreeMap<String, Value>,
+) -> DraftProxy {
+    configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+        let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
+        let id = body
+            .get("variables")
+            .and_then(|variables| variables.get("id"))
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        shopify_draft_proxy::proxy::Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({
+                "data": {
+                    "bulkOperation": operations.get(id).cloned().unwrap_or(Value::Null)
+                }
+            }),
+        }
+    })
+}
+
+fn run_bulk_operation_mutation(proxy: &mut DraftProxy, api_version: &str) -> Value {
+    let mut request = json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+            "path": "valid"
+        }),
+    );
+    request.path = format!("/admin/api/{api_version}/graphql.json");
+    let response = proxy.process_request(request);
+    assert_eq!(response.status, 200);
+    response.body["data"]["bulkOperationRunMutation"].clone()
+}
+
+#[test]
+fn bulk_operation_run_mutation_allows_five_mutation_operations_before_2026_04_throttle() {
+    let hydrated_operations = (0..5)
+        .map(|index| {
+            let id = format!("gid://shopify/BulkOperation/991000000000{index}");
+            (id.clone(), mutation_bulk_operation_fixture(&id))
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut proxy = live_hybrid_proxy_with_bulk_operation_hydration(hydrated_operations);
+
+    for index in 0..4 {
+        let id = format!("gid://shopify/BulkOperation/991000000000{index}");
+        let operation = cancel_bulk_operation(&mut proxy, &id, "2026-04");
+        assert_eq!(operation["type"], json!("MUTATION"));
+        assert_eq!(operation["status"], json!("CANCELING"));
+
+        let allowed = run_bulk_operation_mutation(&mut proxy, "2026-04");
+        assert!(
+            allowed["bulkOperation"].is_object(),
+            "2026-04 must allow mutation run while only {} mutation operations are non-terminal: {allowed}",
+            index + 1
+        );
+        assert_eq!(allowed["userErrors"], json!([]));
+    }
+
+    let fifth_id = "gid://shopify/BulkOperation/9910000000004";
+    cancel_bulk_operation(&mut proxy, fifth_id, "2026-04");
+    let throttled = run_bulk_operation_mutation(&mut proxy, "2026-04");
+    assert_eq!(throttled["bulkOperation"], Value::Null);
+    assert_eq!(
+        throttled["userErrors"],
+        json!([{
+            "field": null,
+            "message": "A bulk mutation operation for this app and shop is already in progress: gid://shopify/BulkOperation/9910000000000, gid://shopify/BulkOperation/9910000000001, gid://shopify/BulkOperation/9910000000002, gid://shopify/BulkOperation/9910000000003, gid://shopify/BulkOperation/9910000000004.",
+            "code": "OPERATION_IN_PROGRESS"
+        }])
+    );
+}
+
 #[test]
 fn bulk_operation_cancel_unknown_gid_returns_not_found_without_staging() {
     let mut proxy = snapshot_proxy();

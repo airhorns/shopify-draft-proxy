@@ -372,6 +372,7 @@
   "upstreamCalls": [
     {
       "operationName": "BulkOperationRunQueryProxyFallback",
+      "query": "mutation BulkOperationRunQueryProxyFallback($query: String!) { bulkOperationRunQuery(query: $query) { bulkOperation { id status type } userErrors { field message code } } }",
       "variables": {
         "query": "#graphql\n{\n  orders {\n    edges {\n      node {\n        id\n        name\n      }\n    }\n  }\n}"
       },
@@ -404,6 +405,7 @@
     },
     {
       "operationName": "BulkOperationRunQueryProxyFallback",
+      "query": "mutation BulkOperationRunQueryProxyFallback($query: String!) { bulkOperationRunQuery(query: $query) { bulkOperation { id status type } userErrors { field message code } } }",
       "variables": {
         "query": "#graphql\n{\n  draftOrders {\n    edges {\n      node {\n        id\n        warnings {\n          message\n        }\n      }\n    }\n  }\n}"
       },

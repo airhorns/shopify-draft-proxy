@@ -9,6 +9,13 @@ const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str = "query CustomerHydrate($id: ID!) {
 const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
 const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n    }\n  }\n}";
 const OWNER_METAFIELD_HYDRATE_QUERY: &str = "query OwnerMetafieldsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Collection { id title handle metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Customer { id displayName email metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Order { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Company { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } }";
+const BULK_OPERATION_HYDRATE_QUERY: &str = "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }";
+// Canonical mutation forwarded to upstream when a schema-valid bulk query root is
+// accepted by the validator but is not one of the locally synthesized roots
+// (`products`/`productVariants`). LiveHybrid replays the recorded upstream
+// `bulkOperationRunQuery` response unchanged. This text must stay byte-identical to
+// the cassette's recorded `query`, since the strict cassette matches query text exactly.
+const BULK_OPERATION_RUN_QUERY_PROXY_FALLBACK_QUERY: &str = "mutation BulkOperationRunQueryProxyFallback($query: String!) { bulkOperationRunQuery(query: $query) { bulkOperation { id status type } userErrors { field message code } } }";
 
 impl DraftProxy {
     pub(in crate::proxy) fn bulk_operation_read_response(
@@ -182,7 +189,7 @@ impl DraftProxy {
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
             );
         }
-        if let Some(operation_id) = self.in_progress_query_bulk_operation_id() {
+        if let Some(operation_id) = self.throttled_query_bulk_operation_id(request) {
             let payload = json!({
                 "bulkOperation": null,
                 "userErrors": [{
@@ -190,6 +197,32 @@ impl DraftProxy {
                     "message": format!("A bulk query operation for this app and shop is already in progress: {operation_id}."),
                     "code": "OPERATION_IN_PROGRESS"
                 }]
+            });
+            return ok_json(
+                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
+            );
+        }
+
+        // Shopify validates bulk queries against the Admin GraphQL schema, so the proxy
+        // accepts schema-valid roots beyond the ones it can synthesize JSONL for locally.
+        // Local synthesis is scoped to `products`/`productVariants`; every other accepted
+        // root is replayed from the recorded upstream `bulkOperationRunQuery` response under
+        // LiveHybrid (returning Shopify's real BulkOperation id) rather than minting a
+        // synthetic operation we cannot faithfully export.
+        let root_name = bulk_query_root_field_name(&query_text);
+        let locally_synthesized =
+            matches!(root_name.as_deref(), Some("products") | Some("productVariants"));
+        if !locally_synthesized {
+            if let Some(payload) =
+                self.bulk_operation_run_query_upstream_payload(request, &query_text)
+            {
+                return ok_json(json!({ "data": { response_key: payload } }));
+            }
+            let payload = json!({
+                "bulkOperation": null,
+                "userErrors": [unsupported_bulk_query_root_error(
+                    root_name.as_deref().unwrap_or_default()
+                )]
             });
             return ok_json(
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
@@ -229,6 +262,40 @@ impl DraftProxy {
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
 
+    /// Forwards the canonical `BulkOperationRunQueryProxyFallback` mutation upstream for a
+    /// schema-valid bulk query root the proxy does not synthesize locally, returning the
+    /// recorded `bulkOperationRunQuery` payload unchanged. Returns `None` when not in
+    /// LiveHybrid or when the upstream response does not carry a payload object.
+    fn bulk_operation_run_query_upstream_payload(
+        &self,
+        request: &Request,
+        query_text: &str,
+    ) -> Option<Value> {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return None;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": BULK_OPERATION_RUN_QUERY_PROXY_FALLBACK_QUERY,
+                "operationName": "BulkOperationRunQueryProxyFallback",
+                "variables": { "query": query_text }
+            })
+            .to_string(),
+        });
+        if response.status >= 400 {
+            return None;
+        }
+        response
+            .body
+            .get("data")
+            .and_then(|data| data.get("bulkOperationRunQuery"))
+            .filter(|payload| payload.is_object())
+            .cloned()
+    }
+
     pub(in crate::proxy) fn bulk_operation_run_mutation(
         &mut self,
         request: &Request,
@@ -261,7 +328,24 @@ impl DraftProxy {
                 user_errors,
             );
         }
-        if let Some(operation_id) = self.in_progress_mutation_bulk_operation_id() {
+        let staged_upload_file_size = self.bulk_operation_staged_upload_size(&staged_upload_path);
+        let max_file_size = self
+            .config
+            .bulk_operation_run_mutation_max_input_file_size_bytes
+            .unwrap_or(DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES);
+        if staged_upload_file_size
+            .flatten()
+            .is_some_and(|file_size| file_size > max_file_size)
+        {
+            return bulk_operation_run_mutation_error_response(
+                &response_key,
+                &payload_selection,
+                vec![bulk_operation_run_mutation_file_size_too_large_user_error(
+                    max_file_size,
+                )],
+            );
+        }
+        if let Some(operation_id) = self.throttled_mutation_bulk_operation_id(request) {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
                 &payload_selection,
@@ -272,26 +356,11 @@ impl DraftProxy {
                 })],
             );
         }
-        let Some(file_size) = self.bulk_operation_staged_upload_size(&staged_upload_path) else {
+        if staged_upload_file_size.is_none() {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
                 &payload_selection,
                 vec![bulk_operation_run_mutation_no_such_file_user_error()],
-            );
-        };
-        let max_file_size = self
-            .config
-            .bulk_operation_run_mutation_max_input_file_size_bytes
-            .unwrap_or(DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES);
-        if file_size.unwrap_or(0) > max_file_size {
-            return bulk_operation_run_mutation_error_response(
-                &response_key,
-                &payload_selection,
-                vec![json!({
-                    "field": ["stagedUploadPath"],
-                    "message": "The JSONL file exceeds the maximum allowed size of 100 MB.",
-                    "code": "INVALID_MUTATION"
-                })],
             );
         }
 
@@ -337,34 +406,37 @@ impl DraftProxy {
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
 
-    fn in_progress_query_bulk_operation_id(&self) -> Option<String> {
-        self.store
-            .staged
-            .bulk_operations
-            .iter()
-            .find(|(_, operation)| {
-                operation.get("type").and_then(Value::as_str) == Some("QUERY")
-                    && !matches!(
-                        operation.get("status").and_then(Value::as_str),
-                        Some("COMPLETED" | "FAILED" | "CANCELED" | "EXPIRED")
-                    )
-            })
-            .map(|(id, _)| id.clone())
+    fn throttled_query_bulk_operation_id(&self, request: &Request) -> Option<String> {
+        self.throttled_bulk_operation_id("QUERY", request)
     }
 
-    fn in_progress_mutation_bulk_operation_id(&self) -> Option<String> {
-        self.store
+    fn throttled_mutation_bulk_operation_id(&self, request: &Request) -> Option<String> {
+        self.throttled_bulk_operation_id("MUTATION", request)
+    }
+
+    fn throttled_bulk_operation_id(
+        &self,
+        operation_type: &str,
+        request: &Request,
+    ) -> Option<String> {
+        let mut operation_ids = self
+            .store
             .staged
             .bulk_operations
             .iter()
-            .find(|(_, operation)| {
-                operation.get("type").and_then(Value::as_str) == Some("MUTATION")
-                    && !matches!(
-                        operation.get("status").and_then(Value::as_str),
-                        Some("COMPLETED" | "FAILED" | "CANCELED" | "EXPIRED")
-                    )
+            .filter(|(_, operation)| {
+                operation.get("type").and_then(Value::as_str) == Some(operation_type)
+                    && bulk_operation_is_non_terminal(operation)
             })
             .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>();
+
+        if operation_ids.len() < bulk_operation_concurrent_limit(request) {
+            return None;
+        }
+
+        operation_ids.sort();
+        Some(operation_ids.join(", "))
     }
 
     fn bulk_operation_staged_upload_size(&self, staged_upload_path: &str) -> Option<Option<u64>> {
@@ -416,23 +488,61 @@ impl DraftProxy {
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
             );
         }
-        let (query_text, created_at, operation_type) =
-            Self::bulk_operation_cancel_nonterminal_seed(request, &id);
-        let operation = bulk_operation_record_with_type(
-            &id,
-            "CANCELING",
-            operation_type,
-            query_text,
-            "0",
-            created_at,
-            "113499",
-        );
+        let operation = self
+            .bulk_operation_cancel_hydrate_cold_operation(request, &id)
+            .unwrap_or_else(|| {
+                let (query_text, created_at, operation_type) =
+                    Self::bulk_operation_cancel_nonterminal_seed(request, &id);
+                bulk_operation_record_with_type(
+                    &id,
+                    "CANCELING",
+                    operation_type,
+                    query_text,
+                    "0",
+                    created_at,
+                    "113499",
+                )
+            });
         self.store
             .staged
             .bulk_operations
             .insert(id.clone(), operation.clone());
         let payload = json!({ "bulkOperation": operation, "userErrors": [] });
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+    }
+
+    fn bulk_operation_cancel_hydrate_cold_operation(
+        &self,
+        request: &Request,
+        id: &str,
+    ) -> Option<Value> {
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || self.store.staged.bulk_operations.contains_key(id)
+        {
+            return None;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": BULK_OPERATION_HYDRATE_QUERY,
+                "operationName": "BulkOperationHydrate",
+                "variables": { "id": id }
+            })
+            .to_string(),
+        });
+        let mut operation = response
+            .body
+            .get("data")
+            .and_then(|data| data.get("bulkOperation"))
+            .filter(|operation| operation.is_object())?
+            .clone();
+        if bulk_operation_status_is_terminal(operation.get("status").and_then(Value::as_str)) {
+            return None;
+        }
+        operation["status"] = json!("CANCELING");
+        Some(operation)
     }
 
     fn bulk_operation_cancel_nonterminal_seed(
@@ -3763,6 +3873,29 @@ fn bulk_operation_run_query_user_error(message: &str) -> Value {
     })
 }
 
+/// Top-level root field name of a bulk query document (e.g. `products`, `orders`),
+/// used to decide whether the proxy synthesizes JSONL locally or replays upstream.
+fn bulk_query_root_field_name(query_text: &str) -> Option<String> {
+    let document = parsed_document(query_text, &BTreeMap::new())?;
+    document
+        .root_fields
+        .first()
+        .map(|field| field.name.clone())
+}
+
+/// Mirrors Shopify-vs-proxy divergence: a root the schema-driven validator accepts but
+/// the local JSONL synthesizer cannot emulate, surfaced only when no upstream replay is
+/// available (e.g. outside LiveHybrid).
+fn unsupported_bulk_query_root_error(root_name: &str) -> Value {
+    json!({
+        "field": ["query"],
+        "message": format!(
+            "Bulk query root `{root_name}` is accepted by Shopify's schema-driven validator but is not yet supported by the local JSONL synthesizer."
+        ),
+        "code": "UNSUPPORTED_IN_PROXY"
+    })
+}
+
 fn bulk_operation_run_mutation_document_user_errors(mutation_text: &str) -> Option<Vec<Value>> {
     let Some(document) = parsed_document(mutation_text, &BTreeMap::new()) else {
         return Some(vec![json!({
@@ -3825,6 +3958,15 @@ fn bulk_operation_run_mutation_no_such_file_user_error() -> Value {
         "field": null,
         "message": "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
         "code": "NO_SUCH_FILE"
+    })
+}
+
+fn bulk_operation_run_mutation_file_size_too_large_user_error(max_file_size_bytes: u64) -> Value {
+    let max_size_mb = max_file_size_bytes / (1024 * 1024);
+    json!({
+        "field": null,
+        "message": format!("The input file size exceeds the maximum allowed size of {max_size_mb} MB."),
+        "code": "INVALID_STAGED_UPLOAD_FILE"
     })
 }
 
@@ -4978,6 +5120,27 @@ fn bulk_operation_sort_value(operation: &Value, sort_key: &str) -> String {
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string()
+}
+
+fn bulk_operation_concurrent_limit(request: &Request) -> usize {
+    if admin_graphql_version(&request.path)
+        .is_some_and(|version| version_at_least(version, 2026, 1))
+    {
+        5
+    } else {
+        1
+    }
+}
+
+fn bulk_operation_is_non_terminal(operation: &Value) -> bool {
+    !bulk_operation_status_is_terminal(operation.get("status").and_then(Value::as_str))
+}
+
+fn bulk_operation_status_is_terminal(status: Option<&str>) -> bool {
+    matches!(
+        status,
+        Some("COMPLETED" | "FAILED" | "CANCELED" | "EXPIRED")
+    )
 }
 
 fn bulk_operation_matches_query(
