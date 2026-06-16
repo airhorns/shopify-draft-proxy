@@ -367,6 +367,29 @@ impl DraftProxy {
             "mainContactId": Value::Null
         });
 
+        let mut staged_ids = vec![id.clone()];
+
+        // Shopify provisions two system-defined contact roles on every company
+        // creation, ordered Location admin then Ordering only.
+        for role_name in ["Location admin", "Ordering only"] {
+            let role_id = self.next_proxy_synthetic_gid("CompanyContactRole");
+            let role = json!({
+                "id": role_id,
+                "name": role_name,
+                "note": format!("System-defined {role_name} role"),
+                "companyId": id
+            });
+            self.store
+                .staged
+                .b2b_contact_roles
+                .insert(role_id.clone(), role);
+            company["contactRoleIds"]
+                .as_array_mut()
+                .expect("contactRoleIds must be an array")
+                .push(json!(role_id.clone()));
+            staged_ids.push(role_id);
+        }
+
         if let Some(contact_input) = resolved_object_field(&input, "companyContact") {
             let contact_id = self.next_proxy_synthetic_gid("CompanyContact");
             let contact = json!({
@@ -406,17 +429,18 @@ impl DraftProxy {
                 .push(json!(role_id));
         }
 
-        let mut staged_ids = vec![id.clone()];
-        if let Some(location_input) = resolved_object_field(&input, "companyLocation") {
-            let (location, location_staged_ids) =
-                self.b2b_build_company_location(&id, &company, &location_input);
-            let location_id = location["id"]
-                .as_str()
-                .expect("location must have an id")
-                .to_string();
-            self.b2b_stage_location(&mut company, location, &location_id);
-            staged_ids.extend(location_staged_ids);
-        }
+        // Shopify always provisions a default company location on creation,
+        // named from the companyLocation input or falling back to the company
+        // name when no location input is supplied.
+        let location_input = resolved_object_field(&input, "companyLocation").unwrap_or_default();
+        let (location, location_staged_ids) =
+            self.b2b_build_company_location(&id, &company, &location_input);
+        let location_id = location["id"]
+            .as_str()
+            .expect("location must have an id")
+            .to_string();
+        self.b2b_stage_location(&mut company, location, &location_id);
+        staged_ids.extend(location_staged_ids);
 
         self.store
             .staged
@@ -1200,6 +1224,14 @@ impl DraftProxy {
                     selected_json,
                     value_id_cursor,
                 ))
+            }
+            "contactsCount" => {
+                let count = b2b_json_id_list(company, "contactIds").len();
+                Some(segment_count_json(count, &selection.selection))
+            }
+            "locationsCount" => {
+                let count = b2b_json_id_list(company, "locationIds").len();
+                Some(segment_count_json(count, &selection.selection))
             }
             "mainContact" => {
                 let contact = company["mainContactId"]
