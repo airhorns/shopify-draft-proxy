@@ -4864,6 +4864,308 @@ fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
 }
 
 #[test]
+fn location_local_pickup_enable_disable_stage_settings_and_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedPickupLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) { location { id name localPickupSettingsV2 { pickupTime instructions } } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Pickup Warehouse",
+                "address": { "countryCode": "US" },
+                "fulfillsOnlineOrders": false
+            }
+        }),
+    ));
+    let location_id = add.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let enable_query = r#"
+        mutation ConsumerNamedAnything($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) {
+          aliasedEnable: locationLocalPickupEnable(localPickupSettings: $localPickupSettings) {
+            localPickupSettings { pickupTime instructions }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let enable = proxy.process_request(json_graphql_request(
+        enable_query,
+        json!({
+            "localPickupSettings": {
+                "locationId": location_id,
+                "pickupTime": "ONE_HOUR",
+                "instructions": "Ring bell"
+            }
+        }),
+    ));
+    assert_eq!(enable.status, 200);
+    assert_eq!(
+        enable.body["data"]["aliasedEnable"],
+        json!({
+            "localPickupSettings": { "pickupTime": "ONE_HOUR", "instructions": "Ring bell" },
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadPickup($id: ID!) {
+          location(id: $id) { id name localPickupSettingsV2 { pickupTime instructions } }
+          locationsAvailableForDeliveryProfilesConnection(first: 5) {
+            nodes { id localPickupSettingsV2 { pickupTime instructions } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["location"]["localPickupSettingsV2"],
+        json!({ "pickupTime": "ONE_HOUR", "instructions": "Ring bell" })
+    );
+    assert_eq!(
+        read.body["data"]["locationsAvailableForDeliveryProfilesConnection"]["nodes"][0]
+            ["localPickupSettingsV2"],
+        json!({ "pickupTime": "ONE_HOUR", "instructions": "Ring bell" })
+    );
+
+    let disable_query = r#"
+        mutation DisablePickup($locationId: ID!) {
+          locationLocalPickupDisable(locationId: $locationId) {
+            locationId
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let disable = proxy.process_request(json_graphql_request(
+        disable_query,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(
+        disable.body["data"]["locationLocalPickupDisable"],
+        json!({ "locationId": location_id, "userErrors": [] })
+    );
+
+    let after_disable = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadPickup($id: ID!) {
+          location(id: $id) { id localPickupSettingsV2 { pickupTime instructions } }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        after_disable.body["data"]["location"]["localPickupSettingsV2"],
+        Value::Null
+    );
+
+    let state = proxy.get_state_snapshot();
+    assert_eq!(
+        state["stagedState"]["locations"][location_id.as_str()]["localPickupSettingsV2"],
+        Value::Null
+    );
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"][1]["status"], json!("staged"));
+    assert_eq!(
+        log["entries"][1]["interpreted"]["primaryRootField"],
+        json!("locationLocalPickupEnable")
+    );
+    let raw_body: Value =
+        serde_json::from_str(log["entries"][1]["rawBody"].as_str().unwrap()).unwrap();
+    assert_eq!(raw_body["query"], json!(enable_query));
+    assert_eq!(
+        log["entries"][2]["interpreted"]["primaryRootField"],
+        json!("locationLocalPickupDisable")
+    );
+}
+
+#[test]
+fn location_local_pickup_enable_validates_pickup_time_and_location_status() {
+    let mut proxy = snapshot_proxy();
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedPickupLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) { location { id } userErrors { field message code } }
+        }
+        "#,
+        json!({ "input": { "name": "Pickup Validation", "address": { "countryCode": "US" } } }),
+    ));
+    let location_id = add.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let query = r#"
+        mutation ValidatePickup($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) {
+          locationLocalPickupEnable(localPickupSettings: $localPickupSettings) {
+            localPickupSettings { pickupTime instructions }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let invalid_time = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "localPickupSettings": {
+                "locationId": location_id,
+                "pickupTime": "CUSTOM",
+                "instructions": "Nope"
+            }
+        }),
+    ));
+    assert_eq!(
+        invalid_time.body["data"]["locationLocalPickupEnable"],
+        json!({
+            "localPickupSettings": null,
+            "userErrors": [{
+                "field": ["localPickupSettings"],
+                "message": "Custom pickup time is not allowed for local pickup settings.",
+                "code": "CUSTOM_PICKUP_TIME_NOT_ALLOWED"
+            }]
+        })
+    );
+
+    let unknown = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "localPickupSettings": {
+                "locationId": "gid://shopify/Location/999999999999",
+                "pickupTime": "ONE_HOUR"
+            }
+        }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["locationLocalPickupEnable"],
+        json!({
+            "localPickupSettings": null,
+            "userErrors": [{
+                "field": ["localPickupSettings"],
+                "message": "Unable to find an active location for location ID 999999999999",
+                "code": "ACTIVE_LOCATION_NOT_FOUND"
+            }]
+        })
+    );
+
+    let inactive_id = "gid://shopify/Location/112849158450";
+    let inactive = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "localPickupSettings": {
+                "locationId": inactive_id,
+                "pickupTime": "ONE_HOUR"
+            }
+        }),
+    ));
+    assert_eq!(
+        inactive.body["data"]["locationLocalPickupEnable"]["userErrors"][0]["code"],
+        json!("ACTIVE_LOCATION_NOT_FOUND")
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn location_local_pickup_live_hybrid_mutations_are_local_and_overlay_observed_reads() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request);
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "locationsAvailableForDeliveryProfilesConnection": {
+                            "nodes": [{
+                                "id": "gid://shopify/Location/106318496050",
+                                "name": "Snow City Warehouse",
+                                "localPickupSettingsV2": null,
+                                "isActive": true,
+                                "isFulfillmentService": false
+                            }],
+                            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydratePickupLocations {
+          locationsAvailableForDeliveryProfilesConnection(first: 1) {
+            nodes { id name localPickupSettingsV2 { pickupTime instructions } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(hydrate.status, 200);
+    assert_eq!(forwarded.lock().unwrap().len(), 1);
+
+    let enable = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PickupEnable($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) {
+          locationLocalPickupEnable(localPickupSettings: $localPickupSettings) {
+            localPickupSettings { pickupTime instructions }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "localPickupSettings": {
+                "locationId": "gid://shopify/Location/106318496050",
+                "pickupTime": "TWO_HOURS",
+                "instructions": "Desk pickup"
+            }
+        }),
+    ));
+    assert_eq!(
+        enable.body["data"]["locationLocalPickupEnable"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        forwarded.lock().unwrap().len(),
+        1,
+        "supported local-pickup mutation must not write upstream"
+    );
+
+    let after = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAfterPickupEnable($id: ID!) {
+          location(id: $id) { id name localPickupSettingsV2 { pickupTime instructions } }
+          locationsAvailableForDeliveryProfilesConnection(first: 1) {
+            nodes { id localPickupSettingsV2 { pickupTime instructions } }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Location/106318496050" }),
+    ));
+    assert_eq!(
+        after.body["data"]["location"]["localPickupSettingsV2"],
+        json!({ "pickupTime": "TWO_HOURS", "instructions": "Desk pickup" })
+    );
+    assert_eq!(
+        after.body["data"]["locationsAvailableForDeliveryProfilesConnection"]["nodes"][0]
+            ["localPickupSettingsV2"],
+        json!({ "pickupTime": "TWO_HOURS", "instructions": "Desk pickup" })
+    );
+    assert_eq!(forwarded.lock().unwrap().len(), 1);
+}
+
+#[test]
 fn shipping_package_update_rejects_flat_rate_packages_without_staging_state() {
     let mut proxy = snapshot_proxy();
     let update_query = r#"

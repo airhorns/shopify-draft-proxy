@@ -840,6 +840,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
             "returnsByOrder": {},
             "reverseDeliveries": {},
             "reverseFulfillmentOrders": {},
+            "observedShippingLocations": {},
+            "observedShippingLocationOrder": [],
             "locations": {},
             "locationOrder": [],
             "locationLimitReached": false,
