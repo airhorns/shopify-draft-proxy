@@ -102,7 +102,10 @@ impl DraftProxy {
                         .staged
                         .b2b_locations
                         .get(&id)
-                        .map(|location| selected_json(location, &field.selection))
+                        .cloned()
+                        .map(|location| {
+                            self.b2b_company_location_selected_json(&location, &field.selection)
+                        })
                         .unwrap_or(Value::Null);
                     data.insert(field.response_key.clone(), location);
                 }
@@ -1671,9 +1674,11 @@ impl DraftProxy {
             })
         };
         let name = b2b_location_name(input, company, shipping_address.as_ref());
-        let buyer_experience = resolved_object_field(input, "buyerExperienceConfiguration")
-            .map(|buyer_experience| b2b_buyer_experience_configuration_json(&buyer_experience))
-            .unwrap_or(Value::Null);
+        // Every location carries a buyerExperienceConfiguration; when none is
+        // supplied Shopify still returns the all-default object (not null).
+        let buyer_experience = b2b_buyer_experience_configuration_json(
+            &resolved_object_field(input, "buyerExperienceConfiguration").unwrap_or_default(),
+        );
         let location = json!({
             "id": id,
             "name": name,
