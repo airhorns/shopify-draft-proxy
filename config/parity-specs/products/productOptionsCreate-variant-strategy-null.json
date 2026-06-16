@@ -7,11 +7,17 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-null-parity.json"
   ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/products/productOptionsCreate-variant-strategy-edge.graphql",
-    "variablesCapturePath": "$.mutation.variables"
+    "documentPath": "config/parity-requests/products/product-option-lifecycle-hydrate-nodes.graphql",
+    "variables": {
+      "ids": [
+        {
+          "fromCapturePath": "$.preMutationRead.data.product.id"
+        }
+      ]
+    }
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executable parity for `productOptionsCreate` with an explicit null `variantStrategy` variable: Shopify treats it like the default `LEAVE_AS_IS` branch and returns no userErrors.",
+  "notes": "Executable parity for `productOptionsCreate` with an explicit null `variantStrategy` variable: Shopify treats it like the default `LEAVE_AS_IS` branch and returns no userErrors. Proxy replay first hydrates the captured pre-mutation product through a public product read, then runs the supported mutation locally.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -38,9 +44,18 @@
     ],
     "targets": [
       {
+        "name": "pre-mutation-read-data",
+        "capturePath": "$.preMutationRead.data.product",
+        "proxyPath": "$.data.nodes[0]"
+      },
+      {
         "name": "mutation-data",
         "capturePath": "$.mutation.response.data",
-        "proxyPath": "$.data"
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsCreate-variant-strategy-edge.graphql",
+          "variablesCapturePath": "$.mutation.variables"
+        }
       },
       {
         "name": "downstream-read-data",
@@ -49,7 +64,8 @@
           "documentPath": "config/parity-requests/products/product-option-variant-strategy-edge-downstream-read.graphql",
           "variables": {
             "id": {
-              "fromPrimaryProxyPath": "$.data.productOptionsCreate.product.id"
+              "fromProxyResponse": "mutation-data",
+              "path": "$.data.productOptionsCreate.product.id"
             }
           }
         },
