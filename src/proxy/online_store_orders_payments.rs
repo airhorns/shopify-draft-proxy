@@ -3678,6 +3678,17 @@ impl DraftProxy {
             .staged
             .order_customer_b2b_order_ids
             .remove(order_id);
+        if self
+            .store
+            .staged
+            .order_payment_transaction_order_id
+            .as_deref()
+            == Some(order_id)
+        {
+            self.store.staged.order_payment_transaction_order_id = None;
+            self.store.staged.order_payment_parent_transaction_id = None;
+            self.store.staged.order_payment_transaction_state = None;
+        }
     }
 
     fn remove_reverse_fulfillment_order(&mut self, reverse_id: &str) {

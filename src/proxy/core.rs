@@ -218,6 +218,25 @@ impl DraftProxy {
                 .cloned()
                 .collect::<Vec<_>>());
         }
+        if !self.store.staged.url_redirects.is_empty() {
+            snapshot["stagedState"]["urlRedirects"] = json!(self.store.staged.url_redirects);
+            snapshot["stagedState"]["urlRedirectOrder"] =
+                json!(self.store.staged.url_redirect_order);
+        }
+        if !self
+            .store
+            .staged
+            .product_option_linked_metaobject_definition_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["productOptionLinkedMetaobjectDefinitionIds"] = json!(self
+                .store
+                .staged
+                .product_option_linked_metaobject_definition_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.flow_signatures.is_empty() {
             snapshot["stagedState"]["flowSignatures"] = json!(self.store.staged.flow_signatures);
         }
@@ -602,6 +621,28 @@ impl DraftProxy {
             .unwrap_or_default();
         self.store.staged.deleted_metaobject_ids = state["stagedState"]
             .get("deletedMetaobjectIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.url_redirects = state["stagedState"]
+            .get("urlRedirects")
+            .and_then(Value::as_object)
+            .map(|redirects| {
+                redirects
+                    .iter()
+                    .map(|(id, redirect)| (id.clone(), redirect.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.url_redirect_order = state["stagedState"]
+            .get("urlRedirectOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| self.store.staged.url_redirects.keys().cloned().collect());
+        self.store
+            .staged
+            .product_option_linked_metaobject_definition_ids = state["stagedState"]
+            .get("productOptionLinkedMetaobjectDefinitionIds")
             .map(string_array_from_json)
             .unwrap_or_default()
             .into_iter()
