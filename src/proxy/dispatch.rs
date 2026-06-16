@@ -1045,7 +1045,7 @@ impl DraftProxy {
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && has_local_dispatch
-                    && root_field == "orderCreate" =>
+                    && matches!(root_field, "orderCreate" | "orderClose" | "orderOpen") =>
             {
                 if let Some(data) =
                     self.payment_terms_local_data(request, &query, &variables)
