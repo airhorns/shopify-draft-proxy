@@ -1,0 +1,140 @@
+{
+  "scenarioId": "localization-translations-digest-mismatch",
+  "operationNames": ["productCreate", "productUpdate", "shopLocaleEnable", "translationsRegister"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-branch-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translations-digest-mismatch.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-enable-french-locale",
+        "capturePath": "$.setup.localeSetup.response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable.graphql",
+          "apiVersion": "2026-04",
+          "variables": { "locale": "fr" }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.shopLocale",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The live shop may already have French enabled, while parity replay always enables it on a clean proxy to satisfy translationsRegister locale validation before the digest assertions."
+          },
+          {
+            "path": "$.userErrors",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The setup branch is environment-dependent and is not the behavior under test; digest validation targets below are strict."
+          }
+        ]
+      },
+      {
+        "name": "setup-product-create",
+        "capturePath": "$.setup.productCreate.response.data.productCreate",
+        "proxyPath": "$.data.productCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-digest-product-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.setup.productCreate.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy allocates a synthetic product GID while Shopify returns a real disposable product GID."
+          }
+        ]
+      },
+      {
+        "name": "translations-register-correct-digest",
+        "capturePath": "$.correctDigestRegister.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "translations": {
+              "fromCapturePath": "$.correctDigestRegister.variables.translations"
+            }
+          }
+        }
+      },
+      {
+        "name": "translations-register-wrong-digest",
+        "capturePath": "$.wrongDigestRegister.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "translations": {
+              "fromCapturePath": "$.wrongDigestRegister.variables.translations"
+            }
+          }
+        }
+      },
+      {
+        "name": "setup-product-update-title",
+        "capturePath": "$.setup.productUpdate.response.data.productUpdate",
+        "proxyPath": "$.data.productUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-digest-product-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "product": {
+              "id": {
+                "fromProxyResponse": "setup-product-create",
+                "path": "$.data.productCreate.product.id"
+              },
+              "title": {
+                "fromCapturePath": "$.setup.productUpdate.variables.product.title"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.product.id",
+            "matcher": "shopify-gid:Product",
+            "reason": "The proxy updates the staged synthetic product GID while Shopify updates the real disposable product GID."
+          }
+        ]
+      },
+      {
+        "name": "translations-register-stale-digest",
+        "capturePath": "$.staleDigestRegister.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "resourceId": {
+              "fromProxyResponse": "setup-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "translations": {
+              "fromCapturePath": "$.staleDigestRegister.variables.translations"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture creates one disposable product, ensures French is enabled, reads the product title digest, captures correct-digest success, fabricated-digest INVALID_TRANSLATABLE_CONTENT, updates the product title, captures stale-digest INVALID_TRANSLATABLE_CONTENT, then deletes the product and restores the locale only when the script enabled it."
+}

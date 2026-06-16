@@ -6,7 +6,9 @@ pub(super) use shopify_draft_proxy::graphql::OperationType;
 pub(super) use shopify_draft_proxy::operation_registry::{
     CapabilityDomain, CapabilityExecution, OperationRegistryEntry,
 };
-pub(super) use shopify_draft_proxy::proxy::{Config, DraftProxy, ProductRecord, ReadMode, Request};
+pub(super) use shopify_draft_proxy::proxy::{
+    Config, DraftProxy, ProductRecord, ReadMode, Request, Response,
+};
 
 pub(super) fn snapshot_proxy() -> DraftProxy {
     configured_proxy(ReadMode::Snapshot, None)

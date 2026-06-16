@@ -1,5 +1,6 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
+use std::collections::BTreeMap;
 
 #[test]
 fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_names() {
@@ -3142,7 +3143,22 @@ fn product_variants_bulk_create_strategy_downstreams_replay_captured_variant_sha
         ),
     ] {
         let fixture: Value = serde_json::from_str(fixture_source).unwrap();
-        let mut proxy = snapshot_proxy();
+        let expected_product = &fixture["downstreamRead"]["data"]["product"];
+        let mut extra_fields = BTreeMap::new();
+        extra_fields.insert("options".to_string(), expected_product["options"].clone());
+        let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+            id: product_id.to_string(),
+            total_inventory: expected_product["totalInventory"].as_i64().unwrap_or(0),
+            tracks_inventory: expected_product["tracksInventory"]
+                .as_bool()
+                .unwrap_or(false),
+            variants: expected_product["variants"]["nodes"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default(),
+            extra_fields,
+            ..ProductRecord::default()
+        }]);
         let response = proxy.process_request(json_graphql_request(
             query,
             json!({ "id": product_id }),
@@ -4261,6 +4277,32 @@ fn product_variant_compatibility_mutations_replay_captured_bulk_shapes() {
     );
 }
 
+fn option_lifecycle_base_product(product_id: &str) -> ProductRecord {
+    ProductRecord {
+        id: product_id.to_string(),
+        title: "Ordinary option lifecycle".to_string(),
+        handle: "ordinary-option-lifecycle".to_string(),
+        status: "ACTIVE".to_string(),
+        created_at: "2026-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2026-01-01T00:00:00.000Z".to_string(),
+        extra_fields: BTreeMap::from([(
+            "options".to_string(),
+            json!([{
+                "id": "gid://shopify/ProductOption/default-title",
+                "name": "Title",
+                "position": 1,
+                "values": ["Default Title"],
+                "optionValues": [{
+                    "id": "gid://shopify/ProductOptionValue/default-title",
+                    "name": "Default Title",
+                    "hasVariants": true
+                }]
+            }]),
+        )]),
+        ..ProductRecord::default()
+    }
+}
+
 #[test]
 fn product_fixture_backed_update_and_delete_mutations_return_captured_shapes() {
     let mut proxy = snapshot_proxy();
@@ -4657,10 +4699,10 @@ fn product_create_length_validation_errors_match_shopify_shapes() {
 }
 
 #[test]
-fn product_option_lifecycle_replays_captured_mutations_and_downstream_reads() {
-    let mut proxy = snapshot_proxy();
-    let downstream_query = include_str!(
-        "../../config/parity-requests/products/product-option-lifecycle-downstream-read.graphql"
+fn product_option_fixture_operation_names_do_not_bypass_store_lookup() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
     );
 
     let create_fixture = product_fixture(include_str!(
@@ -4674,16 +4716,12 @@ fn product_option_lifecycle_replays_captured_mutations_and_downstream_reads() {
     ));
     assert_eq!(create.status, 200);
     assert_eq!(
-        create.body["data"],
-        create_fixture["mutation"]["response"]["data"]
+        create.body["data"]["productOptionsCreate"]["product"],
+        Value::Null
     );
-    let create_read = proxy.process_request(json_graphql_request(
-        downstream_query,
-        json!({ "id": create.body["data"]["productOptionsCreate"]["product"]["id"].clone() }),
-    ));
     assert_eq!(
-        create_read.body["data"],
-        create_fixture["downstreamRead"]["data"]
+        create.body["data"]["productOptionsCreate"]["userErrors"][0]["message"],
+        json!("Product does not exist")
     );
 
     let update_fixture = product_fixture(include_str!(
@@ -4697,16 +4735,12 @@ fn product_option_lifecycle_replays_captured_mutations_and_downstream_reads() {
     ));
     assert_eq!(update.status, 200);
     assert_eq!(
-        update.body["data"],
-        update_fixture["mutation"]["response"]["data"]
+        update.body["data"]["productOptionUpdate"]["product"],
+        Value::Null
     );
-    let update_read = proxy.process_request(json_graphql_request(
-        downstream_query,
-        json!({ "id": update.body["data"]["productOptionUpdate"]["product"]["id"].clone() }),
-    ));
     assert_eq!(
-        update_read.body["data"],
-        update_fixture["downstreamRead"]["data"]
+        update.body["data"]["productOptionUpdate"]["userErrors"][0]["message"],
+        json!("Product does not exist")
     );
 
     let delete_fixture = product_fixture(include_str!(
@@ -4720,65 +4754,566 @@ fn product_option_lifecycle_replays_captured_mutations_and_downstream_reads() {
     ));
     assert_eq!(delete.status, 200);
     assert_eq!(
-        delete.body["data"],
-        delete_fixture["mutation"]["response"]["data"]
+        delete.body["data"]["productOptionsDelete"]["product"],
+        Value::Null
     );
-    let delete_read = proxy.process_request(json_graphql_request(
-        downstream_query,
-        json!({ "id": delete.body["data"]["productOptionsDelete"]["product"]["id"].clone() }),
+    assert_eq!(
+        delete.body["data"]["productOptionsDelete"]["userErrors"][0]["message"],
+        json!("Product does not exist")
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 0);
+}
+
+#[test]
+fn product_options_create_stages_for_ordinary_operation_names() {
+    let product_id = "gid://shopify/Product/ordinary-option-product";
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    )
+    .with_base_products(vec![ProductRecord {
+        id: product_id.to_string(),
+        title: "Ordinary option product".to_string(),
+        handle: "ordinary-option-product".to_string(),
+        status: "ACTIVE".to_string(),
+        created_at: "2026-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2026-01-01T00:00:00.000Z".to_string(),
+        ..ProductRecord::default()
+    }]);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalProductOptionsCreate($productId: ID!, $options: [OptionCreateInput!]!) {
+          productOptionsCreate(productId: $productId, options: $options) {
+            product {
+              id
+              options {
+                id
+                name
+                position
+                values
+                optionValues { id name hasVariants }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "options": [
+                {"name": "Size", "values": [{"name": "Small"}, {"name": "Large"}]}
+            ]
+        }),
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productOptionsCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["productOptionsCreate"]["product"]["options"][0]["name"],
+        json!("Size")
+    );
+    assert_eq!(
+        create.body["data"]["productOptionsCreate"]["product"]["options"][0]["values"],
+        json!(["Small"])
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 1);
+    assert!(log.body["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("NaturalProductOptionsCreate"));
+}
+
+#[test]
+fn product_option_lifecycle_stages_update_delete_reorder_and_downstream_reads() {
+    let product_id = "gid://shopify/Product/ordinary-option-lifecycle";
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    )
+    .with_base_products(vec![option_lifecycle_base_product(product_id)]);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalOptionLifecycleCreate($productId: ID!, $options: [OptionCreateInput!]!, $variantStrategy: ProductOptionCreateVariantStrategy) {
+          productOptionsCreate(productId: $productId, options: $options, variantStrategy: $variantStrategy) {
+            product {
+              id
+              options { id name position values optionValues { id name hasVariants } }
+              variants(first: 10) { nodes { id title selectedOptions { name value } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variantStrategy": "CREATE",
+            "options": [
+                {"name": "Color", "values": [{"name": "Red"}, {"name": "Green"}]},
+                {"name": "Size", "values": [{"name": "Small"}]}
+            ]
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productOptionsCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["productOptionsCreate"]["product"]["variants"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(
+        create.body["data"]["productOptionsCreate"]["product"]["variants"]["nodes"][1]["title"],
+        json!("Green / Small")
+    );
+
+    let color_id = create.body["data"]["productOptionsCreate"]["product"]["options"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let red_value_id = create.body["data"]["productOptionsCreate"]["product"]["options"][0]
+        ["optionValues"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let green_value_id = create.body["data"]["productOptionsCreate"]["product"]["options"][0]
+        ["optionValues"][1]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let size_id = create.body["data"]["productOptionsCreate"]["product"]["options"][1]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let small_value_id = create.body["data"]["productOptionsCreate"]["product"]["options"][1]
+        ["optionValues"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productOptionUpdate-parity-plan.graphql"
+        ),
+        json!({
+            "productId": product_id,
+            "option": { "id": color_id, "name": "Shade", "position": 2 },
+            "optionValuesToAdd": [{ "name": "Blue" }],
+            "optionValuesToUpdate": [{ "id": red_value_id, "name": "Crimson" }],
+            "optionValuesToDelete": [green_value_id]
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productOptionUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["productOptionUpdate"]["product"]["options"][0]["name"],
+        json!("Size")
+    );
+    assert_eq!(
+        update.body["data"]["productOptionUpdate"]["product"]["options"][1]["name"],
+        json!("Shade")
+    );
+    assert_eq!(
+        update.body["data"]["productOptionUpdate"]["product"]["variants"]["nodes"][0]
+            ["selectedOptions"],
+        json!([
+            { "name": "Size", "value": "Small" },
+            { "name": "Shade", "value": "Crimson" }
+        ])
+    );
+
+    let reorder = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/product-relationship-product-options-reorder.graphql"
+        ),
+        json!({
+            "productId": product_id,
+            "options": [
+                { "id": size_id, "values": [{ "id": small_value_id }] },
+                { "name": "Shade", "values": [{ "name": "Crimson" }, { "name": "Blue" }] }
+            ]
+        }),
+    ));
+    assert_eq!(reorder.status, 200);
+    assert_eq!(
+        reorder.body["data"]["productOptionsReorder"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        reorder.body["data"]["productOptionsReorder"]["product"]["variants"]["nodes"][0]["title"],
+        json!("Small / Crimson")
+    );
+
+    let shade_id = update.body["data"]["productOptionUpdate"]["product"]["options"][1]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let delete = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productOptionsDelete-parity-plan.graphql"
+        ),
+        json!({ "productId": product_id, "options": [shade_id, size_id] }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productOptionsDelete"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        delete.body["data"]["productOptionsDelete"]["product"]["options"][0]["name"],
+        json!("Title")
+    );
+    assert_eq!(
+        delete.body["data"]["productOptionsDelete"]["product"]["variants"]["nodes"][0]
+            ["selectedOptions"],
+        json!([{ "name": "Title", "value": "Default Title" }])
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/product-option-lifecycle-downstream-read.graphql"
+        ),
+        json!({ "id": product_id }),
     ));
     assert_eq!(
-        delete_read.body["data"],
-        delete_fixture["downstreamRead"]["data"]
+        downstream.body["data"]["product"]["options"][0]["name"],
+        json!("Title")
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    let entries = log.body["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 4);
+    assert!(entries[0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("NaturalOptionLifecycleCreate"));
+    assert_eq!(
+        entries[1]["interpreted"]["primaryRootField"],
+        json!("productOptionUpdate")
+    );
+    assert_eq!(
+        entries[2]["interpreted"]["primaryRootField"],
+        json!("productOptionsReorder")
+    );
+    assert_eq!(
+        entries[3]["interpreted"]["primaryRootField"],
+        json!("productOptionsDelete")
     );
 }
 
 #[test]
-fn product_options_create_variant_strategy_edges_replay_captured_shapes() {
-    let cases = [
-        (
-            include_str!("../../config/parity-requests/products/productOptionsCreate-variant-strategy-create.graphql"),
-            include_str!("../../config/parity-requests/products/product-option-lifecycle-downstream-read.graphql"),
-            include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-create-parity.json"),
-        ),
-        (
-            include_str!("../../config/parity-requests/products/productOptionsCreate-variant-strategy-edge.graphql"),
-            include_str!("../../config/parity-requests/products/product-option-variant-strategy-edge-downstream-read.graphql"),
-            include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-leave-as-is-parity.json"),
-        ),
-        (
-            include_str!("../../config/parity-requests/products/productOptionsCreate-variant-strategy-edge.graphql"),
-            include_str!("../../config/parity-requests/products/product-option-variant-strategy-edge-downstream-read.graphql"),
-            include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-null-parity.json"),
-        ),
-        (
-            include_str!("../../config/parity-requests/products/productOptionsCreate-variant-strategy-edge.graphql"),
-            include_str!("../../config/parity-requests/products/product-option-variant-strategy-edge-downstream-read.graphql"),
-            include_str!("../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-create-over-default-limit.json"),
-        ),
-    ];
+fn product_option_mutations_validate_without_staging() {
+    let product_id = "gid://shopify/Product/ordinary-option-validation";
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    )
+    .with_base_products(vec![option_lifecycle_base_product(product_id)]);
 
-    for (mutation_query, downstream_query, fixture_source) in cases {
-        let mut proxy = snapshot_proxy();
-        let fixture = product_fixture(fixture_source);
-        let mutation = proxy.process_request(json_graphql_request(
-            mutation_query,
-            fixture["mutation"]["variables"].clone(),
-        ));
-        assert_eq!(mutation.status, 200);
-        assert_eq!(
-            mutation.body["data"],
-            fixture["mutation"]["response"]["data"]
-        );
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalDuplicateOption($productId: ID!, $options: [OptionCreateInput!]!) {
+          productOptionsCreate(productId: $productId, options: $options) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "options": [
+                {"name": "Color", "values": [{"name": "Red"}]},
+                {"name": "Color", "values": [{"name": "Blue"}]}
+            ]
+        }),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["productOptionsCreate"]["userErrors"][0]["code"],
+        json!("DUPLICATED_OPTION_NAME")
+    );
 
-        let product_id = mutation.body["data"]["productOptionsCreate"]["product"]["id"].clone();
-        let downstream = proxy.process_request(json_graphql_request(
-            downstream_query,
-            json!({ "id": product_id }),
-        ));
-        assert_eq!(downstream.status, 200);
-        assert_eq!(downstream.body["data"], fixture["downstreamRead"]["data"]);
-    }
+    let too_many = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalTooManyOptions($productId: ID!, $options: [OptionCreateInput!]!) {
+          productOptionsCreate(productId: $productId, options: $options) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "options": [
+                {"name": "Color", "values": [{"name": "Red"}]},
+                {"name": "Size", "values": [{"name": "Small"}]},
+                {"name": "Material", "values": [{"name": "Cotton"}]},
+                {"name": "Finish", "values": [{"name": "Matte"}]}
+            ]
+        }),
+    ));
+    assert_eq!(
+        too_many.body["data"]["productOptionsCreate"]["userErrors"][0]["code"],
+        json!("OPTIONS_OVER_LIMIT")
+    );
+
+    let long_value_names = (0..101)
+        .map(|index| json!({ "name": format!("Value {index}") }))
+        .collect::<Vec<_>>();
+    let too_many_values = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalTooManyValues($productId: ID!, $options: [OptionCreateInput!]!) {
+          productOptionsCreate(productId: $productId, options: $options) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "productId": product_id, "options": [{ "name": "Finish", "values": long_value_names }] }),
+    ));
+    assert_eq!(
+        too_many_values.body["data"]["productOptionsCreate"]["userErrors"][0]["code"],
+        json!("OPTION_VALUES_OVER_LIMIT")
+    );
+
+    let setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation NaturalValidationSetup($productId: ID!, $options: [OptionCreateInput!]!) {
+          productOptionsCreate(productId: $productId, options: $options) {
+            product { options { id name optionValues { id name } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "options": [
+                {"name": "Color", "values": [{"name": "Red"}]},
+                {"name": "Size", "values": [{"name": "Small"}]}
+            ]
+        }),
+    ));
+    assert_eq!(
+        setup.body["data"]["productOptionsCreate"]["userErrors"],
+        json!([])
+    );
+
+    let missing_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productOptionUpdate-parity-plan.graphql"
+        ),
+        json!({
+            "productId": product_id,
+            "option": { "id": "gid://shopify/ProductOption/missing", "name": "Shade" },
+            "optionValuesToAdd": [],
+            "optionValuesToUpdate": [],
+            "optionValuesToDelete": []
+        }),
+    ));
+    assert_eq!(
+        missing_update.body["data"]["productOptionUpdate"]["userErrors"][0]["message"],
+        json!("Option does not exist")
+    );
+
+    let missing_delete = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productOptionsDelete-parity-plan.graphql"
+        ),
+        json!({ "productId": product_id, "options": ["gid://shopify/ProductOption/missing"] }),
+    ));
+    assert_eq!(
+        missing_delete.body["data"]["productOptionsDelete"]["userErrors"][0]["message"],
+        json!("Option does not exist")
+    );
+
+    let missing_reorder = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/productOptionsReorder-validation.graphql"
+        ),
+        json!({ "productId": product_id, "options": [{ "name": "Missing option" }] }),
+    ));
+    assert_eq!(
+        missing_reorder.body["data"]["productOptionsReorder"]["userErrors"][0]["code"],
+        json!("OPTION_NAME_DOES_NOT_EXIST")
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn product_options_create_variant_strategy_edges_stage_from_store_state() {
+    let create_strategy_product = "gid://shopify/Product/ordinary-option-create-strategy";
+    let leave_as_is_product = "gid://shopify/Product/ordinary-option-leave-as-is-strategy";
+    let null_strategy_product = "gid://shopify/Product/ordinary-option-null-strategy";
+    let over_limit_product = "gid://shopify/Product/ordinary-option-over-limit";
+    let mutation_query = r#"
+        mutation NaturalVariantStrategyCreate(
+          $productId: ID!
+          $options: [OptionCreateInput!]!
+          $variantStrategy: ProductOptionCreateVariantStrategy
+        ) {
+          productOptionsCreate(productId: $productId, options: $options, variantStrategy: $variantStrategy) {
+            product {
+              id
+              options { id name values optionValues { id name hasVariants } }
+              variants(first: 10) { nodes { title selectedOptions { name value } } }
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    )
+    .with_base_products(vec![
+        option_lifecycle_base_product(create_strategy_product),
+        option_lifecycle_base_product(leave_as_is_product),
+        option_lifecycle_base_product(null_strategy_product),
+        option_lifecycle_base_product(over_limit_product),
+    ]);
+
+    let create = proxy.process_request(json_graphql_request(
+        mutation_query,
+        json!({
+            "productId": create_strategy_product,
+            "variantStrategy": "CREATE",
+            "options": [
+                {"name": "Color", "values": [{"name": "Blue"}, {"name": "Green"}]},
+                {"name": "Size", "values": [{"name": "Small"}, {"name": "Large"}]}
+            ]
+        }),
+    ));
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productOptionsCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["productOptionsCreate"]["product"]["variants"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        4
+    );
+    assert_eq!(
+        create.body["data"]["productOptionsCreate"]["product"]["variants"]["nodes"][3]["title"],
+        json!("Green / Large")
+    );
+
+    let leave_as_is = proxy.process_request(json_graphql_request(
+        mutation_query,
+        json!({
+            "productId": leave_as_is_product,
+            "variantStrategy": "LEAVE_AS_IS",
+            "options": [
+                {"name": "Color", "values": [{"name": "Blue"}, {"name": "Green"}]}
+            ]
+        }),
+    ));
+    assert_eq!(
+        leave_as_is.body["data"]["productOptionsCreate"]["product"]["variants"]["nodes"],
+        json!([{
+            "title": "Blue",
+            "selectedOptions": [{ "name": "Color", "value": "Blue" }]
+        }])
+    );
+    assert_eq!(
+        leave_as_is.body["data"]["productOptionsCreate"]["product"]["options"][0]["optionValues"]
+            [1]["hasVariants"],
+        json!(false)
+    );
+
+    let null_strategy = proxy.process_request(json_graphql_request(
+        mutation_query,
+        json!({
+            "productId": null_strategy_product,
+            "variantStrategy": null,
+            "options": [
+                {"name": "Color", "values": [{"name": "Blue"}, {"name": "Green"}]}
+            ]
+        }),
+    ));
+    assert_eq!(
+        null_strategy.body["data"]["productOptionsCreate"]["product"]["variants"]["nodes"][0]
+            ["title"],
+        json!("Blue")
+    );
+    assert_eq!(
+        null_strategy.body["data"]["productOptionsCreate"]["product"]["options"][0]["values"],
+        json!(["Blue"])
+    );
+
+    let over_limit = proxy.process_request(json_graphql_request(
+        mutation_query,
+        json!({
+            "productId": over_limit_product,
+            "variantStrategy": "CREATE",
+            "options": [
+                {"name": "Color", "values": [{"name": "Blue"}]},
+                {"name": "Size", "values": [{"name": "Small"}]},
+                {"name": "Material", "values": [{"name": "Cotton"}]},
+                {"name": "Finish", "values": [{"name": "Matte"}]}
+            ]
+        }),
+    ));
+    assert_eq!(
+        over_limit.body["data"]["productOptionsCreate"]["product"],
+        json!({
+            "id": over_limit_product,
+            "options": [{
+                "id": "gid://shopify/ProductOption/default-title",
+                "name": "Title",
+                "position": 1,
+                "values": ["Default Title"],
+                "optionValues": [{
+                    "id": "gid://shopify/ProductOptionValue/default-title",
+                    "name": "Default Title",
+                    "hasVariants": true
+                }]
+            }],
+            "variants": { "nodes": [] }
+        })
+    );
+    assert_eq!(
+        over_limit.body["data"]["productOptionsCreate"]["userErrors"][0]["code"],
+        json!("OPTIONS_OVER_LIMIT")
+    );
 }
 
 #[test]
