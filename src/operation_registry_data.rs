@@ -2392,7 +2392,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::OverlayRead,
             true,
             &["theme", "Theme"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "themes",
@@ -2401,7 +2401,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::OverlayRead,
             true,
             &["themes", "Themes"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "scriptTag",
@@ -2410,7 +2410,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::OverlayRead,
             true,
             &["scriptTag", "ScriptTag"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "scriptTags",
@@ -2419,7 +2419,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::OverlayRead,
             true,
             &["scriptTags", "ScriptTags"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "webPixel",
@@ -2428,7 +2428,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::OverlayRead,
             true,
             &["webPixel", "WebPixel"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "serverPixel",
@@ -2437,7 +2437,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::OverlayRead,
             true,
             &["serverPixel", "ServerPixel"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "mobilePlatformApplication",
@@ -2446,7 +2446,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::OverlayRead,
             true,
             &["mobilePlatformApplication", "MobilePlatformApplication"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "mobilePlatformApplications",
@@ -2455,7 +2455,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::OverlayRead,
             true,
             &["mobilePlatformApplications", "MobilePlatformApplications"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "menuCreate",
@@ -2491,7 +2491,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["themeCreate", "ThemeCreate"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "themeUpdate",
@@ -2500,7 +2500,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["themeUpdate", "ThemeUpdate"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "themeDelete",
@@ -2509,7 +2509,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["themeDelete", "ThemeDelete"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "themePublish",
@@ -2518,7 +2518,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["themePublish", "ThemePublish"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "themeFilesCopy",
@@ -2527,7 +2527,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["themeFilesCopy", "ThemeFilesCopy"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "themeFilesUpsert",
@@ -2536,7 +2536,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["themeFilesUpsert", "ThemeFilesUpsert"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "themeFilesDelete",
@@ -2545,7 +2545,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["themeFilesDelete", "ThemeFilesDelete"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "scriptTagCreate",
@@ -2554,7 +2554,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["scriptTagCreate", "ScriptTagCreate"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "scriptTagUpdate",
@@ -2563,16 +2563,16 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["scriptTagUpdate", "ScriptTagUpdate"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "scriptTagDelete",
             OperationType::Mutation,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &["scriptTagDelete", "ScriptTagDelete"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "webPixelCreate",
@@ -2581,7 +2581,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["webPixelCreate", "WebPixelCreate"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "webPixelUpdate",
@@ -2590,16 +2590,16 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["webPixelUpdate", "WebPixelUpdate"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "webPixelDelete",
             OperationType::Mutation,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &["webPixelDelete", "WebPixelDelete"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "serverPixelCreate",
@@ -2608,16 +2608,16 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["serverPixelCreate", "ServerPixelCreate"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "serverPixelDelete",
             OperationType::Mutation,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &["serverPixelDelete", "ServerPixelDelete"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "eventBridgeServerPixelUpdate",
@@ -2629,7 +2629,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
                 "eventBridgeServerPixelUpdate",
                 "EventBridgeServerPixelUpdate",
             ],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "pubSubServerPixelUpdate",
@@ -2638,7 +2638,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["pubSubServerPixelUpdate", "PubSubServerPixelUpdate"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "storefrontAccessTokenCreate",
@@ -2647,16 +2647,16 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["storefrontAccessTokenCreate", "StorefrontAccessTokenCreate"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "storefrontAccessTokenDelete",
             OperationType::Mutation,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &["storefrontAccessTokenDelete", "StorefrontAccessTokenDelete"],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "mobilePlatformApplicationCreate",
@@ -2668,7 +2668,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
                 "mobilePlatformApplicationCreate",
                 "MobilePlatformApplicationCreate",
             ],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "mobilePlatformApplicationUpdate",
@@ -2680,19 +2680,19 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
                 "mobilePlatformApplicationUpdate",
                 "MobilePlatformApplicationUpdate",
             ],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "mobilePlatformApplicationDelete",
             OperationType::Mutation,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[
                 "mobilePlatformApplicationDelete",
                 "MobilePlatformApplicationDelete",
             ],
-            &[],
+            &["tests/graphql_routes/marketing_inventory_online_store.rs"],
         ),
         registry_entry(
             "privacySettings",

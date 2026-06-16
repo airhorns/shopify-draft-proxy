@@ -1154,25 +1154,6 @@ pub(in crate::proxy) fn market_localization_error(field: Vec<&str>, code: &str) 
     })
 }
 
-pub(in crate::proxy) fn is_ported_online_store_document(query: &str) -> bool {
-    query.contains("MobilePlatformApplicationUpdate")
-        || query.contains("MobilePlatformApplicationCreateBlankApplicationId")
-        || query.contains("MobilePlatformApplicationCreateModelValidation")
-        || query.contains("MobilePlatformApplicationCreateRequiresOnePlatform")
-        || query.contains("OnlineStoreIntegrationsLocalStaging")
-        || query.contains("ScriptTagCreateValidatesSrc")
-        || query.contains("ScriptTagUpdateValidation")
-        || query.contains("ScriptTagUpdateEventForceOnload")
-        || query.contains("ScriptTagUpdateReadback")
-        || query.contains("ThemeFilesChecksumsAndValidation")
-        || query.contains("RustOnlineStoreStorefrontAccessTokenLocalRuntime")
-        || query.contains("RustOnlineStorePixelLocalRuntime")
-        || query.contains("RustOnlineStoreServerPixel")
-        || query.contains("RustOnlineStoreThemeLocalRuntime")
-        || query.contains("RustOnlineStoreThemeFileLocalRuntime")
-        || query.contains("WebPixelUpdateValidationLocalRuntime")
-}
-
 pub(in crate::proxy) fn is_online_store_theme_record(record: &Value) -> bool {
     record.get("__typename").and_then(Value::as_str) == Some("OnlineStoreTheme")
         || record
@@ -1258,7 +1239,7 @@ pub(in crate::proxy) fn theme_user_error(
     code: Option<&str>,
 ) -> Value {
     let field: Vec<&str> = field.into_iter().collect();
-    let mut error = json!({"field": field, "message": message});
+    let mut error = json!({"__typename": "ThemeUserError", "field": field, "message": message});
     if let Some(code) = code {
         error["code"] = json!(code);
     }
@@ -1348,6 +1329,71 @@ pub(in crate::proxy) fn script_tag_payload(
     selected_json(
         &json!({"scriptTag": record, "userErrors": errors}),
         selection,
+    )
+}
+
+pub(in crate::proxy) fn online_store_delete_id_arg(
+    field: &RootFieldSelection,
+    input_object_field: &str,
+) -> Option<String> {
+    resolved_string_arg(&field.arguments, "id")
+        .or_else(|| {
+            field.arguments.get("input").and_then(|value| match value {
+                ResolvedValue::Object(input) => resolved_string_field(input, "id"),
+                _ => None,
+            })
+        })
+        .or_else(|| {
+            (input_object_field == "serverPixel")
+                .then(|| {
+                    field
+                        .arguments
+                        .get("serverPixel")
+                        .and_then(|value| match value {
+                            ResolvedValue::Object(input) => resolved_string_field(input, "id"),
+                            _ => None,
+                        })
+                })
+                .flatten()
+        })
+}
+
+pub(in crate::proxy) fn online_store_delete_id_field_path(input_object_field: &str) -> Value {
+    if input_object_field == "storefrontAccessToken" {
+        json!(["input", "id"])
+    } else {
+        json!(["id"])
+    }
+}
+
+pub(in crate::proxy) fn online_store_delete_user_error(
+    typename: Option<&str>,
+    code: &str,
+    field: &[Value],
+    message: &str,
+) -> Value {
+    let mut error = serde_json::Map::new();
+    if let Some(typename) = typename {
+        error.insert("__typename".to_string(), json!(typename));
+    }
+    error.insert("code".to_string(), json!(code));
+    error.insert(
+        "field".to_string(),
+        field.first().cloned().unwrap_or(Value::Null),
+    );
+    error.insert("message".to_string(), json!(message));
+    Value::Object(error)
+}
+
+pub(in crate::proxy) fn selected_online_store_user_errors(
+    errors: &[Value],
+    selection: &[SelectedField],
+) -> Value {
+    Value::Array(
+        errors
+            .iter()
+            .map(|error| selected_json(error, selection))
+            .collect(),
     )
 }
 
