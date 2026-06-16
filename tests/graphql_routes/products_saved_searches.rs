@@ -4865,6 +4865,127 @@ fn saved_search_blank_name_and_input_required_user_errors_are_schema_shaped_and_
         })
     );
 
+    let update_seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchBlankUpdateSeed($input: SavedSearchCreateInput!) {
+          savedSearchCreate(input: $input) {
+            savedSearch { id name query resourceType }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "resourceType": "PRODUCT", "name": "Blank Update Seed", "query": "vendor:Acme" } }),
+    ));
+    assert_eq!(
+        update_seed.body["data"]["savedSearchCreate"]["userErrors"],
+        json!([])
+    );
+    let update_id = update_seed.body["data"]["savedSearchCreate"]["savedSearch"]["id"]
+        .as_str()
+        .unwrap();
+
+    let blank_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchBlankNameUpdate($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) {
+            savedSearch { id name query resourceType }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": update_id, "name": "" } }),
+    ));
+    assert_eq!(blank_update.status, 200);
+    assert_eq!(
+        blank_update.body["data"]["savedSearchUpdate"],
+        json!({
+            "savedSearch": {
+                "id": update_id,
+                "name": "Blank Update Seed",
+                "query": "vendor:Acme",
+                "resourceType": "PRODUCT"
+            },
+            "userErrors": [
+                { "field": ["input", "name"], "message": "Name can't be blank" }
+            ]
+        })
+    );
+
+    let blank_invalid_query_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchBlankNameInvalidQueryUpdate($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) {
+            savedSearch { id name query resourceType }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": update_id, "name": "   ", "query": "made_up_filter:foo" } }),
+    ));
+    assert_eq!(blank_invalid_query_update.status, 200);
+    assert_eq!(
+        blank_invalid_query_update.body["data"]["savedSearchUpdate"],
+        json!({
+            "savedSearch": {
+                "id": update_id,
+                "name": "Blank Update Seed",
+                "query": "made_up_filter:foo",
+                "resourceType": "PRODUCT"
+            },
+            "userErrors": [
+                { "field": ["input", "name"], "message": "Name can't be blank" },
+                { "field": ["input", "query"], "message": "Query is invalid, 'made_up_filter' is not a valid filter" }
+            ]
+        })
+    );
+
+    let omitted_name_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SavedSearchOmittedNameUpdate($input: SavedSearchUpdateInput!) {
+          savedSearchUpdate(input: $input) {
+            savedSearch { id name query resourceType }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": update_id, "query": "vendor:Changed" } }),
+    ));
+    assert_eq!(omitted_name_update.status, 200);
+    assert_eq!(
+        omitted_name_update.body["data"]["savedSearchUpdate"],
+        json!({
+            "savedSearch": {
+                "id": update_id,
+                "name": "Blank Update Seed",
+                "query": "vendor:Changed",
+                "resourceType": "PRODUCT"
+            },
+            "userErrors": []
+        })
+    );
+
+    let read_after_updates = proxy.process_request(json_graphql_request(
+        r#"
+        query SavedSearchReadAfterBlankUpdate {
+          productSavedSearches(first: 10) {
+            nodes { id name query resourceType }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        read_after_updates.body["data"]["productSavedSearches"]["nodes"],
+        json!([
+            {
+                "id": update_id,
+                "name": "Blank Update Seed",
+                "query": "vendor:Changed",
+                "resourceType": "PRODUCT"
+            }
+        ])
+    );
+
     let null_inputs = proxy.process_request(json_graphql_request(
         r#"
         mutation SavedSearchNullInputs($createInput: SavedSearchCreateInput, $updateInput: SavedSearchUpdateInput) {
