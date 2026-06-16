@@ -118,12 +118,15 @@ or log a service mutation.
 Carrier-service slices cover create, update, delete, downstream
 `carrierService(id:)`, `carrierServices(...)`, active filters, unknown-id
 validation, blank create and update names, duplicate active app carriers,
-callback URL validation, selected typed `userErrors.code` branches, and
-after-delete absence. Rejected blank-name updates do not stage a replacement
-name or append a mutation-log entry; omitted update names preserve the existing
-local name while applying other staged fields. The local model stores service
-name, formatted name, callback URL, active flag, service-discovery flag, and
-stable synthetic IDs for parity replay.
+callback URL validation, required-field GraphQL coercion for create-time
+`active` and `supportsServiceDiscovery`, selected typed `userErrors.code`
+branches, and after-delete absence. Rejected create validation and coercion
+branches do not stage a carrier service or append a mutation-log entry.
+Rejected blank-name updates do not stage a replacement name or append a
+mutation-log entry; omitted update names preserve the existing local name while
+applying other staged fields. The local model stores service name, formatted
+name, callback URL, active flag, service-discovery flag, and stable synthetic
+IDs for parity replay.
 
 Fulfillment and fulfillment-order slices cover fixture-backed top-level reads,
 detail/event reads, hold/release, move, open/report-progress, close,

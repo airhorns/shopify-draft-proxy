@@ -5949,7 +5949,9 @@ fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
         "#,
         json!({ "input": {
             "name": "HTTP Carrier",
-            "callbackUrl": "http://example.com/rates"
+            "callbackUrl": "http://example.com/rates",
+            "supportsServiceDiscovery": false,
+            "active": false
         }}),
     ));
     assert_eq!(
@@ -5975,7 +5977,9 @@ fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
         "#,
         json!({ "input": {
             "name": "Banned Carrier",
-            "callbackUrl": "https://localhost/rates"
+            "callbackUrl": "https://localhost/rates",
+            "supportsServiceDiscovery": false,
+            "active": false
         }}),
     ));
     assert_eq!(
@@ -6001,7 +6005,9 @@ fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
         "#,
         json!({ "input": {
             "name": "Unparseable Carrier",
-            "callbackUrl": "not-a-url"
+            "callbackUrl": "not-a-url",
+            "supportsServiceDiscovery": false,
+            "active": false
         }}),
     ));
     assert_eq!(
@@ -6024,7 +6030,9 @@ fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
         "#,
         json!({ "input": {
             "name": "",
-            "callbackUrl": "https://mock.shop/carrier-service-rates"
+            "callbackUrl": "https://mock.shop/carrier-service-rates",
+            "supportsServiceDiscovery": false,
+            "active": false
         }}),
     ));
     assert_eq!(
@@ -6050,7 +6058,9 @@ fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
         "#,
         json!({ "input": {
             "name": "Hermes Carrier Local",
-            "callbackUrl": "https://mock.shop/carrier-service-rates"
+            "callbackUrl": "https://mock.shop/carrier-service-rates",
+            "supportsServiceDiscovery": false,
+            "active": false
         }}),
     ));
     assert_eq!(
@@ -6061,6 +6071,99 @@ fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
         valid_create.body["data"]["carrierServiceCreate"]["userErrors"],
         json!([])
     );
+}
+
+#[test]
+fn carrier_service_create_missing_required_booleans_returns_coercion_errors_before_staging() {
+    let mut proxy = snapshot_proxy();
+    let document = r#"
+        mutation CarrierServiceCreateProbe($input: DeliveryCarrierServiceCreateInput!) {
+          carrierServiceCreate(input: $input) {
+            carrierService { id name active supportsServiceDiscovery }
+            userErrors { field message code }
+          }
+        }
+        "#;
+
+    let missing_active = proxy.process_request(json_graphql_request(
+        document,
+        json!({ "input": {
+            "name": "Hermes Missing Active",
+            "callbackUrl": "https://mock.shop/carrier-service-rates",
+            "supportsServiceDiscovery": false
+        }}),
+    ));
+    assert_eq!(
+        missing_active.body,
+        json!({
+            "errors": [{
+                "message": "Variable $input of type DeliveryCarrierServiceCreateInput! was provided invalid value for active (Expected value to not be null)",
+                "locations": [{ "line": 2, "column": 44 }],
+                "extensions": {
+                    "code": "INVALID_VARIABLE",
+                    "value": {
+                        "callbackUrl": "https://mock.shop/carrier-service-rates",
+                        "name": "Hermes Missing Active",
+                        "supportsServiceDiscovery": false
+                    },
+                    "problems": [{ "path": ["active"], "explanation": "Expected value to not be null" }]
+                }
+            }]
+        })
+    );
+
+    let missing_supports = proxy.process_request(json_graphql_request(
+        document,
+        json!({ "input": {
+            "name": "Hermes Missing Supports",
+            "callbackUrl": "https://mock.shop/carrier-service-rates",
+            "active": false
+        }}),
+    ));
+    assert_eq!(
+        missing_supports.body,
+        json!({
+            "errors": [{
+                "message": "Variable $input of type DeliveryCarrierServiceCreateInput! was provided invalid value for supportsServiceDiscovery (Expected value to not be null)",
+                "locations": [{ "line": 2, "column": 44 }],
+                "extensions": {
+                    "code": "INVALID_VARIABLE",
+                    "value": {
+                        "active": false,
+                        "callbackUrl": "https://mock.shop/carrier-service-rates",
+                        "name": "Hermes Missing Supports"
+                    },
+                    "problems": [{ "path": ["supportsServiceDiscovery"], "explanation": "Expected value to not be null" }]
+                }
+            }]
+        })
+    );
+
+    let missing_both = proxy.process_request(json_graphql_request(
+        document,
+        json!({ "input": {
+            "name": "Hermes Missing Both",
+            "callbackUrl": "https://mock.shop/carrier-service-rates"
+        }}),
+    ));
+    assert_eq!(
+        missing_both.body["errors"][0]["extensions"]["problems"],
+        json!([
+            { "path": ["supportsServiceDiscovery"], "explanation": "Expected value to not be null" },
+            { "path": ["active"], "explanation": "Expected value to not be null" }
+        ])
+    );
+
+    let services = proxy.process_request(json_graphql_request(
+        r#"query CarrierServiceAfterRejectedCreates {
+          carrierServices(first: 10) {
+            nodes { id }
+          }
+        }"#,
+        json!({}),
+    ));
+    assert_eq!(services.body["data"]["carrierServices"]["nodes"], json!([]));
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
 }
 
 #[test]
@@ -6077,7 +6180,9 @@ fn carrier_service_update_validates_changed_callback_url_and_codes_unknowns() {
         "#,
         json!({ "input": {
             "name": "Hermes Carrier Local",
-            "callbackUrl": "https://mock.shop/carrier-service-rates"
+            "callbackUrl": "https://mock.shop/carrier-service-rates",
+            "supportsServiceDiscovery": false,
+            "active": false
         }}),
     ));
     let id = create.body["data"]["carrierServiceCreate"]["carrierService"]["id"]
