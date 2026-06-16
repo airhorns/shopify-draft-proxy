@@ -8,8 +8,30 @@
   ],
   "runtimeTestFiles": ["tests/integration/discount-redeem-code-bulk-flow.test.ts"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-live-add.graphql",
-    "variablesCapturePath": "$.requests.add.variables"
+    "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-delete-setup.graphql",
+    "variables": {
+      "input": {
+        "title": "Redeem code bulk generic lifecycle parity",
+        "code": "HAR438BASE1777416023154",
+        "startsAt": "2026-04-28T22:39:23Z",
+        "combinesWith": {
+          "productDiscounts": false,
+          "orderDiscounts": true,
+          "shippingDiscounts": false
+        },
+        "context": {
+          "all": "ALL"
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.1
+          },
+          "items": {
+            "all": true
+          }
+        }
+      }
+    }
   },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
@@ -25,7 +47,23 @@
           "$.discountRedeemCodeBulkAdd.bulkCreation.codesCount",
           "$.discountRedeemCodeBulkAdd.bulkCreation.failedCount",
           "$.discountRedeemCodeBulkAdd.userErrors"
-        ]
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-live-add.graphql",
+          "variables": {
+            "discountId": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "codes": [
+              {
+                "code": "HAR438ADD1777416023154"
+              },
+              {
+                "code": "HAR438PLUS1777416023154"
+              }
+            ]
+          }
+        }
       },
       {
         "name": "redeem-code-read-after-add",
@@ -42,29 +80,52 @@
           "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-live-read.graphql",
           "variables": {
             "id": {
-              "fromCapturePath": "$.variables.discountId"
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
             },
-            "exactAddedCode": {
-              "fromCapturePath": "$.variables.addedCode"
-            },
-            "lowerAddedCode": {
-              "fromCapturePath": "$.variables.lowerAddedCode"
-            },
-            "removedCode": {
-              "fromCapturePath": "$.variables.seedCode"
-            }
+            "exactAddedCode": "HAR438ADD1777416023154",
+            "lowerAddedCode": "har438add1777416023154",
+            "removedCode": "HAR438BASE1777416023154"
           }
-        }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.exactAdded.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "Live and local replay use different DiscountCodeNode IDs; this target asserts lookup presence and codesCount parity."
+          },
+          {
+            "path": "$.lowerAdded.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "Live and local replay use different DiscountCodeNode IDs; this target asserts case-insensitive lookup presence."
+          },
+          {
+            "path": "$.removed.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "Live and local replay use different DiscountCodeNode IDs; this target asserts the seed code is present before delete."
+          }
+        ]
       },
       {
         "name": "redeem-code-bulk-delete-payload",
         "capturePath": "$.deleteCodes.payload.data",
         "proxyPath": "$.data",
         "upstreamCapturePath": null,
-        "selectedPaths": ["$.discountCodeRedeemCodeBulkDelete.userErrors"],
+        "selectedPaths": [
+          "$.discountCodeRedeemCodeBulkDelete.job.done",
+          "$.discountCodeRedeemCodeBulkDelete.userErrors"
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-live-delete.graphql",
-          "variablesCapturePath": "$.requests.delete.variables"
+          "variables": {
+            "discountId": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "ids": [
+              {
+                "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.codeDiscount.codes.nodes[0].id"
+              }
+            ]
+          }
         }
       },
       {
@@ -82,21 +143,27 @@
           "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-live-read.graphql",
           "variables": {
             "id": {
-              "fromCapturePath": "$.variables.discountId"
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
             },
-            "exactAddedCode": {
-              "fromCapturePath": "$.variables.addedCode"
-            },
-            "lowerAddedCode": {
-              "fromCapturePath": "$.variables.lowerAddedCode"
-            },
-            "removedCode": {
-              "fromCapturePath": "$.variables.seedCode"
-            }
+            "exactAddedCode": "HAR438ADD1777416023154",
+            "lowerAddedCode": "har438add1777416023154",
+            "removedCode": "HAR438BASE1777416023154"
           }
-        }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.exactAdded.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "Live and local replay use different DiscountCodeNode IDs; this target asserts lookup presence after delete."
+          },
+          {
+            "path": "$.lowerAdded.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "Live and local replay use different DiscountCodeNode IDs; this target asserts case-insensitive lookup presence after delete."
+          }
+        ]
       }
     ]
   },
-  "notes": "Live Shopify 2026-04 evidence for redeem-code bulk add/delete on a disposable native DiscountCodeBasic. The capture creates a seed discount, records the initial detail node as parity seed state, bulk-adds two redeem codes, verifies exact and lowercase code lookup through codeDiscountNodeByCode, deletes the original redeem code by id, verifies removed-code lookup returns null, and deletes the disposable discount. The comparison avoids live-vs-local async job identifiers and immediate imported/done counters while preserving strict submitted counts, failed counts, userErrors, and downstream read-after-write lookup behavior."
+  "notes": "Live Shopify 2026-04 evidence for redeem-code bulk add/delete on a disposable native DiscountCodeBasic. The capture creates a seed discount, records the initial detail node as parity seed state, bulk-adds two redeem codes, verifies exact and lowercase code lookup through codeDiscountNodeByCode, deletes the original redeem code by id, verifies removed-code lookup returns null, and deletes the disposable discount. Proxy replay stages an equivalent local discount through discountCodeBasicCreate, then uses generic BulkAddLive, BulkReadLive, and BulkDeleteLive operation names with generated local DiscountCodeNode and DiscountRedeemCode GIDs so the comparison exercises root-field/argument dispatch rather than any operation-name-gated path. The comparison treats live-vs-local IDs as volatile while preserving strict submitted counts, failed counts, completed delete job, userErrors, codesCount, and downstream read-after-write lookup behavior."
 }

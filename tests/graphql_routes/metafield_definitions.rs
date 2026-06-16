@@ -78,6 +78,67 @@ fn read_definition(proxy: &mut DraftProxy, namespace: &str, key: &str) -> Value 
         .clone()
 }
 
+fn create_definition_for_resource_limit(
+    proxy: &mut DraftProxy,
+    owner_type: &str,
+    namespace: &str,
+    key: &str,
+) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+        mutation MetafieldDefinitionCreateForResourceLimit($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id namespace key ownerType }
+            userErrors { field message code }
+          }
+        }
+        "#,
+            json!({
+                "definition": {
+                    "ownerType": owner_type,
+                    "namespace": namespace,
+                    "key": key,
+                    "name": format!("Resource limit {key}"),
+                    "type": "single_line_text_field"
+                }
+            }),
+        ))
+        .body["data"]["metafieldDefinitionCreate"]
+        .clone()
+}
+
+fn create_app_definition_for_resource_limit(
+    proxy: &mut DraftProxy,
+    api_client_id: &str,
+    key: &str,
+) -> Value {
+    let mut request = json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionCreateForAppResourceLimit($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id namespace key ownerType }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "ownerType": "PRODUCT",
+                "namespace": "$app:resource_limit",
+                "key": key,
+                "name": format!("App resource limit {key}"),
+                "type": "single_line_text_field"
+            }
+        }),
+    );
+    request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        api_client_id.to_string(),
+    );
+    proxy.process_request(request).body["data"]["metafieldDefinitionCreate"].clone()
+}
+
 fn update_definition_pin(proxy: &mut DraftProxy, namespace: &str, key: &str) -> Value {
     proxy.process_request(json_graphql_request(
         r#"
@@ -105,7 +166,7 @@ fn standard_enable_pin(proxy: &mut DraftProxy) -> Value {
         r#"
         mutation StandardMetafieldDefinitionEnablePinLimit($ownerType: MetafieldOwnerType!, $id: ID!) {
           standardMetafieldDefinitionEnable(ownerType: $ownerType, id: $id, pin: true) {
-            createdDefinition { id namespace key pinnedPosition }
+            createdDefinition { id namespace key pinnedPosition __shopifyDraftProxyStandardTemplateId }
             userErrors { field message code }
           }
         }
@@ -366,6 +427,133 @@ fn metafield_definition_pin_limit_is_fifty_for_pin_create_update_and_standard_en
 }
 
 #[test]
+fn metafield_definition_create_resource_type_limit_is_scoped_by_owner_and_app_namespace() {
+    let mut proxy = snapshot_proxy();
+
+    for index in 0..256 {
+        let created = create_definition_for_resource_limit(
+            &mut proxy,
+            "PRODUCT",
+            "resource_limit_merchant",
+            &format!("key_{index:03}"),
+        );
+        assert_eq!(created["userErrors"], json!([]));
+    }
+
+    let over_limit = create_definition_for_resource_limit(
+        &mut proxy,
+        "PRODUCT",
+        "resource_limit_merchant",
+        "key_256",
+    );
+    assert_eq!(over_limit["createdDefinition"], Value::Null);
+    assert_eq!(
+        over_limit["userErrors"],
+        json!([{
+            "field": ["definition"],
+            "message": "You can only have 256 definitions per resource type.",
+            "code": "RESOURCE_TYPE_LIMIT_EXCEEDED"
+        }])
+    );
+
+    let read_rejected = proxy.process_request(json_graphql_request(
+        r#"
+        query RejectedMetafieldDefinitionRead($identifier: MetafieldDefinitionIdentifierInput!) {
+          metafieldDefinition(identifier: $identifier) { id }
+        }
+        "#,
+        json!({"identifier": {"ownerType": "PRODUCT", "namespace": "resource_limit_merchant", "key": "key_256"}}),
+    ));
+    assert_eq!(
+        read_rejected.body["data"]["metafieldDefinition"],
+        Value::Null
+    );
+
+    let customer_created = create_definition_for_resource_limit(
+        &mut proxy,
+        "CUSTOMER",
+        "resource_limit_merchant",
+        "customer_key",
+    );
+    assert_eq!(customer_created["userErrors"], json!([]));
+
+    let app_one_created = create_definition_for_resource_limit(
+        &mut proxy,
+        "PRODUCT",
+        "app--111--resource_limit",
+        "app_one_key",
+    );
+    assert_eq!(app_one_created["userErrors"], json!([]));
+
+    for index in 0..256 {
+        let created = create_definition_for_resource_limit(
+            &mut proxy,
+            "PRODUCT",
+            "app--222--resource_limit",
+            &format!("key_{index:03}"),
+        );
+        assert_eq!(created["userErrors"], json!([]));
+    }
+    let over_app_limit = create_definition_for_resource_limit(
+        &mut proxy,
+        "PRODUCT",
+        "app--222--resource_limit",
+        "key_256",
+    );
+    assert_eq!(over_app_limit["createdDefinition"], Value::Null);
+    assert_eq!(
+        over_app_limit["userErrors"][0]["code"],
+        json!("RESOURCE_TYPE_LIMIT_EXCEEDED")
+    );
+
+    let app_one_default_namespace_created =
+        create_definition_for_resource_limit(&mut proxy, "PRODUCT", "app--111", "default_key");
+    assert_eq!(app_one_default_namespace_created["userErrors"], json!([]));
+
+    let app_three_created =
+        create_app_definition_for_resource_limit(&mut proxy, "333", "app_three_key");
+    assert_eq!(app_three_created["userErrors"], json!([]));
+    assert_eq!(
+        app_three_created["createdDefinition"]["namespace"],
+        json!("app--333--resource_limit")
+    );
+
+    let standard_enabled = standard_enable_pin(&mut proxy);
+    assert_eq!(standard_enabled["userErrors"], json!([]));
+    assert_eq!(
+        standard_enabled["createdDefinition"]["namespace"],
+        json!("descriptors")
+    );
+    assert_eq!(
+        standard_enabled["createdDefinition"].get("__shopifyDraftProxyStandardTemplateId"),
+        None
+    );
+
+    let mut standard_exclusion_proxy = snapshot_proxy();
+    let standard_first = standard_enable_pin(&mut standard_exclusion_proxy);
+    assert_eq!(standard_first["userErrors"], json!([]));
+    for index in 0..256 {
+        let created = create_definition_for_resource_limit(
+            &mut standard_exclusion_proxy,
+            "PRODUCT",
+            "resource_limit_after_standard",
+            &format!("key_{index:03}"),
+        );
+        assert_eq!(created["userErrors"], json!([]));
+    }
+    let standard_exclusion_over_limit = create_definition_for_resource_limit(
+        &mut standard_exclusion_proxy,
+        "PRODUCT",
+        "resource_limit_after_standard",
+        "key_256",
+    );
+    assert_eq!(
+        standard_exclusion_over_limit["userErrors"][0]["code"],
+        json!("RESOURCE_TYPE_LIMIT_EXCEEDED")
+    );
+}
+
+#[test]
 fn metafield_definition_lifecycle_mutations_validate_and_stage_real_inputs() {
     let mut proxy = snapshot_proxy();
 
@@ -577,6 +765,218 @@ fn metafield_definition_lifecycle_mutations_validate_and_stage_real_inputs() {
                 "code": "INVALID_INPUT"
             }]
         })
+    );
+}
+
+#[test]
+fn metafield_definition_delete_enforces_type_guards_without_associated_values() {
+    let mut proxy = snapshot_proxy();
+
+    let cases = [
+        (
+            "id_no_values",
+            "uid",
+            "id",
+            false,
+            "ID_TYPE_DELETION_ERROR",
+            "Deleting an id type metafield definition requires deletion of its associated metafields.",
+        ),
+        (
+            "reference_no_values",
+            "target",
+            "product_reference",
+            true,
+            "REFERENCE_TYPE_DELETION_ERROR",
+            "Deleting a reference type metafield definition requires deletion of its associated metafields.",
+        ),
+        (
+            "list_reference_no_values",
+            "targets",
+            "list.product_reference",
+            false,
+            "REFERENCE_TYPE_DELETION_ERROR",
+            "Deleting a reference type metafield definition requires deletion of its associated metafields.",
+        ),
+    ];
+
+    for (namespace, key, metafield_type, include_false_flag, expected_code, expected_message) in
+        cases
+    {
+        let create = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CreateDefinition($definition: MetafieldDefinitionInput!) {
+              metafieldDefinitionCreate(definition: $definition) {
+                createdDefinition { id namespace key type { name } }
+                userErrors { __typename field message code }
+              }
+            }
+            "#,
+            json!({
+                "definition": {
+                    "name": format!("Delete guard {key}"),
+                    "namespace": namespace,
+                    "key": key,
+                    "ownerType": "PRODUCT",
+                    "type": metafield_type
+                }
+            }),
+        ));
+        assert_eq!(
+            create.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+            json!([])
+        );
+
+        let delete_query = if include_false_flag {
+            r#"
+            mutation DeleteDefinition($namespace: String!, $key: String!) {
+              metafieldDefinitionDelete(
+                identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }
+                deleteAllAssociatedMetafields: false
+              ) {
+                deletedDefinitionId
+                deletedDefinition { ownerType namespace key }
+                userErrors { __typename field message code }
+              }
+            }
+            "#
+        } else {
+            r#"
+            mutation DeleteDefinition($namespace: String!, $key: String!) {
+              metafieldDefinitionDelete(
+                identifier: { ownerType: PRODUCT, namespace: $namespace, key: $key }
+              ) {
+                deletedDefinitionId
+                deletedDefinition { ownerType namespace key }
+                userErrors { __typename field message code }
+              }
+            }
+            "#
+        };
+        let guarded_delete = proxy.process_request(json_graphql_request(
+            delete_query,
+            json!({ "namespace": namespace, "key": key }),
+        ));
+        assert_eq!(
+            guarded_delete.body["data"]["metafieldDefinitionDelete"],
+            json!({
+                "deletedDefinitionId": null,
+                "deletedDefinition": null,
+                "userErrors": [{
+                    "__typename": "MetafieldDefinitionDeleteUserError",
+                    "field": null,
+                    "message": expected_message,
+                    "code": expected_code
+                }]
+            })
+        );
+    }
+}
+
+#[test]
+fn metafield_definition_delete_keeps_type_guard_exceptions_without_associated_values() {
+    let mut proxy = snapshot_proxy();
+
+    let text_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateTextDefinition {
+          metafieldDefinitionCreate(
+            definition: {
+              name: "Delete text target"
+              namespace: "delete_text_no_values"
+              key: "label"
+              ownerType: PRODUCT
+              type: "single_line_text_field"
+            }
+          ) {
+            createdDefinition { id namespace key type { name } }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        text_create.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let text_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteTextDefinition {
+          metafieldDefinitionDelete(
+            identifier: { ownerType: PRODUCT, namespace: "delete_text_no_values", key: "label" }
+          ) {
+            deletedDefinitionId
+            deletedDefinition { ownerType namespace key }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        text_delete.body["data"]["metafieldDefinitionDelete"]["deletedDefinition"],
+        json!({
+            "ownerType": "PRODUCT",
+            "namespace": "delete_text_no_values",
+            "key": "label"
+        })
+    );
+    assert_eq!(
+        text_delete.body["data"]["metafieldDefinitionDelete"]["userErrors"],
+        json!([])
+    );
+
+    let reference_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateReferenceDefinition {
+          metafieldDefinitionCreate(
+            definition: {
+              name: "Delete reference with flag"
+              namespace: "delete_reference_no_values_with_flag"
+              key: "target"
+              ownerType: PRODUCT
+              type: "product_reference"
+            }
+          ) {
+            createdDefinition { id namespace key type { name } }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        reference_create.body["data"]["metafieldDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let reference_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeleteReferenceDefinition {
+          metafieldDefinitionDelete(
+            identifier: { ownerType: PRODUCT, namespace: "delete_reference_no_values_with_flag", key: "target" }
+            deleteAllAssociatedMetafields: true
+          ) {
+            deletedDefinitionId
+            deletedDefinition { ownerType namespace key }
+            userErrors { __typename field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        reference_delete.body["data"]["metafieldDefinitionDelete"]["deletedDefinition"],
+        json!({
+            "ownerType": "PRODUCT",
+            "namespace": "delete_reference_no_values_with_flag",
+            "key": "target"
+        })
+    );
+    assert_eq!(
+        reference_delete.body["data"]["metafieldDefinitionDelete"]["userErrors"],
+        json!([])
     );
 }
 

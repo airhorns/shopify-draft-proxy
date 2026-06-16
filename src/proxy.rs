@@ -199,6 +199,8 @@ struct StagedState {
     fulfillment_service_locations: BTreeMap<String, Value>,
     deleted_fulfillment_service_ids: BTreeSet<String>,
     deleted_fulfillment_service_location_ids: BTreeSet<String>,
+    observed_shipping_locations: BTreeMap<String, Value>,
+    observed_shipping_location_order: Vec<String>,
     locations: BTreeMap<String, Value>,
     location_order: Vec<String>,
     location_limit_reached: bool,
@@ -227,11 +229,19 @@ struct StagedState {
     webhook_subscriptions: BTreeMap<String, Value>,
     b2b_companies: BTreeMap<String, Value>,
     b2b_locations: BTreeMap<String, Value>,
+    b2b_contacts: BTreeMap<String, Value>,
+    deleted_b2b_contact_ids: BTreeSet<String>,
+    b2b_contact_roles: BTreeMap<String, Value>,
+    b2b_contact_role_assignments: BTreeMap<String, Value>,
+    deleted_b2b_contact_role_assignment_ids: BTreeSet<String>,
     next_b2b_company_id: u64,
+    next_b2b_contact_id: u64,
+    next_b2b_contact_role_assignment_id: u64,
     inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
     inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
     next_inventory_quantity_timestamp: u64,
     inventory_transfers: BTreeMap<String, InventoryTransferRecord>,
+    inventory_shipments: BTreeMap<String, InventoryShipmentRecord>,
     metaobject_definitions: BTreeMap<String, Value>,
     deleted_metaobject_definition_ids: BTreeSet<String>,
     metaobjects: BTreeMap<String, Value>,
@@ -244,7 +254,6 @@ struct StagedState {
     deleted_media_file_ids: BTreeSet<String>,
     online_store_integrations: BTreeMap<String, Value>,
     product_set_updated: bool,
-    product_option_fixture: Option<String>,
     product_delete_operations: BTreeMap<String, String>,
     selling_plan_group_downstream_step: usize,
     mandate_payment_keys: BTreeSet<String>,
@@ -257,6 +266,7 @@ struct StagedState {
     next_customer_payment_method_id: u64,
     abandonments: BTreeMap<String, Value>,
     orders: BTreeMap<String, Value>,
+    deleted_order_ids: BTreeSet<String>,
     draft_orders: BTreeMap<String, Value>,
     returns: BTreeMap<String, Value>,
     returns_by_order: BTreeMap<String, Vec<String>>,
@@ -280,9 +290,6 @@ struct StagedState {
     next_order_customer_order_id: u64,
     order_edit_existing_order: Option<Value>,
     order_edit_existing_calculated_order: Option<Value>,
-    order_payment_transaction_state: Option<String>,
-    order_payment_transaction_order_id: Option<String>,
-    order_payment_parent_transaction_id: Option<String>,
     order_payment_next_transaction_id: u64,
     order_edit_existing_mode: Option<String>,
     function_validation: Option<Value>,
@@ -316,6 +323,35 @@ struct InventoryTransferLineItemRecord {
     id: String,
     inventory_item_id: String,
     quantity: i64,
+}
+
+#[derive(Clone)]
+struct InventoryShipmentRecord {
+    id: String,
+    name: String,
+    status: String,
+    transfer_id: Option<String>,
+    movement_id: Option<String>,
+    tracking: Option<InventoryShipmentTrackingRecord>,
+    line_items: Vec<InventoryShipmentLineItemRecord>,
+}
+
+#[derive(Clone, Default)]
+struct InventoryShipmentTrackingRecord {
+    tracking_number: Option<String>,
+    company: Option<String>,
+    tracking_url: Option<String>,
+    arrives_at: Option<String>,
+}
+
+#[derive(Clone)]
+struct InventoryShipmentLineItemRecord {
+    id: String,
+    inventory_item_id: String,
+    transfer_line_item_id: Option<String>,
+    quantity: i64,
+    accepted_quantity: i64,
+    rejected_quantity: i64,
 }
 
 #[derive(Clone)]
@@ -447,6 +483,8 @@ impl Default for StagedState {
             fulfillment_service_locations: BTreeMap::new(),
             deleted_fulfillment_service_ids: BTreeSet::new(),
             deleted_fulfillment_service_location_ids: BTreeSet::new(),
+            observed_shipping_locations: BTreeMap::new(),
+            observed_shipping_location_order: Vec::new(),
             locations: BTreeMap::new(),
             location_order: Vec::new(),
             location_limit_reached: false,
@@ -475,11 +513,19 @@ impl Default for StagedState {
             webhook_subscriptions: BTreeMap::new(),
             b2b_companies: BTreeMap::new(),
             b2b_locations: BTreeMap::new(),
+            b2b_contacts: BTreeMap::new(),
+            deleted_b2b_contact_ids: BTreeSet::new(),
+            b2b_contact_roles: BTreeMap::new(),
+            b2b_contact_role_assignments: BTreeMap::new(),
+            deleted_b2b_contact_role_assignment_ids: BTreeSet::new(),
             next_b2b_company_id: 1,
+            next_b2b_contact_id: 1,
+            next_b2b_contact_role_assignment_id: 1,
             inventory_levels: BTreeMap::new(),
             inventory_quantity_updated_at: BTreeMap::new(),
             next_inventory_quantity_timestamp: 0,
             inventory_transfers: BTreeMap::new(),
+            inventory_shipments: BTreeMap::new(),
             metaobject_definitions: BTreeMap::new(),
             deleted_metaobject_definition_ids: BTreeSet::new(),
             metaobjects: BTreeMap::new(),
@@ -492,7 +538,6 @@ impl Default for StagedState {
             deleted_media_file_ids: BTreeSet::new(),
             online_store_integrations: BTreeMap::new(),
             product_set_updated: false,
-            product_option_fixture: None,
             product_delete_operations: BTreeMap::new(),
             selling_plan_group_downstream_step: 0,
             mandate_payment_keys: BTreeSet::new(),
@@ -505,6 +550,7 @@ impl Default for StagedState {
             next_customer_payment_method_id: 1,
             abandonments: BTreeMap::new(),
             orders: BTreeMap::new(),
+            deleted_order_ids: BTreeSet::new(),
             draft_orders: BTreeMap::new(),
             returns: BTreeMap::new(),
             returns_by_order: BTreeMap::new(),
@@ -528,9 +574,6 @@ impl Default for StagedState {
             next_order_customer_order_id: 1,
             order_edit_existing_order: None,
             order_edit_existing_calculated_order: None,
-            order_payment_transaction_state: None,
-            order_payment_transaction_order_id: None,
-            order_payment_parent_transaction_id: None,
             order_payment_next_transaction_id: 3,
             order_edit_existing_mode: None,
             function_validation: None,
@@ -1119,6 +1162,7 @@ mod metafields_orders_payments;
 mod metaobjects;
 mod online_store_orders_payments;
 mod product_helpers;
+mod product_options;
 mod resolved_values;
 mod resource_ids;
 mod routing;
@@ -1159,6 +1203,8 @@ pub(in crate::proxy) use self::metaobjects::*;
 pub(in crate::proxy) use self::online_store_orders_payments::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::product_helpers::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::product_options::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::resolved_values::*;
 #[allow(unused_imports)]
