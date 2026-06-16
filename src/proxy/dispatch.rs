@@ -348,6 +348,9 @@ impl DraftProxy {
         if let Some(discount) = self.discount_node_value_by_id(id, selection) {
             return Some(discount);
         }
+        if let Some(b2b) = self.b2b_node_value_by_id(id, selection) {
+            return Some(b2b);
+        }
         None
     }
 

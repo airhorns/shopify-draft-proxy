@@ -1699,7 +1699,16 @@ impl DraftProxy {
             .get(&location_id)
             .cloned()
             .unwrap_or_else(|| b2b_synthetic_seed_company_location(&location_id));
+        // companyLocationTaxSettingsUpdate sets taxRegistrationId when the argument is
+        // supplied, and otherwise leaves any previously staged registration id untouched.
+        let existing_registration_id = location
+            .pointer("/taxSettings/taxRegistrationId")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let tax_registration_id =
+            resolved_string_arg(&field.arguments, "taxRegistrationId").or(existing_registration_id);
         location["taxSettings"] = json!({
+            "taxRegistrationId": tax_registration_id,
             "taxExempt": tax_exempt,
             "taxExemptions": exemptions
         });

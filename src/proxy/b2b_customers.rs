@@ -19,7 +19,7 @@ impl DraftProxy {
         }
 
         let fields = root_fields(query, variables)?;
-        if let Some(response) = b2b_tax_settings_invalid_enum_response(&fields) {
+        if let Some(response) = b2b_tax_settings_invalid_enum_response(query, &fields) {
             return Some(response);
         }
         let mut data = serde_json::Map::new();
@@ -181,6 +181,29 @@ impl DraftProxy {
             "staged",
             vec![location_id],
         )
+    }
+
+    /// Resolves a locally-staged B2B entity for a generic `node(id)`/`nodes(ids)` read.
+    ///
+    /// Locations, companies, contacts, roles, and role assignments are staged under their
+    /// allocated ids (synthetic for entities created locally), so reads-after-write through
+    /// the generic Node interface resolve from real staged state rather than a fixture map.
+    /// The inline-fragment selection from the query is applied verbatim, so only the fields
+    /// that actually exist on the matched entity are returned.
+    pub(in crate::proxy) fn b2b_node_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
+        let staged = &self.store.staged;
+        let node = staged
+            .b2b_locations
+            .get(id)
+            .or_else(|| staged.b2b_companies.get(id))
+            .or_else(|| staged.b2b_contacts.get(id))
+            .or_else(|| staged.b2b_contact_roles.get(id))
+            .or_else(|| staged.b2b_role_assignments.get(id))?;
+        Some(selected_json(node, selection))
     }
 
     pub(in crate::proxy) fn b2b_company_tail_helper_response(
@@ -3515,7 +3538,98 @@ impl DraftProxy {
     }
 }
 
-fn b2b_tax_settings_invalid_enum_response(fields: &[RootFieldSelection]) -> Option<Response> {
+/// The full `TaxExemption` enum exposed by the Shopify Admin GraphQL schema. This is the
+/// authoritative set of accepted values for `companyLocationTaxSettingsUpdate`'s exemption
+/// arguments, and is also what Shopify echoes back (verbatim, comma-joined) inside the
+/// `INVALID_VARIABLE` coercion error when an unknown value is supplied.
+const TAX_EXEMPTION_VALUES: &[&str] = &[
+    "CA_STATUS_CARD_EXEMPTION",
+    "CA_BC_RESELLER_EXEMPTION",
+    "CA_MB_RESELLER_EXEMPTION",
+    "CA_SK_RESELLER_EXEMPTION",
+    "CA_DIPLOMAT_EXEMPTION",
+    "CA_BC_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_MB_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_NS_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_PE_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_SK_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_BC_PRODUCTION_AND_MACHINERY_EXEMPTION",
+    "CA_SK_PRODUCTION_AND_MACHINERY_EXEMPTION",
+    "CA_BC_SUB_CONTRACTOR_EXEMPTION",
+    "CA_SK_SUB_CONTRACTOR_EXEMPTION",
+    "CA_BC_CONTRACTOR_EXEMPTION",
+    "CA_SK_CONTRACTOR_EXEMPTION",
+    "CA_ON_PURCHASE_EXEMPTION",
+    "CA_MB_FARMER_EXEMPTION",
+    "CA_NS_FARMER_EXEMPTION",
+    "CA_SK_FARMER_EXEMPTION",
+    "EU_REVERSE_CHARGE_EXEMPTION_RULE",
+    "US_AL_RESELLER_EXEMPTION",
+    "US_AK_RESELLER_EXEMPTION",
+    "US_AZ_RESELLER_EXEMPTION",
+    "US_AR_RESELLER_EXEMPTION",
+    "US_CA_RESELLER_EXEMPTION",
+    "US_CO_RESELLER_EXEMPTION",
+    "US_CT_RESELLER_EXEMPTION",
+    "US_DE_RESELLER_EXEMPTION",
+    "US_FL_RESELLER_EXEMPTION",
+    "US_GA_RESELLER_EXEMPTION",
+    "US_HI_RESELLER_EXEMPTION",
+    "US_ID_RESELLER_EXEMPTION",
+    "US_IL_RESELLER_EXEMPTION",
+    "US_IN_RESELLER_EXEMPTION",
+    "US_IA_RESELLER_EXEMPTION",
+    "US_KS_RESELLER_EXEMPTION",
+    "US_KY_RESELLER_EXEMPTION",
+    "US_LA_RESELLER_EXEMPTION",
+    "US_ME_RESELLER_EXEMPTION",
+    "US_MD_RESELLER_EXEMPTION",
+    "US_MA_RESELLER_EXEMPTION",
+    "US_MI_RESELLER_EXEMPTION",
+    "US_MN_RESELLER_EXEMPTION",
+    "US_MS_RESELLER_EXEMPTION",
+    "US_MO_RESELLER_EXEMPTION",
+    "US_MT_RESELLER_EXEMPTION",
+    "US_NE_RESELLER_EXEMPTION",
+    "US_NV_RESELLER_EXEMPTION",
+    "US_NH_RESELLER_EXEMPTION",
+    "US_NJ_RESELLER_EXEMPTION",
+    "US_NM_RESELLER_EXEMPTION",
+    "US_NY_RESELLER_EXEMPTION",
+    "US_NC_RESELLER_EXEMPTION",
+    "US_ND_RESELLER_EXEMPTION",
+    "US_OH_RESELLER_EXEMPTION",
+    "US_OK_RESELLER_EXEMPTION",
+    "US_OR_RESELLER_EXEMPTION",
+    "US_PA_RESELLER_EXEMPTION",
+    "US_RI_RESELLER_EXEMPTION",
+    "US_SC_RESELLER_EXEMPTION",
+    "US_SD_RESELLER_EXEMPTION",
+    "US_TN_RESELLER_EXEMPTION",
+    "US_TX_RESELLER_EXEMPTION",
+    "US_UT_RESELLER_EXEMPTION",
+    "US_VT_RESELLER_EXEMPTION",
+    "US_VA_RESELLER_EXEMPTION",
+    "US_WA_RESELLER_EXEMPTION",
+    "US_WV_RESELLER_EXEMPTION",
+    "US_WI_RESELLER_EXEMPTION",
+    "US_WY_RESELLER_EXEMPTION",
+    "US_DC_RESELLER_EXEMPTION",
+];
+
+/// An invalid `[TaxExemption!]` variable value detected during request validation.
+struct InvalidTaxExemptionVariable {
+    variable_name: String,
+    /// The full provided value, echoed back in `extensions.value`.
+    provided: Value,
+    /// `(list index, invalid value)` for every element that is not a known exemption.
+    problems: Vec<(usize, String)>,
+}
+
+fn b2b_tax_settings_invalid_enum_response(
+    query: &str,
+    fields: &[RootFieldSelection],
+) -> Option<Response> {
     for field in fields {
         if field.name != "companyLocationTaxSettingsUpdate" {
             continue;
@@ -3535,13 +3649,8 @@ fn b2b_tax_settings_invalid_enum_response(fields: &[RootFieldSelection]) -> Opti
                     }]
                 })));
             }
-            if let Some((variable_name, value)) = raw_tax_exemption_variable(raw_value) {
-                return Some(ok_json(json!({
-                    "errors": [{
-                        "message": format!("Variable ${variable_name} of type [TaxExemption!] was provided invalid value for 0 (Expected \"{value}\" to be one of: CA_STATUS_CARD_EXEMPTION, CA_BC_RESELLER_EXEMPTION, US_CA_RESELLER_EXEMPTION)"),
-                        "extensions": { "code": "INVALID_VARIABLE" }
-                    }]
-                })));
+            if let Some(invalid) = tax_exemption_invalid_variable(raw_value) {
+                return Some(tax_exemption_invalid_variable_response(query, &invalid));
             }
         }
     }
@@ -3556,30 +3665,112 @@ fn raw_tax_exemption_literal(value: &RawArgumentValue) -> Option<&str> {
     }
 }
 
-fn raw_tax_exemption_variable(value: &RawArgumentValue) -> Option<(&str, &str)> {
+fn tax_exemption_invalid_variable(value: &RawArgumentValue) -> Option<InvalidTaxExemptionVariable> {
     let RawArgumentValue::Variable {
         name,
-        value: Some(value),
+        value: Some(resolved),
     } = value
     else {
         return None;
     };
-    resolved_tax_exemption_invalid_value(value).map(|value| (name.as_str(), value))
+    let mut problems = Vec::new();
+    if let ResolvedValue::List(items) = resolved {
+        for (index, item) in items.iter().enumerate() {
+            if let ResolvedValue::String(item) = item {
+                if !is_known_tax_exemption(item) {
+                    problems.push((index, item.clone()));
+                }
+            }
+        }
+    }
+    if problems.is_empty() {
+        return None;
+    }
+    Some(InvalidTaxExemptionVariable {
+        variable_name: name.clone(),
+        provided: resolved_value_json(resolved),
+        problems,
+    })
 }
 
-fn resolved_tax_exemption_invalid_value(value: &ResolvedValue) -> Option<&str> {
-    match value {
-        ResolvedValue::String(value) if !is_known_tax_exemption(value) => Some(value.as_str()),
-        ResolvedValue::List(values) => values.iter().find_map(resolved_tax_exemption_invalid_value),
-        _ => None,
+fn tax_exemption_invalid_variable_response(
+    query: &str,
+    invalid: &InvalidTaxExemptionVariable,
+) -> Response {
+    let one_of = TAX_EXEMPTION_VALUES.join(", ");
+    let problems: Vec<Value> = invalid
+        .problems
+        .iter()
+        .map(|(index, value)| {
+            json!({
+                "path": [index],
+                "explanation": format!("Expected \"{value}\" to be one of: {one_of}"),
+            })
+        })
+        .collect();
+    let (first_index, first_value) = &invalid.problems[0];
+    let message = format!(
+        "Variable ${} of type [TaxExemption!] was provided invalid value for {first_index} (Expected \"{first_value}\" to be one of: {one_of})",
+        invalid.variable_name
+    );
+    let mut error = serde_json::Map::new();
+    error.insert("message".to_string(), json!(message));
+    if let Some((line, column)) =
+        graphql_variable_definition_location(query, &invalid.variable_name)
+    {
+        error.insert(
+            "locations".to_string(),
+            json!([{ "line": line, "column": column }]),
+        );
     }
+    error.insert(
+        "extensions".to_string(),
+        json!({
+            "code": "INVALID_VARIABLE",
+            "value": invalid.provided,
+            "problems": problems,
+        }),
+    );
+    ok_json(json!({ "errors": [Value::Object(error)] }))
+}
+
+/// Resolves the 1-based (line, column) of a variable *definition* (`$name`) in the query
+/// document. Shopify anchors `INVALID_VARIABLE` coercion errors to the variable definition,
+/// which is always the first `$name` occurrence (definitions precede usages).
+fn graphql_variable_definition_location(query: &str, variable_name: &str) -> Option<(usize, usize)> {
+    let needle = format!("${variable_name}");
+    let bytes = query.as_bytes();
+    let mut search_from = 0;
+    while let Some(relative) = query[search_from..].find(&needle) {
+        let start = search_from + relative;
+        let after = start + needle.len();
+        let is_boundary = match bytes.get(after) {
+            None => true,
+            Some(next) => !(next.is_ascii_alphanumeric() || *next == b'_'),
+        };
+        if is_boundary {
+            let mut line = 1usize;
+            let mut column = 1usize;
+            for (index, ch) in query.char_indices() {
+                if index == start {
+                    return Some((line, column));
+                }
+                if ch == '\n' {
+                    line += 1;
+                    column = 1;
+                } else {
+                    column += 1;
+                }
+            }
+            return Some((line, column));
+        }
+        search_from = after;
+    }
+    None
 }
 
 fn is_known_tax_exemption(value: &str) -> bool {
-    matches!(
-        value,
-        "CA_STATUS_CARD_EXEMPTION" | "CA_BC_RESELLER_EXEMPTION" | "US_CA_RESELLER_EXEMPTION"
-    )
+    TAX_EXEMPTION_VALUES.contains(&value)
 }
 
 fn product_tail_invalid_enum_response(
