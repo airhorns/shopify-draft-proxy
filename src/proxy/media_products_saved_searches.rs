@@ -9,6 +9,7 @@ const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str = "query CustomerHydrate($id: ID!) {
 const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
 const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n    }\n  }\n}";
 const OWNER_METAFIELD_HYDRATE_QUERY: &str = "query OwnerMetafieldsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Collection { id title handle metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Customer { id displayName email metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Order { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Company { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } }";
+const BULK_OPERATION_HYDRATE_QUERY: &str = "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }";
 
 impl DraftProxy {
     pub(in crate::proxy) fn bulk_operation_read_response(
@@ -182,11 +183,7 @@ impl DraftProxy {
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
             );
         }
-        if !bulk_operation_run_query_has_local_jsonl_synthesis_root(&query_text) {
-            return (self.upstream_transport)(request.clone());
-        }
-
-        if let Some(operation_id) = self.in_progress_query_bulk_operation_id() {
+        if let Some(operation_id) = self.throttled_query_bulk_operation_id(request) {
             let payload = json!({
                 "bulkOperation": null,
                 "userErrors": [{
@@ -285,7 +282,7 @@ impl DraftProxy {
                 )],
             );
         }
-        if let Some(operation_id) = self.in_progress_mutation_bulk_operation_id() {
+        if let Some(operation_id) = self.throttled_mutation_bulk_operation_id(request) {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
                 &payload_selection,
@@ -346,34 +343,37 @@ impl DraftProxy {
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
 
-    fn in_progress_query_bulk_operation_id(&self) -> Option<String> {
-        self.store
-            .staged
-            .bulk_operations
-            .iter()
-            .find(|(_, operation)| {
-                operation.get("type").and_then(Value::as_str) == Some("QUERY")
-                    && !matches!(
-                        operation.get("status").and_then(Value::as_str),
-                        Some("COMPLETED" | "FAILED" | "CANCELED" | "EXPIRED")
-                    )
-            })
-            .map(|(id, _)| id.clone())
+    fn throttled_query_bulk_operation_id(&self, request: &Request) -> Option<String> {
+        self.throttled_bulk_operation_id("QUERY", request)
     }
 
-    fn in_progress_mutation_bulk_operation_id(&self) -> Option<String> {
-        self.store
+    fn throttled_mutation_bulk_operation_id(&self, request: &Request) -> Option<String> {
+        self.throttled_bulk_operation_id("MUTATION", request)
+    }
+
+    fn throttled_bulk_operation_id(
+        &self,
+        operation_type: &str,
+        request: &Request,
+    ) -> Option<String> {
+        let mut operation_ids = self
+            .store
             .staged
             .bulk_operations
             .iter()
-            .find(|(_, operation)| {
-                operation.get("type").and_then(Value::as_str) == Some("MUTATION")
-                    && !matches!(
-                        operation.get("status").and_then(Value::as_str),
-                        Some("COMPLETED" | "FAILED" | "CANCELED" | "EXPIRED")
-                    )
+            .filter(|(_, operation)| {
+                operation.get("type").and_then(Value::as_str) == Some(operation_type)
+                    && bulk_operation_is_non_terminal(operation)
             })
             .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>();
+
+        if operation_ids.len() < bulk_operation_concurrent_limit(request) {
+            return None;
+        }
+
+        operation_ids.sort();
+        Some(operation_ids.join(", "))
     }
 
     fn bulk_operation_staged_upload_size(&self, staged_upload_path: &str) -> Option<Option<u64>> {
@@ -425,23 +425,61 @@ impl DraftProxy {
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
             );
         }
-        let (query_text, created_at, operation_type) =
-            Self::bulk_operation_cancel_nonterminal_seed(request, &id);
-        let operation = bulk_operation_record_with_type(
-            &id,
-            "CANCELING",
-            operation_type,
-            query_text,
-            "0",
-            created_at,
-            "113499",
-        );
+        let operation = self
+            .bulk_operation_cancel_hydrate_cold_operation(request, &id)
+            .unwrap_or_else(|| {
+                let (query_text, created_at, operation_type) =
+                    Self::bulk_operation_cancel_nonterminal_seed(request, &id);
+                bulk_operation_record_with_type(
+                    &id,
+                    "CANCELING",
+                    operation_type,
+                    query_text,
+                    "0",
+                    created_at,
+                    "113499",
+                )
+            });
         self.store
             .staged
             .bulk_operations
             .insert(id.clone(), operation.clone());
         let payload = json!({ "bulkOperation": operation, "userErrors": [] });
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+    }
+
+    fn bulk_operation_cancel_hydrate_cold_operation(
+        &self,
+        request: &Request,
+        id: &str,
+    ) -> Option<Value> {
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || self.store.staged.bulk_operations.contains_key(id)
+        {
+            return None;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": BULK_OPERATION_HYDRATE_QUERY,
+                "operationName": "BulkOperationHydrate",
+                "variables": { "id": id }
+            })
+            .to_string(),
+        });
+        let mut operation = response
+            .body
+            .get("data")
+            .and_then(|data| data.get("bulkOperation"))
+            .filter(|operation| operation.is_object())?
+            .clone();
+        if bulk_operation_status_is_terminal(operation.get("status").and_then(Value::as_str)) {
+            return None;
+        }
+        operation["status"] = json!("CANCELING");
+        Some(operation)
     }
 
     fn bulk_operation_cancel_nonterminal_seed(
@@ -650,16 +688,16 @@ impl DraftProxy {
                 "fileUpdate",
             ));
         }
-        let required_field_errors = inputs
+        let field_errors = inputs
             .iter()
             .enumerate()
-            .filter_map(|(index, input)| validate_file_update_required_fields(input, index))
+            .flat_map(|(index, input)| validate_file_update_input_fields(input, index))
             .collect::<Vec<_>>();
-        if !required_field_errors.is_empty() {
+        if !field_errors.is_empty() {
             return MutationOutcome::response(media_file_update_error_response(
                 &response_key,
                 &payload_selection,
-                required_field_errors,
+                field_errors,
             ));
         }
 
@@ -702,32 +740,6 @@ impl DraftProxy {
             ));
         }
 
-        let post_readiness_field_errors = inputs
-            .iter()
-            .enumerate()
-            .flat_map(|(index, input)| validate_file_update_post_readiness_fields(input, index))
-            .collect::<Vec<_>>();
-        if !post_readiness_field_errors.is_empty() {
-            return MutationOutcome::response(media_file_update_error_response(
-                &response_key,
-                &payload_selection,
-                post_readiness_field_errors,
-            ));
-        }
-
-        let ready_source_errors = inputs
-            .iter()
-            .enumerate()
-            .flat_map(|(index, input)| validate_file_update_ready_source_fields(input, index))
-            .collect::<Vec<_>>();
-        if !ready_source_errors.is_empty() {
-            return MutationOutcome::response(media_file_update_error_response(
-                &response_key,
-                &payload_selection,
-                ready_source_errors,
-            ));
-        }
-
         let target_errors = inputs
             .iter()
             .enumerate()
@@ -738,19 +750,6 @@ impl DraftProxy {
                 &response_key,
                 &payload_selection,
                 target_errors,
-            ));
-        }
-
-        let source_version_errors = inputs
-            .iter()
-            .enumerate()
-            .filter_map(|(index, input)| file_update_source_version_conflict(input, index))
-            .collect::<Vec<_>>();
-        if !source_version_errors.is_empty() {
-            return MutationOutcome::response(media_file_update_error_response(
-                &response_key,
-                &payload_selection,
-                source_version_errors,
             ));
         }
 
@@ -1416,13 +1415,7 @@ impl DraftProxy {
             }
             match field.name.as_str() {
                 "collection" | "customer" | "order" | "company" => {
-                    let owner_id = self.owner_field_id(&field, variables);
-                    if self.config.read_mode == ReadMode::Snapshot
-                        || self.owner_has_metafield_local_effects(&owner_id)
-                        || !self.owner_needs_metafield_hydration(&field.name, &owner_id)
-                    {
-                        has_non_product_owner_read = true;
-                    }
+                    has_non_product_owner_read = true;
                 }
                 "product" | "productVariant" if self.config.read_mode == ReadMode::LiveHybrid => {
                     let owner_id = self.owner_field_id(&field, variables);
@@ -2532,6 +2525,36 @@ impl DraftProxy {
         self.store.product_count()
     }
 
+    pub(in crate::proxy) fn product_set_fixture_backed_mutation_data(
+        &mut self,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json"
+        ))
+        .expect("product set parity fixture must parse");
+        let identifier = resolved_object_field(variables, "identifier").unwrap_or_default();
+        if resolved_string_field(&identifier, "id").is_some() {
+            self.store.staged.product_set_updated = true;
+            Some(fixture["update"]["mutation"]["response"]["data"].clone())
+        } else {
+            self.store.staged.product_set_updated = false;
+            Some(fixture["mutation"]["response"]["data"].clone())
+        }
+    }
+
+    pub(in crate::proxy) fn product_set_downstream_read_data(&self) -> Value {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json"
+        ))
+        .expect("product set parity fixture must parse");
+        if self.store.staged.product_set_updated {
+            fixture["update"]["downstreamRead"]["data"].clone()
+        } else {
+            fixture["downstreamRead"]["data"].clone()
+        }
+    }
+
     pub(in crate::proxy) fn product_create(
         &mut self,
         request: &Request,
@@ -2689,25 +2712,13 @@ impl DraftProxy {
         self.store.stage_product(product.clone());
 
         let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
-        let default_variants = if selected_child_selection(&product_selection, "variants").is_some()
-        {
-            let variant = product_variant_record_from_create_input(
-                &BTreeMap::new(),
-                self.next_proxy_synthetic_gid("ProductVariant"),
-                id.clone(),
-                self.next_proxy_synthetic_gid("InventoryItem"),
-            );
-            vec![variant]
-        } else {
-            Vec::new()
-        };
         let payload_selection = root_field_selection(query).unwrap_or_default();
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "productCreate".to_string());
         MutationOutcome::staged(
             ok_json(json!({
                 "data": {
-                    response_key: product_mutation_payload_json(&product, &default_variants, &payload_selection, &product_selection)
+                    response_key: product_mutation_payload_json(&product, &payload_selection, &product_selection)
                 }
             })),
             LogDraft::staged("productCreate", "products", vec![id]),
@@ -2823,7 +2834,7 @@ impl DraftProxy {
         MutationOutcome::staged(
             ok_json(json!({
                 "data": {
-                    response_key: product_mutation_payload_json(&product, &[], &payload_selection, &product_selection)
+                    response_key: product_mutation_payload_json(&product, &payload_selection, &product_selection)
                 }
             })),
             LogDraft::staged("productUpdate", "products", vec![id]),
@@ -3224,7 +3235,7 @@ impl DraftProxy {
         MutationOutcome::staged(
             ok_json(json!({
                 "data": {
-                    root_field_response_key(query).unwrap_or_else(|| "productSet".to_string()): product_mutation_payload_json(&product, &[], &payload_selection, &product_selection)
+                    root_field_response_key(query).unwrap_or_else(|| "productSet".to_string()): product_mutation_payload_json(&product, &payload_selection, &product_selection)
                 }
             })),
             LogDraft::staged("productSet", "products", vec![id]),
@@ -3333,7 +3344,7 @@ impl DraftProxy {
         MutationOutcome::staged(
             ok_json(json!({
                 "data": {
-                    field.response_key.clone(): product_mutation_payload_json(&product, &[], &payload_selection, &product_selection)
+                    field.response_key.clone(): product_mutation_payload_json(&product, &payload_selection, &product_selection)
                 }
             })),
             LogDraft::staged("productChangeStatus", "products", vec![id.clone()]),
@@ -3876,31 +3887,15 @@ impl DraftProxy {
                 })],
             ));
         };
-        let requested_name_input = resolved_string_field(&input, "name");
-        let requested_name = requested_name_input
-            .clone()
-            .unwrap_or_else(|| existing.name.clone());
+        let requested_name =
+            resolved_string_field(&input, "name").unwrap_or_else(|| existing.name.clone());
         let requested_query =
             resolved_string_field(&input, "query").unwrap_or_else(|| existing.query.clone());
         let mut updated = existing.clone();
         updated.query = normalize_saved_search_query(&requested_query);
         let mut user_errors = Vec::new();
-        let requested_name_is_blank = requested_name_input
-            .as_deref()
-            .is_some_and(|name| name.trim().is_empty());
-        if requested_name_is_blank {
-            user_errors.push(json!({
-                "field": ["input", "name"],
-                "message": "Name can't be blank"
-            }));
-        }
-        if !requested_name_is_blank
-            && (is_reserved_saved_search_name(&existing.resource_type, &requested_name)
-                || self.saved_search_name_exists(
-                    &existing.resource_type,
-                    &requested_name,
-                    Some(&id),
-                ))
+        if is_reserved_saved_search_name(&existing.resource_type, &requested_name)
+            || self.saved_search_name_exists(&existing.resource_type, &requested_name, Some(&id))
         {
             user_errors.push(saved_search_name_taken_user_error());
         }
@@ -4063,16 +4058,6 @@ fn product_record_from_hydrated_json(record: &Value) -> ProductRecord {
             .unwrap_or_default(),
         extra_fields: product_extra_fields_from_json(record),
     }
-}
-
-fn bulk_operation_run_query_has_local_jsonl_synthesis_root(query_text: &str) -> bool {
-    let Some(document) = parsed_document(query_text, &BTreeMap::new()) else {
-        return false;
-    };
-    document
-        .root_fields
-        .iter()
-        .all(|field| matches!(field.name.as_str(), "products" | "productVariants"))
 }
 
 fn bulk_operation_run_query_user_errors(query_text: &str) -> Option<Vec<Value>> {
@@ -4653,28 +4638,21 @@ fn validate_file_create_input(
     None
 }
 
-fn validate_file_update_required_fields(
+fn validate_file_update_input_fields(
     input: &BTreeMap<String, ResolvedValue>,
     index: usize,
-) -> Option<Value> {
+) -> Vec<Value> {
+    let mut errors = Vec::new();
     if resolved_string_field(input, "id")
         .filter(|value| !value.is_empty())
         .is_none()
     {
-        return Some(json!({
+        errors.push(json!({
             "field": ["files", index.to_string(), "id"],
             "message": "File id is required",
             "code": "REQUIRED"
         }));
     }
-    None
-}
-
-fn validate_file_update_post_readiness_fields(
-    input: &BTreeMap<String, ResolvedValue>,
-    index: usize,
-) -> Vec<Value> {
-    let mut errors = Vec::new();
     if let Some(alt) = resolved_string_field(input, "alt") {
         if alt.chars().count() > 512 {
             errors.push(json!({
@@ -4695,14 +4673,6 @@ fn validate_file_update_post_readiness_fields(
             }
         }
     }
-    errors
-}
-
-fn validate_file_update_ready_source_fields(
-    input: &BTreeMap<String, ResolvedValue>,
-    index: usize,
-) -> Vec<Value> {
-    let mut errors = Vec::new();
     let original = resolved_string_field(input, "originalSource").filter(|value| !value.is_empty());
     let preview =
         resolved_string_field(input, "previewImageSource").filter(|value| !value.is_empty());
@@ -4720,28 +4690,18 @@ fn validate_file_update_ready_source_fields(
             "code": "INVALID"
         }));
     }
-    errors
-}
-
-fn file_update_source_version_conflict(
-    input: &BTreeMap<String, ResolvedValue>,
-    index: usize,
-) -> Option<Value> {
-    let original = resolved_string_field(input, "originalSource").filter(|value| !value.is_empty());
-    let preview =
-        resolved_string_field(input, "previewImageSource").filter(|value| !value.is_empty());
     if (original.is_some() || preview.is_some())
         && resolved_string_field(input, "revertToVersionId")
             .filter(|value| !value.is_empty())
             .is_some()
     {
-        return Some(json!({
+        errors.push(json!({
             "field": ["files", index.to_string()],
             "message": "Specify either a source or revertToVersionId, not both.",
             "code": "CANNOT_SPECIFY_SOURCE_AND_VERSION_ID"
         }));
     }
-    None
+    errors
 }
 
 fn media_file_update_error_response(
@@ -5445,6 +5405,27 @@ fn bulk_operation_sort_value(operation: &Value, sort_key: &str) -> String {
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string()
+}
+
+fn bulk_operation_concurrent_limit(request: &Request) -> usize {
+    if admin_graphql_version(&request.path)
+        .is_some_and(|version| version_at_least(version, 2026, 1))
+    {
+        5
+    } else {
+        1
+    }
+}
+
+fn bulk_operation_is_non_terminal(operation: &Value) -> bool {
+    !bulk_operation_status_is_terminal(operation.get("status").and_then(Value::as_str))
+}
+
+fn bulk_operation_status_is_terminal(status: Option<&str>) -> bool {
+    matches!(
+        status,
+        Some("COMPLETED" | "FAILED" | "CANCELED" | "EXPIRED")
+    )
 }
 
 fn bulk_operation_matches_query(
