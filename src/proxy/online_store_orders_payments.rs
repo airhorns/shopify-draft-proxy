@@ -11,8 +11,69 @@ struct OrdersLocalLogEntry<'a> {
 
 const MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH: usize = 100;
 const MOBILE_PLATFORM_APP_CLIP_APPLICATION_ID_MAX_LENGTH: usize = 255;
+const FULFILLMENT_EVENT_CREATED_AT: &str = "2024-01-01T00:00:03.000Z";
+const FULFILLMENT_EVENT_STATUS_VALUES: &[&str] = &[
+    "LABEL_PURCHASED",
+    "LABEL_PRINTED",
+    "READY_FOR_PICKUP",
+    "CONFIRMED",
+    "IN_TRANSIT",
+    "OUT_FOR_DELIVERY",
+    "ATTEMPTED_DELIVERY",
+    "DELAYED",
+    "DELIVERED",
+    "FAILURE",
+    "CARRIER_PICKED_UP",
+];
 const ORDERS_FULFILLMENT_ORDER_HYDRATE_QUERY: &str = "query OrdersFulfillmentOrderHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}";
-const ORDERS_FULFILLMENT_HYDRATE_QUERY: &str = "query OrdersFulfillmentHydrate($id: ID!) { fulfillment(id: $id) { id order { id name email phone createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus note tags fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } } } }";
+const ORDERS_FULFILLMENT_HYDRATE_QUERY: &str = r#"#graphql
+  query ShippingFulfillmentEventCreateFulfillmentHydrate($id: ID!) {
+    fulfillment(id: $id) {
+      id
+      status
+      displayStatus
+      createdAt
+      updatedAt
+      deliveredAt
+      estimatedDeliveryAt
+      inTransitAt
+      trackingInfo(first: 1) { number url company }
+      events(first: 5) {
+        nodes {
+          id
+          status
+          message
+          happenedAt
+          createdAt
+          estimatedDeliveryAt
+          city
+          province
+          country
+          zip
+          address1
+          latitude
+          longitude
+        }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+      service {
+        id
+        handle
+        serviceName
+        trackingSupport
+        type
+        location { id name }
+      }
+      location { id name }
+      originAddress { address1 address2 city countryCode provinceCode zip }
+      fulfillmentLineItems(first: 5) {
+        nodes { id quantity lineItem { id title } }
+        pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+      }
+      order { id name displayFulfillmentStatus }
+    }
+  }
+"#;
 
 fn mobile_application_id_too_long_error<const N: usize>(field: [&str; N]) -> Value {
     mobile_app_error(
@@ -1202,6 +1263,98 @@ fn fulfillment_display_status_is(fulfillment: &Value, expected: &str) -> bool {
     fulfillment["displayStatus"]
         .as_str()
         .is_some_and(|status| status.eq_ignore_ascii_case(expected))
+}
+
+fn fulfillment_event_status_is_allowed(status: &str) -> bool {
+    FULFILLMENT_EVENT_STATUS_VALUES.contains(&status)
+}
+
+fn fulfillment_gid_has_numeric_tail(id: &str) -> bool {
+    shopify_gid_resource_type(id) == Some("Fulfillment")
+        && resource_id_tail(id).parse::<u64>().is_ok()
+}
+
+fn fulfillment_accepts_events(fulfillment: &Value) -> bool {
+    !fulfillment_status_is(fulfillment, "CANCELLED")
+        && !fulfillment_status_is(fulfillment, "FAILURE")
+        && !fulfillment_status_is(fulfillment, "ERROR")
+}
+
+fn fulfillment_event_nullable_string(
+    input: &BTreeMap<String, ResolvedValue>,
+    field: &str,
+) -> Value {
+    resolved_string_field(input, field)
+        .map(Value::String)
+        .unwrap_or(Value::Null)
+}
+
+fn fulfillment_event_nullable_number(
+    input: &BTreeMap<String, ResolvedValue>,
+    field: &str,
+) -> Value {
+    resolved_number_field(input, field)
+        .map(|value| json!(value))
+        .unwrap_or(Value::Null)
+}
+
+fn fulfillment_event_record(
+    id: String,
+    input: &BTreeMap<String, ResolvedValue>,
+    status: &str,
+) -> Value {
+    let happened_at = resolved_string_field(input, "happenedAt")
+        .unwrap_or_else(|| FULFILLMENT_EVENT_CREATED_AT.to_string());
+    json!({
+        "id": id,
+        "status": status,
+        "message": fulfillment_event_nullable_string(input, "message"),
+        "happenedAt": happened_at,
+        "createdAt": FULFILLMENT_EVENT_CREATED_AT,
+        "estimatedDeliveryAt": fulfillment_event_nullable_string(input, "estimatedDeliveryAt"),
+        "city": fulfillment_event_nullable_string(input, "city"),
+        "province": fulfillment_event_nullable_string(input, "province"),
+        "country": fulfillment_event_nullable_string(input, "country"),
+        "zip": fulfillment_event_nullable_string(input, "zip"),
+        "address1": fulfillment_event_nullable_string(input, "address1"),
+        "latitude": fulfillment_event_nullable_number(input, "latitude"),
+        "longitude": fulfillment_event_nullable_number(input, "longitude")
+    })
+}
+
+fn fulfillment_events_connection_nodes_mut(fulfillment: &mut Value) -> Option<&mut Vec<Value>> {
+    if !fulfillment.get("events").is_some_and(Value::is_object) {
+        fulfillment["events"] = order_connection(Vec::new());
+    }
+    if !fulfillment["events"]
+        .get("nodes")
+        .is_some_and(Value::is_array)
+    {
+        fulfillment["events"]["nodes"] = json!([]);
+    }
+    fulfillment["events"]["nodes"].as_array_mut()
+}
+
+fn apply_fulfillment_event_to_fulfillment(fulfillment: &mut Value, event: &Value) {
+    let updated_nodes = fulfillment_events_connection_nodes_mut(fulfillment).map(|nodes| {
+        nodes.insert(0, event.clone());
+        nodes.clone()
+    });
+    if let Some(nodes) = updated_nodes {
+        fulfillment["events"] = order_connection(nodes.clone());
+    }
+    let status = event["status"].as_str().unwrap_or_default();
+    fulfillment["displayStatus"] = json!(status);
+    fulfillment["updatedAt"] = json!(FULFILLMENT_EVENT_CREATED_AT);
+    if !event["estimatedDeliveryAt"].is_null() {
+        fulfillment["estimatedDeliveryAt"] = event["estimatedDeliveryAt"].clone();
+    }
+    if status == "IN_TRANSIT" {
+        fulfillment["inTransitAt"] = event["happenedAt"].clone();
+    }
+    if status == "DELIVERED" {
+        fulfillment["deliveredAt"] = event["happenedAt"].clone();
+    }
 }
 
 fn draft_order_total_amount(field: &RootFieldSelection) -> String {
@@ -2717,6 +2870,10 @@ impl DraftProxy {
             "createdAt": "2024-01-01T00:00:00.000Z",
             "updatedAt": "2024-01-01T00:00:00.000Z",
             "trackingInfo": tracking_info,
+            "events": order_connection(Vec::new()),
+            "estimatedDeliveryAt": Value::Null,
+            "inTransitAt": Value::Null,
+            "deliveredAt": Value::Null,
             "fulfillmentLineItems": order_connection(fulfillment_line_items),
             "__draftProxyFulfillmentOrderIds": groups
                 .iter()
@@ -2802,6 +2959,133 @@ impl DraftProxy {
 
         selected_json(
             &json!({ "fulfillment": fulfillment, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn staged_fulfillment_read_payload(&self, field: &RootFieldSelection) -> Option<Value> {
+        let fulfillment_id = resolved_string_arg(&field.arguments, "id")?;
+        let fulfillment = self
+            .store
+            .staged
+            .orders
+            .values()
+            .find_map(|order| {
+                order["fulfillments"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .find(|fulfillment| fulfillment["id"].as_str() == Some(fulfillment_id.as_str()))
+                    .cloned()
+            })
+            .unwrap_or(Value::Null);
+        if fulfillment.is_null() && self.config.read_mode != ReadMode::Snapshot {
+            return None;
+        }
+        Some(nullable_selected_json(&fulfillment, &field.selection))
+    }
+
+    fn fulfillment_event_create_missing_fulfillment_payload(field: &RootFieldSelection) -> Value {
+        selected_json(
+            &json!({
+                "fulfillmentEvent": Value::Null,
+                "userErrors": [orders_error(
+                    &["fulfillmentEvent", "fulfillmentId"],
+                    "Fulfillment does not exist.",
+                    "NOT_FOUND"
+                )]
+            }),
+            &field.selection,
+        )
+    }
+
+    fn staged_fulfillment_event_create_payload(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let Some(input) = resolved_object_field(&field.arguments, "fulfillmentEvent") else {
+            return selected_json(
+                &json!({
+                    "fulfillmentEvent": Value::Null,
+                    "userErrors": [orders_error(&["fulfillmentEvent"], "Fulfillment event is required", "INVALID")]
+                }),
+                &field.selection,
+            );
+        };
+        let Some(fulfillment_id) = resolved_string_field(&input, "fulfillmentId") else {
+            return Self::fulfillment_event_create_missing_fulfillment_payload(field);
+        };
+        if !fulfillment_gid_has_numeric_tail(&fulfillment_id) {
+            return Self::fulfillment_event_create_missing_fulfillment_payload(field);
+        }
+        let status = resolved_string_field(&input, "status").unwrap_or_default();
+        if !fulfillment_event_status_is_allowed(&status) {
+            return selected_json(
+                &json!({
+                    "fulfillmentEvent": Value::Null,
+                    "userErrors": [orders_error(
+                        &["fulfillmentEvent", "status"],
+                        "Fulfillment event status is invalid.",
+                        "INVALID"
+                    )]
+                }),
+                &field.selection,
+            );
+        }
+        let Some(order_id) = self
+            .staged_order_id_for_fulfillment(&fulfillment_id)
+            .or_else(|| self.hydrate_order_for_fulfillment(&fulfillment_id, request))
+        else {
+            return Self::fulfillment_event_create_missing_fulfillment_payload(field);
+        };
+        let Some(order_before) = self.store.staged.orders.get(&order_id).cloned() else {
+            return Self::fulfillment_event_create_missing_fulfillment_payload(field);
+        };
+        let mut order = order_before;
+        let Some(fulfillment) = order_fulfillments_mut(&mut order).and_then(|fulfillments| {
+            fulfillments
+                .iter_mut()
+                .find(|fulfillment| fulfillment["id"].as_str() == Some(fulfillment_id.as_str()))
+        }) else {
+            return Self::fulfillment_event_create_missing_fulfillment_payload(field);
+        };
+        if !fulfillment_accepts_events(fulfillment) {
+            return selected_json(
+                &json!({
+                    "fulfillmentEvent": Value::Null,
+                    "userErrors": [orders_error(
+                        &["fulfillmentEvent", "fulfillmentId"],
+                        "fulfillment_is_cancelled",
+                        "INVALID"
+                    )]
+                }),
+                &field.selection,
+            );
+        }
+
+        let event_id = self.next_proxy_synthetic_gid("FulfillmentEvent");
+        let event = fulfillment_event_record(event_id.clone(), &input, &status);
+        apply_fulfillment_event_to_fulfillment(fulfillment, &event);
+        self.store
+            .staged
+            .orders
+            .insert(order_id.clone(), order.clone());
+        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            request,
+            query,
+            variables,
+            root_field: "fulfillmentEventCreate",
+            staged_resource_ids: vec![order_id, fulfillment_id, event_id],
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally staged fulfillmentEventCreate in shopify-draft-proxy.",
+            },
+        });
+        selected_json(
+            &json!({ "fulfillmentEvent": event, "userErrors": [] }),
             &field.selection,
         )
     }
@@ -3388,11 +3672,23 @@ impl DraftProxy {
     ) -> Option<Value> {
         let field = root_fields(query, variables)
             .and_then(|fields| fields.into_iter().find(|field| field.name == root_field));
+        if root_field == "fulfillment" {
+            let field = field?;
+            let payload = self.staged_fulfillment_read_payload(&field)?;
+            return Some(data_response(&field.response_key, payload));
+        }
         if root_field == "fulfillmentCreate" {
             let field = field?;
             return Some(data_response(
                 &field.response_key,
                 self.staged_fulfillment_payload(request, query, variables, &field),
+            ));
+        }
+        if root_field == "fulfillmentEventCreate" {
+            let field = field?;
+            return Some(data_response(
+                &field.response_key,
+                self.staged_fulfillment_event_create_payload(request, query, variables, &field),
             ));
         }
         if root_field == "fulfillmentCancel" {
