@@ -1999,11 +1999,6 @@ impl DraftProxy {
                     return ok_json(json!({ "data": data }));
                 }
             }
-            if let Some(data) =
-                self.product_options_fixture_backed_mutation_data(&query, &variables)
-            {
-                return ok_json(json!({ "data": data }));
-            }
             if !operation.root_fields.is_empty()
                 && operation.root_fields.iter().all(|field| {
                     matches!(
@@ -2081,16 +2076,6 @@ impl DraftProxy {
                         "data": self.collection_membership_downstream_read_data(&fields)
                     }));
                 }
-            }
-            if query.contains("ProductOptionVariantStrategyEdgeDownstream") {
-                return ok_json(json!({
-                    "data": product_bulk_create_strategy_downstream_data(&variables)
-                }));
-            }
-            if query.contains("ProductOptionLifecycleDownstream") {
-                return ok_json(json!({
-                    "data": self.product_option_lifecycle_downstream_data(&variables)
-                }));
             }
             if query.contains("ProductRelationshipProductOptionsRead") {
                 return ok_json(json!({
@@ -2205,7 +2190,9 @@ impl DraftProxy {
                         "data": self.product_overlay_read_fields(&query, &variables)
                     }))
                 } else {
-                    (self.upstream_transport)(request.clone())
+                    let response = (self.upstream_transport)(request.clone());
+                    self.observe_product_passthrough_response(&response);
+                    response
                 }
             }
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
@@ -2250,6 +2237,20 @@ impl DraftProxy {
                 if has_local_dispatch && root_field == "productChangeStatus" =>
             {
                 let outcome = self.product_change_status(request, &query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "productOptionsCreate"
+                            | "productOptionUpdate"
+                            | "productOptionsDelete"
+                            | "productOptionsReorder"
+                    ) =>
+            {
+                let outcome = self.product_option_mutation(root_field, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)

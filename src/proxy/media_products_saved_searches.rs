@@ -2466,67 +2466,6 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn product_options_fixture_backed_mutation_data(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
-        let product_id = resolved_string_field(variables, "productId")?;
-        let fixture_name = if query.contains("ProductOptionsCreateParityPlan")
-            && product_id == "gid://shopify/Product/10172064891186"
-        {
-            "product-options-create-parity.json"
-        } else if query.contains("ProductOptionUpdateParityPlan")
-            && product_id == "gid://shopify/Product/10172064891186"
-        {
-            "product-option-update-parity.json"
-        } else if query.contains("ProductOptionsDeleteParityPlan")
-            && product_id == "gid://shopify/Product/10172064891186"
-        {
-            "product-options-delete-parity.json"
-        } else if query.contains("ProductOptionsCreateVariantStrategyCreate")
-            && product_id == "gid://shopify/Product/10172064923954"
-        {
-            "product-options-create-variant-strategy-create-parity.json"
-        } else if query.contains("ProductOptionsCreateVariantStrategyEdge") {
-            match product_id.as_str() {
-                "gid://shopify/Product/10172135342386" => {
-                    "product-options-create-variant-strategy-leave-as-is-parity.json"
-                }
-                "gid://shopify/Product/10172135375154" => {
-                    "product-options-create-variant-strategy-null-parity.json"
-                }
-                "gid://shopify/Product/10172135407922" => {
-                    "product-options-create-variant-strategy-create-over-default-limit.json"
-                }
-                _ => return None,
-            }
-        } else {
-            return None;
-        };
-        self.store.staged.product_option_fixture = Some(fixture_name.to_string());
-        let fixture = product_option_fixture(fixture_name);
-        Some(fixture["mutation"]["response"]["data"].clone())
-    }
-
-    pub(in crate::proxy) fn product_option_lifecycle_downstream_data(
-        &self,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
-        let id = resolved_string_field(variables, "id").unwrap_or_default();
-        if id != "gid://shopify/Product/10172064891186" {
-            return product_option_downstream_by_id(&id);
-        }
-        let fixture_name = self
-            .store
-            .staged
-            .product_option_fixture
-            .as_deref()
-            .unwrap_or("product-options-create-parity.json");
-        let fixture = product_option_fixture(fixture_name);
-        fixture["downstreamRead"]["data"].clone()
-    }
-
     pub(in crate::proxy) fn product_create(
         &mut self,
         request: &Request,

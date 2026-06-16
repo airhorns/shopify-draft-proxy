@@ -252,7 +252,6 @@ struct StagedState {
     deleted_media_file_ids: BTreeSet<String>,
     online_store_integrations: BTreeMap<String, Value>,
     product_set_updated: bool,
-    product_option_fixture: Option<String>,
     product_delete_operations: BTreeMap<String, String>,
     selling_plan_group_downstream_step: usize,
     mandate_payment_keys: BTreeSet<String>,
@@ -534,7 +533,6 @@ impl Default for StagedState {
             deleted_media_file_ids: BTreeSet::new(),
             online_store_integrations: BTreeMap::new(),
             product_set_updated: false,
-            product_option_fixture: None,
             product_delete_operations: BTreeMap::new(),
             selling_plan_group_downstream_step: 0,
             mandate_payment_keys: BTreeSet::new(),
@@ -1158,6 +1156,7 @@ mod metafields_orders_payments;
 mod metaobjects;
 mod online_store_orders_payments;
 mod product_helpers;
+mod product_options;
 mod resolved_values;
 mod resource_ids;
 mod routing;
@@ -1198,6 +1197,8 @@ pub(in crate::proxy) use self::metaobjects::*;
 pub(in crate::proxy) use self::online_store_orders_payments::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::product_helpers::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::product_options::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::resolved_values::*;
 #[allow(unused_imports)]
