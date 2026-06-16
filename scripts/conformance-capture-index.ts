@@ -1217,6 +1217,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-update-validation-ordering',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-update-validation-ordering.ts',
+    purpose:
+      'Files API fileUpdate validation bucket ordering for missing ids, non-ready files, long alt, and simultaneous source fields.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-update-validation-ordering.json`,
+      'config/parity-specs/media/file_update_validation_ordering.json',
+    ],
+    cleanupBehavior: 'Creates one disposable image file and deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-update-filename-extension-aggregation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-media-file-update-filename-extension-aggregation.ts',
