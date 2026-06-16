@@ -44,7 +44,10 @@
       "variables": {
         "resourceId": "gid://shopify/Product/10212147626290",
         "marketId": "gid://shopify/Market/97997685042",
-        "resourceIds": ["gid://shopify/Product/10212147626290", "gid://shopify/PackingSlipTemplate/4834722098"],
+        "resourceIds": [
+          "gid://shopify/Product/10212147626290",
+          "gid://shopify/PackingSlipTemplate/4834722098"
+        ],
         "marketsFirst": 10
       }
     },
@@ -66,9 +69,15 @@
     "unknownMarketRemoveRequest": {
       "variables": {
         "resourceId": "gid://shopify/Product/10212147626290",
-        "keys": ["title"],
-        "locales": ["es"],
-        "marketIds": ["gid://shopify/Market/999999999999"]
+        "keys": [
+          "title"
+        ],
+        "locales": [
+          "es"
+        ],
+        "marketIds": [
+          "gid://shopify/Market/999999999999"
+        ]
       }
     },
     "packingSlipResourceId": "gid://shopify/PackingSlipTemplate/4834722098",
@@ -111,9 +120,16 @@
     "removeRequest": {
       "variables": {
         "resourceId": "gid://shopify/Product/10212147626290",
-        "keys": ["title", "product_type"],
-        "locales": ["es"],
-        "marketIds": ["gid://shopify/Market/97997685042"]
+        "keys": [
+          "title",
+          "product_type"
+        ],
+        "locales": [
+          "es"
+        ],
+        "marketIds": [
+          "gid://shopify/Market/97997685042"
+        ]
       }
     },
     "readBeforeRegister": {
@@ -274,7 +290,11 @@
           "translations": [],
           "userErrors": [
             {
-              "field": ["translations", "0", "marketId"],
+              "field": [
+                "translations",
+                "0",
+                "marketId"
+              ],
               "message": "The market corresponding to the `marketId` argument doesn't exist",
               "code": "MARKET_DOES_NOT_EXIST"
             }
@@ -318,7 +338,11 @@
           "translations": [],
           "userErrors": [
             {
-              "field": ["translations", "0", "key"],
+              "field": [
+                "translations",
+                "0",
+                "key"
+              ],
               "message": "Key body cannot be customized for a market; it can only be translated.",
               "code": "RESOURCE_NOT_MARKET_CUSTOMIZABLE"
             }
@@ -785,10 +809,13 @@
       "variables": {
         "resourceId": "gid://shopify/Product/10212147626290",
         "marketId": "gid://shopify/Market/97997685042",
-        "resourceIds": ["gid://shopify/Product/10212147626290", "gid://shopify/PackingSlipTemplate/4834722098"],
+        "resourceIds": [
+          "gid://shopify/Product/10212147626290",
+          "gid://shopify/PackingSlipTemplate/4834722098"
+        ],
         "marketsFirst": 10
       },
-      "query": "sha:hand-synthesized-from-readBeforeRegister-response",
+      "query": "query LocalizationTranslationsMarketScopedRead(\n  $resourceId: ID!\n  $marketId: ID!\n  $resourceIds: [ID!]!\n  $marketsFirst: Int!\n) {\n  translatableResource(resourceId: $resourceId) {\n    resourceId\n    translatableContent {\n      key\n      value\n      digest\n      locale\n      type\n    }\n    translations(locale: \"es\", marketId: $marketId) {\n      key\n      value\n      locale\n      outdated\n      updatedAt\n      market {\n        id\n      }\n    }\n  }\n  byIds: translatableResourcesByIds(first: 10, resourceIds: $resourceIds) {\n    nodes {\n      resourceId\n      translatableContent {\n        key\n        value\n        digest\n        locale\n        type\n      }\n    }\n  }\n  markets(first: $marketsFirst) {\n    nodes {\n      id\n      name\n      handle\n      status\n      type\n    }\n  }\n  allShopLocales: shopLocales {\n    locale\n    name\n    primary\n    published\n    marketWebPresences {\n      id\n      subfolderSuffix\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

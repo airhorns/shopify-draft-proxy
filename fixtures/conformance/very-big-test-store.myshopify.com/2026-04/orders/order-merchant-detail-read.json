@@ -18,9 +18,15 @@
         "cancelReason": null,
         "displayFinancialStatus": "PARTIALLY_REFUNDED",
         "displayFulfillmentStatus": "FULFILLED",
-        "paymentGatewayNames": ["manual", "shopify_payments"],
+        "paymentGatewayNames": [
+          "manual",
+          "shopify_payments"
+        ],
         "note": "Leave at receiving desk",
-        "tags": ["merchant-detail", "priority"],
+        "tags": [
+          "merchant-detail",
+          "priority"
+        ],
         "billingAddress": {
           "firstName": "Ada",
           "lastName": "Lovelace",
@@ -127,7 +133,9 @@
             "currencyCode": "CAD"
           }
         },
-        "discountCodes": ["SPRING10"],
+        "discountCodes": [
+          "SPRING10"
+        ],
         "taxesIncluded": false,
         "customer": {
           "id": "gid://shopify/Customer/9001",
@@ -379,7 +387,7 @@
       "variables": {
         "id": "gid://shopify/Order/6832000000000"
       },
-      "query": "hand-synthesized from checked-in capture response for HAR-538 orders Pattern 1 passthrough",
+      "query": "query OrderMerchantDetailRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    email\n    phone\n    poNumber\n    createdAt\n    updatedAt\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    displayFulfillmentStatus\n    paymentGatewayNames\n    note\n    tags\n    billingAddress {\n      firstName\n      lastName\n      address1\n      address2\n      company\n      city\n      province\n      provinceCode\n      country\n      countryCodeV2\n      zip\n      phone\n    }\n    shippingAddress {\n      firstName\n      lastName\n      address1\n      address2\n      company\n      city\n      province\n      provinceCode\n      country\n      countryCodeV2\n      zip\n      phone\n    }\n    subtotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentSubtotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalTaxSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalDiscountsSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalReceivedSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    netPaymentSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalRefundedSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalRefundedShippingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalShippingPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalTaxSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalDiscountsSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    discountCodes\n    taxesIncluded\n    customer {\n      id\n      email\n      displayName\n    }\n    shippingLines(first: 5) {\n      nodes {\n        title\n        code\n        source\n        originalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        taxLines {\n          title\n          rate\n          channelLiable\n          priceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        title\n        quantity\n        sku\n        variantTitle\n        variant {\n          id\n        }\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        taxLines {\n          title\n          rate\n          channelLiable\n          priceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        requestStatus\n        assignedLocation {\n          name\n        }\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      trackingInfo {\n        number\n        url\n        company\n      }\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    refunds {\n      id\n      createdAt\n      totalRefundedSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      refundLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          restockType\n          lineItem {\n            id\n            title\n          }\n          subtotalSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    transactions {\n      id\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        status\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -398,9 +406,15 @@
               "cancelReason": null,
               "displayFinancialStatus": "PARTIALLY_REFUNDED",
               "displayFulfillmentStatus": "FULFILLED",
-              "paymentGatewayNames": ["manual", "shopify_payments"],
+              "paymentGatewayNames": [
+                "manual",
+                "shopify_payments"
+              ],
               "note": "Leave at receiving desk",
-              "tags": ["merchant-detail", "priority"],
+              "tags": [
+                "merchant-detail",
+                "priority"
+              ],
               "billingAddress": {
                 "firstName": "Ada",
                 "lastName": "Lovelace",
@@ -507,7 +521,9 @@
                   "currencyCode": "CAD"
                 }
               },
-              "discountCodes": ["SPRING10"],
+              "discountCodes": [
+                "SPRING10"
+              ],
               "taxesIncluded": false,
               "customer": {
                 "id": "gid://shopify/Customer/9001",

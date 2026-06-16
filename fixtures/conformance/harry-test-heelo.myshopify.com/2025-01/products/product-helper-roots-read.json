@@ -551,7 +551,11 @@
               "status": "ACTIVE",
               "vendor": "harry-test-heelo",
               "productType": "snowboard",
-              "tags": ["Accessory", "Sport", "Winter"],
+              "tags": [
+                "Accessory",
+                "Sport",
+                "Winter"
+              ],
               "totalInventory": 0,
               "tracksInventory": false,
               "createdAt": "2025-03-26T19:51:37Z",
@@ -766,7 +770,9 @@
             "documentation": "https://shopify.dev/api/usage/access-scopes",
             "requiredAccess": "`read_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel."
           },
-          "path": ["productResourceFeedback"]
+          "path": [
+            "productResourceFeedback"
+          ]
         }
       ],
       "data": {
@@ -821,7 +827,11 @@
           "precision": "EXACT"
         },
         "productTags": {
-          "nodes": ["1/8\"", "10mm", "14mm"],
+          "nodes": [
+            "1/8\"",
+            "10mm",
+            "14mm"
+          ],
           "edges": [
             {
               "cursor": "eyJsYXN0X2lkIjoiMVwvOFwiIiwibGFzdF92YWx1ZSI6IjFcLzhcIiJ9",
@@ -844,7 +854,11 @@
           }
         },
         "productTypes": {
-          "nodes": ["accessories", "Apparel", "Badge"],
+          "nodes": [
+            "accessories",
+            "Apparel",
+            "Badge"
+          ],
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
@@ -853,7 +867,11 @@
           }
         },
         "productVendors": {
-          "nodes": ["ACS", "Aerospoke", "Bookman"],
+          "nodes": [
+            "ACS",
+            "Aerospoke",
+            "Bookman"
+          ],
           "pageInfo": {
             "hasNextPage": true,
             "hasPreviousPage": false,
@@ -902,7 +920,7 @@
         "missingJobId": "gid://shopify/ProductDuplicateJob/999999999999",
         "missingOperationId": "gid://shopify/ProductSetOperation/999999999999"
       },
-      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 product read passthrough",
+      "query": "query ProductHelperRoots(\n  $helperProductId: ID!\n  $productHandle: String!\n  $variantId: ID!\n  $missingProductId: ID!\n  $missingVariantId: ID!\n  $missingJobId: ID!\n  $missingOperationId: ID!\n) {\n  byId: productByIdentifier(identifier: { id: $helperProductId }) {\n    id\n    handle\n    title\n  }\n  byHandle: productByIdentifier(identifier: { handle: $productHandle }) {\n    id\n    handle\n    title\n  }\n  missingProduct: productByIdentifier(identifier: { id: $missingProductId }) {\n    id\n    handle\n    title\n  }\n  variantById: productVariantByIdentifier(identifier: { id: $variantId }) {\n    id\n    title\n    sku\n    product {\n      id\n    }\n  }\n  missingVariant: productVariantByIdentifier(identifier: { id: $missingVariantId }) {\n    id\n    title\n  }\n  productVariants(first: 2, sortKey: ID) {\n    nodes {\n      id\n      title\n      sku\n      product {\n        id\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  productVariantsCount {\n    count\n    precision\n  }\n  productTags(first: 3) {\n    nodes\n    edges {\n      cursor\n      node\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  productTypes(first: 3) {\n    nodes\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  productVendors(first: 3) {\n    nodes\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  productSavedSearches(first: 3) {\n    nodes {\n      id\n      name\n      query\n      searchTerms\n      resourceType\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  productResourceFeedback(id: $helperProductId) {\n    productId\n    state\n    messages\n    feedbackGeneratedAt\n    productUpdatedAt\n  }\n  productOperation(id: $missingOperationId) {\n    __typename\n    status\n    product {\n      id\n    }\n    ... on ProductSetOperation {\n      id\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n  productDuplicateJob(id: $missingJobId) {\n    id\n    done\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -920,7 +938,9 @@
                 "documentation": "https://shopify.dev/api/usage/access-scopes",
                 "requiredAccess": "`read_resource_feedbacks` access scope. Also: App must be configured to use the Storefront API or as a Sales Channel."
               },
-              "path": ["productResourceFeedback"]
+              "path": [
+                "productResourceFeedback"
+              ]
             }
           ],
           "data": {
@@ -975,7 +995,11 @@
               "precision": "EXACT"
             },
             "productTags": {
-              "nodes": ["1/8\"", "10mm", "14mm"],
+              "nodes": [
+                "1/8\"",
+                "10mm",
+                "14mm"
+              ],
               "edges": [
                 {
                   "cursor": "eyJsYXN0X2lkIjoiMVwvOFwiIiwibGFzdF92YWx1ZSI6IjFcLzhcIiJ9",
@@ -998,7 +1022,11 @@
               }
             },
             "productTypes": {
-              "nodes": ["accessories", "Apparel", "Badge"],
+              "nodes": [
+                "accessories",
+                "Apparel",
+                "Badge"
+              ],
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,
@@ -1007,7 +1035,11 @@
               }
             },
             "productVendors": {
-              "nodes": ["ACS", "Aerospoke", "Bookman"],
+              "nodes": [
+                "ACS",
+                "Aerospoke",
+                "Bookman"
+              ],
               "pageInfo": {
                 "hasNextPage": true,
                 "hasPreviousPage": false,

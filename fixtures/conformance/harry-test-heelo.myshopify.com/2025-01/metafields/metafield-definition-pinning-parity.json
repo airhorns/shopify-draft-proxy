@@ -1811,6 +1811,724 @@
           }
         }
       }
+    },
+    {
+      "operationName": "MetafieldDefinitionPinningRead",
+      "variables": {
+        "namespace": "metafield_definition_pin_moyouov1"
+      },
+      "query": "query MetafieldDefinitionPinningRead($namespace: String!) {\n  byIdentifier: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: \"pin_a\" }) {\n    id\n    name\n    namespace\n    key\n    ownerType\n    type {\n      name\n      category\n    }\n    description\n    validations {\n      name\n      value\n    }\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      adminFilterable {\n        enabled\n        eligible\n        status\n      }\n      smartCollectionCondition {\n        enabled\n        eligible\n      }\n      uniqueValues {\n        enabled\n        eligible\n      }\n    }\n    constraints {\n      key\n      values(first: 10) {\n        nodes {\n          value\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    pinnedPosition\n    validationStatus\n  }\n  metafieldDefinitions(ownerType: PRODUCT, first: 10, namespace: $namespace, sortKey: PINNED_POSITION) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 10) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      validationStatus\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  pinned: metafieldDefinitions(\n    ownerType: PRODUCT\n    first: 10\n    namespace: $namespace\n    sortKey: PINNED_POSITION\n    pinnedStatus: PINNED\n  ) {\n    nodes {\n      id\n      key\n      pinnedPosition\n    }\n  }\n  unpinned: metafieldDefinitions(\n    ownerType: PRODUCT\n    first: 10\n    namespace: $namespace\n    sortKey: PINNED_POSITION\n    pinnedStatus: UNPINNED\n  ) {\n    nodes {\n      id\n      key\n      pinnedPosition\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "byIdentifier": {
+              "id": "gid://shopify/MetafieldDefinition/207852863794",
+              "name": "HAR 256 pin_a",
+              "namespace": "metafield_definition_pin_moyouov1",
+              "key": "pin_a",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": null,
+              "validations": [],
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE"
+              },
+              "capabilities": {
+                "adminFilterable": {
+                  "enabled": false,
+                  "eligible": true,
+                  "status": "NOT_FILTERABLE"
+                },
+                "smartCollectionCondition": {
+                  "enabled": false,
+                  "eligible": true
+                },
+                "uniqueValues": {
+                  "enabled": false,
+                  "eligible": true
+                }
+              },
+              "constraints": {
+                "key": null,
+                "values": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                  }
+                }
+              },
+              "pinnedPosition": 3,
+              "validationStatus": "ALL_VALID"
+            },
+            "metafieldDefinitions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MetafieldDefinition/207852863794",
+                  "name": "HAR 256 pin_a",
+                  "namespace": "metafield_definition_pin_moyouov1",
+                  "key": "pin_a",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 3,
+                  "validationStatus": "ALL_VALID"
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/207852896562",
+                  "name": "HAR 256 pin_b",
+                  "namespace": "metafield_definition_pin_moyouov1",
+                  "key": "pin_b",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": null,
+                  "validationStatus": "ALL_VALID"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoyMDc4NTI4NjM3OTQsImxhc3RfdmFsdWUiOiIzIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoyMDc4NTI4OTY1NjIsImxhc3RfdmFsdWUiOiIwIn0="
+              }
+            },
+            "pinned": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MetafieldDefinition/207852863794",
+                  "key": "pin_a",
+                  "pinnedPosition": 3
+                }
+              ]
+            },
+            "unpinned": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MetafieldDefinition/207852896562",
+                  "key": "pin_b",
+                  "pinnedPosition": null
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MetafieldDefinitionPinningRead",
+      "variables": {
+        "namespace": "metafield_definition_pin_moyouov1"
+      },
+      "query": "query MetafieldDefinitionPinningRead($namespace: String!) {\n  byIdentifier: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: \"pin_a\" }) {\n    id\n    name\n    namespace\n    key\n    ownerType\n    type {\n      name\n      category\n    }\n    description\n    validations {\n      name\n      value\n    }\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      adminFilterable {\n        enabled\n        eligible\n        status\n      }\n      smartCollectionCondition {\n        enabled\n        eligible\n      }\n      uniqueValues {\n        enabled\n        eligible\n      }\n    }\n    constraints {\n      key\n      values(first: 10) {\n        nodes {\n          value\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    pinnedPosition\n    validationStatus\n  }\n  metafieldDefinitions(ownerType: PRODUCT, first: 10, namespace: $namespace, sortKey: PINNED_POSITION) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 10) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      validationStatus\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  pinned: metafieldDefinitions(\n    ownerType: PRODUCT\n    first: 10\n    namespace: $namespace\n    sortKey: PINNED_POSITION\n    pinnedStatus: PINNED\n  ) {\n    nodes {\n      id\n      key\n      pinnedPosition\n    }\n  }\n  unpinned: metafieldDefinitions(\n    ownerType: PRODUCT\n    first: 10\n    namespace: $namespace\n    sortKey: PINNED_POSITION\n    pinnedStatus: UNPINNED\n  ) {\n    nodes {\n      id\n      key\n      pinnedPosition\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "byIdentifier": {
+              "id": "gid://shopify/MetafieldDefinition/207852863794",
+              "name": "HAR 256 pin_a",
+              "namespace": "metafield_definition_pin_moyouov1",
+              "key": "pin_a",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": null,
+              "validations": [],
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE"
+              },
+              "capabilities": {
+                "adminFilterable": {
+                  "enabled": false,
+                  "eligible": true,
+                  "status": "NOT_FILTERABLE"
+                },
+                "smartCollectionCondition": {
+                  "enabled": false,
+                  "eligible": true
+                },
+                "uniqueValues": {
+                  "enabled": false,
+                  "eligible": true
+                }
+              },
+              "constraints": {
+                "key": null,
+                "values": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                  }
+                }
+              },
+              "pinnedPosition": 3,
+              "validationStatus": "ALL_VALID"
+            },
+            "metafieldDefinitions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MetafieldDefinition/207852896562",
+                  "name": "HAR 256 pin_b",
+                  "namespace": "metafield_definition_pin_moyouov1",
+                  "key": "pin_b",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 4,
+                  "validationStatus": "ALL_VALID"
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/207852863794",
+                  "name": "HAR 256 pin_a",
+                  "namespace": "metafield_definition_pin_moyouov1",
+                  "key": "pin_a",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 3,
+                  "validationStatus": "ALL_VALID"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoyMDc4NTI4OTY1NjIsImxhc3RfdmFsdWUiOiI0In0=",
+                "endCursor": "eyJsYXN0X2lkIjoyMDc4NTI4NjM3OTQsImxhc3RfdmFsdWUiOiIzIn0="
+              }
+            },
+            "pinned": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MetafieldDefinition/207852896562",
+                  "key": "pin_b",
+                  "pinnedPosition": 4
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/207852863794",
+                  "key": "pin_a",
+                  "pinnedPosition": 3
+                }
+              ]
+            },
+            "unpinned": {
+              "nodes": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MetafieldDefinitionPinningRead",
+      "variables": {
+        "namespace": "metafield_definition_pin_moyouov1"
+      },
+      "query": "query MetafieldDefinitionPinningRead($namespace: String!) {\n  byIdentifier: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: \"pin_a\" }) {\n    id\n    name\n    namespace\n    key\n    ownerType\n    type {\n      name\n      category\n    }\n    description\n    validations {\n      name\n      value\n    }\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      adminFilterable {\n        enabled\n        eligible\n        status\n      }\n      smartCollectionCondition {\n        enabled\n        eligible\n      }\n      uniqueValues {\n        enabled\n        eligible\n      }\n    }\n    constraints {\n      key\n      values(first: 10) {\n        nodes {\n          value\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    pinnedPosition\n    validationStatus\n  }\n  metafieldDefinitions(ownerType: PRODUCT, first: 10, namespace: $namespace, sortKey: PINNED_POSITION) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 10) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      validationStatus\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  pinned: metafieldDefinitions(\n    ownerType: PRODUCT\n    first: 10\n    namespace: $namespace\n    sortKey: PINNED_POSITION\n    pinnedStatus: PINNED\n  ) {\n    nodes {\n      id\n      key\n      pinnedPosition\n    }\n  }\n  unpinned: metafieldDefinitions(\n    ownerType: PRODUCT\n    first: 10\n    namespace: $namespace\n    sortKey: PINNED_POSITION\n    pinnedStatus: UNPINNED\n  ) {\n    nodes {\n      id\n      key\n      pinnedPosition\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "byIdentifier": {
+              "id": "gid://shopify/MetafieldDefinition/207852863794",
+              "name": "HAR 256 pin_a",
+              "namespace": "metafield_definition_pin_moyouov1",
+              "key": "pin_a",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": null,
+              "validations": [],
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE"
+              },
+              "capabilities": {
+                "adminFilterable": {
+                  "enabled": false,
+                  "eligible": true,
+                  "status": "NOT_FILTERABLE"
+                },
+                "smartCollectionCondition": {
+                  "enabled": false,
+                  "eligible": true
+                },
+                "uniqueValues": {
+                  "enabled": false,
+                  "eligible": true
+                }
+              },
+              "constraints": {
+                "key": null,
+                "values": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                  }
+                }
+              },
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            },
+            "metafieldDefinitions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MetafieldDefinition/207852896562",
+                  "name": "HAR 256 pin_b",
+                  "namespace": "metafield_definition_pin_moyouov1",
+                  "key": "pin_b",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": 3,
+                  "validationStatus": "ALL_VALID"
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/207852863794",
+                  "name": "HAR 256 pin_a",
+                  "namespace": "metafield_definition_pin_moyouov1",
+                  "key": "pin_a",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": null,
+                  "validationStatus": "ALL_VALID"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoyMDc4NTI4OTY1NjIsImxhc3RfdmFsdWUiOiIzIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoyMDc4NTI4NjM3OTQsImxhc3RfdmFsdWUiOiIwIn0="
+              }
+            },
+            "pinned": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MetafieldDefinition/207852896562",
+                  "key": "pin_b",
+                  "pinnedPosition": 3
+                }
+              ]
+            },
+            "unpinned": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MetafieldDefinition/207852863794",
+                  "key": "pin_a",
+                  "pinnedPosition": null
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MetafieldDefinitionPinningRead",
+      "variables": {
+        "namespace": "metafield_definition_pin_moyouov1"
+      },
+      "query": "query MetafieldDefinitionPinningRead($namespace: String!) {\n  byIdentifier: metafieldDefinition(identifier: { ownerType: PRODUCT, namespace: $namespace, key: \"pin_a\" }) {\n    id\n    name\n    namespace\n    key\n    ownerType\n    type {\n      name\n      category\n    }\n    description\n    validations {\n      name\n      value\n    }\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      adminFilterable {\n        enabled\n        eligible\n        status\n      }\n      smartCollectionCondition {\n        enabled\n        eligible\n      }\n      uniqueValues {\n        enabled\n        eligible\n      }\n    }\n    constraints {\n      key\n      values(first: 10) {\n        nodes {\n          value\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    pinnedPosition\n    validationStatus\n  }\n  metafieldDefinitions(ownerType: PRODUCT, first: 10, namespace: $namespace, sortKey: PINNED_POSITION) {\n    nodes {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        adminFilterable {\n          enabled\n          eligible\n          status\n        }\n        smartCollectionCondition {\n          enabled\n          eligible\n        }\n        uniqueValues {\n          enabled\n          eligible\n        }\n      }\n      constraints {\n        key\n        values(first: 10) {\n          nodes {\n            value\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pinnedPosition\n      validationStatus\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  pinned: metafieldDefinitions(\n    ownerType: PRODUCT\n    first: 10\n    namespace: $namespace\n    sortKey: PINNED_POSITION\n    pinnedStatus: PINNED\n  ) {\n    nodes {\n      id\n      key\n      pinnedPosition\n    }\n  }\n  unpinned: metafieldDefinitions(\n    ownerType: PRODUCT\n    first: 10\n    namespace: $namespace\n    sortKey: PINNED_POSITION\n    pinnedStatus: UNPINNED\n  ) {\n    nodes {\n      id\n      key\n      pinnedPosition\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "byIdentifier": {
+              "id": "gid://shopify/MetafieldDefinition/207852863794",
+              "name": "HAR 256 pin_a",
+              "namespace": "metafield_definition_pin_moyouov1",
+              "key": "pin_a",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": null,
+              "validations": [],
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE"
+              },
+              "capabilities": {
+                "adminFilterable": {
+                  "enabled": false,
+                  "eligible": true,
+                  "status": "NOT_FILTERABLE"
+                },
+                "smartCollectionCondition": {
+                  "enabled": false,
+                  "eligible": true
+                },
+                "uniqueValues": {
+                  "enabled": false,
+                  "eligible": true
+                }
+              },
+              "constraints": {
+                "key": null,
+                "values": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
+                  }
+                }
+              },
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            },
+            "metafieldDefinitions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MetafieldDefinition/207852896562",
+                  "name": "HAR 256 pin_b",
+                  "namespace": "metafield_definition_pin_moyouov1",
+                  "key": "pin_b",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": null,
+                  "validationStatus": "ALL_VALID"
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/207852863794",
+                  "name": "HAR 256 pin_a",
+                  "namespace": "metafield_definition_pin_moyouov1",
+                  "key": "pin_a",
+                  "ownerType": "PRODUCT",
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "description": null,
+                  "validations": [],
+                  "access": {
+                    "admin": "PUBLIC_READ_WRITE",
+                    "storefront": "NONE"
+                  },
+                  "capabilities": {
+                    "adminFilterable": {
+                      "enabled": false,
+                      "eligible": true,
+                      "status": "NOT_FILTERABLE"
+                    },
+                    "smartCollectionCondition": {
+                      "enabled": false,
+                      "eligible": true
+                    },
+                    "uniqueValues": {
+                      "enabled": false,
+                      "eligible": true
+                    }
+                  },
+                  "constraints": {
+                    "key": null,
+                    "values": {
+                      "nodes": [],
+                      "pageInfo": {
+                        "hasNextPage": false,
+                        "hasPreviousPage": false,
+                        "startCursor": null,
+                        "endCursor": null
+                      }
+                    }
+                  },
+                  "pinnedPosition": null,
+                  "validationStatus": "ALL_VALID"
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoyMDc4NTI4OTY1NjIsImxhc3RfdmFsdWUiOiIwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoyMDc4NTI4NjM3OTQsImxhc3RfdmFsdWUiOiIwIn0="
+              }
+            },
+            "pinned": {
+              "nodes": []
+            },
+            "unpinned": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/MetafieldDefinition/207852896562",
+                  "key": "pin_b",
+                  "pinnedPosition": null
+                },
+                {
+                  "id": "gid://shopify/MetafieldDefinition/207852863794",
+                  "key": "pin_a",
+                  "pinnedPosition": null
+                }
+              ]
+            }
+          }
+        }
+      }
     }
   ]
 }

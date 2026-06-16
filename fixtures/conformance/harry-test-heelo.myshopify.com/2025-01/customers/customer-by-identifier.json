@@ -94,7 +94,9 @@
           "extensions": {
             "code": "NOT_FOUND"
           },
-          "path": ["customId"]
+          "path": [
+            "customId"
+          ]
         }
       ],
       "data": {
@@ -213,7 +215,8 @@
             "missingEmail": null
           }
         }
-      }
+      },
+      "query": "query CustomerByIdentifierConformance(\n  $idIdentifier: CustomerIdentifierInput!\n  $emailIdentifier: CustomerIdentifierInput!\n  $phoneIdentifier: CustomerIdentifierInput!\n  $missingIdentifier: CustomerIdentifierInput!\n) {\n  byId: customerByIdentifier(identifier: $idIdentifier) {\n    id\n    firstName\n    lastName\n    displayName\n    email\n    legacyResourceId\n    locale\n    note\n    canDelete\n    verifiedEmail\n    taxExempt\n    state\n    tags\n    numberOfOrders\n    amountSpent {\n      amount\n      currencyCode\n    }\n    defaultEmailAddress {\n      emailAddress\n    }\n    defaultPhoneNumber {\n      phoneNumber\n    }\n    defaultAddress {\n      address1\n      city\n      province\n      country\n      zip\n      formattedArea\n    }\n    createdAt\n    updatedAt\n  }\n  byEmail: customerByIdentifier(identifier: $emailIdentifier) {\n    id\n    email\n    defaultEmailAddress {\n      emailAddress\n    }\n  }\n  byPhone: customerByIdentifier(identifier: $phoneIdentifier) {\n    id\n    defaultPhoneNumber {\n      phoneNumber\n    }\n  }\n  missingEmail: customerByIdentifier(identifier: $missingIdentifier) {\n    id\n    email\n  }\n}\n"
     }
   ]
 }

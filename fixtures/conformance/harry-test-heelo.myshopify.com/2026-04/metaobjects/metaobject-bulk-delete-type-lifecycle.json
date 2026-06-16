@@ -766,7 +766,7 @@
       "variables": {
         "type": "codex_har_450_bulk_delete_1777427735399"
       },
-      "query": "sha:hand-synthesized-from-capture",
+      "query": "#graphql\n  query MetaobjectBulkDeleteHydrateByType($type: String!) {\n    catalog: metaobjects(type: $type, first: 250) {\n      nodes {\n        id\n        handle\n        type\n        displayName\n        createdAt\n        updatedAt\n        capabilities {\n          publishable {\n            status\n          }\n          onlineStore {\n            templateSuffix\n          }\n        }\n        fields {\n          key\n          type\n          value\n          jsonValue\n          definition {\n            key\n            name\n            required\n            type {\n              name\n              category\n            }\n          }\n        }\n      }\n    }\n    definition: metaobjectDefinitionByType(type: $type) {\n      id\n      type\n      name\n      description\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        description\n        required\n        type {\n          name\n          category\n        }\n        validations {\n          name\n          value\n        }\n      }\n      hasThumbnailField\n      metaobjectsCount\n      standardTemplate {\n        type\n        name\n      }\n      createdAt\n      updatedAt\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {

@@ -24,7 +24,10 @@
         "order": {
           "email": "order-edit-commit-20260506060521@example.com",
           "note": "order edit commit history fulfillment capture 20260506060521",
-          "tags": ["order-edit-commit-history-fulfillment", "20260506060521"],
+          "tags": [
+            "order-edit-commit-history-fulfillment",
+            "20260506060521"
+          ],
           "test": true,
           "currency": "CAD",
           "shippingAddress": {
@@ -79,7 +82,10 @@
                 "displayFulfillmentStatus": "UNFULFILLED",
                 "presentmentCurrencyCode": "CAD",
                 "note": "order edit commit history fulfillment capture 20260506060521",
-                "tags": ["20260506060521", "order-edit-commit-history-fulfillment"],
+                "tags": [
+                  "20260506060521",
+                  "order-edit-commit-history-fulfillment"
+                ],
                 "customAttributes": [],
                 "currentSubtotalLineItemsQuantity": 3,
                 "currentSubtotalPriceSet": {
@@ -224,7 +230,10 @@
               "displayFulfillmentStatus": "UNFULFILLED",
               "presentmentCurrencyCode": "CAD",
               "note": "order edit commit history fulfillment capture 20260506060521",
-              "tags": ["20260506060521", "order-edit-commit-history-fulfillment"],
+              "tags": [
+                "20260506060521",
+                "order-edit-commit-history-fulfillment"
+              ],
               "customAttributes": [],
               "currentSubtotalLineItemsQuantity": 3,
               "currentSubtotalPriceSet": {
@@ -554,7 +563,9 @@
               "id": "gid://shopify/Order/8731795030322",
               "name": "#1215"
             },
-            "successMessages": ["Order updated"],
+            "successMessages": [
+              "Order updated"
+            ],
             "userErrors": []
           }
         },
@@ -742,7 +753,7 @@
       "variables": {
         "id": "gid://shopify/Order/8731795030322"
       },
-      "query": "hand-synthesized from live setup order read for orderEditCommit history and fulfillment-order replay",
+      "query": "query OrderEditCommitHistoryFulfillmentRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    updatedAt\n    currentSubtotalLineItemsQuantity\n    currentSubtotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTaxLines {\n      title\n      rate\n      priceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    lineItems(first: 10) {\n      nodes {\n        id\n        title\n        quantity\n        currentQuantity\n        sku\n        variant {\n          id\n        }\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    events(first: 10, query: \"action:edited\") {\n      nodes {\n        id\n        action\n        message\n        createdAt\n      }\n    }\n    fulfillmentOrders(first: 10) {\n      nodes {\n        id\n        status\n        lineItems(first: 10) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n              quantity\n              currentQuantity\n              fulfillableQuantity\n            }\n          }\n        }\n      }\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {
@@ -763,7 +774,10 @@
               "displayFulfillmentStatus": "UNFULFILLED",
               "presentmentCurrencyCode": "CAD",
               "note": "order edit commit history fulfillment capture 20260506060521",
-              "tags": ["20260506060521", "order-edit-commit-history-fulfillment"],
+              "tags": [
+                "20260506060521",
+                "order-edit-commit-history-fulfillment"
+              ],
               "customAttributes": [],
               "currentSubtotalLineItemsQuantity": 3,
               "currentSubtotalPriceSet": {

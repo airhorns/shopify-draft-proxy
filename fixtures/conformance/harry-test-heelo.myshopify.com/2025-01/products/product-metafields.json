@@ -119,9 +119,11 @@
     {
       "operationName": "AdminPlatformMetafieldNodeReads",
       "variables": {
-        "ids": ["gid://shopify/Metafield/42952770224434"]
+        "ids": [
+          "gid://shopify/Metafield/42952770224434"
+        ]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformMetafieldNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    ... on Node {\n      id\n    }\n    ... on Metafield {\n      namespace\n      key\n      type\n      value\n      compareDigest\n      jsonValue\n      createdAt\n      updatedAt\n      ownerType\n      definition {\n        id\n        name\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -153,7 +155,7 @@
         "key": "material",
         "after": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDIyNDQzNCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjI0NDM0In0="
       },
-      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 product read passthrough",
+      "query": "query ProductMetafieldsRead($id: ID!, $namespace: String!, $key: String!) {\n  product(id: $id) {\n    id\n    title\n    primarySpec: metafield(namespace: $namespace, key: $key) {\n      id\n      namespace\n      key\n      type\n      value\n      compareDigest\n      jsonValue\n      createdAt\n      updatedAt\n      ownerType\n      definition {\n        id\n        name\n      }\n    }\n    metafields(first: 1) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n        compareDigest\n        jsonValue\n        createdAt\n        updatedAt\n        ownerType\n      }\n      edges {\n        cursor\n        node {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          jsonValue\n          createdAt\n          updatedAt\n          ownerType\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

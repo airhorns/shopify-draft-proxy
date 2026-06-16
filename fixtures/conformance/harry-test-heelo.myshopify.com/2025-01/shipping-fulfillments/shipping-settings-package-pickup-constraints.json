@@ -190,7 +190,9 @@
               "localPickupSettings": null,
               "userErrors": [
                 {
-                  "field": ["localPickupSettings"],
+                  "field": [
+                    "localPickupSettings"
+                  ],
                   "message": "Custom pickup time is not allowed for local pickup settings.",
                   "code": "CUSTOM_PICKUP_TIME_NOT_ALLOWED"
                 }
@@ -351,7 +353,9 @@
               "localPickupSettings": null,
               "userErrors": [
                 {
-                  "field": ["localPickupSettings"],
+                  "field": [
+                    "localPickupSettings"
+                  ],
                   "message": "Unable to find an active location for location ID 999999999999",
                   "code": "ACTIVE_LOCATION_NOT_FOUND"
                 }
@@ -407,7 +411,9 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": ["shippingPackageUpdate"]
+              "path": [
+                "shippingPackageUpdate"
+              ]
             }
           ],
           "data": {
@@ -447,7 +453,9 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": ["shippingPackageMakeDefault"]
+              "path": [
+                "shippingPackageMakeDefault"
+              ]
             }
           ],
           "data": {
@@ -487,7 +495,9 @@
               "extensions": {
                 "code": "RESOURCE_NOT_FOUND"
               },
-              "path": ["shippingPackageDelete"]
+              "path": [
+                "shippingPackageDelete"
+              ]
             }
           ],
           "data": {
@@ -527,7 +537,9 @@
                 "documentation": "https://shopify.dev/api/usage/access-scopes",
                 "requiredAccess": "`read_fulfillment_constraint_rules` access scope."
               },
-              "path": ["fulfillmentConstraintRules"]
+              "path": [
+                "fulfillmentConstraintRules"
+              ]
             }
           ],
           "data": null,
@@ -565,7 +577,9 @@
                 "documentation": "https://shopify.dev/api/usage/access-scopes",
                 "requiredAccess": "`write_fulfillment_constraint_rules` access scope."
               },
-              "path": ["fulfillmentConstraintRuleCreate"]
+              "path": [
+                "fulfillmentConstraintRuleCreate"
+              ]
             }
           ],
           "data": {
@@ -590,7 +604,7 @@
     {
       "operationName": "ShippingSettingsAvailability",
       "variables": {},
-      "query": "sha:hand-synthesized",
+      "query": "query ShippingSettingsAvailability {\n  availableCarrierServices {\n    carrierService {\n      id\n      name\n      formattedName\n      active\n      supportsServiceDiscovery\n    }\n  }\n  locationsAvailableForDeliveryProfilesConnection(first: 3) {\n    nodes {\n      id\n      name\n      localPickupSettingsV2 {\n        pickupTime\n        instructions\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

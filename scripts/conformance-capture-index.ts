@@ -3963,6 +3963,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/markets/web-presence-subfolder-suffix-taken.json',
       'config/parity-specs/markets/web-presence-duplicate-languages-validation.json',
       'config/parity-specs/markets/web-presence-subfolder-suffix-non-letter.json',
+      'config/parity-requests/markets/web-presence-lifecycle-create.graphql',
       'config/parity-requests/markets/web-presence-suffix-market-create.graphql',
       'config/parity-requests/markets/web-presence-suffix-market-update.graphql',
       'config/parity-specs/markets/web-presence-delete-primary-blocked.json',
@@ -5333,6 +5334,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-validation.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-zero-removal.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-merchant-detail-read.json',
+      'config/parity-specs/orders/fulfillment-lifecycle-create-update-cancel.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-orders-catalog.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-orders-count.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/draft-orders-invalid-email-query.json',
@@ -7601,6 +7603,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-request-lifecycle.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-service-lifecycle.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-top-level-reads.json',
+      `${LOCAL_RUNTIME_ROOT}assigned-fulfillment-orders-filtering-local-runtime.json`,
+      `${LOCAL_RUNTIME_ROOT}fulfillment-order-move-assignment-status.json`,
+      `${LOCAL_RUNTIME_ROOT}fulfillment-orders-set-deadline-validation-local-runtime.json`,
       'config/parity-specs/shipping-fulfillments/delivery-settings-read.json',
       'config/parity-specs/shipping-fulfillments/carrier-service-lifecycle.json',
       'config/parity-specs/shipping-fulfillments/fulfillment-order-request-lifecycle.json',
@@ -8012,6 +8017,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-update-validation.json',
       'config/parity-specs/shipping-fulfillments/delivery-profile-update-validation.json',
+      'config/parity-requests/shipping-fulfillments/delivery-profile-update-validation-create.graphql',
       'config/parity-requests/shipping-fulfillments/delivery-profile-update-validation.graphql',
     ],
     cleanupBehavior:

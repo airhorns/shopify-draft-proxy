@@ -20,7 +20,11 @@
               "handle": "adidas-classic-backpack-legend-ink-multicolour",
               "vendor": "ADIDAS",
               "productType": "ACCESSORIES",
-              "tags": ["adidas", "backpack", "egnition-sample-data"],
+              "tags": [
+                "adidas",
+                "backpack",
+                "egnition-sample-data"
+              ],
               "updatedAt": "2026-04-17T12:52:42Z"
             }
           }
@@ -42,7 +46,11 @@
               "handle": "adidas-classic-backpack",
               "vendor": "ADIDAS",
               "productType": "ACCESSORIES",
-              "tags": ["adidas", "backpack", "egnition-sample-data"],
+              "tags": [
+                "adidas",
+                "backpack",
+                "egnition-sample-data"
+              ],
               "updatedAt": "2026-04-17T12:52:42Z"
             }
           }
@@ -64,7 +72,11 @@
               "handle": "adidas-classic-backpack-legend-ink-multicolour",
               "vendor": "ADIDAS",
               "productType": "ACCESSORIES",
-              "tags": ["adidas", "backpack", "egnition-sample-data"],
+              "tags": [
+                "adidas",
+                "backpack",
+                "egnition-sample-data"
+              ],
               "updatedAt": "2026-04-17T12:52:42Z"
             }
           }
@@ -86,7 +98,7 @@
         "afterCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NTcyNTg1LCJsYXN0X3ZhbHVlIjoxNzc2NDMwMzYyMDAwfQ==",
         "beforeCursor": "eyJsYXN0X2lkIjo4Mzk3MjU3NDc0MjgxLCJsYXN0X3ZhbHVlIjoxNzc2NDMwMzYyMDAwfQ=="
       },
-      "query": "hand-synthesized from checked-in capture response",
+      "query": "query ProductsSearchPaginationRead($query: String!, $afterCursor: String!, $beforeCursor: String!) {\n  count: productsCount(query: $query) {\n    count\n    precision\n  }\n  firstPage: products(first: 1, query: $query, sortKey: UPDATED_AT, reverse: true) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n        vendor\n        productType\n        tags\n        updatedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  nextPage: products(first: 1, after: $afterCursor, query: $query, sortKey: UPDATED_AT, reverse: true) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n        vendor\n        productType\n        tags\n        updatedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  previousPage: products(last: 1, before: $beforeCursor, query: $query, sortKey: UPDATED_AT, reverse: true) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n        vendor\n        productType\n        tags\n        updatedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -105,7 +117,11 @@
                     "handle": "adidas-classic-backpack-legend-ink-multicolour",
                     "vendor": "ADIDAS",
                     "productType": "ACCESSORIES",
-                    "tags": ["adidas", "backpack", "egnition-sample-data"],
+                    "tags": [
+                      "adidas",
+                      "backpack",
+                      "egnition-sample-data"
+                    ],
                     "updatedAt": "2026-04-17T12:52:42Z"
                   }
                 }
@@ -127,7 +143,11 @@
                     "handle": "adidas-classic-backpack",
                     "vendor": "ADIDAS",
                     "productType": "ACCESSORIES",
-                    "tags": ["adidas", "backpack", "egnition-sample-data"],
+                    "tags": [
+                      "adidas",
+                      "backpack",
+                      "egnition-sample-data"
+                    ],
                     "updatedAt": "2026-04-17T12:52:42Z"
                   }
                 }
@@ -149,7 +169,11 @@
                     "handle": "adidas-classic-backpack-legend-ink-multicolour",
                     "vendor": "ADIDAS",
                     "productType": "ACCESSORIES",
-                    "tags": ["adidas", "backpack", "egnition-sample-data"],
+                    "tags": [
+                      "adidas",
+                      "backpack",
+                      "egnition-sample-data"
+                    ],
                     "updatedAt": "2026-04-17T12:52:42Z"
                   }
                 }

@@ -29,7 +29,9 @@
     },
     "search": [
       {
-        "path": ["matching"],
+        "path": [
+          "matching"
+        ],
         "query": "email:grace@example.com",
         "parsed": {
           "field": "email",
@@ -44,7 +46,9 @@
         ]
       },
       {
-        "path": ["disabled"],
+        "path": [
+          "disabled"
+        ],
         "query": "state:DISABLED",
         "parsed": {
           "field": "state",
@@ -96,7 +100,9 @@
             },
             "search": [
               {
-                "path": ["matching"],
+                "path": [
+                  "matching"
+                ],
                 "query": "email:grace@example.com",
                 "parsed": {
                   "field": "email",
@@ -111,7 +117,9 @@
                 ]
               },
               {
-                "path": ["disabled"],
+                "path": [
+                  "disabled"
+                ],
                 "query": "state:DISABLED",
                 "parsed": {
                   "field": "state",
@@ -128,7 +136,8 @@
             ]
           }
         }
-      }
+      },
+      "query": "query CustomersCountRead($query: String!, $disabledQuery: String!) {\n  total: customersCount {\n    count\n    precision\n  }\n  matching: customersCount(query: $query) {\n    count\n    precision\n  }\n  disabled: customersCount(query: $disabledQuery) {\n    count\n    precision\n  }\n}\n"
     }
   ]
 }

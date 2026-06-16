@@ -191,7 +191,9 @@
           "inventoryItem": null,
           "userErrors": [
             {
-              "field": ["id"],
+              "field": [
+                "id"
+              ],
               "message": "The product couldn't be updated because it does not exist."
             }
           ]
@@ -214,7 +216,9 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/InventoryItem/53058790621417"]
+        "ids": [
+          "gid://shopify/InventoryItem/53058790621417"
+        ]
       },
       "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
       "response": {
@@ -259,6 +263,62 @@
                 }
               }
             ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "InventoryItemUpdateDownstreamRead",
+      "variables": {
+        "variantId": "gid://shopify/ProductVariant/50910761779433",
+        "inventoryItemId": "gid://shopify/InventoryItem/53058790621417"
+      },
+      "query": "query InventoryItemUpdateDownstreamRead($variantId: ID!, $inventoryItemId: ID!) {\n  productVariant(id: $variantId) {\n    id\n    inventoryQuantity\n    inventoryItem {\n      id\n      tracked\n      requiresShipping\n      countryCodeOfOrigin\n      provinceCodeOfOrigin\n      harmonizedSystemCode\n      measurement {\n        weight {\n          unit\n          value\n        }\n      }\n    }\n  }\n  inventoryItem(id: $inventoryItemId) {\n    id\n    tracked\n    requiresShipping\n    countryCodeOfOrigin\n    provinceCodeOfOrigin\n    harmonizedSystemCode\n    measurement {\n      weight {\n        unit\n        value\n      }\n    }\n    variant {\n      id\n      inventoryQuantity\n      product {\n        id\n        title\n        tracksInventory\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productVariant": {
+              "id": "gid://shopify/ProductVariant/50910761779433",
+              "inventoryQuantity": 0,
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53058790621417",
+                "tracked": true,
+                "requiresShipping": false,
+                "countryCodeOfOrigin": "CA",
+                "provinceCodeOfOrigin": "ON",
+                "harmonizedSystemCode": "620343",
+                "measurement": {
+                  "weight": {
+                    "unit": "KILOGRAMS",
+                    "value": 2.5
+                  }
+                }
+              }
+            },
+            "inventoryItem": {
+              "id": "gid://shopify/InventoryItem/53058790621417",
+              "tracked": true,
+              "requiresShipping": false,
+              "countryCodeOfOrigin": "CA",
+              "provinceCodeOfOrigin": "ON",
+              "harmonizedSystemCode": "620343",
+              "measurement": {
+                "weight": {
+                  "unit": "KILOGRAMS",
+                  "value": 2.5
+                }
+              },
+              "variant": {
+                "id": "gid://shopify/ProductVariant/50910761779433",
+                "inventoryQuantity": 0,
+                "product": {
+                  "id": "gid://shopify/Product/9261237272809",
+                  "title": "hermes-inventory-item-update-1776897511261",
+                  "tracksInventory": true
+                }
+              }
+            }
           }
         }
       }

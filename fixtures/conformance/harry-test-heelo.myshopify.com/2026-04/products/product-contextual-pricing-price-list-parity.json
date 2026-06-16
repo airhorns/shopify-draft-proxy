@@ -20,14 +20,24 @@
     "cleanup": "The capture deletes the product-level fixed price after reading contextual pricing."
   },
   "schemaEvidence": {
-    "contextualPricingContextFields": ["country", "companyLocationId", "locationId"],
+    "contextualPricingContextFields": [
+      "country",
+      "companyLocationId",
+      "locationId"
+    ],
     "productContextualPricingFields": [
       "fixedQuantityRulesCount",
       "priceRange",
       "minVariantPricing",
       "maxVariantPricing"
     ],
-    "variantContextualPricingFields": ["price", "compareAtPrice", "unitPrice", "quantityRule", "quantityPriceBreaks"],
+    "variantContextualPricingFields": [
+      "price",
+      "compareAtPrice",
+      "unitPrice",
+      "quantityRule",
+      "quantityPriceBreaks"
+    ],
     "downstreamReadTargets": [
       "Product.contextualPricing(context: country)",
       "ProductVariant.contextualPricing(context: country)"
@@ -144,7 +154,9 @@
           "priceListId": "gid://shopify/PriceList/31575408946",
           "priceQuery": "product_id:9801098789170",
           "pricesToAdd": [],
-          "pricesToDeleteByProductIds": ["gid://shopify/Product/9801098789170"]
+          "pricesToDeleteByProductIds": [
+            "gid://shopify/Product/9801098789170"
+          ]
         }
       },
       "response": {
@@ -597,7 +609,9 @@
           "priceListId": "gid://shopify/PriceList/31575408946",
           "priceQuery": "product_id:9801098789170",
           "pricesToAdd": [],
-          "pricesToDeleteByProductIds": ["gid://shopify/Product/9801098789170"]
+          "pricesToDeleteByProductIds": [
+            "gid://shopify/Product/9801098789170"
+          ]
         }
       },
       "response": {
@@ -813,7 +827,7 @@
         "variantId": "gid://shopify/ProductVariant/49875425296690",
         "country": "MX"
       },
-      "query": "hand-synthesized from checked-in capture response",
+      "query": "query ProductContextualPricingRead($productId: ID!, $variantId: ID!, $country: CountryCode!) {\n  product(id: $productId) {\n    id\n    title\n    contextualPricing(context: { country: $country }) {\n      fixedQuantityRulesCount\n      priceRange {\n        minVariantPrice {\n          amount\n          currencyCode\n        }\n        maxVariantPrice {\n          amount\n          currencyCode\n        }\n      }\n      minVariantPricing {\n        price {\n          amount\n          currencyCode\n        }\n        compareAtPrice {\n          amount\n          currencyCode\n        }\n        quantityRule {\n          minimum\n          maximum\n          increment\n        }\n        quantityPriceBreaks(first: 3) {\n          edges {\n            cursor\n            node {\n              minimumQuantity\n              price {\n                amount\n                currencyCode\n              }\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      maxVariantPricing {\n        price {\n          amount\n          currencyCode\n        }\n        compareAtPrice {\n          amount\n          currencyCode\n        }\n        quantityRule {\n          minimum\n          maximum\n          increment\n        }\n        quantityPriceBreaks(first: 3) {\n          edges {\n            cursor\n            node {\n              minimumQuantity\n              price {\n                amount\n                currencyCode\n              }\n            }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n    }\n  }\n  productVariant(id: $variantId) {\n    id\n    title\n    sku\n    price\n    compareAtPrice\n    product {\n      id\n      title\n    }\n    contextualPricing(context: { country: $country }) {\n      price {\n        amount\n        currencyCode\n      }\n      compareAtPrice {\n        amount\n        currencyCode\n      }\n      unitPrice {\n        amount\n        currencyCode\n      }\n      quantityRule {\n        minimum\n        maximum\n        increment\n      }\n      quantityPriceBreaks(first: 3) {\n        edges {\n          cursor\n          node {\n            minimumQuantity\n            price {\n              amount\n              currencyCode\n            }\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

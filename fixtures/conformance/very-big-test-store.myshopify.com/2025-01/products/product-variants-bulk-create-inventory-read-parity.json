@@ -7,7 +7,11 @@
           "status": "DRAFT",
           "vendor": "HERMES",
           "productType": "INVENTORY-CONFORMANCE",
-          "tags": ["conformance", "inventory-read", "1777062394222"]
+          "tags": [
+            "conformance",
+            "inventory-read",
+            "1777062394222"
+          ]
         }
       },
       "response": {
@@ -346,7 +350,9 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/9263919988969"]
+        "ids": [
+          "gid://shopify/Product/9263919988969"
+        ]
       },
       "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
       "response": {
@@ -401,6 +407,118 @@
                 "tracksInventory": true
               }
             ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductVariantsBulkCreateInventoryReadDownstream",
+      "variables": {
+        "productId": "gid://shopify/Product/9263919988969",
+        "variantId": "gid://shopify/ProductVariant/50933258911977",
+        "inventoryItemId": "gid://shopify/InventoryItem/53081336283369"
+      },
+      "query": "query ProductVariantsBulkCreateInventoryReadDownstream($productId: ID!, $variantId: ID!, $inventoryItemId: ID!) {\n  product(id: $productId) {\n    id\n    title\n    handle\n    status\n    totalInventory\n    tracksInventory\n    variants(first: 10) {\n      nodes {\n        id\n        title\n        sku\n        barcode\n        price\n        inventoryQuantity\n        selectedOptions {\n          name\n          value\n        }\n        inventoryItem {\n          id\n          tracked\n          requiresShipping\n        }\n      }\n    }\n  }\n  variant: productVariant(id: $variantId) {\n    id\n    title\n    sku\n    barcode\n    price\n    inventoryQuantity\n    selectedOptions {\n      name\n      value\n    }\n    inventoryItem {\n      id\n      tracked\n      requiresShipping\n    }\n    product {\n      id\n      title\n      handle\n      status\n      totalInventory\n      tracksInventory\n    }\n  }\n  stock: inventoryItem(id: $inventoryItemId) {\n    id\n    tracked\n    requiresShipping\n    variant {\n      id\n      title\n      sku\n      inventoryQuantity\n      product {\n        id\n        title\n        handle\n        status\n        totalInventory\n        tracksInventory\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/9263919988969",
+              "title": "Hermes Product Inventory Variant Seed 1777062394222",
+              "handle": "hermes-product-inventory-variant-seed-1777062394222",
+              "status": "DRAFT",
+              "totalInventory": 0,
+              "tracksInventory": true,
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/50933258879209",
+                    "title": "Red",
+                    "sku": null,
+                    "barcode": null,
+                    "price": "0.00",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Red"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53081336250601",
+                      "tracked": false,
+                      "requiresShipping": true
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/50933258911977",
+                    "title": "Blue",
+                    "sku": "HERMES-INV-394222-BLUE",
+                    "barcode": "3333333333333",
+                    "price": "27.00",
+                    "inventoryQuantity": 0,
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Blue"
+                      }
+                    ],
+                    "inventoryItem": {
+                      "id": "gid://shopify/InventoryItem/53081336283369",
+                      "tracked": true,
+                      "requiresShipping": false
+                    }
+                  }
+                ]
+              }
+            },
+            "variant": {
+              "id": "gid://shopify/ProductVariant/50933258911977",
+              "title": "Blue",
+              "sku": "HERMES-INV-394222-BLUE",
+              "barcode": "3333333333333",
+              "price": "27.00",
+              "inventoryQuantity": 0,
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Blue"
+                }
+              ],
+              "inventoryItem": {
+                "id": "gid://shopify/InventoryItem/53081336283369",
+                "tracked": true,
+                "requiresShipping": false
+              },
+              "product": {
+                "id": "gid://shopify/Product/9263919988969",
+                "title": "Hermes Product Inventory Variant Seed 1777062394222",
+                "handle": "hermes-product-inventory-variant-seed-1777062394222",
+                "status": "DRAFT",
+                "totalInventory": 0,
+                "tracksInventory": true
+              }
+            },
+            "stock": {
+              "id": "gid://shopify/InventoryItem/53081336283369",
+              "tracked": true,
+              "requiresShipping": false,
+              "variant": {
+                "id": "gid://shopify/ProductVariant/50933258911977",
+                "title": "Blue",
+                "sku": "HERMES-INV-394222-BLUE",
+                "inventoryQuantity": 0,
+                "product": {
+                  "id": "gid://shopify/Product/9263919988969",
+                  "title": "Hermes Product Inventory Variant Seed 1777062394222",
+                  "handle": "hermes-product-inventory-variant-seed-1777062394222",
+                  "status": "DRAFT",
+                  "totalInventory": 0,
+                  "tracksInventory": true
+                }
+              }
+            }
           }
         }
       }

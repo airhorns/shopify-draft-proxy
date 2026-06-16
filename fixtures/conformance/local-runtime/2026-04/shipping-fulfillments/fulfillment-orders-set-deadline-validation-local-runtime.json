@@ -46,7 +46,9 @@
   },
   "unknownOnly": {
     "variables": {
-      "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/9999999"],
+      "fulfillmentOrderIds": [
+        "gid://shopify/FulfillmentOrder/9999999"
+      ],
       "fulfillmentDeadline": "2026-12-01T00:00:00Z"
     }
   },
@@ -61,13 +63,17 @@
   },
   "closed": {
     "variables": {
-      "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/deadline-closed"],
+      "fulfillmentOrderIds": [
+        "gid://shopify/FulfillmentOrder/deadline-closed"
+      ],
       "fulfillmentDeadline": "2026-12-01T00:00:00Z"
     }
   },
   "cancelled": {
     "variables": {
-      "fulfillmentOrderIds": ["gid://shopify/FulfillmentOrder/deadline-cancelled"],
+      "fulfillmentOrderIds": [
+        "gid://shopify/FulfillmentOrder/deadline-cancelled"
+      ],
       "fulfillmentDeadline": "2026-12-01T00:00:00Z"
     }
   },
@@ -87,7 +93,9 @@
           "success": false,
           "userErrors": [
             {
-              "field": ["base"],
+              "field": [
+                "base"
+              ],
               "message": "The fulfillment orders could not be found.",
               "code": "FULFILLMENT_ORDERS_NOT_FOUND"
             }
@@ -101,7 +109,9 @@
           "success": false,
           "userErrors": [
             {
-              "field": ["base"],
+              "field": [
+                "base"
+              ],
               "message": "The fulfillment orders could not be found.",
               "code": "FULFILLMENT_ORDERS_NOT_FOUND"
             }
@@ -148,7 +158,9 @@
           "success": false,
           "userErrors": [
             {
-              "field": ["base"],
+              "field": [
+                "base"
+              ],
               "message": "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.",
               "code": null
             }
@@ -162,7 +174,9 @@
           "success": false,
           "userErrors": [
             {
-              "field": ["base"],
+              "field": [
+                "base"
+              ],
               "message": "The fulfillment order is closed or cancelled and cannot be assigned a fulfillment deadline.",
               "code": null
             }
@@ -218,7 +232,7 @@
       "variables": {
         "id": "gid://shopify/Order/deadline-validation"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query FulfillmentOrdersSetDeadlineValidationOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    displayFulfillmentStatus\n    fulfillmentOrders(first: 10) {\n      nodes {\n        id\n        status\n        fulfillBy\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

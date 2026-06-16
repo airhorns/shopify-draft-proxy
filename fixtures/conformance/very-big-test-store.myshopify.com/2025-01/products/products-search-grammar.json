@@ -16,7 +16,11 @@
               "title": "NIKE | SWOOSH PRO FLAT PEAK CAP",
               "vendor": "NIKE",
               "productType": "ACCESSORIES",
-              "tags": ["cap", "egnition-sample-data", "nike"]
+              "tags": [
+                "cap",
+                "egnition-sample-data",
+                "nike"
+              ]
             }
           }
         ]
@@ -42,7 +46,7 @@
         "notQuery": "NOT vendor:VANS published_at:*",
         "tagNotQuery": "tag_not:vans published_at:*"
       },
-      "query": "hand-synthesized from checked-in capture response",
+      "query": "query ProductsSearchGrammarRead($phraseQuery: String!, $notQuery: String!, $tagNotQuery: String!) {\n  phraseCount: productsCount(query: $phraseQuery) {\n    count\n    precision\n  }\n  phraseMatches: products(first: 5, query: $phraseQuery) {\n    edges {\n      node {\n        id\n        title\n        vendor\n        productType\n        tags\n      }\n    }\n  }\n  notCount: productsCount(query: $notQuery) {\n    count\n    precision\n  }\n  notMatches: products(first: 5, query: $notQuery, sortKey: PUBLISHED_AT, reverse: true) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        vendor\n        publishedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  tagNotCount: productsCount(query: $tagNotQuery) {\n    count\n    precision\n  }\n  tagNotMatches: products(first: 5, query: $tagNotQuery, sortKey: PUBLISHED_AT, reverse: true) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        tags\n        publishedAt\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -59,7 +63,11 @@
                     "title": "NIKE | SWOOSH PRO FLAT PEAK CAP",
                     "vendor": "NIKE",
                     "productType": "ACCESSORIES",
-                    "tags": ["cap", "egnition-sample-data", "nike"]
+                    "tags": [
+                      "cap",
+                      "egnition-sample-data",
+                      "nike"
+                    ]
                   }
                 }
               ]

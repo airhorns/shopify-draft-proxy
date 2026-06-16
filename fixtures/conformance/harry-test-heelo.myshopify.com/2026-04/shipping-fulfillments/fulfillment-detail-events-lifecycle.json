@@ -9,7 +9,11 @@
         "order": {
           "email": "hermes-fulfillment-event-1777156118907@example.com",
           "note": "HAR-235 fulfillment detail/event capture 1777156118907",
-          "tags": ["parity-probe", "har-235", "fulfillment-event"],
+          "tags": [
+            "parity-probe",
+            "har-235",
+            "fulfillment-event"
+          ],
           "test": true,
           "lineItems": [
             {
@@ -55,7 +59,11 @@
               "displayFinancialStatus": "PAID",
               "displayFulfillmentStatus": "UNFULFILLED",
               "note": "HAR-235 fulfillment detail/event capture 1777156118907",
-              "tags": ["fulfillment-event", "har-235", "parity-probe"],
+              "tags": [
+                "fulfillment-event",
+                "har-235",
+                "parity-probe"
+              ],
               "customAttributes": [],
               "subtotalPriceSet": {
                 "shopMoney": {
@@ -895,7 +903,7 @@
         "orderId": "gid://shopify/Order/8710681985330",
         "fulfillmentId": "gid://shopify/Fulfillment/7859241517362"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query FulfillmentDetailEventsRead($orderId: ID!, $fulfillmentId: ID!) {\n  fulfillment(id: $fulfillmentId) {\n    id\n    status\n    displayStatus\n    createdAt\n    updatedAt\n    deliveredAt\n    estimatedDeliveryAt\n    inTransitAt\n    trackingInfo(first: 1) {\n      number\n      url\n      company\n    }\n    events(first: 5) {\n      nodes {\n        id\n        status\n        message\n        happenedAt\n        createdAt\n        estimatedDeliveryAt\n        city\n        province\n        country\n        zip\n        address1\n        latitude\n        longitude\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    service {\n      id\n      handle\n      serviceName\n      trackingSupport\n      type\n      location {\n        id\n        name\n      }\n    }\n    location {\n      id\n      name\n    }\n    originAddress {\n      address1\n      address2\n      city\n      countryCode\n      provinceCode\n      zip\n    }\n    fulfillmentLineItems(first: 5) {\n      nodes {\n        id\n        quantity\n        lineItem {\n          id\n          title\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  order(id: $orderId) {\n    id\n    displayFulfillmentStatus\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      deliveredAt\n      estimatedDeliveryAt\n      inTransitAt\n      trackingInfo(first: 1) {\n        number\n        url\n        company\n      }\n      events(first: 5) {\n        nodes {\n          id\n          status\n          message\n          happenedAt\n          createdAt\n          estimatedDeliveryAt\n          city\n          province\n          country\n          zip\n          address1\n          latitude\n          longitude\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n      service {\n        id\n        handle\n        serviceName\n        trackingSupport\n        type\n        location {\n          id\n          name\n        }\n      }\n      location {\n        id\n        name\n      }\n      originAddress {\n        address1\n        address2\n        city\n        countryCode\n        provinceCode\n        zip\n      }\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

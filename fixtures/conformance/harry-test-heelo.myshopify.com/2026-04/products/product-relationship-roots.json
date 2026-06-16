@@ -35,7 +35,9 @@
       "name": "Product relationship membership mohpcrbe",
       "merchantCode": "product-relationship-mohpcrbe",
       "description": "Temporary selling plan group for product relationship conformance capture",
-      "options": ["Delivery frequency"],
+      "options": [
+        "Delivery frequency"
+      ],
       "position": 1,
       "summary": "1 delivery frequency, 10% discount",
       "createdAt": "2026-04-27T21:21:52Z",
@@ -51,7 +53,9 @@
             "id": "gid://shopify/SellingPlan/7026999602",
             "name": "Monthly delivery",
             "description": "Ships every month",
-            "options": ["Monthly"],
+            "options": [
+              "Monthly"
+            ],
             "position": 1,
             "category": "SUBSCRIPTION",
             "createdAt": "2026-04-27T21:21:52Z"
@@ -63,7 +67,10 @@
   "mutation": {
     "variables": {
       "id": "gid://shopify/Collection/512193167666",
-      "productIds": ["gid://shopify/Product/10172011872562", "gid://shopify/Product/10172011905330"]
+      "productIds": [
+        "gid://shopify/Product/10172011872562",
+        "gid://shopify/Product/10172011905330"
+      ]
     },
     "response": {
       "data": {
@@ -133,7 +140,10 @@
   "collectionAddProductsV2": {
     "variables": {
       "id": "gid://shopify/Collection/512193167666",
-      "productIds": ["gid://shopify/Product/10172011872562", "gid://shopify/Product/10172011905330"]
+      "productIds": [
+        "gid://shopify/Product/10172011872562",
+        "gid://shopify/Product/10172011905330"
+      ]
     },
     "response": {
       "data": {
@@ -233,7 +243,9 @@
               "id": "gid://shopify/ProductOption/12718177845554",
               "name": "Color",
               "position": 1,
-              "values": ["Red"],
+              "values": [
+                "Red"
+              ],
               "optionValues": [
                 {
                   "id": "gid://shopify/ProductOptionValue/7979025891634",
@@ -251,7 +263,9 @@
               "id": "gid://shopify/ProductOption/12718177878322",
               "name": "Size",
               "position": 2,
-              "values": ["Small"],
+              "values": [
+                "Small"
+              ],
               "optionValues": [
                 {
                   "id": "gid://shopify/ProductOptionValue/7979025957170",
@@ -329,7 +343,9 @@
                 "id": "gid://shopify/ProductOption/12718177878322",
                 "name": "Size",
                 "position": 1,
-                "values": ["Small"],
+                "values": [
+                  "Small"
+                ],
                 "optionValues": [
                   {
                     "id": "gid://shopify/ProductOptionValue/7979025957170",
@@ -342,7 +358,9 @@
                 "id": "gid://shopify/ProductOption/12718177845554",
                 "name": "Color",
                 "position": 2,
-                "values": ["Red"],
+                "values": [
+                  "Red"
+                ],
                 "optionValues": [
                   {
                     "id": "gid://shopify/ProductOptionValue/7979025891634",
@@ -408,7 +426,9 @@
               "id": "gid://shopify/ProductOption/12718177878322",
               "name": "Size",
               "position": 1,
-              "values": ["Small"],
+              "values": [
+                "Small"
+              ],
               "optionValues": [
                 {
                   "id": "gid://shopify/ProductOptionValue/7979025957170",
@@ -421,7 +441,9 @@
               "id": "gid://shopify/ProductOption/12718177845554",
               "name": "Color",
               "position": 2,
-              "values": ["Red"],
+              "values": [
+                "Red"
+              ],
               "optionValues": [
                 {
                   "id": "gid://shopify/ProductOptionValue/7979025891634",
@@ -592,7 +614,9 @@
       "variantMedia": [
         {
           "variantId": "gid://shopify/ProductVariant/51104997933362",
-          "mediaIds": ["gid://shopify/MediaImage/43623803683122"]
+          "mediaIds": [
+            "gid://shopify/MediaImage/43623803683122"
+          ]
         }
       ]
     },
@@ -638,7 +662,9 @@
       "variantMedia": [
         {
           "variantId": "gid://shopify/ProductVariant/51104997933362",
-          "mediaIds": ["gid://shopify/MediaImage/43623803683122"]
+          "mediaIds": [
+            "gid://shopify/MediaImage/43623803683122"
+          ]
         }
       ]
     },
@@ -701,13 +727,17 @@
         "name": "Product relationship membership mohpcrbe",
         "merchantCode": "product-relationship-mohpcrbe",
         "description": "Temporary selling plan group for product relationship conformance capture",
-        "options": ["Delivery frequency"],
+        "options": [
+          "Delivery frequency"
+        ],
         "position": 1,
         "sellingPlansToCreate": [
           {
             "name": "Monthly delivery",
             "description": "Ships every month",
-            "options": ["Monthly"],
+            "options": [
+              "Monthly"
+            ],
             "position": 1,
             "category": "SUBSCRIPTION",
             "billingPolicy": {
@@ -748,7 +778,9 @@
             "name": "Product relationship membership mohpcrbe",
             "merchantCode": "product-relationship-mohpcrbe",
             "description": "Temporary selling plan group for product relationship conformance capture",
-            "options": ["Delivery frequency"],
+            "options": [
+              "Delivery frequency"
+            ],
             "position": 1,
             "summary": "1 delivery frequency, 10% discount",
             "createdAt": "2026-04-27T21:21:52Z",
@@ -764,7 +796,9 @@
                   "id": "gid://shopify/SellingPlan/7026999602",
                   "name": "Monthly delivery",
                   "description": "Ships every month",
-                  "options": ["Monthly"],
+                  "options": [
+                    "Monthly"
+                  ],
                   "position": 1,
                   "category": "SUBSCRIPTION",
                   "createdAt": "2026-04-27T21:21:52Z"
@@ -791,7 +825,9 @@
   "productJoinSellingPlanGroups": {
     "variables": {
       "id": "gid://shopify/Product/10172012003634",
-      "sellingPlanGroupIds": ["gid://shopify/SellingPlanGroup/2877227314"]
+      "sellingPlanGroupIds": [
+        "gid://shopify/SellingPlanGroup/2877227314"
+      ]
     },
     "response": {
       "data": {
@@ -831,7 +867,9 @@
   "productVariantJoinSellingPlanGroups": {
     "variables": {
       "id": "gid://shopify/ProductVariant/51104997966130",
-      "sellingPlanGroupIds": ["gid://shopify/SellingPlanGroup/2877227314"]
+      "sellingPlanGroupIds": [
+        "gid://shopify/SellingPlanGroup/2877227314"
+      ]
     },
     "response": {
       "data": {
@@ -871,7 +909,9 @@
   "productLeaveSellingPlanGroups": {
     "variables": {
       "id": "gid://shopify/Product/10172012003634",
-      "sellingPlanGroupIds": ["gid://shopify/SellingPlanGroup/2877227314"]
+      "sellingPlanGroupIds": [
+        "gid://shopify/SellingPlanGroup/2877227314"
+      ]
     },
     "response": {
       "data": {
@@ -911,7 +951,9 @@
   "productVariantLeaveSellingPlanGroups": {
     "variables": {
       "id": "gid://shopify/ProductVariant/51104997966130",
-      "sellingPlanGroupIds": ["gid://shopify/SellingPlanGroup/2877227314"]
+      "sellingPlanGroupIds": [
+        "gid://shopify/SellingPlanGroup/2877227314"
+      ]
     },
     "response": {
       "data": {
@@ -1150,9 +1192,12 @@
     {
       "operationName": "AdminPlatformProductOptionNodeReads",
       "variables": {
-        "ids": ["gid://shopify/ProductOption/12718177878322", "gid://shopify/ProductOption/12718177845554"]
+        "ids": [
+          "gid://shopify/ProductOption/12718177878322",
+          "gid://shopify/ProductOption/12718177845554"
+        ]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformProductOptionNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on ProductOption {\n      name\n      position\n      values\n      optionValues {\n        id\n        name\n        hasVariants\n      }\n    }\n    ... on ProductOptionValue {\n      name\n      hasVariants\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1162,7 +1207,9 @@
                 "id": "gid://shopify/ProductOption/12718177878322",
                 "name": "Size",
                 "position": 1,
-                "values": ["Small"],
+                "values": [
+                  "Small"
+                ],
                 "optionValues": [
                   {
                     "id": "gid://shopify/ProductOptionValue/7979025957170",
@@ -1175,7 +1222,9 @@
                 "id": "gid://shopify/ProductOption/12718177845554",
                 "name": "Color",
                 "position": 2,
-                "values": ["Red"],
+                "values": [
+                  "Red"
+                ],
                 "optionValues": [
                   {
                     "id": "gid://shopify/ProductOptionValue/7979025891634",
@@ -1197,9 +1246,11 @@
     {
       "operationName": "AdminPlatformProductOptionNodeReads",
       "variables": {
-        "ids": ["gid://shopify/ProductOptionValue/7979025957170"]
+        "ids": [
+          "gid://shopify/ProductOptionValue/7979025957170"
+        ]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformProductOptionNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on ProductOption {\n      name\n      position\n      values\n      optionValues {\n        id\n        name\n        hasVariants\n      }\n    }\n    ... on ProductOptionValue {\n      name\n      hasVariants\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1218,9 +1269,11 @@
     {
       "operationName": "AdminPlatformProductOptionNodeReads",
       "variables": {
-        "ids": ["gid://shopify/ProductOptionValue/7979025891634"]
+        "ids": [
+          "gid://shopify/ProductOptionValue/7979025891634"
+        ]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformProductOptionNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on ProductOption {\n      name\n      position\n      values\n      optionValues {\n        id\n        name\n        hasVariants\n      }\n    }\n    ... on ProductOptionValue {\n      name\n      hasVariants\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1239,9 +1292,11 @@
     {
       "operationName": "AdminPlatformProductOptionNodeReads",
       "variables": {
-        "ids": ["gid://shopify/ProductOptionValue/7979025924402"]
+        "ids": [
+          "gid://shopify/ProductOptionValue/7979025924402"
+        ]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformProductOptionNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on ProductOption {\n      name\n      position\n      values\n      optionValues {\n        id\n        name\n        hasVariants\n      }\n    }\n    ... on ProductOptionValue {\n      name\n      hasVariants\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1260,7 +1315,7 @@
     {
       "operationName": "AdminPlatformSellingPlanNodeReads",
       "variables": {},
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformSellingPlanNodeReads {\n  sellingPlanNode: node(id: \"gid://shopify/SellingPlan/7026999602\") {\n    ... on SellingPlan {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n    }\n  }\n  nodes(ids: [\"gid://shopify/SellingPlan/7026999602\", \"gid://shopify/SellingPlan/999999999999\"]) {\n    ... on SellingPlan {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1269,7 +1324,9 @@
               "id": "gid://shopify/SellingPlan/7026999602",
               "name": "Monthly delivery",
               "description": "Ships every month",
-              "options": ["Monthly"],
+              "options": [
+                "Monthly"
+              ],
               "position": 1,
               "category": "SUBSCRIPTION",
               "createdAt": "2026-04-27T21:21:52Z"
@@ -1279,7 +1336,9 @@
                 "id": "gid://shopify/SellingPlan/7026999602",
                 "name": "Monthly delivery",
                 "description": "Ships every month",
-                "options": ["Monthly"],
+                "options": [
+                  "Monthly"
+                ],
                 "position": 1,
                 "category": "SUBSCRIPTION",
                 "createdAt": "2026-04-27T21:21:52Z"
@@ -1369,7 +1428,9 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10172012003634"]
+        "ids": [
+          "gid://shopify/Product/10172012003634"
+        ]
       },
       "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
       "response": {
@@ -1411,7 +1472,9 @@
                     }
                   ]
                 },
-                "sellingPlanGroupIds": ["gid://shopify/SellingPlanGroup/2877227314"],
+                "sellingPlanGroupIds": [
+                  "gid://shopify/SellingPlanGroup/2877227314"
+                ],
                 "sellingPlanGroups": {
                   "nodes": [
                     {
@@ -1438,7 +1501,7 @@
       "variables": {
         "productId": "gid://shopify/Product/10172011938098"
       },
-      "query": "hand-synthesized from checked-in optionDownstreamRead capture for HAR-545 Pattern 1 product relationship read passthrough",
+      "query": "query ProductRelationshipProductOptionsRead($productId: ID!) {\n  product(id: $productId) {\n    id\n    title\n    handle\n    status\n    options {\n      id\n      name\n      position\n      values\n      optionValues {\n        id\n        name\n        hasVariants\n      }\n    }\n    variants(first: 10) {\n      nodes {\n        id\n        title\n        selectedOptions {\n          name\n          value\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1453,7 +1516,9 @@
                   "id": "gid://shopify/ProductOption/12718177878322",
                   "name": "Size",
                   "position": 1,
-                  "values": ["Small"],
+                  "values": [
+                    "Small"
+                  ],
                   "optionValues": [
                     {
                       "id": "gid://shopify/ProductOptionValue/7979025957170",
@@ -1466,7 +1531,9 @@
                   "id": "gid://shopify/ProductOption/12718177845554",
                   "name": "Color",
                   "position": 2,
-                  "values": ["Red"],
+                  "values": [
+                    "Red"
+                  ],
                   "optionValues": [
                     {
                       "id": "gid://shopify/ProductOptionValue/7979025891634",
@@ -1518,7 +1585,9 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10172011938098"]
+        "ids": [
+          "gid://shopify/Product/10172011938098"
+        ]
       },
       "query": "hand-synthesized from checked-in seedProducts/mediaReadyRead capture for HAR-545 Pattern 2 product options reorder owner hydration",
       "response": {
@@ -1538,7 +1607,9 @@
                     "id": "gid://shopify/ProductOption/12718177845554",
                     "name": "Color",
                     "position": 1,
-                    "values": ["Red"],
+                    "values": [
+                      "Red"
+                    ],
                     "optionValues": [
                       {
                         "id": "gid://shopify/ProductOptionValue/7979025891634",
@@ -1556,7 +1627,9 @@
                     "id": "gid://shopify/ProductOption/12718177878322",
                     "name": "Size",
                     "position": 2,
-                    "values": ["Small"],
+                    "values": [
+                      "Small"
+                    ],
                     "optionValues": [
                       {
                         "id": "gid://shopify/ProductOptionValue/7979025957170",
@@ -1599,7 +1672,10 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10172011970866", "gid://shopify/ProductVariant/51104997933362"]
+        "ids": [
+          "gid://shopify/Product/10172011970866",
+          "gid://shopify/ProductVariant/51104997933362"
+        ]
       },
       "query": "hand-synthesized from checked-in seedProducts/mediaReadyRead capture for HAR-545 Pattern 2 variant media owner hydration",
       "response": {
@@ -1681,7 +1757,10 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/10172011970866", "gid://shopify/ProductVariant/51104997933362"]
+        "ids": [
+          "gid://shopify/Product/10172011970866",
+          "gid://shopify/ProductVariant/51104997933362"
+        ]
       },
       "query": "hand-synthesized from checked-in seedProducts/mediaReadyRead capture for HAR-545 Pattern 2 variant media owner reverse order hydration",
       "response": {

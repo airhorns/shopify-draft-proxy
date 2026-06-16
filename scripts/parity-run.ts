@@ -5,6 +5,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createDraftProxy, type DraftProxy } from '../js/src/index.js';
+import {
+  formatRecordedCallMismatch,
+  recordedCallMatchesBody,
+  stableJson,
+  type RecordedUpstreamCall,
+} from './parity-cassette.js';
 
 type CliArgs = {
   all: boolean;
@@ -60,13 +66,6 @@ type ParitySpec = {
     expectedDifferences?: ExpectedDifference[];
     targets?: ComparisonTarget[];
   };
-};
-
-type RecordedUpstreamCall = {
-  operationName?: string;
-  variables?: unknown;
-  query?: string;
-  response?: { status?: number; body?: unknown };
 };
 
 type ProxyResponse = { status: number; body: unknown };
@@ -210,15 +209,20 @@ function resolveSpecialVariables(
   value: unknown,
   capture: unknown,
   primaryResponse: ProxyResponse | null,
+  previousResponse: ProxyResponse | null,
   namedResponses: Map<string, ProxyResponse>,
 ): unknown {
   if (Array.isArray(value))
-    return value.map((entry) => resolveSpecialVariables(entry, capture, primaryResponse, namedResponses));
+    return value.map((entry) => resolveSpecialVariables(entry, capture, primaryResponse, previousResponse, namedResponses));
   if (typeof value === 'object' && value !== null) {
     const object = value as Record<string, unknown>;
     if (typeof object['fromPrimaryProxyPath'] === 'string') {
       if (primaryResponse === null) throw new Error('fromPrimaryProxyPath used before primary proxy response exists');
       return getPath(primaryResponse.body, object['fromPrimaryProxyPath']);
+    }
+    if (typeof object['fromPreviousProxyPath'] === 'string') {
+      if (previousResponse === null) throw new Error('fromPreviousProxyPath used before a previous proxy response exists');
+      return getPath(previousResponse.body, object['fromPreviousProxyPath']);
     }
     if (typeof object['fromCapturePath'] === 'string') return getPath(capture, object['fromCapturePath']);
     if (typeof object['fromProxyResponse'] === 'string' && typeof object['path'] === 'string') {
@@ -229,7 +233,7 @@ function resolveSpecialVariables(
     return Object.fromEntries(
       Object.entries(object).map(([key, entry]) => [
         key,
-        resolveSpecialVariables(entry, capture, primaryResponse, namedResponses),
+        resolveSpecialVariables(entry, capture, primaryResponse, previousResponse, namedResponses),
       ]),
     );
   }
@@ -240,6 +244,7 @@ async function loadRequest(
   request: ProxyRequestSpec | undefined,
   capture: unknown,
   primaryResponse: ProxyResponse | null,
+  previousResponse: ProxyResponse | null,
   namedResponses: Map<string, ProxyResponse>,
 ): Promise<{
   query: string;
@@ -266,7 +271,13 @@ async function loadRequest(
   else if (request.variablesPath) variables = await readJsonFile(path.resolve(repoRoot, request.variablesPath));
   else if (request.variables) variables = request.variables;
 
-  variables = resolveSpecialVariables(variables, capture, primaryResponse, namedResponses) as Record<string, unknown>;
+  variables = resolveSpecialVariables(
+    variables,
+    capture,
+    primaryResponse,
+    previousResponse,
+    namedResponses,
+  ) as Record<string, unknown>;
   return {
     query,
     variables,
@@ -275,61 +286,25 @@ async function loadRequest(
   };
 }
 
+type LoadedProxyRequest = {
+  query: string;
+  variables: Record<string, unknown>;
+  headers: Record<string, string>;
+  path: string;
+};
+
 type CassetteServer = {
   origin: string;
   setCalls: (calls: RecordedUpstreamCall[]) => void;
-  setFallbackResponse: (response: ProxyResponse | null) => void;
+  setFallbackResponse: (response: ProxyResponse | null, request?: LoadedProxyRequest | null) => void;
   consumed: () => number;
   expected: () => number;
   close: () => Promise<void>;
 };
 
-function stableJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map((entry) => stableJson(entry)).join(',')}]`;
-  if (isPlainObject(value))
-    return `{${Object.keys(value)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`)
-      .join(',')}}`;
-  return JSON.stringify(value);
-}
-
-function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): boolean {
-  try {
-    const parsed = JSON.parse(body) as Record<string, unknown>;
-    const variablesMatch = stableJson(parsed['variables'] ?? {}) === stableJson(call.variables ?? {});
-    const query = typeof parsed['query'] === 'string' ? parsed['query'] : '';
-    const operationName = typeof parsed['operationName'] === 'string' ? parsed['operationName'] : '';
-    const isSyntheticNodeCassette =
-      call.query?.startsWith('sha:') ||
-      (call.query?.startsWith('hand-synthesized') && call.query.includes('mutation hydration')) ||
-      call.query ===
-        'hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration' ||
-      call.query === 'hand-synthesized from checked-in setupOptionsResponse for HAR-545 bulk validation hydration' ||
-      call.query ===
-        'recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration';
-    const canMatchSynthesizedNodeQuery = isSyntheticNodeCassette && /\bnode(?:s)?\s*\(/u.test(query);
-    const canMatchSynthesizedBulkOperationHydrate =
-      call.operationName === 'BulkOperationHydrate' &&
-      operationName === 'BulkOperationHydrate' &&
-      typeof call.query === 'string' &&
-      call.query.startsWith('hand-synthesized from ');
-    return (
-      variablesMatch &&
-      (canMatchSynthesizedNodeQuery ||
-        canMatchSynthesizedBulkOperationHydrate ||
-        parsed['query'] === call.query ||
-        (call.query === undefined && call.operationName === operationName && operationName.length > 0))
-    );
-  } catch {
-    return false;
-  }
-}
-
 async function startCassetteServer(): Promise<CassetteServer> {
   let calls: RecordedUpstreamCall[] = [];
-  let fallbackResponse: ProxyResponse | null = null;
-  let index = 0;
+  let fallbackResponse: { response: ProxyResponse; call: RecordedUpstreamCall } | null = null;
   let fallbackCount = 0;
   const consumedCalls = new Set<number>();
   const server = createServer((request: IncomingMessage, response: ServerResponse) => {
@@ -348,25 +323,16 @@ async function startCassetteServer(): Promise<CassetteServer> {
         response.end(JSON.stringify(call?.response?.body ?? {}));
         return;
       }
-      if (fallbackResponse !== null) {
+      if (fallbackResponse !== null && recordedCallMatchesBody(fallbackResponse.call, body)) {
         fallbackCount += 1;
-        response.statusCode = fallbackResponse.status;
+        response.statusCode = fallbackResponse.response.status;
         response.setHeader('content-type', 'application/json');
-        response.end(JSON.stringify(fallbackResponse.body));
+        response.end(JSON.stringify(fallbackResponse.response.body));
         return;
       }
-      const call = calls[index];
-      if (!call) {
-        response.statusCode = 500;
-        response.setHeader('content-type', 'application/json');
-        response.end(JSON.stringify({ errors: [{ message: `Unexpected upstream call ${index + 1}: ${body}` }] }));
-        return;
-      }
-      consumedCalls.add(index);
-      index += 1;
-      response.statusCode = call.response?.status ?? 200;
+      response.statusCode = 500;
       response.setHeader('content-type', 'application/json');
-      response.end(JSON.stringify(call.response?.body ?? {}));
+      response.end(JSON.stringify({ errors: [{ message: formatRecordedCallMismatch(body, calls, consumedCalls) }] }));
     });
   });
   await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
@@ -377,14 +343,13 @@ async function startCassetteServer(): Promise<CassetteServer> {
     setCalls: (nextCalls: RecordedUpstreamCall[]) => {
       calls = nextCalls;
       fallbackResponse = null;
-      index = 0;
       fallbackCount = 0;
       consumedCalls.clear();
     },
-    setFallbackResponse: (response: ProxyResponse | null) => {
-      fallbackResponse = response;
+    setFallbackResponse: (response: ProxyResponse | null, request?: LoadedProxyRequest | null) => {
+      fallbackResponse = response && request ? { response, call: { query: request.query, variables: request.variables } } : null;
     },
-    consumed: () => index,
+    consumed: () => consumedCalls.size,
     expected: () => calls.length + fallbackCount,
     close: async () =>
       await new Promise<void>((resolveClose, reject) =>
@@ -419,10 +384,11 @@ async function sendProxyUpload(
   upload: ProxyUploadSpec,
   capture: unknown,
   primaryResponse: ProxyResponse | null,
+  previousResponse: ProxyResponse | null,
   namedResponses: Map<string, ProxyResponse>,
 ): Promise<ProxyResponse> {
-  const resolvedPath = resolveSpecialVariables(upload.path, capture, primaryResponse, namedResponses);
-  const resolvedBody = resolveSpecialVariables(upload.body ?? '', capture, primaryResponse, namedResponses);
+  const resolvedPath = resolveSpecialVariables(upload.path, capture, primaryResponse, previousResponse, namedResponses);
+  const resolvedBody = resolveSpecialVariables(upload.body ?? '', capture, primaryResponse, previousResponse, namedResponses);
   const request: { method: string; path: string; headers?: Record<string, string>; body: unknown } = {
     method: upload.method ?? 'POST',
     path: localUploadPath(resolvedPath, targetName),
@@ -471,6 +437,33 @@ function captureResponseForTarget(capture: unknown, target: ComparisonTarget): P
   return null;
 }
 
+function normalizedCapturePayload(value: unknown): unknown {
+  if (typeof value !== 'object' || value === null) return null;
+  const object = value as Record<string, unknown>;
+  if (typeof object['payload'] === 'object' && object['payload'] !== null) return object['payload'];
+  if (typeof object['body'] === 'object' && object['body'] !== null) return object['body'];
+  return object;
+}
+
+function captureResponseForRequest(capture: unknown, request: LoadedProxyRequest): ProxyResponse | null {
+  const pending: unknown[] = [capture];
+  while (pending.length > 0) {
+    const candidate = pending.pop();
+    if (Array.isArray(candidate)) {
+      pending.push(...candidate);
+      continue;
+    }
+    if (typeof candidate !== 'object' || candidate === null) continue;
+    const entry = candidate as Record<string, unknown>;
+    if (entry['query'] === request.query && stableJson(entry['variables'] ?? {}) === stableJson(request.variables ?? {})) {
+      const response = normalizedCapturePayload(entry['response'] ?? entry['result']);
+      if (response !== null) return { status: 200, body: response };
+    }
+    for (const value of Object.values(entry)) pending.push(value);
+  }
+  return null;
+}
+
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -507,7 +500,6 @@ function diffValues(capture: unknown, proxy: unknown, rules: ExpectedDifference[
   const rule = rules.find((candidate) => ruleMatchesPath(candidate.path, basePath));
   if (rule && matchesRule(proxy, rule)) return [];
   if (Object.is(capture, proxy)) return [];
-  if (sameShopifyGidWithSyntheticMarker(capture, proxy)) return [];
   if (Array.isArray(capture) && Array.isArray(proxy)) {
     const errors: string[] = [];
     const max = Math.max(capture.length, proxy.length);
@@ -523,12 +515,6 @@ function diffValues(capture: unknown, proxy: unknown, rules: ExpectedDifference[
     return errors;
   }
   return [`${basePath}: expected ${JSON.stringify(capture)} got ${JSON.stringify(proxy)}`];
-}
-
-function sameShopifyGidWithSyntheticMarker(capture: unknown, proxy: unknown): boolean {
-  if (typeof capture !== 'string' || typeof proxy !== 'string') return false;
-  if (!capture.startsWith('gid://shopify/') || !proxy.startsWith('gid://shopify/')) return false;
-  return proxy === `${capture}?shopify-draft-proxy=synthetic`;
 }
 
 async function runSpec(
@@ -547,9 +533,10 @@ async function runSpec(
   await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
   const failures: string[] = [];
   let primaryResponse: ProxyResponse | null = null;
+  let previousResponse: ProxyResponse | null = null;
   const namedResponses = new Map<string, ProxyResponse>();
   try {
-    const primaryRequest = await loadRequest(spec.proxyRequest, capture, null, namedResponses);
+    const primaryRequest = await loadRequest(spec.proxyRequest, capture, null, null, namedResponses);
     if (primaryRequest !== null) {
       const primaryFallbackTarget =
         spec.comparison?.targets?.find(
@@ -560,10 +547,12 @@ async function runSpec(
             !target.proxyLogPath &&
             captureResponseForTarget(capture, target) !== null,
         ) ?? spec.comparison?.targets?.find((target) => captureResponseForTarget(capture, target) !== null);
-      cassette.setFallbackResponse(
-        primaryFallbackTarget ? captureResponseForTarget(capture, primaryFallbackTarget) : null,
-      );
+      const primaryFallbackResponse =
+        captureResponseForRequest(capture, primaryRequest) ??
+        (primaryFallbackTarget ? captureResponseForTarget(capture, primaryFallbackTarget) : null);
+      cassette.setFallbackResponse(primaryFallbackResponse, primaryRequest);
       primaryResponse = await sendProxyRequest(proxy, primaryRequest);
+      previousResponse = primaryResponse;
     }
     let mainState = proxy.dumpState('1970-01-01T00:00:00.000Z');
 
@@ -573,18 +562,29 @@ async function runSpec(
         cassette.setCalls(upstreamCalls);
         await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
         primaryResponse = null;
+        previousResponse = null;
         namedResponses.clear();
       } else {
         proxy.restoreState(mainState);
       }
       if (target.proxyUpload) {
-        await sendProxyUpload(proxy, target.name, target.proxyUpload, capture, primaryResponse, namedResponses);
+        const uploadResponse = await sendProxyUpload(
+          proxy,
+          target.name,
+          target.proxyUpload,
+          capture,
+          primaryResponse,
+          previousResponse,
+          namedResponses,
+        );
+        previousResponse = uploadResponse;
         proxySource = getPath(capture, target.capturePath);
       } else if (target.proxyRequest) {
-        cassette.setFallbackResponse(captureResponseForTarget(capture, target));
-        const request = await loadRequest(target.proxyRequest, capture, primaryResponse, namedResponses);
+        const request = await loadRequest(target.proxyRequest, capture, primaryResponse, previousResponse, namedResponses);
         if (request === null) throw new Error(`${target.name}: target proxyRequest did not resolve to a request`);
+        cassette.setFallbackResponse(captureResponseForTarget(capture, target), request);
         const targetResponse = await sendProxyRequest(proxy, request);
+        previousResponse = targetResponse;
         if (!target.isolatedProxy) {
           mainState = proxy.dumpState('1970-01-01T00:00:00.000Z');
         }
@@ -600,7 +600,10 @@ async function runSpec(
         proxySource = await proxy.getLog();
       } else {
         proxySource = primaryResponse?.body;
-        if (primaryResponse) namedResponses.set(target.name, primaryResponse);
+        if (primaryResponse) {
+          namedResponses.set(target.name, primaryResponse);
+          previousResponse = primaryResponse;
+        }
       }
       const captureValue = normalizeForTarget(getPath(capture, target.capturePath), target);
       const proxyPath = target.proxyPath ?? target.proxyStatePath ?? target.proxyLogPath ?? '$';

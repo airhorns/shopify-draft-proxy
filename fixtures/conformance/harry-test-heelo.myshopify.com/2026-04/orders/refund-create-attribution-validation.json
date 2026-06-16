@@ -76,7 +76,11 @@
         "order": {
           "email": "hermes-refund-attribution-1778152329422@example.com",
           "note": "refundCreate attribution validation parity seed order",
-          "tags": ["parity-probe", "refund-create", "attribution-validation"],
+          "tags": [
+            "parity-probe",
+            "refund-create",
+            "attribution-validation"
+          ],
           "test": true,
           "lineItems": [
             {
@@ -226,19 +230,27 @@
             },
             "problems": [
               {
-                "path": ["pointOfSaleDeviceId"],
+                "path": [
+                  "pointOfSaleDeviceId"
+                ],
                 "explanation": "Field is not defined on RefundInput"
               },
               {
-                "path": ["locationId"],
+                "path": [
+                  "locationId"
+                ],
                 "explanation": "Field is not defined on RefundInput"
               },
               {
-                "path": ["userId"],
+                "path": [
+                  "userId"
+                ],
                 "explanation": "Field is not defined on RefundInput"
               },
               {
-                "path": ["transactionGroupId"],
+                "path": [
+                  "transactionGroupId"
+                ],
                 "explanation": "Field is not defined on RefundInput"
               }
             ]
@@ -260,7 +272,12 @@
               "column": 5
             }
           ],
-          "path": ["mutation RefundCreateAttributionInlineProbe", "refundCreate", "input", "pointOfSaleDeviceId"],
+          "path": [
+            "mutation RefundCreateAttributionInlineProbe",
+            "refundCreate",
+            "input",
+            "pointOfSaleDeviceId"
+          ],
           "extensions": {
             "code": "argumentNotAccepted",
             "name": "RefundInput",
@@ -276,7 +293,12 @@
               "column": 5
             }
           ],
-          "path": ["mutation RefundCreateAttributionInlineProbe", "refundCreate", "input", "locationId"],
+          "path": [
+            "mutation RefundCreateAttributionInlineProbe",
+            "refundCreate",
+            "input",
+            "locationId"
+          ],
           "extensions": {
             "code": "argumentNotAccepted",
             "name": "RefundInput",
@@ -292,7 +314,12 @@
               "column": 5
             }
           ],
-          "path": ["mutation RefundCreateAttributionInlineProbe", "refundCreate", "input", "userId"],
+          "path": [
+            "mutation RefundCreateAttributionInlineProbe",
+            "refundCreate",
+            "input",
+            "userId"
+          ],
           "extensions": {
             "code": "argumentNotAccepted",
             "name": "RefundInput",
@@ -308,7 +335,12 @@
               "column": 5
             }
           ],
-          "path": ["mutation RefundCreateAttributionInlineProbe", "refundCreate", "input", "transactionGroupId"],
+          "path": [
+            "mutation RefundCreateAttributionInlineProbe",
+            "refundCreate",
+            "input",
+            "transactionGroupId"
+          ],
           "extensions": {
             "code": "argumentNotAccepted",
             "name": "RefundInput",
@@ -410,7 +442,7 @@
       "variables": {
         "id": "gid://shopify/Order/8734031216946"
       },
-      "query": "captured downstream order read after refundCreate attribution validation rejection",
+      "query": "query OrderRefundReadParity($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    displayFinancialStatus\n    displayFulfillmentStatus\n    refunds {\n      id\n      note\n      totalRefundedSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        status\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    transactions {\n      id\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    totalRefundedSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

@@ -826,12 +826,12 @@
                         "provinces": [
                           {
                             "id": "gid://shopify/DeliveryProvince/14499196862770",
-                            "name": "A Coruña",
+                            "name": "A Coru\u00f1a",
                             "code": "C"
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499196895538",
-                            "name": "Álava",
+                            "name": "\u00c1lava",
                             "code": "VI"
                           },
                           {
@@ -846,7 +846,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499196993842",
-                            "name": "Almería",
+                            "name": "Almer\u00eda",
                             "code": "AL"
                           },
                           {
@@ -856,7 +856,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499197059378",
-                            "name": "Ávila",
+                            "name": "\u00c1vila",
                             "code": "AV"
                           },
                           {
@@ -881,12 +881,12 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499197223218",
-                            "name": "Cáceres",
+                            "name": "C\u00e1ceres",
                             "code": "CC"
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499197255986",
-                            "name": "Cádiz",
+                            "name": "C\u00e1diz",
                             "code": "CA"
                           },
                           {
@@ -896,7 +896,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499197321522",
-                            "name": "Castellón",
+                            "name": "Castell\u00f3n",
                             "code": "CS"
                           },
                           {
@@ -911,7 +911,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499197419826",
-                            "name": "Córdoba",
+                            "name": "C\u00f3rdoba",
                             "code": "CO"
                           },
                           {
@@ -936,7 +936,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499197583666",
-                            "name": "Guipúzcoa",
+                            "name": "Guip\u00fazcoa",
                             "code": "SS"
                           },
                           {
@@ -951,7 +951,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499197681970",
-                            "name": "Jaén",
+                            "name": "Ja\u00e9n",
                             "code": "J"
                           },
                           {
@@ -966,7 +966,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499197780274",
-                            "name": "León",
+                            "name": "Le\u00f3n",
                             "code": "LE"
                           },
                           {
@@ -986,7 +986,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499197911346",
-                            "name": "Málaga",
+                            "name": "M\u00e1laga",
                             "code": "MA"
                           },
                           {
@@ -1531,7 +1531,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499200860466",
-                            "name": "Forlì-Cesena",
+                            "name": "Forl\u00ec-Cesena",
                             "code": "FC"
                           },
                           {
@@ -1915,7 +1915,7 @@
                         "provinces": [
                           {
                             "id": "gid://shopify/DeliveryProvince/14499203285298",
-                            "name": "Hokkaidō",
+                            "name": "Hokkaid\u014d",
                             "code": "JP-01"
                           },
                           {
@@ -1975,7 +1975,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499203678514",
-                            "name": "Tōkyō",
+                            "name": "T\u014dky\u014d",
                             "code": "JP-13"
                           },
                           {
@@ -2040,17 +2040,17 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499204104498",
-                            "name": "Kyōto",
+                            "name": "Ky\u014dto",
                             "code": "JP-26"
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499204137266",
-                            "name": "Ōsaka",
+                            "name": "\u014csaka",
                             "code": "JP-27"
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499204170034",
-                            "name": "Hyōgo",
+                            "name": "Hy\u014dgo",
                             "code": "JP-28"
                           },
                           {
@@ -2105,7 +2105,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499204530482",
-                            "name": "Kōchi",
+                            "name": "K\u014dchi",
                             "code": "JP-39"
                           },
                           {
@@ -2130,7 +2130,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499204694322",
-                            "name": "Ōita",
+                            "name": "\u014cita",
                             "code": "JP-44"
                           },
                           {
@@ -2495,7 +2495,7 @@
                         "provinces": [
                           {
                             "id": "gid://shopify/DeliveryProvince/14499206463794",
-                            "name": "Açores",
+                            "name": "A\u00e7ores",
                             "code": "PT-20"
                           },
                           {
@@ -2515,7 +2515,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499206594866",
-                            "name": "Bragança",
+                            "name": "Bragan\u00e7a",
                             "code": "PT-04"
                           },
                           {
@@ -2530,7 +2530,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499206693170",
-                            "name": "Évora",
+                            "name": "\u00c9vora",
                             "code": "PT-07"
                           },
                           {
@@ -2570,12 +2570,12 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499206955314",
-                            "name": "Santarém",
+                            "name": "Santar\u00e9m",
                             "code": "PT-14"
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499206988082",
-                            "name": "Setúbal",
+                            "name": "Set\u00fabal",
                             "code": "PT-15"
                           },
                           {
@@ -2973,12 +2973,12 @@
                               "provinces": [
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499196862770",
-                                  "name": "A Coruña",
+                                  "name": "A Coru\u00f1a",
                                   "code": "C"
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499196895538",
-                                  "name": "Álava",
+                                  "name": "\u00c1lava",
                                   "code": "VI"
                                 },
                                 {
@@ -2993,7 +2993,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499196993842",
-                                  "name": "Almería",
+                                  "name": "Almer\u00eda",
                                   "code": "AL"
                                 },
                                 {
@@ -3003,7 +3003,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499197059378",
-                                  "name": "Ávila",
+                                  "name": "\u00c1vila",
                                   "code": "AV"
                                 },
                                 {
@@ -3028,12 +3028,12 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499197223218",
-                                  "name": "Cáceres",
+                                  "name": "C\u00e1ceres",
                                   "code": "CC"
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499197255986",
-                                  "name": "Cádiz",
+                                  "name": "C\u00e1diz",
                                   "code": "CA"
                                 },
                                 {
@@ -3043,7 +3043,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499197321522",
-                                  "name": "Castellón",
+                                  "name": "Castell\u00f3n",
                                   "code": "CS"
                                 },
                                 {
@@ -3058,7 +3058,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499197419826",
-                                  "name": "Córdoba",
+                                  "name": "C\u00f3rdoba",
                                   "code": "CO"
                                 },
                                 {
@@ -3083,7 +3083,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499197583666",
-                                  "name": "Guipúzcoa",
+                                  "name": "Guip\u00fazcoa",
                                   "code": "SS"
                                 },
                                 {
@@ -3098,7 +3098,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499197681970",
-                                  "name": "Jaén",
+                                  "name": "Ja\u00e9n",
                                   "code": "J"
                                 },
                                 {
@@ -3113,7 +3113,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499197780274",
-                                  "name": "León",
+                                  "name": "Le\u00f3n",
                                   "code": "LE"
                                 },
                                 {
@@ -3133,7 +3133,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499197911346",
-                                  "name": "Málaga",
+                                  "name": "M\u00e1laga",
                                   "code": "MA"
                                 },
                                 {
@@ -3657,7 +3657,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499200860466",
-                                  "name": "Forlì-Cesena",
+                                  "name": "Forl\u00ec-Cesena",
                                   "code": "FC"
                                 },
                                 {
@@ -4038,7 +4038,7 @@
                               "provinces": [
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499203285298",
-                                  "name": "Hokkaidō",
+                                  "name": "Hokkaid\u014d",
                                   "code": "JP-01"
                                 },
                                 {
@@ -4098,7 +4098,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499203678514",
-                                  "name": "Tōkyō",
+                                  "name": "T\u014dky\u014d",
                                   "code": "JP-13"
                                 },
                                 {
@@ -4163,17 +4163,17 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499204104498",
-                                  "name": "Kyōto",
+                                  "name": "Ky\u014dto",
                                   "code": "JP-26"
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499204137266",
-                                  "name": "Ōsaka",
+                                  "name": "\u014csaka",
                                   "code": "JP-27"
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499204170034",
-                                  "name": "Hyōgo",
+                                  "name": "Hy\u014dgo",
                                   "code": "JP-28"
                                 },
                                 {
@@ -4228,7 +4228,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499204530482",
-                                  "name": "Kōchi",
+                                  "name": "K\u014dchi",
                                   "code": "JP-39"
                                 },
                                 {
@@ -4253,7 +4253,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499204694322",
-                                  "name": "Ōita",
+                                  "name": "\u014cita",
                                   "code": "JP-44"
                                 },
                                 {
@@ -4597,7 +4597,7 @@
                               "provinces": [
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499206463794",
-                                  "name": "Açores",
+                                  "name": "A\u00e7ores",
                                   "code": "PT-20"
                                 },
                                 {
@@ -4617,7 +4617,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499206594866",
-                                  "name": "Bragança",
+                                  "name": "Bragan\u00e7a",
                                   "code": "PT-04"
                                 },
                                 {
@@ -4632,7 +4632,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499206693170",
-                                  "name": "Évora",
+                                  "name": "\u00c9vora",
                                   "code": "PT-07"
                                 },
                                 {
@@ -4672,12 +4672,12 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499206955314",
-                                  "name": "Santarém",
+                                  "name": "Santar\u00e9m",
                                   "code": "PT-14"
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499206988082",
-                                  "name": "Setúbal",
+                                  "name": "Set\u00fabal",
                                   "code": "PT-15"
                                 },
                                 {
@@ -4856,7 +4856,7 @@
       "variables": {
         "id": "gid://shopify/DeliveryProfile/125254992178"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query DeliveryProfileDetail($id: ID!) {\n  deliveryProfile(id: $id) {\n    id\n    name\n    default\n    version\n    activeMethodDefinitionsCount\n    locationsWithoutRatesCount\n    originLocationCount\n    zoneCountryCount\n    productVariantsCount {\n      count\n      precision\n    }\n    sellingPlanGroups(first: 2) {\n      nodes {\n        id\n        name\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    profileItems(first: 2) {\n      nodes {\n        product {\n          id\n          title\n        }\n        variants(first: 2) {\n          nodes {\n            id\n            title\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    profileLocationGroups {\n      countriesInAnyZone {\n        zone\n        country {\n          id\n          name\n          translatedName\n          code {\n            countryCode\n            restOfWorld\n          }\n          provinces {\n            id\n            name\n            code\n          }\n        }\n      }\n      locationGroup {\n        id\n        locations(first: 2) {\n          nodes {\n            id\n            name\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        locationsCount {\n          count\n          precision\n        }\n      }\n      locationGroupZones(first: 2) {\n        nodes {\n          zone {\n            id\n            name\n            countries {\n              id\n              name\n              translatedName\n              code {\n                countryCode\n                restOfWorld\n              }\n              provinces {\n                id\n                name\n                code\n              }\n            }\n          }\n          methodDefinitions(first: 2) {\n            nodes {\n              id\n              name\n              active\n              description\n              rateProvider {\n                ... on DeliveryRateDefinition {\n                  id\n                  price {\n                    amount\n                    currencyCode\n                  }\n                }\n                ... on DeliveryParticipant {\n                  id\n                  fixedFee {\n                    amount\n                    currencyCode\n                  }\n                  percentageOfRateFee\n                }\n              }\n              methodConditions {\n                id\n                field\n                operator\n                conditionCriteria {\n                  __typename\n                  ... on MoneyV2 {\n                    amount\n                    currencyCode\n                  }\n                  ... on Weight {\n                    unit\n                    value\n                  }\n                }\n              }\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n              startCursor\n              endCursor\n            }\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    unassignedLocationsPaginated(first: 2) {\n      nodes {\n        id\n        name\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    unassignedLocations {\n      id\n      name\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -5537,12 +5537,12 @@
                         "provinces": [
                           {
                             "id": "gid://shopify/DeliveryProvince/14499196862770",
-                            "name": "A Coruña",
+                            "name": "A Coru\u00f1a",
                             "code": "C"
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499196895538",
-                            "name": "Álava",
+                            "name": "\u00c1lava",
                             "code": "VI"
                           },
                           {
@@ -5557,7 +5557,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499196993842",
-                            "name": "Almería",
+                            "name": "Almer\u00eda",
                             "code": "AL"
                           },
                           {
@@ -5567,7 +5567,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499197059378",
-                            "name": "Ávila",
+                            "name": "\u00c1vila",
                             "code": "AV"
                           },
                           {
@@ -5592,12 +5592,12 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499197223218",
-                            "name": "Cáceres",
+                            "name": "C\u00e1ceres",
                             "code": "CC"
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499197255986",
-                            "name": "Cádiz",
+                            "name": "C\u00e1diz",
                             "code": "CA"
                           },
                           {
@@ -5607,7 +5607,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499197321522",
-                            "name": "Castellón",
+                            "name": "Castell\u00f3n",
                             "code": "CS"
                           },
                           {
@@ -5622,7 +5622,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499197419826",
-                            "name": "Córdoba",
+                            "name": "C\u00f3rdoba",
                             "code": "CO"
                           },
                           {
@@ -5647,7 +5647,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499197583666",
-                            "name": "Guipúzcoa",
+                            "name": "Guip\u00fazcoa",
                             "code": "SS"
                           },
                           {
@@ -5662,7 +5662,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499197681970",
-                            "name": "Jaén",
+                            "name": "Ja\u00e9n",
                             "code": "J"
                           },
                           {
@@ -5677,7 +5677,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499197780274",
-                            "name": "León",
+                            "name": "Le\u00f3n",
                             "code": "LE"
                           },
                           {
@@ -5697,7 +5697,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499197911346",
-                            "name": "Málaga",
+                            "name": "M\u00e1laga",
                             "code": "MA"
                           },
                           {
@@ -6242,7 +6242,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499200860466",
-                            "name": "Forlì-Cesena",
+                            "name": "Forl\u00ec-Cesena",
                             "code": "FC"
                           },
                           {
@@ -6626,7 +6626,7 @@
                         "provinces": [
                           {
                             "id": "gid://shopify/DeliveryProvince/14499203285298",
-                            "name": "Hokkaidō",
+                            "name": "Hokkaid\u014d",
                             "code": "JP-01"
                           },
                           {
@@ -6686,7 +6686,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499203678514",
-                            "name": "Tōkyō",
+                            "name": "T\u014dky\u014d",
                             "code": "JP-13"
                           },
                           {
@@ -6751,17 +6751,17 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499204104498",
-                            "name": "Kyōto",
+                            "name": "Ky\u014dto",
                             "code": "JP-26"
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499204137266",
-                            "name": "Ōsaka",
+                            "name": "\u014csaka",
                             "code": "JP-27"
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499204170034",
-                            "name": "Hyōgo",
+                            "name": "Hy\u014dgo",
                             "code": "JP-28"
                           },
                           {
@@ -6816,7 +6816,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499204530482",
-                            "name": "Kōchi",
+                            "name": "K\u014dchi",
                             "code": "JP-39"
                           },
                           {
@@ -6841,7 +6841,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499204694322",
-                            "name": "Ōita",
+                            "name": "\u014cita",
                             "code": "JP-44"
                           },
                           {
@@ -7206,7 +7206,7 @@
                         "provinces": [
                           {
                             "id": "gid://shopify/DeliveryProvince/14499206463794",
-                            "name": "Açores",
+                            "name": "A\u00e7ores",
                             "code": "PT-20"
                           },
                           {
@@ -7226,7 +7226,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499206594866",
-                            "name": "Bragança",
+                            "name": "Bragan\u00e7a",
                             "code": "PT-04"
                           },
                           {
@@ -7241,7 +7241,7 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499206693170",
-                            "name": "Évora",
+                            "name": "\u00c9vora",
                             "code": "PT-07"
                           },
                           {
@@ -7281,12 +7281,12 @@
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499206955314",
-                            "name": "Santarém",
+                            "name": "Santar\u00e9m",
                             "code": "PT-14"
                           },
                           {
                             "id": "gid://shopify/DeliveryProvince/14499206988082",
-                            "name": "Setúbal",
+                            "name": "Set\u00fabal",
                             "code": "PT-15"
                           },
                           {
@@ -7684,12 +7684,12 @@
                               "provinces": [
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499196862770",
-                                  "name": "A Coruña",
+                                  "name": "A Coru\u00f1a",
                                   "code": "C"
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499196895538",
-                                  "name": "Álava",
+                                  "name": "\u00c1lava",
                                   "code": "VI"
                                 },
                                 {
@@ -7704,7 +7704,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499196993842",
-                                  "name": "Almería",
+                                  "name": "Almer\u00eda",
                                   "code": "AL"
                                 },
                                 {
@@ -7714,7 +7714,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499197059378",
-                                  "name": "Ávila",
+                                  "name": "\u00c1vila",
                                   "code": "AV"
                                 },
                                 {
@@ -7739,12 +7739,12 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499197223218",
-                                  "name": "Cáceres",
+                                  "name": "C\u00e1ceres",
                                   "code": "CC"
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499197255986",
-                                  "name": "Cádiz",
+                                  "name": "C\u00e1diz",
                                   "code": "CA"
                                 },
                                 {
@@ -7754,7 +7754,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499197321522",
-                                  "name": "Castellón",
+                                  "name": "Castell\u00f3n",
                                   "code": "CS"
                                 },
                                 {
@@ -7769,7 +7769,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499197419826",
-                                  "name": "Córdoba",
+                                  "name": "C\u00f3rdoba",
                                   "code": "CO"
                                 },
                                 {
@@ -7794,7 +7794,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499197583666",
-                                  "name": "Guipúzcoa",
+                                  "name": "Guip\u00fazcoa",
                                   "code": "SS"
                                 },
                                 {
@@ -7809,7 +7809,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499197681970",
-                                  "name": "Jaén",
+                                  "name": "Ja\u00e9n",
                                   "code": "J"
                                 },
                                 {
@@ -7824,7 +7824,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499197780274",
-                                  "name": "León",
+                                  "name": "Le\u00f3n",
                                   "code": "LE"
                                 },
                                 {
@@ -7844,7 +7844,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499197911346",
-                                  "name": "Málaga",
+                                  "name": "M\u00e1laga",
                                   "code": "MA"
                                 },
                                 {
@@ -8368,7 +8368,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499200860466",
-                                  "name": "Forlì-Cesena",
+                                  "name": "Forl\u00ec-Cesena",
                                   "code": "FC"
                                 },
                                 {
@@ -8749,7 +8749,7 @@
                               "provinces": [
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499203285298",
-                                  "name": "Hokkaidō",
+                                  "name": "Hokkaid\u014d",
                                   "code": "JP-01"
                                 },
                                 {
@@ -8809,7 +8809,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499203678514",
-                                  "name": "Tōkyō",
+                                  "name": "T\u014dky\u014d",
                                   "code": "JP-13"
                                 },
                                 {
@@ -8874,17 +8874,17 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499204104498",
-                                  "name": "Kyōto",
+                                  "name": "Ky\u014dto",
                                   "code": "JP-26"
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499204137266",
-                                  "name": "Ōsaka",
+                                  "name": "\u014csaka",
                                   "code": "JP-27"
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499204170034",
-                                  "name": "Hyōgo",
+                                  "name": "Hy\u014dgo",
                                   "code": "JP-28"
                                 },
                                 {
@@ -8939,7 +8939,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499204530482",
-                                  "name": "Kōchi",
+                                  "name": "K\u014dchi",
                                   "code": "JP-39"
                                 },
                                 {
@@ -8964,7 +8964,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499204694322",
-                                  "name": "Ōita",
+                                  "name": "\u014cita",
                                   "code": "JP-44"
                                 },
                                 {
@@ -9308,7 +9308,7 @@
                               "provinces": [
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499206463794",
-                                  "name": "Açores",
+                                  "name": "A\u00e7ores",
                                   "code": "PT-20"
                                 },
                                 {
@@ -9328,7 +9328,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499206594866",
-                                  "name": "Bragança",
+                                  "name": "Bragan\u00e7a",
                                   "code": "PT-04"
                                 },
                                 {
@@ -9343,7 +9343,7 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499206693170",
-                                  "name": "Évora",
+                                  "name": "\u00c9vora",
                                   "code": "PT-07"
                                 },
                                 {
@@ -9383,12 +9383,12 @@
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499206955314",
-                                  "name": "Santarém",
+                                  "name": "Santar\u00e9m",
                                   "code": "PT-14"
                                 },
                                 {
                                   "id": "gid://shopify/DeliveryProvince/14499206988082",
-                                  "name": "Setúbal",
+                                  "name": "Set\u00fabal",
                                   "code": "PT-15"
                                 },
                                 {
@@ -9540,7 +9540,7 @@
       "variables": {
         "first": 2
       },
-      "query": "sha:hand-synthesized",
+      "query": "query DeliveryProfilesCatalog(\n  $first: Int\n  $last: Int\n  $after: String\n  $before: String\n  $reverse: Boolean\n  $merchantOwnedOnly: Boolean\n) {\n  deliveryProfiles(\n    first: $first\n    last: $last\n    after: $after\n    before: $before\n    reverse: $reverse\n    merchantOwnedOnly: $merchantOwnedOnly\n  ) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        default\n        version\n        activeMethodDefinitionsCount\n        locationsWithoutRatesCount\n        originLocationCount\n        zoneCountryCount\n        productVariantsCount {\n          count\n          precision\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -9594,7 +9594,7 @@
         "reverse": true,
         "merchantOwnedOnly": true
       },
-      "query": "sha:hand-synthesized",
+      "query": "query DeliveryProfilesCatalog(\n  $first: Int\n  $last: Int\n  $after: String\n  $before: String\n  $reverse: Boolean\n  $merchantOwnedOnly: Boolean\n) {\n  deliveryProfiles(\n    first: $first\n    last: $last\n    after: $after\n    before: $before\n    reverse: $reverse\n    merchantOwnedOnly: $merchantOwnedOnly\n  ) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        default\n        version\n        activeMethodDefinitionsCount\n        locationsWithoutRatesCount\n        originLocationCount\n        zoneCountryCount\n        productVariantsCount {\n          count\n          precision\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -9646,7 +9646,7 @@
       "variables": {
         "id": "gid://shopify/DeliveryProfile/999999999999999"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query DeliveryProfileDetail($id: ID!) {\n  deliveryProfile(id: $id) {\n    id\n    name\n    default\n    version\n    activeMethodDefinitionsCount\n    locationsWithoutRatesCount\n    originLocationCount\n    zoneCountryCount\n    productVariantsCount {\n      count\n      precision\n    }\n    sellingPlanGroups(first: 2) {\n      nodes {\n        id\n        name\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    profileItems(first: 2) {\n      nodes {\n        product {\n          id\n          title\n        }\n        variants(first: 2) {\n          nodes {\n            id\n            title\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    profileLocationGroups {\n      countriesInAnyZone {\n        zone\n        country {\n          id\n          name\n          translatedName\n          code {\n            countryCode\n            restOfWorld\n          }\n          provinces {\n            id\n            name\n            code\n          }\n        }\n      }\n      locationGroup {\n        id\n        locations(first: 2) {\n          nodes {\n            id\n            name\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n        locationsCount {\n          count\n          precision\n        }\n      }\n      locationGroupZones(first: 2) {\n        nodes {\n          zone {\n            id\n            name\n            countries {\n              id\n              name\n              translatedName\n              code {\n                countryCode\n                restOfWorld\n              }\n              provinces {\n                id\n                name\n                code\n              }\n            }\n          }\n          methodDefinitions(first: 2) {\n            nodes {\n              id\n              name\n              active\n              description\n              rateProvider {\n                ... on DeliveryRateDefinition {\n                  id\n                  price {\n                    amount\n                    currencyCode\n                  }\n                }\n                ... on DeliveryParticipant {\n                  id\n                  fixedFee {\n                    amount\n                    currencyCode\n                  }\n                  percentageOfRateFee\n                }\n              }\n              methodConditions {\n                id\n                field\n                operator\n                conditionCriteria {\n                  __typename\n                  ... on MoneyV2 {\n                    amount\n                    currencyCode\n                  }\n                  ... on Weight {\n                    unit\n                    value\n                  }\n                }\n              }\n            }\n            pageInfo {\n              hasNextPage\n              hasPreviousPage\n              startCursor\n              endCursor\n            }\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n    unassignedLocationsPaginated(first: 2) {\n      nodes {\n        id\n        name\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    unassignedLocations {\n      id\n      name\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -9670,9 +9670,11 @@
     {
       "operationName": "AdminPlatformDeliveryProfileNodeReads",
       "variables": {
-        "ids": ["gid://shopify/DeliveryLocationGroup/126728306994"]
+        "ids": [
+          "gid://shopify/DeliveryLocationGroup/126728306994"
+        ]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformDeliveryProfileNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on DeliveryLocationGroup {\n      locations(first: 2) {\n        nodes {\n          id\n          name\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n      locationsCount {\n        count\n        precision\n      }\n    }\n    ... on DeliveryZone {\n      name\n      countries {\n        id\n        name\n        translatedName\n        code {\n          countryCode\n          restOfWorld\n        }\n        provinces {\n          id\n          name\n          code\n        }\n      }\n    }\n    ... on DeliveryMethodDefinition {\n      name\n      active\n      description\n      rateProvider {\n        ... on DeliveryRateDefinition {\n          id\n          price {\n            amount\n            currencyCode\n          }\n        }\n        ... on DeliveryParticipant {\n          id\n          fixedFee {\n            amount\n            currencyCode\n          }\n          percentageOfRateFee\n        }\n      }\n      methodConditions {\n        id\n        field\n        operator\n        conditionCriteria {\n          __typename\n          ... on MoneyV2 {\n            amount\n            currencyCode\n          }\n          ... on Weight {\n            unit\n            value\n          }\n        }\n      }\n    }\n    ... on DeliveryRateDefinition {\n      price {\n        amount\n        currencyCode\n      }\n    }\n    ... on DeliveryParticipant {\n      fixedFee {\n        amount\n        currencyCode\n      }\n      percentageOfRateFee\n    }\n    ... on DeliveryCondition {\n      field\n      operator\n      conditionCriteria {\n        __typename\n        ... on MoneyV2 {\n          amount\n          currencyCode\n        }\n        ... on Weight {\n          unit\n          value\n        }\n      }\n    }\n    ... on DeliveryCountry {\n      name\n      translatedName\n      code {\n        countryCode\n        restOfWorld\n      }\n      provinces {\n        id\n        name\n        code\n      }\n    }\n    ... on DeliveryProvince {\n      name\n      code\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -9707,9 +9709,11 @@
     {
       "operationName": "AdminPlatformDeliveryProfileNodeReads",
       "variables": {
-        "ids": ["gid://shopify/DeliveryZone/554597843250"]
+        "ids": [
+          "gid://shopify/DeliveryZone/554597843250"
+        ]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformDeliveryProfileNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on DeliveryLocationGroup {\n      locations(first: 2) {\n        nodes {\n          id\n          name\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n      locationsCount {\n        count\n        precision\n      }\n    }\n    ... on DeliveryZone {\n      name\n      countries {\n        id\n        name\n        translatedName\n        code {\n          countryCode\n          restOfWorld\n        }\n        provinces {\n          id\n          name\n          code\n        }\n      }\n    }\n    ... on DeliveryMethodDefinition {\n      name\n      active\n      description\n      rateProvider {\n        ... on DeliveryRateDefinition {\n          id\n          price {\n            amount\n            currencyCode\n          }\n        }\n        ... on DeliveryParticipant {\n          id\n          fixedFee {\n            amount\n            currencyCode\n          }\n          percentageOfRateFee\n        }\n      }\n      methodConditions {\n        id\n        field\n        operator\n        conditionCriteria {\n          __typename\n          ... on MoneyV2 {\n            amount\n            currencyCode\n          }\n          ... on Weight {\n            unit\n            value\n          }\n        }\n      }\n    }\n    ... on DeliveryRateDefinition {\n      price {\n        amount\n        currencyCode\n      }\n    }\n    ... on DeliveryParticipant {\n      fixedFee {\n        amount\n        currencyCode\n      }\n      percentageOfRateFee\n    }\n    ... on DeliveryCondition {\n      field\n      operator\n      conditionCriteria {\n        __typename\n        ... on MoneyV2 {\n          amount\n          currencyCode\n        }\n        ... on Weight {\n          unit\n          value\n        }\n      }\n    }\n    ... on DeliveryCountry {\n      name\n      translatedName\n      code {\n        countryCode\n        restOfWorld\n      }\n      provinces {\n        id\n        name\n        code\n      }\n    }\n    ... on DeliveryProvince {\n      name\n      code\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -9805,9 +9809,11 @@
     {
       "operationName": "AdminPlatformDeliveryProfileNodeReads",
       "variables": {
-        "ids": ["gid://shopify/DeliveryMethodDefinition/961637941554"]
+        "ids": [
+          "gid://shopify/DeliveryMethodDefinition/961637941554"
+        ]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformDeliveryProfileNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on DeliveryLocationGroup {\n      locations(first: 2) {\n        nodes {\n          id\n          name\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n      locationsCount {\n        count\n        precision\n      }\n    }\n    ... on DeliveryZone {\n      name\n      countries {\n        id\n        name\n        translatedName\n        code {\n          countryCode\n          restOfWorld\n        }\n        provinces {\n          id\n          name\n          code\n        }\n      }\n    }\n    ... on DeliveryMethodDefinition {\n      name\n      active\n      description\n      rateProvider {\n        ... on DeliveryRateDefinition {\n          id\n          price {\n            amount\n            currencyCode\n          }\n        }\n        ... on DeliveryParticipant {\n          id\n          fixedFee {\n            amount\n            currencyCode\n          }\n          percentageOfRateFee\n        }\n      }\n      methodConditions {\n        id\n        field\n        operator\n        conditionCriteria {\n          __typename\n          ... on MoneyV2 {\n            amount\n            currencyCode\n          }\n          ... on Weight {\n            unit\n            value\n          }\n        }\n      }\n    }\n    ... on DeliveryRateDefinition {\n      price {\n        amount\n        currencyCode\n      }\n    }\n    ... on DeliveryParticipant {\n      fixedFee {\n        amount\n        currencyCode\n      }\n      percentageOfRateFee\n    }\n    ... on DeliveryCondition {\n      field\n      operator\n      conditionCriteria {\n        __typename\n        ... on MoneyV2 {\n          amount\n          currencyCode\n        }\n        ... on Weight {\n          unit\n          value\n        }\n      }\n    }\n    ... on DeliveryCountry {\n      name\n      translatedName\n      code {\n        countryCode\n        restOfWorld\n      }\n      provinces {\n        id\n        name\n        code\n      }\n    }\n    ... on DeliveryProvince {\n      name\n      code\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -9846,9 +9852,11 @@
     {
       "operationName": "AdminPlatformDeliveryProfileNodeReads",
       "variables": {
-        "ids": ["gid://shopify/DeliveryRateDefinition/888567267634"]
+        "ids": [
+          "gid://shopify/DeliveryRateDefinition/888567267634"
+        ]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformDeliveryProfileNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on DeliveryLocationGroup {\n      locations(first: 2) {\n        nodes {\n          id\n          name\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n      locationsCount {\n        count\n        precision\n      }\n    }\n    ... on DeliveryZone {\n      name\n      countries {\n        id\n        name\n        translatedName\n        code {\n          countryCode\n          restOfWorld\n        }\n        provinces {\n          id\n          name\n          code\n        }\n      }\n    }\n    ... on DeliveryMethodDefinition {\n      name\n      active\n      description\n      rateProvider {\n        ... on DeliveryRateDefinition {\n          id\n          price {\n            amount\n            currencyCode\n          }\n        }\n        ... on DeliveryParticipant {\n          id\n          fixedFee {\n            amount\n            currencyCode\n          }\n          percentageOfRateFee\n        }\n      }\n      methodConditions {\n        id\n        field\n        operator\n        conditionCriteria {\n          __typename\n          ... on MoneyV2 {\n            amount\n            currencyCode\n          }\n          ... on Weight {\n            unit\n            value\n          }\n        }\n      }\n    }\n    ... on DeliveryRateDefinition {\n      price {\n        amount\n        currencyCode\n      }\n    }\n    ... on DeliveryParticipant {\n      fixedFee {\n        amount\n        currencyCode\n      }\n      percentageOfRateFee\n    }\n    ... on DeliveryCondition {\n      field\n      operator\n      conditionCriteria {\n        __typename\n        ... on MoneyV2 {\n          amount\n          currencyCode\n        }\n        ... on Weight {\n          unit\n          value\n        }\n      }\n    }\n    ... on DeliveryCountry {\n      name\n      translatedName\n      code {\n        countryCode\n        restOfWorld\n      }\n      provinces {\n        id\n        name\n        code\n      }\n    }\n    ... on DeliveryProvince {\n      name\n      code\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -9869,9 +9877,11 @@
     {
       "operationName": "AdminPlatformDeliveryProfileNodeReads",
       "variables": {
-        "ids": ["gid://shopify/DeliveryParticipant/81892835634"]
+        "ids": [
+          "gid://shopify/DeliveryParticipant/81892835634"
+        ]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformDeliveryProfileNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on DeliveryLocationGroup {\n      locations(first: 2) {\n        nodes {\n          id\n          name\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n      locationsCount {\n        count\n        precision\n      }\n    }\n    ... on DeliveryZone {\n      name\n      countries {\n        id\n        name\n        translatedName\n        code {\n          countryCode\n          restOfWorld\n        }\n        provinces {\n          id\n          name\n          code\n        }\n      }\n    }\n    ... on DeliveryMethodDefinition {\n      name\n      active\n      description\n      rateProvider {\n        ... on DeliveryRateDefinition {\n          id\n          price {\n            amount\n            currencyCode\n          }\n        }\n        ... on DeliveryParticipant {\n          id\n          fixedFee {\n            amount\n            currencyCode\n          }\n          percentageOfRateFee\n        }\n      }\n      methodConditions {\n        id\n        field\n        operator\n        conditionCriteria {\n          __typename\n          ... on MoneyV2 {\n            amount\n            currencyCode\n          }\n          ... on Weight {\n            unit\n            value\n          }\n        }\n      }\n    }\n    ... on DeliveryRateDefinition {\n      price {\n        amount\n        currencyCode\n      }\n    }\n    ... on DeliveryParticipant {\n      fixedFee {\n        amount\n        currencyCode\n      }\n      percentageOfRateFee\n    }\n    ... on DeliveryCondition {\n      field\n      operator\n      conditionCriteria {\n        __typename\n        ... on MoneyV2 {\n          amount\n          currencyCode\n        }\n        ... on Weight {\n          unit\n          value\n        }\n      }\n    }\n    ... on DeliveryCountry {\n      name\n      translatedName\n      code {\n        countryCode\n        restOfWorld\n      }\n      provinces {\n        id\n        name\n        code\n      }\n    }\n    ... on DeliveryProvince {\n      name\n      code\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -9893,9 +9903,11 @@
     {
       "operationName": "AdminPlatformDeliveryProfileNodeReads",
       "variables": {
-        "ids": ["gid://shopify/DeliveryCondition/215314235698?operator=greater_than_or_equal_to"]
+        "ids": [
+          "gid://shopify/DeliveryCondition/215314235698?operator=greater_than_or_equal_to"
+        ]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformDeliveryProfileNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on DeliveryLocationGroup {\n      locations(first: 2) {\n        nodes {\n          id\n          name\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n      locationsCount {\n        count\n        precision\n      }\n    }\n    ... on DeliveryZone {\n      name\n      countries {\n        id\n        name\n        translatedName\n        code {\n          countryCode\n          restOfWorld\n        }\n        provinces {\n          id\n          name\n          code\n        }\n      }\n    }\n    ... on DeliveryMethodDefinition {\n      name\n      active\n      description\n      rateProvider {\n        ... on DeliveryRateDefinition {\n          id\n          price {\n            amount\n            currencyCode\n          }\n        }\n        ... on DeliveryParticipant {\n          id\n          fixedFee {\n            amount\n            currencyCode\n          }\n          percentageOfRateFee\n        }\n      }\n      methodConditions {\n        id\n        field\n        operator\n        conditionCriteria {\n          __typename\n          ... on MoneyV2 {\n            amount\n            currencyCode\n          }\n          ... on Weight {\n            unit\n            value\n          }\n        }\n      }\n    }\n    ... on DeliveryRateDefinition {\n      price {\n        amount\n        currencyCode\n      }\n    }\n    ... on DeliveryParticipant {\n      fixedFee {\n        amount\n        currencyCode\n      }\n      percentageOfRateFee\n    }\n    ... on DeliveryCondition {\n      field\n      operator\n      conditionCriteria {\n        __typename\n        ... on MoneyV2 {\n          amount\n          currencyCode\n        }\n        ... on Weight {\n          unit\n          value\n        }\n      }\n    }\n    ... on DeliveryCountry {\n      name\n      translatedName\n      code {\n        countryCode\n        restOfWorld\n      }\n      provinces {\n        id\n        name\n        code\n      }\n    }\n    ... on DeliveryProvince {\n      name\n      code\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -9919,9 +9931,11 @@
     {
       "operationName": "AdminPlatformDeliveryProfileNodeReads",
       "variables": {
-        "ids": ["gid://shopify/DeliveryCountry/1185161871666"]
+        "ids": [
+          "gid://shopify/DeliveryCountry/1185161871666"
+        ]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformDeliveryProfileNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on DeliveryLocationGroup {\n      locations(first: 2) {\n        nodes {\n          id\n          name\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n      locationsCount {\n        count\n        precision\n      }\n    }\n    ... on DeliveryZone {\n      name\n      countries {\n        id\n        name\n        translatedName\n        code {\n          countryCode\n          restOfWorld\n        }\n        provinces {\n          id\n          name\n          code\n        }\n      }\n    }\n    ... on DeliveryMethodDefinition {\n      name\n      active\n      description\n      rateProvider {\n        ... on DeliveryRateDefinition {\n          id\n          price {\n            amount\n            currencyCode\n          }\n        }\n        ... on DeliveryParticipant {\n          id\n          fixedFee {\n            amount\n            currencyCode\n          }\n          percentageOfRateFee\n        }\n      }\n      methodConditions {\n        id\n        field\n        operator\n        conditionCriteria {\n          __typename\n          ... on MoneyV2 {\n            amount\n            currencyCode\n          }\n          ... on Weight {\n            unit\n            value\n          }\n        }\n      }\n    }\n    ... on DeliveryRateDefinition {\n      price {\n        amount\n        currencyCode\n      }\n    }\n    ... on DeliveryParticipant {\n      fixedFee {\n        amount\n        currencyCode\n      }\n      percentageOfRateFee\n    }\n    ... on DeliveryCondition {\n      field\n      operator\n      conditionCriteria {\n        __typename\n        ... on MoneyV2 {\n          amount\n          currencyCode\n        }\n        ... on Weight {\n          unit\n          value\n        }\n      }\n    }\n    ... on DeliveryCountry {\n      name\n      translatedName\n      code {\n        countryCode\n        restOfWorld\n      }\n      provinces {\n        id\n        name\n        code\n      }\n    }\n    ... on DeliveryProvince {\n      name\n      code\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -10011,9 +10025,11 @@
     {
       "operationName": "AdminPlatformDeliveryProfileNodeReads",
       "variables": {
-        "ids": ["gid://shopify/DeliveryProvince/14499193913650"]
+        "ids": [
+          "gid://shopify/DeliveryProvince/14499193913650"
+        ]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformDeliveryProfileNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on DeliveryLocationGroup {\n      locations(first: 2) {\n        nodes {\n          id\n          name\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n      locationsCount {\n        count\n        precision\n      }\n    }\n    ... on DeliveryZone {\n      name\n      countries {\n        id\n        name\n        translatedName\n        code {\n          countryCode\n          restOfWorld\n        }\n        provinces {\n          id\n          name\n          code\n        }\n      }\n    }\n    ... on DeliveryMethodDefinition {\n      name\n      active\n      description\n      rateProvider {\n        ... on DeliveryRateDefinition {\n          id\n          price {\n            amount\n            currencyCode\n          }\n        }\n        ... on DeliveryParticipant {\n          id\n          fixedFee {\n            amount\n            currencyCode\n          }\n          percentageOfRateFee\n        }\n      }\n      methodConditions {\n        id\n        field\n        operator\n        conditionCriteria {\n          __typename\n          ... on MoneyV2 {\n            amount\n            currencyCode\n          }\n          ... on Weight {\n            unit\n            value\n          }\n        }\n      }\n    }\n    ... on DeliveryRateDefinition {\n      price {\n        amount\n        currencyCode\n      }\n    }\n    ... on DeliveryParticipant {\n      fixedFee {\n        amount\n        currencyCode\n      }\n      percentageOfRateFee\n    }\n    ... on DeliveryCondition {\n      field\n      operator\n      conditionCriteria {\n        __typename\n        ... on MoneyV2 {\n          amount\n          currencyCode\n        }\n        ... on Weight {\n          unit\n          value\n        }\n      }\n    }\n    ... on DeliveryCountry {\n      name\n      translatedName\n      code {\n        countryCode\n        restOfWorld\n      }\n      provinces {\n        id\n        name\n        code\n      }\n    }\n    ... on DeliveryProvince {\n      name\n      code\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

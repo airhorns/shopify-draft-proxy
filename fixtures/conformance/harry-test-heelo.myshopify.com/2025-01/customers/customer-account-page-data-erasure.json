@@ -64,7 +64,10 @@
           "email": "hermes-data-erasure-1777314932891@example.com",
           "firstName": "Hermes",
           "lastName": "DataErasure",
-          "tags": ["parity", "data-erasure-1777314932891"]
+          "tags": [
+            "parity",
+            "data-erasure-1777314932891"
+          ]
         }
       },
       "response": {
@@ -75,7 +78,10 @@
               "email": "hermes-data-erasure-1777314932891@example.com",
               "firstName": "Hermes",
               "lastName": "DataErasure",
-              "tags": ["data-erasure-1777314932891", "parity"],
+              "tags": [
+                "data-erasure-1777314932891",
+                "parity"
+              ],
               "defaultEmailAddress": {
                 "emailAddress": "hermes-data-erasure-1777314932891@example.com"
               }
@@ -162,7 +168,10 @@
               "email": "hermes-data-erasure-1777314932891@example.com",
               "firstName": "Hermes",
               "lastName": "DataErasure",
-              "tags": ["data-erasure-1777314932891", "parity"],
+              "tags": [
+                "data-erasure-1777314932891",
+                "parity"
+              ],
               "defaultEmailAddress": {
                 "emailAddress": "hermes-data-erasure-1777314932891@example.com"
               }
@@ -220,7 +229,10 @@
               "email": "hermes-data-erasure-1777314932891@example.com",
               "firstName": "Hermes",
               "lastName": "DataErasure",
-              "tags": ["data-erasure-1777314932891", "parity"],
+              "tags": [
+                "data-erasure-1777314932891",
+                "parity"
+              ],
               "defaultEmailAddress": {
                 "emailAddress": "hermes-data-erasure-1777314932891@example.com"
               }
@@ -254,7 +266,9 @@
             "customerId": null,
             "userErrors": [
               {
-                "field": ["customerId"],
+                "field": [
+                  "customerId"
+                ],
                 "message": "Customer does not exist",
                 "code": "DOES_NOT_EXIST"
               }
@@ -286,7 +300,9 @@
             "customerId": null,
             "userErrors": [
               {
-                "field": ["customerId"],
+                "field": [
+                  "customerId"
+                ],
                 "message": "Customer does not exist",
                 "code": "DOES_NOT_EXIST"
               }
@@ -309,12 +325,22 @@
   },
   "schemaEvidence": {
     "customerRequestDataErasure": {
-      "args": ["customerId: ID!"],
-      "payloadFields": ["customerId: ID", "userErrors: [CustomerRequestDataErasureUserError!]!"]
+      "args": [
+        "customerId: ID!"
+      ],
+      "payloadFields": [
+        "customerId: ID",
+        "userErrors: [CustomerRequestDataErasureUserError!]!"
+      ]
     },
     "customerCancelDataErasure": {
-      "args": ["customerId: ID!"],
-      "payloadFields": ["customerId: ID", "userErrors: [CustomerCancelDataErasureUserError!]!"]
+      "args": [
+        "customerId: ID!"
+      ],
+      "payloadFields": [
+        "customerId: ID",
+        "userErrors: [CustomerCancelDataErasureUserError!]!"
+      ]
     }
   },
   "cleanup": {
@@ -330,7 +356,9 @@
             "customerId": null,
             "userErrors": [
               {
-                "field": ["customerId"],
+                "field": [
+                  "customerId"
+                ],
                 "message": "Customer's data is not scheduled for erasure",
                 "code": "NOT_BEING_ERASED"
               }
@@ -394,14 +422,18 @@
               "email": "hermes-data-erasure-1777314932891@example.com",
               "firstName": "Hermes",
               "lastName": "DataErasure",
-              "tags": ["data-erasure-1777314932891", "parity"],
+              "tags": [
+                "data-erasure-1777314932891",
+                "parity"
+              ],
               "defaultEmailAddress": {
                 "emailAddress": "hermes-data-erasure-1777314932891@example.com"
               }
             }
           }
         }
-      }
+      },
+      "query": "query CustomerDataErasureCustomerRead($id: ID!) {\n  customer(id: $id) {\n    id\n    email\n    firstName\n    lastName\n    tags\n    defaultEmailAddress {\n      emailAddress\n    }\n  }\n}\n"
     },
     {
       "operationName": "CustomerAccountPagesHydrate",
@@ -459,7 +491,10 @@
               "email": "hermes-data-erasure-1777314932891@example.com",
               "firstName": "Hermes",
               "lastName": "DataErasure",
-              "tags": ["data-erasure-1777314932891", "parity"],
+              "tags": [
+                "data-erasure-1777314932891",
+                "parity"
+              ],
               "defaultEmailAddress": {
                 "emailAddress": "hermes-data-erasure-1777314932891@example.com"
               }

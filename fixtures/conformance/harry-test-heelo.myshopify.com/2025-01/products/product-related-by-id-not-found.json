@@ -33,7 +33,7 @@
         "missingInventoryItemId": "gid://shopify/InventoryItem/999999999999999",
         "missingInventoryLevelId": "gid://shopify/InventoryLevel/999999999999999?inventory_item_id=999999999999999"
       },
-      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 product read passthrough",
+      "query": "query ProductRelatedByIdNotFound(\n  $missingCollectionId: ID!\n  $missingProductVariantId: ID!\n  $missingInventoryItemId: ID!\n  $missingInventoryLevelId: ID!\n) {\n  missingCollection: collection(id: $missingCollectionId) {\n    id\n    title\n    handle\n  }\n  missingProductVariant: productVariant(id: $missingProductVariantId) {\n    id\n    title\n    sku\n    inventoryItem {\n      id\n    }\n    product {\n      id\n    }\n  }\n  missingInventoryItem: inventoryItem(id: $missingInventoryItemId) {\n    id\n    tracked\n    requiresShipping\n    variant {\n      id\n    }\n  }\n  missingInventoryLevel: inventoryLevel(id: $missingInventoryLevelId) {\n    id\n    location {\n      id\n      name\n    }\n    quantities(names: [\"available\", \"on_hand\"]) {\n      name\n      quantity\n      updatedAt\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

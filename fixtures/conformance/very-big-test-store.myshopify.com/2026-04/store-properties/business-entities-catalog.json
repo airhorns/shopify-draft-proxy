@@ -13,7 +13,11 @@
         "documentation": "https://shopify.dev/api/usage/access-scopes",
         "requiredAccess": "the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope."
       },
-      "path": ["businessEntities", 0, "shopifyPaymentsAccount"]
+      "path": [
+        "businessEntities",
+        0,
+        "shopifyPaymentsAccount"
+      ]
     }
   ],
   "data": {
@@ -51,7 +55,7 @@
     {
       "operationName": "StorePropertiesBusinessEntitiesCatalog",
       "variables": {},
-      "query": "sha:hand-synthesized-StorePropertiesBusinessEntitiesCatalog",
+      "query": "query StorePropertiesBusinessEntitiesCatalog {\n  businessEntities {\n    id\n    displayName\n    companyName\n    primary\n    archived\n    address {\n      address1\n      address2\n      city\n      countryCode\n      province\n      zip\n    }\n    shopifyPaymentsAccount {\n      id\n      activated\n      country\n      defaultCurrency\n      onboardable\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -69,7 +73,11 @@
                 "documentation": "https://shopify.dev/api/usage/access-scopes",
                 "requiredAccess": "the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope."
               },
-              "path": ["businessEntities", 0, "shopifyPaymentsAccount"]
+              "path": [
+                "businessEntities",
+                0,
+                "shopifyPaymentsAccount"
+              ]
             }
           ],
           "data": {

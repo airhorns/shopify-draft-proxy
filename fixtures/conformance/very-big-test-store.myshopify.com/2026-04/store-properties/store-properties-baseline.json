@@ -1702,7 +1702,9 @@
           "contactEmail": "shopify@gadget.dev",
           "email": "shopify@gadget.dev",
           "currencyCode": "CAD",
-          "enabledPresentmentCurrencies": ["CAD"],
+          "enabledPresentmentCurrencies": [
+            "CAD"
+          ],
           "ianaTimezone": "America/Toronto",
           "timezoneAbbreviation": "EDT",
           "timezoneOffset": "-0400",
@@ -1720,7 +1722,11 @@
             "coordinatesValidated": false,
             "country": "Canada",
             "countryCodeV2": "CA",
-            "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"],
+            "formatted": [
+              "103 ossington",
+              "Ottawa ON k1s3b7",
+              "Canada"
+            ],
             "formattedArea": "Ottawa ON, Canada",
             "latitude": 45.389817,
             "longitude": -75.68692920000001,
@@ -1861,7 +1867,11 @@
             "documentation": "https://shopify.dev/api/usage/access-scopes",
             "requiredAccess": "the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope."
           },
-          "path": ["businessEntities", 0, "shopifyPaymentsAccount"]
+          "path": [
+            "businessEntities",
+            0,
+            "shopifyPaymentsAccount"
+          ]
         }
       ],
       "data": {
@@ -1911,7 +1921,10 @@
             "documentation": "https://shopify.dev/api/usage/access-scopes",
             "requiredAccess": "the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope."
           },
-          "path": ["primary", "shopifyPaymentsAccount"]
+          "path": [
+            "primary",
+            "shopifyPaymentsAccount"
+          ]
         },
         {
           "message": "Access denied for shopifyPaymentsAccount field. Required access: the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope.",
@@ -1926,7 +1939,10 @@
             "documentation": "https://shopify.dev/api/usage/access-scopes",
             "requiredAccess": "the `read_shopify_payments` or the `read_shopify_payments_accounts` access scope."
           },
-          "path": ["known", "shopifyPaymentsAccount"]
+          "path": [
+            "known",
+            "shopifyPaymentsAccount"
+          ]
         }
       ],
       "data": {
@@ -1980,7 +1996,13 @@
   "mutationValidationProbePlan": [
     {
       "root": "location lifecycle",
-      "operations": ["locationAdd", "locationEdit", "locationActivate", "locationDeactivate", "locationDelete"],
+      "operations": [
+        "locationAdd",
+        "locationEdit",
+        "locationActivate",
+        "locationDeactivate",
+        "locationDelete"
+      ],
       "safety": "side-effect-heavy; do not run happy paths against shared conformance stores",
       "recommendedProbe": "schema/variable validation only with deliberately invalid IDs or missing required input"
     },
@@ -1997,7 +2019,9 @@
     },
     {
       "root": "shopPolicyUpdate",
-      "operations": ["shopPolicyUpdate"],
+      "operations": [
+        "shopPolicyUpdate"
+      ],
       "safety": "updates merchant legal policy content",
       "recommendedProbe": "input validation only until a disposable dev store policy fixture is available"
     }
@@ -2006,7 +2030,7 @@
     {
       "operationName": "StorePropertiesShopBaseline",
       "variables": {},
-      "query": "sha:hand-synthesized-StorePropertiesShopBaseline",
+      "query": "query StorePropertiesShopBaseline {\n  shop {\n    id\n    name\n    myshopifyDomain\n    url\n    primaryDomain {\n      id\n      host\n      url\n      sslEnabled\n    }\n    contactEmail\n    email\n    currencyCode\n    enabledPresentmentCurrencies\n    ianaTimezone\n    timezoneAbbreviation\n    timezoneOffset\n    timezoneOffsetMinutes\n    taxesIncluded\n    taxShipping\n    unitSystem\n    weightUnit\n    shopAddress {\n      id\n      address1\n      address2\n      city\n      company\n      coordinatesValidated\n      country\n      countryCodeV2\n      formatted\n      formattedArea\n      latitude\n      longitude\n      phone\n      province\n      provinceCode\n      zip\n    }\n    plan {\n      partnerDevelopment\n      publicDisplayName\n      shopifyPlus\n    }\n    resourceLimits {\n      locationLimit\n      maxProductOptions\n      maxProductVariants\n      redirectLimitReached\n    }\n    features {\n      avalaraAvatax\n      branding\n      bundles {\n        eligibleForBundles\n        ineligibilityReason\n        sellsBundles\n      }\n      captcha\n      cartTransform {\n        eligibleOperations {\n          expandOperation\n          mergeOperation\n          updateOperation\n        }\n      }\n      dynamicRemarketing\n      eligibleForSubscriptionMigration\n      eligibleForSubscriptions\n      giftCards\n      harmonizedSystemCode\n      legacySubscriptionGatewayEnabled\n      liveView\n      paypalExpressSubscriptionGatewayStatus\n      reports\n      sellsSubscriptions\n      showMetrics\n      storefront\n      unifiedMarkets\n    }\n    paymentSettings {\n      supportedDigitalWallets\n    }\n    shopPolicies {\n      id\n      title\n      body\n      type\n      url\n      createdAt\n      updatedAt\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -2025,7 +2049,9 @@
               "contactEmail": "shopify@gadget.dev",
               "email": "shopify@gadget.dev",
               "currencyCode": "CAD",
-              "enabledPresentmentCurrencies": ["CAD"],
+              "enabledPresentmentCurrencies": [
+                "CAD"
+              ],
               "ianaTimezone": "America/Toronto",
               "timezoneAbbreviation": "EDT",
               "timezoneOffset": "-0400",
@@ -2043,7 +2069,11 @@
                 "coordinatesValidated": false,
                 "country": "Canada",
                 "countryCodeV2": "CA",
-                "formatted": ["103 ossington", "Ottawa ON k1s3b7", "Canada"],
+                "formatted": [
+                  "103 ossington",
+                  "Ottawa ON k1s3b7",
+                  "Canada"
+                ],
                 "formattedArea": "Ottawa ON, Canada",
                 "latitude": 45.389817,
                 "longitude": -75.68692920000001,

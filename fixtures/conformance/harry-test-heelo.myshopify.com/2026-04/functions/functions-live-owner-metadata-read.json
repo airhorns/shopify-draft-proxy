@@ -14,7 +14,10 @@
       "hermes-conformance-products-39 HAR-416-noop-validation-function",
       "HAR-416-rework-functions HAR-416-rework-function-scope-retry"
     ],
-    "releasedFunctionHandles": ["conformance-validation", "conformance-cart-transform"]
+    "releasedFunctionHandles": [
+      "conformance-validation",
+      "conformance-cart-transform"
+    ]
   },
   "seedShopifyFunctions": [
     {
@@ -190,7 +193,10 @@
               "validation": null,
               "userErrors": [
                 {
-                  "field": ["validation", "functionHandle"],
+                  "field": [
+                    "validation",
+                    "functionHandle"
+                  ],
                   "message": "Unexpected Function API. The provided function must implement one of the following extension targets: [%{targets}].",
                   "code": "FUNCTION_DOES_NOT_IMPLEMENT"
                 }
@@ -225,7 +231,9 @@
               "cartTransform": null,
               "userErrors": [
                 {
-                  "field": ["functionHandle"],
+                  "field": [
+                    "functionHandle"
+                  ],
                   "message": "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].",
                   "code": "FUNCTION_DOES_NOT_IMPLEMENT"
                 }
@@ -262,7 +270,10 @@
               "validation": null,
               "userErrors": [
                 {
-                  "field": ["validation", "functionHandle"],
+                  "field": [
+                    "validation",
+                    "functionHandle"
+                  ],
                   "message": "Extension not found.",
                   "code": "NOT_FOUND"
                 }
@@ -297,7 +308,9 @@
               "cartTransform": null,
               "userErrors": [
                 {
-                  "field": ["functionHandle"],
+                  "field": [
+                    "functionHandle"
+                  ],
                   "message": "Could not find function with handle: har-416-unowned-cart-function.",
                   "code": "FUNCTION_NOT_FOUND"
                 }
@@ -342,7 +355,11 @@
               "validation": null,
               "userErrors": [
                 {
-                  "field": ["validation", "metafields", "0"],
+                  "field": [
+                    "validation",
+                    "metafields",
+                    "0"
+                  ],
                   "message": "The value is invalid.",
                   "code": "INVALID_VALUE"
                 }
@@ -385,7 +402,11 @@
               "cartTransform": null,
               "userErrors": [
                 {
-                  "field": ["metafields", "0", "value"],
+                  "field": [
+                    "metafields",
+                    "0",
+                    "value"
+                  ],
                   "message": "is invalid JSON: unexpected token 'not-json' at line 1 column 1.",
                   "code": "INVALID_METAFIELDS"
                 }
@@ -539,7 +560,9 @@
               "cartTransform": null,
               "userErrors": [
                 {
-                  "field": ["functionHandle"],
+                  "field": [
+                    "functionHandle"
+                  ],
                   "message": "Could not enable cart transform because it is already registered",
                   "code": "FUNCTION_ALREADY_REGISTERED"
                 }
@@ -871,7 +894,9 @@
               "documentation": "https://shopify.dev/api/usage/access-scopes",
               "requiredAccess": "`write_taxes` access scope. Also: The caller must be a tax calculations app."
             },
-            "path": ["taxAppConfigure"]
+            "path": [
+              "taxAppConfigure"
+            ]
           }
         ],
         "data": {
@@ -903,7 +928,7 @@
         "validationFunctionId": "019dd44b-127f-7061-a930-422cbd4a751f",
         "cartFunctionId": "019dd44b-127f-724b-a49c-70fc98ff4d72"
       },
-      "query": "hand-synthesized from functionOwnershipRead.response.payload",
+      "query": "query ReadLiveFunctionOwnerMetadata($validationFunctionId: String!, $cartFunctionId: String!) {\n  shopifyFunctions(first: 20) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  validationFunction: shopifyFunction(id: $validationFunctionId) {\n    id\n    title\n    handle\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      handle\n      apiKey\n    }\n  }\n  cartFunction: shopifyFunction(id: $cartFunctionId) {\n    id\n    title\n    handle\n    apiType\n    description\n    appKey\n    app {\n      __typename\n      id\n      title\n      handle\n      apiKey\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

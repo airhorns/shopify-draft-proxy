@@ -20,7 +20,11 @@
         "taxesIncluded": false,
         "reserveInventoryUntil": "2026-05-23T12:00:00Z",
         "paymentTerms": null,
-        "tags": ["detail", "draft-order-family", "parity-capture"],
+        "tags": [
+          "detail",
+          "draft-order-family",
+          "parity-capture"
+        ],
         "customAttributes": [
           {
             "key": "source",
@@ -227,7 +231,7 @@
       "variables": {
         "id": "gid://shopify/DraftOrder/1249078149426"
       },
-      "query": "hand-synthesized from checked-in capture response for HAR-538 orders Pattern 1 passthrough",
+      "query": "query DraftOrderReadParityPlan($id: ID!) {\n  draftOrder(id: $id) {\n    id\n    name\n    invoiceUrl\n    status\n    ready\n    email\n    customer {\n      id\n      email\n      displayName\n    }\n    taxExempt\n    taxesIncluded\n    reserveInventoryUntil\n    paymentTerms {\n      id\n      overdue\n      dueInDays\n      paymentTermsName\n      paymentTermsType\n      translatedName\n    }\n    tags\n    customAttributes {\n      key\n      value\n    }\n    appliedDiscount {\n      title\n      description\n      value\n      valueType\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    billingAddress {\n      firstName\n      lastName\n      address1\n      city\n      provinceCode\n      countryCodeV2\n      zip\n      phone\n    }\n    shippingAddress {\n      firstName\n      lastName\n      address1\n      city\n      provinceCode\n      countryCodeV2\n      zip\n      phone\n    }\n    shippingLine {\n      title\n      code\n      custom\n      originalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      discountedPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    createdAt\n    updatedAt\n    subtotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalDiscountsSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalShippingPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalQuantityOfLineItems\n    lineItems(first: 5) {\n      nodes {\n        id\n        title\n        name\n        quantity\n        sku\n        variantTitle\n        custom\n        requiresShipping\n        taxable\n        customAttributes {\n          key\n          value\n        }\n        appliedDiscount {\n          title\n          description\n          value\n          valueType\n          amountSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n        originalUnitPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        originalTotalSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        discountedTotalSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        totalDiscountSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n        variant {\n          id\n          title\n          sku\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -248,7 +252,11 @@
               "taxesIncluded": false,
               "reserveInventoryUntil": "2026-05-23T12:00:00Z",
               "paymentTerms": null,
-              "tags": ["detail", "draft-order-family", "parity-capture"],
+              "tags": [
+                "detail",
+                "draft-order-family",
+                "parity-capture"
+              ],
               "customAttributes": [
                 {
                   "key": "source",

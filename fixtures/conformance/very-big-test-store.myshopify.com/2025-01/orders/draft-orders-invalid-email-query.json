@@ -52,7 +52,9 @@
       },
       "search": [
         {
-          "path": ["draftOrders"],
+          "path": [
+            "draftOrders"
+          ],
           "query": "email:hermes@example.com",
           "parsed": {
             "field": "email",
@@ -67,7 +69,9 @@
           ]
         },
         {
-          "path": ["draftOrdersCount"],
+          "path": [
+            "draftOrdersCount"
+          ],
           "query": "email:hermes@example.com",
           "parsed": {
             "field": "email",
@@ -91,7 +95,7 @@
         "first": 2,
         "query": "email:hermes@example.com"
       },
-      "query": "hand-synthesized from checked-in capture response for HAR-538 orders Pattern 1 passthrough",
+      "query": "query DraftOrdersInvalidEmailQueryRead($first: Int!, $query: String!) {\n  draftOrders(first: $first, query: $query) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        email\n        status\n        ready\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  draftOrdersCount(query: $query) {\n    count\n    precision\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -143,7 +147,9 @@
             },
             "search": [
               {
-                "path": ["draftOrders"],
+                "path": [
+                  "draftOrders"
+                ],
                 "query": "email:hermes@example.com",
                 "parsed": {
                   "field": "email",
@@ -158,7 +164,9 @@
                 ]
               },
               {
-                "path": ["draftOrdersCount"],
+                "path": [
+                  "draftOrdersCount"
+                ],
                 "query": "email:hermes@example.com",
                 "parsed": {
                   "field": "email",

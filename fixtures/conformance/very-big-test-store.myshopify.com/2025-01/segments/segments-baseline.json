@@ -11,7 +11,9 @@
       "extensions": {
         "code": "NOT_FOUND"
       },
-      "path": ["missingSegment"]
+      "path": [
+        "missingSegment"
+      ]
     }
   ],
   "data": {
@@ -186,7 +188,7 @@
         "valueSearch": "",
         "valueFilterQueryName": "customer_tags"
       },
-      "query": "sha:hand-synthesized-from-captured-segments-baseline",
+      "query": "query SegmentsBaselineRead(\n  $first: Int!\n  $knownSegmentId: ID!\n  $missingSegmentId: ID!\n  $filterSearch: String!\n  $valueSearch: String!\n  $valueFilterQueryName: String!\n) {\n  segments(first: $first) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        query\n        creationDate\n        lastEditDate\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  knownSegment: segment(id: $knownSegmentId) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n  missingSegment: segment(id: $missingSegmentId) {\n    id\n    name\n    query\n    creationDate\n    lastEditDate\n  }\n  segmentsCount {\n    count\n    precision\n  }\n  segmentFilters(first: 2) {\n    edges {\n      cursor\n      node {\n        __typename\n        queryName\n        localizedName\n        multiValue\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  segmentFilterSuggestions(first: 2, search: $filterSearch) {\n    edges {\n      cursor\n      node {\n        __typename\n        queryName\n        localizedName\n        multiValue\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  segmentValueSuggestions(first: 3, search: $valueSearch, filterQueryName: $valueFilterQueryName) {\n    edges {\n      cursor\n      node {\n        queryName\n        localizedValue\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  segmentMigrations(first: 2) {\n    edges {\n      cursor\n      node {\n        id\n        savedSearchId\n        segmentId\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -202,7 +204,9 @@
               "extensions": {
                 "code": "NOT_FOUND"
               },
-              "path": ["missingSegment"]
+              "path": [
+                "missingSegment"
+              ]
             }
           ],
           "data": {
