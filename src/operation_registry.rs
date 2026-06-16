@@ -442,6 +442,8 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_query("companyLocation", CapabilityDomain::B2b),
     local_mutation("companyCreate", CapabilityDomain::B2b),
     local_mutation("companyUpdate", CapabilityDomain::B2b),
+    local_mutation("companyDelete", CapabilityDomain::B2b),
+    local_mutation("companiesDelete", CapabilityDomain::B2b),
     local_mutation("companyLocationCreate", CapabilityDomain::B2b),
     local_mutation("companyLocationAssignRoles", CapabilityDomain::B2b),
     local_mutation("companyLocationRevokeRoles", CapabilityDomain::B2b),

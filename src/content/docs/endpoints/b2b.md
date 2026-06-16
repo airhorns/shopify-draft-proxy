@@ -44,7 +44,9 @@ lifecycle behavior are:
 Additional local B2B setup and support slices are implemented for captured
 company-contact parity flows:
 
+- `companiesDelete`
 - `companyCreate`
+- `companyDelete`
 - `companyUpdate`
 - `companyLocationCreate`
 - `companyLocationUpdate`
@@ -62,9 +64,7 @@ The registry-only read roots are:
 
 The registry-only mutation roots are:
 
-- `companiesDelete`
 - `companyContactSendWelcomeEmail`
-- `companyDelete`
 - `companyLocationAssignStaffMembers`
 - `companyLocationDelete`
 - `companyLocationRemoveStaffMembers`
@@ -112,10 +112,19 @@ rejected as top-level GraphQL coercion errors before staging.
 `companyLocationAssignAddress`, `companyAddressDelete`,
 `companyLocationAssignRoles`, and `companyLocationRevokeRoles` stage the
 location-side state needed by captured contact/location parity flows.
-Location updates preserve name and buyer-experience fields that are covered by
-runtime tests; address assignment/delete updates staged billing-address reads;
-location role assign/revoke shares the same local role-assignment graph as
-contact-side assignment roots.
+Location updates reject blank/whitespace names after HTML stripping, preserve
+accepted names and buyer-experience fields that are covered by runtime tests;
+address assignment/delete updates staged billing-address reads; location role
+assign/revoke shares the same local role-assignment graph as contact-side
+assignment roots.
+
+`companyDelete` and `companiesDelete` stage local cascade deletion for company
+records and their staged company locations only after a
+deletable-status-style precheck. Staged orders, completed draft-order orders,
+open draft orders, and CompanyLocation store-credit balances that reference the
+target company block deletion with `FAILED_TO_DELETE`; bulk deletion returns
+per-index errors and still deletes unblocked companies. Unknown bulk IDs return
+`RESOURCE_NOT_FOUND`.
 
 Fixture-backed read helpers cover stable B2B read shapes used as evidence,
 including `company.customerSince`,
@@ -124,10 +133,9 @@ including `company.customerSince`,
 the selected payloads, not a broad local B2B catalog implementation.
 
 Parity specs also describe richer B2B lifecycle behavior captured from Shopify,
-including deletion blockers beyond the currently modeled contact graph, staff
-assignment, and staff-assignment guardrails. Endpoint consumers should treat
-those remaining roots as captured evidence rather than current local support
-until their own lifecycle behavior is modeled.
+including staff assignment and staff-assignment guardrails. Endpoint consumers
+should treat those remaining roots as captured evidence rather than current
+local support until their own lifecycle behavior is modeled.
 
 ### Boundaries
 

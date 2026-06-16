@@ -598,7 +598,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::OverlayRead,
             true,
             &["company", "Company"],
-            &[],
+            &["tests/graphql_routes/b2b.rs"],
         ),
         registry_entry(
             "companyContact",
@@ -625,7 +625,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::OverlayRead,
             true,
             &["companyLocation", "CompanyLocation"],
-            &["tests/graphql_routes.rs"],
+            &["tests/graphql_routes/b2b.rs"],
         ),
         registry_entry(
             "companyLocations",
@@ -641,9 +641,9 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &["companiesDelete", "CompaniesDelete"],
-            &[],
+            &["tests/graphql_routes/b2b.rs"],
         ),
         registry_entry(
             "companyAddressDelete",
@@ -778,16 +778,16 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["companyCreate", "CompanyCreate"],
-            &["tests/graphql_routes.rs"],
+            &["tests/graphql_routes/b2b.rs"],
         ),
         registry_entry(
             "companyDelete",
             OperationType::Mutation,
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &["companyDelete", "CompanyDelete"],
-            &[],
+            &["tests/graphql_routes/b2b.rs"],
         ),
         registry_entry(
             "companyLocationAssignAddress",
@@ -829,7 +829,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["companyLocationCreate", "CompanyLocationCreate"],
-            &["tests/graphql_routes.rs"],
+            &["tests/graphql_routes/b2b.rs"],
         ),
         registry_entry(
             "companyLocationDelete",
@@ -875,12 +875,12 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[
                 "companyLocationTaxSettingsUpdate",
                 "CompanyLocationTaxSettingsUpdate",
             ],
-            &[],
+            &["tests/graphql_routes/b2b.rs"],
         ),
         registry_entry(
             "companyLocationUpdate",
@@ -889,7 +889,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["companyLocationUpdate", "CompanyLocationUpdate"],
-            &["tests/graphql_routes.rs"],
+            &["tests/graphql_routes/b2b.rs"],
         ),
         registry_entry(
             "companyRevokeMainContact",
@@ -907,7 +907,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             CapabilityExecution::StageLocally,
             true,
             &["companyUpdate", "CompanyUpdate"],
-            &["tests/graphql_routes.rs"],
+            &["tests/graphql_routes/b2b.rs"],
         ),
         registry_entry(
             "cashManagementLocationSummary",

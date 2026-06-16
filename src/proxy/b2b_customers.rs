@@ -201,7 +201,12 @@ impl DraftProxy {
                 if parsed_root_fields.iter().all(|field| {
                     matches!(
                         field.as_str(),
-                        "companyCreate" | "companyUpdate" | "companyLocationCreate"
+                        "companyCreate"
+                            | "companyUpdate"
+                            | "companyDelete"
+                            | "companiesDelete"
+                            | "companyLocationCreate"
+                            | "storeCreditAccountCredit"
                     )
                 }) =>
             {
@@ -210,7 +215,15 @@ impl DraftProxy {
                     let (payload, status, staged_ids) = match field.name.as_str() {
                         "companyCreate" => self.b2b_company_create_payload(&field),
                         "companyUpdate" => self.b2b_company_update_payload(&field),
+                        "companyDelete" => self.b2b_company_delete_payload(&field),
+                        "companiesDelete" => self.b2b_companies_delete_payload(&field),
                         "companyLocationCreate" => self.b2b_company_location_create_payload(&field),
+                        "storeCreditAccountCredit"
+                            if self.b2b_store_credit_account_credit_should_handle(&field) =>
+                        {
+                            self.b2b_store_credit_account_credit_payload(&field)
+                        }
+                        "storeCreditAccountCredit" => return None,
                         _ => return None,
                     };
                     self.record_mutation_log_entry(
@@ -436,6 +449,23 @@ impl DraftProxy {
             );
         }
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        if let Some(name) = resolved_string_field(&input, "name") {
+            if name.chars().count() > 255 {
+                return (
+                    b2b_company_location_payload(
+                        None,
+                        vec![b2b_company_user_error(
+                            vec!["input", "name"],
+                            "Name is too long (maximum is 255 characters)",
+                            "TOO_LONG",
+                            None,
+                        )],
+                    ),
+                    "failed",
+                    Vec::new(),
+                );
+            }
+        }
         let id = self.stage_b2b_company_location(&company_id, &input);
         let materialized = self.b2b_company_location_materialized(&id);
         (
@@ -443,6 +473,280 @@ impl DraftProxy {
             "staged",
             vec![id],
         )
+    }
+
+    pub(in crate::proxy) fn b2b_company_delete_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let company_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        if !self.store.staged.b2b_companies.contains_key(&company_id) {
+            return (
+                Self::b2b_company_delete_payload_value(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["id"],
+                        "Resource requested does not exist.",
+                        "RESOURCE_NOT_FOUND",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        if self.b2b_company_has_delete_blocker(&company_id) {
+            return (
+                Self::b2b_company_delete_payload_value(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["id"],
+                        "Failed to delete the company.",
+                        "FAILED_TO_DELETE",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+
+        self.b2b_remove_company_graph(&company_id);
+        (
+            Self::b2b_company_delete_payload_value(Some(&company_id), Vec::new()),
+            "staged",
+            vec![company_id],
+        )
+    }
+
+    pub(in crate::proxy) fn b2b_companies_delete_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let company_ids = resolved_string_list_field_unsorted(&field.arguments, "companyIds");
+        let mut deleted_ids = Vec::new();
+        let mut user_errors = Vec::new();
+        for (index, company_id) in company_ids.iter().enumerate() {
+            if !self.store.staged.b2b_companies.contains_key(company_id) {
+                user_errors.push(b2b_company_user_error(
+                    vec!["companyIds", &index.to_string()],
+                    "Resource requested does not exist.",
+                    "RESOURCE_NOT_FOUND",
+                    None,
+                ));
+            } else if self.b2b_company_has_delete_blocker(company_id) {
+                user_errors.push(b2b_company_user_error(
+                    vec!["companyIds", &index.to_string()],
+                    "Failed to delete the company.",
+                    "FAILED_TO_DELETE",
+                    None,
+                ));
+            } else {
+                deleted_ids.push(company_id.clone());
+            }
+        }
+        for company_id in &deleted_ids {
+            self.b2b_remove_company_graph(company_id);
+        }
+        let status = if deleted_ids.is_empty() {
+            "failed"
+        } else {
+            "staged"
+        };
+        (
+            json!({
+                "deletedCompanyIds": deleted_ids,
+                "userErrors": user_errors
+            }),
+            status,
+            deleted_ids,
+        )
+    }
+
+    pub(in crate::proxy) fn b2b_store_credit_account_credit_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let owner_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        if !self.store.staged.b2b_locations.contains_key(&owner_id) {
+            return (
+                Self::b2b_store_credit_payload_value(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["id"],
+                        "Resource requested does not exist.",
+                        "RESOURCE_NOT_FOUND",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        let input = resolved_object_field(&field.arguments, "creditInput").unwrap_or_default();
+        let money = resolved_object_field(&input, "creditAmount").unwrap_or_default();
+        let amount = resolved_money_amount_string(money.get("amount"));
+        let normalized_amount = normalized_money_amount(&amount);
+        let currency =
+            resolved_string_field(&money, "currencyCode").unwrap_or_else(|| "USD".to_string());
+        let account_id = format!(
+            "gid://shopify/StoreCreditAccount/{}?shopify-draft-proxy=synthetic",
+            resource_id_tail(&owner_id)
+        );
+        let account = json!({
+            "id": account_id,
+            "balance": { "amount": normalized_amount, "currencyCode": currency },
+            "owner": { "id": owner_id }
+        });
+        let transaction = json!({
+            "amount": { "amount": normalized_amount, "currencyCode": currency },
+            "balanceAfterTransaction": { "amount": normalized_amount, "currencyCode": currency },
+            "event": "ADJUSTMENT",
+            "origin": Value::Null,
+            "account": account
+        });
+        if let Some(location) = self.store.staged.b2b_locations.get_mut(&owner_id) {
+            location["storeCreditAccount"] = transaction["account"].clone();
+        }
+        (
+            Self::b2b_store_credit_payload_value(Some(&transaction), Vec::new()),
+            "staged",
+            vec![owner_id],
+        )
+    }
+
+    fn b2b_store_credit_account_credit_should_handle(&self, field: &RootFieldSelection) -> bool {
+        resolved_string_arg(&field.arguments, "id")
+            .is_some_and(|id| self.store.staged.b2b_locations.contains_key(&id))
+    }
+
+    fn b2b_company_has_delete_blocker(&self, company_id: &str) -> bool {
+        self.store
+            .staged
+            .orders
+            .values()
+            .any(|order| Self::b2b_record_references_company(order, company_id))
+            || self
+                .store
+                .staged
+                .draft_orders
+                .values()
+                .any(|draft_order| Self::b2b_record_references_company(draft_order, company_id))
+            || self
+                .store
+                .staged
+                .order_customer_orders
+                .values()
+                .any(|order| Self::b2b_record_references_company(order, company_id))
+            || self
+                .b2b_company_location_ids(company_id)
+                .iter()
+                .any(|location_id| {
+                    self.store
+                        .staged
+                        .b2b_locations
+                        .get(location_id)
+                        .is_some_and(Self::b2b_location_has_store_credit_balance)
+                })
+    }
+
+    fn b2b_company_location_ids(&self, company_id: &str) -> Vec<String> {
+        let mut ids = self
+            .store
+            .staged
+            .b2b_companies
+            .get(company_id)
+            .and_then(|company| company.get("locationIds"))
+            .and_then(Value::as_array)
+            .map(|ids| {
+                ids.iter()
+                    .filter_map(|id| id.as_str().map(str::to_string))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        ids.extend(
+            self.store
+                .staged
+                .b2b_locations
+                .iter()
+                .filter(|(_, location)| {
+                    location.get("companyId").and_then(Value::as_str) == Some(company_id)
+                        || location["company"]["id"].as_str() == Some(company_id)
+                })
+                .map(|(id, _)| id.clone()),
+        );
+        ids.sort();
+        ids.dedup();
+        ids
+    }
+
+    fn b2b_remove_company_graph(&mut self, company_id: &str) {
+        let location_ids = self.b2b_company_location_ids(company_id);
+        self.store.staged.b2b_companies.remove(company_id);
+        for location_id in location_ids {
+            self.store.staged.b2b_locations.remove(&location_id);
+        }
+    }
+
+    fn b2b_company_delete_payload_value(
+        deleted_company_id: Option<&str>,
+        user_errors: Vec<Value>,
+    ) -> Value {
+        json!({
+            "deletedCompanyId": deleted_company_id.map(|id| json!(id)).unwrap_or(Value::Null),
+            "userErrors": user_errors
+        })
+    }
+
+    fn b2b_store_credit_payload_value(
+        transaction: Option<&Value>,
+        user_errors: Vec<Value>,
+    ) -> Value {
+        json!({
+            "storeCreditAccountTransaction": transaction.cloned().unwrap_or(Value::Null),
+            "userErrors": user_errors
+        })
+    }
+
+    fn b2b_record_references_company(record: &Value, company_id: &str) -> bool {
+        Self::b2b_value_contains_company_id(record.get("purchasingEntity"), company_id)
+            || Self::b2b_value_contains_company_id(
+                record
+                    .get("order")
+                    .and_then(|order| order.get("purchasingEntity")),
+                company_id,
+            )
+            || Self::b2b_value_contains_company_id(record.get("purchasingCompany"), company_id)
+    }
+
+    fn b2b_value_contains_company_id(value: Option<&Value>, company_id: &str) -> bool {
+        let Some(value) = value else {
+            return false;
+        };
+        if value["companyId"].as_str() == Some(company_id)
+            || value["company"]["id"].as_str() == Some(company_id)
+            || value["company"].as_str() == Some(company_id)
+        {
+            return true;
+        }
+        if let Some(object) = value.as_object() {
+            return object
+                .values()
+                .any(|nested| Self::b2b_value_contains_company_id(Some(nested), company_id));
+        }
+        if let Some(values) = value.as_array() {
+            return values
+                .iter()
+                .any(|nested| Self::b2b_value_contains_company_id(Some(nested), company_id));
+        }
+        false
+    }
+
+    fn b2b_location_has_store_credit_balance(location: &Value) -> bool {
+        location["storeCreditAccount"]["balance"]["amount"]
+            .as_str()
+            .and_then(|amount| amount.parse::<f64>().ok())
+            .is_some_and(|amount| amount > 0.0)
     }
 
     pub(in crate::proxy) fn b2b_contact_role_response(
@@ -1265,7 +1569,23 @@ impl DraftProxy {
         };
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         if let Some(name) = resolved_string_field(&input, "name") {
-            location["name"] = json!(name);
+            let stripped = b2b_strip_html_tags(&name);
+            if stripped.trim().is_empty() {
+                return (
+                    b2b_company_location_payload(
+                        None,
+                        vec![b2b_company_user_error(
+                            vec!["input", "name"],
+                            "Name can't be blank",
+                            "BLANK",
+                            None,
+                        )],
+                    ),
+                    "failed",
+                    Vec::new(),
+                );
+            }
+            location["name"] = json!(stripped);
         }
         self.store
             .staged
@@ -1594,6 +1914,27 @@ impl DraftProxy {
         }
     }
 
+    pub(in crate::proxy) fn b2b_company_node_for_id(&self, id: &str) -> Option<Value> {
+        self.store
+            .staged
+            .b2b_companies
+            .get(id)
+            .and_then(|_| self.b2b_company_materialized(id))
+            .or_else(|| {
+                self.store
+                    .staged
+                    .b2b_locations
+                    .get(id)
+                    .and_then(|location| {
+                        location
+                            .get("companyId")
+                            .and_then(Value::as_str)
+                            .or_else(|| location["company"]["id"].as_str())
+                    })
+                    .and_then(|company_id| self.b2b_company_materialized(company_id))
+            })
+    }
+
     fn b2b_company_address_materialized(&self, address_id: &str) -> Option<Value> {
         self.store
             .staged
@@ -1789,7 +2130,19 @@ impl DraftProxy {
     ) -> String {
         let id = synthetic_shopify_gid("CompanyLocation", self.store.staged.next_b2b_company_id);
         self.store.staged.next_b2b_company_id += 1;
-        let name = resolved_string_field(input, "name").unwrap_or_else(|| "HQ".to_string());
+        let fallback_name = self
+            .store
+            .staged
+            .b2b_companies
+            .get(company_id)
+            .and_then(|company| company.get("name"))
+            .and_then(Value::as_str)
+            .unwrap_or("HQ")
+            .to_string();
+        let name = resolved_string_field(input, "name")
+            .map(|name| b2b_strip_html_tags(&name))
+            .filter(|name| !name.trim().is_empty())
+            .unwrap_or(fallback_name);
         let billing_address = resolved_object_field(input, "billingAddress")
             .map(|address| b2b_company_address_json(&id, &address))
             .unwrap_or(Value::Null);
@@ -1797,6 +2150,7 @@ impl DraftProxy {
             "id": id,
             "companyId": company_id,
             "name": name,
+            "note": resolved_string_field(input, "note").map(Value::String).unwrap_or(Value::Null),
             "phone": resolved_string_field(input, "phone").map(Value::String).unwrap_or(Value::Null),
             "billingAddress": billing_address,
             "taxSettings": {

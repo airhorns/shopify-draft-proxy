@@ -310,6 +310,109 @@ fn b2b_location_buyer_experience_configuration_update_tail_helpers_port_old_glea
 }
 
 #[test]
+fn b2b_company_blank_names_reject_without_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let blank_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BBlankCompanyCreate($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "company": { "name": " <b>  </b> " } }),
+    ));
+    assert_eq!(blank_create.status, 200);
+    assert_eq!(
+        blank_create.body["data"]["companyCreate"],
+        json!({
+            "company": Value::Null,
+            "userErrors": [{
+                "field": ["input", "company", "name"],
+                "message": "Name can't be blank",
+                "code": "BLANK"
+            }]
+        })
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BBlankCompanyUpdateSetup($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id name locations(first: 1) { nodes { id name } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "Original" } }),
+    ));
+    let company_id = create.body["data"]["companyCreate"]["company"]["id"].clone();
+    let location_id =
+        create.body["data"]["companyCreate"]["company"]["locations"]["nodes"][0]["id"].clone();
+
+    let blank_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BBlankCompanyUpdate($id: ID!, $input: CompanyInput!) {
+          companyUpdate(companyId: $id, input: $input) {
+            company { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": company_id, "input": { "name": "   " } }),
+    ));
+    assert_eq!(
+        blank_update.body["data"]["companyUpdate"],
+        json!({
+            "company": Value::Null,
+            "userErrors": [{
+                "field": ["input", "name"],
+                "message": "Name can't be blank",
+                "code": "BLANK"
+            }]
+        })
+    );
+
+    let read_after_blank_company = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BBlankCompanyRead($id: ID!) {
+          company(id: $id) { id name }
+        }
+        "#,
+        json!({ "id": company_id }),
+    ));
+    assert_eq!(
+        read_after_blank_company.body["data"]["company"]["name"],
+        json!("Original")
+    );
+
+    let blank_location_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BBlankLocationUpdate($id: ID!, $input: CompanyLocationUpdateInput!) {
+          companyLocationUpdate(companyLocationId: $id, input: $input) {
+            companyLocation { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": location_id, "input": { "name": "<i> </i>" } }),
+    ));
+    assert_eq!(
+        blank_location_update.body["data"]["companyLocationUpdate"],
+        json!({
+            "companyLocation": Value::Null,
+            "userErrors": [{
+                "field": ["input", "name"],
+                "message": "Name can't be blank",
+                "code": "BLANK"
+            }]
+        })
+    );
+}
+
+#[test]
 fn b2b_company_identity_validation_tail_helpers_port_old_gleam_tests() {
     let mut proxy = snapshot_proxy();
 
@@ -332,7 +435,7 @@ fn b2b_company_identity_validation_tail_helpers_port_old_gleam_tests() {
             "company": Value::Null,
             "userErrors": [{
                 "field": ["input", "company", "name"],
-                "message": "Company name is too long",
+                "message": "Name is too long (maximum is 255 characters)",
                 "code": "TOO_LONG",
                 "detail": Value::Null
             }]
@@ -503,6 +606,179 @@ fn b2b_company_identity_validation_tail_helpers_port_old_gleam_tests() {
             }]
         })
     );
+}
+
+#[test]
+fn b2b_company_delete_stages_cascade_and_preserves_commit_log() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BCompanyDeleteSetup($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company {
+              id
+              locations(first: 2) { nodes { id } }
+              mainContact { id }
+              contactRoles(first: 2) { nodes { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "Delete OK" } }),
+    ));
+    let company = &create.body["data"]["companyCreate"]["company"];
+    let company_id = company["id"].clone();
+    let location_id = company["locations"]["nodes"][0]["id"].clone();
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BCompanyDelete($id: ID!) {
+          companyDelete(id: $id) {
+            deletedCompanyId
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": company_id }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["companyDelete"],
+        json!({
+            "deletedCompanyId": company_id,
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BCompanyDeleteRead($companyId: ID!, $locationId: ID!) {
+          company(id: $companyId) { id name }
+          companyLocation(id: $locationId) { id name }
+        }
+        "#,
+        json!({ "companyId": company_id, "locationId": location_id }),
+    ));
+    assert_eq!(read.body["data"]["company"], Value::Null);
+    assert_eq!(read.body["data"]["companyLocation"], Value::Null);
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().expect("log entries");
+    let delete_entry = entries
+        .iter()
+        .find(|entry| entry["interpreted"]["primaryRootField"] == json!("companyDelete"))
+        .expect("companyDelete log entry");
+    assert_eq!(delete_entry["status"], json!("staged"));
+    assert_eq!(delete_entry["stagedResourceIds"], json!([company_id]));
+    assert!(delete_entry["rawBody"]
+        .as_str()
+        .is_some_and(|raw| { raw.contains("B2BCompanyDelete") && raw.contains("companyDelete") }));
+}
+
+#[test]
+fn b2b_companies_delete_mixes_blocked_deleted_and_unknown_ids() {
+    let mut proxy = snapshot_proxy();
+
+    let blocked = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BCompaniesDeleteBlockedSetup($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "Blocked" } }),
+    ));
+    let blocked_id = blocked.body["data"]["companyCreate"]["company"]["id"].clone();
+
+    let ok = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BCompaniesDeleteOkSetup($company: CompanyInput!) {
+          companyCreate(input: { company: $company }) {
+            company { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "company": { "name": "Delete OK" } }),
+    ));
+    let ok_id = ok.body["data"]["companyCreate"]["company"]["id"].clone();
+
+    let order = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BCompaniesDeleteOrderBlock($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) { order { id } userErrors { field message code } }
+        }
+        "#,
+        json!({ "order": {
+            "email": "order-customer-b2b@example.com",
+            "purchasingEntity": {
+                "purchasingCompany": { "companyId": blocked_id }
+            },
+            "lineItems": [{ "title": "Blocker", "quantity": 1 }]
+        }}),
+    ));
+    assert_eq!(order.body["data"]["orderCreate"]["userErrors"], json!([]));
+
+    let unknown_id = "gid://shopify/Company/999999";
+    let bulk = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BCompaniesDelete($ids: [ID!]!) {
+          companiesDelete(companyIds: $ids) {
+            deletedCompanyIds
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "ids": [blocked_id, ok_id, unknown_id] }),
+    ));
+    assert_eq!(bulk.status, 200);
+    assert_eq!(
+        bulk.body["data"]["companiesDelete"],
+        json!({
+            "deletedCompanyIds": [ok_id],
+            "userErrors": [
+                {
+                    "field": ["companyIds", "0"],
+                    "message": "Failed to delete the company.",
+                    "code": "FAILED_TO_DELETE"
+                },
+                {
+                    "field": ["companyIds", "2"],
+                    "message": "Resource requested does not exist.",
+                    "code": "RESOURCE_NOT_FOUND"
+                }
+            ]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BCompaniesDeleteRead($blocked: ID!, $deleted: ID!) {
+          blocked: company(id: $blocked) { id name }
+          deleted: company(id: $deleted) { id name }
+        }
+        "#,
+        json!({ "blocked": blocked_id, "deleted": ok_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["blocked"]["id"],
+        blocked.body["data"]["companyCreate"]["company"]["id"]
+    );
+    assert_eq!(read.body["data"]["deleted"], Value::Null);
+
+    let entries = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .expect("log entries")
+        .clone();
+    let bulk_entry = entries
+        .iter()
+        .find(|entry| entry["interpreted"]["primaryRootField"] == json!("companiesDelete"))
+        .expect("companiesDelete log entry");
+    assert_eq!(bulk_entry["status"], json!("staged"));
+    assert_eq!(bulk_entry["stagedResourceIds"], json!([ok_id]));
 }
 
 #[test]
