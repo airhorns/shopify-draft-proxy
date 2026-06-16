@@ -133,6 +133,8 @@ pub struct ProductVariantRecord {
     pub inventory_quantity: i64,
     pub selected_options: Vec<ProductVariantSelectedOption>,
     pub inventory_item: ProductVariantInventoryItem,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub media_ids: Vec<String>,
     pub extra_fields: BTreeMap<String, Value>,
 }
 
@@ -1090,6 +1092,16 @@ impl Store {
             .collect()
     }
 
+    fn product_media_by_id(&self, product_id: &str, media_id: &str) -> Option<Value> {
+        self.product_by_id(product_id).and_then(|product| {
+            product
+                .media
+                .iter()
+                .find(|media| media.get("id").and_then(Value::as_str) == Some(media_id))
+                .cloned()
+        })
+    }
+
     fn stage_product_variant(&mut self, variant: ProductVariantRecord) {
         self.staged
             .product_variants
@@ -1720,11 +1732,14 @@ mod store_tests {
             json!({
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": null,
-                "endCursor": null
+                "startCursor": "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic",
+                "endCursor": "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic"
             })
         );
-        assert_eq!(read.body["data"]["product"]["variants"]["nodes"], json!([]));
+        assert_eq!(
+            read.body["data"]["product"]["variants"]["nodes"],
+            json!([{ "id": "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic" }])
+        );
         assert_eq!(read.body["data"]["product"]["metafield"], Value::Null);
     }
 
@@ -1928,17 +1943,18 @@ mod store_tests {
         assert_eq!(read.status, 200);
         assert_eq!(read.body["data"]["product"]["id"], json!(product_id));
         assert_eq!(read.body["data"]["product"]["tracksInventory"], json!(true));
+        let updated_variant = read.body["data"]["product"]["variants"]["nodes"]
+            .as_array()
+            .and_then(|variants| {
+                variants
+                    .iter()
+                    .find(|variant| variant.get("id") == Some(&json!(variant_id)))
+            })
+            .expect("updated variant should be present in product variants");
+        assert_eq!(updated_variant["title"], json!("Store Red"));
+        assert_eq!(updated_variant["sku"], json!("STORE-RED"));
         assert_eq!(
-            read.body["data"]["product"]["variants"]["nodes"][0]["title"],
-            json!("Store Red")
-        );
-        assert_eq!(
-            read.body["data"]["product"]["variants"]["nodes"][0]["sku"],
-            json!("STORE-RED")
-        );
-        assert_eq!(
-            read.body["data"]["product"]["variants"]["nodes"][0]["inventoryItem"]
-                ["requiresShipping"],
+            updated_variant["inventoryItem"]["requiresShipping"],
             json!(false)
         );
         assert_eq!(

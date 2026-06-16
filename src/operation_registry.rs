@@ -241,6 +241,8 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("productVariantCreate", CapabilityDomain::Products),
     local_mutation("productVariantUpdate", CapabilityDomain::Products),
     local_mutation("productVariantDelete", CapabilityDomain::Products),
+    local_mutation("productVariantAppendMedia", CapabilityDomain::Products),
+    local_mutation("productVariantDetachMedia", CapabilityDomain::Products),
     local_mutation("tagsAdd", CapabilityDomain::Products),
     local_mutation("tagsRemove", CapabilityDomain::Products),
     local_mutation("metafieldsSet", CapabilityDomain::Products),
