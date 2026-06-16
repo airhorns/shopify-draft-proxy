@@ -1,4 +1,4 @@
-mutation DiscountRedeemCodeBulkLiveAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) {
+mutation BulkAddLive($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) {
   discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {
     bulkCreation {
       done

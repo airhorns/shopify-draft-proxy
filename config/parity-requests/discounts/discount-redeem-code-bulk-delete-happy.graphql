@@ -1,4 +1,4 @@
-mutation DiscountRedeemCodeBulkDeleteHappy($discountId: ID!, $ids: [ID!]!) {
+mutation BulkDelete($discountId: ID!, $ids: [ID!]!) {
   happy: discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $ids) {
     job {
       id
