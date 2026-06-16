@@ -85,7 +85,7 @@
         "capturePath": "$.disabledLocaleRemove.registerAfterDisable.response.data.translationsRegister",
         "proxyPath": "$.data.translationsRegister",
         "upstreamCapturePath": null,
-        "selectedPaths": ["$.translations", "$.userErrors[0].field", "$.userErrors[0].code"],
+        "selectedPaths": ["$.translations", "$.userErrors[0].field", "$.userErrors[0].code", "$.userErrors[0].message"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
           "apiVersion": "2026-04",
@@ -106,5 +106,5 @@
       }
     ]
   },
-  "notes": "Live Admin GraphQL 2026-04 capture proves translationsRemove does not validate unknown translation keys or currently-disabled locales, and translationsRegister rejects both currently-disabled locales and the shop primary locale with TranslationUserError codes. Message strings are intentionally not compared for those validation branches."
+  "notes": "Live Admin GraphQL 2026-04 capture proves translationsRemove does not validate unknown translation keys or currently-disabled locales, and translationsRegister rejects both currently-disabled locales and the shop primary locale with TranslationUserError codes. The disabled-locale register target strict-compares Shopify's invalid-locale message text."
 }
