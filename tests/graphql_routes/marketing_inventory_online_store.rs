@@ -5694,7 +5694,7 @@ fn media_file_create_top_level_input_errors_do_not_stage_or_log() {
 }
 
 #[test]
-fn media_file_update_validates_field_precedence_and_aggregates_missing_ids() {
+fn media_file_update_validates_core_bucket_ordering() {
     let mut proxy = snapshot_proxy();
     let mutation = r#"
         mutation MediaFileUpdateValidation($files: [FileUpdateInput!]!) {
@@ -5704,25 +5704,45 @@ fn media_file_update_validates_field_precedence_and_aggregates_missing_ids() {
           }
         }
     "#;
+    let long_alt = "a".repeat(513);
 
-    let source_conflict = proxy.process_request(json_graphql_request(
+    let missing_with_source_conflict = proxy.process_request(json_graphql_request(
         mutation,
         json!({"files": [{"id": "gid://shopify/MediaImage/404", "originalSource": "https://cdn.example.com/source.png", "previewImageSource": "https://cdn.example.com/preview.png"}]}),
     ));
     assert_eq!(
-        source_conflict.body["data"]["fileUpdate"],
-        json!({"files": [], "userErrors": [
-            {
-                "field": ["files", "0", "previewImageSource"],
-                "message": "Cannot update the preview image and image at the same time because they are one and the same.",
-                "code": "INVALID"
-            },
-            {
-                "field": ["files", "0", "originalSource"],
-                "message": "Cannot update the preview image and image at the same time because they are one and the same.",
-                "code": "INVALID"
-            }
-        ]})
+        missing_with_source_conflict.body["data"]["fileUpdate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files"],
+            "message": "File id [\"gid://shopify/MediaImage/404\"] does not exist.",
+            "code": "FILE_DOES_NOT_EXIST"
+        }]})
+    );
+
+    let missing_with_long_alt = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"id": "gid://shopify/MediaImage/404", "alt": long_alt.clone()}]}),
+    ));
+    assert_eq!(
+        missing_with_long_alt.body["data"]["fileUpdate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files"],
+            "message": "File id [\"gid://shopify/MediaImage/404\"] does not exist.",
+            "code": "FILE_DOES_NOT_EXIST"
+        }]})
+    );
+
+    let missing_with_source_version = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"id": "gid://shopify/MediaImage/404", "originalSource": "https://cdn.example.com/source.png", "revertToVersionId": "gid://shopify/FileVersion/9"}]}),
+    ));
+    assert_eq!(
+        missing_with_source_version.body["data"]["fileUpdate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files"],
+            "message": "File id [\"gid://shopify/MediaImage/404\"] does not exist.",
+            "code": "FILE_DOES_NOT_EXIST"
+        }]})
     );
 
     let missing = proxy.process_request(json_graphql_request(
@@ -5738,6 +5758,78 @@ fn media_file_update_validates_field_precedence_and_aggregates_missing_ids() {
             "field": ["files"],
             "message": "File ids [\"gid://shopify/MediaImage/404\", \"gid://shopify/MediaImage/405\"] do not exist.",
             "code": "FILE_DOES_NOT_EXIST"
+        }]})
+    );
+
+    let create_non_ready = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MediaFileCreateForUpdateValidation($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) { files { id fileStatus } userErrors { code } }
+        }
+        "#,
+        json!({"files": [{"originalSource": "https://cdn.example.com/non-ready.png", "contentType": "IMAGE"}]}),
+    ));
+    let non_ready_id = create_non_ready.body["data"]["fileCreate"]["files"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let non_ready_with_source_conflict = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"id": non_ready_id, "alt": long_alt, "originalSource": "https://cdn.example.com/source.png", "previewImageSource": "https://cdn.example.com/preview.png"}]}),
+    ));
+    assert_eq!(
+        non_ready_with_source_conflict.body["data"]["fileUpdate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files"],
+            "message": "Non-ready files cannot be updated.",
+            "code": "NON_READY_STATE"
+        }]})
+    );
+
+    let ready_source_conflict = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"id": "gid://shopify/MediaImage/43688017887538", "originalSource": "https://cdn.example.com/source.png", "previewImageSource": "https://cdn.example.com/preview.png"}]}),
+    ));
+    assert_eq!(
+        ready_source_conflict.body["data"]["fileUpdate"],
+        json!({"files": [], "userErrors": [
+            {
+                "field": ["files", "0", "previewImageSource"],
+                "message": "Cannot update the preview image and image at the same time because they are one and the same.",
+                "code": "INVALID"
+            },
+            {
+                "field": ["files", "0", "originalSource"],
+                "message": "Cannot update the preview image and image at the same time because they are one and the same.",
+                "code": "INVALID"
+            }
+        ]})
+    );
+
+    let unsupported_source_before_version_conflict = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"id": "gid://shopify/ExternalVideo/43688017953074", "originalSource": "https://cdn.example.com/source.mp4", "revertToVersionId": "gid://shopify/FileVersion/9"}]}),
+    ));
+    assert_eq!(
+        unsupported_source_before_version_conflict.body["data"]["fileUpdate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files", "0", "originalSource"],
+            "message": "Updating the original source is not supported for this media type.",
+            "code": "INVALID"
+        }]})
+    );
+
+    let ready_source_version_conflict = proxy.process_request(json_graphql_request(
+        mutation,
+        json!({"files": [{"id": "gid://shopify/MediaImage/43688017887538", "originalSource": "https://cdn.example.com/source.png", "revertToVersionId": "gid://shopify/FileVersion/9"}]}),
+    ));
+    assert_eq!(
+        ready_source_version_conflict.body["data"]["fileUpdate"],
+        json!({"files": [], "userErrors": [{
+            "field": ["files", "0"],
+            "message": "Specify either a source or revertToVersionId, not both.",
+            "code": "CANNOT_SPECIFY_SOURCE_AND_VERSION_ID"
         }]})
     );
 }

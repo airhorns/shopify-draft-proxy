@@ -1,0 +1,186 @@
+{
+  "capturedAt": "2026-06-16T06:42:33.316Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "media-file-update-validation-ordering",
+  "setup": {
+    "nonReadyCreate": {
+      "variables": {
+        "files": [
+          {
+            "contentType": "IMAGE",
+            "filename": "validation-ordering-non-ready-1781592152860.jpg",
+            "originalSource": "https://placehold.co/600x400.jpg",
+            "alt": "Validation ordering non-ready image"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileCreate": {
+            "files": [
+              {
+                "id": "gid://shopify/MediaImage/43892207878450",
+                "__typename": "MediaImage",
+                "alt": "Validation ordering non-ready image",
+                "createdAt": "2026-06-16T06:42:32Z",
+                "fileStatus": "UPLOADED",
+                "image": null,
+                "preview": {
+                  "image": null
+                }
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 23,
+            "actualQueryCost": 23,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1977,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "missingLongAlt": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/MediaImage/999999999997",
+            "alt": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileUpdate": {
+            "files": [],
+            "userErrors": [
+              {
+                "field": ["files"],
+                "message": "File id [\"gid://shopify/MediaImage/999999999997\"] does not exist.",
+                "code": "FILE_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "nonReadySimultaneous": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/MediaImage/43892207878450",
+            "originalSource": "https://placehold.co/801x601.jpg",
+            "previewImageSource": "https://placehold.co/321x241.jpg"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileUpdate": {
+            "files": [],
+            "userErrors": [
+              {
+                "field": ["files"],
+                "message": "Non-ready files cannot be updated.",
+                "code": "NON_READY_STATE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "missingSimultaneous": {
+      "variables": {
+        "files": [
+          {
+            "id": "gid://shopify/MediaImage/999999999997",
+            "originalSource": "https://placehold.co/800x600.jpg",
+            "previewImageSource": "https://placehold.co/320x240.jpg"
+          }
+        ]
+      },
+      "response": {
+        "data": {
+          "fileUpdate": {
+            "files": [],
+            "userErrors": [
+              {
+                "field": ["files"],
+                "message": "File id [\"gid://shopify/MediaImage/999999999997\"] does not exist.",
+                "code": "FILE_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [],
+  "notes": "Public Admin GraphQL 2026-04 does not expose FileUpdateInput.revertToVersionId, so source/version conflict ordering remains covered by runtime tests and endpoint documentation rather than live public-schema capture.",
+  "cleanup": {
+    "variables": {
+      "fileIds": ["gid://shopify/MediaImage/43892207878450"]
+    },
+    "response": {
+      "data": {
+        "fileDelete": {
+          "deletedFileIds": ["gid://shopify/MediaImage/43892207878450"],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1981,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  }
+}

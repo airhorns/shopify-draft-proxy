@@ -646,16 +646,16 @@ impl DraftProxy {
                 "fileUpdate",
             ));
         }
-        let field_errors = inputs
+        let required_field_errors = inputs
             .iter()
             .enumerate()
-            .flat_map(|(index, input)| validate_file_update_input_fields(input, index))
+            .filter_map(|(index, input)| validate_file_update_required_fields(input, index))
             .collect::<Vec<_>>();
-        if !field_errors.is_empty() {
+        if !required_field_errors.is_empty() {
             return MutationOutcome::response(media_file_update_error_response(
                 &response_key,
                 &payload_selection,
-                field_errors,
+                required_field_errors,
             ));
         }
 
@@ -698,6 +698,32 @@ impl DraftProxy {
             ));
         }
 
+        let post_readiness_field_errors = inputs
+            .iter()
+            .enumerate()
+            .flat_map(|(index, input)| validate_file_update_post_readiness_fields(input, index))
+            .collect::<Vec<_>>();
+        if !post_readiness_field_errors.is_empty() {
+            return MutationOutcome::response(media_file_update_error_response(
+                &response_key,
+                &payload_selection,
+                post_readiness_field_errors,
+            ));
+        }
+
+        let ready_source_errors = inputs
+            .iter()
+            .enumerate()
+            .flat_map(|(index, input)| validate_file_update_ready_source_fields(input, index))
+            .collect::<Vec<_>>();
+        if !ready_source_errors.is_empty() {
+            return MutationOutcome::response(media_file_update_error_response(
+                &response_key,
+                &payload_selection,
+                ready_source_errors,
+            ));
+        }
+
         let target_errors = inputs
             .iter()
             .enumerate()
@@ -708,6 +734,19 @@ impl DraftProxy {
                 &response_key,
                 &payload_selection,
                 target_errors,
+            ));
+        }
+
+        let source_version_errors = inputs
+            .iter()
+            .enumerate()
+            .filter_map(|(index, input)| file_update_source_version_conflict(input, index))
+            .collect::<Vec<_>>();
+        if !source_version_errors.is_empty() {
+            return MutationOutcome::response(media_file_update_error_response(
+                &response_key,
+                &payload_selection,
+                source_version_errors,
             ));
         }
 
@@ -4596,21 +4635,28 @@ fn validate_file_create_input(
     None
 }
 
-fn validate_file_update_input_fields(
+fn validate_file_update_required_fields(
     input: &BTreeMap<String, ResolvedValue>,
     index: usize,
-) -> Vec<Value> {
-    let mut errors = Vec::new();
+) -> Option<Value> {
     if resolved_string_field(input, "id")
         .filter(|value| !value.is_empty())
         .is_none()
     {
-        errors.push(json!({
+        return Some(json!({
             "field": ["files", index.to_string(), "id"],
             "message": "File id is required",
             "code": "REQUIRED"
         }));
     }
+    None
+}
+
+fn validate_file_update_post_readiness_fields(
+    input: &BTreeMap<String, ResolvedValue>,
+    index: usize,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
     if let Some(alt) = resolved_string_field(input, "alt") {
         if alt.chars().count() > 512 {
             errors.push(json!({
@@ -4631,6 +4677,14 @@ fn validate_file_update_input_fields(
             }
         }
     }
+    errors
+}
+
+fn validate_file_update_ready_source_fields(
+    input: &BTreeMap<String, ResolvedValue>,
+    index: usize,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
     let original = resolved_string_field(input, "originalSource").filter(|value| !value.is_empty());
     let preview =
         resolved_string_field(input, "previewImageSource").filter(|value| !value.is_empty());
@@ -4648,18 +4702,28 @@ fn validate_file_update_input_fields(
             "code": "INVALID"
         }));
     }
+    errors
+}
+
+fn file_update_source_version_conflict(
+    input: &BTreeMap<String, ResolvedValue>,
+    index: usize,
+) -> Option<Value> {
+    let original = resolved_string_field(input, "originalSource").filter(|value| !value.is_empty());
+    let preview =
+        resolved_string_field(input, "previewImageSource").filter(|value| !value.is_empty());
     if (original.is_some() || preview.is_some())
         && resolved_string_field(input, "revertToVersionId")
             .filter(|value| !value.is_empty())
             .is_some()
     {
-        errors.push(json!({
+        return Some(json!({
             "field": ["files", index.to_string()],
             "message": "Specify either a source or revertToVersionId, not both.",
             "code": "CANNOT_SPECIFY_SOURCE_AND_VERSION_ID"
         }));
     }
-    errors
+    None
 }
 
 fn media_file_update_error_response(

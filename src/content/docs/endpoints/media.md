@@ -154,8 +154,15 @@ Local staged mutations:
   with comma-joined GIDs. `fileUpdate` missing IDs also aggregate into one
   `FILE_DOES_NOT_EXIST` entry on `["files"]`, but Shopify 2026-04 interpolates
   the id list as a quoted array string such as `["gid://...", "gid://..."]`.
-  Non-ready `fileUpdate` inputs collapse to one `NON_READY_STATE` entry with
-  Shopify's generic `Non-ready files cannot be updated.` message.
+  Missing IDs preempt alt-length and source-conflict validation. Non-ready
+  `fileUpdate` inputs collapse to one `NON_READY_STATE` entry with Shopify's
+  generic `Non-ready files cannot be updated.` message, and non-ready files
+  preempt the ready-file-only `originalSource`/`previewImageSource` conflict.
+  Ready-file target checks then run before the source plus
+  `revertToVersionId` conflict. The public Admin schemas currently checked
+  through 2026-04 do not expose `FileUpdateInput.revertToVersionId`, so the
+  source/version conflict message remains tied to existing internal evidence
+  rather than a public live cassette.
 - In LiveHybrid mode, `fileUpdate` may issue narrow reads before validation: product reads hydrate referenced products, media-version reads validate `revertToVersionId` ownership, and file reads hydrate existing READY Shopify file records needed for local validation/staging. Supported mutation handling still stages locally and does not write upstream at runtime.
 - In Snapshot mode, `fileUpdate.revertToVersionId` existence validation is skipped when the version is not already known through LiveHybrid hydration. The public Admin GraphQL schemas currently checked through 2026-04 and unstable do not expose `FileUpdateInput.revertToVersionId`, so checked-in live conformance can prove the reference-target branch but the version-id branch remains covered by deterministic LiveHybrid cassette tests and internal Shopify behavior notes. When a supplied version is known, the proxy returns a stable `UNSUPPORTED` userError instead of silently succeeding because local media-version rollback snapshots are not modeled yet.
 - `fileDelete` marks files deleted in local state so downstream reads and product media references can observe the deletion. In LiveHybrid mode, deletes of product-owned media ids may first hydrate the owning product/media relationship from upstream so the local delete can remove that media node from downstream `product.media` reads. The payload's `deletedFileIds` are rebuilt from the local record's actual Files API type (`MediaImage`, `Video`, `GenericFile`, etc.) rather than echoing a caller-supplied alias GID unchanged.

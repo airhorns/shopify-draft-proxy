@@ -1,0 +1,62 @@
+{
+  "scenarioId": "media-file-update-validation-ordering",
+  "operationNames": ["fileCreate", "fileUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-update-validation-ordering.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-update-validation-branches-create.graphql",
+    "variablesCapturePath": "$.setup.nonReadyCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured public Admin GraphQL 2026-04 fileUpdate validation ordering for missing id plus over-length alt, non-ready id plus simultaneous originalSource/previewImageSource, and missing id plus simultaneous originalSource/previewImageSource. Shopify resolves missing files before field/source validation and returns NON_READY_STATE before ready-file-only simultaneous source validation. Public 2026-04 does not expose FileUpdateInput.revertToVersionId, so source/version conflict ordering remains covered by runtime tests and endpoint documentation rather than live public-schema capture.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-id-preempts-long-alt",
+        "capturePath": "$.cases.missingLongAlt.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-update-validation-branches-update.graphql",
+          "variablesCapturePath": "$.cases.missingLongAlt.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "non-ready-preempts-simultaneous-source",
+        "capturePath": "$.cases.nonReadySimultaneous.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-update-validation-branches-update.graphql",
+          "variables": {
+            "files": [
+              {
+                "id": {
+                  "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+                },
+                "originalSource": "https://placehold.co/801x601.jpg",
+                "previewImageSource": "https://placehold.co/321x241.jpg"
+              }
+            ]
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "missing-id-preempts-simultaneous-source",
+        "capturePath": "$.cases.missingSimultaneous.response.data.fileUpdate",
+        "proxyPath": "$.data.fileUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-update-validation-branches-update.graphql",
+          "variablesCapturePath": "$.cases.missingSimultaneous.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}
