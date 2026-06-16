@@ -596,8 +596,23 @@ pub(in crate::proxy) fn market_record_from_input(
     handle: &str,
     region_codes: &[String],
 ) -> Value {
-    let status = resolved_string_field(input, "status").unwrap_or_else(|| "ACTIVE".to_string());
+    // Defaults match Gleam market_data (serializers.gleam:226): status falls
+    // back to ACTIVE only when enabled is explicitly true, otherwise DRAFT;
+    // enabled falls back to status==ACTIVE; type is REGION when any region
+    // input is present, else NONE.
+    let status = resolved_string_field(input, "status").unwrap_or_else(|| {
+        if resolved_bool_field(input, "enabled") == Some(true) {
+            "ACTIVE".to_string()
+        } else {
+            "DRAFT".to_string()
+        }
+    });
     let enabled = resolved_bool_field(input, "enabled").unwrap_or(status == "ACTIVE");
+    let market_type = if region_codes.is_empty() {
+        "NONE"
+    } else {
+        "REGION"
+    };
     let region_nodes = region_codes
         .iter()
         .map(|code| json!({"code": code}))
@@ -608,6 +623,7 @@ pub(in crate::proxy) fn market_record_from_input(
         "handle": handle,
         "status": status,
         "enabled": enabled,
+        "type": market_type,
         "priceInclusions": market_price_inclusions(input),
         "currencySettings": market_currency_settings_json(input),
         "regionCodes": region_codes,
