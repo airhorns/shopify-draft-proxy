@@ -78,6 +78,67 @@ fn read_definition(proxy: &mut DraftProxy, namespace: &str, key: &str) -> Value 
         .clone()
 }
 
+fn create_definition_for_resource_limit(
+    proxy: &mut DraftProxy,
+    owner_type: &str,
+    namespace: &str,
+    key: &str,
+) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+        mutation MetafieldDefinitionCreateForResourceLimit($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id namespace key ownerType }
+            userErrors { field message code }
+          }
+        }
+        "#,
+            json!({
+                "definition": {
+                    "ownerType": owner_type,
+                    "namespace": namespace,
+                    "key": key,
+                    "name": format!("Resource limit {key}"),
+                    "type": "single_line_text_field"
+                }
+            }),
+        ))
+        .body["data"]["metafieldDefinitionCreate"]
+        .clone()
+}
+
+fn create_app_definition_for_resource_limit(
+    proxy: &mut DraftProxy,
+    api_client_id: &str,
+    key: &str,
+) -> Value {
+    let mut request = json_graphql_request(
+        r#"
+        mutation MetafieldDefinitionCreateForAppResourceLimit($definition: MetafieldDefinitionInput!) {
+          metafieldDefinitionCreate(definition: $definition) {
+            createdDefinition { id namespace key ownerType }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "definition": {
+                "ownerType": "PRODUCT",
+                "namespace": "$app:resource_limit",
+                "key": key,
+                "name": format!("App resource limit {key}"),
+                "type": "single_line_text_field"
+            }
+        }),
+    );
+    request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        api_client_id.to_string(),
+    );
+    proxy.process_request(request).body["data"]["metafieldDefinitionCreate"].clone()
+}
+
 fn update_definition_pin(proxy: &mut DraftProxy, namespace: &str, key: &str) -> Value {
     proxy.process_request(json_graphql_request(
         r#"
@@ -105,7 +166,7 @@ fn standard_enable_pin(proxy: &mut DraftProxy) -> Value {
         r#"
         mutation StandardMetafieldDefinitionEnablePinLimit($ownerType: MetafieldOwnerType!, $id: ID!) {
           standardMetafieldDefinitionEnable(ownerType: $ownerType, id: $id, pin: true) {
-            createdDefinition { id namespace key pinnedPosition }
+            createdDefinition { id namespace key pinnedPosition __shopifyDraftProxyStandardTemplateId }
             userErrors { field message code }
           }
         }
@@ -362,6 +423,133 @@ fn metafield_definition_pin_limit_is_fifty_for_pin_create_update_and_standard_en
     assert_eq!(
         over_cap_standard["userErrors"][0]["code"],
         json!("PINNED_LIMIT_REACHED")
+    );
+}
+
+#[test]
+fn metafield_definition_create_resource_type_limit_is_scoped_by_owner_and_app_namespace() {
+    let mut proxy = snapshot_proxy();
+
+    for index in 0..256 {
+        let created = create_definition_for_resource_limit(
+            &mut proxy,
+            "PRODUCT",
+            "resource_limit_merchant",
+            &format!("key_{index:03}"),
+        );
+        assert_eq!(created["userErrors"], json!([]));
+    }
+
+    let over_limit = create_definition_for_resource_limit(
+        &mut proxy,
+        "PRODUCT",
+        "resource_limit_merchant",
+        "key_256",
+    );
+    assert_eq!(over_limit["createdDefinition"], Value::Null);
+    assert_eq!(
+        over_limit["userErrors"],
+        json!([{
+            "field": ["definition"],
+            "message": "You can only have 256 definitions per resource type.",
+            "code": "RESOURCE_TYPE_LIMIT_EXCEEDED"
+        }])
+    );
+
+    let read_rejected = proxy.process_request(json_graphql_request(
+        r#"
+        query RejectedMetafieldDefinitionRead($identifier: MetafieldDefinitionIdentifierInput!) {
+          metafieldDefinition(identifier: $identifier) { id }
+        }
+        "#,
+        json!({"identifier": {"ownerType": "PRODUCT", "namespace": "resource_limit_merchant", "key": "key_256"}}),
+    ));
+    assert_eq!(
+        read_rejected.body["data"]["metafieldDefinition"],
+        Value::Null
+    );
+
+    let customer_created = create_definition_for_resource_limit(
+        &mut proxy,
+        "CUSTOMER",
+        "resource_limit_merchant",
+        "customer_key",
+    );
+    assert_eq!(customer_created["userErrors"], json!([]));
+
+    let app_one_created = create_definition_for_resource_limit(
+        &mut proxy,
+        "PRODUCT",
+        "app--111--resource_limit",
+        "app_one_key",
+    );
+    assert_eq!(app_one_created["userErrors"], json!([]));
+
+    for index in 0..256 {
+        let created = create_definition_for_resource_limit(
+            &mut proxy,
+            "PRODUCT",
+            "app--222--resource_limit",
+            &format!("key_{index:03}"),
+        );
+        assert_eq!(created["userErrors"], json!([]));
+    }
+    let over_app_limit = create_definition_for_resource_limit(
+        &mut proxy,
+        "PRODUCT",
+        "app--222--resource_limit",
+        "key_256",
+    );
+    assert_eq!(over_app_limit["createdDefinition"], Value::Null);
+    assert_eq!(
+        over_app_limit["userErrors"][0]["code"],
+        json!("RESOURCE_TYPE_LIMIT_EXCEEDED")
+    );
+
+    let app_one_default_namespace_created =
+        create_definition_for_resource_limit(&mut proxy, "PRODUCT", "app--111", "default_key");
+    assert_eq!(app_one_default_namespace_created["userErrors"], json!([]));
+
+    let app_three_created =
+        create_app_definition_for_resource_limit(&mut proxy, "333", "app_three_key");
+    assert_eq!(app_three_created["userErrors"], json!([]));
+    assert_eq!(
+        app_three_created["createdDefinition"]["namespace"],
+        json!("app--333--resource_limit")
+    );
+
+    let standard_enabled = standard_enable_pin(&mut proxy);
+    assert_eq!(standard_enabled["userErrors"], json!([]));
+    assert_eq!(
+        standard_enabled["createdDefinition"]["namespace"],
+        json!("descriptors")
+    );
+    assert_eq!(
+        standard_enabled["createdDefinition"].get("__shopifyDraftProxyStandardTemplateId"),
+        None
+    );
+
+    let mut standard_exclusion_proxy = snapshot_proxy();
+    let standard_first = standard_enable_pin(&mut standard_exclusion_proxy);
+    assert_eq!(standard_first["userErrors"], json!([]));
+    for index in 0..256 {
+        let created = create_definition_for_resource_limit(
+            &mut standard_exclusion_proxy,
+            "PRODUCT",
+            "resource_limit_after_standard",
+            &format!("key_{index:03}"),
+        );
+        assert_eq!(created["userErrors"], json!([]));
+    }
+    let standard_exclusion_over_limit = create_definition_for_resource_limit(
+        &mut standard_exclusion_proxy,
+        "PRODUCT",
+        "resource_limit_after_standard",
+        "key_256",
+    );
+    assert_eq!(
+        standard_exclusion_over_limit["userErrors"][0]["code"],
+        json!("RESOURCE_TYPE_LIMIT_EXCEEDED")
     );
 }
 
