@@ -64,25 +64,17 @@ The registry-only mutation roots are:
 - `fulfillmentEventCreate`
 - `fulfillmentTrackingInfoUpdate`
 - `fulfillmentCancel`
-- `fulfillmentOrderAcceptCancellationRequest`
-- `fulfillmentOrderAcceptFulfillmentRequest`
 - `fulfillmentOrderCancel`
 - `fulfillmentOrderClose`
 - `fulfillmentOrderHold`
 - `fulfillmentOrderLineItemsPreparedForPickup`
-- `fulfillmentOrderMerge`
 - `fulfillmentOrderMove`
 - `fulfillmentOrderOpen`
-- `fulfillmentOrderRejectCancellationRequest`
-- `fulfillmentOrderRejectFulfillmentRequest`
 - `fulfillmentOrderReleaseHold`
 - `fulfillmentOrderReportProgress`
 - `fulfillmentOrderReschedule`
 - `fulfillmentOrdersReroute`
 - `fulfillmentOrdersSetFulfillmentDeadline`
-- `fulfillmentOrderSplit`
-- `fulfillmentOrderSubmitCancellationRequest`
-- `fulfillmentOrderSubmitFulfillmentRequest`
 - `fulfillmentConstraintRuleCreate`
 - `fulfillmentConstraintRuleDelete`
 - `fulfillmentConstraintRuleUpdate`
@@ -135,10 +127,21 @@ stable synthetic IDs for parity replay.
 
 Fulfillment and fulfillment-order slices cover fixture-backed top-level reads,
 detail/event reads, hold/release, move, open/report-progress, close,
-reschedule guardrails, request/cancellation request transitions, split, merge,
-deadline setting, assigned-order filtering, and selected validation branches.
-These slices operate on local order-backed fulfillment records and are not a
-general fulfillment-service execution engine.
+reschedule guardrails, deadline setting, assigned-order filtering, and selected
+validation branches. Store-backed local staging now covers
+`fulfillmentOrderSubmitFulfillmentRequest`,
+`fulfillmentOrderAcceptFulfillmentRequest`,
+`fulfillmentOrderRejectFulfillmentRequest`,
+`fulfillmentOrderSubmitCancellationRequest`,
+`fulfillmentOrderAcceptCancellationRequest`,
+`fulfillmentOrderRejectCancellationRequest`, `fulfillmentOrderSplit`, and
+`fulfillmentOrderMerge` against fulfillment orders present on staged or
+hydrated local orders. Request-status transitions, merchant request records,
+split-off remaining fulfillment orders, and merged line-item quantities are
+written into the local order graph and are visible through `fulfillmentOrder`,
+`fulfillmentOrders`, `assignedFulfillmentOrders`, and nested
+`Order.fulfillmentOrders` reads. These slices operate on local order-backed
+fulfillment records and are not a general fulfillment-service execution engine.
 
 Delivery settings and delivery promise settings are read-only in the captured
 empty/no-feature branch. Delivery profiles have fixture-backed read and bounded
