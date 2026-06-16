@@ -2632,6 +2632,39 @@ impl DraftProxy {
                 }
                 "orderEditBegin" => {
                     let order_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    let order = self.store.staged.orders.get(&order_id);
+                    if order.is_none() {
+                        return Some(json!({
+                            "data": {
+                                field.response_key: selected_json(
+                                    &json!({
+                                        "calculatedOrder": Value::Null,
+                                        "userErrors": [{
+                                            "field": ["id"],
+                                            "message": "The order does not exist."
+                                        }]
+                                    }),
+                                    &field.selection
+                                )
+                            }
+                        }));
+                    }
+                    if order.is_some_and(order_edit_order_is_not_editable) {
+                        return Some(json!({
+                            "data": {
+                                field.response_key: selected_json(
+                                    &json!({
+                                        "calculatedOrder": Value::Null,
+                                        "userErrors": [{
+                                            "field": ["base"],
+                                            "message": "not_editable"
+                                        }]
+                                    }),
+                                    &field.selection
+                                )
+                            }
+                        }));
+                    }
                     let calculated = json!({
                         "id": "gid://shopify/CalculatedOrder/7",
                         "originalOrder": { "id": order_id },
