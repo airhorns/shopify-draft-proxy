@@ -2049,7 +2049,7 @@ pub(in crate::proxy) fn payment_terms_update_value(
         )),
         "gid://shopify/PaymentTerms/channel-policy-update" => Some(payment_terms_user_error(
             Value::Null,
-            "Cannot create payment terms on an Order where the sales channel does not allow payment terms.",
+            "Cannot set payment terms for orders placed on this channel.",
             "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
         )),
         _ => payment_terms_validation_error(&attrs, "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"),

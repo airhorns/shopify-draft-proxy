@@ -2840,8 +2840,12 @@ fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
         json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/channel-policy-update", "paymentTermsAttributes": net_attrs.clone() } }),
     ));
     assert_eq!(
-        channel_policy_update.body["data"]["paymentTermsUpdate"]["userErrors"][0]["message"],
-        json!("Cannot create payment terms on an Order where the sales channel does not allow payment terms.")
+        channel_policy_update.body["data"]["paymentTermsUpdate"]["userErrors"][0],
+        json!({
+            "field": Value::Null,
+            "message": "Cannot set payment terms for orders placed on this channel.",
+            "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
+        })
     );
 
     let draft_update = proxy.process_request(json_graphql_request(
