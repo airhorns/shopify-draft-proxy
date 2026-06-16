@@ -1523,6 +1523,7 @@
         "ownerType": "PRODUCT",
         "namespace": "metafield_definition_pin_moyouov1"
       },
+      "query": "\n            query MetafieldDefinitionsHydrateByNamespace($ownerType: MetafieldOwnerType!, $namespace: String!) {\n              metafieldDefinitions(ownerType: $ownerType, first: 250, namespace: $namespace, sortKey: PINNED_POSITION) {\n                nodes {\n                  id\n                  name\n                  namespace\n                  key\n                  ownerType\n                  type { name category }\n                  description\n                  validations { name value }\n                  access { admin storefront customerAccount }\n                  capabilities {\n                    adminFilterable { enabled eligible status }\n                    smartCollectionCondition { enabled eligible }\n                    uniqueValues { enabled eligible }\n                  }\n                  constraints {\n                    key\n                    values(first: 50) {\n                      nodes { value }\n                      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n                    }\n                  }\n                  pinnedPosition\n                  validationStatus\n                }\n              }\n            }\n        ",
       "response": {
         "status": 200,
         "body": {
