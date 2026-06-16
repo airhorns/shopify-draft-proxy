@@ -306,11 +306,20 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
         'hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration' ||
       call.query ===
         'recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration';
-    const isSynthesizedOperationCassette = call.query?.startsWith('hand-synthesized ') ?? false;
     const canMatchSynthesizedNodeQuery = isSyntheticNodeCassette && /\bnode(?:s)?\s*\(/u.test(query);
+    const draftOrderHydrationMatchers: Record<string, RegExp> = {
+      OrdersDraftOrderCustomerHydrate: /\bcustomer\s*\(/u,
+      OrdersDraftOrderHydrate: /\bdraftOrder\s*\(/u,
+      OrdersDraftOrderVariantHydrate: /\bproductVariant\s*\(/u,
+      OrdersOrderHydrate: /\border\s*\(/u,
+    };
+    const canMatchDraftOrderHydration =
+      (call.query?.startsWith('hand-synthesized from checked-in') ?? false) &&
+      call.operationName === operationName &&
+      (draftOrderHydrationMatchers[operationName]?.test(query) ?? false);
     return (
       variablesMatch &&
-      ((isSynthesizedOperationCassette && call.operationName === operationName) ||
+      (canMatchDraftOrderHydration ||
         canMatchSynthesizedNodeQuery ||
         parsed['query'] === call.query ||
         (call.query === undefined && call.operationName === operationName && operationName.length > 0))
