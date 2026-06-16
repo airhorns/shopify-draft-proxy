@@ -156,10 +156,16 @@ impl DraftProxy {
             return ok_json(json!({ "errors": schema_input_errors }));
         }
 
-        if matches!(
-            root_field,
-            "customerCreate" | "companyCreate" | "companyAssignCustomerAsContact"
-        ) {
+        if matches!(root_field, "customerCreate" | "companyCreate")
+            || (root_field == "companyAssignCustomerAsContact"
+                && !resolved_string_arg(
+                    &root_field_arguments(&query, &variables).unwrap_or_default(),
+                    "companyId",
+                )
+                .is_some_and(|company_id| {
+                    self.store.staged.b2b_companies.contains_key(&company_id)
+                }))
+        {
             if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
                 return ok_json(data);
             }
@@ -186,6 +192,16 @@ impl DraftProxy {
         }
 
         if let Some(response) = self.b2b_location_buyer_experience_tail_helper_response(
+            request,
+            &query,
+            &variables,
+            operation.operation_type,
+            &operation.root_fields,
+        ) {
+            return response;
+        }
+
+        if let Some(response) = self.b2b_contact_role_response(
             request,
             &query,
             &variables,
@@ -230,7 +246,8 @@ impl DraftProxy {
             return response;
         }
 
-        if let Some(data) = self.remaining_order_local_data(root_field, &query, &variables) {
+        if let Some(data) = self.remaining_order_local_data(request, root_field, &query, &variables)
+        {
             return ok_json(data);
         }
 
@@ -1223,7 +1240,8 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "customerCreate"
-            && is_local_customer_create_document(&query, &variables)
+            && (is_local_customer_create_document(&query, &variables)
+                || self.has_b2b_contact_state())
         {
             return self.customer_create(&query, &variables, request);
         }
@@ -2379,6 +2397,38 @@ impl DraftProxy {
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
                 }
+            }
+            (CapabilityDomain::B2b, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+            {
+                self.b2b_contact_role_response(
+                    request,
+                    &query,
+                    &variables,
+                    operation.operation_type,
+                    &operation.root_fields,
+                )
+                .unwrap_or_else(|| (self.upstream_transport)(request.clone()))
+            }
+            (CapabilityDomain::B2b, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+            {
+                self.b2b_contact_role_response(
+                    request,
+                    &query,
+                    &variables,
+                    operation.operation_type,
+                    &operation.root_fields,
+                )
+                .unwrap_or_else(|| {
+                    json_error(
+                        501,
+                        &format!(
+                            "No Rust B2B stage-locally dispatcher implemented for root field: {}",
+                            root_field
+                        ),
+                    )
+                })
             }
             (CapabilityDomain::Unknown, CapabilityExecution::Passthrough) => self
                 .dispatch_unknown_passthrough_or_legacy_error(
