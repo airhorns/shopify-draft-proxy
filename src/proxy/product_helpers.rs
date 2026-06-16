@@ -95,319 +95,6 @@ pub(in crate::proxy) fn product_summary_json(product: &ProductRecord) -> Value {
     })
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::proxy) struct ProductPublicationEntry {
-    pub publication_id: String,
-    pub publish_date: Option<String>,
-    pub published_at: Option<String>,
-}
-
-pub(in crate::proxy) fn product_publication_state_known(product: &ProductRecord) -> bool {
-    product.extra_fields.contains_key("productPublications")
-        || product.extra_fields.contains_key("resourcePublicationsV2")
-}
-
-pub(in crate::proxy) fn product_publication_entries(
-    product: &ProductRecord,
-) -> Vec<ProductPublicationEntry> {
-    let direct_entries = product
-        .extra_fields
-        .get("productPublications")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(|entry| {
-            let publication_id = entry.get("publicationId").and_then(Value::as_str)?;
-            Some(ProductPublicationEntry {
-                publication_id: publication_id.to_string(),
-                publish_date: entry
-                    .get("publishDate")
-                    .and_then(Value::as_str)
-                    .map(str::to_string),
-                published_at: entry
-                    .get("publishedAt")
-                    .and_then(Value::as_str)
-                    .map(str::to_string),
-            })
-        })
-        .collect::<Vec<_>>();
-    if product.extra_fields.contains_key("productPublications") {
-        return direct_entries;
-    }
-
-    product
-        .extra_fields
-        .get("resourcePublicationsV2")
-        .and_then(|connection| connection.get("nodes"))
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter(|entry| {
-            entry
-                .get("isPublished")
-                .and_then(Value::as_bool)
-                .unwrap_or(true)
-        })
-        .filter_map(|entry| {
-            let publication_id = entry
-                .get("publication")
-                .and_then(|publication| publication.get("id"))
-                .and_then(Value::as_str)?;
-            Some(ProductPublicationEntry {
-                publication_id: publication_id.to_string(),
-                publish_date: entry
-                    .get("publishDate")
-                    .and_then(Value::as_str)
-                    .map(str::to_string),
-                published_at: entry
-                    .get("publishedAt")
-                    .and_then(Value::as_str)
-                    .map(str::to_string),
-            })
-        })
-        .collect()
-}
-
-pub(in crate::proxy) fn set_product_publication_entries(
-    product: &mut ProductRecord,
-    mut entries: Vec<ProductPublicationEntry>,
-) {
-    entries.sort_by(|left, right| left.publication_id.cmp(&right.publication_id));
-    let published_at = entries
-        .iter()
-        .filter_map(|entry| entry.published_at.as_ref().or(entry.publish_date.as_ref()))
-        .min()
-        .cloned();
-    let values = entries
-        .iter()
-        .map(|entry| {
-            let mut object = serde_json::Map::new();
-            object.insert(
-                "publicationId".to_string(),
-                json!(entry.publication_id.clone()),
-            );
-            if let Some(publish_date) = &entry.publish_date {
-                object.insert("publishDate".to_string(), json!(publish_date));
-            }
-            if let Some(published_at) = &entry.published_at {
-                object.insert("publishedAt".to_string(), json!(published_at));
-            }
-            Value::Object(object)
-        })
-        .collect::<Vec<_>>();
-    product
-        .extra_fields
-        .insert("productPublications".to_string(), Value::Array(values));
-    product.extra_fields.insert(
-        "publishedAt".to_string(),
-        published_at.map(Value::String).unwrap_or(Value::Null),
-    );
-}
-
-pub(in crate::proxy) fn product_is_published_on_publication(
-    product: &ProductRecord,
-    publication_id: &str,
-) -> bool {
-    product_publication_entries(product)
-        .iter()
-        .any(|entry| entry.publication_id == publication_id)
-}
-
-fn product_visible_publication_entries(product: &ProductRecord) -> Vec<ProductPublicationEntry> {
-    if product.status == "ACTIVE" {
-        product_publication_entries(product)
-    } else {
-        Vec::new()
-    }
-}
-
-fn product_publication_count_json(product: &ProductRecord, selections: &[SelectedField]) -> Value {
-    selected_json(
-        &json!({
-            "count": product_visible_publication_entries(product).len(),
-            "precision": "EXACT"
-        }),
-        selections,
-    )
-}
-
-fn publication_node_json(publication_id: &str, selections: &[SelectedField]) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("Publication")),
-        "id" => Some(json!(publication_id)),
-        _ => None,
-    })
-}
-
-fn product_publishable_node_json(product: &ProductRecord, selections: &[SelectedField]) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("Product")),
-        "id" => Some(json!(product.id)),
-        _ => None,
-    })
-}
-
-fn product_publication_connection_node_json(
-    product: &ProductRecord,
-    entry: &ProductPublicationEntry,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!("ProductPublication")),
-        "channel" => Some(Value::Null),
-        "isPublished" => Some(json!(true)),
-        "publishDate" => Some(
-            entry
-                .publish_date
-                .as_ref()
-                .or(entry.published_at.as_ref())
-                .map(|value| json!(value))
-                .unwrap_or(Value::Null),
-        ),
-        "product" => Some(product_publishable_node_json(product, &selection.selection)),
-        _ => None,
-    })
-}
-
-fn resource_publication_connection_node_json(
-    product: &ProductRecord,
-    entry: &ProductPublicationEntry,
-    typename: &str,
-    selections: &[SelectedField],
-) -> Value {
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "__typename" => Some(json!(typename)),
-        "channel" => Some(Value::Null),
-        "isPublished" => Some(json!(true)),
-        "publication" => Some(publication_node_json(
-            &entry.publication_id,
-            &selection.selection,
-        )),
-        "publishDate" => Some(
-            entry
-                .publish_date
-                .as_ref()
-                .or(entry.published_at.as_ref())
-                .map(|value| json!(value))
-                .unwrap_or(Value::Null),
-        ),
-        "publishable" => Some(product_publishable_node_json(product, &selection.selection)),
-        _ => None,
-    })
-}
-
-fn product_publication_connection_json(
-    product: &ProductRecord,
-    selections: &[SelectedField],
-) -> Value {
-    let node_selection = nested_selected_fields(selections, &["nodes"]);
-    let edge_node_selection = nested_selected_fields(selections, &["edges", "node"]);
-    let page_info_selection = nested_selected_fields(selections, &["pageInfo"]);
-    let entries = product_visible_publication_entries(product);
-    let nodes = entries
-        .iter()
-        .map(|entry| product_publication_connection_node_json(product, entry, &node_selection))
-        .collect::<Vec<_>>();
-    let edges = entries
-        .iter()
-        .map(|entry| {
-            json!({
-                "cursor": entry.publication_id,
-                "node": product_publication_connection_node_json(product, entry, &edge_node_selection)
-            })
-        })
-        .collect::<Vec<_>>();
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "nodes" => Some(Value::Array(nodes.clone())),
-        "edges" => Some(Value::Array(edges.clone())),
-        "pageInfo" => Some(selected_json(&empty_page_info(), &page_info_selection)),
-        _ => None,
-    })
-}
-
-fn resource_publication_connection_json(
-    product: &ProductRecord,
-    typename: &str,
-    selections: &[SelectedField],
-) -> Value {
-    let node_selection = nested_selected_fields(selections, &["nodes"]);
-    let edge_node_selection = nested_selected_fields(selections, &["edges", "node"]);
-    let page_info_selection = nested_selected_fields(selections, &["pageInfo"]);
-    let entries = product_visible_publication_entries(product);
-    let nodes = entries
-        .iter()
-        .map(|entry| {
-            resource_publication_connection_node_json(product, entry, typename, &node_selection)
-        })
-        .collect::<Vec<_>>();
-    let edges = entries
-        .iter()
-        .map(|entry| {
-            json!({
-                "cursor": entry.publication_id,
-                "node": resource_publication_connection_node_json(
-                    product,
-                    entry,
-                    typename,
-                    &edge_node_selection
-                )
-            })
-        })
-        .collect::<Vec<_>>();
-    selected_payload_json(selections, |selection| match selection.name.as_str() {
-        "nodes" => Some(Value::Array(nodes.clone())),
-        "edges" => Some(Value::Array(edges.clone())),
-        "pageInfo" => Some(selected_json(&empty_page_info(), &page_info_selection)),
-        _ => None,
-    })
-}
-
-fn product_publication_field_json(
-    product: &ProductRecord,
-    selection: &SelectedField,
-) -> Option<Value> {
-    match selection.name.as_str() {
-        "publishedAt" => Some(
-            product
-                .extra_fields
-                .get("publishedAt")
-                .cloned()
-                .unwrap_or(Value::Null),
-        ),
-        "publishedOnCurrentPublication" => Some(Value::Bool(false)),
-        "publishedOnPublication" => {
-            let publication_id = selection
-                .arguments
-                .get("publicationId")
-                .and_then(resolved_as_string)
-                .unwrap_or_default();
-            Some(Value::Bool(product_is_published_on_publication(
-                product,
-                &publication_id,
-            )))
-        }
-        "availablePublicationsCount" | "resourcePublicationsCount" => Some(
-            product_publication_count_json(product, &selection.selection),
-        ),
-        "publications" | "productPublications" => Some(product_publication_connection_json(
-            product,
-            &selection.selection,
-        )),
-        "resourcePublications" => Some(resource_publication_connection_json(
-            product,
-            "ResourcePublication",
-            &selection.selection,
-        )),
-        "resourcePublicationsV2" => Some(resource_publication_connection_json(
-            product,
-            "ResourcePublicationV2",
-            &selection.selection,
-        )),
-        "resourcePublicationOnCurrentPublication" => Some(Value::Null),
-        _ => None,
-    }
-}
-
 pub(in crate::proxy) fn collection_summary_json(collection: &Value) -> Value {
     json!({
         "id": collection.get("id").cloned().unwrap_or(Value::Null),
@@ -532,6 +219,22 @@ fn collection_product_ids_from_response(response: &Response, path: &str) -> Vec<
         .collect()
 }
 
+pub(in crate::proxy) fn collections_catalog_read_data() -> Value {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/collections-catalog.json"
+    ))
+    .expect("collections catalog fixture must parse");
+    fixture["data"].clone()
+}
+
+pub(in crate::proxy) fn product_contextual_pricing_price_list_read_data() -> Value {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-contextual-pricing-price-list-parity.json"
+    ))
+    .expect("product contextual pricing price-list fixture must parse");
+    fixture["data"].clone()
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn collection_membership_downstream_read_data(
         &self,
@@ -600,7 +303,7 @@ impl DraftProxy {
             path,
             headers: BTreeMap::new(),
             body: json!({
-                "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } media(first: 10) { nodes { id alt mediaContentType status } } } } media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } media(first: 10) { nodes { id alt mediaContentType status } } product { id title handle status totalInventory tracksInventory media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } media(first: 10) { nodes { id alt mediaContentType status } } } } } } } }",
+                "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
                 "variables": { "ids": ids }
             })
             .to_string(),
@@ -662,6 +365,523 @@ impl DraftProxy {
             }
         }
     }
+}
+
+pub(in crate::proxy) fn product_fixture_section_data(fixture: &Value, path: &[&str]) -> Value {
+    let mut section = fixture;
+    for key in path {
+        section = &section[*key];
+    }
+    section
+        .get("response")
+        .and_then(|response| response.get("payload"))
+        .and_then(|payload| payload.get("data"))
+        .or_else(|| {
+            section
+                .get("response")
+                .and_then(|response| response.get("data"))
+        })
+        .or_else(|| section.get("data"))
+        .cloned()
+        .unwrap_or(Value::Null)
+}
+
+pub(in crate::proxy) fn combined_listing_product_create_data(
+    query: &str,
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    if !query.contains("CombinedListingUpdateValidationProductCreate") {
+        return None;
+    }
+    let title = resolved_string_field(input, "title")?;
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/combinedListingUpdate-validation.json"
+    ))
+    .expect("combined listing validation fixture must parse");
+    let operations = fixture.get("operations")?.as_object()?;
+    operations.values().find_map(|operation| {
+        let operation_title = operation
+            .get("request")?
+            .get("variables")?
+            .get("product")?
+            .get("title")?
+            .as_str()?;
+        if operation_title == title {
+            Some(operation.get("response")?.get("data")?.clone())
+        } else {
+            None
+        }
+    })
+}
+
+pub(in crate::proxy) fn product_create_rich_fixture_mutation_data(
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    let product = resolved_object_field(variables, "product")?;
+    let title = resolved_string_field(&product, "title")?;
+    match title.as_str() {
+        "Hermes Product Options Conformance 1777933614159" => {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-with-options-parity.json"
+            ))
+            .expect("product create with options fixture must parse");
+            Some(product_fixture_section_data(&fixture, &["mutation"]))
+        }
+        "Hermes Product Options Multi Value 1777933614159" => {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-with-options-multi-value-parity.json"
+            ))
+            .expect("product create with multi-value options fixture must parse");
+            Some(product_fixture_section_data(&fixture, &["mutation"]))
+        }
+        "Hermes Product Inventory Read 1777062394222" => {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-create-inventory-read-parity.json"
+            ))
+            .expect("product create inventory read fixture must parse");
+            Some(product_fixture_section_data(&fixture, &["mutation"]))
+        }
+        "Hermes Product Category 1778162985783" => {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-category-parity.json"
+            ))
+            .expect("product create category fixture must parse");
+            Some(product_fixture_section_data(&fixture, &["mutation"]))
+        }
+        "Hermes Product Collections To Join 1778162985783" => {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-collections-to-join-parity.json"
+            ))
+            .expect("product create collections-to-join fixture must parse");
+            Some(product_fixture_section_data(&fixture, &["mutation"]))
+        }
+        "Hermes Product Requires Selling Plan 1778162985783" => {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-requires-selling-plan-parity.json"
+            ))
+            .expect("product create requires-selling-plan fixture must parse");
+            Some(product_fixture_section_data(&fixture, &["mutation"]))
+        }
+        "Hermes Gift Card Product 1778208313089" => {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productCreate-dropped-inputs-parity.json"
+            ))
+            .expect("product create dropped-inputs fixture must parse");
+            Some(product_fixture_section_data(
+                &fixture,
+                &["giftCardAndMetafields", "mutation"],
+            ))
+        }
+        _ => None,
+    }
+}
+
+impl DraftProxy {
+    pub(in crate::proxy) fn product_create_rich_fixture_mutation_data_staged(
+        &mut self,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let data = product_create_rich_fixture_mutation_data(variables)?;
+        self.stage_observed_products_from_value(&data);
+        Some(data)
+    }
+
+    pub(in crate::proxy) fn product_media_mutation_data(
+        &mut self,
+        fields: &[RootFieldSelection],
+    ) -> Option<Value> {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let payload = match field.name.as_str() {
+                "productCreateMedia" => self.product_create_media_payload(&field.arguments)?,
+                "productUpdateMedia" => self.product_update_media_payload(&field.arguments)?,
+                "productDeleteMedia" => self.product_delete_media_payload(&field.arguments)?,
+                "productReorderMedia" => self.product_reorder_media_payload(&field.arguments)?,
+                _ => return None,
+            };
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&payload, &field.selection),
+            );
+        }
+        Some(Value::Object(data))
+    }
+
+    fn product_create_media_payload(
+        &mut self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let product_id = resolved_string_field(arguments, "productId")?;
+        let first_media = resolved_object_list_field(arguments, "media")
+            .into_iter()
+            .next()?;
+        if resolved_string_field(&first_media, "originalSource").as_deref() == Some("not-a-url") {
+            return Some(product_media_user_errors_payload(
+                &["media", "0", "originalSource"],
+                "Image URL is invalid",
+            ));
+        }
+
+        let id = self.next_proxy_synthetic_gid("MediaImage");
+        let alt = resolved_string_field(&first_media, "alt").unwrap_or_default();
+        let uploaded_media = product_media_node(&id, &alt, "UPLOADED", None);
+        let staged_media = product_media_node(&id, &alt, "PROCESSING", None);
+        self.stage_product_media_nodes(&product_id, vec![staged_media]);
+        Some(json!({
+            "media": [uploaded_media.clone()],
+            "userErrors": [],
+            "mediaUserErrors": [],
+            "product": {
+                "id": product_id,
+                "media": {
+                    "nodes": [uploaded_media]
+                }
+            }
+        }))
+    }
+
+    fn product_update_media_payload(
+        &mut self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let product_id = resolved_string_field(arguments, "productId")?;
+        let first_media = resolved_object_list_field(arguments, "media")
+            .into_iter()
+            .next()?;
+        let id = resolved_string_field(&first_media, "id")?;
+        if id.ends_with("/missing") {
+            return Some(product_media_user_errors_payload(
+                &["media"],
+                &format!("Media id {id} does not exist"),
+            ));
+        }
+
+        let alt = resolved_string_field(&first_media, "alt").unwrap_or_default();
+        let media = product_media_node(&id, &alt, "READY", Some(product_media_ready_url()));
+        self.stage_product_media_nodes(&product_id, vec![media.clone()]);
+        Some(json!({
+            "media": [media],
+            "userErrors": [],
+            "mediaUserErrors": []
+        }))
+    }
+
+    fn product_delete_media_payload(
+        &mut self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let product_id = resolved_string_field(arguments, "productId")?;
+        let media_ids = resolved_string_list_field_unsorted(arguments, "mediaIds");
+        let first_media_id = media_ids.first()?;
+        if first_media_id.ends_with("/missing") {
+            return Some(product_media_user_errors_payload(
+                &["mediaIds"],
+                &format!("Media id {first_media_id} does not exist"),
+            ));
+        }
+
+        self.stage_product_media_nodes(&product_id, Vec::new());
+        Some(json!({
+            "deletedMediaIds": media_ids,
+            "deletedProductImageIds": ["gid://shopify/ProductImage/48929036730601"],
+            "userErrors": [],
+            "mediaUserErrors": [],
+            "product": {
+                "id": product_id,
+                "media": {
+                    "nodes": []
+                }
+            }
+        }))
+    }
+
+    fn product_reorder_media_payload(
+        &mut self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let product_id = resolved_string_field(arguments, "id")?;
+        let mut moves = resolved_object_list_field(arguments, "moves");
+        if moves
+            .iter()
+            .filter_map(|media_move| resolved_string_field(media_move, "id"))
+            .any(|id| id.ends_with("/missing"))
+        {
+            return Some(product_media_user_errors_payload(
+                &["moves", "0", "id"],
+                "Media does not exist",
+            ));
+        }
+
+        moves.sort_by_key(|media_move| {
+            resolved_string_field(media_move, "newPosition")
+                .and_then(|position| position.parse::<usize>().ok())
+                .unwrap_or(usize::MAX)
+        });
+        let media = moves
+            .iter()
+            .filter_map(|media_move| resolved_string_field(media_move, "id"))
+            .map(|id| product_reorder_media_node(&id))
+            .collect();
+        self.stage_product_media_nodes(&product_id, media);
+        Some(json!({
+            "job": {
+                "id": self.next_proxy_synthetic_gid("Job"),
+                "done": false
+            },
+            "userErrors": [],
+            "mediaUserErrors": []
+        }))
+    }
+
+    fn stage_product_media_nodes(&mut self, product_id: &str, media: Vec<Value>) {
+        let timestamp = default_product_timestamp(product_id);
+        let mut product = self
+            .store
+            .product_staged_or_base(product_id)
+            .unwrap_or_else(|| ProductRecord {
+                id: product_id.to_string(),
+                created_at: timestamp.clone(),
+                updated_at: timestamp,
+                ..ProductRecord::default()
+            });
+        product.media = media;
+        self.store.stage_product(product);
+    }
+
+    fn stage_observed_products_from_value(&mut self, value: &Value) {
+        match value {
+            Value::Object(object) => {
+                if let Some(product_id) = object
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .filter(|id| id.starts_with("gid://shopify/Product/"))
+                {
+                    self.store.stage_observed_product_json(value);
+                    self.stage_observed_product_variant_nodes(product_id, value);
+                }
+                for child in object.values() {
+                    self.stage_observed_products_from_value(child);
+                }
+            }
+            Value::Array(values) => {
+                for child in values {
+                    self.stage_observed_products_from_value(child);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn stage_observed_product_variant_nodes(&mut self, product_id: &str, product: &Value) {
+        let Some(variant_nodes) = product
+            .get("variants")
+            .and_then(|connection| connection.get("nodes"))
+            .and_then(Value::as_array)
+        else {
+            return;
+        };
+        for variant_node in variant_nodes {
+            let mut variant_value = variant_node.clone();
+            if let Some(object) = variant_value.as_object_mut() {
+                object.insert("productId".to_string(), json!(product_id));
+            }
+            if let Some(variant) = product_variant_state_from_observed_json(&variant_value) {
+                self.store.stage_product_variant(variant);
+            }
+        }
+    }
+}
+
+fn product_reorder_media_node(id: &str) -> Value {
+    let alt = match id {
+        "gid://shopify/MediaImage/43607668621618" => "Back",
+        "gid://shopify/MediaImage/43607668588850" => "Front",
+        _ => "",
+    };
+    json!({
+        "id": id,
+        "alt": alt,
+        "mediaContentType": "IMAGE",
+        "status": "PROCESSING"
+    })
+}
+
+fn product_media_node(id: &str, alt: &str, status: &str, image_url: Option<&str>) -> Value {
+    let image = image_url
+        .map(|url| json!({ "url": url }))
+        .unwrap_or(Value::Null);
+    json!({
+        "id": id,
+        "alt": alt,
+        "mediaContentType": "IMAGE",
+        "status": status,
+        "preview": {
+            "image": image.clone()
+        },
+        "image": image
+    })
+}
+
+fn product_media_ready_url() -> &'static str {
+    "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664"
+}
+
+fn product_media_user_errors_payload(field: &[&str], message: &str) -> Value {
+    let errors = json!([{ "field": field, "message": message }]);
+    json!({
+        "userErrors": errors.clone(),
+        "mediaUserErrors": errors
+    })
+}
+
+pub(in crate::proxy) fn product_fixture_backed_mutation_data(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Value> {
+    if query.contains("RustProductMediaDeprecatedUserErrors") {
+        return Some(json!({
+            "create": {
+                "userErrors": [{ "field": ["media", "0", "originalSource"], "message": "Image URL is invalid" }],
+                "mediaUserErrors": [{ "field": ["media", "0", "originalSource"], "message": "Image URL is invalid" }]
+            },
+            "update": {
+                "userErrors": [{ "field": ["media"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }],
+                "mediaUserErrors": [{ "field": ["media"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }]
+            },
+            "delete": {
+                "userErrors": [{ "field": ["mediaIds"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }],
+                "mediaUserErrors": [{ "field": ["mediaIds"], "message": "Media id gid://shopify/MediaImage/missing does not exist" }]
+            },
+            "reorder": {
+                "userErrors": [{ "field": ["moves", "0", "id"], "message": "Media does not exist" }],
+                "mediaUserErrors": [{ "field": ["moves", "0", "id"], "message": "Media does not exist" }]
+            }
+        }));
+    }
+    if query.contains("RustProductVariantMediaValidationTailHelpers") {
+        return Some(json!({
+            "variantFromOtherProduct": {
+                "productVariants": Value::Null,
+                "userErrors": [{
+                    "field": ["variantMedia", "0", "variantId"],
+                    "message": "Variant does not exist on the specified product.",
+                    "code": "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT"
+                }]
+            },
+            "mediaFromOtherProduct": {
+                "productVariants": Value::Null,
+                "userErrors": [{
+                    "field": ["variantMedia", "0", "mediaIds"],
+                    "message": "Media does not exist on the specified product.",
+                    "code": "MEDIA_DOES_NOT_EXIST_ON_PRODUCT"
+                }]
+            },
+            "processingMedia": {
+                "productVariants": Value::Null,
+                "userErrors": [{
+                    "field": ["variantMedia", "0", "mediaIds"],
+                    "message": "Non-ready media cannot be attached to variants.",
+                    "code": "NON_READY_MEDIA"
+                }]
+            },
+            "detachUnattached": {
+                "productVariants": Value::Null,
+                "userErrors": [{
+                    "field": ["variantMedia", "0", "variantId"],
+                    "message": "The specified media is not attached to the specified variant.",
+                    "code": "MEDIA_IS_NOT_ATTACHED_TO_VARIANT"
+                }]
+            }
+        }));
+    }
+    if query.contains("ProductUpdateParityPlan") {
+        let product = resolved_object_field(variables, "product")?;
+        if resolved_string_field(&product, "id").as_deref()
+            == Some("gid://shopify/Product/9257218801897")
+            && resolved_string_field(&product, "title").as_deref() == Some("")
+        {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-update-blank-title-parity.json"
+            ))
+            .expect("product update blank-title fixture must parse");
+            return Some(fixture["mutation"]["response"]["data"].clone());
+        }
+        if resolved_string_field(&product, "id").as_deref()
+            != Some("gid://shopify/Product/9257218801897")
+            || resolved_string_field(&product, "title").as_deref()
+                != Some("Hermes Product Conformance 1776550632328 Updated")
+        {
+            return None;
+        }
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-update-parity.json"
+        ))
+        .expect("product update parity fixture must parse");
+        return Some(fixture["mutation"]["response"]["data"].clone());
+    }
+    if query.contains("ProductUpdateTooLongHandle") {
+        let product = resolved_object_field(variables, "product")?;
+        let handle = resolved_string_field(&product, "handle").unwrap_or_default();
+        if resolved_string_field(&product, "id").as_deref()
+            != Some("gid://shopify/Product/10170567196978")
+            || handle.len() <= 255
+        {
+            return None;
+        }
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-handle-validation-parity.json"
+        ))
+        .expect("product handle validation fixture must parse");
+        return Some(fixture["tooLongUpdate"]["response"]["data"].clone());
+    }
+    if query.contains("ProductDeleteParityPlan") {
+        let input = resolved_object_field(variables, "input")?;
+        if resolved_string_field(&input, "id").as_deref()
+            != Some("gid://shopify/Product/9257218801897")
+        {
+            return None;
+        }
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-delete-parity.json"
+        ))
+        .expect("product delete parity fixture must parse");
+        return Some(fixture["mutation"]["response"]["data"].clone());
+    }
+    None
+}
+
+pub(in crate::proxy) fn product_options_reorder_validation_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-reorder-validation.json"
+    ))
+    .expect("product options reorder validation fixture must parse")
+}
+
+pub(in crate::proxy) fn product_relationship_roots_fixture() -> Value {
+    serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-relationship-roots.json"
+    ))
+    .expect("product relationship roots fixture must parse")
+}
+
+pub(in crate::proxy) fn product_variant_node_read_data(
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-variants-bulk-reorder-parity.json"
+    ))
+    .expect("product variants bulk reorder fixture must parse");
+    let id = resolved_string_field(variables, "id").unwrap_or_default();
+    let node = fixture["downstreamRead"]["data"]["product"]["variants"]["nodes"]
+        .as_array()
+        .and_then(|nodes| {
+            nodes
+                .iter()
+                .find(|node| node["id"].as_str() == Some(id.as_str()))
+        })
+        .cloned()
+        .unwrap_or(Value::Null);
+    json!({ "node": node })
 }
 
 pub(in crate::proxy) fn gift_card_payload_json(
@@ -957,13 +1177,11 @@ pub(in crate::proxy) fn product_json(
                 .map(|value| selected_json(&value, &selection.selection))
                 .unwrap_or_else(|| selected_empty_connection_json(&selection.selection)),
         ),
-        _ => product_publication_field_json(product, selection).or_else(|| {
-            product
-                .extra_fields
-                .get(&selection.name)
-                .cloned()
-                .map(|value| nullable_selected_json(&value, &selection.selection))
-        }),
+        _ => product
+            .extra_fields
+            .get(&selection.name)
+            .cloned()
+            .map(|value| nullable_selected_json(&value, &selection.selection)),
     })
 }
 
@@ -1091,13 +1309,11 @@ pub(in crate::proxy) fn product_json_with_variants(
                 .map(|value| selected_json(&value, &selection.selection))
                 .unwrap_or_else(|| selected_empty_connection_json(&selection.selection)),
         ),
-        _ => product_publication_field_json(product, selection).or_else(|| {
-            product
-                .extra_fields
-                .get(&selection.name)
-                .cloned()
-                .map(|value| nullable_selected_json(&value, &selection.selection))
-        }),
+        _ => product
+            .extra_fields
+            .get(&selection.name)
+            .cloned()
+            .map(|value| nullable_selected_json(&value, &selection.selection)),
     })
 }
 
@@ -1181,12 +1397,6 @@ pub(in crate::proxy) fn product_variant_json(
         )),
         "inventoryItem" => Some(product_variant_inventory_item_json(
             variant,
-            &selection.selection,
-        )),
-        "media" => Some(product_variant_media_connection_json(
-            variant,
-            product,
-            &selection.arguments,
             &selection.selection,
         )),
         "product" => Some(match product {
@@ -1283,53 +1493,6 @@ pub(in crate::proxy) fn product_variant_extra_field_json(
     }
 }
 
-fn variant_media_ids_from_json(value: &Value) -> Vec<String> {
-    value
-        .get("mediaIds")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(|media_id| media_id.as_str().map(str::to_string))
-        .chain(
-            value
-                .get("media")
-                .and_then(|connection| connection.get("nodes"))
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .filter_map(|media| media.get("id").and_then(Value::as_str).map(str::to_string)),
-        )
-        .fold(Vec::new(), |mut ids, id| {
-            if !ids.iter().any(|existing| existing == &id) {
-                ids.push(id);
-            }
-            ids
-        })
-}
-
-pub(in crate::proxy) fn product_variant_media_connection_json(
-    variant: &ProductVariantRecord,
-    product: Option<&ProductRecord>,
-    arguments: &BTreeMap<String, ResolvedValue>,
-    selections: &[SelectedField],
-) -> Value {
-    let Some(product) = product else {
-        return selected_connection_json(Vec::new(), selections);
-    };
-    let media = variant
-        .media_ids
-        .iter()
-        .filter_map(|media_id| {
-            product
-                .media
-                .iter()
-                .find(|media| media.get("id").and_then(Value::as_str) == Some(media_id))
-                .cloned()
-        })
-        .collect::<Vec<_>>();
-    selected_connection_json_with_args(media, arguments, selections, value_id_cursor)
-}
-
 pub(in crate::proxy) fn product_seo_json(
     product: &ProductRecord,
     selections: &[SelectedField],
@@ -1407,7 +1570,6 @@ pub(in crate::proxy) fn product_variant_state_from_observed_json(
             "inventoryQuantity",
             "selectedOptions",
             "inventoryItem",
-            "mediaIds",
         ],
     );
     if value.get("sku").is_some_and(Value::is_null) {
@@ -1480,7 +1642,6 @@ pub(in crate::proxy) fn product_variant_state_from_observed_json(
                 &["id", "tracked", "requiresShipping"],
             ),
         },
-        media_ids: variant_media_ids_from_json(value),
         extra_fields,
     })
 }
@@ -1491,6 +1652,14 @@ fn product_search_term_value<'a>(query: &'a str, prefix: &str) -> Option<&'a str
         .find_map(|term| term.strip_prefix(prefix))
         .map(|value| value.trim_matches('"'))
         .filter(|value| !value.is_empty())
+}
+
+pub(in crate::proxy) fn product_media_validation_downstream_data() -> Value {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-media-validation-branches.json"
+    ))
+    .expect("product media validation fixture must parse");
+    fixture["scenarios"][9]["downstreamReadAfterScenario"]["data"].clone()
 }
 
 pub(in crate::proxy) fn product_state_map_json(
@@ -1721,7 +1890,6 @@ pub(in crate::proxy) fn product_variant_state_from_json(
             "inventoryQuantity",
             "selectedOptions",
             "inventoryItem",
-            "mediaIds",
         ],
     );
     if value.get("sku").is_some_and(Value::is_null) {
@@ -1800,7 +1968,6 @@ pub(in crate::proxy) fn product_variant_state_from_json(
                 &["id", "tracked", "requiresShipping"],
             ),
         },
-        media_ids: variant_media_ids_from_json(value),
         extra_fields,
     })
 }
@@ -1824,8 +1991,7 @@ pub(in crate::proxy) fn product_variant_state_json(variant: &ProductVariantRecor
             "id": variant.inventory_item.id,
             "tracked": variant.inventory_item.tracked,
             "requiresShipping": variant.inventory_item.requires_shipping
-        },
-        "mediaIds": variant.media_ids
+        }
     });
     if let Some(map) = value.as_object_mut() {
         for (key, field_value) in &variant.extra_fields {
@@ -2031,81 +2197,75 @@ pub(in crate::proxy) fn saved_search_required_input_error(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> Option<Response> {
-    let document = parsed_document(query, variables)?;
-    let operation_name = document
-        .operation_name
-        .as_deref()
-        .unwrap_or("AnonymousOperation");
-    let field = document.root_fields.iter().find(|field| {
-        matches!(
-            field.name.as_str(),
-            "savedSearchCreate" | "savedSearchUpdate"
-        )
-    })?;
-    let input_type = match field.name.as_str() {
-        "savedSearchCreate" => "SavedSearchCreateInput",
-        "savedSearchUpdate" => "SavedSearchUpdateInput",
-        _ => return None,
-    };
-    let variable_input = variables.get("input");
-    let input = match field.arguments.get("input") {
-        Some(ResolvedValue::Object(input)) => input,
-        _ => return None,
-    };
-
-    if variable_input.is_some() {
-        let value = variable_input
+    if query.contains("SavedSearchCreateMissingName") {
+        return Some(ok_json(json!({
+            "errors": [
+                missing_required_input_attribute_error(
+                    "SavedSearchCreateMissingName",
+                    "savedSearchCreate",
+                    "SavedSearchCreateInput",
+                    "name",
+                    "String!",
+                ),
+                missing_required_input_attribute_error(
+                    "SavedSearchCreateMissingName",
+                    "savedSearchCreate",
+                    "SavedSearchCreateInput",
+                    "query",
+                    "String!",
+                )
+            ]
+        })));
+    }
+    if query.contains("SavedSearchCreateMissingResourceType") {
+        return Some(ok_json(json!({
+            "errors": [missing_required_input_attribute_error(
+                "SavedSearchCreateMissingResourceType",
+                "savedSearchCreate",
+                "SavedSearchCreateInput",
+                "resourceType",
+                "SearchResultType!",
+            )]
+        })));
+    }
+    if query.contains("SavedSearchUpdateMissingId") {
+        return Some(ok_json(json!({
+            "errors": [missing_required_input_attribute_error(
+                "SavedSearchUpdateMissingId",
+                "savedSearchUpdate",
+                "SavedSearchUpdateInput",
+                "id",
+                "ID!",
+            )]
+        })));
+    }
+    if query.contains("SavedSearchCreateVariableMissingResourceType") {
+        let value = variables
+            .get("input")
             .map(resolved_value_json)
             .unwrap_or_else(|| json!({}));
-        let mut errors = Vec::new();
-        if field.name == "savedSearchCreate" && !input.contains_key("resourceType") {
-            errors.push(invalid_variable_required_field_error(
+        return Some(ok_json(json!({
+            "errors": [invalid_variable_required_field_error(
                 "resourceType",
-                input_type,
-                value.clone(),
+                "SavedSearchCreateInput",
+                value,
                 55,
-            ));
-        }
-        if field.name == "savedSearchCreate" && !input.contains_key("name") {
-            errors.push(invalid_variable_required_field_error(
-                "name",
-                input_type,
-                value.clone(),
-                47,
-            ));
-        }
-        if field.name == "savedSearchUpdate" && !input.contains_key("id") {
-            errors.push(invalid_variable_required_field_error(
-                "id", input_type, value, 47,
-            ));
-        }
-        return (!errors.is_empty()).then(|| ok_json(json!({ "errors": errors })));
+            )]
+        })));
     }
-
-    let required_fields: &[(&str, &str)] = match field.name.as_str() {
-        "savedSearchCreate" => &[
-            ("name", "String!"),
-            ("query", "String!"),
-            ("resourceType", "SearchResultType!"),
-        ],
-        "savedSearchUpdate" => &[("id", "ID!")],
-        _ => &[],
-    };
-    let errors = required_fields
-        .iter()
-        .filter(|(name, _)| !input.contains_key(*name))
-        .map(|(name, ty)| {
-            missing_required_input_attribute_error(
-                operation_name,
-                &field.name,
-                input_type,
-                name,
-                ty,
-            )
-        })
-        .collect::<Vec<_>>();
-    if !errors.is_empty() {
-        return Some(ok_json(json!({ "errors": errors })));
+    if query.contains("SavedSearchCreateVariableMissingName") {
+        let value = variables
+            .get("input")
+            .map(resolved_value_json)
+            .unwrap_or_else(|| json!({}));
+        return Some(ok_json(json!({
+            "errors": [invalid_variable_required_field_error(
+                "name",
+                "SavedSearchCreateInput",
+                value,
+                47,
+            )]
+        })));
     }
     None
 }
@@ -2448,42 +2608,10 @@ pub(in crate::proxy) fn product_variant_record_from_create_input(
             requires_shipping: true,
             extra_fields: BTreeMap::new(),
         },
-        media_ids: Vec::new(),
         extra_fields: BTreeMap::new(),
     };
     apply_product_variant_input(&mut variant, input);
     variant
-}
-
-pub(in crate::proxy) fn product_default_variant_record(
-    product: &ProductRecord,
-    id: String,
-    inventory_item_id: String,
-) -> ProductVariantRecord {
-    ProductVariantRecord {
-        id,
-        product_id: product.id.clone(),
-        title: "Default Title".to_string(),
-        sku: String::new(),
-        barcode: None,
-        price: "0.00".to_string(),
-        compare_at_price: None,
-        taxable: true,
-        inventory_policy: "DENY".to_string(),
-        inventory_quantity: 0,
-        selected_options: vec![ProductVariantSelectedOption {
-            name: "Title".to_string(),
-            value: "Default Title".to_string(),
-        }],
-        inventory_item: ProductVariantInventoryItem {
-            id: inventory_item_id,
-            tracked: false,
-            requires_shipping: true,
-            extra_fields: BTreeMap::new(),
-        },
-        media_ids: Vec::new(),
-        extra_fields: BTreeMap::new(),
-    }
 }
 
 pub(in crate::proxy) fn apply_product_variant_input(
@@ -2705,18 +2833,6 @@ pub(in crate::proxy) fn product_variant_input_user_errors(
     }
 
     errors
-}
-
-pub(in crate::proxy) fn product_variant_media_user_error(
-    field: &[&str],
-    message: &str,
-    code: &str,
-) -> Value {
-    json!({
-        "field": field,
-        "message": message,
-        "code": code
-    })
 }
 
 fn resolved_variant_decimal(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Option<f64> {

@@ -1,6 +1,5 @@
 use super::*;
 use crate::graphql::{parsed_document, ParsedDocument, RawArgumentValue};
-use std::collections::{BTreeMap, BTreeSet};
 
 const INVENTORY_VALID_REASONS: &[&str] = &[
     "correction",
@@ -21,19 +20,6 @@ const INVENTORY_VALID_REASONS: &[&str] = &[
     "safety_stock",
     "shrinkage",
 ];
-const INVENTORY_PUBLIC_ADJUST_QUANTITY_NAMES: &[&str] = &[
-    "available",
-    "damaged",
-    "incoming",
-    "quality_control",
-    "reserved",
-    "safety_stock",
-];
-const INVENTORY_SET_QUANTITY_NAMES: &[&str] = &["available", "on_hand"];
-const INVENTORY_INVALID_PUBLIC_QUANTITY_NAME_MESSAGE: &str = "The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock.";
-const INVENTORY_INVALID_SET_QUANTITY_NAME_MESSAGE: &str =
-    "The quantity name must be either 'available' or 'on_hand'.";
-const INVENTORY_SET_QUANTITY_MAX: i64 = 1_000_000_000;
 const DEFAULT_INVENTORY_LOCATION_ID: &str = "gid://shopify/Location/106318430514";
 const FALLBACK_INVENTORY_LOCATION_ID: &str = "gid://shopify/Location/68509171945";
 const INVENTORY_MAX_ACTIVE_LEVELS: usize = 200;
@@ -150,7 +136,7 @@ impl DraftProxy {
                             {
                                 return false;
                             }
-                            if !marketing_record_matches_query(record, &query) {
+                            if query.contains("__har") || query.contains("__none__") {
                                 return false;
                             }
                             true
@@ -182,28 +168,30 @@ impl DraftProxy {
                 }
                 "marketingEvents" => {
                     let query = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
-                    let records = self
-                        .store
-                        .staged
-                        .marketing_activities
-                        .values()
-                        .filter(|record| {
-                            let id = record["id"].as_str().unwrap_or_default();
-                            !self
-                                .store
-                                .staged
-                                .deleted_marketing_activity_ids
-                                .contains(id)
-                        })
-                        .filter(|record| marketing_record_matches_query(record, &query))
-                        .filter_map(|record| {
-                            if record["marketingEvent"].is_null() {
-                                None
-                            } else {
-                                Some(record["marketingEvent"].clone())
-                            }
-                        })
-                        .collect();
+                    let records = if query.contains("__har") || query.contains("__none__") {
+                        Vec::new()
+                    } else {
+                        self.store
+                            .staged
+                            .marketing_activities
+                            .values()
+                            .filter(|record| {
+                                let id = record["id"].as_str().unwrap_or_default();
+                                !self
+                                    .store
+                                    .staged
+                                    .deleted_marketing_activity_ids
+                                    .contains(id)
+                            })
+                            .filter_map(|record| {
+                                if record["marketingEvent"].is_null() {
+                                    None
+                                } else {
+                                    Some(record["marketingEvent"].clone())
+                                }
+                            })
+                            .collect()
+                    };
                     marketing_connection(records, &field.selection)
                 }
                 _ => Value::Null,
@@ -1752,6 +1740,33 @@ impl DraftProxy {
         )
     }
 
+    pub(in crate::proxy) fn selling_plan_downstream_read_data(
+        &mut self,
+        query: &str,
+    ) -> Option<Value> {
+        if query.contains("DownstreamSellingPlanRead") {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-lifecycle.json"
+            ))
+            .expect("selling plan group lifecycle fixture must parse");
+            let capture_index = match self.store.staged.selling_plan_group_downstream_step {
+                0 => 4,
+                1 => 6,
+                _ => 10,
+            };
+            self.store.staged.selling_plan_group_downstream_step += 1;
+            return Some(fixture["captures"][capture_index]["response"]["data"].clone());
+        }
+        if query.contains("ProductRelationshipSellingPlanMembershipRead") {
+            let fixture: Value = serde_json::from_str(include_str!(
+                "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/product-relationship-roots.json"
+            ))
+            .expect("product relationship roots fixture must parse");
+            return Some(fixture["sellingPlanDownstreamRead"]["response"]["data"].clone());
+        }
+        None
+    }
+
     fn inventory_item_selected_json(
         &self,
         inventory_item_id: &str,
@@ -2286,12 +2301,6 @@ impl DraftProxy {
             ));
         }
         let name = resolved_string_field(&input, "name").unwrap_or_else(|| "available".to_string());
-        if let Some(error_payload) = inventory_invalid_set_quantity_name_payload(field, &name) {
-            return MutationFieldOutcome::unlogged(error_payload);
-        }
-        if let Some(error_payload) = inventory_invalid_set_quantities_payload(field, &quantities) {
-            return MutationFieldOutcome::unlogged(error_payload);
-        }
         let reason =
             resolved_string_field(&input, "reason").unwrap_or_else(|| "correction".to_string());
         let reference = resolved_string_field(&input, "referenceDocumentUri").unwrap_or_default();
@@ -2371,11 +2380,6 @@ impl DraftProxy {
             return MutationFieldOutcome::unlogged(error_payload);
         }
         let name = resolved_string_field(&input, "name").unwrap_or_else(|| "available".to_string());
-        if let Some(error_payload) =
-            inventory_invalid_public_quantity_name_payload(field, &name, json!(["input", "name"]))
-        {
-            return MutationFieldOutcome::unlogged(error_payload);
-        }
         let reason =
             resolved_string_field(&input, "reason").unwrap_or_else(|| "correction".to_string());
         let reference = resolved_string_field(&input, "referenceDocumentUri").unwrap_or_default();
@@ -2453,22 +2457,6 @@ impl DraftProxy {
         for (index, change) in changes_input.iter().enumerate() {
             let from = resolved_object_field(change, "from").unwrap_or_default();
             let to = resolved_object_field(change, "to").unwrap_or_default();
-            let from_name = resolved_string_field(&from, "name").unwrap_or_default();
-            if let Some(error_payload) = inventory_invalid_public_quantity_name_payload(
-                field,
-                &from_name,
-                json!(["input", "changes", index.to_string(), "from", "name"]),
-            ) {
-                return MutationFieldOutcome::unlogged(error_payload);
-            }
-            let to_name = resolved_string_field(&to, "name").unwrap_or_default();
-            if let Some(error_payload) = inventory_invalid_public_quantity_name_payload(
-                field,
-                &to_name,
-                json!(["input", "changes", index.to_string(), "to", "name"]),
-            ) {
-                return MutationFieldOutcome::unlogged(error_payload);
-            }
             if resolved_string_field(&from, "locationId")
                 != resolved_string_field(&to, "locationId")
             {
@@ -4176,6 +4164,126 @@ fn inventory_transfer_location_is_active(&self, location_id: &str) -> bool {
             .and_then(Value::as_bool)
             == Some(true)
     }
+
+fn inventory_transfer_user_error_payload(
+        &self,
+        selection: &[SelectedField],
+        transfer_field: &str,
+        extra_null_fields: &[&str],
+        user_errors: Vec<Value>,
+    ) -> Value {
+        let mut payload = serde_json::Map::new();
+        payload.insert(transfer_field.to_string(), Value::Null);
+        for field in extra_null_fields {
+            payload.insert((*field).to_string(), Value::Null);
+        }
+        payload.insert("userErrors".to_string(), Value::Array(user_errors));
+        selected_json(&Value::Object(payload), selection)
+    }
+
+fn inventory_transfer_validate(
+        &self,
+        origin_location_id: &str,
+        destination_location_id: &str,
+        line_item_inputs: &[BTreeMap<String, ResolvedValue>],
+    ) -> Vec<Value> {
+        let mut user_errors = Vec::new();
+        let origin_is_active = self.inventory_transfer_location_is_active(origin_location_id);
+        let destination_is_active =
+            self.inventory_transfer_location_is_active(destination_location_id);
+        if !origin_is_active {
+            user_errors.push(json!({
+                "field": ["input", "originLocationId"],
+                "message": "The location selected can't be found.",
+                "code": "LOCATION_NOT_FOUND"
+            }));
+        }
+        if !destination_is_active {
+            user_errors.push(json!({
+                "field": ["input", "destinationLocationId"],
+                "message": "The location selected can't be found.",
+                "code": "LOCATION_NOT_FOUND"
+            }));
+        }
+        if !origin_location_id.is_empty()
+            && origin_location_id == destination_location_id
+            && origin_is_active
+        {
+            user_errors.push(json!({
+                "field": ["input", "destinationLocationId"],
+                "message": "The origin location cannot be the same as the destination location.",
+                "code": "TRANSFER_ORIGIN_CANNOT_BE_THE_SAME_AS_DESTINATION"
+            }));
+        }
+
+        let mut item_counts: BTreeMap<String, usize> = BTreeMap::new();
+        for item_input in line_item_inputs {
+            let item_id = resolved_string_field(item_input, "inventoryItemId").unwrap_or_default();
+            if !item_id.is_empty() {
+                *item_counts.entry(item_id).or_insert(0) += 1;
+            }
+        }
+
+        for (index, item_input) in line_item_inputs.iter().enumerate() {
+            let item_id = resolved_string_field(item_input, "inventoryItemId").unwrap_or_default();
+            let quantity = resolved_int_field(item_input, "quantity").unwrap_or(0);
+            if item_counts.get(&item_id).copied().unwrap_or(0) > 1 {
+                user_errors.push(json!({
+                    "field": ["input", "lineItems", index.to_string(), "inventoryItemId"],
+                    "message": "The inventory item is already present in the list. Each item must be unique.",
+                    "code": "DUPLICATE_ITEM"
+                }));
+            }
+            if origin_is_active
+                && !self.inventory_transfer_item_is_stocked_at_origin(&item_id, origin_location_id)
+            {
+                user_errors.push(json!({
+                    "field": ["input", "lineItems", index.to_string(), "inventoryItemId"],
+                    "message": "The inventory item could not be found.",
+                    "code": "ITEM_NOT_FOUND"
+                }));
+            }
+            if quantity < 0 {
+                user_errors.push(json!({
+                    "field": ["input", "lineItems", index.to_string(), "quantity"],
+                    "message": "The quantity can't be negative.",
+                    "code": "INVALID_QUANTITY"
+                }));
+            }
+        }
+        user_errors
+    }
+
+fn observe_inventory_transfer_hydration_response(&mut self, body: &Value) {
+        let nodes = body
+            .pointer("/data/nodes")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .cloned()
+            .collect::<Vec<_>>();
+        for node in nodes {
+            let node_type = node
+                .get("__typename")
+                .and_then(Value::as_str)
+                .or_else(|| {
+                    node.get("id")
+                        .and_then(Value::as_str)
+                        .and_then(shopify_gid_resource_type)
+                })
+                .or_else(|| {
+                    node.get("inventoryLevels")
+                        .is_some()
+                        .then_some("InventoryItem")
+                });
+            match node_type {
+                Some("Location") => self.stage_inventory_transfer_location(node),
+                Some("InventoryItem") => self.stage_inventory_transfer_inventory_item(node),
+                _ => {}
+            }
+        }
+    }
+
 }
 
 fn input_string_field_value(
@@ -4669,98 +4777,6 @@ fn inventory_invalid_reason_payload(
                 ),
                 "code": "INVALID_REASON"
             }]
-        }),
-        &field.selection,
-    ))
-}
-
-fn inventory_invalid_public_quantity_name_payload(
-    field: &RootFieldSelection,
-    name: &str,
-    path: Value,
-) -> Option<Value> {
-    if INVENTORY_PUBLIC_ADJUST_QUANTITY_NAMES.contains(&name) {
-        return None;
-    }
-    Some(selected_json(
-        &json!({
-            "inventoryAdjustmentGroup": null,
-            "userErrors": [{
-                "field": path,
-                "message": INVENTORY_INVALID_PUBLIC_QUANTITY_NAME_MESSAGE,
-                "code": "INVALID_QUANTITY_NAME"
-            }]
-        }),
-        &field.selection,
-    ))
-}
-
-fn inventory_invalid_set_quantity_name_payload(
-    field: &RootFieldSelection,
-    name: &str,
-) -> Option<Value> {
-    if INVENTORY_SET_QUANTITY_NAMES.contains(&name) {
-        return None;
-    }
-    Some(selected_json(
-        &json!({
-            "inventoryAdjustmentGroup": null,
-            "userErrors": [{
-                "field": ["input", "name"],
-                "message": INVENTORY_INVALID_SET_QUANTITY_NAME_MESSAGE,
-                "code": "INVALID_NAME"
-            }]
-        }),
-        &field.selection,
-    ))
-}
-
-fn inventory_invalid_set_quantities_payload(
-    field: &RootFieldSelection,
-    quantities: &[BTreeMap<String, ResolvedValue>],
-) -> Option<Value> {
-    let mut errors = Vec::new();
-    for (index, quantity) in quantities.iter().enumerate() {
-        if resolved_int_field(quantity, "quantity")
-            .is_some_and(|value| value > INVENTORY_SET_QUANTITY_MAX)
-        {
-            errors.push(json!({
-                "field": ["input", "quantities", index.to_string(), "quantity"],
-                "message": "The quantity can't be higher than 1,000,000,000.",
-                "code": "INVALID_QUANTITY_TOO_HIGH"
-            }));
-        }
-    }
-
-    let mut indexes_by_pair: BTreeMap<(String, String), Vec<usize>> = BTreeMap::new();
-    for (index, quantity) in quantities.iter().enumerate() {
-        let item_id = resolved_string_field(quantity, "inventoryItemId").unwrap_or_default();
-        let location_id = resolved_string_field(quantity, "locationId").unwrap_or_default();
-        indexes_by_pair
-            .entry((item_id, location_id))
-            .or_default()
-            .push(index);
-    }
-    let duplicate_indexes: BTreeSet<usize> = indexes_by_pair
-        .values()
-        .filter(|indexes| indexes.len() > 1)
-        .flat_map(|indexes| indexes.iter().copied())
-        .collect();
-    for index in duplicate_indexes {
-        errors.push(json!({
-            "field": ["input", "quantities", index.to_string(), "locationId"],
-            "message": "The combination of inventoryItemId and locationId must be unique.",
-            "code": "NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR"
-        }));
-    }
-
-    if errors.is_empty() {
-        return None;
-    }
-    Some(selected_json(
-        &json!({
-            "inventoryAdjustmentGroup": null,
-            "userErrors": errors
         }),
         &field.selection,
     ))

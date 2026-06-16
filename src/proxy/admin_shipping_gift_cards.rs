@@ -30,7 +30,6 @@ query StorePropertiesPublishablePayloadShopHydrate($id: ID!) {
   }
 }
 "#;
-const APP_DOMAIN_SYNTHETIC_NOW: &str = "2026-04-28T02:10:00.000Z";
 
 const SHIPPING_FULFILLMENT_ORDER_HYDRATE_QUERY: &str = r#"
 query ShippingFulfillmentOrderHydrate($id: ID!) {
@@ -299,6 +298,63 @@ impl DraftProxy {
             data.insert(field.response_key.clone(), value);
         }
         Value::Object(data)
+    }
+
+    pub(in crate::proxy) fn app_node_read_data(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Option<Value> {
+        let mut data = serde_json::Map::new();
+        let mut handled = false;
+        for field in fields {
+            if field.name != "node" {
+                continue;
+            }
+            let id = field
+                .arguments
+                .get("id")
+                .and_then(resolved_as_string)
+                .unwrap_or_default();
+            let value = match id.as_str() {
+                "gid://shopify/AppInstallation/expected" if self.store.staged.app_uninstalled => {
+                    Value::Null
+                }
+                "gid://shopify/AppInstallation/expected" => current_app_installation_json(
+                    &self.store.staged.app_subscriptions,
+                    &self.store.staged.app_one_time_purchases,
+                    &self.store.staged.revoked_app_access_scopes,
+                    &field.selection,
+                ),
+                "gid://shopify/App/expected" => selected_json(&local_app_json(), &field.selection),
+                _ => {
+                    if let Some(subscription) = self.store.staged.app_subscriptions.get(&id) {
+                        let type_selection = selected_fields_named(
+                            &field.selection,
+                            &["__typename", "id", "status", "trialDays", "lineItems"],
+                        );
+                        selected_json(subscription, &type_selection)
+                    } else if let Some(purchase) = self.store.staged.app_one_time_purchases.get(&id)
+                    {
+                        let type_selection = selected_fields_named(
+                            &field.selection,
+                            &["id", "name", "status", "test", "price"],
+                        );
+                        selected_json(purchase, &type_selection)
+                    } else if let Some(usage_record) = self.find_staged_app_usage_record(&id) {
+                        let type_selection = selected_fields_named(
+                            &field.selection,
+                            &["id", "description", "price", "subscriptionLineItem"],
+                        );
+                        selected_json(&usage_record, &type_selection)
+                    } else {
+                        continue;
+                    }
+                }
+            };
+            handled = true;
+            data.insert(field.response_key.clone(), value);
+        }
+        handled.then_some(Value::Object(data))
     }
 
     pub(in crate::proxy) fn find_staged_app_usage_record(&self, id: &str) -> Option<Value> {
@@ -594,7 +650,7 @@ impl DraftProxy {
                         "code": "SUBSCRIPTION_NOT_ACTIVE"
                     })],
                 ),
-                Some(record) if !app_subscription_trial_is_active(record) => (
+                Some(_record) if query.contains("AppSubscriptionTrialExtendLocalLifecycle") => (
                     Value::Null,
                     vec![json!({
                         "field": ["id"],
@@ -1011,7 +1067,7 @@ impl DraftProxy {
                 "message": "The expires_in value must be greater than 0.",
                 "code": "NEGATIVE_EXPIRES_IN"
             }));
-        } else if delegate_expires_after_parent(request, expires_in) {
+        } else if query.contains("DelegateAccessTokenCreateExpiresAfterParent") {
             user_errors.push(json!({
                 "field": null,
                 "message": "The delegate token can't expire after the parent token.",
@@ -1029,9 +1085,7 @@ impl DraftProxy {
         }
 
         if !user_errors.is_empty() {
-            if user_errors.iter().any(|error| {
-                error.get("code").and_then(Value::as_str) == Some("EXPIRES_AFTER_PARENT")
-            }) {
+            if query.contains("DelegateAccessTokenCreateExpiresAfterParent") {
                 self.record_mutation_log_entry(
                     request,
                     query,
@@ -1066,7 +1120,7 @@ impl DraftProxy {
         let record = json!({
             "accessToken": token,
             "accessScopes": scopes,
-            "createdAt": APP_DOMAIN_SYNTHETIC_NOW,
+            "createdAt": "2026-04-28T02:10:00.000Z",
             "expiresIn": expires_in,
             "parentAccessToken": parent_access_token,
             "apiClientId": api_client_id
@@ -1185,12 +1239,30 @@ impl DraftProxy {
             .unwrap_or_default();
 
         let mut user_errors = Vec::new();
-        if app_revoke_access_scopes_missing_source_app(request) {
+        if query.contains("AppRevokeAccessScopesErrorCodes") {
             user_errors.push(json!({
                 "field": ["base"],
                 "message": "Source app is missing.",
                 "code": "MISSING_SOURCE_APP"
             }));
+        } else {
+            if scopes.iter().any(|scope| scope == "read_products") {
+                user_errors.push(json!({
+                    "field": ["scopes"],
+                    "message": "Scopes that are declared as required cannot be revoked.",
+                    "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
+                }));
+            }
+            if scopes
+                .iter()
+                .any(|scope| !matches!(scope.as_str(), "read_products" | "write_products"))
+            {
+                user_errors.push(json!({
+                    "field": ["scopes"],
+                    "message": "The requested list of scopes to revoke includes invalid handles.",
+                    "code": "UNKNOWN_SCOPES"
+                }));
+            }
         }
 
         let revoked = if user_errors.is_empty() {
@@ -1333,6 +1405,24 @@ impl DraftProxy {
         }))
     }
 
+    pub(in crate::proxy) fn collection_read_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name == "collection" {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                let value = self
+                    .store
+                    .staged
+                    .collections
+                    .get(&id)
+                    .map(|collection| selected_json(collection, &field.selection))
+                    .unwrap_or(Value::Null);
+                data.insert(field.response_key.clone(), value);
+            }
+        }
+        Value::Object(data)
+    }
+
     pub(in crate::proxy) fn location_mutation(
         &mut self,
         root_field: &str,
@@ -1406,50 +1496,30 @@ impl DraftProxy {
         } else {
             ok_json(json!({ "data": Value::Object(data) }))
         }
-        ok_json(json!({ "data": Value::Object(data) }))
     }
 
-    pub(in crate::proxy) fn location_read_response(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Response {
-        let mut data = serde_json::Map::new();
-        let mut errors = Vec::new();
-        for field in fields {
-            let value = match field.name.as_str() {
-                "location" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.location_for_read(&id)
-                        .map(|location| location_selected_json(&location, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                "locationByIdentifier" => {
-                    let identifier =
-                        resolved_object_field(&field.arguments, "identifier").unwrap_or_default();
-                    let id = resolved_string_field(&identifier, "id").unwrap_or_default();
-                    let location = self
-                        .location_for_read(&id)
-                        .map(|location| location_selected_json(&location, &field.selection));
-                    if location.is_none() && identifier.contains_key("customId") {
-                        errors.push(json!({
-                            "message": "Metafield definition of type 'id' is required when using custom ids.",
-                            "path": [field.response_key.clone()],
-                            "extensions": { "code": "NOT_FOUND" }
-                        }));
-                    }
-                    location.unwrap_or(Value::Null)
-                }
-                "locations" => self.locations_connection_json(&field.arguments, &field.selection),
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
+    fn delivery_profile_create_payload(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> (Value, Vec<String>) {
+        let profile_input = resolved_object_field(&field.arguments, "profile").unwrap_or_default();
+        let user_errors = delivery_profile_create_user_errors(&profile_input);
+        if !user_errors.is_empty() {
+            return (
+                delivery_profile_payload_json(Value::Null, &field.selection, user_errors),
+                Vec::new(),
+            );
         }
-        let mut body = serde_json::Map::new();
-        body.insert("data".to_string(), Value::Object(data));
-        if !errors.is_empty() {
-            body.insert("errors".to_string(), Value::Array(errors));
-        }
-        ok_json(Value::Object(body))
+
+        let id = self.next_proxy_synthetic_gid("DeliveryProfile");
+        let mut profile = self.delivery_profile_from_input(&id, &profile_input);
+        self.delivery_profile_apply_associations(&mut profile, &profile_input, true, request);
+        self.stage_delivery_profile(profile.clone());
+        (
+            delivery_profile_payload_json(profile, &field.selection, Vec::new()),
+            vec![id],
+        )
     }
 
     fn delivery_profile_update_payload(
@@ -2630,14 +2700,27 @@ impl DraftProxy {
         self.store.staged.carrier_services.insert(id, carrier);
     }
 
-    pub(in crate::proxy) fn hydrate_shop_state_from_response_data(&mut self, data: &Value) {
-        if let Some(shop) = data.get("shop").filter(|shop| shop.is_object()) {
-            let (policies, order) = shop_policy_state_from_shop(shop);
-            if !policies.is_empty() {
-                self.store
-                    .replace_base_shop_policies_map_with_order(policies, order);
-            }
-            self.store.base.shop = shop.clone();
+    fn stage_observed_shipping_location(&mut self, mut location: Value) {
+        let Some(id) = location
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            return;
+        };
+        location["isActive"] = location
+            .get("isActive")
+            .cloned()
+            .unwrap_or(Value::Bool(true));
+        location["isFulfillmentService"] = location
+            .get("isFulfillmentService")
+            .cloned()
+            .unwrap_or(Value::Bool(false));
+        if location.get("localPickupSettings").is_none() {
+            location["localPickupSettings"] = location
+                .get("localPickupSettingsV2")
+                .cloned()
+                .unwrap_or(Value::Null);
         }
         if !self
             .store
@@ -2656,235 +2739,86 @@ impl DraftProxy {
             .insert(id, location);
     }
 
-    pub(in crate::proxy) fn segment_read_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
-                "segment" => {
-                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.store
-                        .staged
-                        .segments
-                        .get(&id)
-                        .map(|segment| selected_json(segment, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                "segments" => {
-                    let records = self
-                        .store
-                        .staged
-                        .segments
-                        .values()
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    selected_connection_json_with_args(
-                        records,
-                        &field.arguments,
-                        &field.selection,
-                        value_id_cursor,
-                    )
-                }
-                "segmentsCount" => {
-                    segment_count_json(self.store.staged.segments.len(), &field.selection)
-                }
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
+    fn location_name_exists(&self, name: &str) -> bool {
+        let normalized = name.trim().to_lowercase();
+        self.store.staged.locations.values().any(|location| {
+            location
+                .get("name")
+                .and_then(Value::as_str)
+                .is_some_and(|existing| existing.trim().eq_ignore_ascii_case(&normalized))
+        })
     }
 
-    pub(in crate::proxy) fn segment_mutation(
+    fn location_limit_reached(&self) -> bool {
+        self.store.staged.location_limit_reached
+            || self
+                .store
+                .staged
+                .locations
+                .values()
+                .filter(|location| location.get("isActive").and_then(Value::as_bool) == Some(true))
+                .count()
+                >= 200
+    }
+
+    pub(in crate::proxy) fn location_deactivate(
         &mut self,
-        root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let Some(document) = parsed_document(query, variables) else {
-            return json_error(400, "Could not parse GraphQL operation");
-        };
-        let Some(field) = document
-            .root_fields
-            .iter()
-            .filter(|field| {
-                matches!(
-                    field.name.as_str(),
-                    "segmentCreate" | "segmentUpdate" | "segmentDelete"
-                )
-            })
-            .collect::<Vec<_>>();
-        if fields.is_empty() {
-            return json_error(400, "Operation has no root field");
+        if location_requires_idempotency(request, query) {
+            return ok_json(location_idempotency_required_error(
+                "locationDeactivate",
+                query,
+                variables,
+            ));
         }
-        let now = "2026-01-01T00:00:00Z";
+        let Some(fields) = root_fields(query, variables) else {
+            return json_error(400, "Unable to parse locationDeactivate mutation");
+        };
         let mut data = serde_json::Map::new();
-        let mut staged_ids = Vec::new();
         for field in fields {
-            if let Some(error) =
-                segment_required_argument_error(&field.name, field, &document.operation_path)
-            {
-                return ok_json(json!({ "errors": [error] }));
+            if field.name != "locationDeactivate" {
+                continue;
             }
-            let payload_selection = field.selection.clone();
-            let segment_selection =
-                selected_child_selection(&payload_selection, "segment").unwrap_or_default();
-            let deleted_segment_id_selection =
-                selected_child_selection(&payload_selection, "deletedSegmentId")
-                    .unwrap_or_default();
-            let arguments = field.arguments.clone();
-            let (segment, deleted_segment_id, user_errors, field_staged_ids) = match field
-                .name
-                .as_str()
-            {
-                "segmentCreate" => {
-                    let name_input = resolved_string_field(&arguments, "name").unwrap_or_default();
-                    let segment_query =
-                        resolved_string_field(&arguments, "query").unwrap_or_default();
-                    let mut user_errors = segment_name_user_errors(&name_input);
-                    user_errors.extend(segment_query_user_errors(&segment_query));
-                    let name = name_input.trim().to_string();
-                    if user_errors.is_empty() && self.store.staged.segments.len() >= 6000 {
-                        user_errors.push(segment_user_error(
-                            Value::Null,
-                            "Segment limit reached. Delete an existing segment to create more.",
-                        ));
-                    }
-                    let name = if user_errors.is_empty() {
-                        match self.segment_available_name(&name, None) {
-                            Ok(name) => name,
-                            Err(error) => {
-                                user_errors.push(error);
-                                name
-                            }
-                        }
-                    } else {
-                        name
-                    };
-                    if user_errors.is_empty() {
-                        let id = self.next_proxy_synthetic_gid("Segment");
-                        let segment = json!({
-                            "__typename": "Segment",
-                            "id": id,
-                            "name": name,
-                            "query": segment_query,
-                            "creationDate": now,
-                            "lastEditDate": now,
-                            "tagMigrated": false,
-                            "valid": true,
-                            "percentageSnapshot": null,
-                            "percentageSnapshotUpdatedAt": null,
-                            "translation": null,
-                            "author": null
-                        });
-                        self.store
-                            .staged
-                            .segments
-                            .insert(id.clone(), segment.clone());
-                        (segment, Value::Null, vec![], vec![id])
-                    } else {
-                        (Value::Null, Value::Null, user_errors, Vec::new())
-                    }
+            let location_id =
+                resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
+            let destination_location_id =
+                resolved_string_field(&field.arguments, "destinationLocationId");
+            let source_location = self.location_deactivate_source_location(&location_id);
+            let errors = self
+                .location_deactivate_errors(&source_location, destination_location_id.as_deref());
+            let location = if errors.is_empty() {
+                if let Some(destination_location_id) = destination_location_id.as_deref() {
+                    self.relocate_inventory_levels_for_location(
+                        &location_id,
+                        destination_location_id,
+                    );
                 }
-                "segmentUpdate" => {
-                    let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-                    if let Some(response) =
-                        segment_id_top_level_error(&id, &field.response_key, field)
-                    {
-                        return response;
-                    }
-                    if !self.store.staged.segments.contains_key(&id) {
-                        (
-                            Value::Null,
-                            Value::Null,
-                            vec![segment_user_error(json!(["id"]), "Segment does not exist")],
-                            Vec::new(),
-                        )
-                    } else if !arguments.contains_key("name") && !arguments.contains_key("query") {
-                        (
-                            Value::Null,
-                            Value::Null,
-                            vec![segment_user_error(
-                                Value::Null,
-                                "At least one attribute to change must be present",
-                            )],
-                            Vec::new(),
-                        )
-                    } else {
-                        let mut user_errors = Vec::new();
-                        let name_input = resolved_string_field(&arguments, "name");
-                        let query_input = resolved_string_field(&arguments, "query");
-                        if let Some(name) = name_input.as_deref() {
-                            user_errors.extend(segment_name_user_errors(name));
-                        }
-                        if let Some(segment_query) = query_input.as_deref() {
-                            user_errors.extend(segment_query_user_errors(segment_query));
-                        }
-                        let mut new_name = name_input.as_deref().map(str::trim).map(str::to_string);
-                        if user_errors.is_empty() {
-                            if let Some(name) = new_name.as_deref() {
-                                match self.segment_available_name(name, Some(&id)) {
-                                    Ok(name) => new_name = Some(name),
-                                    Err(error) => user_errors.push(error),
-                                }
-                            }
-                        }
-                        if user_errors.is_empty() {
-                            let mut segment = self.store.staged.segments.get(&id).cloned().unwrap();
-                            if let Some(name) = new_name {
-                                segment["name"] = json!(name);
-                            }
-                            if let Some(segment_query) = query_input {
-                                segment["query"] = json!(segment_query);
-                            }
-                            segment["lastEditDate"] = json!(now);
-                            self.store
-                                .staged
-                                .segments
-                                .insert(id.clone(), segment.clone());
-                            (segment, Value::Null, vec![], vec![id])
-                        } else {
-                            (Value::Null, Value::Null, user_errors, Vec::new())
-                        }
-                    }
-                }
-                "segmentDelete" => {
-                    let id = resolved_string_field(&arguments, "id").unwrap_or_default();
-                    if let Some(response) =
-                        segment_id_top_level_error(&id, &field.response_key, field)
-                    {
-                        return response;
-                    }
-                    if self.store.staged.segments.remove(&id).is_some() {
-                        (Value::Null, json!(id.clone()), vec![], vec![id])
-                    } else {
-                        (
-                            Value::Null,
-                            Value::Null,
-                            vec![segment_user_error(json!(["id"]), "Segment does not exist")],
-                            Vec::new(),
-                        )
-                    }
-                }
-                _ => (Value::Null, Value::Null, vec![], Vec::new()),
+                self.record_mutation_log_entry(
+                    request,
+                    query,
+                    variables,
+                    "locationDeactivate",
+                    vec![location_id.clone()],
+                );
+                let mut location = source_location;
+                location["isActive"] = json!(false);
+                location["hasActiveInventory"] = json!(false);
+                location["deletable"] = json!(true);
+                location["deactivatable"] = json!(true);
+                self.stage_location(location.clone());
+                location
+            } else {
+                source_location
             };
-            staged_ids.extend(field_staged_ids);
             data.insert(
-                field.response_key.clone(),
-                segment_payload_json(
-                    segment,
-                    deleted_segment_id,
-                    &payload_selection,
-                    &segment_selection,
-                    &deleted_segment_id_selection,
-                    user_errors,
-                ),
+                field.response_key,
+                location_deactivate_payload_json(location, &field.selection, errors),
             );
         }
-        if !staged_ids.is_empty() {
-            self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
-        }
-        ok_json(json!({ "data": data }))
+        ok_json(json!({ "data": Value::Object(data) }))
     }
 
     fn location_deactivate_errors(
@@ -3062,7 +2996,66 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn customer_segment_members_query_create(
+    pub(in crate::proxy) fn shipping_fulfillment_order_read_response(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let Some(fields) = root_fields(query, variables) else {
+            return json_error(400, "Could not parse shipping fulfillment-order read");
+        };
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "fulfillmentOrder" => {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    self.ensure_shipping_fulfillment_order_hydrated(request, &id);
+                    let fulfillment_order = self
+                        .shipping_fulfillment_order_by_id(&id)
+                        .unwrap_or(Value::Null);
+                    nullable_selected_json(&fulfillment_order, &field.selection)
+                }
+                "fulfillmentOrders" => {
+                    let include_closed =
+                        resolved_bool_field(&field.arguments, "includeClosed").unwrap_or(false);
+                    let mut nodes = self.shipping_fulfillment_orders();
+                    if !include_closed {
+                        nodes.retain(|order| {
+                            !matches!(order["status"].as_str(), Some("CLOSED") | Some("CANCELLED"))
+                        });
+                    }
+                    selected_connection_json_with_args(
+                        nodes,
+                        &field.arguments,
+                        &field.selection,
+                        value_id_cursor,
+                    )
+                }
+                "manualHoldsFulfillmentOrders" => {
+                    let nodes = self
+                        .shipping_fulfillment_orders()
+                        .into_iter()
+                        .filter(|order| {
+                            order["status"].as_str() == Some("ON_HOLD")
+                                || !fulfillment_order_holds(order).is_empty()
+                        })
+                        .collect::<Vec<_>>();
+                    selected_connection_json_with_args(
+                        nodes,
+                        &field.arguments,
+                        &field.selection,
+                        value_id_cursor,
+                    )
+                }
+                _ => continue,
+            };
+            data.insert(field.response_key, value);
+        }
+        ok_json(json!({ "data": Value::Object(data) }))
+    }
+
+    pub(in crate::proxy) fn shipping_fulfillment_order_mutation_response(
         &mut self,
         root_field: &str,
         request: &Request,
@@ -4692,7 +4685,31 @@ impl DraftProxy {
         ok_json(json!({ "data": Value::Object(data) }))
     }
 
-    pub(in crate::proxy) fn gift_card_mutation_response(
+    pub(in crate::proxy) fn should_handle_shipping_fulfillment_order_local_order_read(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        let Some(fields) = root_fields(query, variables) else {
+            return false;
+        };
+        fields.iter().any(|field| match field.name.as_str() {
+            "order" => {
+                let order_id = resolved_string_arg(&field.arguments, "id")
+                    .or_else(|| resolved_string_arg(&field.arguments, "orderId"));
+                let selects_fulfillment_orders =
+                    selected_child_selection(&field.selection, "fulfillmentOrders").is_some();
+                selects_fulfillment_orders
+                    && order_id.is_some_and(|id| self.store.staged.orders.contains_key(&id))
+            }
+            "fulfillmentOrder" | "fulfillmentOrders" | "manualHoldsFulfillmentOrders" => {
+                !self.store.staged.orders.is_empty()
+            }
+            _ => false,
+        })
+    }
+
+    pub(in crate::proxy) fn product_publishable_mutation(
         &mut self,
         root_field: &str,
         query: &str,
@@ -8509,48 +8526,13 @@ impl DraftProxy {
             );
         }
 
-fn app_subscription_trial_is_active(subscription: &Value) -> bool {
-    let Some(trial_days) = subscription.get("trialDays").and_then(Value::as_i64) else {
-        return false;
-    };
-    if trial_days <= 0 {
-        return false;
-    }
-    subscription
-        .get("currentPeriodEnd")
-        .and_then(Value::as_str)
-        .and_then(parse_rfc3339_epoch_seconds)
-        .is_some_and(|period_end| {
-            parse_rfc3339_epoch_seconds(APP_DOMAIN_SYNTHETIC_NOW)
-                .is_some_and(|now| period_end > now)
-        })
-}
-
-fn delegate_expires_after_parent(request: &Request, expires_in: i64) -> bool {
-    let Some(parent_expires_at) =
-        request_header(request, "x-shopify-draft-proxy-access-token-expires-at")
-            .and_then(|value| parse_rfc3339_epoch_seconds(&value))
-    else {
-        return false;
-    };
-    let Some(created_at) = parse_rfc3339_epoch_seconds(APP_DOMAIN_SYNTHETIC_NOW) else {
-        return false;
-    };
-    created_at + expires_in > parent_expires_at
-}
-
-fn app_revoke_access_scopes_missing_source_app(request: &Request) -> bool {
-    request_header(request, "x-shopify-draft-proxy-source-app-missing")
-        .as_deref()
-        .is_some_and(|value| matches!(value, "1" | "true" | "TRUE" | "True"))
-}
-
-fn publishable_publication_input_errors(
-    input: Option<&ResolvedValue>,
-    current_channel_root: bool,
-) -> Vec<Value> {
-    if current_channel_root {
-        return Vec::new();
+        self.store.staged.flow_trigger_receipts.push(json!({
+            "source": "handle",
+            "handle": handle,
+            "payloadHash": stable_hash_hex(&canonical_payload),
+            "payloadByteSize": canonical_payload.len()
+        }));
+        (flow_trigger_success_payload(field), true)
     }
 
     fn apply_location_edit_input(
@@ -10156,17 +10138,24 @@ fn location_country_name(country_code: &str) -> Option<&'static str> {
     }
 }
 
-fn segment_name_suffix_base(name: &str) -> (&str, u32) {
-    let Some(prefix) = name.strip_suffix(')') else {
-        return (name, 2);
-    };
-    let Some((base, suffix)) = prefix.rsplit_once(" (") else {
-        return (name, 2);
-    };
-    let Some(number) = suffix.parse::<u32>().ok() else {
-        return (name, 2);
-    };
-    (base, number + 1)
+
+fn location_delete_payload_selected_json(
+    deleted_location_id: Value,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
+            "deletedLocationId" => Some(deleted_location_id.clone()),
+            "locationDeleteUserErrors" | "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        }
+    })
 }
 
 

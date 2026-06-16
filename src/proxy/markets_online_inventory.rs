@@ -1,5 +1,24 @@
 use super::*;
 
+pub(in crate::proxy) fn is_ported_localization_document(query: &str) -> bool {
+    [
+        "LocalizationCollectionTranslationRead",
+        "LocalizationLocaleTranslationRead",
+        "LocalizationUnknownResourceValidation",
+        "LocalizationShopLocaleEnable(",
+        "LocalizationShopLocaleUpdate(",
+        "LocalizationShopLocaleDisable(",
+        "LocalizationTranslationsRead",
+        "LocalizationTranslationsRegister(",
+        "LocalizationTranslationsRemove(",
+        "LocalizationTranslationsMarketScopedRead",
+        "LocalizationTranslationsMarketScopedRemove",
+        "RustLocalizationShopLocaleTailHelpers",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
+}
+
 pub(in crate::proxy) fn is_ported_market_create_document(query: &str) -> bool {
     query.contains("RustMarketCreateLocalRuntime")
 }
@@ -835,6 +854,10 @@ pub(in crate::proxy) fn market_user_error(field: Vec<&str>, message: &str, code:
     })
 }
 
+pub(in crate::proxy) fn is_ported_market_localization_document(query: &str) -> bool {
+    query.contains("RustMarketLocalizationsLocalRuntime")
+}
+
 pub(in crate::proxy) fn default_available_locales() -> BTreeMap<String, String> {
     BTreeMap::from([
         ("af".to_string(), "Afrikaans".to_string()),
@@ -975,6 +998,26 @@ pub(in crate::proxy) fn default_available_locales() -> BTreeMap<String, String> 
         ("yo".to_string(), "Yoruba".to_string()),
         ("zu".to_string(), "Zulu".to_string()),
     ])
+}
+
+pub(in crate::proxy) fn localization_collection_read_data(with_translation: bool) -> Value {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-collection-translation-lifecycle.json"
+    ))
+    .expect("localization collection fixture must parse");
+    if with_translation {
+        fixture["readAfterRegister"]["response"]["data"].clone()
+    } else {
+        fixture["readBeforeRegister"]["response"]["data"].clone()
+    }
+}
+
+pub(in crate::proxy) fn localization_market_scoped_read_data() -> Value {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translations-market-scoped.json"
+    ))
+    .expect("localization market-scoped fixture must parse");
+    fixture["marketScopedTranslationLifecycle"]["readBeforeRegister"]["data"].clone()
 }
 
 pub(in crate::proxy) fn shop_locale_record(locale: &str, name: &str, published: bool) -> Value {
@@ -1246,22 +1289,6 @@ pub(in crate::proxy) fn theme_file_record(filename: &str, content: &str) -> Valu
         "checksumMd5": theme_file_checksum_md5(content),
         "size": content.len(),
         "body": {"content": content}
-    })
-}
-
-pub(in crate::proxy) fn theme_file_operation_result(record: &Value) -> Value {
-    json!({
-        "filename": record["filename"],
-        "createdAt": record
-            .get("createdAt")
-            .cloned()
-            .unwrap_or_else(|| json!("2024-01-01T00:00:00.000Z")),
-        "updatedAt": record
-            .get("updatedAt")
-            .cloned()
-            .unwrap_or_else(|| json!("2024-01-01T00:00:00.000Z")),
-        "checksumMd5": record["checksumMd5"],
-        "size": record["size"]
     })
 }
 
@@ -1907,6 +1934,45 @@ pub(in crate::proxy) fn inventory_location_name(location_id: &str) -> &'static s
     }
 }
 
+pub(in crate::proxy) fn is_log_draft_enforcement_document(query: &str) -> bool {
+    query.contains("RustLogDraftEnforcement")
+}
+
+pub(in crate::proxy) fn is_ported_marketing_document(query: &str) -> bool {
+    [
+        "MarketingBaselineRead",
+        "MarketingActivityLifecycle",
+        "MarketingActivityLifecycleRead",
+        "MarketingActivityLifecycleUpdateByUtm",
+        "MarketingActivityLifecycleDelete",
+        "MarketingActivityLifecycleDeleteAll",
+        "MarketingEngagementLifecycle",
+        "MarketingEngagementRead",
+        "MarketingActivityRead",
+        "MarketingActivityCreateExternalValidation",
+        "MarketingActivityUpsertExternalValidation",
+        "MarketingActivityUpdateCurrencyAndTacticGuards",
+        "MarketingActivitySourceAndMedium",
+        "MarketingActivityDeleteExternalGuards",
+        "MarketingActivityPerAppCreate",
+        "MarketingActivityPerAppUpdate",
+        "MarketingActivityPerAppDelete",
+        "MarketingActivityPerAppEngagement",
+        "MarketingActivityPerAppDeleteAll",
+        "MarketingActivityPerAppRead",
+        "MarketingEngagementCurrencyValidation",
+        "MarketingEngagementCreateValidationOrder",
+        "MarketingEngagementResponseShapeCreateActivity",
+        "MarketingEngagementResponseShapeFull",
+        "MarketingEngagementResponseShapeMissingOccurredOn",
+        "MarketingEngagementResponseShapeSparse",
+        "MarketingNativeActivityLifecycle",
+        "MarketingNativeActivityRead",
+    ]
+    .iter()
+    .any(|marker| query.contains(marker))
+}
+
 pub(in crate::proxy) fn marketing_connection(
     records: Vec<Value>,
     selection: &[SelectedField],
@@ -1917,47 +1983,6 @@ pub(in crate::proxy) fn marketing_connection(
         empty_page_info(),
     );
     selected_json(&full, selection)
-}
-
-pub(in crate::proxy) fn marketing_record_matches_query(record: &Value, query: &str) -> bool {
-    marketing_query_terms(query)
-        .iter()
-        .all(|(field, expected)| {
-            marketing_record_query_value(record, field).is_some_and(|value| {
-                value
-                    .to_ascii_lowercase()
-                    .contains(&expected.to_ascii_lowercase())
-            })
-        })
-}
-
-pub(in crate::proxy) fn marketing_query_terms(query: &str) -> Vec<(String, String)> {
-    query
-        .split_whitespace()
-        .filter_map(|term| {
-            let (field, value) = term.split_once(':')?;
-            let value = value.trim_matches(|ch| ch == '"' || ch == '\'');
-            (!field.is_empty() && !value.is_empty()).then(|| (field.to_string(), value.to_string()))
-        })
-        .collect()
-}
-
-pub(in crate::proxy) fn marketing_record_query_value(
-    record: &Value,
-    field: &str,
-) -> Option<String> {
-    match field {
-        "id" => record["id"].as_str(),
-        "remote_id" | "remoteId" => record["remoteId"]
-            .as_str()
-            .or_else(|| record["marketingEvent"]["remoteId"].as_str()),
-        "title" => record["title"].as_str(),
-        "description" => record["marketingEvent"]["description"].as_str(),
-        "status" => record["status"].as_str(),
-        "channel_handle" | "channelHandle" => record["marketingEvent"]["channelHandle"].as_str(),
-        _ => None,
-    }
-    .map(ToString::to_string)
 }
 
 pub(in crate::proxy) fn marketing_activity_payload(
@@ -2466,6 +2491,10 @@ pub(in crate::proxy) fn draft_order_invoice_line_item() -> Value {
     })
 }
 
+pub(in crate::proxy) fn is_rust_webhook_local_runtime_document(query: &str) -> bool {
+    query.contains("RustWebhookLocalRuntime")
+}
+
 pub(in crate::proxy) fn bulk_operation_record_with(
     id: &str,
     status: &str,
@@ -2508,17 +2537,21 @@ pub(in crate::proxy) fn bulk_operation_record_with_type(
     })
 }
 
-pub(in crate::proxy) fn b2b_company_customer_since_value(
-    id: &str,
-    selection: &[SelectedField],
-) -> Option<Value> {
-    (id == "gid://shopify/Company/7681462450").then(|| {
-        selected_json(
-            &json!({
-                "name": "HAR-760 customerSince 1778017011251",
-                "customerSince": "2024-01-01T00:00:00Z"
-            }),
-            selection,
-        )
-    })
+pub(in crate::proxy) fn b2b_company_customer_since_read_data(
+    fields: &[RootFieldSelection],
+) -> Value {
+    let mut data = serde_json::Map::new();
+    let company = json!({
+        "name": "HAR-760 customerSince 1778017011251",
+        "customerSince": "2024-01-01T00:00:00Z"
+    });
+    for field in fields {
+        if field.name == "company" {
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&company, &field.selection),
+            );
+        }
+    }
+    Value::Object(data)
 }

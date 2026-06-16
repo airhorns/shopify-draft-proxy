@@ -134,93 +134,100 @@ fn order_read_selects_payment_transaction_fields(field: &RootFieldSelection) -> 
     })
 }
 
-fn order_money_set_with_presentment_fallback(money_set: &Value, order: &Value) -> Value {
-    let shop_amount =
-        payment_money_amount(money_set, "shopMoney").unwrap_or_else(|| "0.0".to_string());
-    let shop_currency = payment_money_currency(money_set, "shopMoney")
-        .or_else(|| order["currencyCode"].as_str().map(ToString::to_string))
-        .unwrap_or_else(|| "CAD".to_string());
-    let presentment_amount =
-        payment_money_amount(money_set, "presentmentMoney").unwrap_or_else(|| shop_amount.clone());
-    let presentment_currency = payment_money_currency(money_set, "presentmentMoney")
-        .or_else(|| {
-            order["presentmentCurrencyCode"]
-                .as_str()
-                .map(ToString::to_string)
-        })
-        .unwrap_or_else(|| shop_currency.clone());
-    order_money_set_pair(
-        &shop_amount,
-        &shop_currency,
-        &presentment_amount,
-        &presentment_currency,
+fn order_selection_json(order: &Value, selection: &[SelectedField]) -> Value {
+    if order.is_null() {
+        return Value::Null;
+    }
+    let mut projected = serde_json::Map::new();
+    for field in selection {
+        let value = if field.name == "transactions" {
+            order_transactions_selection_json(
+                order.get("transactions").unwrap_or(&Value::Null),
+                &field.selection,
+            )
+        } else if field.name == "fulfillments" {
+            order_list_selection_json(
+                order.get("fulfillments").unwrap_or(&Value::Null),
+                &field.selection,
+            )
+        } else if field.name == "__typename" {
+            json!("Order")
+        } else {
+            let Some(value) = order.get(&field.name) else {
+                continue;
+            };
+            nullable_selected_json(value, &field.selection)
+        };
+        projected.insert(field.response_key.clone(), value);
+    }
+    Value::Object(projected)
+}
+
+fn order_list_selection_json(values: &Value, selection: &[SelectedField]) -> Value {
+    Value::Array(
+        values
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|item| nullable_selected_json(item, selection))
+            .collect(),
     )
 }
 
-fn order_money_amount_value(money_set: &Value) -> f64 {
-    payment_money_amount(money_set, "presentmentMoney")
-        .or_else(|| payment_money_amount(money_set, "shopMoney"))
-        .and_then(|amount| amount.parse::<f64>().ok())
-        .unwrap_or(0.0)
+fn order_payload_json(order: &Value, selection: &[SelectedField]) -> Value {
+    if order.is_null() {
+        Value::Null
+    } else if selection.is_empty() {
+        order.clone()
+    } else {
+        order_selection_json(order, selection)
+    }
 }
 
-fn add_order_money_sets(left: &Value, right: &Value, order: &Value) -> Value {
-    let left = order_money_set_with_presentment_fallback(left, order);
-    let right = order_money_set_with_presentment_fallback(right, order);
-    let left_shop = payment_money_amount(&left, "shopMoney")
-        .and_then(|amount| amount.parse::<f64>().ok())
-        .unwrap_or(0.0);
-    let right_shop = payment_money_amount(&right, "shopMoney")
-        .and_then(|amount| amount.parse::<f64>().ok())
-        .unwrap_or(0.0);
-    let left_presentment = payment_money_amount(&left, "presentmentMoney")
-        .and_then(|amount| amount.parse::<f64>().ok())
-        .unwrap_or(left_shop);
-    let right_presentment = payment_money_amount(&right, "presentmentMoney")
-        .and_then(|amount| amount.parse::<f64>().ok())
-        .unwrap_or(right_shop);
-    let shop_currency = payment_money_currency(&right, "shopMoney")
-        .or_else(|| payment_money_currency(&left, "shopMoney"))
-        .unwrap_or_else(|| "CAD".to_string());
-    let presentment_currency = payment_money_currency(&right, "presentmentMoney")
-        .or_else(|| payment_money_currency(&left, "presentmentMoney"))
-        .unwrap_or_else(|| shop_currency.clone());
-    order_money_set_pair(
-        &format_order_amount(left_shop + right_shop),
-        &shop_currency,
-        &format_order_amount(left_presentment + right_presentment),
-        &presentment_currency,
-    )
+fn order_mutation_payload_json(payload: &Value, selection: &[SelectedField]) -> Value {
+    let mut projected = serde_json::Map::new();
+    for field in selection {
+        let value = if field.name == "order" {
+            order_payload_json(&payload["order"], &field.selection)
+        } else {
+            let Some(value) = payload.get(&field.name) else {
+                continue;
+            };
+            if field.selection.is_empty() {
+                value.clone()
+            } else if value.is_null() {
+                Value::Null
+            } else if let Some(values) = value.as_array() {
+                Value::Array(
+                    values
+                        .iter()
+                        .map(|item| nullable_selected_json(item, &field.selection))
+                        .collect(),
+                )
+            } else {
+                selected_json(value, &field.selection)
+            }
+        };
+        projected.insert(field.response_key.clone(), value);
+    }
+    Value::Object(projected)
 }
 
-fn zero_order_money_set_like(money_set: &Value, order: &Value) -> Value {
-    let shop_currency = payment_money_currency(money_set, "shopMoney")
-        .or_else(|| order["currencyCode"].as_str().map(ToString::to_string))
-        .unwrap_or_else(|| "CAD".to_string());
-    let presentment_currency = payment_money_currency(money_set, "presentmentMoney")
-        .or_else(|| {
-            order["presentmentCurrencyCode"]
-                .as_str()
-                .map(ToString::to_string)
-        })
-        .unwrap_or_else(|| shop_currency.clone());
-    order_money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency)
-}
-
-fn order_customer_id(order: &Value) -> Option<String> {
-    order["customer"]["id"].as_str().map(ToString::to_string)
-}
-
-fn order_mark_as_paid_cannot_mark_error() -> Value {
-    payment_user_error(
-        json!(["id"]),
-        "Order cannot be marked as paid.",
-        Some("INVALID"),
-    )
-}
-
-fn order_mark_as_paid_not_found_error() -> Value {
-    payment_user_error(json!(["id"]), "Order does not exist", Some("NOT_FOUND"))
+fn order_transactions_selection_json(transactions: &Value, selection: &[SelectedField]) -> Value {
+    let nodes = transactions.as_array().cloned().unwrap_or_default();
+    let selects_connection_shape = selection
+        .iter()
+        .any(|field| matches!(field.name.as_str(), "nodes" | "edges" | "pageInfo"));
+    if !selects_connection_shape {
+        return Value::Array(
+            nodes
+                .iter()
+                .map(|transaction| selected_json(transaction, selection))
+                .collect(),
+        );
+    }
+    let connection = order_connection(nodes);
+    selected_json(&connection, selection)
 }
 
 fn order_read_selects_order_edit_existing_fields(field: RootFieldSelection) -> bool {
@@ -1906,15 +1913,15 @@ impl DraftProxy {
                 "themePublish" => self.theme_publish(field, &mut staged_ids),
                 "themeUpdate" => self.theme_update(field, &mut staged_ids),
                 "themeDelete" => self.theme_delete(field, &mut staged_ids),
-                "themeFilesUpsert" => self.theme_files_upsert(field, &mut staged_ids),
-                "themeFilesCopy" => self.theme_files_copy(field, &mut staged_ids),
-                "themeFilesDelete" => self.theme_files_delete(field, &mut staged_ids),
+                "themeFilesUpsert" => self.theme_files_upsert(field),
+                "themeFilesCopy" => self.theme_files_copy(field),
+                "themeFilesDelete" => self.theme_files_delete(field),
                 "webPixelCreate" => self.web_pixel_create(field, &mut staged_ids),
-                "webPixelUpdate" => {
-                    let allow_missing_upsert = resolved_string_arg(&field.arguments, "id")
-                        .is_some_and(|id| id.contains("?shopify-draft-proxy=synthetic"));
-                    self.web_pixel_update(field, allow_missing_upsert, &mut staged_ids)
-                }
+                "webPixelUpdate" => self.web_pixel_update(
+                    field,
+                    query.contains("WebPixelUpdateValidationLocalRuntime"),
+                    &mut staged_ids,
+                ),
                 "serverPixelCreate" => self.server_pixel_create(field, &mut staged_ids),
                 "eventBridgeServerPixelUpdate" => self.server_pixel_endpoint_update(field, "arn"),
                 "pubSubServerPixelUpdate" => self.server_pixel_endpoint_update(field, "pubsub"),
@@ -2463,11 +2470,7 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn theme_files_upsert(
-        &mut self,
-        field: &RootFieldSelection,
-        staged_ids: &mut Vec<String>,
-    ) -> Value {
+    pub(in crate::proxy) fn theme_files_upsert(&mut self, field: &RootFieldSelection) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
         if files.iter().any(|file| {
@@ -2477,17 +2480,11 @@ impl DraftProxy {
             return selected_json(&payload, &field.selection);
         }
         let mut upserted = Vec::new();
-        let mut staged = false;
         for file in files {
             if let Some(record) = theme_file_record_from_input(&file) {
-                let persisted = self.upsert_theme_file(&theme_id, record.clone());
-                staged |= persisted.is_some();
-                let record = persisted.unwrap_or(record);
-                upserted.push(theme_file_operation_result(&record));
+                self.upsert_theme_file(&theme_id, record.clone());
+                upserted.push(record);
             }
-        }
-        if staged {
-            staged_ids.push(theme_id);
         }
         selected_json(
             &json!({"upsertedThemeFiles": upserted, "userErrors": []}),
@@ -2495,11 +2492,7 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn theme_files_copy(
-        &mut self,
-        field: &RootFieldSelection,
-        staged_ids: &mut Vec<String>,
-    ) -> Value {
+    pub(in crate::proxy) fn theme_files_copy(&mut self, field: &RootFieldSelection) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_list_arg(&field.arguments, "files");
         let mut copied = Vec::new();
@@ -2512,28 +2505,18 @@ impl DraftProxy {
                 continue;
             };
             let content = source_file["body"]["content"].as_str().unwrap_or_default();
-            let record = theme_file_record(&dst, content);
-            copied.push(record);
+            copied.push(theme_file_record(&dst, content));
         }
-        let copied_results = copied
-            .iter()
-            .filter_map(|file| self.upsert_theme_file(&theme_id, file.clone()))
-            .map(|file| theme_file_operation_result(&file))
-            .collect::<Vec<_>>();
-        if !copied_results.is_empty() {
-            staged_ids.push(theme_id);
+        for file in copied.iter().cloned() {
+            self.upsert_theme_file(&theme_id, file);
         }
         selected_json(
-            &json!({"copiedThemeFiles": copied_results, "userErrors": errors}),
+            &json!({"copiedThemeFiles": copied, "userErrors": errors}),
             &field.selection,
         )
     }
 
-    pub(in crate::proxy) fn theme_files_delete(
-        &mut self,
-        field: &RootFieldSelection,
-        staged_ids: &mut Vec<String>,
-    ) -> Value {
+    pub(in crate::proxy) fn theme_files_delete(&mut self, field: &RootFieldSelection) -> Value {
         let theme_id = resolved_string_arg(&field.arguments, "themeId").unwrap_or_default();
         let files = resolved_string_list_arg(&field.arguments, "files");
         let required = ["config/settings_data.json", "config/settings_schema.json"];
@@ -2564,14 +2547,11 @@ impl DraftProxy {
                     .iter()
                     .position(|file| file["filename"].as_str() == Some(filename.as_str()))
                 {
-                    let removed = nodes.remove(index);
-                    deleted.push(theme_file_operation_result(&removed));
+                    nodes.remove(index);
+                    deleted.push(json!({"filename": filename}));
                 }
             }
             set_theme_file_nodes(theme, nodes);
-        }
-        if !deleted.is_empty() {
-            staged_ids.push(theme_id);
         }
         selected_json(
             &json!({"deletedThemeFiles": deleted, "userErrors": []}),
@@ -2579,38 +2559,26 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn upsert_theme_file(
-        &mut self,
-        theme_id: &str,
-        mut file: Value,
-    ) -> Option<Value> {
-        let theme = self
+    pub(in crate::proxy) fn upsert_theme_file(&mut self, theme_id: &str, file: Value) {
+        let Some(theme) = self
             .store
             .staged
             .online_store_integrations
-            .get_mut(theme_id)?;
+            .get_mut(theme_id)
+        else {
+            return;
+        };
         let filename = file["filename"].as_str().unwrap_or_default().to_string();
         let mut nodes = theme_file_nodes(theme);
-        let persisted = if let Some(index) = nodes
+        if let Some(index) = nodes
             .iter()
             .position(|existing| existing["filename"].as_str() == Some(filename.as_str()))
         {
-            let created_at = nodes[index]
-                .get("createdAt")
-                .cloned()
-                .unwrap_or_else(|| json!("2024-01-01T00:00:00.000Z"));
-            file["createdAt"] = created_at;
-            file["updatedAt"] = json!("2024-01-01T00:00:01.000Z");
             nodes[index] = file;
-            nodes[index].clone()
         } else {
-            file["createdAt"] = json!("2024-01-01T00:00:00.000Z");
-            file["updatedAt"] = json!("2024-01-01T00:00:00.000Z");
             nodes.push(file);
-            nodes.last().cloned().unwrap_or(Value::Null)
-        };
+        }
         set_theme_file_nodes(theme, nodes);
-        Some(persisted)
     }
 
     pub(in crate::proxy) fn find_theme_file(
@@ -5585,24 +5553,6 @@ impl DraftProxy {
                     ),
                 ))
             }
-            "orderMarkAsPaid" => {
-                let field = field?;
-                let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-                let order_id = resolved_string_field(&input, "id").unwrap_or_default();
-                let (order, user_errors, staged_ids) = self.stage_order_mark_as_paid(&order_id);
-                if !staged_ids.is_empty() {
-                    self.record_mutation_log_entry(
-                        request, query, variables, root_field, staged_ids,
-                    );
-                }
-                Some(data_response(
-                    &field.response_key,
-                    selected_json(
-                        &json!({ "order": order, "userErrors": user_errors }),
-                        &field.selection,
-                    ),
-                ))
-            }
             "transactionVoid" => {
                 let field = field?;
                 let parent_id = resolved_string_arg(&field.arguments, "parentTransactionId")
@@ -5803,82 +5753,6 @@ impl DraftProxy {
         }
         self.store.staged.orders.insert(id, order.clone());
         order
-    }
-
-    fn stage_order_mark_as_paid(&mut self, order_id: &str) -> (Value, Vec<Value>, Vec<String>) {
-        let Some(order_before) = self.store.staged.orders.get(order_id).cloned() else {
-            return (
-                Value::Null,
-                vec![order_mark_as_paid_not_found_error()],
-                Vec::new(),
-            );
-        };
-        let outstanding_set = order_money_set_with_presentment_fallback(
-            &order_before["totalOutstandingSet"],
-            &order_before,
-        );
-        if order_before["cancelledAt"].is_string()
-            || matches!(
-                order_before["displayFinancialStatus"].as_str(),
-                Some("PAID" | "REFUNDED" | "PARTIALLY_REFUNDED" | "VOIDED")
-            )
-            || order_money_amount_value(&outstanding_set) <= 0.000_001
-        {
-            return (
-                order_before,
-                vec![order_mark_as_paid_cannot_mark_error()],
-                Vec::new(),
-            );
-        }
-
-        let transaction_id = format!(
-            "gid://shopify/OrderTransaction/{}",
-            self.store.staged.order_payment_next_transaction_id
-        );
-        self.store.staged.order_payment_next_transaction_id += 1;
-        let transaction = payment_transaction_record_from_amount_set(
-            &transaction_id,
-            "SALE",
-            "SUCCESS",
-            outstanding_set.clone(),
-            Value::Null,
-        );
-
-        let mut order = order_before;
-        if let Some(transactions) = order["transactions"].as_array_mut() {
-            transactions.push(transaction.clone());
-        } else {
-            order["transactions"] = json!([transaction.clone()]);
-        }
-        order["displayFinancialStatus"] = json!("PAID");
-        order["capturable"] = json!(false);
-        order["totalCapturable"] = json!("0.0");
-        order["totalCapturableSet"] = zero_order_money_set_like(&outstanding_set, &order);
-        order["totalOutstandingSet"] = zero_order_money_set_like(&outstanding_set, &order);
-        let received_set =
-            add_order_money_sets(&order["totalReceivedSet"], &outstanding_set, &order);
-        order["totalReceivedSet"] = received_set.clone();
-        order["netPaymentSet"] = received_set;
-        order["paymentGatewayNames"] = json!(["manual"]);
-
-        self.store
-            .staged
-            .orders
-            .insert(order_id.to_string(), order.clone());
-        if let Some(customer_id) = order_customer_id(&order) {
-            if let Some(customer_orders) = self.store.staged.customer_orders.get_mut(&customer_id) {
-                for customer_order in customer_orders {
-                    if customer_order["id"].as_str() == Some(order_id) {
-                        *customer_order = order.clone();
-                    }
-                }
-            }
-        }
-        (
-            order,
-            Vec::new(),
-            vec![order_id.to_string(), transaction_id],
-        )
     }
 
     fn stage_payment_capture(
