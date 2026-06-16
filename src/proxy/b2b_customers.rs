@@ -199,6 +199,7 @@ impl DraftProxy {
                     field.name.as_str(),
                     "companyCreate"
                         | "companyUpdate"
+                        | "companyContactUpdate"
                         | "companyLocationCreate"
                         | "companyLocationUpdate"
                         | "companyLocationDelete"
@@ -236,6 +237,7 @@ impl DraftProxy {
                     let (payload, status, staged_ids) = match field.name.as_str() {
                         "companyCreate" => self.b2b_company_create_payload(&field),
                         "companyUpdate" => self.b2b_company_update_payload(&field),
+                        "companyContactUpdate" => self.b2b_company_contact_update_payload(&field),
                         "companyLocationCreate" => self.b2b_company_location_create_payload(&field),
                         "companyLocationUpdate" => self.b2b_company_location_update_payload(&field),
                         "companyLocationDelete" => self.b2b_company_location_delete_payload(&field),
@@ -703,6 +705,59 @@ impl DraftProxy {
             b2b_company_location_payload(Some(&location), Vec::new()),
             "staged",
             vec![location_id],
+        )
+    }
+
+    pub(in crate::proxy) fn b2b_company_contact_update_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let contact_id = resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let Some(mut contact) = self.store.staged.b2b_contacts.get(&contact_id).cloned() else {
+            return (
+                b2b_company_contact_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["companyContactId"],
+                        "The company contact doesn't exist.",
+                        "RESOURCE_NOT_FOUND",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        };
+        if input.is_empty() {
+            return (
+                b2b_company_contact_payload(
+                    None,
+                    vec![json!({
+                        "field": Value::Null,
+                        "message": "Company contact update input is empty.",
+                        "code": "NO_INPUT"
+                    })],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        for key in ["title", "locale", "firstName", "lastName"] {
+            if input.contains_key(key) {
+                contact[key] = resolved_string_field(&input, key)
+                    .map(Value::String)
+                    .unwrap_or(Value::Null);
+            }
+        }
+        self.store
+            .staged
+            .b2b_contacts
+            .insert(contact_id.clone(), contact.clone());
+        (
+            b2b_company_contact_payload(Some(&contact), Vec::new()),
+            "staged",
+            vec![contact_id],
         )
     }
 

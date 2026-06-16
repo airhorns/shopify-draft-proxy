@@ -1364,6 +1364,16 @@ pub(in crate::proxy) fn b2b_company_location_payload(
     })
 }
 
+pub(in crate::proxy) fn b2b_company_contact_payload(
+    company_contact: Option<&Value>,
+    user_errors: Vec<Value>,
+) -> Value {
+    json!({
+        "companyContact": company_contact.cloned().unwrap_or(Value::Null),
+        "userErrors": user_errors
+    })
+}
+
 pub(in crate::proxy) fn b2b_location_buyer_experience_errors(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<Value> {
