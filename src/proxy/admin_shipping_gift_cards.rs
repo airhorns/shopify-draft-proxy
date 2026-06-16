@@ -30,6 +30,7 @@ query StorePropertiesPublishablePayloadShopHydrate($id: ID!) {
   }
 }
 "#;
+const APP_DOMAIN_SYNTHETIC_NOW: &str = "2026-04-28T02:10:00.000Z";
 
 impl DraftProxy {
     pub(in crate::proxy) fn backup_region_update(
@@ -159,6 +160,63 @@ impl DraftProxy {
             data.insert(field.response_key.clone(), value);
         }
         Value::Object(data)
+    }
+
+    pub(in crate::proxy) fn app_node_read_data(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Option<Value> {
+        let mut data = serde_json::Map::new();
+        let mut handled = false;
+        for field in fields {
+            if field.name != "node" {
+                continue;
+            }
+            let id = field
+                .arguments
+                .get("id")
+                .and_then(resolved_as_string)
+                .unwrap_or_default();
+            let value = match id.as_str() {
+                "gid://shopify/AppInstallation/expected" if self.store.staged.app_uninstalled => {
+                    Value::Null
+                }
+                "gid://shopify/AppInstallation/expected" => current_app_installation_json(
+                    &self.store.staged.app_subscriptions,
+                    &self.store.staged.app_one_time_purchases,
+                    &self.store.staged.revoked_app_access_scopes,
+                    &field.selection,
+                ),
+                "gid://shopify/App/expected" => selected_json(&local_app_json(), &field.selection),
+                _ => {
+                    if let Some(subscription) = self.store.staged.app_subscriptions.get(&id) {
+                        let type_selection = selected_fields_named(
+                            &field.selection,
+                            &["__typename", "id", "status", "trialDays", "lineItems"],
+                        );
+                        selected_json(subscription, &type_selection)
+                    } else if let Some(purchase) = self.store.staged.app_one_time_purchases.get(&id)
+                    {
+                        let type_selection = selected_fields_named(
+                            &field.selection,
+                            &["id", "name", "status", "test", "price"],
+                        );
+                        selected_json(purchase, &type_selection)
+                    } else if let Some(usage_record) = self.find_staged_app_usage_record(&id) {
+                        let type_selection = selected_fields_named(
+                            &field.selection,
+                            &["id", "description", "price", "subscriptionLineItem"],
+                        );
+                        selected_json(&usage_record, &type_selection)
+                    } else {
+                        continue;
+                    }
+                }
+            };
+            handled = true;
+            data.insert(field.response_key.clone(), value);
+        }
+        handled.then_some(Value::Object(data))
     }
 
     pub(in crate::proxy) fn find_staged_app_usage_record(&self, id: &str) -> Option<Value> {
@@ -454,19 +512,13 @@ impl DraftProxy {
                         "code": "SUBSCRIPTION_NOT_ACTIVE"
                     })],
                 ),
-                Some(record)
-                    if record["currentPeriodEnd"]
-                        .as_str()
-                        .is_some_and(|value| value < "2026-06-15T00:00:00.000Z") =>
-                {
-                    (
-                        Value::Null,
-                        vec![json!({
-                            "field": ["id"],
-                            "message": "The trial can't be extended after expiration."
-                        })],
-                    )
-                }
+                Some(record) if !app_subscription_trial_is_active(record) => (
+                    Value::Null,
+                    vec![json!({
+                        "field": ["id"],
+                        "message": "The trial can't be extended after expiration."
+                    })],
+                ),
                 Some(record) => {
                     let current = record["trialDays"].as_i64().unwrap_or(0);
                     if let Value::Object(fields) = record {
@@ -877,7 +929,7 @@ impl DraftProxy {
                 "message": "The expires_in value must be greater than 0.",
                 "code": "NEGATIVE_EXPIRES_IN"
             }));
-        } else if expires_in > 3600 {
+        } else if delegate_expires_after_parent(request, expires_in) {
             user_errors.push(json!({
                 "field": null,
                 "message": "The delegate token can't expire after the parent token.",
@@ -895,7 +947,9 @@ impl DraftProxy {
         }
 
         if !user_errors.is_empty() {
-            if expires_in > 3600 {
+            if user_errors.iter().any(|error| {
+                error.get("code").and_then(Value::as_str) == Some("EXPIRES_AFTER_PARENT")
+            }) {
                 self.record_mutation_log_entry(
                     request,
                     query,
@@ -930,7 +984,7 @@ impl DraftProxy {
         let record = json!({
             "accessToken": token,
             "accessScopes": scopes,
-            "createdAt": "2026-04-28T02:10:00.000Z",
+            "createdAt": APP_DOMAIN_SYNTHETIC_NOW,
             "expiresIn": expires_in,
             "parentAccessToken": parent_access_token,
             "apiClientId": api_client_id
@@ -1049,32 +1103,30 @@ impl DraftProxy {
             .unwrap_or_default();
 
         let mut user_errors = Vec::new();
-        if scopes.iter().any(|scope| scope == "read_products") {
-            user_errors.push(json!({
-                "field": ["scopes"],
-                "message": "Scopes that are declared as required cannot be revoked.",
-                "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
-            }));
-        }
-        if scopes
-            .iter()
-            .any(|scope| !matches!(scope.as_str(), "read_products" | "write_products"))
-        {
-            user_errors.push(json!({
-                "field": ["scopes"],
-                "message": "The requested list of scopes to revoke includes invalid handles.",
-                "code": "UNKNOWN_SCOPES"
-            }));
-        }
-        if user_errors.is_empty()
-            && !scopes.is_empty()
-            && request_header(request, "x-shopify-draft-proxy-api-client-id").is_none()
-        {
+        if app_revoke_access_scopes_missing_source_app(request) {
             user_errors.push(json!({
                 "field": ["base"],
                 "message": "Source app is missing.",
                 "code": "MISSING_SOURCE_APP"
             }));
+        } else {
+            if scopes.iter().any(|scope| scope == "read_products") {
+                user_errors.push(json!({
+                    "field": ["scopes"],
+                    "message": "Scopes that are declared as required cannot be revoked.",
+                    "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
+                }));
+            }
+            if scopes
+                .iter()
+                .any(|scope| !matches!(scope.as_str(), "read_products" | "write_products"))
+            {
+                user_errors.push(json!({
+                    "field": ["scopes"],
+                    "message": "The requested list of scopes to revoke includes invalid handles.",
+                    "code": "UNKNOWN_SCOPES"
+                }));
+            }
         }
 
         let revoked = if user_errors.is_empty() {
@@ -1217,6 +1269,24 @@ impl DraftProxy {
         }))
     }
 
+    pub(in crate::proxy) fn collection_read_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name == "collection" {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                let value = self
+                    .store
+                    .staged
+                    .collections
+                    .get(&id)
+                    .map(|collection| selected_json(collection, &field.selection))
+                    .unwrap_or(Value::Null);
+                data.insert(field.response_key.clone(), value);
+            }
+        }
+        Value::Object(data)
+    }
+
     pub(in crate::proxy) fn location_mutation(
         &mut self,
         root_field: &str,
@@ -1333,12 +1403,14 @@ impl DraftProxy {
         ok_json(json!({ "data": Value::Object(data) }))
     }
 
-    pub(in crate::proxy) fn location_read_response(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Response {
+    pub(in crate::proxy) fn has_staged_locations(&self) -> bool {
+        !self.store.staged.locations.is_empty()
+            || !self.store.staged.fulfillment_service_locations.is_empty()
+            || self.store.staged.location_limit_reached
+    }
+
+    pub(in crate::proxy) fn location_read_data(&self, fields: &[RootFieldSelection]) -> Value {
         let mut data = serde_json::Map::new();
-        let mut errors = Vec::new();
         for field in fields {
             let value = match field.name.as_str() {
                 "location" => {
@@ -1351,29 +1423,16 @@ impl DraftProxy {
                     let identifier =
                         resolved_object_field(&field.arguments, "identifier").unwrap_or_default();
                     let id = resolved_string_field(&identifier, "id").unwrap_or_default();
-                    let location = self
-                        .location_for_read(&id)
-                        .map(|location| location_selected_json(&location, &field.selection));
-                    if location.is_none() && identifier.contains_key("customId") {
-                        errors.push(json!({
-                            "message": "Metafield definition of type 'id' is required when using custom ids.",
-                            "path": [field.response_key.clone()],
-                            "extensions": { "code": "NOT_FOUND" }
-                        }));
-                    }
-                    location.unwrap_or(Value::Null)
+                    self.location_for_read(&id)
+                        .map(|location| location_selected_json(&location, &field.selection))
+                        .unwrap_or(Value::Null)
                 }
                 "locations" => self.locations_connection_json(&field.arguments, &field.selection),
                 _ => continue,
             };
             data.insert(field.response_key.clone(), value);
         }
-        let mut body = serde_json::Map::new();
-        body.insert("data".to_string(), Value::Object(data));
-        if !errors.is_empty() {
-            body.insert("errors".to_string(), Value::Array(errors));
-        }
-        ok_json(Value::Object(body))
+        Value::Object(data)
     }
 
     fn location_add_input_shape_error(
@@ -2208,6 +2267,70 @@ impl DraftProxy {
             .or(Some(self.store.base.publication_ids.len()));
     }
 
+    pub(in crate::proxy) fn segment_node_read_data(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Option<Value> {
+        let mut data = serde_json::Map::new();
+        let mut handled = false;
+        for field in fields {
+            let value = match field.name.as_str() {
+                "node" => {
+                    handled = true;
+                    field
+                        .arguments
+                        .get("id")
+                        .and_then(resolved_as_string)
+                        .and_then(|id| self.store.staged.segments.get(&id).cloned())
+                        .map(|segment| selected_json(&segment, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "nodes" => {
+                    handled = true;
+                    let ids = field
+                        .arguments
+                        .get("ids")
+                        .map(resolved_string_list)
+                        .unwrap_or_default();
+                    Value::Array(
+                        ids.iter()
+                            .map(|id| {
+                                self.store
+                                    .staged
+                                    .segments
+                                    .get(id)
+                                    .map(|segment| selected_json(segment, &field.selection))
+                                    .unwrap_or(Value::Null)
+                            })
+                            .collect(),
+                    )
+                }
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        handled.then_some(Value::Object(data))
+    }
+
+    pub(in crate::proxy) fn segment_read_data_handles_fields(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        let Some(fields) = root_fields(query, variables) else {
+            return false;
+        };
+        fields.iter().any(|field| match field.name.as_str() {
+            "segment" => field
+                .arguments
+                .get("id")
+                .and_then(resolved_as_string)
+                .is_some_and(|id| self.store.staged.segments.contains_key(&id)),
+            "segments" | "segmentsCount" => !self.store.staged.segments.is_empty(),
+            _ => false,
+        })
+    }
+
     pub(in crate::proxy) fn segment_read_data(&self, fields: &[RootFieldSelection]) -> Value {
         let mut data = serde_json::Map::new();
         for field in fields {
@@ -2473,6 +2596,57 @@ impl DraftProxy {
             data.insert(field.response_key.clone(), value);
         }
         Value::Object(data)
+    }
+
+    pub(in crate::proxy) fn customer_segment_members_query_node_read_data(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Option<Value> {
+        let mut data = serde_json::Map::new();
+        let mut handled = false;
+        for field in fields {
+            let value = match field.name.as_str() {
+                "node" => {
+                    handled = true;
+                    field
+                        .arguments
+                        .get("id")
+                        .and_then(resolved_as_string)
+                        .and_then(|id| {
+                            self.store
+                                .staged
+                                .customer_segment_member_queries
+                                .get(&id)
+                                .cloned()
+                        })
+                        .map(|query| selected_json(&query, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "nodes" => {
+                    handled = true;
+                    let ids = field
+                        .arguments
+                        .get("ids")
+                        .map(resolved_string_list)
+                        .unwrap_or_default();
+                    Value::Array(
+                        ids.iter()
+                            .map(|id| {
+                                self.store
+                                    .staged
+                                    .customer_segment_member_queries
+                                    .get(id)
+                                    .map(|query| selected_json(query, &field.selection))
+                                    .unwrap_or(Value::Null)
+                            })
+                            .collect(),
+                    )
+                }
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        handled.then_some(Value::Object(data))
     }
 
     pub(in crate::proxy) fn customer_segment_members_query_create(
@@ -3421,6 +3595,33 @@ impl DraftProxy {
             data.insert(field.response_key.clone(), value);
         }
         Value::Object(data)
+    }
+
+    pub(in crate::proxy) fn gift_card_node_read_data(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Option<Value> {
+        let mut data = serde_json::Map::new();
+        let mut handled = false;
+        for field in fields {
+            if field.name != "node" {
+                continue;
+            }
+            let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+            if shopify_gid_resource_type(&id) != Some("GiftCard") {
+                continue;
+            }
+            handled = true;
+            let value = self
+                .store
+                .staged
+                .gift_cards
+                .get(&id)
+                .map(|card| selected_json(card, &field.selection))
+                .unwrap_or(Value::Null);
+            data.insert(field.response_key.clone(), value);
+        }
+        handled.then_some(Value::Object(data))
     }
 
     pub(in crate::proxy) fn gift_card_mutation_response(
@@ -5170,6 +5371,42 @@ fn fixture_location_deactivate_state_machine_location(location_id: &str) -> Opti
         })),
         _ => None,
     }
+}
+
+fn app_subscription_trial_is_active(subscription: &Value) -> bool {
+    let Some(trial_days) = subscription.get("trialDays").and_then(Value::as_i64) else {
+        return false;
+    };
+    if trial_days <= 0 {
+        return false;
+    }
+    subscription
+        .get("currentPeriodEnd")
+        .and_then(Value::as_str)
+        .and_then(parse_rfc3339_epoch_seconds)
+        .is_some_and(|period_end| {
+            parse_rfc3339_epoch_seconds(APP_DOMAIN_SYNTHETIC_NOW)
+                .is_some_and(|now| period_end > now)
+        })
+}
+
+fn delegate_expires_after_parent(request: &Request, expires_in: i64) -> bool {
+    let Some(parent_expires_at) =
+        request_header(request, "x-shopify-draft-proxy-access-token-expires-at")
+            .and_then(|value| parse_rfc3339_epoch_seconds(&value))
+    else {
+        return false;
+    };
+    let Some(created_at) = parse_rfc3339_epoch_seconds(APP_DOMAIN_SYNTHETIC_NOW) else {
+        return false;
+    };
+    created_at + expires_in > parent_expires_at
+}
+
+fn app_revoke_access_scopes_missing_source_app(request: &Request) -> bool {
+    request_header(request, "x-shopify-draft-proxy-source-app-missing")
+        .as_deref()
+        .is_some_and(|value| matches!(value, "1" | "true" | "TRUE" | "True"))
 }
 
 fn publishable_publication_input_errors(
