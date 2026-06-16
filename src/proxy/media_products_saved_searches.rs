@@ -182,6 +182,10 @@ impl DraftProxy {
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
             );
         }
+        if !bulk_operation_run_query_has_local_jsonl_synthesis_root(&query_text) {
+            return (self.upstream_transport)(request.clone());
+        }
+
         if let Some(operation_id) = self.in_progress_query_bulk_operation_id() {
             let payload = json!({
                 "bulkOperation": null,
@@ -3986,6 +3990,16 @@ fn product_record_from_hydrated_json(record: &Value) -> ProductRecord {
             .unwrap_or_default(),
         extra_fields: product_extra_fields_from_json(record),
     }
+}
+
+fn bulk_operation_run_query_has_local_jsonl_synthesis_root(query_text: &str) -> bool {
+    let Some(document) = parsed_document(query_text, &BTreeMap::new()) else {
+        return false;
+    };
+    document
+        .root_fields
+        .iter()
+        .all(|field| matches!(field.name.as_str(), "products" | "productVariants"))
 }
 
 fn bulk_operation_run_query_user_errors(query_text: &str) -> Option<Vec<Value>> {
