@@ -1818,6 +1818,14 @@ impl DraftProxy {
                         &operation.root_fields,
                         root_field,
                     ),
+                    "companyAddressDelete" => self.b2b_company_address_delete_with_cascade(
+                        request,
+                        &query,
+                        &variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    ),
                     _ => json_error(
                         501,
                         &format!("No Rust b2b dispatcher implemented for root field: {root_field}"),

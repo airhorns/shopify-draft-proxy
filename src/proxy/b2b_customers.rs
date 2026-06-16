@@ -1180,13 +1180,10 @@ impl DraftProxy {
         )
     }
 
-    pub(in crate::proxy) fn b2b_company_address_delete_payload(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> (Value, &'static str, Vec<String>) {
-        let address_id = resolved_string_arg(&field.arguments, "addressId")
-            .or_else(|| resolved_string_arg(&field.arguments, "id"))
-            .unwrap_or_default();
+    /// Nulls any staged location address (billing and/or shipping) that references
+    /// `address_id`. When a location shares one address record across both billing and
+    /// shipping, deleting it nulls BOTH sides. Returns the ids of the touched locations.
+    pub(in crate::proxy) fn b2b_delete_company_address(&mut self, address_id: &str) -> Vec<String> {
         let mut touched_location_ids = Vec::new();
         let location_ids = self.store.staged.b2b_location_order.clone();
         for location_id in location_ids {
@@ -1194,8 +1191,8 @@ impl DraftProxy {
             else {
                 continue;
             };
-            let billing_matches = location["billingAddress"]["id"].as_str() == Some(&address_id);
-            let shipping_matches = location["shippingAddress"]["id"].as_str() == Some(&address_id);
+            let billing_matches = location["billingAddress"]["id"].as_str() == Some(address_id);
+            let shipping_matches = location["shippingAddress"]["id"].as_str() == Some(address_id);
             if !billing_matches && !shipping_matches {
                 continue;
             }
@@ -1223,6 +1220,17 @@ impl DraftProxy {
                 .insert(location_id.clone(), location);
             touched_location_ids.push(location_id);
         }
+        touched_location_ids
+    }
+
+    pub(in crate::proxy) fn b2b_company_address_delete_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let address_id = resolved_string_arg(&field.arguments, "addressId")
+            .or_else(|| resolved_string_arg(&field.arguments, "id"))
+            .unwrap_or_default();
+        let touched_location_ids = self.b2b_delete_company_address(&address_id);
         if touched_location_ids.is_empty() {
             return (
                 json!({
@@ -2114,6 +2122,50 @@ impl DraftProxy {
                 if self.store.staged.b2b_contacts.contains_key(&contact_id) {
                     self.b2b_delete_company_contact(&contact_id);
                 }
+            }
+        }
+        response
+    }
+
+    /// Forwards companyAddressDelete upstream for its authoritative `deletedAddressId`,
+    /// then — only when the upstream delete succeeded — nulls the matching billing/shipping
+    /// address on every staged location, so a read-after-delete reflects the removal.
+    /// The argument carries the locally-staged (synthetic) address id, which is what the
+    /// staged locations reference, so the side-effect targets local state directly.
+    pub(in crate::proxy) fn b2b_company_address_delete_with_cascade(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        parsed_root_fields: &[String],
+        root_field: &str,
+    ) -> Response {
+        let address_ids = root_fields(query, variables)
+            .map(|fields| {
+                fields
+                    .iter()
+                    .filter(|field| field.name == "companyAddressDelete")
+                    .filter_map(|field| {
+                        resolved_string_arg(&field.arguments, "addressId")
+                            .or_else(|| resolved_string_arg(&field.arguments, "id"))
+                    })
+                    .collect::<Vec<String>>()
+            })
+            .unwrap_or_default();
+
+        let response = self.dispatch_unknown_passthrough_or_legacy_error(
+            request,
+            query,
+            variables,
+            operation_type,
+            parsed_root_fields,
+            root_field,
+        );
+
+        if b2b_passthrough_mutation_succeeded(&response) {
+            for address_id in &address_ids {
+                self.b2b_delete_company_address(address_id);
             }
         }
         response
