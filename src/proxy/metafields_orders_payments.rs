@@ -4034,9 +4034,34 @@ impl DraftProxy {
             .unwrap_or_else(|| "OTHER".to_string());
         let reason_note =
             resolved_string_field(&first_item, "returnReasonNote").unwrap_or_default();
+        // Build return name as #<order-name>-R<n>, matching Shopify's format.
+        // Look up the staged order; fall back to uppercased GID suffix for synthetic orders.
+        let order_name_prefix = self
+            .store
+            .staged
+            .orders
+            .get(&order_id)
+            .and_then(|o| o.get("name").and_then(|n| n.as_str()).map(str::to_string))
+            .unwrap_or_else(|| {
+                let suffix = order_id
+                    .split('/')
+                    .last()
+                    .unwrap_or("unknown")
+                    .to_uppercase()
+                    .replace('-', "-");
+                format!("#{suffix}")
+            });
+        let return_number = self
+            .store
+            .staged
+            .returns_by_order
+            .get(&order_id)
+            .map(|v| v.len() + 1)
+            .unwrap_or(1);
+        let return_name = format!("{order_name_prefix}-R{return_number}");
         let mut return_record = json!({
             "id": return_id,
-            "name": format!("#R{}", self.store.staged.returns.len() + 1),
+            "name": return_name,
             "status": status,
             "closedAt": Value::Null,
             "totalQuantity": quantity,

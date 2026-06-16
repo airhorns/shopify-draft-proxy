@@ -185,7 +185,7 @@ export class DraftProxy {
     const port = allocatePort();
     this.#origin = `http://127.0.0.1:${port}`;
     registerCleanup();
-    this.#child = spawn('cargo', ['run', '--bin', 'shopify-draft-proxy-server', '--quiet'], {
+    this.#child = spawn('./target/release/shopify-draft-proxy-server', [], {
       cwd: repoRoot,
       env: envForConfig(options, port),
     });
