@@ -866,6 +866,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
     staged_state.insert("b2bCompanies".to_string(), json!({}));
     staged_state.insert("b2bLocations".to_string(), json!({}));
     staged_state.insert("b2bContacts".to_string(), json!({}));
+    staged_state.insert("deletedLocationIds".to_string(), json!([]));
     staged_state.insert("deletedB2bContactIds".to_string(), json!([]));
     staged_state.insert("b2bContactRoles".to_string(), json!({}));
     staged_state.insert("b2bContactRoleAssignments".to_string(), json!({}));

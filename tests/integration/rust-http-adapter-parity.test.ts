@@ -231,6 +231,7 @@ describe('Rust HTTP adapter route surface', () => {
             observedShippingLocationOrder: [],
             locations: {},
             locationOrder: [],
+            deletedLocationIds: [],
             publicationIds: [],
             createdPublicationIds: [],
             locationLimitReached: false,

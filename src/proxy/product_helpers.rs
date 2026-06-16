@@ -2556,12 +2556,17 @@ pub(in crate::proxy) fn is_reserved_saved_search_name(resource_type: &str, name:
 
 pub(in crate::proxy) fn product_mutation_payload_json(
     product: &ProductRecord,
+    variants: &[ProductVariantRecord],
     payload_selections: &[SelectedField],
     product_selections: &[SelectedField],
 ) -> Value {
     selected_payload_json(payload_selections, |selection| {
         match selection.name.as_str() {
-            "product" => Some(product_json(product, product_selections)),
+            "product" => Some(product_json_with_variants(
+                product,
+                variants,
+                product_selections,
+            )),
             "userErrors" => Some(json!([])),
             _ => None,
         }
