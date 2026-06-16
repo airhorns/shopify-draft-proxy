@@ -307,9 +307,15 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
       call.query ===
         'recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration';
     const canMatchSynthesizedNodeQuery = isSyntheticNodeCassette && /\bnode(?:s)?\s*\(/u.test(query);
+    const canMatchSynthesizedBulkOperationHydrate =
+      call.operationName === 'BulkOperationHydrate' &&
+      operationName === 'BulkOperationHydrate' &&
+      typeof call.query === 'string' &&
+      call.query.startsWith('hand-synthesized from ');
     return (
       variablesMatch &&
       (canMatchSynthesizedNodeQuery ||
+        canMatchSynthesizedBulkOperationHydrate ||
         parsed['query'] === call.query ||
         (call.query === undefined && call.operationName === operationName && operationName.length > 0))
     );

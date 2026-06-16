@@ -8035,6 +8035,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['bulk operation access through active Admin token'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}bulk-operation-status-catalog-cancel.json`,
+      'config/parity-specs/bulk-operations/bulk-operation-cancel-status-branches.json',
       'config/parity-specs/bulk-operations/bulk-operation-status-catalog-cancel.json',
       'config/parity-specs/bulk-operations/bulk-operation-read-after-write-consumer-poll.json',
       'config/parity-requests/bulk-operations/bulk-operation-consumer-poll.graphql',

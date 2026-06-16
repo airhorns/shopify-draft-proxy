@@ -1,6 +1,38 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
 
+fn bulk_operation_test_record(
+    id: &str,
+    status: &str,
+    operation_type: &str,
+    created_at: &str,
+    query: &str,
+) -> Value {
+    let completed = status == "COMPLETED";
+    json!({
+        "id": id,
+        "status": status,
+        "type": operation_type,
+        "errorCode": null,
+        "createdAt": created_at,
+        "completedAt": if completed { json!(created_at) } else { Value::Null },
+        "objectCount": if completed { "1424" } else { "0" },
+        "rootObjectCount": if completed { "1424" } else { "0" },
+        "fileSize": if completed { json!("112704") } else { Value::Null },
+        "url": if completed { json!("https://example.test/bulk.jsonl") } else { Value::Null },
+        "partialDataUrl": null,
+        "query": query
+    })
+}
+
+fn bulk_operation_hydrate_response(operation: Value) -> shopify_draft_proxy::proxy::Response {
+    shopify_draft_proxy::proxy::Response {
+        status: 200,
+        headers: Default::default(),
+        body: json!({ "data": { "bulkOperation": operation } }),
+    }
+}
+
 #[test]
 fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
     let mut proxy = snapshot_proxy();
@@ -72,6 +104,19 @@ fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
         json!("1432")
     );
 
+    let cancel_id = "gid://shopify/BulkOperation/7689772990770";
+    let captured_query = "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let operation = bulk_operation_test_record(
+            cancel_id,
+            "CREATED",
+            "QUERY",
+            "2026-04-27T20:35:00Z",
+            captured_query,
+        );
+        move |_request| bulk_operation_hydrate_response(operation.clone())
+    });
+
     let cancel = proxy.process_request(json_graphql_request(
         r#"
         mutation BulkOperationCancelParity($id: ID!) {
@@ -81,7 +126,7 @@ fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
           }
         }
         "#,
-        json!({ "id": "gid://shopify/BulkOperation/7689772990770" }),
+        json!({ "id": cancel_id }),
     ));
     assert_eq!(
         cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
@@ -321,7 +366,17 @@ fn bulk_operation_run_query_routes_ordinary_operation_names_locally() {
 
 #[test]
 fn bulk_operation_run_query_throttles_when_query_operation_in_progress() {
-    let mut proxy = snapshot_proxy();
+    let id = "gid://shopify/BulkOperation/7689772990770";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let operation = bulk_operation_test_record(
+            id,
+            "CREATED",
+            "QUERY",
+            "2026-04-27T20:35:00Z",
+            "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}",
+        );
+        move |_request| bulk_operation_hydrate_response(operation.clone())
+    });
     let cancel = proxy.process_request(json_graphql_request(
         r#"
         mutation BulkOperationCancelParity($id: ID!) {
@@ -331,7 +386,7 @@ fn bulk_operation_run_query_throttles_when_query_operation_in_progress() {
           }
         }
         "#,
-        json!({ "id": "gid://shopify/BulkOperation/7689772990770" }),
+        json!({ "id": id }),
     ));
     assert_eq!(
         cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
@@ -753,7 +808,17 @@ fn bulk_operation_run_mutation_file_size_error_precedes_in_progress_throttle() {
 
 #[test]
 fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
-    let mut proxy = snapshot_proxy();
+    let id = "gid://shopify/BulkOperation/7749099127090";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let operation = bulk_operation_test_record(
+            id,
+            "CREATED",
+            "MUTATION",
+            "2026-05-05T20:34:00Z",
+            "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+        );
+        move |_request| bulk_operation_hydrate_response(operation.clone())
+    });
     let mut cancel_request = json_graphql_request(
         r#"
         mutation CancelCapturedMutation($id: ID!) {
@@ -763,7 +828,7 @@ fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
           }
         }
         "#,
-        json!({ "id": "gid://shopify/BulkOperation/7749099127090" }),
+        json!({ "id": id }),
     );
     cancel_request.path = "/admin/api/2025-01/graphql.json".to_string();
     let cancel = proxy.process_request(cancel_request);
@@ -799,18 +864,18 @@ fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
     assert_eq!(
         response.body["data"]["bulkOperationRunMutation"]["userErrors"],
         json!([{
-            "field": null,
-            "message": "A bulk mutation operation for this app and shop is already in progress: gid://shopify/BulkOperation/7749099127090.",
+                "field": null,
+                "message": "A bulk mutation operation for this app and shop is already in progress: gid://shopify/BulkOperation/7749099127090.",
             "code": "OPERATION_IN_PROGRESS"
         }])
     );
 }
 
 #[test]
-fn bulk_operation_cancel_routes_arbitrary_bulk_operation_gids_locally() {
+fn bulk_operation_cancel_unknown_gid_returns_not_found_without_staging() {
     let mut proxy = snapshot_proxy();
     let id = "gid://shopify/BulkOperation/9999999999999";
-    let mut cancel_request = json_graphql_request(
+    let cancel = proxy.process_request(json_graphql_request(
         r#"
         mutation BulkOperationCancelParity($id: ID!) {
           bulkOperationCancel(id: $id) {
@@ -820,27 +885,16 @@ fn bulk_operation_cancel_routes_arbitrary_bulk_operation_gids_locally() {
         }
         "#,
         json!({ "id": id }),
-    );
-    cancel_request.path = "/admin/api/2025-01/graphql.json".to_string();
-
-    let cancel = proxy.process_request(cancel_request);
+    ));
 
     assert_eq!(cancel.status, 200);
     assert_eq!(
-        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["id"],
-        json!(id)
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"],
+        Value::Null
     );
     assert_eq!(
-        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
-        json!("CANCELING")
-    );
-    assert_eq!(
-        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["createdAt"],
-        json!("2026-05-05T20:33:59Z")
-    );
-    assert_eq!(
-        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["query"],
-        json!("#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}")
+        cancel.body["data"]["bulkOperationCancel"]["userErrors"],
+        json!([{ "field": ["id"], "message": "Bulk operation does not exist" }])
     );
 
     let response = proxy.process_request(json_graphql_request(
@@ -857,20 +911,159 @@ fn bulk_operation_cancel_routes_arbitrary_bulk_operation_gids_locally() {
 
     assert_eq!(
         response.body["data"]["bulkOperationRunQuery"]["userErrors"],
-        json!([
-            {
+        json!([])
+    );
+    let missing_read = proxy.process_request(json_graphql_request(
+        r#"
+        query MissingBulkOperation($id: ID!) {
+          bulkOperation(id: $id) { id status }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+    assert_eq!(missing_read.body["data"]["bulkOperation"], Value::Null);
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(log["entries"][0]["operationName"], Value::Null);
+    assert_eq!(
+        log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("bulkOperationRunQuery")
+    );
+}
+
+#[test]
+fn bulk_operation_cancel_completed_staged_operation_echoes_terminal_without_mutation() {
+    let mut proxy = snapshot_proxy();
+    let run = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunCompleted($query: String!) {
+          bulkOperationRunQuery(query: $query) {
+            bulkOperation { id status }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "query": "{ products { edges { node { id } } } }" }),
+    ));
+    let id = run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CancelCompleted($id: ID!) {
+          bulkOperationCancel(id: $id) {
+            bulkOperation { id status type }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"],
+        json!({
+            "bulkOperation": {
+                "id": id,
+                "status": "COMPLETED",
+                "type": "QUERY"
+            },
+            "userErrors": [{
                 "field": null,
-                "message": "A bulk query operation for this app and shop is already in progress: gid://shopify/BulkOperation/9999999999999.",
-                "code": "OPERATION_IN_PROGRESS"
-            }
-        ])
+                "message": "A bulk operation cannot be canceled when it is completed"
+            }]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAfterCancelCompleted($id: ID!) {
+          bulkOperation(id: $id) { id status }
+          currentBulkOperation(type: QUERY) { id status }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+    assert_eq!(
+        read.body["data"]["bulkOperation"]["status"],
+        json!("COMPLETED")
+    );
+    assert_eq!(
+        read.body["data"]["currentBulkOperation"]["status"],
+        json!("COMPLETED")
+    );
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("bulkOperationRunQuery")
+    );
+}
+
+#[test]
+fn bulk_operation_cancel_terminal_hydrated_operation_echoes_existing_record() {
+    let id = "gid://shopify/BulkOperation/7689772204338";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let operation = bulk_operation_test_record(
+            id,
+            "FAILED",
+            "QUERY",
+            "2026-04-27T20:34:58Z",
+            "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}",
+        );
+        move |_request| bulk_operation_hydrate_response(operation.clone())
+    });
+
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CancelFailed($id: ID!) {
+          bulkOperationCancel(id: $id) {
+            bulkOperation { id status type }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
+
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"],
+        json!({
+            "bulkOperation": {
+                "id": id,
+                "status": "FAILED",
+                "type": "QUERY"
+            },
+            "userErrors": [{
+                "field": null,
+                "message": "A bulk operation cannot be canceled when it is failed"
+            }]
+        })
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        0
     );
 }
 
 #[test]
 fn bulk_operation_list_filters_paginates_and_selects_current_by_type() {
-    let mut proxy = snapshot_proxy();
     let older_id = "gid://shopify/BulkOperation/9999999999999";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let operation = bulk_operation_test_record(
+            older_id,
+            "CREATED",
+            "QUERY",
+            "2026-04-27T20:33:59Z",
+            "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}",
+        );
+        move |_request| bulk_operation_hydrate_response(operation.clone())
+    });
     let run = proxy.process_request(json_graphql_request(
         r#"
         mutation BulkOperationRunQueryGroupObjectsTrue($query: String!) {
