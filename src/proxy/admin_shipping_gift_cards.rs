@@ -1634,6 +1634,49 @@ impl DraftProxy {
         self.store.staged.locations.insert(id, location);
     }
 
+    pub(in crate::proxy) fn location_read_response(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Response {
+        let mut data = serde_json::Map::new();
+        let mut errors = Vec::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "location" => {
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                    self.location_for_read(&id)
+                        .map(|location| location_selected_json(&location, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "locationByIdentifier" => {
+                    let identifier =
+                        resolved_object_field(&field.arguments, "identifier").unwrap_or_default();
+                    let id = resolved_string_field(&identifier, "id").unwrap_or_default();
+                    let location = self
+                        .location_for_read(&id)
+                        .map(|location| location_selected_json(&location, &field.selection));
+                    if location.is_none() && identifier.contains_key("customId") {
+                        errors.push(json!({
+                            "message": "Metafield definition of type 'id' is required when using custom ids.",
+                            "path": [field.response_key.clone()],
+                            "extensions": { "code": "NOT_FOUND" }
+                        }));
+                    }
+                    location.unwrap_or(Value::Null)
+                }
+                "locations" => self.locations_connection_json(&field.arguments, &field.selection),
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        let mut body = serde_json::Map::new();
+        body.insert("data".to_string(), Value::Object(data));
+        if !errors.is_empty() {
+            body.insert("errors".to_string(), Value::Array(errors));
+        }
+        ok_json(Value::Object(body))
+    }
+
     fn location_for_read(&self, location_id: &str) -> Option<Value> {
         self.store
             .staged
@@ -2251,7 +2294,7 @@ impl DraftProxy {
         self.hydrate_shop_state_from_response_data(&response.body["data"]);
     }
 
-    fn hydrate_shop_state_from_response_data(&mut self, data: &Value) {
+    pub(in crate::proxy) fn hydrate_shop_state_from_response_data(&mut self, data: &Value) {
         if let Some(shop) = data.get("shop").filter(|shop| shop.is_object()) {
             self.store.base.shop = shop.clone();
         }

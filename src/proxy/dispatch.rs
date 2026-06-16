@@ -116,7 +116,7 @@ impl DraftProxy {
         if let Some(data) = self.abandonment_read_data(query, variables) {
             return ok_json(data);
         }
-        if let Some(data) = self.remaining_order_local_data(root_field, query, variables) {
+        if let Some(data) = self.remaining_order_local_data(request, root_field, query, variables) {
             return ok_json(data);
         }
         if self.config.read_mode != ReadMode::Snapshot {
@@ -780,7 +780,7 @@ impl DraftProxy {
                     {
                         self.metaobject_live_hybrid_read(request, &fields)
                     } else {
-                        ok_json(json!({ "data": self.metaobject_query_data(&fields) }))
+                        ok_json(json!({ "data": self.metaobject_query_data(&fields, request) }))
                     }
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
@@ -884,7 +884,7 @@ impl DraftProxy {
                     && has_local_dispatch
                     && root_field == "orderCancel" =>
             {
-                if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
+                if let Some(data) = self.order_customer_error_paths_data(request, &query, &variables) {
                     ok_json(data)
                 } else {
                     json_error(
@@ -907,7 +907,7 @@ impl DraftProxy {
                     self.money_bag_presentment_local_data(request, &query, &variables)
                 {
                     ok_json(data)
-                } else if let Some(data) = self.remaining_order_local_data(root_field, &query, &variables)
+                } else if let Some(data) = self.remaining_order_local_data(request, root_field, &query, &variables)
                 {
                     ok_json(data)
                 } else {
@@ -930,7 +930,7 @@ impl DraftProxy {
                 {
                     ok_json(data)
                 } else if let Some(data) =
-                    self.order_payment_transaction_local_data(root_field, &query, &variables)
+                    self.order_payment_transaction_local_data(request, root_field, &query, &variables)
                 {
                     ok_json(data)
                 } else if let Some(data) =
@@ -938,7 +938,7 @@ impl DraftProxy {
                 {
                     ok_json(data)
                 } else if let Some(data) =
-                    self.remaining_order_local_data(root_field, &query, &variables)
+                    self.remaining_order_local_data(request, root_field, &query, &variables)
                 {
                     ok_json(data)
                 } else if let Some(data) = self.order_create_local_data(request, root_field, &query, &variables)
@@ -1018,7 +1018,7 @@ impl DraftProxy {
                             | "orderEditSetQuantity"
                     ) =>
             {
-                if let Some(data) = self.remaining_order_local_data(root_field, &query, &variables)
+                if let Some(data) = self.remaining_order_local_data(request, root_field, &query, &variables)
                 {
                     ok_json(data)
                 } else {
@@ -1064,7 +1064,7 @@ impl DraftProxy {
                     && has_local_dispatch
                     && matches!(root_field, "orderCustomerSet" | "orderCustomerRemove") =>
             {
-                if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
+                if let Some(data) = self.order_customer_error_paths_data(request, &query, &variables) {
                     ok_json(data)
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
@@ -1157,7 +1157,7 @@ impl DraftProxy {
                         "orderCapture" | "transactionVoid" | "orderCreateMandatePayment"
                     ) {
                         if let Some(data) =
-                            self.order_payment_transaction_local_data(root_field, &query, &variables)
+                            self.order_payment_transaction_local_data(request, root_field, &query, &variables)
                         {
                             return ok_json(data);
                         }
@@ -1285,7 +1285,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
             {
                 if let Some(fields) = root_fields(&query, &variables) {
-                    ok_json(json!({ "data": self.localization_query_data(&fields, &query) }))
+                    ok_json(json!({ "data": self.localization_query_data(&fields, request) }))
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
                 }
@@ -1324,7 +1324,7 @@ impl DraftProxy {
                             "marketLocalizableResource" | "marketLocalizableResources"
                         )
                     }) {
-                        self.market_localization_query_data(&fields)
+                        self.market_localization_query_data(&fields, request)
                     } else if operation.root_fields.iter().any(|field| {
                         matches!(field.as_str(), "priceList" | "priceLists")
                     }) {
@@ -1747,7 +1747,7 @@ impl DraftProxy {
                         }),
                     "companyAssignCustomerAsContact" => {
                         if let Some(data) =
-                            self.order_customer_error_paths_data(&query, &variables)
+                            self.order_customer_error_paths_data(request, &query, &variables)
                         {
                             ok_json(data)
                         } else {

@@ -4008,6 +4008,7 @@ fn owner_product_variant_state_from_observed_json(value: &Value) -> Option<Produ
                 .unwrap_or(true),
             extra_fields: BTreeMap::new(),
         },
+        media_ids: variant_media_ids_from_json(value),
         extra_fields: BTreeMap::new(),
     })
 }

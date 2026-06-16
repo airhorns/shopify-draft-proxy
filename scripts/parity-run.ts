@@ -5,6 +5,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createDraftProxy, type DraftProxy, type DraftProxyStateDump } from '../js/src/index.js';
+import {
+  type RecordedUpstreamCall,
+  recordedCallMatchesBody,
+  formatRecordedCallMismatch,
+  stableJson,
+} from './parity-cassette.js';
 
 type CliArgs = {
   all: boolean;
@@ -296,51 +302,6 @@ type CassetteServer = {
   expected: () => number;
   close: () => Promise<void>;
 };
-
-function stableJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map((entry) => stableJson(entry)).join(',')}]`;
-  if (isPlainObject(value))
-    return `{${Object.keys(value)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`)
-      .join(',')}}`;
-  return JSON.stringify(value);
-}
-
-function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): boolean {
-  try {
-    const parsed = JSON.parse(body) as Record<string, unknown>;
-    const variablesMatch = stableJson(parsed['variables'] ?? {}) === stableJson(call.variables ?? {});
-    const query = typeof parsed['query'] === 'string' ? parsed['query'] : '';
-    const operationName = typeof parsed['operationName'] === 'string' ? parsed['operationName'] : '';
-    const isSyntheticCustomerCassette = call.query === 'hand-synthesized from checked-in customer parity capture';
-    const canMatchSynthesizedCustomerQuery =
-      isSyntheticCustomerCassette &&
-      ((call.operationName === 'CustomerHydrate' && /\bcustomer\s*\(/u.test(query)) ||
-        (call.operationName === 'CustomerCountHydrate' && /\bcustomersCount\b/u.test(query)));
-    const isSyntheticNodeCassette =
-      call.query?.startsWith('sha:') ||
-      call.query?.includes('hand-synthesized from checked-in seedProducts/mediaReadyRead capture') ||
-      call.query ===
-        'hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration' ||
-      call.query ===
-        'recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration';
-    const canMatchSynthesizedNodeQuery = isSyntheticNodeCassette && /\bnode(?:s)?\s*\(/u.test(query);
-    const canMatchSynthesizedShopPolicyHydrate =
-      call.query === 'sha:hand-synthesized-StorePropertiesShopBaselineHydrate' &&
-      /\bshop\s*\{/u.test(query) &&
-      /\bshopPolicies\b/u.test(query);
-    return (
-      variablesMatch &&
-      (canMatchSynthesizedNodeQuery ||
-        canMatchSynthesizedShopPolicyHydrate ||
-        parsed['query'] === call.query ||
-        (call.query === undefined && call.operationName === operationName && operationName.length > 0))
-    );
-  } catch {
-    return false;
-  }
-}
 
 async function startCassetteServer(): Promise<CassetteServer> {
   let calls: RecordedUpstreamCall[] = [];

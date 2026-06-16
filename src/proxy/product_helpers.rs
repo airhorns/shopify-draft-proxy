@@ -1049,6 +1049,7 @@ pub(in crate::proxy) fn product_variant_state_from_observed_json(
                 &["id", "tracked", "requiresShipping"],
             ),
         },
+        media_ids: variant_media_ids_from_json(value),
         extra_fields: product_variant_state_extra_fields(
             value,
             &[
@@ -1368,6 +1369,7 @@ pub(in crate::proxy) fn product_variant_state_from_json(
                 "inventoryItem",
             ],
         ),
+        media_ids: variant_media_ids_from_json(value),
     })
 }
 
@@ -2008,6 +2010,7 @@ pub(in crate::proxy) fn product_variant_record_from_create_input(
             requires_shipping: true,
             extra_fields: BTreeMap::new(),
         },
+        media_ids: Vec::new(),
         extra_fields: BTreeMap::new(),
     };
     apply_product_variant_input(&mut variant, input);
@@ -2994,4 +2997,28 @@ pub(in crate::proxy) fn product_delete_variable_required_id_error(
             }
         }]
     }))
+}
+
+pub(in crate::proxy) fn variant_media_ids_from_json(value: &Value) -> Vec<String> {
+    value
+        .get("mediaIds")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|media_id| media_id.as_str().map(str::to_string))
+        .chain(
+            value
+                .get("media")
+                .and_then(|connection| connection.get("nodes"))
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(|media| media.get("id").and_then(Value::as_str).map(str::to_string)),
+        )
+        .fold(Vec::new(), |mut ids, id| {
+            if !ids.iter().any(|existing| existing == &id) {
+                ids.push(id);
+            }
+            ids
+        })
 }

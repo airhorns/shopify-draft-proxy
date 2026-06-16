@@ -639,6 +639,21 @@ impl DraftProxy {
             .collect()
     }
 
+    pub(in crate::proxy) fn discount_node_value_by_id(
+        &self,
+        id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
+        self.discount_record(id).map(|record| {
+            let value = if shopify_gid_resource_type(id) == Some("DiscountAutomaticNode") {
+                discount_node_for_record(record)
+            } else {
+                discount_admin_node_for_record(record)
+            };
+            selected_json(&value, selection)
+        })
+    }
+
     fn discount_record(&self, id: &str) -> Option<&Value> {
         if self.store.staged.deleted_discount_ids.contains(id) {
             return None;
