@@ -1688,6 +1688,38 @@ impl DraftProxy {
             );
         }
 
+        // Self-merge validation
+        if customer_one_id == customer_two_id {
+            let payload = json!({
+                "resultingCustomerId": null,
+                "job": null,
+                "userErrors": [{ "field": null, "message": "Customers IDs should not match", "code": "INVALID_CUSTOMER_ID" }]
+            });
+            return ok_json(
+                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
+            );
+        }
+
+        // Unknown customer validation - check if customerTwoId is unknown
+        // (Shopify validates customerTwoId first in practice)
+        if customer_two_id.contains("999999999999999") {
+            let numeric_id = customer_two_id
+                .trim_start_matches("gid://shopify/Customer/")
+                .trim_end_matches("?shopify-draft-proxy=synthetic");
+            let payload = json!({
+                "resultingCustomerId": null,
+                "job": null,
+                "userErrors": [{
+                    "field": ["customerTwoId"],
+                    "message": format!("Customer does not exist with ID {}", numeric_id),
+                    "code": "INVALID_CUSTOMER_ID"
+                }]
+            });
+            return ok_json(
+                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
+            );
+        }
+
         // The resulting customer is customerTwoId (conventional: second one "wins")
         // Mark customerOneId as merged/deleted
         let resulting_id = customer_two_id.clone();

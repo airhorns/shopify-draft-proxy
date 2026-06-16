@@ -104,6 +104,14 @@ fn validate_argument_value(
     schema: &AdminInputSchema,
     context: ValidationContext<'_>,
 ) -> Vec<Value> {
+    // Check for blank literal ID values regardless of type lookup
+    if type_ref.named_type == "ID" {
+        if let RawArgumentValue::String(s) = value {
+            if s.trim().is_empty() {
+                return vec![blank_id_argument_literal_error(field, argument_name, context)];
+            }
+        }
+    }
     let Some(input_object) = schema.input_objects.get(&type_ref.named_type) else {
         return Vec::new();
     };
@@ -158,6 +166,9 @@ fn validate_argument_value(
             type_ref,
             context,
         )],
+        RawArgumentValue::String(s) if type_ref.named_type == "ID" && s.trim().is_empty() => {
+            vec![blank_id_argument_literal_error(field, argument_name, context)]
+        }
         _ => Vec::new(),
     }
 }
@@ -374,9 +385,25 @@ fn required_root_argument_error(
         "path": [context.operation_path, context.response_key],
         "extensions": {
             "code": "missingRequiredArguments",
-            "className": field.name,
-            "name": argument_name,
-            "typeName": type_ref.display
+            "className": "Field",
+            "name": field.name,
+            "arguments": argument_name
+        }
+    })
+}
+
+fn blank_id_argument_literal_error(
+    field: &RootFieldSelection,
+    argument_name: &str,
+    context: ValidationContext<'_>,
+) -> Value {
+    json!({
+        "message": "Invalid global id ''",
+        "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
+        "path": [context.operation_path, context.response_key, argument_name],
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "CoercionError"
         }
     })
 }
@@ -496,6 +523,7 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         let mut schema = AdminInputSchema::default();
         extend_gift_card_input_schema(&mut schema);
         extend_discount_basic_input_schema(&mut schema);
+        extend_customer_merge_input_schema(&mut schema);
         schema
     })
 }
@@ -530,6 +558,30 @@ fn extend_gift_card_input_schema(schema: &mut AdminInputSchema) {
             "input".to_string(),
             mutation_arg(non_null("GiftCardCreateInput")),
         )]),
+    );
+}
+
+fn extend_customer_merge_input_schema(schema: &mut AdminInputSchema) {
+    // customerMerge requires both customerOneId and customerTwoId as non-null IDs
+    // overrideFields is optional
+    schema.input_objects.insert(
+        "CustomerMergeOverrideFields".to_string(),
+        BTreeMap::from([
+            ("note".to_string(), input_field(named("String"))),
+            ("tags".to_string(), input_field(named("String"))),
+            ("taxExemptions".to_string(), input_field(named("String"))),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "customerMerge".to_string(),
+        BTreeMap::from([
+            ("customerOneId".to_string(), mutation_arg(non_null("ID"))),
+            ("customerTwoId".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "overrideFields".to_string(),
+                mutation_arg(named("CustomerMergeOverrideFields")),
+            ),
+        ]),
     );
 }
 
