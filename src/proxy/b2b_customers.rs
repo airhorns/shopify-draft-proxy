@@ -2464,6 +2464,13 @@ impl DraftProxy {
                     );
                 }
                 let response = (self.upstream_transport)(request.clone());
+                if operation_type == OperationType::Query
+                    && root_fields
+                        .iter()
+                        .all(|field| matches!(field.as_str(), "node" | "nodes"))
+                {
+                    self.observe_collection_passthrough_response(&response);
+                }
                 if operation_type == OperationType::Mutation
                     && matches!(
                         root_field,
