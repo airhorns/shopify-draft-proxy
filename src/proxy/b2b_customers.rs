@@ -241,7 +241,11 @@ impl DraftProxy {
             OperationType::Query => fields.iter().all(|field| {
                 matches!(
                     field.name.as_str(),
-                    "company" | "companies" | "companyLocation" | "companyLocations"
+                    "company"
+                        | "companies"
+                        | "companyContact"
+                        | "companyLocation"
+                        | "companyLocations"
                 )
             }),
             OperationType::Subscription => false,
@@ -323,6 +327,21 @@ impl DraftProxy {
                                 })
                                 .or_else(|| {
                                     b2b_company_customer_since_value(&id, &field.selection)
+                                })
+                                .unwrap_or(Value::Null)
+                        }
+                        "companyContact" => {
+                            let id =
+                                resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                            self.store
+                                .staged
+                                .b2b_contacts
+                                .get(&id)
+                                .map(|contact| {
+                                    self.b2b_company_contact_selected_json(
+                                        contact,
+                                        &field.selection,
+                                    )
                                 })
                                 .unwrap_or(Value::Null)
                         }
@@ -1584,6 +1603,10 @@ impl DraftProxy {
         fields.iter().any(|field| match field.name.as_str() {
             "company" => resolved_string_arg(&field.arguments, "id")
                 .is_some_and(|id| self.store.staged.b2b_companies.contains_key(&id)),
+            "companyContact" => resolved_string_arg(&field.arguments, "id").is_some_and(|id| {
+                self.store.staged.b2b_contacts.contains_key(&id)
+                    || self.store.staged.deleted_b2b_contact_ids.contains(&id)
+            }),
             "companyLocation" => resolved_string_arg(&field.arguments, "id")
                 .is_some_and(|id| self.store.staged.b2b_locations.contains_key(&id)),
             "companyLocations" => !self.store.staged.b2b_locations.is_empty(),
