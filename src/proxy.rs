@@ -695,17 +695,24 @@ fn effective_records<T: Clone>(base: &OrderedRecords<T>, staged: &StagedRecords<
         .iter()
         .filter_map(|id| base.records.get(id).map(|record| (id.as_str(), record)))
     {
-        if staged.is_tombstoned(id) || staged.contains_staged(id) {
+        if staged.is_tombstoned(id) {
             continue;
         }
-        records.push(record.clone());
+        // An updated base record overrides in place, preserving its original
+        // position — Shopify does not reorder a record on update. Only staged
+        // records with no base counterpart are appended at the end below.
+        if let Some(staged_record) = staged.get(id) {
+            records.push(staged_record.clone());
+        } else {
+            records.push(record.clone());
+        }
     }
     for (id, record) in staged
         .order
         .iter()
         .filter_map(|id| staged.records.get(id).map(|record| (id.as_str(), record)))
     {
-        if staged.is_tombstoned(id) {
+        if staged.is_tombstoned(id) || base.records.contains_key(id) {
             continue;
         }
         records.push(record.clone());
