@@ -361,7 +361,12 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("metaobjectCreate", CapabilityDomain::Metaobjects),
     local_mutation("metaobjectDelete", CapabilityDomain::Metaobjects),
     local_mutation("metaobjectDefinitionCreate", CapabilityDomain::Metaobjects),
+    local_mutation("metaobjectDefinitionUpdate", CapabilityDomain::Metaobjects),
     local_mutation("metaobjectDefinitionDelete", CapabilityDomain::Metaobjects),
+    local_mutation(
+        "standardMetaobjectDefinitionEnable",
+        CapabilityDomain::Metaobjects,
+    ),
     local_mutation("metafieldDefinitionCreate", CapabilityDomain::Metafields),
     local_mutation("metafieldDefinitionUpdate", CapabilityDomain::Metafields),
     local_mutation("metafieldDefinitionDelete", CapabilityDomain::Metafields),
