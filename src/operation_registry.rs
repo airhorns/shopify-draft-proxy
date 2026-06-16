@@ -589,8 +589,6 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
         "reverseFulfillmentOrderDispose",
         CapabilityDomain::ShippingFulfillments,
     ),
-<<<<<<< ours
-=======
     local_query("draftOrderSavedSearches", CapabilityDomain::SavedSearches),
     local_query("fileSavedSearches", CapabilityDomain::SavedSearches),
     local_query("orderSavedSearches", CapabilityDomain::SavedSearches),
@@ -614,7 +612,6 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("fileUpdate", CapabilityDomain::Media),
     local_mutation("fileDelete", CapabilityDomain::Media),
     local_query("discountNode", CapabilityDomain::Discounts),
->>>>>>> theirs
     local_query("discountNodes", CapabilityDomain::Discounts),
     local_query("discountNodesCount", CapabilityDomain::Discounts),
     local_query("discountNode", CapabilityDomain::Discounts),

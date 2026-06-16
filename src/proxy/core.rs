@@ -188,33 +188,6 @@ impl DraftProxy {
                 "deletedOwnerMetafields": deleted_owner_metafields
             }
         });
-<<<<<<< ours
-        snapshot["stagedState"]["b2bCompanies"] = json!(self.store.staged.b2b_companies.clone());
-        snapshot["stagedState"]["b2bLocations"] = json!(self.store.staged.b2b_locations.clone());
-        snapshot["stagedState"]["b2bContacts"] = json!(self.store.staged.b2b_contacts.clone());
-        snapshot["stagedState"]["deletedB2bContactIds"] = json!(self
-            .store
-            .staged
-            .deleted_b2b_contact_ids
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>());
-        snapshot["stagedState"]["b2bContactRoles"] =
-            json!(self.store.staged.b2b_contact_roles.clone());
-        snapshot["stagedState"]["b2bContactRoleAssignments"] =
-            json!(self.store.staged.b2b_contact_role_assignments.clone());
-        snapshot["stagedState"]["deletedB2bContactRoleAssignmentIds"] = json!(self
-            .store
-            .staged
-            .deleted_b2b_contact_role_assignment_ids
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>());
-        snapshot["stagedState"]["nextB2bCompanyId"] = json!(self.store.staged.next_b2b_company_id);
-        snapshot["stagedState"]["nextB2bContactId"] = json!(self.store.staged.next_b2b_contact_id);
-        snapshot["stagedState"]["nextB2bContactRoleAssignmentId"] =
-            json!(self.store.staged.next_b2b_contact_role_assignment_id);
-=======
         if self.has_staged_b2b_state() {
             snapshot["stagedState"]["b2bCompanies"] =
                 json!(self.store.staged.b2b_companies.clone());
@@ -230,7 +203,6 @@ impl DraftProxy {
             snapshot["stagedState"]["b2bStaffAssignments"] =
                 json!(self.store.staged.b2b_staff_assignments.clone());
         }
->>>>>>> theirs
         if !self.store.staged.metaobject_definitions.is_empty() {
             snapshot["stagedState"]["metaobjectDefinitions"] =
                 json!(self.store.staged.metaobject_definitions);

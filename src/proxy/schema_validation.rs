@@ -261,14 +261,7 @@ fn validate_resolved_input_object(
         if let Some(problem) = validate_resolved_scalar(field_value, &field_schema.type_ref) {
             let mut nested_path = problem_path.to_vec();
             nested_path.push(field_name.clone());
-            if problem.include_message {
-                problems.push(variable_problem_with_message(
-                    &nested_path,
-                    &problem.explanation,
-                ));
-            } else {
-                problems.push(variable_problem(&nested_path, &problem.explanation));
-            }
+            problems.push(variable_problem_with_message(&nested_path, &problem));
         }
         let Some(nested_input_object) = schema.input_objects.get(&field_schema.type_ref.named_type)
         else {
@@ -289,59 +282,16 @@ fn validate_resolved_input_object(
     problems
 }
 
-struct ScalarValidationProblem {
-    explanation: String,
-    include_message: bool,
-}
-
-fn validate_resolved_scalar(
-    value: &ResolvedValue,
-    type_ref: &SchemaTypeRef,
-) -> Option<ScalarValidationProblem> {
-    match type_ref.named_type.as_str() {
-        "Decimal" => {
-            let ResolvedValue::String(raw) = value else {
-                return None;
-            };
-            raw.parse::<f64>().err().map(|_| ScalarValidationProblem {
-                explanation: format!("invalid decimal '{raw}'"),
-                include_message: true,
-            })
-        }
-        "FulfillmentEventStatus" => {
-            let ResolvedValue::String(raw) = value else {
-                return None;
-            };
-            (!fulfillment_event_status_is_allowed(raw)).then(|| ScalarValidationProblem {
-                explanation: fulfillment_event_status_expected_message(raw),
-                include_message: false,
-            })
-        }
-        _ => None,
+fn validate_resolved_scalar(value: &ResolvedValue, type_ref: &SchemaTypeRef) -> Option<String> {
+    if type_ref.named_type != "Decimal" {
+        return None;
     }
-}
-
-fn fulfillment_event_status_is_allowed(status: &str) -> bool {
-    matches!(
-        status,
-        "LABEL_PURCHASED"
-            | "LABEL_PRINTED"
-            | "READY_FOR_PICKUP"
-            | "CONFIRMED"
-            | "IN_TRANSIT"
-            | "OUT_FOR_DELIVERY"
-            | "ATTEMPTED_DELIVERY"
-            | "DELAYED"
-            | "DELIVERED"
-            | "FAILURE"
-            | "CARRIER_PICKED_UP"
-    )
-}
-
-fn fulfillment_event_status_expected_message(status: &str) -> String {
-    format!(
-        "Expected \"{status}\" to be one of: LABEL_PURCHASED, LABEL_PRINTED, READY_FOR_PICKUP, CONFIRMED, IN_TRANSIT, OUT_FOR_DELIVERY, ATTEMPTED_DELIVERY, DELAYED, DELIVERED, FAILURE, CARRIER_PICKED_UP"
-    )
+    let ResolvedValue::String(raw) = value else {
+        return None;
+    };
+    raw.parse::<f64>()
+        .err()
+        .map(|_| format!("invalid decimal '{raw}'"))
 }
 
 fn root_argument_not_accepted_error(
@@ -493,18 +443,8 @@ fn local_extension_input_field(input_type_name: &str, field_name: &str) -> bool 
 fn public_admin_input_schema() -> &'static AdminInputSchema {
     static SCHEMA: OnceLock<AdminInputSchema> = OnceLock::new();
     SCHEMA.get_or_init(|| {
-<<<<<<< ours
         let mut schema = AdminInputSchema::default();
         extend_gift_card_input_schema(&mut schema);
-=======
-        let fixture: Value = serde_json::from_str(include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/gift-cards/gift-card-create-validation.json"
-        ))
-        .unwrap_or_else(|_| json!({}));
-        let mut schema = schema_from_fixture(&fixture).unwrap_or_default();
-        register_fulfillment_service_fields(&mut schema);
-        extend_fulfillment_event_input_schema(&mut schema);
->>>>>>> theirs
         extend_discount_basic_input_schema(&mut schema);
         schema
     })
@@ -514,21 +454,8 @@ fn input_field(type_ref: SchemaTypeRef) -> SchemaInputField {
     SchemaInputField { type_ref }
 }
 
-<<<<<<< ours
 fn mutation_arg(type_ref: SchemaTypeRef) -> SchemaArgument {
     SchemaArgument { type_ref }
-=======
-fn extend_fulfillment_event_input_schema(schema: &mut AdminInputSchema) {
-    extend_mutation_input_schema(schema, &["fulfillmentEventCreate"]);
-}
-
-fn scalar_type_ref(type_name: &str) -> SchemaTypeRef {
-    SchemaTypeRef {
-        display: type_name.to_string(),
-        named_type: type_name.to_string(),
-        non_null: false,
-    }
->>>>>>> theirs
 }
 
 fn extend_gift_card_input_schema(schema: &mut AdminInputSchema) {
