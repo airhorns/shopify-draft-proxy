@@ -1,0 +1,430 @@
+{
+  "capturedAt": "2026-06-15T23:27:55.270Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "suffix": "metafield_type_guard_mqfufw71",
+  "cases": {
+    "idNoValues": {
+      "namespace": "metafield_type_guard_mqfufw71_id_no_values",
+      "key": "uid",
+      "type": "id",
+      "create": {
+        "request": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-create.graphql",
+          "variables": {
+            "definition": {
+              "name": "Delete type guard no metafields id_no_values",
+              "namespace": "metafield_type_guard_mqfufw71_id_no_values",
+              "key": "uid",
+              "ownerType": "PRODUCT",
+              "type": "id"
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metafieldDefinitionCreate": {
+              "createdDefinition": {
+                "id": "gid://shopify/MetafieldDefinition/217748701490",
+                "name": "Delete type guard no metafields id_no_values",
+                "namespace": "metafield_type_guard_mqfufw71_id_no_values",
+                "key": "uid",
+                "ownerType": "PRODUCT",
+                "type": {
+                  "name": "id"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "request": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-delete-no-flag.graphql",
+          "variables": {
+            "id": "gid://shopify/MetafieldDefinition/217748701490"
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metafieldDefinitionDelete": {
+              "deletedDefinitionId": null,
+              "deletedDefinition": null,
+              "userErrors": [
+                {
+                  "__typename": "MetafieldDefinitionDeleteUserError",
+                  "field": null,
+                  "message": "Deleting an id type metafield definition requires deletion of its associated metafields.",
+                  "code": "ID_TYPE_DELETION_ERROR"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "referenceNoValues": {
+      "namespace": "metafield_type_guard_mqfufw71_reference_no_values",
+      "key": "target",
+      "type": "product_reference",
+      "create": {
+        "request": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-create.graphql",
+          "variables": {
+            "definition": {
+              "name": "Delete type guard no metafields reference_no_values",
+              "namespace": "metafield_type_guard_mqfufw71_reference_no_values",
+              "key": "target",
+              "ownerType": "PRODUCT",
+              "type": "product_reference"
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metafieldDefinitionCreate": {
+              "createdDefinition": {
+                "id": "gid://shopify/MetafieldDefinition/217748734258",
+                "name": "Delete type guard no metafields reference_no_values",
+                "namespace": "metafield_type_guard_mqfufw71_reference_no_values",
+                "key": "target",
+                "ownerType": "PRODUCT",
+                "type": {
+                  "name": "product_reference"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "request": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-delete-with-flag.graphql",
+          "variables": {
+            "id": "gid://shopify/MetafieldDefinition/217748734258",
+            "deleteAllAssociatedMetafields": false
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metafieldDefinitionDelete": {
+              "deletedDefinitionId": null,
+              "deletedDefinition": null,
+              "userErrors": [
+                {
+                  "__typename": "MetafieldDefinitionDeleteUserError",
+                  "field": null,
+                  "message": "Deleting a reference type metafield definition requires deletion of its associated metafields.",
+                  "code": "REFERENCE_TYPE_DELETION_ERROR"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "listReferenceNoValues": {
+      "namespace": "metafield_type_guard_mqfufw71_list_reference_no_values",
+      "key": "targets",
+      "type": "list.product_reference",
+      "create": {
+        "request": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-create.graphql",
+          "variables": {
+            "definition": {
+              "name": "Delete type guard no metafields list_reference_no_values",
+              "namespace": "metafield_type_guard_mqfufw71_list_reference_no_values",
+              "key": "targets",
+              "ownerType": "PRODUCT",
+              "type": "list.product_reference"
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metafieldDefinitionCreate": {
+              "createdDefinition": {
+                "id": "gid://shopify/MetafieldDefinition/217748767026",
+                "name": "Delete type guard no metafields list_reference_no_values",
+                "namespace": "metafield_type_guard_mqfufw71_list_reference_no_values",
+                "key": "targets",
+                "ownerType": "PRODUCT",
+                "type": {
+                  "name": "list.product_reference"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "request": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-delete-no-flag.graphql",
+          "variables": {
+            "id": "gid://shopify/MetafieldDefinition/217748767026"
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metafieldDefinitionDelete": {
+              "deletedDefinitionId": null,
+              "deletedDefinition": null,
+              "userErrors": [
+                {
+                  "__typename": "MetafieldDefinitionDeleteUserError",
+                  "field": null,
+                  "message": "Deleting a reference type metafield definition requires deletion of its associated metafields.",
+                  "code": "REFERENCE_TYPE_DELETION_ERROR"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "referenceWithFlag": {
+      "namespace": "metafield_type_guard_mqfufw71_reference_with_flag",
+      "key": "target",
+      "type": "product_reference",
+      "create": {
+        "request": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-create.graphql",
+          "variables": {
+            "definition": {
+              "name": "Delete type guard no metafields reference_with_flag",
+              "namespace": "metafield_type_guard_mqfufw71_reference_with_flag",
+              "key": "target",
+              "ownerType": "PRODUCT",
+              "type": "product_reference"
+            }
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metafieldDefinitionCreate": {
+              "createdDefinition": {
+                "id": "gid://shopify/MetafieldDefinition/217748799794",
+                "name": "Delete type guard no metafields reference_with_flag",
+                "namespace": "metafield_type_guard_mqfufw71_reference_with_flag",
+                "key": "target",
+                "ownerType": "PRODUCT",
+                "type": {
+                  "name": "product_reference"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "request": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-delete-with-flag.graphql",
+          "variables": {
+            "id": "gid://shopify/MetafieldDefinition/217748799794",
+            "deleteAllAssociatedMetafields": true
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "metafieldDefinitionDelete": {
+              "deletedDefinitionId": "gid://shopify/MetafieldDefinition/217748799794",
+              "deletedDefinition": {
+                "ownerType": "PRODUCT",
+                "namespace": "metafield_type_guard_mqfufw71_reference_with_flag",
+                "key": "target"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "request": {
+        "query": "#graphql\n  mutation MetafieldDefinitionDeleteTypeGuardNoMetafieldsCleanup($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/217748701490"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/217748701490",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation MetafieldDefinitionDeleteTypeGuardNoMetafieldsCleanup($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/217748734258"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/217748734258",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation MetafieldDefinitionDeleteTypeGuardNoMetafieldsCleanup($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/217748767026"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/217748767026",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
