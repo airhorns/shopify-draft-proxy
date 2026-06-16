@@ -1678,6 +1678,13 @@ impl DraftProxy {
             (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && has_local_dispatch
+                    && root_field == "customerMerge" =>
+            {
+                self.customer_merge(&query, &variables, request)
+            }
+            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
                     && root_field == "customerSet" =>
             {
                 if let Some(response) = self.customer_set_guard_response(&query, &variables) {

@@ -1493,7 +1493,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &["customerMerge", "CustomerMerge"],
             &[],
         ),

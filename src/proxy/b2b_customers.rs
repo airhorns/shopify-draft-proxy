@@ -901,14 +901,26 @@ impl DraftProxy {
         let input = resolved_object_field(&arguments, "input")
             .or_else(|| resolved_object_field(variables, "input"))
             .unwrap_or_default();
-        let email = resolved_string_field(&input, "email").unwrap_or_default();
-        let first_name = resolved_string_field(&input, "firstName");
-        let last_name = resolved_string_field(&input, "lastName");
-        let phone = resolved_string_field(&input, "phone");
-        if email.trim().is_empty()
-            && first_name.as_deref().unwrap_or_default().trim().is_empty()
-            && last_name.as_deref().unwrap_or_default().trim().is_empty()
-            && phone.as_deref().unwrap_or_default().trim().is_empty()
+        let email_raw = resolved_string_field(&input, "email");
+        // Blank/null email normalizes to None (no email)
+        let email: Option<String> = email_raw.filter(|e| !e.trim().is_empty());
+        let first_name: Option<String> = resolved_string_field(&input, "firstName")
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        let last_name: Option<String> = resolved_string_field(&input, "lastName")
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        let phone_raw = resolved_string_field(&input, "phone");
+        // Blank/null phone normalizes to None
+        let phone: Option<String> = phone_raw.filter(|p| !p.trim().is_empty());
+        let locale = resolved_string_field(&input, "locale");
+        let note = resolved_string_field(&input, "note");
+
+        // Require at least one identifying field
+        if email.is_none()
+            && first_name.is_none()
+            && last_name.is_none()
+            && phone.is_none()
         {
             let payload = json!({
                 "customer": null,
@@ -922,7 +934,112 @@ impl DraftProxy {
             );
         }
 
-        let id = if email.ends_with("example.test") {
+        // Collect validation userErrors (Shopify returns all matching errors)
+        let mut user_errors: Vec<Value> = Vec::new();
+
+        // Email format validation
+        if let Some(ref e) = email {
+            if !is_valid_customer_email(e) {
+                user_errors.push(json!({ "field": ["email"], "message": "Email is invalid" }));
+            }
+        }
+
+        // Phone format validation (must start with + and contain only digits/spaces after)
+        if let Some(ref p) = phone {
+            if !is_valid_customer_phone(p) {
+                user_errors.push(json!({ "field": ["phone"], "message": "Phone is invalid" }));
+            }
+        }
+
+        // Locale validation
+        if let Some(ref loc) = locale {
+            if !loc.trim().is_empty() && !default_available_locales().contains_key(loc.as_str()) {
+                user_errors.push(json!({ "field": ["locale"], "message": "Locale is invalid" }));
+            }
+        }
+
+        // Tag length validation (each tag max 255 chars)
+        let raw_tags = resolved_string_list_field(&input, "tags");
+        for tag in &raw_tags {
+            if tag.len() > 255 {
+                user_errors.push(json!({ "field": ["tags"], "message": "Tags is too long (maximum is 255 characters)" }));
+                break;
+            }
+        }
+
+        // Name/note length validation
+        let first = first_name.clone().unwrap_or_default();
+        let last = last_name.clone().unwrap_or_default();
+        if first.len() > 255 {
+            user_errors.push(json!({ "field": ["firstName"], "message": "First name is too long (maximum is 255 characters)" }));
+        }
+        if last.len() > 255 {
+            user_errors.push(json!({ "field": ["lastName"], "message": "Last name is too long (maximum is 255 characters)" }));
+        }
+        if let Some(ref n) = note {
+            if n.len() > 5000 {
+                user_errors.push(json!({ "field": ["note"], "message": "Note is too long (maximum is 5000 characters)" }));
+            }
+        }
+
+        // Return early if format/length errors (before uniqueness checks)
+        if !user_errors.is_empty() {
+            let payload = json!({ "customer": null, "userErrors": user_errors });
+            return ok_json(
+                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
+            );
+        }
+
+        // Duplicate email check
+        if let Some(ref e) = email {
+            let email_lower = e.to_lowercase();
+            let taken = self.store.staged.customers.values().any(|c| {
+                c.get("email")
+                    .and_then(|v| v.as_str())
+                    .map(|existing| existing.to_lowercase() == email_lower)
+                    .unwrap_or(false)
+            });
+            if taken {
+                user_errors.push(json!({ "field": ["email"], "message": "Email has already been taken" }));
+            }
+        }
+
+        // Duplicate phone check
+        if let Some(ref p) = phone {
+            let taken = self.store.staged.customers.values().any(|c| {
+                c.get("phone")
+                    .and_then(|v| v.as_str())
+                    .map(|existing| existing == p.as_str())
+                    .unwrap_or(false)
+            });
+            if taken {
+                user_errors.push(json!({ "field": ["phone"], "message": "Phone has already been taken" }));
+            }
+        }
+
+        if !user_errors.is_empty() {
+            let payload = json!({ "customer": null, "userErrors": user_errors });
+            return ok_json(
+                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
+            );
+        }
+
+        // Tag normalization: trim, deduplicate (preserve first occurrence), filter empty, sort case-insensitively
+        let mut seen_tags: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut normalized_tags: Vec<String> = Vec::new();
+        for tag in raw_tags {
+            let trimmed = tag.trim().to_string();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let lower = trimmed.to_lowercase();
+            if seen_tags.insert(lower) {
+                normalized_tags.push(trimmed);
+            }
+        }
+        normalized_tags.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+
+        let id = if email.as_deref().unwrap_or_default().ends_with("example.test") {
             format!("gid://shopify/Customer/{}", self.next_synthetic_id)
         } else {
             format!(
@@ -931,36 +1048,34 @@ impl DraftProxy {
             )
         };
         self.next_synthetic_id += 1;
-        let first = first_name.unwrap_or_default();
-        let last = last_name.unwrap_or_default();
         let display_name = [first.as_str(), last.as_str()]
             .into_iter()
             .filter(|part| !part.is_empty())
             .collect::<Vec<_>>()
             .join(" ");
-        let mut tags = resolved_string_list_field(&input, "tags");
-        tags.sort();
         let timestamp = "2026-04-25T01:41:06Z";
+        let effective_locale = locale.filter(|l| !l.trim().is_empty());
+        let effective_note = note.filter(|n| !n.trim().is_empty());
         let customer = json!({
             "id": id,
             "firstName": first,
             "lastName": last,
             "displayName": display_name,
-            "email": if email.is_empty() { Value::Null } else { json!(email) },
-            "phone": phone.clone(),
-            "locale": resolved_string_field(&input, "locale"),
-            "note": resolved_string_field(&input, "note"),
+            "email": email.as_deref().map(|e| json!(e)).unwrap_or(Value::Null),
+            "phone": phone.as_deref().map(|p| json!(p)).unwrap_or(Value::Null),
+            "locale": effective_locale,
+            "note": effective_note,
             "verifiedEmail": true,
             "taxExempt": resolved_bool_field(&input, "taxExempt").unwrap_or(false),
             "taxExemptions": [],
-            "tags": tags,
+            "tags": normalized_tags,
             "state": "DISABLED",
             "canDelete": true,
             "loyalty": null,
             "metafield": null,
             "metafields": { "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null } },
-            "defaultEmailAddress": if email.is_empty() { Value::Null } else { json!({ "emailAddress": email }) },
-            "defaultPhoneNumber": phone.as_ref().map(|phone| json!({ "phoneNumber": phone })).unwrap_or(Value::Null),
+            "defaultEmailAddress": email.as_deref().map(|e| json!({ "emailAddress": e })).unwrap_or(Value::Null),
+            "defaultPhoneNumber": phone.as_deref().map(|p| json!({ "phoneNumber": p })).unwrap_or(Value::Null),
             "defaultAddress": null,
             "createdAt": timestamp,
             "updatedAt": timestamp
@@ -1008,63 +1123,217 @@ impl DraftProxy {
                 json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
             );
         }
-        let first = resolved_string_field(&input, "firstName")
-            .map(|value| value.trim().to_string())
-            .unwrap_or_else(|| "Hermes".to_string());
-        let last = resolved_string_field(&input, "lastName")
-            .map(|value| value.trim().to_string())
-            .unwrap_or_else(|| "Updated".to_string());
-        let tags = if matches!(
-            id.as_str(),
-            "gid://shopify/Customer/10541053706546" | "gid://shopify/Customer/10541053772082"
-        ) {
-            normalize_customer_tags(resolved_string_list_field_unsorted(&input, "tags"))
+
+        // Check if customer was deleted/merged (validation still happens first, but before update check)
+        // Validate input fields first (Shopify validates before checking customer existence)
+        let mut user_errors: Vec<Value> = Vec::new();
+
+        // Email format validation (only if email field is present and non-blank)
+        let email_opt: Option<String> = if input.contains_key("email") {
+            resolved_string_field(&input, "email").filter(|e| !e.trim().is_empty())
         } else {
-            resolved_string_list_field_unsorted(&input, "tags")
+            None
         };
+        if let Some(ref e) = email_opt {
+            if !is_valid_customer_email(e) {
+                user_errors.push(json!({ "field": ["email"], "message": "Email is invalid" }));
+            }
+        }
+
+        // Phone format validation (only if phone field is present and non-blank)
+        let phone_opt: Option<String> = if input.contains_key("phone") {
+            resolved_string_field(&input, "phone").filter(|p| !p.trim().is_empty())
+        } else {
+            None
+        };
+        if let Some(ref p) = phone_opt {
+            if !is_valid_customer_phone(p) {
+                user_errors.push(json!({ "field": ["phone"], "message": "Phone is invalid" }));
+            }
+        }
+
+        // Locale validation
+        let locale_opt = resolved_string_field(&input, "locale");
+        if let Some(ref loc) = locale_opt {
+            if !loc.trim().is_empty() && !default_available_locales().contains_key(loc.as_str()) {
+                user_errors.push(json!({ "field": ["locale"], "message": "Locale is invalid" }));
+            }
+        }
+
+        // Tag length validation
+        let raw_tags_update = resolved_string_list_field(&input, "tags");
+        for tag in &raw_tags_update {
+            if tag.len() > 255 {
+                user_errors.push(json!({ "field": ["tags"], "message": "Tags is too long (maximum is 255 characters)" }));
+                break;
+            }
+        }
+
+        // Name/note length validation
+        let first_update = resolved_string_field(&input, "firstName")
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        let last_update = resolved_string_field(&input, "lastName")
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        let note_update = resolved_string_field(&input, "note");
+        if first_update.len() > 255 {
+            user_errors.push(json!({ "field": ["firstName"], "message": "First name is too long (maximum is 255 characters)" }));
+        }
+        if last_update.len() > 255 {
+            user_errors.push(json!({ "field": ["lastName"], "message": "Last name is too long (maximum is 255 characters)" }));
+        }
+        if let Some(ref n) = note_update {
+            if n.len() > 5000 {
+                user_errors.push(json!({ "field": ["note"], "message": "Note is too long (maximum is 5000 characters)" }));
+            }
+        }
+
+        // Return early if format/length errors
+        if !user_errors.is_empty() {
+            let payload = json!({ "customer": null, "userErrors": user_errors });
+            return ok_json(
+                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
+            );
+        }
+
+        // Duplicate email check (excluding the customer being updated)
+        if let Some(ref e) = email_opt {
+            let email_lower = e.to_lowercase();
+            let taken = self.store.staged.customers.iter().any(|(cid, c)| {
+                cid != &id
+                    && c.get("email")
+                        .and_then(|v| v.as_str())
+                        .map(|existing| existing.to_lowercase() == email_lower)
+                        .unwrap_or(false)
+            });
+            if taken {
+                user_errors.push(json!({ "field": ["email"], "message": "Email has already been taken" }));
+            }
+        }
+
+        // Duplicate phone check (excluding the customer being updated)
+        if let Some(ref p) = phone_opt {
+            let taken = self.store.staged.customers.iter().any(|(cid, c)| {
+                cid != &id
+                    && c.get("phone")
+                        .and_then(|v| v.as_str())
+                        .map(|existing| existing == p.as_str())
+                        .unwrap_or(false)
+            });
+            if taken {
+                user_errors.push(json!({ "field": ["phone"], "message": "Phone has already been taken" }));
+            }
+        }
+
+        if !user_errors.is_empty() {
+            let payload = json!({ "customer": null, "userErrors": user_errors });
+            return ok_json(
+                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
+            );
+        }
+
+        // Check if customer was deleted or merged (proxy tracks deletion)
+        let is_deleted = self.store.staged.deleted_customer_ids.contains(&id);
+        if is_deleted {
+            let payload = json!({
+                "customer": null,
+                "userErrors": [{ "field": ["id"], "message": "Customer does not exist" }]
+            });
+            return ok_json(
+                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
+            );
+        }
+
+        // Look up or create the customer record
+        let first = if first_update.is_empty() {
+            resolved_string_field(&input, "firstName")
+                .unwrap_or_else(|| "Hermes".to_string())
+        } else {
+            first_update
+        };
+        let last = if last_update.is_empty() {
+            resolved_string_field(&input, "lastName")
+                .unwrap_or_else(|| "Updated".to_string())
+        } else {
+            last_update
+        };
+        let tags = normalize_customer_tags(raw_tags_update);
         let tax_exemptions = resolved_string_list_field_unsorted(&input, "taxExemptions");
         let loyalty = customer_loyalty_metafield(&input);
-        let email = if id == "gid://shopify/Customer/10541053706546" {
-            "hermes-input-validation-update-blank-scalars-1777159099540@example.com"
-        } else if id == "gid://shopify/Customer/10541053772082" {
-            "hermes-input-validation-update-tags-1777159099540@example.com"
+
+        // Get existing customer data or use defaults
+        let existing = self.store.staged.customers.get(&id).cloned();
+        let base_email = existing
+            .as_ref()
+            .and_then(|c| c.get("email"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("hermes-customer-create-1777081266467@example.com");
+        let base_phone = existing
+            .as_ref()
+            .and_then(|c| c.get("phone"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("+141****0123");
+        let base_locale = existing
+            .as_ref()
+            .and_then(|c| c.get("locale"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        let effective_email = if input.contains_key("email") {
+            email_opt.as_deref().map(|e| e.to_string()).unwrap_or_else(|| base_email.to_string())
         } else {
-            "hermes-customer-create-1777081266467@example.com"
+            base_email.to_string()
         };
-        let phone = if id == "gid://shopify/Customer/10541053772082" {
-            "+141****9553"
+        let effective_phone = if input.contains_key("phone") {
+            phone_opt.as_deref().map(|p| p.to_string())
         } else {
-            "+14155550123"
+            Some(base_phone.to_string())
         };
+        let effective_locale = if input.contains_key("locale") {
+            locale_opt.filter(|l| !l.trim().is_empty())
+        } else {
+            base_locale
+        };
+
         let mut customer = customer_fixture_record(CustomerFixtureRecord {
             id: &id,
             first: &first,
             last: &last,
-            email,
-            phone,
-            note: resolved_string_field(&input, "note").as_deref(),
+            email: &effective_email,
+            phone: effective_phone.as_deref().unwrap_or("+141****0123"),
+            note: note_update.as_deref().or_else(|| {
+                existing
+                    .as_ref()
+                    .and_then(|c| c.get("note"))
+                    .and_then(|v| v.as_str())
+            }),
             tax_exempt: resolved_bool_field(&input, "taxExempt").unwrap_or(false),
             tax_exemptions,
             tags,
             loyalty,
         });
+        // Apply phone override from input
         if input.contains_key("phone") {
-            let phone = resolved_string_field(&input, "phone").filter(|phone| !phone.is_empty());
             if let Some(object) = customer.as_object_mut() {
                 object.insert(
                     "phone".to_string(),
-                    phone
+                    effective_phone
                         .as_ref()
-                        .map(|value| json!(value))
+                        .map(|v| json!(v))
                         .unwrap_or(Value::Null),
                 );
                 object.insert(
                     "defaultPhoneNumber".to_string(),
-                    phone
-                        .map(|value| json!({ "phoneNumber": value }))
+                    effective_phone
+                        .map(|v| json!({ "phoneNumber": v }))
                         .unwrap_or(Value::Null),
                 );
             }
+        }
+        // Apply locale override
+        if let Some(object) = customer.as_object_mut() {
+            object.insert("locale".to_string(), json!(effective_locale));
         }
         self.store.staged.deleted_customer_ids.remove(&id);
         self.store
@@ -1388,4 +1657,109 @@ fn customer_update_inline_consent_error(field: &str, mutation: &str) -> Value {
         "field": [field],
         "message": format!("To update {field}, please use the {mutation} Mutation instead")
     })
+}
+
+impl DraftProxy {
+    pub(in crate::proxy) fn customer_merge(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "customerMerge".to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let customer_one_id = resolved_string_field(&arguments, "customerOneId")
+            .or_else(|| resolved_string_field(variables, "customerOneId"))
+            .unwrap_or_default();
+        let customer_two_id = resolved_string_field(&arguments, "customerTwoId")
+            .or_else(|| resolved_string_field(variables, "customerTwoId"))
+            .unwrap_or_default();
+
+        if customer_one_id.is_empty() || customer_two_id.is_empty() {
+            let payload = json!({
+                "resultingCustomerId": null,
+                "job": null,
+                "userErrors": [{ "field": null, "message": "Both customerOneId and customerTwoId are required" }]
+            });
+            return ok_json(
+                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
+            );
+        }
+
+        // The resulting customer is customerTwoId (conventional: second one "wins")
+        // Mark customerOneId as merged/deleted
+        let resulting_id = customer_two_id.clone();
+        let merged_away_id = customer_one_id.clone();
+
+        self.store.staged.deleted_customer_ids.insert(merged_away_id.clone());
+        self.record_mutation_log_entry(
+            request,
+            query,
+            variables,
+            "customerMerge",
+            vec![merged_away_id, resulting_id.clone()],
+        );
+
+        let job_id = format!("gid://shopify/Job/{}", uuid_v4_stub());
+        let payload = json!({
+            "resultingCustomerId": resulting_id,
+            "job": { "id": job_id, "done": false },
+            "userErrors": []
+        });
+        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+    }
+}
+
+fn uuid_v4_stub() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let t = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .subsec_nanos();
+    format!("{t:08x}-0000-4000-8000-000000000000")
+}
+
+/// Basic email format validation matching Shopify's rules:
+/// must contain exactly one @, with non-empty local and domain parts,
+/// domain must contain a dot.
+fn is_valid_customer_email(email: &str) -> bool {
+    let parts: Vec<&str> = email.splitn(2, '@').collect();
+    if parts.len() != 2 {
+        return false;
+    }
+    let local = parts[0];
+    let domain = parts[1];
+    if local.is_empty() || domain.is_empty() {
+        return false;
+    }
+    // Domain must contain a dot and not start/end with a dot
+    if !domain.contains('.') || domain.starts_with('.') || domain.ends_with('.') {
+        return false;
+    }
+    // No spaces allowed
+    if email.contains(' ') {
+        return false;
+    }
+    true
+}
+
+/// Basic phone validation: must start with + followed by digits.
+/// Allows spaces, dashes, parentheses after the + prefix.
+fn is_valid_customer_phone(phone: &str) -> bool {
+    if !phone.starts_with('+') {
+        return false;
+    }
+    let after_plus = &phone[1..];
+    if after_plus.is_empty() {
+        return false;
+    }
+    // Must contain at least one digit
+    let has_digit = after_plus.chars().any(|c| c.is_ascii_digit());
+    if !has_digit {
+        return false;
+    }
+    // Only allow digits, spaces, dashes, parentheses, dots after the +
+    after_plus.chars().all(|c| c.is_ascii_digit() || c == ' ' || c == '-' || c == '(' || c == ')' || c == '.')
 }
