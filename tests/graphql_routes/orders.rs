@@ -2920,6 +2920,180 @@ fn remaining_order_fixture_backed_edges_replay_without_passthrough_logs() {
 }
 
 #[test]
+fn order_delete_stages_local_tombstone_cascade_and_not_found_errors() {
+    let mut proxy = snapshot_proxy();
+    let create_query = r#"
+        mutation CreateDeletableOrder($order: OrderCreateOrderInput!) {
+          orderCreate(order: $order) {
+            order {
+              id
+              email
+              displayFinancialStatus
+              displayFulfillmentStatus
+            }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let delete_query = r#"
+        mutation DeleteOrder($orderId: ID!) {
+          orderDelete(orderId: $orderId) {
+            deletedId
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let read_query = r#"
+        query ReadDeletedOrder($id: ID!) {
+          order(id: $id) { id email }
+          orders(first: 5) { nodes { id email } }
+          ordersCount { count precision }
+        }
+    "#;
+
+    let create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "order": {
+                "email": "order-delete-success@example.com",
+                "currency": "USD",
+                "financialStatus": "PENDING",
+                "lineItems": [{
+                    "title": "Order delete success",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
+    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
+
+    let delete = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "orderId": order_id.clone() }),
+    ));
+    assert_eq!(
+        delete.body["data"]["orderDelete"],
+        json!({ "deletedId": order_id, "userErrors": [] })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": delete.body["data"]["orderDelete"]["deletedId"].clone() }),
+    ));
+    assert_eq!(read.body["data"]["order"], Value::Null);
+    assert_eq!(read.body["data"]["orders"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["ordersCount"],
+        json!({ "count": 0, "precision": "EXACT" })
+    );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[0]["operationName"], json!("orderCreate"));
+    assert_eq!(entries[1]["operationName"], json!("orderDelete"));
+    assert_eq!(entries[1]["status"], json!("staged"));
+    assert!(entries[1]["rawBody"]
+        .as_str()
+        .is_some_and(|body| body.contains("DeleteOrder")));
+
+    let repeat = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "orderId": delete.body["data"]["orderDelete"]["deletedId"].clone() }),
+    ));
+    assert_eq!(
+        repeat.body["data"]["orderDelete"]["userErrors"],
+        json!([{ "field": ["orderId"], "message": "Order does not exist", "code": "NOT_FOUND" }])
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+
+    let paid = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "order": {
+                "email": "order-delete-paid@example.com",
+                "currency": "USD",
+                "financialStatus": "PAID",
+                "lineItems": [{
+                    "title": "Order delete paid",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    let paid_id = paid.body["data"]["orderCreate"]["order"]["id"].clone();
+    let paid_delete = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "orderId": paid_id.clone() }),
+    ));
+    assert_eq!(
+        paid_delete.body["data"]["orderDelete"],
+        json!({ "deletedId": paid_id, "userErrors": [] })
+    );
+    let paid_read = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": paid_delete.body["data"]["orderDelete"]["deletedId"].clone() }),
+    ));
+    assert_eq!(paid_read.body["data"]["order"], Value::Null);
+
+    let fulfilled = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "order": {
+                "email": "order-delete-fulfilled@example.com",
+                "currency": "USD",
+                "financialStatus": "PENDING",
+                "fulfillmentStatus": "FULFILLED",
+                "lineItems": [{
+                    "title": "Order delete fulfilled",
+                    "quantity": 1,
+                    "priceSet": { "shopMoney": { "amount": "14.00", "currencyCode": "USD" } }
+                }]
+            }
+        }),
+    ));
+    let fulfilled_id = fulfilled.body["data"]["orderCreate"]["order"]["id"].clone();
+    let fulfilled_delete = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "orderId": fulfilled_id.clone() }),
+    ));
+    assert_eq!(
+        fulfilled_delete.body["data"]["orderDelete"],
+        json!({ "deletedId": fulfilled_id, "userErrors": [] })
+    );
+    let fulfilled_read = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": fulfilled_delete.body["data"]["orderDelete"]["deletedId"].clone() }),
+    ));
+    assert_eq!(fulfilled_read.body["data"]["order"], Value::Null);
+
+    let unknown = proxy.process_request(json_graphql_request(
+        delete_query,
+        json!({ "orderId": "gid://shopify/Order/order-delete-missing" }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["orderDelete"],
+        json!({
+            "deletedId": Value::Null,
+            "userErrors": [{
+                "field": ["orderId"],
+                "message": "Order does not exist",
+                "code": "NOT_FOUND"
+            }]
+        })
+    );
+}
+
+#[test]
 fn order_edit_existing_downstream_reads_track_add_and_zero_removal_modes() {
     let happy_fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-happy-path.json"

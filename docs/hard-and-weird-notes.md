@@ -3605,3 +3605,29 @@ Practical rule:
   keep ticket-required local guardrails for `profileLocationGroups` unknown
   locations and overlapping zone countries covered by runtime tests unless newer
   public evidence shows a different update-side rejection shape
+
+## 85. `orderDelete` is permissive for disposable Admin-created orders
+
+Admin GraphQL 2026-04 live probes against `harry-test-heelo.myshopify.com`
+tested `orderDelete` with disposable direct `orderCreate` and
+`draftOrderComplete` orders.
+
+Observed behavior:
+
+- pending direct orders deleted successfully and immediate `order(id:)`,
+  `orders(query:)`, and `ordersCount(query:)` reads no longer exposed the order
+- repeated deletes and unknown order IDs returned `OrderDeleteUserError` on
+  `["orderId"]` with code `NOT_FOUND`
+- paid direct orders, open fulfillment-order orders, fulfilled orders,
+  requested-return orders, refunded orders, cancelled orders, non-test direct
+  orders, and draft-completed paid/pending orders all deleted successfully in
+  the disposable probes
+- no checked-in live fixture currently proves an `orderDelete` `INVALID` branch
+  for financial, fulfillment, return, or fulfillment-order state
+
+Practical rule:
+
+- do not reject locally staged `orderDelete` solely because an order is paid,
+  fulfilled, has open fulfillment-order state, has requested returns, is
+  refunded, or is cancelled unless a future live capture records a concrete
+  public `INVALID` payload for that state

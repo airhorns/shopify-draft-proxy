@@ -5288,6 +5288,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-delete-snapshot-staging',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-delete-snapshot-staging-conformance.ts',
+    purpose:
+      'orderDelete success, read-after-delete cascade, repeat-delete NOT_FOUND, paid fulfilled-order delete success, and unknown-order NOT_FOUND behavior.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-delete-snapshot-staging.json`,
+      'config/parity-specs/orders/orderDelete-snapshot-staging.json',
+      'config/parity-requests/orders/orderDelete-snapshot-staging-create.graphql',
+      'config/parity-requests/orders/orderDelete-snapshot-staging-delete.graphql',
+      'config/parity-requests/orders/orderDelete-snapshot-staging-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable deletable and fulfilled orders; successful delete removes the deletable order and cleanup cancels/deletes any remaining fulfilled order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-management-mutations',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-management-conformance.ts',

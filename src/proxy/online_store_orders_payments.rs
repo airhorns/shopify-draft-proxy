@@ -2222,9 +2222,14 @@ impl DraftProxy {
             .all(|field| matches!(field.name.as_str(), "order" | "orders" | "ordersCount"));
         if all_reads {
             let staged_order_read = fields.iter().any(|field| match field.name.as_str() {
-                "order" => resolved_string_arg(&field.arguments, "id")
-                    .is_some_and(|id| self.store.staged.orders.contains_key(&id)),
-                "orders" | "ordersCount" => !self.store.staged.orders.is_empty(),
+                "order" => resolved_string_arg(&field.arguments, "id").is_some_and(|id| {
+                    self.store.staged.orders.contains_key(&id)
+                        || self.store.staged.deleted_order_ids.contains(&id)
+                }),
+                "orders" | "ordersCount" => {
+                    !self.store.staged.orders.is_empty()
+                        || !self.store.staged.deleted_order_ids.is_empty()
+                }
                 _ => false,
             });
             if !staged_order_read {
@@ -3273,16 +3278,8 @@ impl DraftProxy {
         }
         if root_field == "orderDelete" {
             let field = field?;
-            return Some(data_response(
-                &field.response_key,
-                selected_json(
-                    &json!({
-                        "deletedId": Value::Null,
-                        "userErrors": [orders_error(&["orderId"], "Order does not exist", "NOT_FOUND")]
-                    }),
-                    &field.selection,
-                ),
-            ));
+            let payload = self.stage_order_delete(request, query, variables, &field)?;
+            return Some(data_response(&field.response_key, payload));
         }
         if root_field == "orderUpdate"
             && resolved_object_field(variables, "input")
@@ -3422,6 +3419,120 @@ impl DraftProxy {
             ));
         }
         None
+    }
+
+    fn stage_order_delete(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        field: &RootFieldSelection,
+    ) -> Option<Value> {
+        let order_id = resolved_string_arg(&field.arguments, "orderId")?;
+        if !self.store.staged.orders.contains_key(&order_id) {
+            return Some(selected_json(
+                &json!({
+                    "deletedId": Value::Null,
+                    "userErrors": [orders_error(&["orderId"], "Order does not exist", "NOT_FOUND")]
+                }),
+                &field.selection,
+            ));
+        }
+
+        self.delete_staged_order(&order_id);
+        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            request,
+            query,
+            variables,
+            root_field: "orderDelete",
+            staged_resource_ids: vec![order_id.clone()],
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally staged orderDelete in shopify-draft-proxy.",
+            },
+        });
+        Some(selected_json(
+            &json!({
+                "deletedId": order_id,
+                "userErrors": []
+            }),
+            &field.selection,
+        ))
+    }
+
+    fn delete_staged_order(&mut self, order_id: &str) {
+        self.store.staged.orders.remove(order_id);
+        self.store
+            .staged
+            .deleted_order_ids
+            .insert(order_id.to_string());
+
+        for orders in self.store.staged.customer_orders.values_mut() {
+            orders.retain(|order| order["id"].as_str() != Some(order_id));
+        }
+        self.store
+            .staged
+            .customer_orders
+            .retain(|_, orders| !orders.is_empty());
+
+        if let Some(terms_id) = self.store.staged.payment_terms_owner_index.remove(order_id) {
+            self.store.staged.payment_terms.remove(&terms_id);
+        }
+
+        if let Some(return_ids) = self.store.staged.returns_by_order.remove(order_id) {
+            for return_id in return_ids {
+                if let Some(record) = self.store.staged.returns.remove(&return_id) {
+                    if let Some(nodes) = record["reverseFulfillmentOrders"]["nodes"].as_array() {
+                        for node in nodes {
+                            if let Some(reverse_id) = node["id"].as_str() {
+                                self.remove_reverse_fulfillment_order(reverse_id);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        self.store.staged.order_customer_orders.remove(order_id);
+        self.store
+            .staged
+            .order_customer_cancelled_ids
+            .remove(order_id);
+        self.store
+            .staged
+            .order_customer_b2b_order_ids
+            .remove(order_id);
+        if self
+            .store
+            .staged
+            .order_payment_transaction_order_id
+            .as_deref()
+            == Some(order_id)
+        {
+            self.store.staged.order_payment_transaction_order_id = None;
+            self.store.staged.order_payment_parent_transaction_id = None;
+            self.store.staged.order_payment_transaction_state = None;
+        }
+    }
+
+    fn remove_reverse_fulfillment_order(&mut self, reverse_id: &str) {
+        self.store
+            .staged
+            .reverse_fulfillment_orders
+            .remove(reverse_id);
+        let delivery_ids = self
+            .store
+            .staged
+            .reverse_deliveries
+            .iter()
+            .filter(|(_, delivery)| {
+                delivery["reverseFulfillmentOrder"]["id"].as_str() == Some(reverse_id)
+            })
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>();
+        for delivery_id in delivery_ids {
+            self.store.staged.reverse_deliveries.remove(&delivery_id);
+        }
     }
 
     pub(in crate::proxy) fn order_payment_transaction_local_data(
