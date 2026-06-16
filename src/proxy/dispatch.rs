@@ -804,13 +804,53 @@ impl DraftProxy {
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
-                    "location" | "locationByIdentifier" | "locations"
+                    "availableCarrierServices"
+                        | "location"
+                        | "locationByIdentifier"
+                        | "locations"
+                        | "locationsAvailableForDeliveryProfilesConnection"
+                )
+            })
+            && operation
+                .root_fields
+                .iter()
+                .any(|field| field == "availableCarrierServices")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return self.shipping_settings_read_response(request, &fields);
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "location"
+                        | "locationByIdentifier"
+                        | "locations"
+                        | "locationsAvailableForDeliveryProfilesConnection"
                 )
             })
             && (self.config.read_mode == ReadMode::Snapshot || self.has_staged_locations())
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.location_read_data(&fields) }));
+                let mut data = self.location_read_data(&fields);
+                merge_json_object_fields(
+                    &mut data,
+                    self.delivery_profile_locations_read_data(&fields),
+                );
+                return ok_json(json!({ "data": data }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "locationsAvailableForDeliveryProfilesConnection")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return self.delivery_profile_locations_read_response(request, &fields);
             }
         }
 
@@ -1448,9 +1488,20 @@ impl DraftProxy {
         if operation.operation_type == OperationType::Mutation
             && matches!(
                 root_field,
-                "shippingPackageUpdate" | "shippingPackageMakeDefault" | "shippingPackageDelete"
+                "locationLocalPickupEnable"
+                    | "locationLocalPickupDisable"
+                    | "shippingPackageUpdate"
+                    | "shippingPackageMakeDefault"
+                    | "shippingPackageDelete"
             )
         {
+            if matches!(
+                root_field,
+                "locationLocalPickupEnable" | "locationLocalPickupDisable"
+            ) {
+                return self
+                    .location_local_pickup_mutation(root_field, &query, &variables, request);
+            }
             return self.shipping_package_mutation(root_field, &query, &variables, request);
         }
 
@@ -2461,5 +2512,14 @@ impl DraftProxy {
                 ),
             ),
         }
+    }
+}
+
+fn merge_json_object_fields(target: &mut Value, source: Value) {
+    let (Value::Object(target), Value::Object(source)) = (target, source) else {
+        return;
+    };
+    for (key, value) in source {
+        target.insert(key, value);
     }
 }

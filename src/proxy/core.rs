@@ -140,6 +140,8 @@ impl DraftProxy {
                 "returnsByOrder": self.store.staged.returns_by_order.clone(),
                "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
                 "reverseFulfillmentOrders": self.store.staged.reverse_fulfillment_orders.clone(),
+                "observedShippingLocations": self.store.staged.observed_shipping_locations.clone(),
+                "observedShippingLocationOrder": self.store.staged.observed_shipping_location_order.clone(),
                 "locations": self.store.staged.locations.clone(),
                 "locationOrder": self.store.staged.location_order.clone(),
                 "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
@@ -513,6 +515,27 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.observed_shipping_locations = state["stagedState"]
+            .get("observedShippingLocations")
+            .and_then(Value::as_object)
+            .map(|locations| {
+                locations
+                    .iter()
+                    .map(|(id, location)| (id.clone(), location.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.observed_shipping_location_order = state["stagedState"]
+            .get("observedShippingLocationOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .observed_shipping_locations
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
         self.store.staged.locations = state["stagedState"]
             .get("locations")
             .and_then(Value::as_object)
