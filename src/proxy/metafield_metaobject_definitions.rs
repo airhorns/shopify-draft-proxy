@@ -2,6 +2,7 @@ use super::*;
 
 const METAFIELD_DEFINITION_RESOURCE_TYPE_LIMIT: usize = 256;
 const PINNED_DEFINITION_LIMIT: usize = 50;
+const ADMIN_FILTERABLE_DEFINITION_LIMIT: usize = 50;
 const STANDARD_TEMPLATE_MARKER_FIELD: &str = "__shopifyDraftProxyStandardTemplateId";
 
 fn pinned_definition_limit_message() -> String {
@@ -11,6 +12,14 @@ fn pinned_definition_limit_message() -> String {
 fn metafield_definition_resource_type_limit_message() -> String {
     format!(
         "You can only have {METAFIELD_DEFINITION_RESOURCE_TYPE_LIMIT} definitions per resource type."
+    )
+}
+
+fn admin_filterable_definition_limit_message(owner_type: &str) -> String {
+    format!(
+        "You can only use {ADMIN_FILTERABLE_DEFINITION_LIMIT} {} metafield definitions to filter the {} list. To add a new filter, disable filtering on an existing one.",
+        owner_type.to_ascii_lowercase(),
+        owner_type.to_ascii_lowercase()
     )
 }
 
@@ -65,7 +74,10 @@ impl DraftProxy {
             }));
         }
         let mut data = serde_json::Map::new();
+        let mut staged_ids = Vec::new();
+        let mut primary_staged_root: Option<String> = None;
         for field in root_fields(query, variables).unwrap_or_default() {
+            let root_name = field.name.clone();
             match field.name.as_str() {
                 "metafieldDefinitionCreate" => {
                     let definition_input =
@@ -77,6 +89,10 @@ impl DraftProxy {
                     }
                     let payload =
                         self.metafield_definition_create_payload(request, &definition_input);
+                    if let Some(id) = metafield_definition_payload_staged_id(&payload) {
+                        staged_ids.push(id);
+                        primary_staged_root.get_or_insert(root_name);
+                    }
                     data.insert(
                         field.response_key,
                         selected_json(&payload, &field.selection),
@@ -91,6 +107,10 @@ impl DraftProxy {
                         );
                     }
                     let payload = self.metafield_definition_update_payload(&definition_input);
+                    if let Some(id) = metafield_definition_payload_staged_id(&payload) {
+                        staged_ids.push(id);
+                        primary_staged_root.get_or_insert(root_name);
+                    }
                     data.insert(
                         field.response_key,
                         selected_json(&payload, &field.selection),
@@ -114,6 +134,9 @@ impl DraftProxy {
                         &owner_type,
                         &mut staged_ids,
                     );
+                    if !staged_ids.is_empty() {
+                        primary_staged_root.get_or_insert(root_name);
+                    }
                     data.insert(
                         field.response_key,
                         selected_json(&payload, &field.selection),
@@ -121,6 +144,10 @@ impl DraftProxy {
                 }
                 "metafieldDefinitionDelete" => {
                     let payload = self.metafield_definition_delete_payload(&field.arguments);
+                    if let Some(id) = metafield_definition_payload_staged_id(&payload) {
+                        staged_ids.push(id);
+                        primary_staged_root.get_or_insert(root_name);
+                    }
                     data.insert(
                         field.response_key,
                         selected_json(&payload, &field.selection),
@@ -233,6 +260,10 @@ impl DraftProxy {
                         "pinnedDefinition": public_metafield_definition_value(definition),
                         "userErrors": []
                     });
+                    if let Some(id) = metafield_definition_payload_staged_id(&payload) {
+                        staged_ids.push(id);
+                        primary_staged_root.get_or_insert(root_name);
+                    }
                     data.insert(
                         field.response_key,
                         selected_json(&payload, &field.selection),
@@ -316,6 +347,10 @@ impl DraftProxy {
                         "unpinnedDefinition": public_metafield_definition_value(definition),
                         "userErrors": []
                     });
+                    if let Some(id) = metafield_definition_payload_staged_id(&payload) {
+                        staged_ids.push(id);
+                        primary_staged_root.get_or_insert(root_name);
+                    }
                     data.insert(
                         field.response_key,
                         selected_json(&payload, &field.selection),
@@ -323,6 +358,9 @@ impl DraftProxy {
                 }
                 _ => {}
             }
+        }
+        if let Some(root) = primary_staged_root {
+            self.record_mutation_log_entry(request, query, variables, &root, staged_ids);
         }
         ok_json(json!({"data": Value::Object(data)}))
     }
@@ -359,6 +397,31 @@ impl DraftProxy {
                     json!(["definition"]),
                     &metafield_definition_resource_type_limit_message(),
                     "RESOURCE_TYPE_LIMIT_EXCEEDED"
+                )]
+            });
+        }
+        if let Some(error) = metafield_definition_capability_input_error(
+            input,
+            "MetafieldDefinitionCreateUserError",
+            json!(["definition"]),
+            &owner_type,
+            resolved_string_field(input, "type")
+                .as_deref()
+                .unwrap_or_default(),
+        ) {
+            return json!({"createdDefinition": Value::Null, "userErrors": [error]});
+        }
+        if metafield_definition_capabilities_will_enable_admin_filterable(input, None)
+            && self.metafield_definition_admin_filterable_count(&owner_type)
+                >= ADMIN_FILTERABLE_DEFINITION_LIMIT
+        {
+            return json!({
+                "createdDefinition": Value::Null,
+                "userErrors": [metafield_definition_user_error(
+                    "MetafieldDefinitionCreateUserError",
+                    json!(["definition"]),
+                    &admin_filterable_definition_limit_message(&owner_type),
+                    "OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS"
                 )]
             });
         }
@@ -478,6 +541,38 @@ impl DraftProxy {
                 "validationJob": Value::Null
             });
         };
+        let type_name = definition["type"]["name"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        if let Some(error) = metafield_definition_capability_input_error(
+            input,
+            "MetafieldDefinitionUpdateUserError",
+            json!(["definition"]),
+            &owner_type,
+            &type_name,
+        ) {
+            return json!({
+                "updatedDefinition": Value::Null,
+                "userErrors": [error],
+                "validationJob": Value::Null
+            });
+        }
+        if metafield_definition_capabilities_will_enable_admin_filterable(input, Some(&definition))
+            && self.metafield_definition_admin_filterable_count_excluding(&owner_type, &map_key)
+                >= ADMIN_FILTERABLE_DEFINITION_LIMIT
+        {
+            return json!({
+                "updatedDefinition": Value::Null,
+                "userErrors": [metafield_definition_user_error(
+                    "MetafieldDefinitionUpdateUserError",
+                    json!(["definition"]),
+                    &admin_filterable_definition_limit_message(&owner_type),
+                    "OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS"
+                )],
+                "validationJob": Value::Null
+            });
+        }
         if let Some(name) = resolved_string_field(input, "name") {
             definition["name"] = json!(name);
         }
@@ -492,6 +587,10 @@ impl DraftProxy {
         }
         if let Some(access) = resolved_object_field(input, "access") {
             definition["access"] = metafield_definition_access(&access);
+        }
+        if let Some(capabilities) = resolved_object_field(input, "capabilities") {
+            apply_metafield_definition_capability_input(&mut definition, &capabilities);
+            apply_metafield_definition_capability_derived_fields(&mut definition);
         }
         if resolved_bool_field(input, "pin") == Some(true)
             && definition.get("pinnedPosition").is_none_or(Value::is_null)
@@ -684,6 +783,15 @@ impl DraftProxy {
         if let Some(access) = resolved_object_field(input, "access") {
             definition["access"] = metafield_definition_access(&access);
         }
+        if let Some(capabilities) = resolved_object_field(input, "capabilities") {
+            apply_metafield_definition_capability_input(&mut definition, &capabilities);
+        }
+        if definition["type"]["name"].as_str() == Some("id")
+            && !metafield_definition_capability_explicitly_disabled(input, "uniqueValues")
+        {
+            definition["capabilities"]["uniqueValues"]["enabled"] = json!(true);
+        }
+        apply_metafield_definition_capability_derived_fields(&mut definition);
         if let Some(template) = template {
             definition[STANDARD_TEMPLATE_MARKER_FIELD] = json!(template.id);
         }
@@ -744,6 +852,32 @@ impl DraftProxy {
                     && definition
                         .get("pinnedPosition")
                         .is_some_and(|position| !position.is_null())
+            })
+            .count()
+    }
+
+    fn metafield_definition_admin_filterable_count(&self, owner_type: &str) -> usize {
+        self.metafield_definition_admin_filterable_count_excluding(
+            owner_type,
+            &(String::new(), String::new()),
+        )
+    }
+
+    fn metafield_definition_admin_filterable_count_excluding(
+        &self,
+        owner_type: &str,
+        excluded: &(String, String),
+    ) -> usize {
+        self.store
+            .staged
+            .metafield_definitions
+            .iter()
+            .filter(|(key, definition)| {
+                *key != excluded
+                    && definition.get("ownerType").and_then(Value::as_str) == Some(owner_type)
+                    && definition["capabilities"]["adminFilterable"]["enabled"]
+                        .as_bool()
+                        .unwrap_or(false)
             })
             .count()
     }
@@ -1255,6 +1389,32 @@ impl DraftProxy {
                 "customerAccount": "NONE"
             });
         }
+        if let Some(error) = metafield_definition_capability_input_error(
+            arguments,
+            "StandardMetafieldDefinitionEnableUserError",
+            Value::Null,
+            owner_type,
+            definition["type"]["name"].as_str().unwrap_or_default(),
+        ) {
+            return json!({
+                "createdDefinition": Value::Null,
+                "userErrors": [error]
+            });
+        }
+        if metafield_definition_capabilities_will_enable_admin_filterable(arguments, None)
+            && self.metafield_definition_admin_filterable_count(owner_type)
+                >= ADMIN_FILTERABLE_DEFINITION_LIMIT
+        {
+            return json!({
+                "createdDefinition": Value::Null,
+                "userErrors": [metafield_definition_user_error(
+                    "StandardMetafieldDefinitionEnableUserError",
+                    Value::Null,
+                    &admin_filterable_definition_limit_message(owner_type),
+                    "OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS"
+                )]
+            });
+        }
         if resolved_bool_field(arguments, "pin") == Some(true) {
             if metafield_definition_has_constraints(&definition) {
                 return json!({
@@ -1362,7 +1522,7 @@ const STANDARD_METAFIELD_DEFINITION_TEMPLATES: &[StandardMetafieldDefinitionTemp
         name: "Color pattern",
         description: None,
         owner_types: &["PRODUCT"],
-        metafield_type: "single_line_text_field",
+        metafield_type: "list.metaobject_reference",
         validations: &[],
     },
 ];
@@ -1393,6 +1553,30 @@ fn public_metafield_definition_value(mut definition: Value) -> Value {
         object.remove(STANDARD_TEMPLATE_MARKER_FIELD);
     }
     definition
+}
+
+fn metafield_definition_payload_staged_id(payload: &Value) -> Option<String> {
+    [
+        "createdDefinition",
+        "updatedDefinition",
+        "deletedDefinition",
+        "pinnedDefinition",
+        "unpinnedDefinition",
+    ]
+    .into_iter()
+    .find_map(|field| {
+        payload
+            .get(field)
+            .and_then(|definition| definition.get("id"))
+            .and_then(Value::as_str)
+            .map(ToString::to_string)
+    })
+    .or_else(|| {
+        payload
+            .get("deletedDefinitionId")
+            .and_then(Value::as_str)
+            .map(ToString::to_string)
+    })
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1774,7 +1958,9 @@ fn metafield_definition_type(name: &str) -> Value {
 }
 
 fn metafield_definition_type_category(name: &str) -> &'static str {
-    if name.ends_with("_reference") || name.contains("_reference") {
+    if name == "id" {
+        "ID"
+    } else if name.ends_with("_reference") || name.contains("_reference") {
         "REFERENCE"
     } else if name.contains("number") || matches!(name, "rating" | "money") {
         "NUMBER"
@@ -1785,6 +1971,160 @@ fn metafield_definition_type_category(name: &str) -> &'static str {
     } else {
         "TEXT"
     }
+}
+
+fn metafield_definition_capability_input_error(
+    input: &BTreeMap<String, ResolvedValue>,
+    typename: &str,
+    field: Value,
+    owner_type: &str,
+    metafield_type: &str,
+) -> Option<Value> {
+    let capabilities = resolved_object_field(input, "capabilities")?;
+    for (key, capability_name) in [
+        ("adminFilterable", "admin_filterable"),
+        ("smartCollectionCondition", "smart_collection_condition"),
+        ("uniqueValues", "unique_values"),
+    ] {
+        let Some(capability) = resolved_object_field(&capabilities, key) else {
+            continue;
+        };
+        if resolved_bool_field(&capability, "enabled") != Some(true) {
+            continue;
+        }
+        if !metafield_definition_capability_eligible(key, owner_type, metafield_type) {
+            return Some(metafield_definition_user_error(
+                typename,
+                field,
+                &format!("The capability {capability_name} is not valid for this definition."),
+                "INVALID_CAPABILITY",
+            ));
+        }
+    }
+    None
+}
+
+fn metafield_definition_capability_eligible(
+    capability: &str,
+    owner_type: &str,
+    metafield_type: &str,
+) -> bool {
+    match capability {
+        "adminFilterable" => {
+            metafield_definition_admin_filterable_eligible(owner_type, metafield_type)
+        }
+        "smartCollectionCondition" => {
+            owner_type == "PRODUCT" && metafield_type == "single_line_text_field"
+        }
+        "uniqueValues" => matches!(
+            metafield_type,
+            "id" | "number_integer" | "single_line_text_field" | "url"
+        ),
+        _ => false,
+    }
+}
+
+fn metafield_definition_admin_filterable_eligible(owner_type: &str, metafield_type: &str) -> bool {
+    match owner_type {
+        "PRODUCT" => matches!(
+            metafield_type,
+            "boolean"
+                | "number_integer"
+                | "single_line_text_field"
+                | "id"
+                | "url"
+                | "product_reference"
+                | "collection_reference"
+                | "variant_reference"
+                | "metaobject_reference"
+        ),
+        "PRODUCTVARIANT" | "COLLECTION" | "CUSTOMER" | "ORDER" | "COMPANY" => {
+            matches!(
+                metafield_type,
+                "boolean" | "number_integer" | "single_line_text_field" | "id" | "url"
+            )
+        }
+        _ => false,
+    }
+}
+
+fn metafield_definition_capability_explicitly_disabled(
+    input: &BTreeMap<String, ResolvedValue>,
+    key: &str,
+) -> bool {
+    resolved_object_field(input, "capabilities")
+        .and_then(|capabilities| resolved_object_field(&capabilities, key))
+        .and_then(|capability| resolved_bool_field(&capability, "enabled"))
+        == Some(false)
+}
+
+fn metafield_definition_capabilities_will_enable_admin_filterable(
+    input: &BTreeMap<String, ResolvedValue>,
+    existing: Option<&Value>,
+) -> bool {
+    let Some(capabilities) = resolved_object_field(input, "capabilities") else {
+        return false;
+    };
+    let Some(admin_filterable) = resolved_object_field(&capabilities, "adminFilterable") else {
+        return false;
+    };
+    match resolved_bool_field(&admin_filterable, "enabled") {
+        Some(true) => true,
+        Some(false) => false,
+        None => existing.is_some_and(|definition| {
+            definition["capabilities"]["adminFilterable"]["enabled"]
+                .as_bool()
+                .unwrap_or(false)
+        }),
+    }
+}
+
+fn apply_metafield_definition_capability_input(
+    definition: &mut Value,
+    capabilities: &BTreeMap<String, ResolvedValue>,
+) {
+    for key in [
+        "adminFilterable",
+        "smartCollectionCondition",
+        "uniqueValues",
+    ] {
+        let Some(capability) = resolved_object_field(capabilities, key) else {
+            continue;
+        };
+        if let Some(enabled) = resolved_bool_field(&capability, "enabled") {
+            definition["capabilities"][key]["enabled"] = json!(enabled);
+        }
+    }
+}
+
+fn apply_metafield_definition_capability_derived_fields(definition: &mut Value) {
+    let owner_type = definition["ownerType"]
+        .as_str()
+        .unwrap_or("PRODUCT")
+        .to_string();
+    let metafield_type = definition["type"]["name"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string();
+    for key in [
+        "adminFilterable",
+        "smartCollectionCondition",
+        "uniqueValues",
+    ] {
+        let eligible = metafield_definition_capability_eligible(key, &owner_type, &metafield_type);
+        definition["capabilities"][key]["eligible"] = json!(eligible);
+        if !eligible {
+            definition["capabilities"][key]["enabled"] = json!(false);
+        }
+    }
+    let admin_filterable_enabled = definition["capabilities"]["adminFilterable"]["enabled"]
+        .as_bool()
+        .unwrap_or(false);
+    definition["capabilities"]["adminFilterable"]["status"] = if admin_filterable_enabled {
+        json!("FILTERABLE")
+    } else {
+        json!("NOT_FILTERABLE")
+    };
 }
 
 fn metafield_definition_validations(input: &BTreeMap<String, ResolvedValue>) -> Value {

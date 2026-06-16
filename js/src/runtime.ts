@@ -107,11 +107,11 @@ function fetchJsonSync(origin: string, request: DraftProxyRequest, timeoutMs = 1
   // E2BIG failures when the body is large (e.g. dumpState/restoreState with
   // hundreds of staged variants).
   const script = `
-    let input = '';
+    const chunks = [];
     process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk) => { input += chunk; });
+    process.stdin.on('data', (chunk) => chunks.push(chunk));
     process.stdin.on('end', () => {
-      const request = JSON.parse(input);
+      const request = JSON.parse(chunks.join(''));
       const timeoutMs = Number(process.env.DRAFT_PROXY_FETCH_TIMEOUT_MS || 10000);
       const signal = AbortSignal.timeout(timeoutMs);
       fetch(process.env.DRAFT_PROXY_URL + request.path, {
@@ -131,14 +131,19 @@ function fetchJsonSync(origin: string, request: DraftProxyRequest, timeoutMs = 1
         process.exit(1);
       });
     });
+    process.stdin.on('error', (error) => {
+      console.error(error && error.stack ? error.stack : String(error));
+      process.exit(1);
+    });
   `;
-  const requestJson = JSON.stringify({
+  const input = JSON.stringify({
     method: request.method,
     path: request.path,
     headers: normalizeHeaders(request.headers),
     body: bodyToString(request.body),
   });
   const result = spawnSync(process.execPath, ['-e', script], {
+    input,
     encoding: 'utf8',
     input: requestJson,
     maxBuffer: 64 * 1024 * 1024, // 64MB — large enough for dumpState/restoreState with many variants
