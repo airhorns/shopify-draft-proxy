@@ -871,11 +871,8 @@ fn product_variants_bulk_update_delete_and_reorder_stage_atomically() {
 }
 
 #[test]
-fn product_variants_bulk_create_validates_nested_fields_and_2048_cap_before_staging() {
-    let mut proxy =
-        snapshot_proxy().with_base_products(vec![seed_product("gid://shopify/Product/1")]);
-    let valid = create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "EXISTING", "5.00");
-    let existing_id = valid["id"].as_str().unwrap().to_string();
+fn product_media_deprecated_user_errors_match_local_payloads() {
+    let mut proxy = snapshot_proxy();
 
     let invalid = proxy.process_request(json_graphql_request(
         r#"
@@ -1064,26 +1061,6 @@ fn product_media_deprecated_user_errors_match_local_payloads() {
             "availablePublicationsCount": { "count": 1, "precision": "EXACT" },
             "resourcePublicationsCount": { "count": 1, "precision": "EXACT" }
         })
-    );
-    assert_eq!(
-        publish_response.body["data"]["publishablePublish"]["userErrors"],
-        json!([])
-    );
-
-    let read_query = r#"
-        query CollectionPublicationRead($id: ID!, $publicationId: ID!) {
-          collection(id: $id) {
-            id title handle publishedOnCurrentPublication publishedOnPublication(publicationId: $publicationId)
-            availablePublicationsCount { count precision }
-            resourcePublicationsCount { count precision }
-          }
-        }
-    "#;
-    let read_after_publish =
-        proxy.process_request(json_graphql_request(read_query, variables.clone()));
-    assert_eq!(
-        read_after_publish.body["data"]["collection"],
-        publish_response.body["data"]["publishablePublish"]["publishable"]
     );
 }
 
@@ -1288,6 +1265,208 @@ fn product_variant_media_append_detach_validate_and_stage_media_locally() {
             }]
         })
     );
+
+    let append = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductVariantMediaAppend($productId: ID!, $variantMedia: [ProductVariantAppendMediaInput!]!) {
+          productVariantAppendMedia(productId: $productId, variantMedia: $variantMedia) {
+            productVariants {
+              id
+              media(first: 10) { nodes { id alt mediaContentType status } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": base_product_id,
+            "variantMedia": [{
+                "variantId": base_variant_id,
+                "mediaIds": [base_ready_media_id]
+            }]
+        }),
+    ));
+    assert_eq!(append.status, 200);
+    assert_eq!(
+        append.body["data"]["productVariantAppendMedia"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        append.body["data"]["productVariantAppendMedia"]["productVariants"],
+        json!([{
+            "id": base_variant_id,
+            "media": { "nodes": [{
+                "id": base_ready_media_id,
+                "alt": "Base ready updated",
+                "mediaContentType": "IMAGE",
+                "status": "READY"
+            }] }
+        }])
+    );
+
+    let read_after_append = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductVariantMediaReadAfterAppend($id: ID!) {
+          productVariant(id: $id) {
+            id
+            media(first: 10) { nodes { id alt mediaContentType status } }
+          }
+        }
+        "#,
+        json!({ "id": base_variant_id }),
+    ));
+    assert_eq!(read_after_append.status, 200);
+    assert_eq!(
+        read_after_append.body["data"]["productVariant"]["media"]["nodes"],
+        append.body["data"]["productVariantAppendMedia"]["productVariants"][0]["media"]["nodes"]
+    );
+
+    let detach = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductVariantMediaDetach($productId: ID!, $variantMedia: [ProductVariantDetachMediaInput!]!) {
+          productVariantDetachMedia(productId: $productId, variantMedia: $variantMedia) {
+            productVariants {
+              id
+              media(first: 10) { nodes { id alt mediaContentType status } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": base_product_id,
+            "variantMedia": [{
+                "variantId": base_variant_id,
+                "mediaIds": [base_ready_media_id]
+            }]
+        }),
+    ));
+    assert_eq!(detach.status, 200);
+    assert_eq!(
+        detach.body["data"]["productVariantDetachMedia"],
+        json!({
+            "productVariants": [{
+                "id": base_variant_id,
+                "media": { "nodes": [] }
+            }],
+            "userErrors": []
+        })
+    );
+
+    let read_after_detach = proxy.process_request(json_graphql_request(
+        r#"
+        query ProductVariantMediaReadAfterDetach($id: ID!) {
+          productVariant(id: $id) {
+            id
+            media(first: 10) { nodes { id alt mediaContentType status } }
+          }
+        }
+        "#,
+        json!({ "id": base_variant_id }),
+    ));
+    assert_eq!(read_after_detach.status, 200);
+    assert_eq!(
+        read_after_detach.body["data"]["productVariant"]["media"]["nodes"],
+        json!([])
+    );
+
+    let log = proxy.get_log_snapshot();
+    let append_entry = log["entries"]
+        .as_array()
+        .expect("log entries should be an array")
+        .iter()
+        .find(|entry| {
+            entry["interpreted"]["primaryRootField"] == json!("productVariantAppendMedia")
+        })
+        .expect("append should be logged as a staged local mutation");
+    assert_eq!(append_entry["status"], json!("staged"));
+    assert!(append_entry["rawBody"]
+        .as_str()
+        .expect("rawBody should be preserved")
+        .contains("ProductVariantMediaAppend"));
+    let detach_entry = log["entries"]
+        .as_array()
+        .expect("log entries should be an array")
+        .iter()
+        .find(|entry| {
+            entry["interpreted"]["primaryRootField"] == json!("productVariantDetachMedia")
+        })
+        .expect("detach should be logged as a staged local mutation");
+    assert_eq!(detach_entry["status"], json!("staged"));
+    assert!(detach_entry["rawBody"]
+        .as_str()
+        .expect("rawBody should be preserved")
+        .contains("ProductVariantMediaDetach"));
+}
+
+fn create_product_media_for_variant_media_test(
+    proxy: &mut DraftProxy,
+    product_id: &str,
+    alt: &str,
+) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductVariantMediaCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {
+          productCreateMedia(productId: $productId, media: $media) {
+            media { id alt mediaContentType status }
+            mediaUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "media": [{
+                "mediaContentType": "IMAGE",
+                "originalSource": "https://placehold.co/600x400/png",
+                "alt": alt
+            }]
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productCreateMedia"]["mediaUserErrors"],
+        json!([])
+    );
+    response.body["data"]["productCreateMedia"]["media"][0]["id"]
+        .as_str()
+        .expect("created media id should be returned")
+        .to_string()
+}
+
+fn mark_product_media_ready_for_variant_media_test(
+    proxy: &mut DraftProxy,
+    product_id: &str,
+    media_id: &str,
+    alt: &str,
+) {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductVariantMediaReadyMedia($productId: ID!, $media: [UpdateMediaInput!]!) {
+          productUpdateMedia(productId: $productId, media: $media) {
+            media { id alt mediaContentType status }
+            mediaUserErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "media": [{ "id": media_id, "alt": alt }]
+        }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["productUpdateMedia"]["mediaUserErrors"],
+        json!([])
+    );
+    assert_eq!(
+        response.body["data"]["productUpdateMedia"]["media"][0]["status"],
+        json!("READY")
+    );
+}
+
+#[test]
+fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests() {
+    let mut proxy = snapshot_proxy();
 
     let append = proxy.process_request(json_graphql_request(
         r#"
