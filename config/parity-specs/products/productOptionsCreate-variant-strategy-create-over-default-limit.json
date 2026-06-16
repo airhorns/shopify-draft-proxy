@@ -7,11 +7,17 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-create-over-default-limit.json"
   ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/products/productOptionsCreate-variant-strategy-edge.graphql",
-    "variablesCapturePath": "$.mutation.variables"
+    "documentPath": "config/parity-requests/products/product-option-lifecycle-hydrate-nodes.graphql",
+    "variables": {
+      "ids": [
+        {
+          "fromCapturePath": "$.preMutationRead.data.product.id"
+        }
+      ]
+    }
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executable parity for `productOptionsCreate(variantStrategy: CREATE)` fanout beyond Shopify's historical 100-variant default limit. The 2025-01 `harry-test-heelo` shop accepted 110 variants with no userErrors, so this fixture records Extended Variants-relevant success behavior rather than a limit rejection.",
+  "notes": "Executable parity for `productOptionsCreate(variantStrategy: CREATE)` fanout beyond Shopify's historical 100-variant default limit. The 2025-01 `harry-test-heelo` shop accepted 110 variants with no userErrors, so this fixture records Extended Variants-relevant success behavior rather than a limit rejection. Proxy replay first hydrates the captured pre-mutation product through a public product read, then runs the supported mutation locally.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -58,9 +64,18 @@
     ],
     "targets": [
       {
+        "name": "pre-mutation-read-data",
+        "capturePath": "$.preMutationRead.data.product",
+        "proxyPath": "$.data.nodes[0]"
+      },
+      {
         "name": "mutation-data",
         "capturePath": "$.mutation.response.data",
-        "proxyPath": "$.data"
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsCreate-variant-strategy-edge.graphql",
+          "variablesCapturePath": "$.mutation.variables"
+        }
       },
       {
         "name": "downstream-read-data",
@@ -69,7 +84,8 @@
           "documentPath": "config/parity-requests/products/product-option-variant-strategy-edge-downstream-read.graphql",
           "variables": {
             "id": {
-              "fromPrimaryProxyPath": "$.data.productOptionsCreate.product.id"
+              "fromProxyResponse": "mutation-data",
+              "path": "$.data.productOptionsCreate.product.id"
             }
           }
         },
