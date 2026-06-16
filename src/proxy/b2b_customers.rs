@@ -4035,8 +4035,301 @@ fn b2b_location_input_errors(
         field.push("taxExempt");
         errors.push(b2b_company_user_error(field, "Invalid input.", "INVALID_INPUT", None));
     }
+    // Each nested CompanyAddressInput is validated under its own field path, so a
+    // malformed shipping/billing address is rejected before the location is staged
+    // (matching live Admin's read-after-write contract) rather than only failing
+    // later at Shopify commit time.
+    for address_field in ["shippingAddress", "billingAddress"] {
+        if let Some(address) = resolved_object_field(input, address_field) {
+            let mut address_prefix = prefix.to_vec();
+            address_prefix.push(address_field);
+            errors.extend(b2b_address_input_errors(&address, &address_prefix));
+        }
+    }
     errors
 }
+
+/// Validates a CompanyAddressInput (shippingAddress/billingAddress) the way live
+/// Admin does before staging: country code against the supported country catalog,
+/// zone code against the country's subdivisions, postal code shape per country,
+/// and free-text fields for HTML markup/emoji (plus embedded URLs in name fields).
+/// `prefix` is the full field path to the address object, e.g.
+/// `["input", "shippingAddress"]` or `["input", "companyLocation", "shippingAddress"]`.
+fn b2b_address_input_errors(
+    address: &BTreeMap<String, ResolvedValue>,
+    prefix: &[&str],
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+
+    // Country: an unknown code is rejected, and the resolved catalog gates the
+    // zone and zip checks below (an absent or invalid country skips them).
+    let country = match resolved_string_field(address, "countryCode") {
+        Some(code) => match b2b_country_catalog_by_code(&code) {
+            Some(catalog) => Some(catalog),
+            None => {
+                let mut field = prefix.to_vec();
+                field.push("countryCode");
+                errors.push(b2b_company_user_error(
+                    field,
+                    "Country code is invalid",
+                    "INVALID",
+                    None,
+                ));
+                None
+            }
+        },
+        None => None,
+    };
+
+    if let Some((country_code, zones)) = country {
+        // Zone: only validated when the country publishes subdivisions (e.g. SG
+        // has none) and a zoneCode was supplied.
+        if let Some(zone_code) = resolved_string_field(address, "zoneCode") {
+            if !zones.is_empty() && b2b_zone_name_by_code(zones, &zone_code).is_none() {
+                let mut field = prefix.to_vec();
+                field.push("zoneCode");
+                errors.push(b2b_company_user_error(
+                    field,
+                    "Zone code is invalid",
+                    "INVALID",
+                    None,
+                ));
+            }
+        }
+        // Zip: postal-code shape (and the US zone-prefix range) per country.
+        if let Some(zip) = resolved_string_field(address, "zip") {
+            let zone_code = resolved_string_field(address, "zoneCode");
+            if !b2b_postal_code_valid(country_code, zone_code.as_deref(), &zip) {
+                let mut field = prefix.to_vec();
+                field.push("zip");
+                errors.push(b2b_company_user_error(field, "Zip is invalid", "INVALID", None));
+            }
+        }
+    }
+
+    // Free-text fields: HTML markup and emoji are always rejected; name fields
+    // additionally reject embedded URLs. Field order matches live Admin.
+    for (field_name, label, reject_url) in [
+        ("recipient", "Recipient", false),
+        ("address1", "Address1", false),
+        ("address2", "Address2", false),
+        ("city", "City", false),
+        ("firstName", "First name", true),
+        ("lastName", "Last name", true),
+    ] {
+        if let Some(value) = resolved_string_field(address, field_name) {
+            let invalid = b2b_contains_html_tags(&value)
+                || b2b_contains_emoji(&value)
+                || (reject_url && b2b_contains_url_substring(&value));
+            if invalid {
+                let mut field = prefix.to_vec();
+                field.push(field_name);
+                errors.push(b2b_company_user_error(
+                    field,
+                    &format!("{label} is invalid"),
+                    "INVALID",
+                    None,
+                ));
+            }
+        }
+    }
+
+    errors
+}
+
+/// Empty subdivision list for countries with no zone catalog (e.g. Singapore).
+const B2B_NO_ZONES: &[(&str, &str)] = &[];
+
+/// The supported B2B country catalog: a country code resolves to its canonical
+/// code and subdivision (zone) list. Countries outside this set are reported as
+/// invalid, matching the captured live-Admin validation boundary for the B2B
+/// address scenarios.
+fn b2b_country_catalog_by_code(code: &str) -> Option<(&'static str, &'static [(&'static str, &'static str)])> {
+    match code.to_ascii_uppercase().as_str() {
+        "CA" => Some(("CA", B2B_CANADA_ZONES)),
+        "US" => Some(("US", B2B_UNITED_STATES_ZONES)),
+        "SG" => Some(("SG", B2B_NO_ZONES)),
+        _ => None,
+    }
+}
+
+/// Resolves a zone code (case-insensitively) to its subdivision name, or `None`
+/// when the code is not a subdivision of the country.
+fn b2b_zone_name_by_code<'a>(zones: &'a [(&str, &str)], code: &str) -> Option<&'a str> {
+    let normalized = code.to_ascii_uppercase();
+    zones
+        .iter()
+        .find(|(zone_code, _)| *zone_code == normalized)
+        .map(|(_, name)| *name)
+}
+
+/// Validates a postal code's shape against the country (and, for the US, the
+/// zone-specific prefix range). Countries without a known format accept any zip.
+fn b2b_postal_code_valid(country_code: &str, zone_code: Option<&str>, zip: &str) -> bool {
+    match country_code.to_ascii_uppercase().as_str() {
+        "CA" => b2b_canada_postal_code_valid(zip),
+        "US" => b2b_us_postal_code_valid(zip, zone_code),
+        "SG" => b2b_singapore_postal_code_valid(zip),
+        _ => true,
+    }
+}
+
+fn b2b_us_postal_code_valid(zip: &str, zone_code: Option<&str>) -> bool {
+    let normalized = zip.trim();
+    if !b2b_us_postal_code_shape_valid(normalized) {
+        return false;
+    }
+    b2b_us_zone_postal_code_valid(normalized, zone_code)
+}
+
+fn b2b_us_postal_code_shape_valid(zip: &str) -> bool {
+    let chars: Vec<char> = zip.chars().collect();
+    match chars.len() {
+        5 => chars.iter().all(char::is_ascii_digit),
+        10 => {
+            chars[5] == '-'
+                && chars
+                    .iter()
+                    .enumerate()
+                    .all(|(index, character)| index == 5 || character.is_ascii_digit())
+        }
+        _ => false,
+    }
+}
+
+fn b2b_us_zone_postal_code_valid(zip: &str, zone_code: Option<&str>) -> bool {
+    match zone_code {
+        Some(code) => match code.to_ascii_uppercase().as_str() {
+            "CA" => b2b_zip_prefix_between(zip, 900, 961),
+            _ => true,
+        },
+        None => true,
+    }
+}
+
+fn b2b_zip_prefix_between(zip: &str, min: i64, max: i64) -> bool {
+    match zip.get(0..3).and_then(|prefix| prefix.parse::<i64>().ok()) {
+        Some(prefix) => prefix >= min && prefix <= max,
+        None => false,
+    }
+}
+
+fn b2b_canada_postal_code_valid(zip: &str) -> bool {
+    let compact: Vec<char> = zip
+        .to_ascii_uppercase()
+        .chars()
+        .filter(|character| *character != ' ' && *character != '-')
+        .collect();
+    if compact.len() != 6 {
+        return false;
+    }
+    b2b_canada_postal_alpha(compact[0])
+        && compact[1].is_ascii_digit()
+        && b2b_canada_postal_alpha(compact[2])
+        && compact[3].is_ascii_digit()
+        && b2b_canada_postal_alpha(compact[4])
+        && compact[5].is_ascii_digit()
+}
+
+fn b2b_canada_postal_alpha(character: char) -> bool {
+    matches!(
+        character,
+        'A' | 'B' | 'C' | 'E' | 'G' | 'H' | 'J' | 'K' | 'L' | 'M' | 'N' | 'P' | 'R' | 'S' | 'T'
+            | 'V' | 'X' | 'Y'
+    )
+}
+
+fn b2b_singapore_postal_code_valid(zip: &str) -> bool {
+    let compact = zip.trim();
+    compact.chars().count() == 6 && compact.chars().all(|character| character.is_ascii_digit())
+}
+
+fn b2b_contains_emoji(value: &str) -> bool {
+    value.chars().any(|character| {
+        let code = character as u32;
+        (0x1f000..=0x1faff).contains(&code)
+            || (0x2600..=0x27bf).contains(&code)
+            || (0xfe00..=0xfe0f).contains(&code)
+            || code == 0x200d
+    })
+}
+
+fn b2b_contains_url_substring(value: &str) -> bool {
+    let lowered = value.to_ascii_lowercase();
+    lowered.contains("http://") || lowered.contains("https://") || lowered.contains("www.")
+}
+
+/// Canada subdivision (province/territory) catalog.
+const B2B_CANADA_ZONES: &[(&str, &str)] = &[
+    ("AB", "Alberta"),
+    ("BC", "British Columbia"),
+    ("MB", "Manitoba"),
+    ("NB", "New Brunswick"),
+    ("NL", "Newfoundland and Labrador"),
+    ("NT", "Northwest Territories"),
+    ("NS", "Nova Scotia"),
+    ("NU", "Nunavut"),
+    ("ON", "Ontario"),
+    ("PE", "Prince Edward Island"),
+    ("QC", "Quebec"),
+    ("SK", "Saskatchewan"),
+    ("YT", "Yukon"),
+];
+
+/// United States subdivision (state/territory) catalog.
+const B2B_UNITED_STATES_ZONES: &[(&str, &str)] = &[
+    ("AL", "Alabama"),
+    ("AK", "Alaska"),
+    ("AZ", "Arizona"),
+    ("AR", "Arkansas"),
+    ("CA", "California"),
+    ("CO", "Colorado"),
+    ("CT", "Connecticut"),
+    ("DE", "Delaware"),
+    ("DC", "District of Columbia"),
+    ("FL", "Florida"),
+    ("GA", "Georgia"),
+    ("HI", "Hawaii"),
+    ("ID", "Idaho"),
+    ("IL", "Illinois"),
+    ("IN", "Indiana"),
+    ("IA", "Iowa"),
+    ("KS", "Kansas"),
+    ("KY", "Kentucky"),
+    ("LA", "Louisiana"),
+    ("ME", "Maine"),
+    ("MD", "Maryland"),
+    ("MA", "Massachusetts"),
+    ("MI", "Michigan"),
+    ("MN", "Minnesota"),
+    ("MS", "Mississippi"),
+    ("MO", "Missouri"),
+    ("MT", "Montana"),
+    ("NE", "Nebraska"),
+    ("NV", "Nevada"),
+    ("NH", "New Hampshire"),
+    ("NJ", "New Jersey"),
+    ("NM", "New Mexico"),
+    ("NY", "New York"),
+    ("NC", "North Carolina"),
+    ("ND", "North Dakota"),
+    ("OH", "Ohio"),
+    ("OK", "Oklahoma"),
+    ("OR", "Oregon"),
+    ("PA", "Pennsylvania"),
+    ("RI", "Rhode Island"),
+    ("SC", "South Carolina"),
+    ("SD", "South Dakota"),
+    ("TN", "Tennessee"),
+    ("TX", "Texas"),
+    ("UT", "Utah"),
+    ("VT", "Vermont"),
+    ("VA", "Virginia"),
+    ("WA", "Washington"),
+    ("WV", "West Virginia"),
+    ("WI", "Wisconsin"),
+    ("WY", "Wyoming"),
+];
 
 /// Validation for a CompanyContactInput supplied to companyCreate (nested under
 /// `["input","companyContact"]`). A malformed email surfaces as
