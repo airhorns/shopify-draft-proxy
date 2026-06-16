@@ -2001,6 +2001,118 @@ fn functions_validation_create_errors_return_null_and_do_not_stage_records() {
 }
 
 #[test]
+fn validation_update_rejects_function_rebind_variable_input_before_handler() {
+    let mut proxy = snapshot_proxy();
+    let stage = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageValidationForVariableRebind {
+          validationCreate(validation: { functionHandle: "validation-alpha", title: "Subject" }) {
+            validation { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let validation_id = stage.body["data"]["validationCreate"]["validation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    for (field_name, field_value) in [
+        (
+            "functionId",
+            json!("gid://shopify/ShopifyFunction/validation-beta"),
+        ),
+        ("functionHandle", json!("validation-beta")),
+    ] {
+        let response = proxy.process_request(json_graphql_request(
+            r#"
+            mutation ValidationUpdateRebindVariable($id: ID!, $validation: ValidationUpdateInput!) {
+              validationUpdate(id: $id, validation: $validation) {
+                validation { id }
+                userErrors { field message code }
+              }
+            }
+            "#,
+            json!({ "id": validation_id, "validation": { field_name: field_value } }),
+        ));
+
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body["data"], Value::Null);
+        assert_eq!(
+            response.body["errors"][0]["message"],
+            json!(format!(
+                "Variable $validation of type ValidationUpdateInput! was provided invalid value for {field_name} (Field is not defined on ValidationUpdateInput)"
+            ))
+        );
+        assert_eq!(
+            response.body["errors"][0]["extensions"],
+            json!({
+                "code": "INVALID_VARIABLE",
+                "value": { field_name: field_value },
+                "problems": [{ "path": [field_name], "explanation": "Field is not defined on ValidationUpdateInput" }]
+            })
+        );
+    }
+}
+
+#[test]
+fn validation_update_rejects_function_handle_literal_rebind_with_actual_field_name() {
+    let mut proxy = snapshot_proxy();
+    let stage = proxy.process_request(json_graphql_request(
+        r#"
+        mutation StageValidationForLiteralRebind {
+          validationCreate(validation: { functionHandle: "validation-alpha", title: "Subject" }) {
+            validation { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    let validation_id = stage.body["data"]["validationCreate"]["validation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ValidationUpdateRebindLiteral($id: ID!) {
+          validationUpdate(id: $id, validation: { functionHandle: "validation-beta" }) {
+            validation { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "id": validation_id }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["errors"][0]["message"],
+        json!("Field 'functionHandle' is not defined on ValidationUpdateInput")
+    );
+    assert_eq!(
+        response.body["errors"][0]["path"],
+        json!([
+            "mutation ValidationUpdateRebindLiteral",
+            "validationUpdate",
+            "validation",
+            "functionHandle"
+        ])
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"],
+        json!({
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "InputObject",
+            "argumentName": "functionHandle"
+        })
+    );
+}
+
+#[test]
 fn functions_validation_max_cap_update_defaults_and_metafield_rejection_preserve_state() {
     let mut proxy = snapshot_proxy();
 

@@ -3744,13 +3744,6 @@ impl DraftProxy {
                 Some("NOT_FOUND"),
             ));
         };
-        if input.contains_key("functionId") || input.contains_key("functionHandle") {
-            return validation_payload_error(function_user_error(
-                vec![json!("validation")],
-                "Function binding cannot be changed.",
-                Some("INVALID"),
-            ));
-        }
         let errors = validation_metafield_errors(input);
         if !errors.is_empty() {
             return json!({ "validation": Value::Null, "userErrors": errors });

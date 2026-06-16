@@ -1911,25 +1911,6 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && query.contains("validationUpdate")
-            && (query.contains("validation: { functionId:")
-                || query.contains("validation: { functionHandle:"))
-        {
-            return ok_json(json!({
-                "errors": [{
-                    "message": "Field 'functionId' is not defined on ValidationUpdateInput",
-                    "locations": [{ "line": 2, "column": 43 }],
-                    "path": ["mutation ValidationUpdateRebind", "validationUpdate", "validation", "functionId"],
-                    "extensions": {
-                        "code": "argumentLiteralsIncompatible",
-                        "typeName": "InputObject",
-                        "argumentName": "functionId"
-                    }
-                }]
-            }));
-        }
-
-        if operation.operation_type == OperationType::Mutation
             && query.contains("CartTransformCreateInvalidWrapper")
         {
             return ok_json(json!({
