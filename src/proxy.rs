@@ -133,8 +133,6 @@ pub struct ProductVariantRecord {
     pub inventory_quantity: i64,
     pub selected_options: Vec<ProductVariantSelectedOption>,
     pub inventory_item: ProductVariantInventoryItem,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub media_ids: Vec<String>,
     pub extra_fields: BTreeMap<String, Value>,
 }
 
@@ -176,18 +174,6 @@ struct SavedSearchRecord {
     resource_type: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-struct ShopPolicyRecord {
-    id: String,
-    policy_type: String,
-    title: String,
-    body: String,
-    url: String,
-    created_at: String,
-    updated_at: String,
-    translations: Vec<Value>,
-}
-
 #[derive(Clone, Default)]
 struct Store {
     base: BaseState,
@@ -199,7 +185,6 @@ struct BaseState {
     products: OrderedRecords<ProductRecord>,
     product_variants: OrderedRecords<ProductVariantRecord>,
     saved_searches: OrderedRecords<SavedSearchRecord>,
-    shop_policies: OrderedRecords<ShopPolicyRecord>,
     shop: Value,
     publication_ids: BTreeSet<String>,
     publication_count: Option<usize>,
@@ -213,12 +198,10 @@ struct StagedState {
     products: StagedRecords<ProductRecord>,
     product_variants: StagedRecords<ProductVariantRecord>,
     saved_searches: StagedRecords<SavedSearchRecord>,
-    shop_policies: StagedRecords<ShopPolicyRecord>,
     product_search_tags: BTreeMap<String, BTreeSet<String>>,
     shipping_packages: BTreeMap<String, Value>,
     deleted_shipping_package_ids: BTreeSet<String>,
     customers: BTreeMap<String, Value>,
-    customers_count: Option<Value>,
     deleted_customer_ids: BTreeSet<String>,
     customer_addresses: BTreeMap<String, Value>,
     customer_address_order: BTreeMap<String, Vec<String>>,
@@ -267,6 +250,7 @@ struct StagedState {
     deleted_discount_ids: BTreeSet<String>,
     discount_bulk_operations: BTreeMap<String, Value>,
     discount_redeem_code_bulk_creations: BTreeMap<String, Value>,
+    timestamp_discounts: BTreeMap<String, Value>,
     gift_cards: BTreeMap<String, Value>,
     markets: BTreeMap<String, Value>,
     catalogs: BTreeMap<String, Value>,
@@ -299,6 +283,11 @@ struct StagedState {
     deleted_metaobject_definition_ids: BTreeSet<String>,
     metaobjects: BTreeMap<String, Value>,
     deleted_metaobject_ids: BTreeSet<String>,
+    url_redirects: BTreeMap<String, Value>,
+    url_redirect_order: Vec<String>,
+    linked_product_option_metaobject_sets: Vec<BTreeSet<String>>,
+    product_option_linked_metaobject_definition_ids: BTreeSet<String>,
+    app_metafields: BTreeMap<(String, String, String), Value>,
     owner_metafields: BTreeMap<String, Vec<Value>>,
     deleted_owner_metafields: BTreeSet<(String, String, String)>,
     metafield_definitions: BTreeMap<(String, String), Value>,
@@ -345,10 +334,12 @@ struct StagedState {
     next_order_customer_order_id: u64,
     order_edit_existing_order: Option<Value>,
     order_edit_existing_calculated_order: Option<Value>,
-    order_payment_next_transaction_id: u64,
+    order_edit_existing_calculated_order_id: Option<String>,
+    order_edit_existing_session_order_id: Option<String>,
+    order_payment_transaction_state: Option<String>,
     order_payment_transaction_order_id: Option<String>,
     order_payment_parent_transaction_id: Option<String>,
-    order_payment_transaction_state: Option<String>,
+    order_payment_next_transaction_id: u64,
     order_edit_existing_mode: Option<String>,
     function_validation: Option<Value>,
     function_cart_transform: Option<Value>,
@@ -356,6 +347,11 @@ struct StagedState {
     function_validation_order: Vec<String>,
     function_cart_transforms: BTreeMap<String, Value>,
     function_cart_transform_order: Vec<String>,
+    code_basic_lifecycle_status: Option<String>,
+    free_shipping_code_status: Option<String>,
+    free_shipping_automatic_status: Option<String>,
+    redeem_code_bulk_live_added: bool,
+    redeem_code_bulk_live_deleted_seed: bool,
     backup_region: Value,
     flow_signatures: Vec<Value>,
     flow_trigger_receipts: Vec<Value>,
@@ -495,12 +491,10 @@ impl Default for StagedState {
             products: StagedRecords::default(),
             product_variants: StagedRecords::default(),
             saved_searches: StagedRecords::default(),
-            shop_policies: StagedRecords::default(),
             product_search_tags: BTreeMap::new(),
             shipping_packages: BTreeMap::new(),
             deleted_shipping_package_ids: BTreeSet::new(),
             customers: BTreeMap::new(),
-            customers_count: None,
             deleted_customer_ids: BTreeSet::new(),
             customer_addresses: BTreeMap::new(),
             customer_address_order: BTreeMap::new(),
@@ -549,6 +543,7 @@ impl Default for StagedState {
             deleted_discount_ids: BTreeSet::new(),
             discount_bulk_operations: BTreeMap::new(),
             discount_redeem_code_bulk_creations: BTreeMap::new(),
+            timestamp_discounts: BTreeMap::new(),
             gift_cards: BTreeMap::new(),
             markets: BTreeMap::new(),
             catalogs: BTreeMap::new(),
@@ -581,6 +576,11 @@ impl Default for StagedState {
             deleted_metaobject_definition_ids: BTreeSet::new(),
             metaobjects: BTreeMap::new(),
             deleted_metaobject_ids: BTreeSet::new(),
+            url_redirects: BTreeMap::new(),
+            url_redirect_order: Vec::new(),
+            linked_product_option_metaobject_sets: Vec::new(),
+            product_option_linked_metaobject_definition_ids: BTreeSet::new(),
+            app_metafields: BTreeMap::new(),
             owner_metafields: BTreeMap::new(),
             deleted_owner_metafields: BTreeSet::new(),
             metafield_definitions: BTreeMap::new(),
@@ -627,10 +627,12 @@ impl Default for StagedState {
             next_order_customer_order_id: 1,
             order_edit_existing_order: None,
             order_edit_existing_calculated_order: None,
-            order_payment_next_transaction_id: 3,
+            order_edit_existing_calculated_order_id: None,
+            order_edit_existing_session_order_id: None,
+            order_payment_transaction_state: None,
             order_payment_transaction_order_id: None,
             order_payment_parent_transaction_id: None,
-            order_payment_transaction_state: None,
+            order_payment_next_transaction_id: 3,
             order_edit_existing_mode: None,
             function_validation: None,
             function_cart_transform: None,
@@ -638,6 +640,11 @@ impl Default for StagedState {
             function_validation_order: Vec::new(),
             function_cart_transforms: BTreeMap::new(),
             function_cart_transform_order: Vec::new(),
+            code_basic_lifecycle_status: None,
+            free_shipping_code_status: None,
+            free_shipping_automatic_status: None,
+            redeem_code_bulk_live_added: false,
+            redeem_code_bulk_live_deleted_seed: false,
             backup_region: backup_region_country("CA")
                 .expect("default backup region country must be captured"),
             flow_signatures: Vec::new(),
@@ -812,14 +819,6 @@ impl Store {
             .replace_with_order(saved_searches, order);
     }
 
-    fn replace_base_shop_policies_map_with_order(
-        &mut self,
-        policies: BTreeMap<String, ShopPolicyRecord>,
-        order: Vec<String>,
-    ) {
-        self.base.shop_policies.replace_with_order(policies, order);
-    }
-
     fn replace_staged_saved_searches_map_with_order(
         &mut self,
         saved_searches: BTreeMap<String, SavedSearchRecord>,
@@ -828,16 +827,6 @@ impl Store {
         self.staged
             .saved_searches
             .replace_with_order(saved_searches, order);
-    }
-
-    fn replace_staged_shop_policies_map_with_order(
-        &mut self,
-        policies: BTreeMap<String, ShopPolicyRecord>,
-        order: Vec<String>,
-    ) {
-        self.staged
-            .shop_policies
-            .replace_with_order(policies, order);
     }
 
     fn replace_product_tombstones(&mut self, ids: BTreeSet<String>) {
@@ -850,10 +839,6 @@ impl Store {
 
     fn replace_saved_search_tombstones(&mut self, ids: BTreeSet<String>) {
         self.staged.saved_searches.tombstones = ids;
-    }
-
-    fn replace_shop_policy_tombstones(&mut self, ids: BTreeSet<String>) {
-        self.staged.shop_policies.tombstones = ids;
     }
 
     fn stage_created_publication_id(&mut self, id: String) {
@@ -875,58 +860,10 @@ impl Store {
                 .count()
     }
 
-    fn has_known_publication_catalog(&self) -> bool {
-        !self.base.publication_ids.is_empty() || !self.staged.publication_ids.is_empty()
-    }
-
-    fn has_publication_id(&self, id: &str) -> bool {
-        self.base.publication_ids.contains(id) || self.staged.publication_ids.contains(id)
-    }
-
     fn effective_shop(&self) -> Value {
         let mut shop = self.base.shop.clone();
         shop["publicationCount"] = json!(self.effective_publication_count());
-        shop["shopPolicies"] = Value::Array(
-            self.shop_policies()
-                .into_iter()
-                .map(|policy| shop_policy_record_json(&policy))
-                .collect(),
-        );
         shop
-    }
-
-    fn shop_policy_by_id(&self, id: &str) -> Option<&ShopPolicyRecord> {
-        effective_get(&self.base.shop_policies, &self.staged.shop_policies, id)
-    }
-
-    fn shop_policy_by_type(&self, policy_type: &str) -> Option<&ShopPolicyRecord> {
-        self.staged
-            .shop_policies
-            .order
-            .iter()
-            .filter(|id| !self.staged.shop_policies.is_tombstoned(id))
-            .filter_map(|id| self.staged.shop_policies.get(id))
-            .find(|policy| policy.policy_type == policy_type)
-            .or_else(|| {
-                self.base
-                    .shop_policies
-                    .order
-                    .iter()
-                    .filter(|id| {
-                        !self.staged.shop_policies.is_tombstoned(id)
-                            && !self.staged.shop_policies.contains_staged(id)
-                    })
-                    .filter_map(|id| self.base.shop_policies.get(id))
-                    .find(|policy| policy.policy_type == policy_type)
-            })
-    }
-
-    fn shop_policies(&self) -> Vec<ShopPolicyRecord> {
-        effective_records(&self.base.shop_policies, &self.staged.shop_policies)
-    }
-
-    fn stage_shop_policy(&mut self, policy: ShopPolicyRecord) {
-        self.staged.shop_policies.stage(policy.id.clone(), policy);
     }
 
     fn product_by_id(&self, id: &str) -> Option<&ProductRecord> {
@@ -1151,16 +1088,6 @@ impl Store {
             .into_iter()
             .filter(|variant| variant.product_id == product_id)
             .collect()
-    }
-
-    fn product_media_by_id(&self, product_id: &str, media_id: &str) -> Option<Value> {
-        self.product_by_id(product_id).and_then(|product| {
-            product
-                .media
-                .iter()
-                .find(|media| media.get("id").and_then(Value::as_str) == Some(media_id))
-                .cloned()
-        })
     }
 
     fn stage_product_variant(&mut self, variant: ProductVariantRecord) {
@@ -1388,7 +1315,6 @@ mod resource_ids;
 mod routing;
 mod schema_validation;
 mod selection;
-mod store_properties;
 
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::admin_shipping_gift_cards::*;
@@ -1438,8 +1364,6 @@ pub(in crate::proxy) use self::routing::*;
 pub(in crate::proxy) use self::schema_validation::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::selection::*;
-#[allow(unused_imports)]
-pub(in crate::proxy) use self::store_properties::*;
 
 #[cfg(test)]
 mod store_tests {
@@ -1796,14 +1720,11 @@ mod store_tests {
             json!({
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic",
-                "endCursor": "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic"
+                "startCursor": null,
+                "endCursor": null
             })
         );
-        assert_eq!(
-            read.body["data"]["product"]["variants"]["nodes"],
-            json!([{ "id": "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic" }])
-        );
+        assert_eq!(read.body["data"]["product"]["variants"]["nodes"], json!([]));
         assert_eq!(read.body["data"]["product"]["metafield"], Value::Null);
     }
 
@@ -2007,18 +1928,17 @@ mod store_tests {
         assert_eq!(read.status, 200);
         assert_eq!(read.body["data"]["product"]["id"], json!(product_id));
         assert_eq!(read.body["data"]["product"]["tracksInventory"], json!(true));
-        let updated_variant = read.body["data"]["product"]["variants"]["nodes"]
-            .as_array()
-            .and_then(|variants| {
-                variants
-                    .iter()
-                    .find(|variant| variant.get("id") == Some(&json!(variant_id)))
-            })
-            .expect("updated variant should be present in product variants");
-        assert_eq!(updated_variant["title"], json!("Store Red"));
-        assert_eq!(updated_variant["sku"], json!("STORE-RED"));
         assert_eq!(
-            updated_variant["inventoryItem"]["requiresShipping"],
+            read.body["data"]["product"]["variants"]["nodes"][0]["title"],
+            json!("Store Red")
+        );
+        assert_eq!(
+            read.body["data"]["product"]["variants"]["nodes"][0]["sku"],
+            json!("STORE-RED")
+        );
+        assert_eq!(
+            read.body["data"]["product"]["variants"]["nodes"][0]["inventoryItem"]
+                ["requiresShipping"],
             json!(false)
         );
         assert_eq!(

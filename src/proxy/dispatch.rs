@@ -16,45 +16,15 @@ impl DraftProxy {
 
     fn is_registered_orders_stage_locally_root(
         &self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
         root_field: &str,
-    ) -> Response {
-        let fields = match Self::root_fields_or_error(query, variables) {
-            Ok(fields) => fields,
-            Err(response) => return response,
-        };
-        match root_field {
-            "backupRegion" => {
-                let mut data = serde_json::Map::new();
-                for field in fields {
-                    if field.name == "backupRegion" {
-                        data.insert(field.response_key, self.store.staged.backup_region.clone());
-                    }
-                }
-                ok_json(json!({ "data": Value::Object(data) }))
-            }
-            "domain" => ok_json(json!({ "data": self.domain_query_data(&fields) })),
-            "job" => ok_json(json!({ "data": self.product_tail_job_query_data(&fields) })),
-            "node" | "nodes" => {
-                if let Some(data) = self.local_node_query_data(&fields, false) {
-                    ok_json(json!({ "data": data }))
-                } else if self.config.read_mode != ReadMode::Snapshot {
-                    (self.upstream_transport)(request.clone())
-                } else {
-                    ok_json(
-                        json!({ "data": self.local_node_query_data(&fields, true).unwrap_or_else(|| Value::Object(serde_json::Map::new())) }),
-                    )
-                }
-            }
-            _ => json_error(
-                501,
-                &format!(
-                    "No Rust admin-platform dispatcher implemented for root field: {root_field}"
-                ),
-            ),
-        }
+    ) -> bool {
+        self.registry.iter().any(|entry| {
+            entry.operation_type == operation_type
+                && entry.domain == CapabilityDomain::Orders
+                && entry.execution == CapabilityExecution::StageLocally
+                && entry.match_names.iter().any(|name| name == root_field)
+        })
     }
 
     fn dispatch_orders_stage_locally_fallback(
@@ -78,131 +48,6 @@ impl DraftProxy {
             return (self.upstream_transport)(request.clone());
         }
 
-        match Self::root_fields_or_error(query, variables) {
-            Ok(fields) => {
-                let mut data = serde_json::Map::new();
-                for field in fields {
-                    match field.name.as_str() {
-                        "order" | "draftOrder" | "return" | "abandonment" => {
-                            data.insert(field.response_key, Value::Null);
-                        }
-                        "orders" => {
-                            data.insert(field.response_key, connection_json(Vec::new()));
-                        }
-                        "ordersCount" => {
-                            data.insert(
-                                field.response_key,
-                                selected_json(
-                                    &json!({
-                                        "count": 0,
-                                        "precision": "EXACT"
-                                    }),
-                                    &field.selection,
-                                ),
-                            );
-                        }
-                        _ => {}
-                    }
-                }
-                ok_json(json!({ "data": Value::Object(data) }))
-            }
-            Err(response) => response,
-        }
-    }
-
-    fn domain_query_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            if field.name != "domain" {
-                continue;
-            }
-            let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-            let value = if id == "gid://shopify/Domain/1000" {
-                selected_json(
-                    &json!({
-                        "id": "gid://shopify/Domain/1000",
-                        "host": "acme.myshopify.com",
-                        "url": "https://acme.myshopify.com",
-                        "sslEnabled": true
-                    }),
-                    &field.selection,
-                )
-            } else {
-                Value::Null
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
-    }
-
-    fn local_node_query_data(
-        &self,
-        fields: &[RootFieldSelection],
-        allow_unknown_null: bool,
-    ) -> Option<Value> {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
-                "node" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.local_node_value_by_id(&id, &field.selection)
-                        .or_else(|| allow_unknown_null.then_some(Value::Null))?
-                }
-                "nodes" => Value::Array(
-                    field
-                        .arguments
-                        .get("ids")
-                        .map(resolved_string_list)
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|id| {
-                            self.local_node_value_by_id(&id, &field.selection)
-                                .or_else(|| allow_unknown_null.then_some(Value::Null))
-                        })
-                        .collect::<Option<Vec<_>>>()?,
-                ),
-                _ => continue,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Some(Value::Object(data))
-    }
-
-    fn abandonment_read_data(
-        &self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
-        let fields = root_fields(query, variables)?;
-        if !fields.iter().any(|field| field.name == "abandonment") {
-            return None;
-        }
-
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            if field.name != "abandonment" {
-                continue;
-            }
-            let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-            let value = self
-                .store
-                .staged
-                .abandonments
-                .get(&id)
-                .map(|record| selected_json(record, &field.selection))
-                .unwrap_or(Value::Null);
-            data.insert(field.response_key, value);
-        }
-        Some(json!({ "data": Value::Object(data) }))
-    }
-
-    fn orders_stage_locally_unmodeled_shape_response(
-        &mut self,
-        request: &Request,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-        root_field: &str,
-    ) -> Response {
         self.record_mutation_log_entry(request, query, variables, root_field, Vec::new());
         if let Some(entry) = self.log_entries.last_mut() {
             set_log_status(entry, "failed");
@@ -250,115 +95,6 @@ impl DraftProxy {
                 response_key: selected_json(&payload, &selection)
             }
         }))
-    }
-
-    fn local_node_value_by_id(&self, id: &str, selection: &[SelectedField]) -> Option<Value> {
-        if let Some(data) = local_node_value(id, selection, Some(&self.store.staged.backup_region))
-        {
-            return Some(data);
-        }
-        if shopify_gid_resource_type(id) == Some("ProductVariant") {
-            let value = self.product_variant_by_id_value(id, selection);
-            if !value.is_null() {
-                return Some(value);
-            }
-        }
-        if let Some(operation) = self.product_delete_operation_value_by_id(id, selection) {
-            return Some(operation);
-        }
-        if let Some(segment) = self.store.staged.segments.get(id) {
-            return Some(selected_json(segment, selection));
-        }
-        if let Some(query) = self.store.staged.customer_segment_member_queries.get(id) {
-            return Some(selected_json(query, selection));
-        }
-        if let Some(abandonment) = self.store.staged.abandonments.get(id) {
-            return Some(selected_json(abandonment, selection));
-        }
-        if let Some(value) = self.app_node_value_by_id(id, selection) {
-            return Some(value);
-        }
-        if shopify_gid_resource_type(id) == Some("GiftCard") {
-            return Some(
-                self.store
-                    .staged
-                    .gift_cards
-                    .get(id)
-                    .map(|card| selected_json(card, selection))
-                    .unwrap_or(Value::Null),
-            );
-        }
-        if let Some(cart_transform) = self.store.staged.function_cart_transforms.get(id) {
-            return Some(selected_json(cart_transform, selection));
-        }
-        if let Some(cart_transform) = self
-            .store
-            .staged
-            .function_cart_transform
-            .as_ref()
-            .filter(|record| record.get("id").and_then(Value::as_str) == Some(id))
-        {
-            return Some(selected_json(cart_transform, selection));
-        }
-        if let Some(discount) = self.discount_node_value_by_id(id, selection) {
-            return Some(discount);
-        }
-        None
-    }
-
-    fn app_node_value_by_id(&self, id: &str, selection: &[SelectedField]) -> Option<Value> {
-        match id {
-            "gid://shopify/AppInstallation/expected" if self.store.staged.app_uninstalled => {
-                Some(Value::Null)
-            }
-            "gid://shopify/AppInstallation/expected" => Some(current_app_installation_json(
-                &self.store.staged.app_subscriptions,
-                &self.store.staged.app_one_time_purchases,
-                &self.store.staged.revoked_app_access_scopes,
-                selection,
-            )),
-            "gid://shopify/App/expected" => Some(selected_json(&local_app_json(), selection)),
-            _ => self
-                .store
-                .staged
-                .app_subscriptions
-                .get(id)
-                .map(|subscription| {
-                    selected_json(
-                        subscription,
-                        &selected_fields_named(
-                            selection,
-                            &["__typename", "id", "status", "trialDays", "lineItems"],
-                        ),
-                    )
-                })
-                .or_else(|| {
-                    self.store
-                        .staged
-                        .app_one_time_purchases
-                        .get(id)
-                        .map(|purchase| {
-                            selected_json(
-                                purchase,
-                                &selected_fields_named(
-                                    selection,
-                                    &["id", "name", "status", "test", "price"],
-                                ),
-                            )
-                        })
-                })
-                .or_else(|| {
-                    self.find_staged_app_usage_record(id).map(|usage_record| {
-                        selected_json(
-                            &usage_record,
-                            &selected_fields_named(
-                                selection,
-                                &["id", "description", "price", "subscriptionLineItem"],
-                            ),
-                        )
-                    })
-                }),
-        }
     }
 
     pub(in crate::proxy) fn record_mutation_log_draft(
@@ -420,28 +156,17 @@ impl DraftProxy {
             return ok_json(json!({ "errors": schema_input_errors }));
         }
 
-        if operation.operation_type == OperationType::Mutation && root_field == "shopPolicyUpdate" {
-            return self.shop_policy_update(request, &query, &variables);
-        }
-
-        if operation.operation_type == OperationType::Query
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| matches!(field.as_str(), "shop" | "node" | "nodes"))
-            && operation.root_fields.iter().any(|field| field == "shop")
-            && self.should_handle_shop_policy_query_locally()
+        if matches!(root_field, "customerCreate" | "companyCreate")
+            || (root_field == "companyAssignCustomerAsContact"
+                && !resolved_string_arg(
+                    &root_field_arguments(&query, &variables).unwrap_or_default(),
+                    "companyId",
+                )
+                .is_some_and(|company_id| {
+                    self.store.staged.b2b_companies.contains_key(&company_id)
+                }))
         {
-            if let Some(data) = self.shop_query_data(&query, &variables) {
-                return ok_json(json!({ "data": data }));
-            }
-        }
-
-        if matches!(
-            root_field,
-            "customerCreate" | "companyCreate" | "companyAssignCustomerAsContact"
-        ) {
-            if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
+            if let Some(data) = self.order_customer_error_paths_data(request, &query, &variables) {
                 return ok_json(data);
             }
         }
@@ -683,33 +408,8 @@ impl DraftProxy {
                 }
                 return (self.upstream_transport)(request.clone());
             }
-            (CapabilityDomain::SavedSearches, CapabilityExecution::OverlayRead)
-                if has_local_dispatch =>
-            {
-                ok_json(json!({
-                    "data": self.saved_search_overlay_read_fields(&query, &variables)
-                }))
-            }
-            (CapabilityDomain::SavedSearches, CapabilityExecution::StageLocally)
-                if has_local_dispatch =>
-            {
-                if let Some(response) = saved_search_required_input_error(&query, &variables) {
-                    return response;
-                }
-                let outcome = self.saved_search_mutation_fields(&query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::AdminPlatform, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
-            {
-                self.admin_platform_query_response(request, &query, &variables, root_field)
-            }
-            (CapabilityDomain::AdminPlatform, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
-                    && root_field == "backupRegionUpdate" =>
-            {
-                self.backup_region_update(request, &query, &variables)
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({"data": self.metaobject_query_data(&fields, request)}));
             }
         }
 
@@ -750,6 +450,7 @@ impl DraftProxy {
                         | "marketingEvents"
                 )
             })
+            && is_ported_marketing_document(&query)
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({ "data": self.marketing_query_data(&fields) }));
@@ -771,6 +472,7 @@ impl DraftProxy {
                         | "marketingActivityUpdate"
                 )
             })
+            && (is_ported_marketing_document(&query) || is_log_draft_enforcement_document(&query))
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 let response = self.marketing_mutation(&fields, request);
@@ -862,9 +564,10 @@ impl DraftProxy {
                         | "markets"
                 )
             })
+            && is_ported_localization_document(&query)
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.localization_query_data(&fields, request) }));
+                return ok_json(json!({ "data": self.localization_query_data(&fields, &query) }));
             }
         }
 
@@ -879,6 +582,8 @@ impl DraftProxy {
                         | "translationsRemove"
                 )
             })
+            && (is_ported_localization_document(&query)
+                || is_log_draft_enforcement_document(&query))
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 let data = self.localization_mutation_data(&fields);
@@ -1001,9 +706,7 @@ impl DraftProxy {
             && is_ported_market_localization_document(&query)
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(
-                    json!({ "data": self.market_localization_query_data(&fields, request) }),
-                );
+                return ok_json(json!({ "data": self.market_localization_query_data(&fields) }));
             }
         }
 
@@ -1512,7 +1215,10 @@ impl DraftProxy {
                 if let Some(data) = self.gift_card_node_read_data(&fields) {
                     return ok_json(json!({ "data": data }));
                 }
-                if let Some(data) = self.shop_policy_node_read_data(&fields) {
+                if let Some(data) = self.product_operation_node_query_data(&fields) {
+                    return ok_json(json!({ "data": data }));
+                }
+                if let Some(data) = self.media_file_node_read_data(&fields) {
                     return ok_json(json!({ "data": data }));
                 }
             }
@@ -1633,11 +1339,26 @@ impl DraftProxy {
             })
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                if self.should_handle_customer_overlay_read(&query, &fields) {
-                    if fields.iter().any(|field| field.name == "customersCount") {
-                        self.hydrate_customers_count_for_overlay_read(request);
+                let should_handle_customers =
+                    self.should_handle_customer_overlay_read(&query, &fields);
+                let should_handle_store_credit = fields
+                    .iter()
+                    .any(|field| field.name == "storeCreditAccount");
+                if should_handle_customers || should_handle_store_credit {
+                    let mut data = serde_json::Map::new();
+                    if should_handle_customers {
+                        if let Value::Object(fields) = self.customer_overlay_read_fields(&fields) {
+                            data.extend(fields);
+                        }
                     }
-                    return ok_json(json!({ "data": self.customer_overlay_read_fields(&fields) }));
+                    if should_handle_store_credit {
+                        if let Value::Object(fields) =
+                            self.store_credit_account_read_fields(&fields)
+                        {
+                            data.extend(fields);
+                        }
+                    }
+                    return ok_json(json!({ "data": Value::Object(data) }));
                 }
             }
         }
@@ -1745,6 +1466,13 @@ impl DraftProxy {
                 || query.contains("FileDeleteMediaReferenceDownstream"))
         {
             return self.media_product_read(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Query
+            && root_field == "product"
+            && query.contains("ProductPublicationAggregateDownstream")
+        {
+            return product_publication_aggregate_downstream_read(&query, &variables);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -2672,11 +2400,22 @@ impl DraftProxy {
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if has_local_dispatch
-                    && matches!(root_field, "productPublish" | "productUnpublish") =>
+                if has_local_dispatch && root_field == "productSet" =>
             {
-                let outcome =
-                    self.product_publication_mutation(root_field, &query, &variables, request);
+                let outcome = self.product_set(&query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if has_local_dispatch && root_field == "productDuplicate" =>
+            {
+                let outcome = self.product_duplicate(&query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if has_local_dispatch
+                    && matches!(root_field, "productBundleCreate" | "productBundleUpdate") =>
+            {
+                let outcome = self.product_bundle_mutation(root_field, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
@@ -2704,11 +2443,7 @@ impl DraftProxy {
                     && has_local_dispatch
                     && matches!(
                         root_field,
-                        "productVariantCreate"
-                            | "productVariantUpdate"
-                            | "productVariantDelete"
-                            | "productVariantAppendMedia"
-                            | "productVariantDetachMedia"
+                        "productVariantCreate" | "productVariantUpdate" | "productVariantDelete"
                     ) =>
             {
                 let outcome = self.product_variant_mutation(root_field, &query, &variables);
@@ -2909,22 +2644,21 @@ impl DraftProxy {
                     json_error(400, "Could not parse GraphQL operation")
                 }
             }
-            (CapabilityDomain::StoreProperties, CapabilityExecution::OverlayRead)
-                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "fulfillmentOrder" | "fulfillmentOrders" | "assignedFulfillmentOrders"
+                    ) =>
             {
-                if self.should_handle_shop_policy_query_locally() {
-                    if let Some(data) = self.shop_query_data(&query, &variables) {
-                        return ok_json(json!({ "data": data }));
-                    }
+                if self.config.read_mode == ReadMode::Snapshot {
+                    self.fulfillment_order_empty_read_response(&query, &variables)
+                } else {
+                    let response = (self.upstream_transport)(request.clone());
+                    self.observe_order_fulfillment_passthrough_response(&response);
+                    response
                 }
-                self.dispatch_unknown_passthrough_or_legacy_error(
-                    request,
-                    &query,
-                    &variables,
-                    operation.operation_type,
-                    &operation.root_fields,
-                    root_field,
-                )
             }
             (CapabilityDomain::Functions, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
