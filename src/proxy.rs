@@ -150,36 +150,6 @@ pub struct ProductVariantInventoryItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-struct SellingPlanRecord {
-    id: String,
-    name: String,
-    description: String,
-    options: Vec<String>,
-    position: i64,
-    category: String,
-    created_at: String,
-    billing_policy: Value,
-    delivery_policy: Value,
-    inventory_policy: Value,
-    pricing_policies: Vec<Value>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-struct SellingPlanGroupRecord {
-    id: String,
-    app_id: Option<String>,
-    name: String,
-    merchant_code: String,
-    description: String,
-    options: Vec<String>,
-    position: i64,
-    created_at: String,
-    selling_plans: Vec<SellingPlanRecord>,
-    product_ids: Vec<String>,
-    product_variant_ids: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct SavedSearchRecord {
     id: String,
     name: String,
@@ -209,7 +179,6 @@ struct BaseState {
 struct StagedState {
     products: StagedRecords<ProductRecord>,
     product_variants: StagedRecords<ProductVariantRecord>,
-    selling_plan_groups: StagedRecords<SellingPlanGroupRecord>,
     saved_searches: StagedRecords<SavedSearchRecord>,
     product_search_tags: BTreeMap<String, BTreeSet<String>>,
     shipping_packages: BTreeMap<String, Value>,
@@ -230,6 +199,11 @@ struct StagedState {
     fulfillment_service_locations: BTreeMap<String, Value>,
     deleted_fulfillment_service_ids: BTreeSet<String>,
     deleted_fulfillment_service_location_ids: BTreeSet<String>,
+    delivery_profiles: BTreeMap<String, Value>,
+    delivery_profile_order: Vec<String>,
+    deleted_delivery_profile_ids: BTreeSet<String>,
+    observed_shipping_locations: BTreeMap<String, Value>,
+    observed_shipping_location_order: Vec<String>,
     locations: BTreeMap<String, Value>,
     location_order: Vec<String>,
     location_limit_reached: bool,
@@ -258,16 +232,23 @@ struct StagedState {
     webhook_subscriptions: BTreeMap<String, Value>,
     b2b_companies: BTreeMap<String, Value>,
     b2b_locations: BTreeMap<String, Value>,
+    b2b_contacts: BTreeMap<String, Value>,
+    deleted_b2b_contact_ids: BTreeSet<String>,
+    b2b_contact_roles: BTreeMap<String, Value>,
+    b2b_contact_role_assignments: BTreeMap<String, Value>,
+    deleted_b2b_contact_role_assignment_ids: BTreeSet<String>,
     next_b2b_company_id: u64,
+    next_b2b_contact_id: u64,
+    next_b2b_contact_role_assignment_id: u64,
     inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
     inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
     next_inventory_quantity_timestamp: u64,
     inventory_transfers: BTreeMap<String, InventoryTransferRecord>,
+    inventory_shipments: BTreeMap<String, InventoryShipmentRecord>,
     metaobject_definitions: BTreeMap<String, Value>,
     deleted_metaobject_definition_ids: BTreeSet<String>,
     metaobjects: BTreeMap<String, Value>,
     deleted_metaobject_ids: BTreeSet<String>,
-    linked_product_option_metaobject_sets: Vec<BTreeSet<String>>,
     app_metafields: BTreeMap<(String, String, String), Value>,
     owner_metafields: BTreeMap<String, Vec<Value>>,
     deleted_owner_metafields: BTreeSet<(String, String, String)>,
@@ -276,8 +257,8 @@ struct StagedState {
     deleted_media_file_ids: BTreeSet<String>,
     online_store_integrations: BTreeMap<String, Value>,
     product_set_updated: bool,
-    product_option_fixture: Option<String>,
     product_delete_operations: BTreeMap<String, String>,
+    selling_plan_group_downstream_step: usize,
     mandate_payment_keys: BTreeSet<String>,
     payment_terms: BTreeMap<String, Value>,
     payment_terms_owner_index: BTreeMap<String, String>,
@@ -288,6 +269,7 @@ struct StagedState {
     next_customer_payment_method_id: u64,
     abandonments: BTreeMap<String, Value>,
     orders: BTreeMap<String, Value>,
+    deleted_order_ids: BTreeSet<String>,
     draft_orders: BTreeMap<String, Value>,
     returns: BTreeMap<String, Value>,
     returns_by_order: BTreeMap<String, Vec<String>>,
@@ -347,6 +329,35 @@ struct InventoryTransferLineItemRecord {
     id: String,
     inventory_item_id: String,
     quantity: i64,
+}
+
+#[derive(Clone)]
+struct InventoryShipmentRecord {
+    id: String,
+    name: String,
+    status: String,
+    transfer_id: Option<String>,
+    movement_id: Option<String>,
+    tracking: Option<InventoryShipmentTrackingRecord>,
+    line_items: Vec<InventoryShipmentLineItemRecord>,
+}
+
+#[derive(Clone, Default)]
+struct InventoryShipmentTrackingRecord {
+    tracking_number: Option<String>,
+    company: Option<String>,
+    tracking_url: Option<String>,
+    arrives_at: Option<String>,
+}
+
+#[derive(Clone)]
+struct InventoryShipmentLineItemRecord {
+    id: String,
+    inventory_item_id: String,
+    transfer_line_item_id: Option<String>,
+    quantity: i64,
+    accepted_quantity: i64,
+    rejected_quantity: i64,
 }
 
 #[derive(Clone)]
@@ -458,7 +469,6 @@ impl Default for StagedState {
         Self {
             products: StagedRecords::default(),
             product_variants: StagedRecords::default(),
-            selling_plan_groups: StagedRecords::default(),
             saved_searches: StagedRecords::default(),
             product_search_tags: BTreeMap::new(),
             shipping_packages: BTreeMap::new(),
@@ -479,6 +489,11 @@ impl Default for StagedState {
             fulfillment_service_locations: BTreeMap::new(),
             deleted_fulfillment_service_ids: BTreeSet::new(),
             deleted_fulfillment_service_location_ids: BTreeSet::new(),
+            delivery_profiles: BTreeMap::new(),
+            delivery_profile_order: Vec::new(),
+            deleted_delivery_profile_ids: BTreeSet::new(),
+            observed_shipping_locations: BTreeMap::new(),
+            observed_shipping_location_order: Vec::new(),
             locations: BTreeMap::new(),
             location_order: Vec::new(),
             location_limit_reached: false,
@@ -507,16 +522,23 @@ impl Default for StagedState {
             webhook_subscriptions: BTreeMap::new(),
             b2b_companies: BTreeMap::new(),
             b2b_locations: BTreeMap::new(),
+            b2b_contacts: BTreeMap::new(),
+            deleted_b2b_contact_ids: BTreeSet::new(),
+            b2b_contact_roles: BTreeMap::new(),
+            b2b_contact_role_assignments: BTreeMap::new(),
+            deleted_b2b_contact_role_assignment_ids: BTreeSet::new(),
             next_b2b_company_id: 1,
+            next_b2b_contact_id: 1,
+            next_b2b_contact_role_assignment_id: 1,
             inventory_levels: BTreeMap::new(),
             inventory_quantity_updated_at: BTreeMap::new(),
             next_inventory_quantity_timestamp: 0,
             inventory_transfers: BTreeMap::new(),
+            inventory_shipments: BTreeMap::new(),
             metaobject_definitions: BTreeMap::new(),
             deleted_metaobject_definition_ids: BTreeSet::new(),
             metaobjects: BTreeMap::new(),
             deleted_metaobject_ids: BTreeSet::new(),
-            linked_product_option_metaobject_sets: Vec::new(),
             app_metafields: BTreeMap::new(),
             owner_metafields: BTreeMap::new(),
             deleted_owner_metafields: BTreeSet::new(),
@@ -525,8 +547,8 @@ impl Default for StagedState {
             deleted_media_file_ids: BTreeSet::new(),
             online_store_integrations: BTreeMap::new(),
             product_set_updated: false,
-            product_option_fixture: None,
             product_delete_operations: BTreeMap::new(),
+            selling_plan_group_downstream_step: 0,
             mandate_payment_keys: BTreeSet::new(),
             payment_terms: BTreeMap::new(),
             payment_terms_owner_index: BTreeMap::new(),
@@ -537,6 +559,7 @@ impl Default for StagedState {
             next_customer_payment_method_id: 1,
             abandonments: BTreeMap::new(),
             orders: BTreeMap::new(),
+            deleted_order_ids: BTreeSet::new(),
             draft_orders: BTreeMap::new(),
             returns: BTreeMap::new(),
             returns_by_order: BTreeMap::new(),
@@ -978,42 +1001,6 @@ impl Store {
         existed
     }
 
-    fn selling_plan_group_by_id(&self, id: &str) -> Option<&SellingPlanGroupRecord> {
-        if self.staged.selling_plan_groups.is_tombstoned(id) {
-            return None;
-        }
-        self.staged.selling_plan_groups.get(id)
-    }
-
-    fn selling_plan_groups(&self) -> Vec<SellingPlanGroupRecord> {
-        self.staged
-            .selling_plan_groups
-            .order
-            .iter()
-            .filter(|id| !self.staged.selling_plan_groups.is_tombstoned(id))
-            .filter_map(|id| self.staged.selling_plan_groups.get(id).cloned())
-            .collect()
-    }
-
-    fn has_selling_plan_group_state(&self) -> bool {
-        !self.staged.selling_plan_groups.records.is_empty()
-            || !self.staged.selling_plan_groups.tombstones.is_empty()
-    }
-
-    fn stage_selling_plan_group(&mut self, group: SellingPlanGroupRecord) {
-        self.staged
-            .selling_plan_groups
-            .stage(group.id.clone(), group);
-    }
-
-    fn delete_selling_plan_group(&mut self, id: &str) -> bool {
-        let had_staged = self.staged.selling_plan_groups.remove_staged(id).is_some();
-        if had_staged {
-            self.staged.selling_plan_groups.tombstone(id.to_string());
-        }
-        had_staged
-    }
-
     fn saved_search_base_with_defaults(
         &self,
         resource_type: &str,
@@ -1149,21 +1136,6 @@ impl LogDraft {
                 .to_string(),
         }
     }
-
-    fn failed(
-        root_field: impl Into<String>,
-        domain: &'static str,
-        notes: impl Into<String>,
-    ) -> Self {
-        Self {
-            root_field: root_field.into(),
-            staged_resource_ids: Vec::new(),
-            status: "failed".to_string(),
-            capability_domain: domain.to_string(),
-            capability_execution: "stage-locally".to_string(),
-            notes: notes.into(),
-        }
-    }
 }
 
 fn default_commit_transport(_request: Request) -> Response {
@@ -1202,12 +1174,12 @@ mod metafields_orders_payments;
 mod metaobjects;
 mod online_store_orders_payments;
 mod product_helpers;
+mod product_options;
 mod resolved_values;
 mod resource_ids;
 mod routing;
 mod schema_validation;
 mod selection;
-mod selling_plans;
 
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::admin_shipping_gift_cards::*;
@@ -1244,6 +1216,8 @@ pub(in crate::proxy) use self::online_store_orders_payments::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::product_helpers::*;
 #[allow(unused_imports)]
+pub(in crate::proxy) use self::product_options::*;
+#[allow(unused_imports)]
 pub(in crate::proxy) use self::resolved_values::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::resource_ids::*;
@@ -1253,8 +1227,6 @@ pub(in crate::proxy) use self::routing::*;
 pub(in crate::proxy) use self::schema_validation::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::selection::*;
-#[allow(unused_imports)]
-pub(in crate::proxy) use self::selling_plans::*;
 
 #[cfg(test)]
 mod store_tests {
@@ -1593,7 +1565,10 @@ mod store_tests {
             json!(["local", "store"])
         );
         assert_eq!(read.body["data"]["product"]["totalInventory"], json!(0));
-        assert_eq!(read.body["data"]["product"]["tracksInventory"], json!(true));
+        assert_eq!(
+            read.body["data"]["product"]["tracksInventory"],
+            json!(false)
+        );
         assert_eq!(
             read.body["data"]["product"]["onlineStorePreviewUrl"],
             Value::Null
@@ -1603,24 +1578,16 @@ mod store_tests {
             read.body["data"]["product"]["seo"],
             json!({ "title": "Store SEO", "description": "Projected from store" })
         );
-        let default_variants = read.body["data"]["product"]["variants"]["nodes"]
-            .as_array()
-            .unwrap();
-        assert_eq!(default_variants.len(), 1);
-        let default_variant_id = default_variants[0]["id"].as_str().unwrap();
-        assert!(
-            default_variant_id.starts_with("gid://shopify/ProductVariant/"),
-            "productCreate should stage Shopify-like default variant"
-        );
         assert_eq!(
             read.body["data"]["product"]["variants"]["pageInfo"],
             json!({
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": default_variant_id,
-                "endCursor": default_variant_id
+                "startCursor": null,
+                "endCursor": null
             })
         );
+        assert_eq!(read.body["data"]["product"]["variants"]["nodes"], json!([]));
         assert_eq!(read.body["data"]["product"]["metafield"], Value::Null);
     }
 
@@ -1824,16 +1791,17 @@ mod store_tests {
         assert_eq!(read.status, 200);
         assert_eq!(read.body["data"]["product"]["id"], json!(product_id));
         assert_eq!(read.body["data"]["product"]["tracksInventory"], json!(true));
-        let updated_variant = read.body["data"]["product"]["variants"]["nodes"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|variant| variant["id"] == json!(variant_id))
-            .expect("updated variant should be present in downstream product variants");
-        assert_eq!(updated_variant["title"], json!("Store Red"));
-        assert_eq!(updated_variant["sku"], json!("STORE-RED"));
         assert_eq!(
-            updated_variant["inventoryItem"]["requiresShipping"],
+            read.body["data"]["product"]["variants"]["nodes"][0]["title"],
+            json!("Store Red")
+        );
+        assert_eq!(
+            read.body["data"]["product"]["variants"]["nodes"][0]["sku"],
+            json!("STORE-RED")
+        );
+        assert_eq!(
+            read.body["data"]["product"]["variants"]["nodes"][0]["inventoryItem"]
+                ["requiresShipping"],
             json!(false)
         );
         assert_eq!(

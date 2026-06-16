@@ -156,11 +156,17 @@ impl DraftProxy {
             return ok_json(json!({ "errors": schema_input_errors }));
         }
 
-        if matches!(
-            root_field,
-            "customerCreate" | "companyCreate" | "companyAssignCustomerAsContact"
-        ) {
-            if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
+        if matches!(root_field, "customerCreate" | "companyCreate")
+            || (root_field == "companyAssignCustomerAsContact"
+                && !resolved_string_arg(
+                    &root_field_arguments(&query, &variables).unwrap_or_default(),
+                    "companyId",
+                )
+                .is_some_and(|company_id| {
+                    self.store.staged.b2b_companies.contains_key(&company_id)
+                }))
+        {
+            if let Some(data) = self.order_customer_error_paths_data(request, &query, &variables) {
                 return ok_json(data);
             }
         }
@@ -195,6 +201,16 @@ impl DraftProxy {
             return response;
         }
 
+        if let Some(response) = self.b2b_contact_role_response(
+            request,
+            &query,
+            &variables,
+            operation.operation_type,
+            &operation.root_fields,
+        ) {
+            return response;
+        }
+
         if let Some(response) = self.b2b_company_tail_helper_response(
             request,
             &query,
@@ -219,7 +235,7 @@ impl DraftProxy {
         }
 
         if let Some(data) =
-            self.order_payment_transaction_local_data(root_field, &query, &variables)
+            self.order_payment_transaction_local_data(request, root_field, &query, &variables)
         {
             return ok_json(data);
         }
@@ -230,7 +246,8 @@ impl DraftProxy {
             return response;
         }
 
-        if let Some(data) = self.remaining_order_local_data(root_field, &query, &variables) {
+        if let Some(data) = self.remaining_order_local_data(request, root_field, &query, &variables)
+        {
             return ok_json(data);
         }
 
@@ -245,18 +262,23 @@ impl DraftProxy {
             }
         }
 
-        if let Some(response) =
-            self.draft_order_lifecycle_local_response(request, &query, &variables)
-        {
-            return response;
-        }
-
         if let Some(data) = self.draft_order_complete_local_data(root_field, &query, &variables) {
             return ok_json(data);
         }
 
         if let Some(data) = self.payment_terms_local_data(request, &query, &variables) {
             return ok_json(data);
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "paymentTermsTemplates")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": payment_terms_templates_query_data(&fields) }));
+            }
         }
 
         if root_field == "paymentReminderSend" {
@@ -350,16 +372,10 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "metaobjectCreate"
-                        | "metaobjectUpdate"
-                        | "metaobjectUpsert"
-                        | "metaobjectDelete"
-                        | "metaobjectBulkDelete"
-                )
-            })
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "metaobjectCreate" | "metaobjectDelete"))
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return self.metaobject_mutation(&fields, request, &query, &variables);
@@ -724,6 +740,18 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "deliveryProfile" | "deliveryProfiles"))
+            && (self.config.read_mode == ReadMode::Snapshot || self.has_delivery_profile_state())
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.delivery_profile_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && is_finance_risk_no_data_read_document(&query)
             && operation.root_fields.iter().all(|field| {
                 matches!(
@@ -799,13 +827,53 @@ impl DraftProxy {
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
-                    "location" | "locationByIdentifier" | "locations"
+                    "availableCarrierServices"
+                        | "location"
+                        | "locationByIdentifier"
+                        | "locations"
+                        | "locationsAvailableForDeliveryProfilesConnection"
+                )
+            })
+            && operation
+                .root_fields
+                .iter()
+                .any(|field| field == "availableCarrierServices")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return self.shipping_settings_read_response(request, &fields);
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "location"
+                        | "locationByIdentifier"
+                        | "locations"
+                        | "locationsAvailableForDeliveryProfilesConnection"
                 )
             })
             && (self.config.read_mode == ReadMode::Snapshot || self.has_staged_locations())
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.location_read_data(&fields) }));
+                let mut data = self.location_read_data(&fields);
+                merge_json_object_fields(
+                    &mut data,
+                    self.delivery_profile_locations_read_data(&fields),
+                );
+                return ok_json(json!({ "data": data }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| field == "locationsAvailableForDeliveryProfilesConnection")
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return self.delivery_profile_locations_read_response(request, &fields);
             }
         }
 
@@ -1143,6 +1211,9 @@ impl DraftProxy {
                 if let Some(data) = self.gift_card_node_read_data(&fields) {
                     return ok_json(json!({ "data": data }));
                 }
+                if let Some(data) = self.media_file_node_read_data(&fields) {
+                    return ok_json(json!({ "data": data }));
+                }
             }
             if let Some(data) =
                 local_node_read_fields(&query, &variables, Some(&self.store.staged.backup_region))
@@ -1230,6 +1301,41 @@ impl DraftProxy {
                 if self.should_handle_customer_overlay_read(&query, &fields) {
                     return ok_json(json!({ "data": self.customer_overlay_read_fields(&fields) }));
                 }
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "customerCreate"
+            && (is_local_customer_create_document(&query, &variables)
+                || self.has_b2b_contact_state())
+        {
+            return self.customer_create(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "customerUpdate"
+            && is_local_customer_update_document(&query, &variables)
+        {
+            return self.customer_update(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "customerDelete"
+            && is_local_customer_delete_document(&query)
+        {
+            return self.customer_delete(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && root_field == "orderCreate"
+            && query.contains("CustomerDeleteOrderPreconditionOrderCreate")
+        {
+            return self.customer_order_create(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation && root_field == "customerSet" {
+            if let Some(response) = self.customer_set_guard_response(&query, &variables) {
+                return response;
             }
         }
 
@@ -1408,9 +1514,29 @@ impl DraftProxy {
         if operation.operation_type == OperationType::Mutation
             && matches!(
                 root_field,
-                "shippingPackageUpdate" | "shippingPackageMakeDefault" | "shippingPackageDelete"
+                "deliveryProfileCreate" | "deliveryProfileUpdate" | "deliveryProfileRemove"
             )
         {
+            return self.delivery_profile_mutation(root_field, &query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && matches!(
+                root_field,
+                "locationLocalPickupEnable"
+                    | "locationLocalPickupDisable"
+                    | "shippingPackageUpdate"
+                    | "shippingPackageMakeDefault"
+                    | "shippingPackageDelete"
+            )
+        {
+            if matches!(
+                root_field,
+                "locationLocalPickupEnable" | "locationLocalPickupDisable"
+            ) {
+                return self
+                    .location_local_pickup_mutation(root_field, &query, &variables, request);
+            }
             return self.shipping_package_mutation(root_field, &query, &variables, request);
         }
 
@@ -1663,36 +1789,6 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && query.contains("DiscountRedeemCodeBulkLiveDelete")
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| field == "discountCodeRedeemCodeBulkDelete")
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                self.store.staged.redeem_code_bulk_live_deleted_seed = true;
-                return ok_json(json!({
-                    "data": discount_redeem_code_bulk_live_delete_data(&fields)
-                }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && (query.contains("DiscountRedeemCodeBulkDeleteValidation")
-                || query.contains("DiscountRedeemCodeBulkDeleteHappy"))
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| field == "discountCodeRedeemCodeBulkDelete")
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({
-                    "data": discount_redeem_code_bulk_delete_validation_data(&fields)
-                }));
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
             && query.contains("DiscountRedeemCodeBulkValidation")
             && operation.root_fields.iter().all(|field| {
                 matches!(
@@ -1803,25 +1899,6 @@ impl DraftProxy {
                     "data": self.discount_code_basic_lifecycle_mutation_data(&fields)
                 }));
             }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && query.contains("validationUpdate")
-            && (query.contains("validation: { functionId:")
-                || query.contains("validation: { functionHandle:"))
-        {
-            return ok_json(json!({
-                "errors": [{
-                    "message": "Field 'functionId' is not defined on ValidationUpdateInput",
-                    "locations": [{ "line": 2, "column": 43 }],
-                    "path": ["mutation ValidationUpdateRebind", "validationUpdate", "validation", "functionId"],
-                    "extensions": {
-                        "code": "argumentLiteralsIncompatible",
-                        "typeName": "InputObject",
-                        "argumentName": "functionId"
-                    }
-                }]
-            }));
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -1959,18 +2036,6 @@ impl DraftProxy {
                     return ok_json(json!({ "data": data }));
                 }
             }
-            if let Some(data) =
-                self.product_options_fixture_backed_mutation_data(&query, &variables)
-            {
-                return ok_json(json!({ "data": data }));
-            }
-            if root_field == "productOptionsCreate" {
-                if let Some(outcome) =
-                    self.product_options_create_linked_metaobjects(&query, &variables)
-                {
-                    return self.finalize_mutation_outcome(request, &query, &variables, outcome);
-                }
-            }
             if !operation.root_fields.is_empty()
                 && operation.root_fields.iter().all(|field| {
                     matches!(
@@ -2049,16 +2114,6 @@ impl DraftProxy {
                     }));
                 }
             }
-            if query.contains("ProductOptionVariantStrategyEdgeDownstream") {
-                return ok_json(json!({
-                    "data": product_bulk_create_strategy_downstream_data(&variables)
-                }));
-            }
-            if query.contains("ProductOptionLifecycleDownstream") {
-                return ok_json(json!({
-                    "data": self.product_option_lifecycle_downstream_data(&variables)
-                }));
-            }
             if query.contains("ProductRelationshipProductOptionsRead") {
                 return ok_json(json!({
                     "data": self.product_relationship_options_read_data(&variables)
@@ -2085,6 +2140,9 @@ impl DraftProxy {
             if query.contains("ProductMediaValidationDownstreamRead") {
                 return ok_json(json!({ "data": product_media_validation_downstream_data() }));
             }
+            if let Some(data) = self.selling_plan_downstream_read_data(&query) {
+                return ok_json(json!({ "data": data }));
+            }
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -2097,7 +2155,7 @@ impl DraftProxy {
             root_field,
             "orderCancel" | "orderCustomerSet" | "orderCustomerRemove"
         ) {
-            if let Some(data) = self.order_customer_error_paths_data(&query, &variables) {
+            if let Some(data) = self.order_customer_error_paths_data(request, &query, &variables) {
                 return ok_json(data);
             }
         }
@@ -2132,8 +2190,6 @@ impl DraftProxy {
                             | "productsCount"
                             | "productByIdentifier"
                             | "productVariant"
-                            | "sellingPlanGroup"
-                            | "sellingPlanGroups"
                     ) =>
             {
                 let has_inventory_fields = operation.root_fields.iter().any(|field| {
@@ -2145,6 +2201,7 @@ impl DraftProxy {
                             | "inventoryProperties"
                             | "inventoryTransfer"
                             | "inventoryTransfers"
+                            | "inventoryShipment"
                     )
                 });
                 let has_product_overlay_fields = operation.root_fields.iter().any(|field| {
@@ -2155,8 +2212,6 @@ impl DraftProxy {
                             | "productsCount"
                             | "productByIdentifier"
                             | "productVariant"
-                            | "sellingPlanGroup"
-                            | "sellingPlanGroups"
                     )
                 });
                 if has_inventory_fields && !has_product_overlay_fields {
@@ -2172,7 +2227,9 @@ impl DraftProxy {
                         "data": self.product_overlay_read_fields(&query, &variables)
                     }))
                 } else {
-                    (self.upstream_transport)(request.clone())
+                    let response = (self.upstream_transport)(request.clone());
+                    self.observe_product_passthrough_response(&response);
+                    response
                 }
             }
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
@@ -2186,6 +2243,7 @@ impl DraftProxy {
                             | "inventoryProperties"
                             | "inventoryTransfer"
                             | "inventoryTransfers"
+                            | "inventoryShipment"
                     ) =>
             {
                 if let Some(fields) = root_fields(&query, &variables) {
@@ -2223,10 +2281,13 @@ impl DraftProxy {
                     && has_local_dispatch
                     && matches!(
                         root_field,
-                        "productVariantCreate" | "productVariantUpdate" | "productVariantDelete"
+                        "productOptionsCreate"
+                            | "productOptionUpdate"
+                            | "productOptionsDelete"
+                            | "productOptionsReorder"
                     ) =>
             {
-                let outcome = self.product_variant_mutation(root_field, &query, &variables);
+                let outcome = self.product_option_mutation(root_field, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
@@ -2234,20 +2295,10 @@ impl DraftProxy {
                     && has_local_dispatch
                     && matches!(
                         root_field,
-                        "sellingPlanGroupCreate"
-                            | "sellingPlanGroupUpdate"
-                            | "sellingPlanGroupDelete"
-                            | "sellingPlanGroupAddProducts"
-                            | "sellingPlanGroupRemoveProducts"
-                            | "sellingPlanGroupAddProductVariants"
-                            | "sellingPlanGroupRemoveProductVariants"
-                            | "productJoinSellingPlanGroups"
-                            | "productLeaveSellingPlanGroups"
-                            | "productVariantJoinSellingPlanGroups"
-                            | "productVariantLeaveSellingPlanGroups"
+                        "productVariantCreate" | "productVariantUpdate" | "productVariantDelete"
                     ) =>
             {
-                let outcome = self.selling_plan_group_mutation(root_field, &query, &variables);
+                let outcome = self.product_variant_mutation(root_field, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
@@ -2287,6 +2338,15 @@ impl DraftProxy {
                             | "inventoryTransferRemoveItems"
                             | "inventoryTransferCancel"
                             | "inventoryTransferDelete"
+                            | "inventoryShipmentCreate"
+                            | "inventoryShipmentCreateInTransit"
+                            | "inventoryShipmentAddItems"
+                            | "inventoryShipmentRemoveItems"
+                            | "inventoryShipmentUpdateItemQuantities"
+                            | "inventoryShipmentSetTracking"
+                            | "inventoryShipmentMarkInTransit"
+                            | "inventoryShipmentReceive"
+                            | "inventoryShipmentDelete"
                     ) =>
             {
                 if let Some(fields) = root_fields(&query, &variables) {
@@ -2308,11 +2368,6 @@ impl DraftProxy {
             {
                 let outcome = self.saved_search_mutation_fields(&query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
-            {
-                self.customer_mutation_response(request, &query, &variables)
             }
             (CapabilityDomain::Metaobjects, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
@@ -2392,6 +2447,59 @@ impl DraftProxy {
                     json_error(400, "Could not parse GraphQL operation")
                 }
             }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query
+                    && has_local_dispatch
+                    && matches!(root_field, "deliveryProfile" | "deliveryProfiles") =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    ok_json(json!({ "data": self.delivery_profile_read_data(&fields) }))
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "deliveryProfileCreate" | "deliveryProfileUpdate" | "deliveryProfileRemove"
+                    ) =>
+            {
+                self.delivery_profile_mutation(root_field, &query, &variables, request)
+            }
+            (CapabilityDomain::B2b, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+            {
+                self.b2b_contact_role_response(
+                    request,
+                    &query,
+                    &variables,
+                    operation.operation_type,
+                    &operation.root_fields,
+                )
+                .unwrap_or_else(|| (self.upstream_transport)(request.clone()))
+            }
+            (CapabilityDomain::B2b, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+            {
+                self.b2b_contact_role_response(
+                    request,
+                    &query,
+                    &variables,
+                    operation.operation_type,
+                    &operation.root_fields,
+                )
+                .unwrap_or_else(|| {
+                    json_error(
+                        501,
+                        &format!(
+                            "No Rust B2B stage-locally dispatcher implemented for root field: {}",
+                            root_field
+                        ),
+                    )
+                })
+            }
             (CapabilityDomain::Unknown, CapabilityExecution::Passthrough) => self
                 .dispatch_unknown_passthrough_or_legacy_error(
                     request,
@@ -2423,5 +2531,14 @@ impl DraftProxy {
                 ),
             ),
         }
+    }
+}
+
+fn merge_json_object_fields(target: &mut Value, source: Value) {
+    let (Value::Object(target), Value::Object(source)) = (target, source) else {
+        return;
+    };
+    for (key, value) in source {
+        target.insert(key, value);
     }
 }
