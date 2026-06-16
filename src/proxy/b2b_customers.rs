@@ -3262,6 +3262,31 @@ fn b2b_location_input_errors(
             errors.push(b2b_company_user_error(field, "Phone is invalid", "INVALID", None));
         }
     }
+    // When billingSameAsShipping is true, Shopify mirrors the shipping address as
+    // the billing address: supplying a billingAddress alongside it conflicts, and a
+    // shippingAddress must be present to mirror. An explicit null shippingAddress is
+    // treated the same as absent. (On update this rule does not apply — the existing
+    // location already carries a shipping address — so this helper is create-only.)
+    if resolved_bool_field(input, "billingSameAsShipping") == Some(true) {
+        let billing_present = matches!(input.get("billingAddress"), Some(ResolvedValue::Object(_)));
+        let shipping_present =
+            matches!(input.get("shippingAddress"), Some(ResolvedValue::Object(_)));
+        if billing_present {
+            let mut field = prefix.to_vec();
+            field.push("billingAddress");
+            errors.push(b2b_company_user_error(field, "Invalid input.", "INVALID_INPUT", None));
+        } else if !shipping_present {
+            let mut field = prefix.to_vec();
+            field.push("shippingAddress");
+            errors.push(b2b_company_user_error(field, "Invalid input.", "INVALID_INPUT", None));
+        }
+    }
+    // An explicit null taxExempt is rejected; an absent taxExempt defaults to false.
+    if matches!(input.get("taxExempt"), Some(ResolvedValue::Null)) {
+        let mut field = prefix.to_vec();
+        field.push("taxExempt");
+        errors.push(b2b_company_user_error(field, "Invalid input.", "INVALID_INPUT", None));
+    }
     errors
 }
 
