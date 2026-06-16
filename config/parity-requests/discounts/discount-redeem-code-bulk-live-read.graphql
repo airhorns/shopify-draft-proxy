@@ -1,9 +1,4 @@
-query DiscountRedeemCodeBulkLiveRead(
-  $id: ID!
-  $exactAddedCode: String!
-  $lowerAddedCode: String!
-  $removedCode: String!
-) {
+query BulkReadLive($id: ID!, $exactAddedCode: String!, $lowerAddedCode: String!, $removedCode: String!) {
   codeDiscountNode(id: $id) {
     id
     codeDiscount {
