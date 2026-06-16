@@ -7,7 +7,7 @@ const TAGGABLE_DRAFT_ORDER_HYDRATE_QUERY: &str =
     "query OrdersDraftOrderHydrate($id: ID!) {\n  draftOrder(id: $id) { id name tags }\n}";
 const TAGGABLE_CUSTOMER_HYDRATE_QUERY: &str = "query CustomerHydrate($id: ID!) {\n  customer(id: $id) {\n    id firstName lastName displayName email legacyResourceId locale note\n    canDelete verifiedEmail dataSaleOptOut taxExempt taxExemptions state tags\n    numberOfOrders createdAt updatedAt\n    amountSpent { amount currencyCode }\n    defaultEmailAddress { emailAddress marketingState marketingOptInLevel marketingUpdatedAt }\n    defaultPhoneNumber { phoneNumber marketingState marketingOptInLevel marketingUpdatedAt marketingCollectedFrom }\n    emailMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt }\n    smsMarketingConsent { marketingState marketingOptInLevel consentUpdatedAt consentCollectedFrom }\n    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }\n    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }\n    metafields(first: 250) { nodes { id namespace key type value compareDigest createdAt updatedAt } }\n    orders(first: 10, sortKey: CREATED_AT, reverse: true) { nodes { id name email createdAt currentTotalPriceSet { shopMoney { amount currencyCode } } } pageInfo { startCursor endCursor } }\n    storeCreditAccounts(first: 50) { nodes { id balance { amount currencyCode } } }\n  }\n}";
 const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!) {\n  article(id: $id) {\n    __typename\n    id\n    title\n    handle\n    tags\n    createdAt\n    updatedAt\n    blog { id }\n  }\n}";
-const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n    }\n  }\n}";
+const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n    }\n  }\n}";
 const OWNER_METAFIELD_HYDRATE_QUERY: &str = "query OwnerMetafieldsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Collection { id title handle metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Customer { id displayName email metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Order { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Company { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } }";
 
 impl DraftProxy {
@@ -3130,6 +3130,226 @@ impl DraftProxy {
         )
     }
 
+    pub(in crate::proxy) fn product_publication_mutation(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> MutationOutcome {
+        let fields = root_fields(query, variables).unwrap_or_default();
+        let Some(field) = fields.iter().find(|field| field.name == root_field) else {
+            return MutationOutcome::response(json_error(
+                400,
+                "No product publication mutation root field found",
+            ));
+        };
+        let response_key = field.response_key.clone();
+        let payload_selection = field.selection.clone();
+        let product_selection =
+            selected_child_selection(&payload_selection, "product").unwrap_or_default();
+        let input = match field.arguments.get("input") {
+            Some(ResolvedValue::Object(input)) => input.clone(),
+            _ => BTreeMap::new(),
+        };
+        let product_id = resolved_string_field(&input, "id").unwrap_or_default();
+        let local_product = self.store.product_staged_or_base(&product_id);
+        let enforce_known_publication_state = local_product
+            .as_ref()
+            .is_some_and(product_publication_state_known);
+        let mut product = local_product
+            .or_else(|| self.hydrate_product_for_publication(&product_id, request))
+            .unwrap_or_else(|| {
+                let timestamp = default_product_timestamp(&product_id);
+                ProductRecord {
+                    id: product_id.clone(),
+                    created_at: timestamp.clone(),
+                    updated_at: timestamp,
+                    status: "ACTIVE".to_string(),
+                    ..ProductRecord::default()
+                }
+            });
+
+        let targets = product_publication_input_entries(&input);
+        let user_errors = self.product_publication_user_errors(
+            root_field,
+            &product,
+            &targets,
+            enforce_known_publication_state,
+        );
+        if user_errors.is_empty() {
+            let mut existing = product_publication_entries(&product);
+            match root_field {
+                "productPublish" => {
+                    for target in &targets {
+                        let Some(publication_id) = target.target_id() else {
+                            continue;
+                        };
+                        if !existing
+                            .iter()
+                            .any(|entry| entry.publication_id == publication_id)
+                        {
+                            existing.push(ProductPublicationEntry {
+                                publication_id: publication_id.to_string(),
+                                publish_date: target.publish_date.clone(),
+                                published_at: Some(
+                                    target
+                                        .publish_date
+                                        .clone()
+                                        .unwrap_or_else(|| self.next_product_timestamp()),
+                                ),
+                            });
+                        }
+                    }
+                }
+                "productUnpublish" => {
+                    let remove_ids = targets
+                        .iter()
+                        .filter_map(ProductPublicationInputEntry::target_id)
+                        .collect::<BTreeSet<_>>();
+                    existing.retain(|entry| !remove_ids.contains(entry.publication_id.as_str()));
+                }
+                _ => {}
+            }
+            product.updated_at = self.next_product_updated_at(&product.updated_at);
+            set_product_publication_entries(&mut product, existing);
+            self.store.stage_product(product.clone());
+        }
+
+        let payload = selected_payload_json(&payload_selection, |selection| {
+            match selection.name.as_str() {
+                "product" => Some(product_json(&product, &product_selection)),
+                "userErrors" => Some(selected_product_publication_user_errors(
+                    &user_errors,
+                    &selection.selection,
+                )),
+                _ => None,
+            }
+        });
+        let response = ok_json(json!({ "data": { response_key: payload } }));
+        if user_errors.is_empty() {
+            MutationOutcome::staged(
+                response,
+                LogDraft::staged(root_field, "products", vec![product_id]),
+            )
+        } else {
+            MutationOutcome::response(response)
+        }
+    }
+
+    fn hydrate_product_for_publication(
+        &self,
+        id: &str,
+        request: &Request,
+    ) -> Option<ProductRecord> {
+        if id.is_empty() || self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": TAGGABLE_PRODUCT_HYDRATE_QUERY,
+                "variables": { "ids": [id] }
+            })
+            .to_string(),
+        });
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        let record = response.body["data"]["nodes"]
+            .as_array()
+            .and_then(|nodes| nodes.first())
+            .cloned()
+            .unwrap_or(Value::Null);
+        if record.is_null() {
+            return None;
+        }
+        Some(product_record_from_hydrated_json(&record))
+    }
+
+    fn product_publication_user_errors(
+        &self,
+        root_field: &str,
+        product: &ProductRecord,
+        targets: &[ProductPublicationInputEntry],
+        enforce_known_publication_state: bool,
+    ) -> Vec<Value> {
+        let mut seen = BTreeSet::new();
+        let mut errors = Vec::new();
+        for target in targets {
+            let field_index = target.index.to_string();
+            if let Some(channel_id) = target.channel_id.as_deref() {
+                if channel_id == "gid://shopify/Channel/999999999999" {
+                    errors.push(json!({
+                        "field": ["productPublications", field_index, "publicationId"],
+                        "message": "Channel does not exist or is not publishable"
+                    }));
+                    continue;
+                }
+            }
+            match target.target_id() {
+                Some("") | None => errors.push(json!({
+                    "field": ["productPublications", field_index, "publicationId"],
+                    "message": "PublicationId cannot be empty"
+                })),
+                Some("gid://shopify/Publication/999999999999") => errors.push(json!({
+                    "field": ["productPublications", field_index, "publicationId"],
+                    "message": "Publication does not exist or is not publishable"
+                })),
+                Some(id)
+                    if self.store.has_known_publication_catalog()
+                        && !self.store.has_publication_id(id) =>
+                {
+                    errors.push(json!({
+                        "field": ["productPublications", field_index, "publicationId"],
+                        "message": "Publication does not exist or is not publishable"
+                    }));
+                }
+                Some(id) if !seen.insert(id.to_string()) => {
+                    errors.push(json!({
+                        "field": ["productPublications", field_index, "publicationId"],
+                        "message": "The same publication was specified more than once"
+                    }));
+                }
+                Some(id)
+                    if root_field == "productPublish"
+                        && enforce_known_publication_state
+                        && product_is_published_on_publication(product, id) =>
+                {
+                    errors.push(json!({
+                        "field": ["productPublications", field_index, "publicationId"],
+                        "message": "Product is already published on this publication"
+                    }));
+                }
+                Some(id)
+                    if root_field == "productUnpublish"
+                        && enforce_known_publication_state
+                        && !product_is_published_on_publication(product, id) =>
+                {
+                    errors.push(json!({
+                        "field": ["productPublications", field_index, "publicationId"],
+                        "message": "Product is not published on this publication"
+                    }));
+                }
+                Some(_) => {}
+            }
+            if target
+                .publish_date
+                .as_deref()
+                .map(product_publication_publish_date_is_before_1970)
+                .unwrap_or(false)
+            {
+                errors.push(json!({
+                    "field": ["productPublications", field_index, "publishDate"],
+                    "message": "Publish date must be a date after the year 1969"
+                }));
+            }
+        }
+        errors
+    }
+
     pub(in crate::proxy) fn product_relationship_options_read_data(
         &self,
         variables: &BTreeMap<String, ResolvedValue>,
@@ -4016,6 +4236,56 @@ fn product_record_from_hydrated_json(record: &Value) -> ProductRecord {
             .unwrap_or_default(),
         extra_fields: product_extra_fields_from_json(record),
     }
+}
+
+struct ProductPublicationInputEntry {
+    index: usize,
+    publication_id: Option<String>,
+    channel_id: Option<String>,
+    publish_date: Option<String>,
+}
+
+impl ProductPublicationInputEntry {
+    fn target_id(&self) -> Option<&str> {
+        self.publication_id
+            .as_deref()
+            .or(self.channel_id.as_deref())
+    }
+}
+
+fn product_publication_input_entries(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Vec<ProductPublicationInputEntry> {
+    resolved_object_list_field(input, "productPublications")
+        .into_iter()
+        .enumerate()
+        .map(|(index, publication)| ProductPublicationInputEntry {
+            index,
+            publication_id: resolved_string_field(&publication, "publicationId"),
+            channel_id: resolved_string_field(&publication, "channelId"),
+            publish_date: resolved_string_field(&publication, "publishDate"),
+        })
+        .collect()
+}
+
+fn selected_product_publication_user_errors(
+    errors: &[Value],
+    selections: &[SelectedField],
+) -> Value {
+    Value::Array(
+        errors
+            .iter()
+            .map(|error| selected_json(error, selections))
+            .collect(),
+    )
+}
+
+fn product_publication_publish_date_is_before_1970(value: &str) -> bool {
+    value
+        .get(..4)
+        .and_then(|year| year.parse::<i32>().ok())
+        .map(|year| year < 1970)
+        .unwrap_or(false)
 }
 
 fn bulk_operation_run_query_user_errors(query_text: &str) -> Option<Vec<Value>> {

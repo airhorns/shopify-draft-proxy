@@ -1853,7 +1853,13 @@ fn product_update_media_replays_captured_mutation_and_downstream_product_media()
 
 #[test]
 fn product_publication_aggregate_downstream_read_returns_captured_product_shape() {
-    let mut proxy = snapshot_proxy();
+    let mut proxy = snapshot_proxy().with_base_products(vec![ProductRecord {
+        id: "gid://shopify/Product/9264105488617".to_string(),
+        title: "Hermes Product Publication Conformance 1777078193573".to_string(),
+        handle: "hermes-product-publication-conformance-1777078193573".to_string(),
+        status: "DRAFT".to_string(),
+        ..ProductRecord::default()
+    }]);
     let response = proxy.process_request(json_graphql_request(
         r#"
         query ProductPublicationAggregateDownstream($id: ID!) {
@@ -1878,6 +1884,357 @@ fn product_publication_aggregate_downstream_read_returns_captured_product_shape(
             "resourcePublicationsCount": { "count": 0, "precision": "EXACT" }
         })
     );
+}
+
+#[test]
+fn product_publish_unpublish_stage_publication_state_for_downstream_reads() {
+    let product_id = "gid://shopify/Product/publication-active";
+    let mut product = ProductRecord {
+        id: product_id.to_string(),
+        title: "Publication active product".to_string(),
+        handle: "publication-active-product".to_string(),
+        status: "ACTIVE".to_string(),
+        ..ProductRecord::default()
+    };
+    product
+        .extra_fields
+        .insert("productPublications".to_string(), json!([]));
+    let mut proxy = snapshot_proxy().with_base_products(vec![product]);
+
+    let create_publication = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateProductPublicationTarget($input: PublicationCreateInput!) {
+          publicationCreate(input: $input) { publication { id } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "name": "Product publication target" } }),
+    ));
+    let publication_id = create_publication.body["data"]["publicationCreate"]["publication"]["id"]
+        .as_str()
+        .expect("publicationCreate should return an id")
+        .to_string();
+
+    let publish_query = r#"
+        mutation ProductPublishReadAfterWrite($input: ProductPublishInput!, $publicationId: ID!) {
+          productPublish(input: $input) {
+            product {
+              id
+              publishedAt
+              publishedOnCurrentPublication
+              publishedOnPublication(publicationId: $publicationId)
+              availablePublicationsCount { count precision }
+              resourcePublicationsCount { count precision }
+              resourcePublicationsV2(first: 10) {
+                nodes { publication { id } isPublished publishDate publishable { ... on Product { id } } }
+              }
+              publications(first: 10) {
+                nodes { isPublished publishDate product { id } }
+              }
+            }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let publish_variables = json!({
+        "input": {
+            "id": product_id,
+            "productPublications": [{
+                "publicationId": publication_id,
+                "publishDate": "2026-01-02T03:04:05Z"
+            }]
+        },
+        "publicationId": publication_id
+    });
+    let publish = proxy.process_request(json_graphql_request(publish_query, publish_variables));
+    let published_product = &publish.body["data"]["productPublish"]["product"];
+    assert_eq!(
+        published_product,
+        &json!({
+            "id": product_id,
+            "publishedAt": "2026-01-02T03:04:05Z",
+            "publishedOnCurrentPublication": false,
+            "publishedOnPublication": true,
+            "availablePublicationsCount": { "count": 1, "precision": "EXACT" },
+            "resourcePublicationsCount": { "count": 1, "precision": "EXACT" },
+            "resourcePublicationsV2": {
+                "nodes": [{
+                    "publication": { "id": publication_id },
+                    "isPublished": true,
+                    "publishDate": "2026-01-02T03:04:05Z",
+                    "publishable": { "id": product_id }
+                }]
+            },
+            "publications": {
+                "nodes": [{
+                    "isPublished": true,
+                    "publishDate": "2026-01-02T03:04:05Z",
+                    "product": { "id": product_id }
+                }]
+            }
+        })
+    );
+    assert_eq!(
+        publish.body["data"]["productPublish"]["userErrors"],
+        json!([])
+    );
+
+    let read_query = r#"
+        query ProductPublicationReadAfterWrite($id: ID!, $publicationId: ID!) {
+          product(id: $id) {
+            id
+            publishedAt
+            publishedOnPublication(publicationId: $publicationId)
+            availablePublicationsCount { count precision }
+            resourcePublicationsCount { count precision }
+            resourcePublicationsV2(first: 10) { nodes { publication { id } isPublished publishDate } }
+          }
+        }
+    "#;
+    let read_after_publish = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": product_id, "publicationId": publication_id }),
+    ));
+    assert_eq!(
+        read_after_publish.body["data"]["product"],
+        json!({
+            "id": product_id,
+            "publishedAt": "2026-01-02T03:04:05Z",
+            "publishedOnPublication": true,
+            "availablePublicationsCount": { "count": 1, "precision": "EXACT" },
+            "resourcePublicationsCount": { "count": 1, "precision": "EXACT" },
+            "resourcePublicationsV2": {
+                "nodes": [{
+                    "publication": { "id": publication_id },
+                    "isPublished": true,
+                    "publishDate": "2026-01-02T03:04:05Z"
+                }]
+            }
+        })
+    );
+
+    let unpublish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductUnpublishReadAfterWrite($input: ProductUnpublishInput!, $publicationId: ID!) {
+          productUnpublish(input: $input) {
+            product {
+              id
+              publishedAt
+              publishedOnPublication(publicationId: $publicationId)
+              availablePublicationsCount { count precision }
+              resourcePublicationsCount { count precision }
+              resourcePublicationsV2(first: 10) { nodes { publication { id } isPublished publishDate } }
+            }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": product_id,
+                "productPublications": [{ "publicationId": publication_id }]
+            },
+            "publicationId": publication_id
+        }),
+    ));
+    assert_eq!(
+        unpublish.body["data"]["productUnpublish"],
+        json!({
+            "product": {
+                "id": product_id,
+                "publishedAt": null,
+                "publishedOnPublication": false,
+                "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+                "resourcePublicationsCount": { "count": 0, "precision": "EXACT" },
+                "resourcePublicationsV2": { "nodes": [] }
+            },
+            "userErrors": []
+        })
+    );
+
+    let read_after_unpublish = proxy.process_request(json_graphql_request(
+        read_query,
+        json!({ "id": product_id, "publicationId": publication_id }),
+    ));
+    assert_eq!(
+        read_after_unpublish.body["data"]["product"],
+        json!({
+            "id": product_id,
+            "publishedAt": null,
+            "publishedOnPublication": false,
+            "availablePublicationsCount": { "count": 0, "precision": "EXACT" },
+            "resourcePublicationsCount": { "count": 0, "precision": "EXACT" },
+            "resourcePublicationsV2": { "nodes": [] }
+        })
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        headers: Default::default(),
+        body: String::new(),
+    });
+    assert!(
+        log.body["entries"].as_array().is_some_and(|entries| {
+            entries.iter().any(|entry| {
+                entry["interpreted"]["primaryRootField"] == json!("productPublish")
+                    && entry["rawBody"]
+                        .as_str()
+                        .is_some_and(|body| body.contains("ProductPublishReadAfterWrite"))
+            }) && entries.iter().any(|entry| {
+                entry["interpreted"]["primaryRootField"] == json!("productUnpublish")
+                    && entry["rawBody"]
+                        .as_str()
+                        .is_some_and(|body| body.contains("ProductUnpublishReadAfterWrite"))
+            })
+        }),
+        "productPublish/productUnpublish should be staged with replay-ready raw bodies: {}",
+        log.body
+    );
+}
+
+#[test]
+fn product_publish_unpublish_validate_publication_state_locally() {
+    let product_id = "gid://shopify/Product/publication-validation";
+    let mut product = ProductRecord {
+        id: product_id.to_string(),
+        title: "Publication validation product".to_string(),
+        handle: "publication-validation-product".to_string(),
+        status: "ACTIVE".to_string(),
+        ..ProductRecord::default()
+    };
+    product
+        .extra_fields
+        .insert("productPublications".to_string(), json!([]));
+    let mut proxy = snapshot_proxy().with_base_products(vec![product]);
+    let create_publication = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateProductPublicationValidationTarget($input: PublicationCreateInput!) {
+          publicationCreate(input: $input) { publication { id } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "name": "Product publication validation target" } }),
+    ));
+    let publication_id = create_publication.body["data"]["publicationCreate"]["publication"]["id"]
+        .as_str()
+        .expect("publicationCreate should return an id")
+        .to_string();
+    let publish = r#"
+        mutation ProductPublishValidation($input: ProductPublishInput!) {
+          productPublish(input: $input) { product { id } userErrors { field message } }
+        }
+    "#;
+    let unpublish = r#"
+        mutation ProductUnpublishValidation($input: ProductUnpublishInput!) {
+          productUnpublish(input: $input) { product { id } userErrors { field message } }
+        }
+    "#;
+
+    let unknown = proxy.process_request(json_graphql_request(
+        publish,
+        json!({ "input": { "id": product_id, "productPublications": [{ "publicationId": "gid://shopify/Publication/999999999999" }] } }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["productPublish"]["userErrors"],
+        json!([{
+            "field": ["productPublications", "0", "publicationId"],
+            "message": "Publication does not exist or is not publishable"
+        }])
+    );
+
+    let first_publish = proxy.process_request(json_graphql_request(
+        publish,
+        json!({ "input": { "id": product_id, "productPublications": [{ "publicationId": publication_id }] } }),
+    ));
+    assert_eq!(
+        first_publish.body["data"]["productPublish"]["userErrors"],
+        json!([])
+    );
+
+    let duplicate_publish = proxy.process_request(json_graphql_request(
+        publish,
+        json!({ "input": { "id": product_id, "productPublications": [{ "publicationId": publication_id }] } }),
+    ));
+    assert_eq!(
+        duplicate_publish.body["data"]["productPublish"]["userErrors"],
+        json!([{
+            "field": ["productPublications", "0", "publicationId"],
+            "message": "Product is already published on this publication"
+        }])
+    );
+
+    let first_unpublish = proxy.process_request(json_graphql_request(
+        unpublish,
+        json!({ "input": { "id": product_id, "productPublications": [{ "publicationId": publication_id }] } }),
+    ));
+    assert_eq!(
+        first_unpublish.body["data"]["productUnpublish"]["userErrors"],
+        json!([])
+    );
+
+    let duplicate_unpublish = proxy.process_request(json_graphql_request(
+        unpublish,
+        json!({ "input": { "id": product_id, "productPublications": [{ "publicationId": publication_id }] } }),
+    ));
+    assert_eq!(
+        duplicate_unpublish.body["data"]["productUnpublish"]["userErrors"],
+        json!([{
+            "field": ["productPublications", "0", "publicationId"],
+            "message": "Product is not published on this publication"
+        }])
+    );
+}
+
+#[test]
+fn product_publish_live_hybrid_stages_seeded_product_without_upstream_write() {
+    let product_id = "gid://shopify/Product/publication-local-only";
+    let mut product = ProductRecord {
+        id: product_id.to_string(),
+        title: "Publication local only".to_string(),
+        handle: "publication-local-only".to_string(),
+        status: "ACTIVE".to_string(),
+        ..ProductRecord::default()
+    };
+    product
+        .extra_fields
+        .insert("productPublications".to_string(), json!([]));
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![product])
+        .with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request);
+            Response {
+                status: 500,
+                headers: Default::default(),
+                body: json!({ "errors": [{ "message": "unexpected upstream write" }] }),
+            }
+        });
+    let create_publication = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateProductPublicationNoWriteTarget($input: PublicationCreateInput!) {
+          publicationCreate(input: $input) { publication { id } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "name": "Product publication no write target" } }),
+    ));
+    let publication_id = create_publication.body["data"]["publicationCreate"]["publication"]["id"]
+        .as_str()
+        .expect("publicationCreate should return an id");
+
+    let publish = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ProductPublishNoRuntimeWrite($input: ProductPublishInput!) {
+          productPublish(input: $input) { product { id publishedOnPublication(publicationId: "gid://shopify/Publication/2") } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": product_id, "productPublications": [{ "publicationId": publication_id }] } }),
+    ));
+    assert_eq!(publish.status, 200);
+    assert_eq!(
+        publish.body["data"]["productPublish"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(forwarded.lock().unwrap().len(), 0);
 }
 
 #[test]
