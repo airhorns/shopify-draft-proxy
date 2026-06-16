@@ -1397,6 +1397,18 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
+            && matches!(
+                root_field,
+                "customerAddressCreate"
+                    | "customerAddressUpdate"
+                    | "customerAddressDelete"
+                    | "customerUpdateDefaultAddress"
+            )
+        {
+            return self.customer_address_mutation(&query, &variables, request);
+        }
+
+        if operation.operation_type == OperationType::Mutation
             && root_field == "orderCreate"
             && query.contains("CustomerDeleteOrderPreconditionOrderCreate")
         {
