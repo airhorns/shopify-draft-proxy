@@ -1,0 +1,148 @@
+{
+  "capturedAt": "2026-06-16T06:45:12.297Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "token": "blankupdatemqga29sx",
+  "notes": [
+    "SavedSearchUpdate with an explicitly supplied empty string name returns a field/message UserError at input.name.",
+    "The failed blank-name update leaves the saved search name unchanged on a downstream productSavedSearches read."
+  ],
+  "savedSearchCreateSeed": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-blank-name-update-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "PRODUCT",
+        "name": "SDP Blank Update blankupdatemqga29sx",
+        "query": "vendor:blankupdatemqga29sx"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4051994902834",
+            "name": "SDP Blank Update blankupdatemqga29sx",
+            "query": "vendor:blankupdatemqga29sx",
+            "resourceType": "PRODUCT"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "savedSearchUpdateBlankName": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-blank-name-update.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/4051994902834",
+        "name": ""
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchUpdate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4051994902834",
+            "name": "SDP Blank Update blankupdatemqga29sx",
+            "query": "vendor:blankupdatemqga29sx",
+            "resourceType": "PRODUCT"
+          },
+          "userErrors": [
+            {
+              "field": [
+                "input",
+                "name"
+              ],
+              "message": "Name can't be blank"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "productSavedSearchesAfterRejectedUpdate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-blank-name-update-read.graphql",
+    "variables": {},
+    "payload": {
+      "data": {
+        "productSavedSearches": {
+          "nodes": [
+            {
+              "id": "gid://shopify/SavedSearch/4051994902834",
+              "name": "SDP Blank Update blankupdatemqga29sx",
+              "query": "vendor:blankupdatemqga29sx",
+              "resourceType": "PRODUCT"
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjo0MDUxOTk0OTAyODM0LCJsYXN0X3ZhbHVlIjoiNDA1MTk5NDkwMjgzNCJ9",
+            "endCursor": "eyJsYXN0X2lkIjo0MDUxOTk0OTAyODM0LCJsYXN0X3ZhbHVlIjoiNDA1MTk5NDkwMjgzNCJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-delete.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/4051994902834"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchDelete": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4051994902834",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

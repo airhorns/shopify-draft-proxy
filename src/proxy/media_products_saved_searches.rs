@@ -3845,15 +3845,31 @@ impl DraftProxy {
                 })],
             ));
         };
-        let requested_name =
-            resolved_string_field(&input, "name").unwrap_or_else(|| existing.name.clone());
+        let requested_name_input = resolved_string_field(&input, "name");
+        let requested_name = requested_name_input
+            .clone()
+            .unwrap_or_else(|| existing.name.clone());
         let requested_query =
             resolved_string_field(&input, "query").unwrap_or_else(|| existing.query.clone());
         let mut updated = existing.clone();
         updated.query = normalize_saved_search_query(&requested_query);
         let mut user_errors = Vec::new();
-        if is_reserved_saved_search_name(&existing.resource_type, &requested_name)
-            || self.saved_search_name_exists(&existing.resource_type, &requested_name, Some(&id))
+        let requested_name_is_blank = requested_name_input
+            .as_deref()
+            .is_some_and(|name| name.trim().is_empty());
+        if requested_name_is_blank {
+            user_errors.push(json!({
+                "field": ["input", "name"],
+                "message": "Name can't be blank"
+            }));
+        }
+        if !requested_name_is_blank
+            && (is_reserved_saved_search_name(&existing.resource_type, &requested_name)
+                || self.saved_search_name_exists(
+                    &existing.resource_type,
+                    &requested_name,
+                    Some(&id),
+                ))
         {
             user_errors.push(saved_search_name_taken_user_error());
         }
