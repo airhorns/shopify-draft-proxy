@@ -1,0 +1,37 @@
+{
+  "scenarioId": "functions-validation-update-rebind-variable",
+  "operationNames": ["validationUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-coercion-parity", "functions-validation-update"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-update-rebind-variable.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-validation-update-rebind-variable.graphql",
+    "variablesCapturePath": "$.functionId.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "variable-functionId-rejects-before-validationUpdate-resolver",
+        "capturePath": "$.functionId.response",
+        "proxyPath": "$"
+      },
+      {
+        "name": "variable-functionHandle-rejects-before-validationUpdate-resolver",
+        "capturePath": "$.functionHandle.response",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-validation-update-rebind-variable.graphql",
+          "variablesCapturePath": "$.functionHandle.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify Admin GraphQL 2026-04 evidence for validationUpdate variable-bound rebind input. ValidationUpdateInput does not expose functionId or functionHandle, so variable input containing either key is rejected during GraphQL variable coercion with top-level INVALID_VARIABLE errors before the validationUpdate resolver runs and before any mutation-scoped userErrors are produced."
+}

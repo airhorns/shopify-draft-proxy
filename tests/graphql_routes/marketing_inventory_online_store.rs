@@ -136,6 +136,256 @@ fn marketing_external_activity_lifecycle_stages_updates_engagements_and_reads_ba
 }
 
 #[test]
+fn marketing_external_activity_stages_spend_schedule_and_referring_domain() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle($input: MarketingActivityCreateExternalInput!) {
+          createExternal: marketingActivityCreateExternal(input: $input) {
+            marketingActivity {
+              id
+              adSpend { amount currencyCode }
+              scheduledToStartAt
+              scheduledToEndAt
+              referringDomain
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "title": "Spring promo",
+            "remoteId": "external-field-roundtrip",
+            "status": "ACTIVE",
+            "tactic": "AD",
+            "marketingChannelType": "SEARCH",
+            "utm": {"campaign": "external-field-roundtrip", "source": "ads", "medium": "cpc"},
+            "adSpend": {"amount": "25.00", "currencyCode": "USD"},
+            "scheduledStart": "2026-05-01T00:00:00Z",
+            "scheduledEnd": "2026-05-31T00:00:00Z",
+            "referringDomain": "https://ads.example.com"
+        }}),
+    ));
+    assert_eq!(
+        create.body["data"]["createExternal"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["createExternal"]["marketingActivity"]["adSpend"],
+        json!({"amount": "25.0", "currencyCode": "USD"})
+    );
+    assert_eq!(
+        create.body["data"]["createExternal"]["marketingActivity"]["scheduledToStartAt"],
+        json!("2026-05-01T00:00:00Z")
+    );
+    assert_eq!(
+        create.body["data"]["createExternal"]["marketingActivity"]["scheduledToEndAt"],
+        json!("2026-05-31T00:00:00Z")
+    );
+    assert_eq!(
+        create.body["data"]["createExternal"]["marketingActivity"]["referringDomain"],
+        json!("https://ads.example.com")
+    );
+    let activity_id = create.body["data"]["createExternal"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingActivityRead($id: ID!, $remoteIds: [String!]) {
+          marketingActivity(id: $id) {
+            adSpend { amount currencyCode }
+            scheduledToStartAt
+            scheduledToEndAt
+            referringDomain
+          }
+          marketingActivities(first: 10, remoteIds: $remoteIds) {
+            nodes {
+              adSpend { amount currencyCode }
+              scheduledToStartAt
+              scheduledToEndAt
+              referringDomain
+            }
+          }
+        }
+        "#,
+        json!({
+            "id": activity_id,
+            "remoteIds": ["external-field-roundtrip"]
+        }),
+    ));
+    let expected = json!({
+        "adSpend": {"amount": "25.0", "currencyCode": "USD"},
+        "scheduledToStartAt": "2026-05-01T00:00:00Z",
+        "scheduledToEndAt": "2026-05-31T00:00:00Z",
+        "referringDomain": "https://ads.example.com"
+    });
+    assert_eq!(read.body["data"]["marketingActivity"], expected);
+    assert_eq!(
+        read.body["data"]["marketingActivities"]["nodes"][0],
+        expected
+    );
+}
+
+#[test]
+fn marketing_external_activity_update_and_upsert_preserve_omitted_spend_schedule_and_domain() {
+    let mut proxy = snapshot_proxy();
+    let setup = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycle(
+          $updateSeed: MarketingActivityCreateExternalInput!
+          $upsertSeed: MarketingActivityUpsertExternalInput!
+        ) {
+          updateSeed: marketingActivityCreateExternal(input: $updateSeed) {
+            marketingActivity { id }
+            userErrors { field message code }
+          }
+          upsertSeed: marketingActivityUpsertExternal(input: $upsertSeed) {
+            marketingActivity { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "updateSeed": {
+                "title": "Update preserve seed",
+                "remoteId": "external-update-preserve",
+                "status": "ACTIVE",
+                "tactic": "AD",
+                "marketingChannelType": "SEARCH",
+                "utm": {"campaign": "external-update-preserve", "source": "ads", "medium": "cpc"},
+                "adSpend": {"amount": "25.00", "currencyCode": "USD"},
+                "scheduledStart": "2026-05-01T00:00:00Z",
+                "scheduledEnd": "2026-05-31T00:00:00Z",
+                "referringDomain": "https://ads.example.com"
+            },
+            "upsertSeed": {
+                "title": "Upsert preserve seed",
+                "remoteId": "external-upsert-preserve",
+                "status": "ACTIVE",
+                "tactic": "AD",
+                "marketingChannelType": "SEARCH",
+                "utm": {"campaign": "external-upsert-preserve", "source": "ads", "medium": "cpc"},
+                "adSpend": {"amount": "45.00", "currencyCode": "USD"},
+                "scheduledStart": "2026-07-01T00:00:00Z",
+                "scheduledEnd": "2026-07-31T00:00:00Z",
+                "referringDomain": "https://ads-upsert.example.com"
+            }
+        }),
+    ));
+    assert_eq!(setup.body["data"]["updateSeed"]["userErrors"], json!([]));
+    assert_eq!(setup.body["data"]["upsertSeed"]["userErrors"], json!([]));
+    let update_activity_id = setup.body["data"]["updateSeed"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let upsert_activity_id = setup.body["data"]["upsertSeed"]["marketingActivity"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let changed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MarketingActivityLifecycleUpdate(
+          $updateRemoteId: String!
+          $updateInput: MarketingActivityUpdateExternalInput!
+          $upsertInput: MarketingActivityUpsertExternalInput!
+        ) {
+          updateExternal: marketingActivityUpdateExternal(remoteId: $updateRemoteId, input: $updateInput) {
+            marketingActivity {
+              title
+              sourceAndMedium
+              adSpend { amount currencyCode }
+              scheduledToStartAt
+              scheduledToEndAt
+              referringDomain
+            }
+            userErrors { field message code }
+          }
+          upsertExternal: marketingActivityUpsertExternal(input: $upsertInput) {
+            marketingActivity {
+              title
+              sourceAndMedium
+              adSpend { amount currencyCode }
+              scheduledToStartAt
+              scheduledToEndAt
+              referringDomain
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "updateRemoteId": "external-update-preserve",
+            "updateInput": {"title": "Update preserve changed"},
+            "upsertInput": {
+                "remoteId": "external-upsert-preserve",
+                "title": "Upsert preserve changed",
+                "utm": {"campaign": "external-upsert-preserve", "source": "ads", "medium": "cpc"}
+            }
+        }),
+    ));
+    assert_eq!(
+        changed.body["data"]["updateExternal"]["marketingActivity"],
+        json!({
+            "title": "Update preserve changed",
+            "sourceAndMedium": "https://ads.example.com ad",
+            "adSpend": {"amount": "25.0", "currencyCode": "USD"},
+            "scheduledToStartAt": "2026-05-01T00:00:00Z",
+            "scheduledToEndAt": "2026-05-31T00:00:00Z",
+            "referringDomain": "https://ads.example.com"
+        })
+    );
+    assert_eq!(
+        changed.body["data"]["upsertExternal"]["marketingActivity"],
+        json!({
+            "title": "Upsert preserve changed",
+            "sourceAndMedium": "https://ads-upsert.example.com ad",
+            "adSpend": {"amount": "45.0", "currencyCode": "USD"},
+            "scheduledToStartAt": "2026-07-01T00:00:00Z",
+            "scheduledToEndAt": "2026-07-31T00:00:00Z",
+            "referringDomain": "https://ads-upsert.example.com"
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingActivityRead($updateActivityId: ID!, $upsertActivityId: ID!) {
+          updateActivity: marketingActivity(id: $updateActivityId) {
+            title
+            sourceAndMedium
+            adSpend { amount currencyCode }
+            scheduledToStartAt
+            scheduledToEndAt
+            referringDomain
+          }
+          upsertActivity: marketingActivity(id: $upsertActivityId) {
+            title
+            sourceAndMedium
+            adSpend { amount currencyCode }
+            scheduledToStartAt
+            scheduledToEndAt
+            referringDomain
+          }
+        }
+        "#,
+        json!({
+            "updateActivityId": update_activity_id,
+            "upsertActivityId": upsert_activity_id
+        }),
+    ));
+    assert_eq!(
+        read.body["data"]["updateActivity"],
+        changed.body["data"]["updateExternal"]["marketingActivity"]
+    );
+    assert_eq!(
+        read.body["data"]["upsertActivity"],
+        changed.body["data"]["upsertExternal"]["marketingActivity"]
+    );
+}
+
+#[test]
 fn marketing_external_activity_update_and_upsert_reject_tactic_change_from_storefront_app() {
     let mut proxy = snapshot_proxy();
     let setup = proxy.process_request(json_graphql_request(
@@ -1625,6 +1875,568 @@ fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store()
             json!("inventoryTransferCancel")
         ]
     );
+}
+
+#[test]
+fn inventory_shipment_unknown_transfer_returns_user_error_without_logging() {
+    let mut proxy = snapshot_proxy();
+
+    let response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-create-validation.graphql"
+        ),
+        json!({"input": {
+            "inventoryTransferId": "gid://shopify/InventoryTransfer/missing",
+            "lineItems": [{
+                "inventoryTransferLineItemId": "gid://shopify/InventoryTransferLineItem/missing",
+                "inventoryItemId": "gid://shopify/InventoryItem/ship-missing",
+                "quantity": 1
+            }]
+        }}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["inventoryShipmentCreate"]["inventoryShipment"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["inventoryShipmentCreate"]["userErrors"],
+        json!([{
+            "field": ["transferId"],
+            "message": "The specified inventory transfer could not be found.",
+            "code": "NOT_FOUND"
+        }])
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+}
+
+#[test]
+fn inventory_shipment_lifecycle_stages_locally_updates_inventory_and_preserves_log_order() {
+    let upstream_calls = Arc::new(Mutex::new(0usize));
+    let calls = upstream_calls.clone();
+    let mut proxy = snapshot_proxy().with_upstream_transport(move |_request| {
+        *calls.lock().unwrap() += 1;
+        panic!("inventory shipment roots must not call upstream")
+    });
+
+    let create_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-create-in-transit.graphql"
+        ),
+        json!({"input": {
+            "movementId": "gid://shopify/InventoryTransfer/ship-movement",
+            "trackingInput": {
+                "trackingNumber": "1Z999",
+                "company": "UPS",
+                "trackingUrl": "https://example.test/track/1Z999",
+                "arrivesAt": "2026-04-30T00:00:00.000Z"
+            },
+            "lineItems": [{
+                "inventoryItemId": "gid://shopify/InventoryItem/ship-item",
+                "quantity": 5
+            }]
+        }}),
+    ));
+    assert_eq!(
+        create_response.body["data"]["inventoryShipmentCreateInTransit"]["inventoryShipment"]
+            ["status"],
+        json!("IN_TRANSIT")
+    );
+    assert_eq!(
+        create_response.body["data"]["inventoryShipmentCreateInTransit"]["inventoryShipment"]
+            ["tracking"]["company"],
+        json!("UPS")
+    );
+    let shipment_id = create_response.body["data"]["inventoryShipmentCreateInTransit"]
+        ["inventoryShipment"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let shipment_line_item_id = create_response.body["data"]["inventoryShipmentCreateInTransit"]
+        ["inventoryShipment"]["lineItems"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let detail_response = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-shipment-detail.graphql"),
+        json!({"id": shipment_id}),
+    ));
+    assert_eq!(
+        detail_response.body["data"]["inventoryShipment"]["status"],
+        json!("IN_TRANSIT")
+    );
+    assert_eq!(
+        detail_response.body["data"]["inventoryShipment"]["lineItems"]["nodes"][0]
+            ["unreceivedQuantity"],
+        json!(5)
+    );
+
+    let inventory_after_create = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-inventory-read.graphql"
+        ),
+        json!({"id": "gid://shopify/InventoryItem/ship-item"}),
+    ));
+    assert!(inventory_has_level_quantities(
+        &inventory_after_create,
+        json!([
+            {"name": "available", "quantity": 1},
+            {"name": "on_hand", "quantity": 1},
+            {"name": "incoming", "quantity": 5}
+        ])
+    ));
+
+    let receive_response = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-shipment-receive.graphql"),
+        json!({"id": shipment_id, "lineItems": [{
+            "shipmentLineItemId": shipment_line_item_id,
+            "quantity": 3,
+            "reason": "ACCEPTED"
+        }]}),
+    ));
+    assert_eq!(
+        receive_response.body["data"]["inventoryShipmentReceive"]["inventoryShipment"]["status"],
+        json!("PARTIALLY_RECEIVED")
+    );
+    assert_eq!(
+        receive_response.body["data"]["inventoryShipmentReceive"]["inventoryShipment"]
+            ["totalAcceptedQuantity"],
+        json!(3)
+    );
+
+    let update_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-update-quantities.graphql"
+        ),
+        json!({"id": shipment_id, "items": [{
+            "shipmentLineItemId": shipment_line_item_id,
+            "quantity": 6
+        }]}),
+    ));
+    assert_eq!(
+        update_response.body["data"]["inventoryShipmentUpdateItemQuantities"]["shipment"]
+            ["lineItemTotalQuantity"],
+        json!(6)
+    );
+    assert_eq!(
+        update_response.body["data"]["inventoryShipmentUpdateItemQuantities"]["updatedLineItems"]
+            [0]["unreceivedQuantity"],
+        json!(3)
+    );
+
+    let inventory_after_update = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-inventory-read.graphql"
+        ),
+        json!({"id": "gid://shopify/InventoryItem/ship-item"}),
+    ));
+    assert!(inventory_has_level_quantities(
+        &inventory_after_update,
+        json!([
+            {"name": "available", "quantity": 4},
+            {"name": "on_hand", "quantity": 4},
+            {"name": "incoming", "quantity": 3}
+        ])
+    ));
+
+    let delete_response = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-shipment-delete.graphql"),
+        json!({"id": shipment_id}),
+    ));
+    assert_eq!(
+        delete_response.body["data"]["inventoryShipmentDelete"]["userErrors"],
+        json!([])
+    );
+
+    let inventory_after_delete = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-inventory-read.graphql"
+        ),
+        json!({"id": "gid://shopify/InventoryItem/ship-item"}),
+    ));
+    assert!(inventory_has_level_quantities(
+        &inventory_after_delete,
+        json!([
+            {"name": "available", "quantity": 4},
+            {"name": "on_hand", "quantity": 4},
+            {"name": "incoming", "quantity": 0}
+        ])
+    ));
+
+    let log = proxy.get_log_snapshot();
+    let roots: Vec<Value> = log["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["interpreted"]["operationName"].clone())
+        .collect();
+    assert_eq!(
+        roots,
+        vec![
+            json!("inventoryShipmentCreateInTransit"),
+            json!("inventoryShipmentReceive"),
+            json!("inventoryShipmentUpdateItemQuantities"),
+            json!("inventoryShipmentDelete")
+        ]
+    );
+    assert_eq!(*upstream_calls.lock().unwrap(), 0);
+}
+
+#[test]
+fn inventory_shipment_validation_guards_reject_without_staging() {
+    let mut proxy = snapshot_proxy();
+    let transfer_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-transfer-create-ready.graphql"
+        ),
+        json!({"input": {
+            "originLocationId": "gid://shopify/Location/1",
+            "destinationLocationId": "gid://shopify/Location/2",
+            "lineItems": [{
+                "inventoryItemId": "gid://shopify/InventoryItem/guard-item",
+                "quantity": 2
+            }]
+        }}),
+    ));
+    let transfer = &transfer_response.body["data"]["inventoryTransferCreateAsReadyToShip"]
+        ["inventoryTransfer"];
+    let transfer_id = transfer["id"].as_str().unwrap().to_string();
+    let transfer_line_item_id = transfer["lineItems"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let line_item_not_member = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-create-validation.graphql"
+        ),
+        json!({"input": {
+            "inventoryTransferId": transfer_id,
+            "lineItems": [{
+                "inventoryTransferLineItemId": "gid://shopify/InventoryTransferLineItem/not-member",
+                "inventoryItemId": "gid://shopify/InventoryItem/guard-item",
+                "quantity": 1
+            }]
+        }}),
+    ));
+    assert_eq!(
+        line_item_not_member.body["data"]["inventoryShipmentCreate"]["userErrors"][0]["code"],
+        json!("NOT_FOUND")
+    );
+
+    let quantity_exceeds = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-create-validation.graphql"
+        ),
+        json!({"input": {
+            "inventoryTransferId": transfer_id,
+            "lineItems": [{
+                "inventoryTransferLineItemId": transfer_line_item_id,
+                "inventoryItemId": "gid://shopify/InventoryItem/guard-item",
+                "quantity": 3
+            }]
+        }}),
+    ));
+    assert_eq!(
+        quantity_exceeds.body["data"]["inventoryShipmentCreate"]["userErrors"][0]["code"],
+        json!("QUANTITY_EXCEEDS_REMAINING")
+    );
+
+    let bad_tracking = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-create-validation.graphql"
+        ),
+        json!({"input": {
+            "inventoryTransferId": transfer_id,
+            "trackingInput": {"carrier": "BAD_CARRIER", "url": "not-a-url"},
+            "lineItems": [{
+                "inventoryTransferLineItemId": transfer_line_item_id,
+                "inventoryItemId": "gid://shopify/InventoryItem/guard-item",
+                "quantity": 1
+            }]
+        }}),
+    ));
+    assert_eq!(
+        bad_tracking.body["data"]["inventoryShipmentCreate"]["userErrors"],
+        json!([
+            {
+                "field": ["input", "trackingInput", "carrier"],
+                "message": "Carrier is not included in the list.",
+                "code": "INVALID"
+            },
+            {
+                "field": ["input", "trackingInput", "url"],
+                "message": "Tracking URL is invalid.",
+                "code": "INVALID"
+            }
+        ])
+    );
+
+    let create_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-create-validation.graphql"
+        ),
+        json!({"input": {
+            "inventoryTransferId": transfer_id,
+            "lineItems": [{
+                "inventoryTransferLineItemId": transfer_line_item_id,
+                "inventoryItemId": "gid://shopify/InventoryItem/guard-item",
+                "quantity": 1
+            }]
+        }}),
+    ));
+    let shipment_id = create_response.body["data"]["inventoryShipmentCreate"]["inventoryShipment"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let shipment_line_item_id = create_response.body["data"]["inventoryShipmentCreate"]
+        ["inventoryShipment"]["lineItems"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let add_exceeds = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-add-items-validation.graphql"
+        ),
+        json!({"id": shipment_id, "lineItems": [{
+            "inventoryTransferLineItemId": transfer_line_item_id,
+            "inventoryItemId": "gid://shopify/InventoryItem/guard-item",
+            "quantity": 2
+        }]}),
+    ));
+    assert_eq!(
+        add_exceeds.body["data"]["inventoryShipmentAddItems"]["userErrors"][0]["code"],
+        json!("QUANTITY_EXCEEDS_REMAINING")
+    );
+
+    let aggregate_add_exceeds = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-add-items-validation.graphql"
+        ),
+        json!({"id": shipment_id, "lineItems": [
+            {
+                "inventoryTransferLineItemId": transfer_line_item_id,
+                "inventoryItemId": "gid://shopify/InventoryItem/guard-item",
+                "quantity": 1
+            },
+            {
+                "inventoryTransferLineItemId": transfer_line_item_id,
+                "inventoryItemId": "gid://shopify/InventoryItem/guard-item",
+                "quantity": 1
+            }
+        ]}),
+    ));
+    assert_eq!(
+        aggregate_add_exceeds.body["data"]["inventoryShipmentAddItems"]["userErrors"][0]["code"],
+        json!("QUANTITY_EXCEEDS_REMAINING")
+    );
+
+    let update_exceeds = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-update-quantities.graphql"
+        ),
+        json!({"id": shipment_id, "items": [{
+            "shipmentLineItemId": shipment_line_item_id,
+            "quantity": 3
+        }]}),
+    ));
+    assert_eq!(
+        update_exceeds.body["data"]["inventoryShipmentUpdateItemQuantities"]["userErrors"][0]
+            ["code"],
+        json!("QUANTITY_EXCEEDS_REMAINING")
+    );
+
+    let receive_draft = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-shipment-receive.graphql"),
+        json!({"id": shipment_id, "lineItems": [{
+            "shipmentLineItemId": shipment_line_item_id,
+            "quantity": 1,
+            "reason": "ACCEPTED"
+        }]}),
+    ));
+    assert_eq!(
+        receive_draft.body["data"]["inventoryShipmentReceive"]["userErrors"][0],
+        json!({
+            "field": ["id"],
+            "message": "Only in-transit shipments can be received.",
+            "code": "INVALID_STATE"
+        })
+    );
+}
+
+#[test]
+fn inventory_shipment_draft_mutators_stage_tracking_items_and_in_transit_state() {
+    let mut proxy = snapshot_proxy();
+    let transfer_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-transfer-create-ready.graphql"
+        ),
+        json!({"input": {
+            "originLocationId": "gid://shopify/Location/1",
+            "destinationLocationId": "gid://shopify/Location/2",
+            "lineItems": [{
+                "inventoryItemId": "gid://shopify/InventoryItem/mutator-item",
+                "quantity": 3
+            }]
+        }}),
+    ));
+    let transfer = &transfer_response.body["data"]["inventoryTransferCreateAsReadyToShip"]
+        ["inventoryTransfer"];
+    let transfer_id = transfer["id"].as_str().unwrap().to_string();
+    let transfer_line_item_id = transfer["lineItems"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let create_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-create-validation.graphql"
+        ),
+        json!({"input": {
+            "inventoryTransferId": transfer_id,
+            "lineItems": [{
+                "inventoryTransferLineItemId": transfer_line_item_id,
+                "inventoryItemId": "gid://shopify/InventoryItem/mutator-item",
+                "quantity": 1
+            }]
+        }}),
+    ));
+    let shipment_id = create_response.body["data"]["inventoryShipmentCreate"]["inventoryShipment"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let tracking_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ShipmentTracking($id: ID!, $trackingInput: InventoryShipmentTrackingInput!) {
+          inventoryShipmentSetTracking(id: $id, trackingInput: $trackingInput) {
+            inventoryShipment {
+              id
+              status
+              tracking { company trackingNumber trackingUrl arrivesAt }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": shipment_id, "trackingInput": {
+            "carrier": "UPS",
+            "trackingNumber": "1Z888",
+            "url": "https://example.test/track/1Z888",
+            "arrivesAt": "2026-05-01T00:00:00.000Z"
+        }}),
+    ));
+    assert_eq!(
+        tracking_response.body["data"]["inventoryShipmentSetTracking"]["inventoryShipment"]
+            ["tracking"]["company"],
+        json!("UPS")
+    );
+
+    let add_response = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-add-items-validation.graphql"
+        ),
+        json!({"id": shipment_id, "lineItems": [{
+            "inventoryTransferLineItemId": transfer_line_item_id,
+            "inventoryItemId": "gid://shopify/InventoryItem/mutator-item",
+            "quantity": 1
+        }]}),
+    ));
+    assert_eq!(
+        add_response.body["data"]["inventoryShipmentAddItems"]["inventoryShipment"]
+            ["lineItemTotalQuantity"],
+        json!(2)
+    );
+    let added_line_item_id = add_response.body["data"]["inventoryShipmentAddItems"]["addedItems"]
+        [0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let aggregate_update_exceeds = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-update-quantities.graphql"
+        ),
+        json!({"id": shipment_id, "items": [{
+            "shipmentLineItemId": create_response.body["data"]["inventoryShipmentCreate"]
+                ["inventoryShipment"]["lineItems"]["nodes"][0]["id"],
+            "quantity": 3
+        }]}),
+    ));
+    assert_eq!(
+        aggregate_update_exceeds.body["data"]["inventoryShipmentUpdateItemQuantities"]
+            ["userErrors"][0]["code"],
+        json!("QUANTITY_EXCEEDS_REMAINING")
+    );
+
+    let remove_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ShipmentRemoveItems($id: ID!, $shipmentLineItemIds: [ID!]!) {
+          inventoryShipmentRemoveItems(id: $id, shipmentLineItemIds: $shipmentLineItemIds) {
+            inventoryShipment { id status lineItemTotalQuantity }
+            removedLineItemIds
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": shipment_id, "shipmentLineItemIds": [added_line_item_id]}),
+    ));
+    assert_eq!(
+        remove_response.body["data"]["inventoryShipmentRemoveItems"]["inventoryShipment"]
+            ["lineItemTotalQuantity"],
+        json!(1)
+    );
+
+    let mark_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ShipmentMarkInTransit($id: ID!) {
+          inventoryShipmentMarkInTransit(id: $id) {
+            inventoryShipment {
+              id
+              status
+              lineItems(first: 10) { nodes { id unreceivedQuantity } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": shipment_id}),
+    ));
+    assert_eq!(
+        mark_response.body["data"]["inventoryShipmentMarkInTransit"]["inventoryShipment"]["status"],
+        json!("IN_TRANSIT")
+    );
+
+    let inventory_after_mark = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/products/inventory-shipment-inventory-read.graphql"
+        ),
+        json!({"id": "gid://shopify/InventoryItem/mutator-item"}),
+    ));
+    assert!(inventory_has_level_quantities(
+        &inventory_after_mark,
+        json!([
+            {"name": "available", "quantity": 0},
+            {"name": "on_hand", "quantity": 0},
+            {"name": "incoming", "quantity": 1}
+        ])
+    ));
+}
+
+fn inventory_has_level_quantities(
+    response: &shopify_draft_proxy::proxy::Response,
+    expected: Value,
+) -> bool {
+    response.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|node| node["quantities"] == expected)
 }
 
 #[test]
@@ -4260,6 +5072,285 @@ fn media_file_lifecycle_stages_uploaded_reads_and_empty_product_media_after_dele
     assert_eq!(
         post_delete.body["data"]["product"],
         json!({"id": "gid://shopify/Product/9264121479401", "media": {"nodes": []}})
+    );
+}
+
+#[test]
+fn media_file_create_omitted_content_type_infers_source_extension_and_reads_back() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileCreateContentTypeInference($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files {
+              __typename
+              id
+              alt
+              filename
+              mimeType
+              fileStatus
+              ... on MediaImage {
+                image { url }
+                preview { image { url } }
+              }
+              ... on Video {
+                preview { image { url } }
+              }
+              ... on GenericFile {
+                url
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [
+            {"alt": "Image", "originalSource": "https://cdn.example.com/source.png"},
+            {"alt": "Video", "originalSource": "https://cdn.example.com/source.mp4"},
+            {"alt": "Document", "originalSource": "https://cdn.example.com/spec-sheet.pdf"},
+            {"alt": "Unknown", "filename": "extensionless", "originalSource": "https://cdn.example.com/download"}
+        ]}),
+    ));
+    assert_eq!(
+        create.body["data"]["fileCreate"],
+        json!({
+            "files": [
+                {
+                    "__typename": "MediaImage",
+                    "id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic",
+                    "alt": "Image",
+                    "filename": "source.png",
+                    "mimeType": "image/png",
+                    "fileStatus": "UPLOADED",
+                    "image": {"url": "https://cdn.example.com/source.png"},
+                    "preview": {"image": {"url": "https://cdn.example.com/source.png"}}
+                },
+                {
+                    "__typename": "Video",
+                    "id": "gid://shopify/Video/2?shopify-draft-proxy=synthetic",
+                    "alt": "Video",
+                    "filename": "source.mp4",
+                    "mimeType": "video/mp4",
+                    "fileStatus": "UPLOADED",
+                    "preview": {"image": null}
+                },
+                {
+                    "__typename": "GenericFile",
+                    "id": "gid://shopify/GenericFile/3?shopify-draft-proxy=synthetic",
+                    "alt": "Document",
+                    "filename": "spec-sheet.pdf",
+                    "mimeType": "application/pdf",
+                    "fileStatus": "UPLOADED",
+                    "url": "https://cdn.example.com/spec-sheet.pdf"
+                },
+                {
+                    "__typename": "GenericFile",
+                    "id": "gid://shopify/GenericFile/4?shopify-draft-proxy=synthetic",
+                    "alt": "Unknown",
+                    "filename": "extensionless",
+                    "mimeType": "application/octet-stream",
+                    "fileStatus": "UPLOADED",
+                    "url": "https://cdn.example.com/download"
+                }
+            ],
+            "userErrors": []
+        })
+    );
+
+    let files_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FileCreateContentTypeInferenceFilesRead {
+          files(first: 10) {
+            nodes {
+              __typename
+              id
+              filename
+              mimeType
+              ... on MediaImage { image { url } }
+              ... on Video { preview { image { url } } }
+              ... on GenericFile { url }
+            }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        files_read.body["data"]["files"]["nodes"],
+        json!([
+            {
+                "__typename": "MediaImage",
+                "id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic",
+                "filename": "source.png",
+                "mimeType": "image/png",
+                "image": {"url": "https://cdn.example.com/source.png"}
+            },
+            {
+                "__typename": "Video",
+                "id": "gid://shopify/Video/2?shopify-draft-proxy=synthetic",
+                "filename": "source.mp4",
+                "mimeType": "video/mp4",
+                "preview": {"image": null}
+            },
+            {
+                "__typename": "GenericFile",
+                "id": "gid://shopify/GenericFile/3?shopify-draft-proxy=synthetic",
+                "filename": "spec-sheet.pdf",
+                "mimeType": "application/pdf",
+                "url": "https://cdn.example.com/spec-sheet.pdf"
+            },
+            {
+                "__typename": "GenericFile",
+                "id": "gid://shopify/GenericFile/4?shopify-draft-proxy=synthetic",
+                "filename": "extensionless",
+                "mimeType": "application/octet-stream",
+                "url": "https://cdn.example.com/download"
+            }
+        ])
+    );
+
+    let video_node = proxy.process_request(json_graphql_request(
+        r#"
+        query FileCreateContentTypeInferenceVideoNode($id: ID!) {
+          node(id: $id) {
+            __typename
+            id
+            ... on Video {
+              filename
+              mimeType
+              preview { image { url } }
+            }
+            ... on GenericFile {
+              url
+            }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/Video/2?shopify-draft-proxy=synthetic"}),
+    ));
+    assert_eq!(
+        video_node.body["data"]["node"],
+        json!({
+            "__typename": "Video",
+            "id": "gid://shopify/Video/2?shopify-draft-proxy=synthetic",
+            "filename": "source.mp4",
+            "mimeType": "video/mp4",
+            "preview": {"image": null}
+        })
+    );
+
+    let nodes_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FileCreateContentTypeInferenceNodes($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            __typename
+            id
+            ... on GenericFile {
+              filename
+              mimeType
+              url
+            }
+            ... on MediaImage {
+              image { url }
+            }
+          }
+        }
+        "#,
+        json!({"ids": [
+            "gid://shopify/GenericFile/3?shopify-draft-proxy=synthetic",
+            "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic"
+        ]}),
+    ));
+    assert_eq!(
+        nodes_read.body["data"]["nodes"],
+        json!([
+            {
+                "__typename": "GenericFile",
+                "id": "gid://shopify/GenericFile/3?shopify-draft-proxy=synthetic",
+                "filename": "spec-sheet.pdf",
+                "mimeType": "application/pdf",
+                "url": "https://cdn.example.com/spec-sheet.pdf"
+            },
+            {
+                "__typename": "MediaImage",
+                "id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic",
+                "image": {"url": "https://cdn.example.com/source.png"}
+            }
+        ])
+    );
+}
+
+#[test]
+fn media_file_create_explicit_content_type_takes_precedence_over_source_extension() {
+    let mut proxy = snapshot_proxy();
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation FileCreateExplicitContentTypePrecedence($files: [FileCreateInput!]!) {
+          fileCreate(files: $files) {
+            files {
+              __typename
+              id
+              filename
+              mimeType
+              ... on MediaImage { image { url } }
+              ... on Video { preview { image { url } } }
+              ... on GenericFile { url }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"files": [
+            {"contentType": "IMAGE", "filename": "forced.jpg", "originalSource": "https://cdn.example.com/forced.jpg"},
+            {"contentType": "FILE", "filename": "forced.pdf", "originalSource": "https://cdn.example.com/forced.pdf"},
+            {"contentType": "VIDEO", "filename": "forced.mp4", "originalSource": "https://cdn.example.com/forced.mp4"},
+            {"contentType": "MODEL_3D", "filename": "forced.glb", "originalSource": "https://cdn.example.com/forced.glb"},
+            {"contentType": "EXTERNAL_VIDEO", "filename": "forced.youtube", "originalSource": "https://cdn.example.com/forced.youtube"}
+        ]}),
+    ));
+
+    assert_eq!(
+        create.body["data"]["fileCreate"],
+        json!({
+            "files": [
+                {
+                    "__typename": "MediaImage",
+                    "id": "gid://shopify/MediaImage/1?shopify-draft-proxy=synthetic",
+                    "filename": "forced.jpg",
+                    "mimeType": "image/jpeg",
+                    "image": {"url": "https://cdn.example.com/forced.jpg"}
+                },
+                {
+                    "__typename": "GenericFile",
+                    "id": "gid://shopify/GenericFile/2?shopify-draft-proxy=synthetic",
+                    "filename": "forced.pdf",
+                    "mimeType": "application/pdf",
+                    "url": "https://cdn.example.com/forced.pdf"
+                },
+                {
+                    "__typename": "Video",
+                    "id": "gid://shopify/Video/3?shopify-draft-proxy=synthetic",
+                    "filename": "forced.mp4",
+                    "mimeType": "video/mp4",
+                    "preview": {"image": null}
+                },
+                {
+                    "__typename": "Model3d",
+                    "id": "gid://shopify/Model3d/4?shopify-draft-proxy=synthetic",
+                    "filename": "forced.glb",
+                    "mimeType": "model/gltf-binary"
+                },
+                {
+                    "__typename": "ExternalVideo",
+                    "id": "gid://shopify/ExternalVideo/5?shopify-draft-proxy=synthetic",
+                    "filename": "forced.youtube",
+                    "mimeType": "application/octet-stream"
+                }
+            ],
+            "userErrors": []
+        })
     );
 }
 
