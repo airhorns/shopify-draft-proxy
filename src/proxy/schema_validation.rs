@@ -505,23 +505,6 @@ fn source_location_for_offset(query: &str, byte_index: usize) -> Option<SourceLo
     })
 }
 
-fn byte_offset_for_location(query: &str, location: SourceLocation) -> Option<usize> {
-    let mut line = 1;
-    let mut column = 1;
-    for (offset, ch) in query.char_indices() {
-        if line == location.line && column == location.column {
-            return Some(offset);
-        }
-        if ch == '\n' {
-            line += 1;
-            column = 1;
-        } else {
-            column += 1;
-        }
-    }
-    (line == location.line && column == location.column).then_some(query.len())
-}
-
 fn invalid_variable_error(
     context: VariableValidationContext<'_>,
     value: &ResolvedValue,
