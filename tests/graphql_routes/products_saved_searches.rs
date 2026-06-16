@@ -2,6 +2,25 @@ use super::common::*;
 use pretty_assertions::assert_eq;
 use std::collections::BTreeMap;
 
+fn seed_product(id: &str) -> ProductRecord {
+    ProductRecord {
+        id: id.to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
+        title: "Seeded product".to_string(),
+        handle: "seeded-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+        ..ProductRecord::default()
+    }
+}
+
 #[test]
 fn standard_proxy_construction_attaches_default_registry_for_core_roots() {
     let mut proxy = snapshot_proxy();
@@ -556,6 +575,424 @@ fn legacy_product_variant_scalar_validation_rejects_before_staging() {
             "sku": "VALID-SKU",
             "price": "10.00"
         })
+    );
+}
+
+#[test]
+fn product_variants_bulk_create_stages_locally_and_hydrates_downstream_reads() {
+    let forwarded = Arc::new(Mutex::new(0usize));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product("gid://shopify/Product/1")])
+        .with_upstream_transport(move |_| {
+            *captured.lock().unwrap() += 1;
+            panic!("bulk variant create should not call upstream")
+        });
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkVariantCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkCreate(productId: $productId, variants: $variants) {
+            product { id totalInventory tracksInventory variants(first: 10) { nodes { id title sku price inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping harmonizedSystemCode measurement { weight { value unit } } } } } }
+            productVariants { id title sku price inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping harmonizedSystemCode measurement { weight { value unit } } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "variants": [{
+                "price": "9.99",
+                "inventoryQuantities": [{ "availableQuantity": 7, "locationId": "gid://shopify/Location/1" }],
+                "optionValues": [{ "optionName": "Color", "name": "Blue" }],
+                "inventoryItem": {
+                    "sku": "BULK-BLUE",
+                    "tracked": true,
+                    "requiresShipping": false,
+                    "harmonizedSystemCode": "1234.56",
+                    "measurement": { "weight": { "value": 2.5, "unit": "KILOGRAMS" } }
+                }
+            }]
+        }),
+    ));
+
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productVariantsBulkCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["productVariantsBulkCreate"]["productVariants"][0]["sku"],
+        json!("BULK-BLUE")
+    );
+    assert_eq!(
+        create.body["data"]["productVariantsBulkCreate"]["productVariants"][0]["title"],
+        json!("Blue")
+    );
+    assert_eq!(
+        create.body["data"]["productVariantsBulkCreate"]["product"]["totalInventory"],
+        json!(7)
+    );
+    assert_eq!(
+        create.body["data"]["productVariantsBulkCreate"]["product"]["tracksInventory"],
+        json!(true)
+    );
+    assert_eq!(
+        create.body["data"]["productVariantsBulkCreate"]["productVariants"][0]["inventoryItem"]
+            ["harmonizedSystemCode"],
+        json!("123456")
+    );
+    let variant_id = create.body["data"]["productVariantsBulkCreate"]["productVariants"][0]["id"]
+        .as_str()
+        .expect("created variant id should be present")
+        .to_string();
+    let inventory_item_id = create.body["data"]["productVariantsBulkCreate"]["productVariants"][0]
+        ["inventoryItem"]["id"]
+        .as_str()
+        .expect("created inventory item id should be present")
+        .to_string();
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query BulkVariantCreateRead($productId: ID!, $variantId: ID!, $inventoryItemId: ID!) {
+          product(id: $productId) { id variants(first: 10) { nodes { id sku selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } }
+          variant: productVariant(id: $variantId) { id sku price product { id title } }
+          stock: inventoryItem(id: $inventoryItemId) { id tracked requiresShipping variant { id sku inventoryQuantity } }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "variantId": variant_id,
+            "inventoryItemId": inventory_item_id
+        }),
+    ));
+
+    assert_eq!(read.status, 200);
+    assert_eq!(
+        read.body["data"]["product"]["variants"]["nodes"][0]["sku"],
+        json!("BULK-BLUE")
+    );
+    assert_eq!(read.body["data"]["variant"]["price"], json!("9.99"));
+    assert_eq!(
+        read.body["data"]["stock"]["variant"]["inventoryQuantity"],
+        json!(7)
+    );
+    assert_eq!(*forwarded.lock().unwrap(), 0);
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"][0]["interpreted"]["capability"],
+        json!({
+            "operationName": "productVariantsBulkCreate",
+            "domain": "products",
+            "execution": "stage-locally"
+        })
+    );
+}
+
+#[test]
+fn product_variants_bulk_update_delete_and_reorder_stage_atomically() {
+    let forwarded = Arc::new(Mutex::new(0usize));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None)
+        .with_base_products(vec![seed_product("gid://shopify/Product/1")])
+        .with_upstream_transport(move |_| {
+            *captured.lock().unwrap() += 1;
+            panic!("bulk variant mutation should not call upstream")
+        });
+    let red = create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "RED", "10.00");
+    let blue = create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "BLUE", "11.00");
+    let red_id = red["id"].as_str().unwrap().to_string();
+    let blue_id = blue["id"].as_str().unwrap().to_string();
+
+    let invalid_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkVariantInvalidUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            productVariants { id sku price }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "variants": [
+                { "id": red_id, "inventoryItem": { "sku": "RED-UPDATED" } },
+                { "id": blue_id, "price": "-1.00" }
+            ]
+        }),
+    ));
+    assert_eq!(invalid_update.status, 200);
+    assert_eq!(
+        invalid_update.body["data"]["productVariantsBulkUpdate"]["productVariants"],
+        Value::Null
+    );
+    assert!(
+        invalid_update.body["data"]["productVariantsBulkUpdate"]["userErrors"]
+            .as_array()
+            .unwrap()
+            .contains(&json!({
+                "field": ["variants", "1", "price"],
+                "message": "Price must be greater than or equal to 0",
+                "code": "GREATER_THAN_OR_EQUAL_TO"
+            }))
+    );
+    let unchanged = proxy.process_request(json_graphql_request(
+        r#"query BulkVariantUpdateAtomicRead($red: ID!, $blue: ID!) {
+          red: productVariant(id: $red) { sku price }
+          blue: productVariant(id: $blue) { sku price }
+        }"#,
+        json!({ "red": red_id, "blue": blue_id }),
+    ));
+    assert_eq!(
+        unchanged.body["data"]["red"],
+        json!({"sku": "RED", "price": "10.00"})
+    );
+    assert_eq!(
+        unchanged.body["data"]["blue"],
+        json!({"sku": "BLUE", "price": "11.00"})
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkVariantUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            productVariants { id sku price inventoryItem { tracked } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "variants": [
+                { "id": red_id, "inventoryItem": { "sku": "RED-UPDATED", "tracked": false }, "price": "12.00" },
+                { "id": blue_id, "inventoryItem": { "sku": "BLUE-UPDATED" }, "price": "13.00" }
+            ]
+        }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["productVariantsBulkUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["productVariantsBulkUpdate"]["productVariants"][0]["sku"],
+        json!("RED-UPDATED")
+    );
+
+    let reorder = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkVariantReorder($productId: ID!, $positions: [ProductVariantPositionInput!]!) {
+          productVariantsBulkReorder(productId: $productId, positions: $positions) {
+            product { variants(first: 10) { nodes { id sku } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "positions": [
+                { "id": blue_id, "position": 1 },
+                { "id": red_id, "position": 2 }
+            ]
+        }),
+    ));
+    assert_eq!(reorder.status, 200);
+    assert_eq!(
+        reorder.body["data"]["productVariantsBulkReorder"]["product"]["variants"]["nodes"][0]
+            ["sku"],
+        json!("BLUE-UPDATED")
+    );
+    assert_eq!(
+        reorder.body["data"]["productVariantsBulkReorder"]["product"]["variants"]["nodes"][1]
+            ["sku"],
+        json!("RED-UPDATED")
+    );
+
+    let invalid_delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkVariantInvalidDelete($productId: ID!, $variantsIds: [ID!]!) {
+          productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+            product { variants(first: 10) { nodes { id } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "variantsIds": [blue_id, "gid://shopify/ProductVariant/missing"]
+        }),
+    ));
+    assert_eq!(invalid_delete.status, 200);
+    assert_eq!(
+        invalid_delete.body["data"]["productVariantsBulkDelete"]["product"],
+        Value::Null
+    );
+    assert!(
+        invalid_delete.body["data"]["productVariantsBulkDelete"]["userErrors"]
+            .as_array()
+            .unwrap()
+            .contains(&json!({
+                "field": ["variantsIds", "1"],
+                "message": "At least one variant does not belong to the product",
+                "code": "AT_LEAST_ONE_VARIANT_DOES_NOT_BELONG_TO_THE_PRODUCT"
+            }))
+    );
+    let after_invalid_delete = proxy.process_request(json_graphql_request(
+        r#"query BulkVariantInvalidDeleteRead($productId: ID!) {
+          product(id: $productId) { variants(first: 10) { nodes { sku } } }
+        }"#,
+        json!({ "productId": "gid://shopify/Product/1" }),
+    ));
+    assert_eq!(
+        after_invalid_delete.body["data"]["product"]["variants"]["nodes"],
+        json!([{ "sku": "BLUE-UPDATED" }, { "sku": "RED-UPDATED" }])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkVariantDelete($productId: ID!, $variantsIds: [ID!]!) {
+          productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+            product { variants(first: 10) { nodes { id sku } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "variantsIds": [blue_id]
+        }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["productVariantsBulkDelete"]["product"]["variants"]["nodes"],
+        json!([{ "id": red_id, "sku": "RED-UPDATED" }])
+    );
+
+    assert_eq!(*forwarded.lock().unwrap(), 0);
+}
+
+#[test]
+fn product_variants_bulk_create_validates_nested_fields_and_2048_cap_before_staging() {
+    let mut proxy =
+        snapshot_proxy().with_base_products(vec![seed_product("gid://shopify/Product/1")]);
+    let valid = create_legacy_variant(&mut proxy, "gid://shopify/Product/1", "EXISTING", "5.00");
+    let existing_id = valid["id"].as_str().unwrap().to_string();
+
+    let invalid = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkVariantCreateInvalid($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkCreate(productId: $productId, variants: $variants) {
+            productVariants { id sku }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "variants": [
+                { "price": "1.00", "optionValues": [{ "optionName": "Color", "name": "Green" }], "inventoryItem": { "sku": "GREEN" } },
+                {
+                    "price": "-5.00",
+                    "inventoryQuantities": [{ "availableQuantity": 1000000001, "locationId": "gid://shopify/Location/1" }],
+                    "optionValues": [{ "optionName": "Color", "name": "X".repeat(256) }],
+                    "inventoryItem": {
+                        "sku": "S".repeat(256),
+                        "measurement": { "weight": { "value": -1, "unit": "STONES" } }
+                    }
+                }
+            ]
+        }),
+    ));
+    assert_eq!(invalid.status, 200);
+    assert_eq!(
+        invalid.body["data"]["productVariantsBulkCreate"]["productVariants"],
+        json!([])
+    );
+    let errors = invalid.body["data"]["productVariantsBulkCreate"]["userErrors"]
+        .as_array()
+        .unwrap();
+    assert!(errors.contains(&json!({
+        "field": ["variants", "1", "price"],
+        "message": "Price must be greater than or equal to 0",
+        "code": "GREATER_THAN_OR_EQUAL_TO"
+    })));
+    assert!(errors.contains(&json!({
+        "field": ["variants", "1", "inventoryQuantities"],
+        "message": "Inventory quantity must be less than or equal to 1000000000",
+        "code": "INVALID_INPUT"
+    })));
+    assert!(errors.contains(&json!({
+        "field": ["variants", "1"],
+        "message": "SKU is too long (maximum is 255 characters)",
+        "code": "INVALID_INPUT"
+    })));
+    assert!(errors.contains(&json!({
+        "field": ["variants", "1"],
+        "message": "is too long (maximum is 255 characters)",
+        "code": Value::Null
+    })));
+    assert!(errors.contains(&json!({
+        "field": ["variants", "1", "optionValues", "0", "name"],
+        "message": "Option value name is too long",
+        "code": "INVALID_INPUT"
+    })));
+    assert!(errors.contains(&json!({
+        "field": ["variants", "1"],
+        "message": "Weight must be greater than or equal to 0",
+        "code": "GREATER_THAN_OR_EQUAL_TO"
+    })));
+    assert!(errors.contains(&json!({
+        "field": ["variants", "1"],
+        "message": "Weight unit must be one of KILOGRAMS, GRAMS, POUNDS, OUNCES",
+        "code": "INVALID_INPUT"
+    })));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"query BulkVariantCreateInvalidRead($productId: ID!, $variantId: ID!) {
+          product(id: $productId) { variants(first: 10) { nodes { id sku } } }
+          variant: productVariant(id: $variantId) { sku }
+        }"#,
+        json!({ "productId": "gid://shopify/Product/1", "variantId": existing_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["product"]["variants"]["nodes"],
+        json!([{ "id": existing_id, "sku": "EXISTING" }])
+    );
+    assert_eq!(read.body["data"]["variant"], json!({ "sku": "EXISTING" }));
+
+    let too_many_variants = (0..2049)
+        .map(|index| {
+            json!({
+                "price": "1.00",
+                "optionValues": [{ "optionName": "Title", "name": format!("Variant {}", index) }]
+            })
+        })
+        .collect::<Vec<_>>();
+    let over_cap = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkVariantCreateTooMany($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkCreate(productId: $productId, variants: $variants) {
+            productVariants { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": "gid://shopify/Product/1",
+            "variants": too_many_variants
+        }),
+    ));
+    assert_eq!(over_cap.status, 200);
+    assert_eq!(
+        over_cap.body["errors"][0]["extensions"]["code"],
+        json!("MAX_INPUT_SIZE_EXCEEDED")
+    );
+    assert_eq!(
+        over_cap.body["errors"][0]["path"],
+        json!(["productVariantsBulkCreate", "variants"])
+    );
+    assert_eq!(
+        over_cap.body["errors"][0]["locations"],
+        json!([{ "line": 3, "column": 11 }])
     );
 }
 

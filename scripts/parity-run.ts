@@ -304,6 +304,7 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
       call.query?.startsWith('sha:') ||
       call.query ===
         'hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration' ||
+      call.query === 'hand-synthesized from checked-in setupOptionsResponse for HAR-545 bulk validation hydration' ||
       call.query ===
         'recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration';
     const canMatchSynthesizedNodeQuery = isSyntheticNodeCassette && /\bnode(?:s)?\s*\(/u.test(query);
