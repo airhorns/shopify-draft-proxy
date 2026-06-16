@@ -130,6 +130,95 @@ fn order_read_selects_payment_transaction_fields(field: &RootFieldSelection) -> 
     })
 }
 
+fn order_money_set_with_presentment_fallback(money_set: &Value, order: &Value) -> Value {
+    let shop_amount =
+        payment_money_amount(money_set, "shopMoney").unwrap_or_else(|| "0.0".to_string());
+    let shop_currency = payment_money_currency(money_set, "shopMoney")
+        .or_else(|| order["currencyCode"].as_str().map(ToString::to_string))
+        .unwrap_or_else(|| "CAD".to_string());
+    let presentment_amount =
+        payment_money_amount(money_set, "presentmentMoney").unwrap_or_else(|| shop_amount.clone());
+    let presentment_currency = payment_money_currency(money_set, "presentmentMoney")
+        .or_else(|| {
+            order["presentmentCurrencyCode"]
+                .as_str()
+                .map(ToString::to_string)
+        })
+        .unwrap_or_else(|| shop_currency.clone());
+    order_money_set_pair(
+        &shop_amount,
+        &shop_currency,
+        &presentment_amount,
+        &presentment_currency,
+    )
+}
+
+fn order_money_amount_value(money_set: &Value) -> f64 {
+    payment_money_amount(money_set, "presentmentMoney")
+        .or_else(|| payment_money_amount(money_set, "shopMoney"))
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .unwrap_or(0.0)
+}
+
+fn add_order_money_sets(left: &Value, right: &Value, order: &Value) -> Value {
+    let left = order_money_set_with_presentment_fallback(left, order);
+    let right = order_money_set_with_presentment_fallback(right, order);
+    let left_shop = payment_money_amount(&left, "shopMoney")
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .unwrap_or(0.0);
+    let right_shop = payment_money_amount(&right, "shopMoney")
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .unwrap_or(0.0);
+    let left_presentment = payment_money_amount(&left, "presentmentMoney")
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .unwrap_or(left_shop);
+    let right_presentment = payment_money_amount(&right, "presentmentMoney")
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .unwrap_or(right_shop);
+    let shop_currency = payment_money_currency(&right, "shopMoney")
+        .or_else(|| payment_money_currency(&left, "shopMoney"))
+        .unwrap_or_else(|| "CAD".to_string());
+    let presentment_currency = payment_money_currency(&right, "presentmentMoney")
+        .or_else(|| payment_money_currency(&left, "presentmentMoney"))
+        .unwrap_or_else(|| shop_currency.clone());
+    order_money_set_pair(
+        &format_order_amount(left_shop + right_shop),
+        &shop_currency,
+        &format_order_amount(left_presentment + right_presentment),
+        &presentment_currency,
+    )
+}
+
+fn zero_order_money_set_like(money_set: &Value, order: &Value) -> Value {
+    let shop_currency = payment_money_currency(money_set, "shopMoney")
+        .or_else(|| order["currencyCode"].as_str().map(ToString::to_string))
+        .unwrap_or_else(|| "CAD".to_string());
+    let presentment_currency = payment_money_currency(money_set, "presentmentMoney")
+        .or_else(|| {
+            order["presentmentCurrencyCode"]
+                .as_str()
+                .map(ToString::to_string)
+        })
+        .unwrap_or_else(|| shop_currency.clone());
+    order_money_set_pair("0.0", &shop_currency, "0.0", &presentment_currency)
+}
+
+fn order_customer_id(order: &Value) -> Option<String> {
+    order["customer"]["id"].as_str().map(ToString::to_string)
+}
+
+fn order_mark_as_paid_cannot_mark_error() -> Value {
+    payment_user_error(
+        json!(["id"]),
+        "Order cannot be marked as paid.",
+        Some("INVALID"),
+    )
+}
+
+fn order_mark_as_paid_not_found_error() -> Value {
+    payment_user_error(json!(["id"]), "Order does not exist", Some("NOT_FOUND"))
+}
+
 fn order_read_selects_order_edit_existing_fields(field: RootFieldSelection) -> bool {
     field.selection.iter().any(|field| {
         matches!(
@@ -3784,6 +3873,24 @@ impl DraftProxy {
                     ),
                 ))
             }
+            "orderMarkAsPaid" => {
+                let field = field?;
+                let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+                let order_id = resolved_string_field(&input, "id").unwrap_or_default();
+                let (order, user_errors, staged_ids) = self.stage_order_mark_as_paid(&order_id);
+                if !staged_ids.is_empty() {
+                    self.record_mutation_log_entry(
+                        request, query, variables, root_field, staged_ids,
+                    );
+                }
+                Some(data_response(
+                    &field.response_key,
+                    selected_json(
+                        &json!({ "order": order, "userErrors": user_errors }),
+                        &field.selection,
+                    ),
+                ))
+            }
             "transactionVoid" => {
                 let field = field?;
                 let parent_id = resolved_string_arg(&field.arguments, "parentTransactionId")
@@ -3984,6 +4091,82 @@ impl DraftProxy {
         }
         self.store.staged.orders.insert(id, order.clone());
         order
+    }
+
+    fn stage_order_mark_as_paid(&mut self, order_id: &str) -> (Value, Vec<Value>, Vec<String>) {
+        let Some(order_before) = self.store.staged.orders.get(order_id).cloned() else {
+            return (
+                Value::Null,
+                vec![order_mark_as_paid_not_found_error()],
+                Vec::new(),
+            );
+        };
+        let outstanding_set = order_money_set_with_presentment_fallback(
+            &order_before["totalOutstandingSet"],
+            &order_before,
+        );
+        if order_before["cancelledAt"].is_string()
+            || matches!(
+                order_before["displayFinancialStatus"].as_str(),
+                Some("PAID" | "REFUNDED" | "PARTIALLY_REFUNDED" | "VOIDED")
+            )
+            || order_money_amount_value(&outstanding_set) <= 0.000_001
+        {
+            return (
+                order_before,
+                vec![order_mark_as_paid_cannot_mark_error()],
+                Vec::new(),
+            );
+        }
+
+        let transaction_id = format!(
+            "gid://shopify/OrderTransaction/{}",
+            self.store.staged.order_payment_next_transaction_id
+        );
+        self.store.staged.order_payment_next_transaction_id += 1;
+        let transaction = payment_transaction_record_from_amount_set(
+            &transaction_id,
+            "SALE",
+            "SUCCESS",
+            outstanding_set.clone(),
+            Value::Null,
+        );
+
+        let mut order = order_before;
+        if let Some(transactions) = order["transactions"].as_array_mut() {
+            transactions.push(transaction.clone());
+        } else {
+            order["transactions"] = json!([transaction.clone()]);
+        }
+        order["displayFinancialStatus"] = json!("PAID");
+        order["capturable"] = json!(false);
+        order["totalCapturable"] = json!("0.0");
+        order["totalCapturableSet"] = zero_order_money_set_like(&outstanding_set, &order);
+        order["totalOutstandingSet"] = zero_order_money_set_like(&outstanding_set, &order);
+        let received_set =
+            add_order_money_sets(&order["totalReceivedSet"], &outstanding_set, &order);
+        order["totalReceivedSet"] = received_set.clone();
+        order["netPaymentSet"] = received_set;
+        order["paymentGatewayNames"] = json!(["manual"]);
+
+        self.store
+            .staged
+            .orders
+            .insert(order_id.to_string(), order.clone());
+        if let Some(customer_id) = order_customer_id(&order) {
+            if let Some(customer_orders) = self.store.staged.customer_orders.get_mut(&customer_id) {
+                for customer_order in customer_orders {
+                    if customer_order["id"].as_str() == Some(order_id) {
+                        *customer_order = order.clone();
+                    }
+                }
+            }
+        }
+        (
+            order,
+            Vec::new(),
+            vec![order_id.to_string(), transaction_id],
+        )
     }
 
     fn stage_payment_capture(
