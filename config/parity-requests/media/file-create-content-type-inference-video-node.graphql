@@ -1,0 +1,27 @@
+query MediaFileCreateContentTypeInferenceVideoNode($id: ID!) {
+  node(id: $id) {
+    __typename
+    id
+    ... on Video {
+      alt
+      createdAt
+      updatedAt
+      fileStatus
+      mediaContentType
+      status
+      preview {
+        image {
+          url
+        }
+      }
+    }
+    ... on MediaImage {
+      image {
+        url
+      }
+    }
+    ... on GenericFile {
+      url
+    }
+  }
+}

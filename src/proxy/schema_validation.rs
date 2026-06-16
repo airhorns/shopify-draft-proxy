@@ -389,6 +389,23 @@ fn input_object_argument_not_accepted_error(
     path: &[String],
     context: ValidationContext<'_>,
 ) -> Value {
+    if input_type_name == "ValidationUpdateInput"
+        && matches!(argument_name, "functionId" | "functionHandle")
+    {
+        let location =
+            input_field_name_location(context.query, context.field_location, argument_name)
+                .unwrap_or(context.field_location);
+        return json!({
+            "message": format!("Field '{argument_name}' is not defined on ValidationUpdateInput"),
+            "locations": [{ "line": location.line, "column": location.column }],
+            "path": input_error_path(context, path, argument_name),
+            "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "InputObject",
+                "argumentName": argument_name
+            }
+        });
+    }
     json!({
         "message": format!("InputObject '{input_type_name}' doesn't accept argument '{argument_name}'"),
         "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
@@ -400,6 +417,30 @@ fn input_object_argument_not_accepted_error(
             "argumentName": argument_name
         }
     })
+}
+
+fn input_field_name_location(
+    query: &str,
+    field_location: SourceLocation,
+    argument_name: &str,
+) -> Option<SourceLocation> {
+    let start = byte_offset_for_location(query, field_location)?;
+    let mut search_start = start;
+    while search_start <= query.len() {
+        let offset = query[search_start..].find(argument_name)? + search_start;
+        let after_name = offset + argument_name.len();
+        let next_non_whitespace =
+            query[after_name..]
+                .char_indices()
+                .find_map(|(inner_offset, ch)| {
+                    (!ch.is_whitespace()).then_some(after_name + inner_offset)
+                })?;
+        if query[next_non_whitespace..].starts_with(':') {
+            return source_location_for_byte_offset(query, offset);
+        }
+        search_start = after_name;
+    }
+    None
 }
 
 fn missing_required_input_object_attribute_error(
@@ -540,6 +581,8 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         register_fulfillment_service_fields(&mut schema);
         register_data_sale_opt_out_fields(&mut schema);
         extend_discount_basic_input_schema(&mut schema);
+        extend_metaobject_definition_input_schema(&mut schema);
+        extend_functions_input_schema(&mut schema);
         schema
     })
 }
@@ -616,6 +659,33 @@ fn register_data_sale_opt_out_fields(schema: &mut AdminInputSchema) {
 }
 
 fn extend_discount_basic_input_schema(schema: &mut AdminInputSchema) {
+    extend_mutation_input_schema(
+        schema,
+        &[
+            "discountCodeBasicCreate",
+            "discountCodeBasicUpdate",
+            "discountAutomaticBasicCreate",
+            "discountAutomaticBasicUpdate",
+        ],
+    );
+}
+
+fn extend_metaobject_definition_input_schema(schema: &mut AdminInputSchema) {
+    extend_mutation_input_schema(
+        schema,
+        &[
+            "metaobjectDefinitionCreate",
+            "metaobjectDefinitionUpdate",
+            "standardMetaobjectDefinitionEnable",
+        ],
+    );
+}
+
+fn extend_functions_input_schema(schema: &mut AdminInputSchema) {
+    extend_mutation_input_schema(schema, &["validationUpdate"]);
+}
+
+fn extend_mutation_input_schema(schema: &mut AdminInputSchema, mutation_names: &[&str]) {
     let config: Value = serde_json::from_str(include_str!(
         "../../config/admin-graphql-mutation-schema.json"
     ))
@@ -631,13 +701,7 @@ fn extend_discount_basic_input_schema(schema: &mut AdminInputSchema) {
         let Some(name) = mutation["name"].as_str() else {
             continue;
         };
-        if !matches!(
-            name,
-            "discountCodeBasicCreate"
-                | "discountCodeBasicUpdate"
-                | "discountAutomaticBasicCreate"
-                | "discountAutomaticBasicUpdate"
-        ) {
+        if !mutation_names.contains(&name) {
             continue;
         }
         let Some(args) = mutation["args"].as_array() else {
