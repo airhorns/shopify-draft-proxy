@@ -1318,7 +1318,8 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation
             && root_field == "customerCreate"
-            && (is_local_customer_create_document(&query, &variables)
+            && (operation.root_fields == ["customerCreate"]
+                || is_local_customer_create_document(&query, &variables)
                 || self.has_b2b_contact_state())
         {
             return self.customer_create(&query, &variables, request);
@@ -1347,6 +1348,21 @@ impl DraftProxy {
 
         if operation.operation_type == OperationType::Mutation && root_field == "customerSet" {
             if let Some(response) = self.customer_set_guard_response(&query, &variables) {
+                return response;
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().any(|field| {
+                matches!(
+                    field.as_str(),
+                    "customerGenerateAccountActivationUrl" | "customerSendAccountInviteEmail"
+                )
+            })
+        {
+            if let Some(response) =
+                self.customer_outbound_side_effect_response(request, &query, &variables)
+            {
                 return response;
             }
         }
