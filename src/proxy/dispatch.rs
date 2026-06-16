@@ -156,6 +156,23 @@ impl DraftProxy {
             return ok_json(json!({ "errors": schema_input_errors }));
         }
 
+        if operation.operation_type == OperationType::Mutation && root_field == "shopPolicyUpdate" {
+            return self.shop_policy_update(request, &query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "shop" | "node" | "nodes"))
+            && operation.root_fields.iter().any(|field| field == "shop")
+            && self.should_handle_shop_policy_query_locally()
+        {
+            if let Some(data) = self.shop_query_data(&query, &variables) {
+                return ok_json(json!({ "data": data }));
+            }
+        }
+
         if matches!(root_field, "customerCreate" | "companyCreate")
             || (root_field == "companyAssignCustomerAsContact"
                 && !resolved_string_arg(
@@ -354,12 +371,7 @@ impl DraftProxy {
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
-                    "metaobject"
-                        | "metaobjectByHandle"
-                        | "metaobjects"
-                        | "metaobjectDefinition"
-                        | "metaobjectDefinitionByType"
-                        | "metaobjectDefinitions"
+                    "metaobject" | "metaobjectByHandle" | "metaobjects"
                 )
             })
         {
@@ -377,32 +389,13 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && operation.root_fields.iter().all(|field| {
-                matches!(
-                    field.as_str(),
-                    "metaobjectCreate"
-                        | "metaobjectDelete"
-                        | "metaobjectDefinitionCreate"
-                        | "metaobjectDefinitionUpdate"
-                        | "metaobjectDefinitionDelete"
-                        | "standardMetaobjectDefinitionEnable"
-                )
-            })
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                return self.metaobject_mutation(&fields, request, &query, &variables);
-            }
-        }
-
-        if operation.operation_type == OperationType::Query
             && operation
                 .root_fields
                 .iter()
-                .all(|field| matches!(field.as_str(), "urlRedirect" | "urlRedirects"))
-            && self.has_staged_url_redirects()
+                .all(|field| matches!(field.as_str(), "metaobjectCreate" | "metaobjectDelete"))
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.url_redirect_query_data(&fields) }));
+                return self.metaobject_mutation(&fields, request, &query, &variables);
             }
         }
 
@@ -1223,6 +1216,9 @@ impl DraftProxy {
                 if let Some(data) = self.gift_card_node_read_data(&fields) {
                     return ok_json(json!({ "data": data }));
                 }
+                if let Some(data) = self.shop_policy_node_read_data(&fields) {
+                    return ok_json(json!({ "data": data }));
+                }
                 if let Some(data) = self.media_file_node_read_data(&fields) {
                     return ok_json(json!({ "data": data }));
                 }
@@ -1311,9 +1307,6 @@ impl DraftProxy {
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 if self.should_handle_customer_overlay_read(&query, &fields) {
-                    if fields.iter().any(|field| field.name == "customersCount") {
-                        self.hydrate_customers_count_for_overlay_read(request);
-                    }
                     return ok_json(json!({ "data": self.customer_overlay_read_fields(&fields) }));
                 }
             }
@@ -1410,6 +1403,13 @@ impl DraftProxy {
                 || query.contains("FileDeleteMediaReferenceDownstream"))
         {
             return self.media_product_read(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Query
+            && root_field == "product"
+            && query.contains("ProductPublicationAggregateDownstream")
+        {
+            return product_publication_aggregate_downstream_read(&query, &variables);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -2270,14 +2270,6 @@ impl DraftProxy {
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
-                if has_local_dispatch
-                    && matches!(root_field, "productPublish" | "productUnpublish") =>
-            {
-                let outcome =
-                    self.product_publication_mutation(root_field, &query, &variables, request);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
-            }
-            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if has_local_dispatch && root_field == "productChangeStatus" =>
             {
                 let outcome = self.product_change_status(request, &query, &variables);
@@ -2428,64 +2420,22 @@ impl DraftProxy {
                     json_error(400, "Could not parse GraphQL operation")
                 }
             }
-            (CapabilityDomain::Customers, CapabilityExecution::OverlayRead)
+            (CapabilityDomain::StoreProperties, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
             {
-                if let Some(fields) = root_fields(&query, &variables) {
-                    if self.should_handle_customer_overlay_read(&query, &fields) {
-                        if fields.iter().any(|field| field.name == "customersCount") {
-                            self.hydrate_customers_count_for_overlay_read(request);
-                        }
-                        ok_json(json!({ "data": self.customer_overlay_read_fields(&fields) }))
-                    } else {
-                        self.dispatch_unknown_passthrough_or_legacy_error(
-                            request,
-                            &query,
-                            &variables,
-                            operation.operation_type,
-                            &operation.root_fields,
-                            root_field,
-                        )
+                if self.should_handle_shop_policy_query_locally() {
+                    if let Some(data) = self.shop_query_data(&query, &variables) {
+                        return ok_json(json!({ "data": data }));
                     }
-                } else {
-                    json_error(400, "Could not parse GraphQL operation")
                 }
-            }
-            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
-                    && matches!(
-                        root_field,
-                        "customerAddTaxExemptions"
-                            | "customerRemoveTaxExemptions"
-                            | "customerReplaceTaxExemptions"
-                    ) =>
-            {
-                if let Some(fields) = root_fields(&query, &variables) {
-                    if fields.iter().all(|field| {
-                        matches!(
-                            field.name.as_str(),
-                            "customerAddTaxExemptions"
-                                | "customerRemoveTaxExemptions"
-                                | "customerReplaceTaxExemptions"
-                        )
-                    }) {
-                        self.customer_tax_exemptions_mutation_response(
-                            &fields, request, &query, &variables,
-                        )
-                    } else {
-                        self.dispatch_unknown_passthrough_or_legacy_error(
-                            request,
-                            &query,
-                            &variables,
-                            operation.operation_type,
-                            &operation.root_fields,
-                            root_field,
-                        )
-                    }
-                } else {
-                    json_error(400, "Could not parse GraphQL operation")
-                }
+                self.dispatch_unknown_passthrough_or_legacy_error(
+                    request,
+                    &query,
+                    &variables,
+                    operation.operation_type,
+                    &operation.root_fields,
+                    root_field,
+                )
             }
             (CapabilityDomain::Functions, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>

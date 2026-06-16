@@ -104,6 +104,33 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn state_snapshot(&self) -> Value {
+        let available_locales = self
+            .store
+            .base
+            .available_locales
+            .iter()
+            .map(|(locale, name)| (locale.clone(), json!(name)))
+            .collect::<serde_json::Map<_, _>>();
+        let deleted_shipping_package_ids = self
+            .store
+            .staged
+            .deleted_shipping_package_ids
+            .iter()
+            .map(|id| (id.clone(), json!(true)))
+            .collect::<serde_json::Map<_, _>>();
+        let deleted_owner_metafields = self
+            .store
+            .staged
+            .deleted_owner_metafields
+            .iter()
+            .map(|(owner_id, namespace, key)| {
+                json!({
+                    "ownerId": owner_id,
+                    "namespace": namespace,
+                    "key": key
+                })
+            })
+            .collect::<Vec<_>>();
         let mut snapshot = json!({
             "baseState": {
                 "products": product_state_map_json(&self.store.base.products.records),
@@ -112,10 +139,12 @@ impl DraftProxy {
                 "productVariantOrder": self.store.base.product_variants.order,
                 "savedSearches": saved_search_state_map_json(&self.store.base.saved_searches.records),
                 "savedSearchOrder": self.store.base.saved_searches.order,
+                "shopPolicies": shop_policy_state_map_json(&self.store.base.shop_policies.records),
+                "shopPolicyOrder": self.store.base.shop_policies.order,
                 "shop": self.store.base.shop.clone(),
                 "publicationIds": self.store.base.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publicationCount": self.store.base.publication_count,
-                "availableLocales": self.store.base.available_locales.iter().map(|(locale, name)| (locale.clone(), json!(name))).collect::<serde_json::Map<_, _>>(),
+                "availableLocales": available_locales,
                 "shopLocales": self.store.base.shop_locales.clone()
             },
             "stagedState": {
@@ -128,21 +157,24 @@ impl DraftProxy {
                 "savedSearches": saved_search_state_map_json(&self.store.staged.saved_searches.records),
                 "savedSearchOrder": self.store.staged.saved_searches.order,
                 "deletedSavedSearchIds": self.store.staged.saved_searches.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "shopPolicies": shop_policy_state_map_json(&self.store.staged.shop_policies.records),
+                "shopPolicyOrder": self.store.staged.shop_policies.order,
+                "deletedShopPolicyIds": self.store.staged.shop_policies.tombstones.iter().cloned().collect::<Vec<_>>(),
                 "shippingPackages": self.store.staged.shipping_packages.clone(),
-                "deletedShippingPackageIds": self.store.staged.deleted_shipping_package_ids.iter().map(|id| (id.clone(), json!(true))).collect::<serde_json::Map<_, _>>(),
+                "deletedShippingPackageIds": deleted_shipping_package_ids,
                 "delegatedAccessTokens": self.store.staged.delegate_access_tokens.clone(),
                 "customers": self.store.staged.customers.clone(),
                 "deletedCustomerIds": self.store.staged.deleted_customer_ids.iter().cloned().collect::<Vec<_>>(),
                 "customerOrders": self.store.staged.customer_orders.clone(),
-                "mergedCustomerIds": self.store.staged.merged_customer_ids.clone(),
-                "customerMergeRequests": self.store.staged.customer_merge_requests.clone(),
-                "customerDataErasureRequests": self.store.staged.customer_data_erasure_requests.clone(),
                 "taggableResources": self.store.staged.taggable_resources.clone(),
                 "orders": self.store.staged.orders.clone(),
+                "deletedOrderIds": self.store.staged.deleted_order_ids.iter().cloned().collect::<Vec<_>>(),
                 "returns": self.store.staged.returns.clone(),
                 "returnsByOrder": self.store.staged.returns_by_order.clone(),
                "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
                 "reverseFulfillmentOrders": self.store.staged.reverse_fulfillment_orders.clone(),
+                "observedShippingLocations": self.store.staged.observed_shipping_locations.clone(),
+                "observedShippingLocationOrder": self.store.staged.observed_shipping_location_order.clone(),
                 "locations": self.store.staged.locations.clone(),
                 "locationOrder": self.store.staged.location_order.clone(),
                 "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
@@ -152,25 +184,10 @@ impl DraftProxy {
                 "discountCodeIndex": self.store.staged.discount_code_index.clone(),
                 "deletedDiscountIds": self.store.staged.deleted_discount_ids.iter().cloned().collect::<Vec<_>>(),
                 "discountRedeemCodeBulkCreations": self.store.staged.discount_redeem_code_bulk_creations.clone(),
-                "ownerMetafields": self.store.staged.owner_metafields.clone()
+                "ownerMetafields": self.store.staged.owner_metafields.clone(),
+                "deletedOwnerMetafields": deleted_owner_metafields
             }
         });
-        snapshot["stagedState"]["deletedOwnerMetafields"] = json!(self
-            .store
-            .staged
-            .deleted_owner_metafields
-            .iter()
-            .map(|(owner_id, namespace, key)| {
-                json!({"ownerId": owner_id, "namespace": namespace, "key": key})
-            })
-            .collect::<Vec<_>>());
-        snapshot["stagedState"]["deletedLocationIds"] = json!(self
-            .store
-            .staged
-            .deleted_location_ids
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>());
         snapshot["stagedState"]["b2bCompanies"] = json!(self.store.staged.b2b_companies.clone());
         snapshot["stagedState"]["b2bLocations"] = json!(self.store.staged.b2b_locations.clone());
         snapshot["stagedState"]["b2bContacts"] = json!(self.store.staged.b2b_contacts.clone());
@@ -196,46 +213,9 @@ impl DraftProxy {
         snapshot["stagedState"]["nextB2bContactId"] = json!(self.store.staged.next_b2b_contact_id);
         snapshot["stagedState"]["nextB2bContactRoleAssignmentId"] =
             json!(self.store.staged.next_b2b_contact_role_assignment_id);
-        if !self.store.staged.inventory_levels.is_empty() {
-            snapshot["stagedState"]["inventoryLevels"] =
-                inventory_levels_json(&self.store.staged.inventory_levels);
-        }
-        if !self.store.staged.inventory_level_ids.is_empty() {
-            snapshot["stagedState"]["inventoryLevelIds"] =
-                inventory_level_ids_json(&self.store.staged.inventory_level_ids);
-        }
-        if !self.store.staged.inactive_inventory_levels.is_empty() {
-            snapshot["stagedState"]["inactiveInventoryLevels"] =
-                inactive_inventory_levels_json(&self.store.staged.inactive_inventory_levels);
-        }
-        if !self.store.staged.inventory_quantity_updated_at.is_empty() {
-            snapshot["stagedState"]["inventoryQuantityUpdatedAt"] =
-                inventory_quantity_updated_at_json(
-                    &self.store.staged.inventory_quantity_updated_at,
-                );
-        }
-        if self.store.staged.next_inventory_quantity_timestamp != 0 {
-            snapshot["stagedState"]["nextInventoryQuantityTimestamp"] =
-                json!(self.store.staged.next_inventory_quantity_timestamp);
-        }
-        snapshot["stagedState"]["storeCreditAccounts"] =
-            json!(self.store.staged.store_credit_accounts);
-        snapshot["stagedState"]["storeCreditAccountOrder"] =
-            json!(self.store.staged.store_credit_account_order);
-        snapshot["stagedState"]["storeCreditTransactions"] =
-            json!(self.store.staged.store_credit_transactions);
-        snapshot["stagedState"]["storeCreditTransactionOrder"] =
-            json!(self.store.staged.store_credit_transaction_order);
-        snapshot["stagedState"]["nextStoreCreditAccountId"] =
-            json!(self.store.staged.next_store_credit_account_id);
-        snapshot["stagedState"]["nextStoreCreditTransactionId"] =
-            json!(self.store.staged.next_store_credit_transaction_id);
         if !self.store.staged.metaobject_definitions.is_empty() {
             snapshot["stagedState"]["metaobjectDefinitions"] =
                 json!(self.store.staged.metaobject_definitions);
-        }
-        if let Some(count) = &self.store.staged.customers_count {
-            snapshot["stagedState"]["customersCount"] = count.clone();
         }
         if !self
             .store
@@ -400,11 +380,21 @@ impl DraftProxy {
             saved_search_state_map_from_json(&state["baseState"]["savedSearches"]),
             string_array_from_json(&state["baseState"]["savedSearchOrder"]),
         );
-        self.store.base.shop = state["baseState"]
+        let base_shop = state["baseState"]
             .get("shop")
             .filter(|shop| shop.is_object())
             .cloned()
             .unwrap_or_else(default_shop_json);
+        let mut base_shop_policies =
+            shop_policy_state_map_from_json(&state["baseState"]["shopPolicies"]);
+        let mut base_shop_policy_order =
+            string_array_from_json(&state["baseState"]["shopPolicyOrder"]);
+        if base_shop_policies.is_empty() {
+            (base_shop_policies, base_shop_policy_order) = shop_policy_state_from_shop(&base_shop);
+        }
+        self.store
+            .replace_base_shop_policies_map_with_order(base_shop_policies, base_shop_policy_order);
+        self.store.base.shop = base_shop;
         self.store.base.publication_ids =
             string_array_from_json(&state["baseState"]["publicationIds"])
                 .into_iter()
@@ -463,6 +453,15 @@ impl DraftProxy {
                 .into_iter()
                 .collect(),
         );
+        self.store.replace_staged_shop_policies_map_with_order(
+            shop_policy_state_map_from_json(&state["stagedState"]["shopPolicies"]),
+            string_array_from_json(&state["stagedState"]["shopPolicyOrder"]),
+        );
+        self.store.replace_shop_policy_tombstones(
+            string_array_from_json(&state["stagedState"]["deletedShopPolicyIds"])
+                .into_iter()
+                .collect(),
+        );
         self.store.staged.shipping_packages = state["stagedState"]["shippingPackages"]
             .as_object()
             .map(|packages| {
@@ -486,11 +485,6 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        self.store.staged.customers_count = if state["stagedState"]["customersCount"].is_null() {
-            None
-        } else {
-            Some(state["stagedState"]["customersCount"].clone())
-        };
         self.store.staged.deleted_customer_ids = state["stagedState"]["deletedCustomerIds"]
             .as_array()
             .into_iter()
@@ -508,90 +502,6 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
-        self.store.staged.merged_customer_ids = state["stagedState"]["mergedCustomerIds"]
-            .as_object()
-            .map(|merged| {
-                merged
-                    .iter()
-                    .filter_map(|(source, result)| {
-                        result
-                            .as_str()
-                            .map(|result| (source.clone(), result.to_string()))
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.customer_merge_requests = state["stagedState"]["customerMergeRequests"]
-            .as_object()
-            .map(|requests| {
-                requests
-                    .iter()
-                    .map(|(id, request)| (id.clone(), request.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.customer_data_erasure_requests = state["stagedState"]
-            ["customerDataErasureRequests"]
-            .as_object()
-            .map(|requests| {
-                requests
-                    .iter()
-                    .map(|(id, request)| (id.clone(), request.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.store_credit_accounts = state["stagedState"]
-            .get("storeCreditAccounts")
-            .and_then(Value::as_object)
-            .map(|accounts| {
-                accounts
-                    .iter()
-                    .map(|(id, account)| (id.clone(), account.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.store_credit_account_order = state["stagedState"]
-            .get("storeCreditAccountOrder")
-            .map(string_array_from_json)
-            .unwrap_or_else(|| {
-                self.store
-                    .staged
-                    .store_credit_accounts
-                    .keys()
-                    .cloned()
-                    .collect()
-            });
-        self.store.staged.store_credit_transactions = state["stagedState"]
-            .get("storeCreditTransactions")
-            .and_then(Value::as_object)
-            .map(|transactions| {
-                transactions
-                    .iter()
-                    .map(|(id, transaction)| (id.clone(), transaction.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
-        self.store.staged.store_credit_transaction_order = state["stagedState"]
-            .get("storeCreditTransactionOrder")
-            .map(string_array_from_json)
-            .unwrap_or_else(|| {
-                self.store
-                    .staged
-                    .store_credit_transactions
-                    .keys()
-                    .cloned()
-                    .collect()
-            });
-        self.store.staged.next_store_credit_account_id = state["stagedState"]
-            .get("nextStoreCreditAccountId")
-            .and_then(Value::as_u64)
-            .filter(|id| *id > 0)
-            .unwrap_or(1);
-        self.store.staged.next_store_credit_transaction_id = state["stagedState"]
-            .get("nextStoreCreditTransactionId")
-            .and_then(Value::as_u64)
-            .filter(|id| *id > 0)
-            .unwrap_or(1);
         self.store.staged.taggable_resources = state["stagedState"]["taggableResources"]
             .as_object()
             .map(|resources| {
@@ -610,6 +520,12 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.deleted_order_ids = state["stagedState"]["deletedOrderIds"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|value| value.as_str().map(str::to_string))
+            .collect();
         self.store.staged.returns = state["stagedState"]["returns"]
             .as_object()
             .map(|returns| {
@@ -657,6 +573,27 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.observed_shipping_locations = state["stagedState"]
+            .get("observedShippingLocations")
+            .and_then(Value::as_object)
+            .map(|locations| {
+                locations
+                    .iter()
+                    .map(|(id, location)| (id.clone(), location.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.observed_shipping_location_order = state["stagedState"]
+            .get("observedShippingLocationOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .observed_shipping_locations
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
         self.store.staged.locations = state["stagedState"]
             .get("locations")
             .and_then(Value::as_object)
@@ -671,25 +608,6 @@ impl DraftProxy {
             .get("locationOrder")
             .map(string_array_from_json)
             .unwrap_or_else(|| self.store.staged.locations.keys().cloned().collect());
-        self.store.staged.deleted_location_ids = state["stagedState"]
-            .get("deletedLocationIds")
-            .map(string_array_from_json)
-            .unwrap_or_default()
-            .into_iter()
-            .collect();
-        self.store.staged.inventory_levels =
-            inventory_levels_from_json(&state["stagedState"]["inventoryLevels"]);
-        self.store.staged.inventory_level_ids =
-            inventory_level_ids_from_json(&state["stagedState"]["inventoryLevelIds"]);
-        self.store.staged.inactive_inventory_levels =
-            inactive_inventory_levels_from_json(&state["stagedState"]["inactiveInventoryLevels"]);
-        self.store.staged.inventory_quantity_updated_at = inventory_quantity_updated_at_from_json(
-            &state["stagedState"]["inventoryQuantityUpdatedAt"],
-        );
-        self.store.staged.next_inventory_quantity_timestamp = state["stagedState"]
-            .get("nextInventoryQuantityTimestamp")
-            .and_then(Value::as_u64)
-            .unwrap_or_default();
         self.store.staged.location_limit_reached = state["stagedState"]
             .get("locationLimitReached")
             .and_then(Value::as_bool)
@@ -813,6 +731,83 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.b2b_companies = state["stagedState"]
+            .get("b2bCompanies")
+            .and_then(Value::as_object)
+            .map(|companies| {
+                companies
+                    .iter()
+                    .map(|(id, company)| (id.clone(), company.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.b2b_locations = state["stagedState"]
+            .get("b2bLocations")
+            .and_then(Value::as_object)
+            .map(|locations| {
+                locations
+                    .iter()
+                    .map(|(id, location)| (id.clone(), location.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.b2b_contacts = state["stagedState"]
+            .get("b2bContacts")
+            .and_then(Value::as_object)
+            .map(|contacts| {
+                contacts
+                    .iter()
+                    .map(|(id, contact)| (id.clone(), contact.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.deleted_b2b_contact_ids = state["stagedState"]
+            .get("deletedB2bContactIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.b2b_contact_roles = state["stagedState"]
+            .get("b2bContactRoles")
+            .and_then(Value::as_object)
+            .map(|roles| {
+                roles
+                    .iter()
+                    .map(|(id, role)| (id.clone(), role.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.b2b_contact_role_assignments = state["stagedState"]
+            .get("b2bContactRoleAssignments")
+            .and_then(Value::as_object)
+            .map(|assignments| {
+                assignments
+                    .iter()
+                    .map(|(id, assignment)| (id.clone(), assignment.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.deleted_b2b_contact_role_assignment_ids = state["stagedState"]
+            .get("deletedB2bContactRoleAssignmentIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.next_b2b_company_id = state["stagedState"]
+            .get("nextB2bCompanyId")
+            .and_then(Value::as_u64)
+            .unwrap_or(1)
+            .max(1);
+        self.store.staged.next_b2b_contact_id = state["stagedState"]
+            .get("nextB2bContactId")
+            .and_then(Value::as_u64)
+            .unwrap_or(1)
+            .max(1);
+        self.store.staged.next_b2b_contact_role_assignment_id = state["stagedState"]
+            .get("nextB2bContactRoleAssignmentId")
+            .and_then(Value::as_u64)
+            .unwrap_or(1)
+            .max(1);
         self.log_entries = dump["log"]["entries"]
             .as_array()
             .cloned()
@@ -829,135 +824,5 @@ fn string_array_from_json(value: &Value) -> Vec<String> {
         .into_iter()
         .flatten()
         .filter_map(|value| value.as_str().map(str::to_string))
-        .collect()
-}
-
-fn inventory_levels_json(levels: &BTreeMap<(String, String), BTreeMap<String, i64>>) -> Value {
-    json!(levels
-        .iter()
-        .map(|((inventory_item_id, location_id), quantities)| {
-            json!({
-                "inventoryItemId": inventory_item_id,
-                "locationId": location_id,
-                "quantities": quantities
-            })
-        })
-        .collect::<Vec<_>>())
-}
-
-fn inventory_level_ids_json(ids: &BTreeMap<(String, String), String>) -> Value {
-    json!(ids
-        .iter()
-        .map(|((inventory_item_id, location_id), id)| {
-            json!({
-                "inventoryItemId": inventory_item_id,
-                "locationId": location_id,
-                "id": id
-            })
-        })
-        .collect::<Vec<_>>())
-}
-
-fn inactive_inventory_levels_json(levels: &BTreeSet<(String, String)>) -> Value {
-    json!(levels
-        .iter()
-        .map(|(inventory_item_id, location_id)| {
-            json!({
-                "inventoryItemId": inventory_item_id,
-                "locationId": location_id
-            })
-        })
-        .collect::<Vec<_>>())
-}
-
-fn inventory_quantity_updated_at_json(
-    timestamps: &BTreeMap<(String, String, String), String>,
-) -> Value {
-    json!(timestamps
-        .iter()
-        .map(|((inventory_item_id, location_id, name), updated_at)| {
-            json!({
-                "inventoryItemId": inventory_item_id,
-                "locationId": location_id,
-                "name": name,
-                "updatedAt": updated_at
-            })
-        })
-        .collect::<Vec<_>>())
-}
-
-fn inventory_levels_from_json(value: &Value) -> BTreeMap<(String, String), BTreeMap<String, i64>> {
-    value
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|entry| {
-            let inventory_item_id = entry.get("inventoryItemId")?.as_str()?.to_string();
-            let location_id = entry.get("locationId")?.as_str()?.to_string();
-            let quantities = entry
-                .get("quantities")
-                .and_then(Value::as_object)
-                .map(|object| {
-                    object
-                        .iter()
-                        .filter_map(|(name, quantity)| {
-                            quantity.as_i64().map(|quantity| (name.clone(), quantity))
-                        })
-                        .collect::<BTreeMap<_, _>>()
-                })
-                .unwrap_or_default();
-            Some(((inventory_item_id, location_id), quantities))
-        })
-        .collect()
-}
-
-fn inventory_level_ids_from_json(value: &Value) -> BTreeMap<(String, String), String> {
-    value
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|entry| {
-            Some((
-                (
-                    entry.get("inventoryItemId")?.as_str()?.to_string(),
-                    entry.get("locationId")?.as_str()?.to_string(),
-                ),
-                entry.get("id")?.as_str()?.to_string(),
-            ))
-        })
-        .collect()
-}
-
-fn inactive_inventory_levels_from_json(value: &Value) -> BTreeSet<(String, String)> {
-    value
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|entry| {
-            Some((
-                entry.get("inventoryItemId")?.as_str()?.to_string(),
-                entry.get("locationId")?.as_str()?.to_string(),
-            ))
-        })
-        .collect()
-}
-
-fn inventory_quantity_updated_at_from_json(
-    value: &Value,
-) -> BTreeMap<(String, String, String), String> {
-    value
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|entry| {
-            Some((
-                (
-                    entry.get("inventoryItemId")?.as_str()?.to_string(),
-                    entry.get("locationId")?.as_str()?.to_string(),
-                    entry.get("name")?.as_str()?.to_string(),
-                ),
-                entry.get("updatedAt")?.as_str()?.to_string(),
-            ))
-        })
         .collect()
 }

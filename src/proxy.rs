@@ -176,6 +176,18 @@ struct SavedSearchRecord {
     resource_type: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct ShopPolicyRecord {
+    id: String,
+    policy_type: String,
+    title: String,
+    body: String,
+    url: String,
+    created_at: String,
+    updated_at: String,
+    translations: Vec<Value>,
+}
+
 #[derive(Clone, Default)]
 struct Store {
     base: BaseState,
@@ -187,6 +199,7 @@ struct BaseState {
     products: OrderedRecords<ProductRecord>,
     product_variants: OrderedRecords<ProductVariantRecord>,
     saved_searches: OrderedRecords<SavedSearchRecord>,
+    shop_policies: OrderedRecords<ShopPolicyRecord>,
     shop: Value,
     publication_ids: BTreeSet<String>,
     publication_count: Option<usize>,
@@ -200,6 +213,7 @@ struct StagedState {
     products: StagedRecords<ProductRecord>,
     product_variants: StagedRecords<ProductVariantRecord>,
     saved_searches: StagedRecords<SavedSearchRecord>,
+    shop_policies: StagedRecords<ShopPolicyRecord>,
     product_search_tags: BTreeMap<String, BTreeSet<String>>,
     shipping_packages: BTreeMap<String, Value>,
     deleted_shipping_package_ids: BTreeSet<String>,
@@ -494,6 +508,7 @@ impl Default for StagedState {
             products: StagedRecords::default(),
             product_variants: StagedRecords::default(),
             saved_searches: StagedRecords::default(),
+            shop_policies: StagedRecords::default(),
             product_search_tags: BTreeMap::new(),
             shipping_packages: BTreeMap::new(),
             deleted_shipping_package_ids: BTreeSet::new(),
@@ -823,6 +838,14 @@ impl Store {
             .replace_with_order(saved_searches, order);
     }
 
+    fn replace_base_shop_policies_map_with_order(
+        &mut self,
+        policies: BTreeMap<String, ShopPolicyRecord>,
+        order: Vec<String>,
+    ) {
+        self.base.shop_policies.replace_with_order(policies, order);
+    }
+
     fn replace_staged_saved_searches_map_with_order(
         &mut self,
         saved_searches: BTreeMap<String, SavedSearchRecord>,
@@ -831,6 +854,16 @@ impl Store {
         self.staged
             .saved_searches
             .replace_with_order(saved_searches, order);
+    }
+
+    fn replace_staged_shop_policies_map_with_order(
+        &mut self,
+        policies: BTreeMap<String, ShopPolicyRecord>,
+        order: Vec<String>,
+    ) {
+        self.staged
+            .shop_policies
+            .replace_with_order(policies, order);
     }
 
     fn replace_product_tombstones(&mut self, ids: BTreeSet<String>) {
@@ -843,6 +876,10 @@ impl Store {
 
     fn replace_saved_search_tombstones(&mut self, ids: BTreeSet<String>) {
         self.staged.saved_searches.tombstones = ids;
+    }
+
+    fn replace_shop_policy_tombstones(&mut self, ids: BTreeSet<String>) {
+        self.staged.shop_policies.tombstones = ids;
     }
 
     fn stage_created_publication_id(&mut self, id: String) {
@@ -875,7 +912,47 @@ impl Store {
     fn effective_shop(&self) -> Value {
         let mut shop = self.base.shop.clone();
         shop["publicationCount"] = json!(self.effective_publication_count());
+        shop["shopPolicies"] = Value::Array(
+            self.shop_policies()
+                .into_iter()
+                .map(|policy| shop_policy_record_json(&policy))
+                .collect(),
+        );
         shop
+    }
+
+    fn shop_policy_by_id(&self, id: &str) -> Option<&ShopPolicyRecord> {
+        effective_get(&self.base.shop_policies, &self.staged.shop_policies, id)
+    }
+
+    fn shop_policy_by_type(&self, policy_type: &str) -> Option<&ShopPolicyRecord> {
+        self.staged
+            .shop_policies
+            .order
+            .iter()
+            .filter(|id| !self.staged.shop_policies.is_tombstoned(id))
+            .filter_map(|id| self.staged.shop_policies.get(id))
+            .find(|policy| policy.policy_type == policy_type)
+            .or_else(|| {
+                self.base
+                    .shop_policies
+                    .order
+                    .iter()
+                    .filter(|id| {
+                        !self.staged.shop_policies.is_tombstoned(id)
+                            && !self.staged.shop_policies.contains_staged(id)
+                    })
+                    .filter_map(|id| self.base.shop_policies.get(id))
+                    .find(|policy| policy.policy_type == policy_type)
+            })
+    }
+
+    fn shop_policies(&self) -> Vec<ShopPolicyRecord> {
+        effective_records(&self.base.shop_policies, &self.staged.shop_policies)
+    }
+
+    fn stage_shop_policy(&mut self, policy: ShopPolicyRecord) {
+        self.staged.shop_policies.stage(policy.id.clone(), policy);
     }
 
     fn product_by_id(&self, id: &str) -> Option<&ProductRecord> {
@@ -1337,6 +1414,7 @@ mod resource_ids;
 mod routing;
 mod schema_validation;
 mod selection;
+mod store_properties;
 
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::admin_shipping_gift_cards::*;
@@ -1386,6 +1464,8 @@ pub(in crate::proxy) use self::routing::*;
 pub(in crate::proxy) use self::schema_validation::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::selection::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::store_properties::*;
 
 #[cfg(test)]
 mod store_tests {
