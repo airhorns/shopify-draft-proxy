@@ -44,6 +44,7 @@ Subscription lifecycle mutations stage locally and retain the original raw mutat
 - `$app:<suffix>` `metafieldNamespaces` entries resolve through request-owned `x-shopify-draft-proxy-api-client-id` when available. Without a caller API client ID, the proxy preserves `$app:` input unchanged rather than fabricating an identity.
 - Unified `uri` input derives deprecated endpoint projections: HTTPS URIs become `WebhookHttpEndpoint.callbackUrl`, valid `pubsub://project:topic` URIs become `WebhookPubSubEndpoint`, and Shopify partner EventBridge ARNs become `WebhookEventBridgeEndpoint`.
 - Dedicated Pub/Sub create/update roots normalize `pubSubProject` plus `pubSubTopic` into the stored `pubsub://project:topic` URI while preserving dedicated validation field paths.
+- Pub/Sub GCP project validation accepts all-numeric project numbers in addition to lowercase alpha-start project IDs. Topic validation requires an ASCII letter first character and accepts literal percent signs when represented by a valid percent-encoded `%25` sequence; encoded invalid characters such as `%20` are rejected like Shopify.
 - Dedicated EventBridge create/update roots normalize `arn` into the stored URI/address while preserving dedicated validation field paths.
 - Commit replay replaces synthetic IDs with upstream IDs from prior successful replay attempts before replaying subsequent raw request bodies.
 
@@ -75,6 +76,7 @@ Supported create/update/delete operations do not deliver webhook payloads and do
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-topic-enum-validation.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-cloud-uri-validation.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-dedicated-cloud-destinations.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/gcp-project-topic-char-rules.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-uri-validation.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-uri-whitespace.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-address-byte-size-validation.json`
@@ -86,6 +88,7 @@ Supported create/update/delete operations do not deliver webhook payloads and do
 - `config/parity-specs/webhooks/webhook-subscription-topic-enum-validation.json`
 - `config/parity-specs/webhooks/webhook-subscription-cloud-uri-validation.json`
 - `config/parity-specs/webhooks/webhook-subscription-dedicated-cloud-destinations.json`
+- `config/parity-specs/webhooks/gcp-project-topic-char-rules.json`
 - `config/parity-specs/webhooks/webhook-subscription-update-validation.json`
 - `config/parity-specs/webhooks/webhook-subscription-uri-validation.json`
 - `config/parity-specs/webhooks/webhook-subscription-uri-whitespace.json`
@@ -96,6 +99,7 @@ Supported create/update/delete operations do not deliver webhook payloads and do
 - `scripts/capture-webhook-subscription-topic-enum-validation.ts`
 - `scripts/capture-webhook-cloud-uri-validation-conformance.ts`
 - `scripts/capture-webhook-dedicated-cloud-destinations-conformance.ts`
+- `scripts/capture-webhook-gcp-project-topic-char-rules-conformance.ts`
 - `scripts/capture-webhook-subscription-uri-whitespace.ts`
 - `scripts/capture-webhook-subscription-address-byte-size-validation.ts`
 
@@ -105,4 +109,5 @@ Supported create/update/delete operations do not deliver webhook payloads and do
 - `corepack pnpm parity -- webhook-subscription-conformance`
 - `corepack pnpm parity -- webhook-subscription-cloud-uri-validation`
 - `corepack pnpm parity -- webhook-subscription-dedicated-cloud-destinations`
+- `corepack pnpm parity -- gcp-project-topic-char-rules`
 - `corepack pnpm conformance:check`

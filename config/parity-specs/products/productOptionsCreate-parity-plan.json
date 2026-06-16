@@ -7,12 +7,17 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-parity.json"
   ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/products/productOptionsCreate-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/products/productOptionsCreate-parity-plan.variables.json",
-    "variablesCapturePath": "$.mutation.variables"
+    "documentPath": "config/parity-requests/products/product-option-lifecycle-hydrate-nodes.graphql",
+    "variables": {
+      "ids": [
+        {
+          "fromCapturePath": "$.preMutationRead.data.product.id"
+        }
+      ]
+    }
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables. This scenario captures default option replacement into two product options and verifies the immediate downstream product option and variant graph.",
+  "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables. This scenario captures default option replacement into two product options and verifies the immediate downstream product option and variant graph. Proxy replay first hydrates the captured pre-mutation product through a public product read, then runs the supported mutation locally.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -69,9 +74,18 @@
     ],
     "targets": [
       {
+        "name": "pre-mutation-read-data",
+        "capturePath": "$.preMutationRead.data.product",
+        "proxyPath": "$.data.nodes[0]"
+      },
+      {
         "name": "mutation-data",
         "capturePath": "$.mutation.response.data",
-        "proxyPath": "$.data"
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsCreate-parity-plan.graphql",
+          "variablesCapturePath": "$.mutation.variables"
+        }
       },
       {
         "name": "downstream-read-data",
@@ -80,7 +94,8 @@
           "documentPath": "config/parity-requests/products/product-option-lifecycle-downstream-read.graphql",
           "variables": {
             "id": {
-              "fromPrimaryProxyPath": "$.data.productOptionsCreate.product.id"
+              "fromProxyResponse": "mutation-data",
+              "path": "$.data.productOptionsCreate.product.id"
             }
           }
         },
