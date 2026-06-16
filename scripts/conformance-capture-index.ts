@@ -8355,6 +8355,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'webhooks',
+    captureId: 'eventbridge-cloud-format-json-only',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-eventbridge-cloud-format-json-only-conformance.ts',
+    purpose:
+      'EventBridge ARN cloud-delivery JSON-only format validation for dedicated EventBridge and unified webhook subscription create/update roots.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}eventbridge-cloud-format-json-only.json`,
+      'config/parity-specs/webhooks/eventbridge-cloud-format-json-only.json',
+    ],
+    cleanupBehavior:
+      'Creates two temporary JSON EventBridge webhook subscriptions as update targets, records ARN + XML validation failures, then deletes the temporary subscriptions during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Confirms the dedicated EventBridge roots keep Shopify’s model-level format userError field path as ["webhookSubscription", "format"].',
+  },
+  {
+    domain: 'webhooks',
     captureId: 'gcp-project-topic-char-rules',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-gcp-project-topic-char-rules-conformance.ts',
