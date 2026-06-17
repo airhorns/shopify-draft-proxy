@@ -303,7 +303,7 @@ impl DraftProxy {
             path,
             headers: BTreeMap::new(),
             body: json!({
-                "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
+                "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } media(first: 10) { nodes { id alt mediaContentType status } } } } media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } media(first: 10) { nodes { id alt mediaContentType status } } product { id title handle status totalInventory tracksInventory media(first: 10) { nodes { id alt mediaContentType status preview { image { url } } ... on MediaImage { image { url } } } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } media(first: 10) { nodes { id alt mediaContentType status } } } } } } } }",
                 "variables": { "ids": ids }
             })
             .to_string(),
@@ -553,7 +553,7 @@ impl DraftProxy {
         let alt = resolved_string_field(&first_media, "alt").unwrap_or_default();
         let uploaded_media = product_media_node(&id, &alt, "UPLOADED", None);
         let staged_media = product_media_node(&id, &alt, "PROCESSING", None);
-        self.stage_product_media_nodes(&product_id, vec![staged_media]);
+        self.upsert_product_media_nodes(&product_id, vec![staged_media]);
         Some(json!({
             "media": [uploaded_media.clone()],
             "userErrors": [],
@@ -585,7 +585,7 @@ impl DraftProxy {
 
         let alt = resolved_string_field(&first_media, "alt").unwrap_or_default();
         let media = product_media_node(&id, &alt, "READY", Some(product_media_ready_url()));
-        self.stage_product_media_nodes(&product_id, vec![media.clone()]);
+        self.upsert_product_media_nodes(&product_id, vec![media.clone()]);
         Some(json!({
             "media": [media],
             "userErrors": [],
@@ -672,6 +672,33 @@ impl DraftProxy {
                 ..ProductRecord::default()
             });
         product.media = media;
+        self.store.stage_product(product);
+    }
+
+    fn upsert_product_media_nodes(&mut self, product_id: &str, media: Vec<Value>) {
+        let timestamp = default_product_timestamp(product_id);
+        let mut product = self
+            .store
+            .product_staged_or_base(product_id)
+            .unwrap_or_else(|| ProductRecord {
+                id: product_id.to_string(),
+                created_at: timestamp.clone(),
+                updated_at: timestamp,
+                ..ProductRecord::default()
+            });
+        for node in media {
+            let Some(id) = node.get("id").and_then(Value::as_str) else {
+                continue;
+            };
+            match product
+                .media
+                .iter_mut()
+                .find(|existing| existing.get("id").and_then(Value::as_str) == Some(id))
+            {
+                Some(existing) => *existing = node,
+                None => product.media.push(node),
+            }
+        }
         self.store.stage_product(product);
     }
 
@@ -782,42 +809,6 @@ pub(in crate::proxy) fn product_fixture_backed_mutation_data(
             "reorder": {
                 "userErrors": [{ "field": ["moves", "0", "id"], "message": "Media does not exist" }],
                 "mediaUserErrors": [{ "field": ["moves", "0", "id"], "message": "Media does not exist" }]
-            }
-        }));
-    }
-    if query.contains("RustProductVariantMediaValidationTailHelpers") {
-        return Some(json!({
-            "variantFromOtherProduct": {
-                "productVariants": Value::Null,
-                "userErrors": [{
-                    "field": ["variantMedia", "0", "variantId"],
-                    "message": "Variant does not exist on the specified product.",
-                    "code": "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT"
-                }]
-            },
-            "mediaFromOtherProduct": {
-                "productVariants": Value::Null,
-                "userErrors": [{
-                    "field": ["variantMedia", "0", "mediaIds"],
-                    "message": "Media does not exist on the specified product.",
-                    "code": "MEDIA_DOES_NOT_EXIST_ON_PRODUCT"
-                }]
-            },
-            "processingMedia": {
-                "productVariants": Value::Null,
-                "userErrors": [{
-                    "field": ["variantMedia", "0", "mediaIds"],
-                    "message": "Non-ready media cannot be attached to variants.",
-                    "code": "NON_READY_MEDIA"
-                }]
-            },
-            "detachUnattached": {
-                "productVariants": Value::Null,
-                "userErrors": [{
-                    "field": ["variantMedia", "0", "variantId"],
-                    "message": "The specified media is not attached to the specified variant.",
-                    "code": "MEDIA_IS_NOT_ATTACHED_TO_VARIANT"
-                }]
             }
         }));
     }
@@ -1477,6 +1468,12 @@ pub(in crate::proxy) fn product_variant_json(
             variant,
             &selection.selection,
         )),
+        "media" => Some(product_variant_media_connection_json(
+            variant,
+            product,
+            &selection.arguments,
+            &selection.selection,
+        )),
         "product" => Some(match product {
             Some(product) => product_json_with_variants(product, &[], &selection.selection),
             None => Value::Null,
@@ -1564,6 +1561,53 @@ fn product_variant_extra_field_json(value: &Value, selections: &[SelectedField])
     }
 }
 
+fn variant_media_ids_from_json(value: &Value) -> Vec<String> {
+    value
+        .get("mediaIds")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|media_id| media_id.as_str().map(str::to_string))
+        .chain(
+            value
+                .get("media")
+                .and_then(|connection| connection.get("nodes"))
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(|media| media.get("id").and_then(Value::as_str).map(str::to_string)),
+        )
+        .fold(Vec::new(), |mut ids, id| {
+            if !ids.iter().any(|existing| existing == &id) {
+                ids.push(id);
+            }
+            ids
+        })
+}
+
+pub(in crate::proxy) fn product_variant_media_connection_json(
+    variant: &ProductVariantRecord,
+    product: Option<&ProductRecord>,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selections: &[SelectedField],
+) -> Value {
+    let Some(product) = product else {
+        return selected_connection_json(Vec::new(), selections);
+    };
+    let media = variant
+        .media_ids
+        .iter()
+        .filter_map(|media_id| {
+            product
+                .media
+                .iter()
+                .find(|media| media.get("id").and_then(Value::as_str) == Some(media_id))
+                .cloned()
+        })
+        .collect::<Vec<_>>();
+    selected_connection_json_with_args(media, arguments, selections, value_id_cursor)
+}
+
 pub(in crate::proxy) fn product_seo_json(
     product: &ProductRecord,
     selections: &[SelectedField],
@@ -1641,6 +1685,7 @@ pub(in crate::proxy) fn product_variant_state_from_observed_json(
             "inventoryQuantity",
             "selectedOptions",
             "inventoryItem",
+            "mediaIds",
         ],
     );
     if value.get("sku").is_some_and(Value::is_null) {
@@ -1713,6 +1758,7 @@ pub(in crate::proxy) fn product_variant_state_from_observed_json(
                 &["id", "tracked", "requiresShipping"],
             ),
         },
+        media_ids: variant_media_ids_from_json(value),
         extra_fields,
     })
 }
@@ -1961,6 +2007,7 @@ pub(in crate::proxy) fn product_variant_state_from_json(
             "inventoryQuantity",
             "selectedOptions",
             "inventoryItem",
+            "mediaIds",
         ],
     );
     if value.get("sku").is_some_and(Value::is_null) {
@@ -2039,6 +2086,7 @@ pub(in crate::proxy) fn product_variant_state_from_json(
                 &["id", "tracked", "requiresShipping"],
             ),
         },
+        media_ids: variant_media_ids_from_json(value),
         extra_fields,
     })
 }
@@ -2062,7 +2110,8 @@ pub(in crate::proxy) fn product_variant_state_json(variant: &ProductVariantRecor
             "id": variant.inventory_item.id,
             "tracked": variant.inventory_item.tracked,
             "requiresShipping": variant.inventory_item.requires_shipping
-        }
+        },
+        "mediaIds": variant.media_ids
     });
     if let Some(map) = value.as_object_mut() {
         for (key, field_value) in &variant.extra_fields {
@@ -2674,10 +2723,42 @@ pub(in crate::proxy) fn product_variant_record_from_create_input(
             requires_shipping: true,
             extra_fields: BTreeMap::new(),
         },
+        media_ids: Vec::new(),
         extra_fields: BTreeMap::new(),
     };
     apply_product_variant_input(&mut variant, input);
     variant
+}
+
+pub(in crate::proxy) fn product_default_variant_record(
+    product: &ProductRecord,
+    id: String,
+    inventory_item_id: String,
+) -> ProductVariantRecord {
+    ProductVariantRecord {
+        id,
+        product_id: product.id.clone(),
+        title: "Default Title".to_string(),
+        sku: String::new(),
+        barcode: None,
+        price: "0.00".to_string(),
+        compare_at_price: None,
+        taxable: true,
+        inventory_policy: "DENY".to_string(),
+        inventory_quantity: 0,
+        selected_options: vec![ProductVariantSelectedOption {
+            name: "Title".to_string(),
+            value: "Default Title".to_string(),
+        }],
+        inventory_item: ProductVariantInventoryItem {
+            id: inventory_item_id,
+            tracked: false,
+            requires_shipping: true,
+            extra_fields: BTreeMap::new(),
+        },
+        media_ids: Vec::new(),
+        extra_fields: BTreeMap::new(),
+    }
 }
 
 pub(in crate::proxy) fn apply_product_variant_input(
@@ -2899,6 +2980,18 @@ pub(in crate::proxy) fn product_variant_input_user_errors(
     }
 
     errors
+}
+
+pub(in crate::proxy) fn product_variant_media_user_error(
+    field: &[&str],
+    message: &str,
+    code: &str,
+) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
 }
 
 fn resolved_variant_decimal(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Option<f64> {
