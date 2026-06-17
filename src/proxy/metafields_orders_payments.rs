@@ -1327,31 +1327,29 @@ pub(in crate::proxy) fn web_presence_validate_routing_and_uniqueness(
 ) {
     let has_domain = draft.domain_id.is_some();
     let has_subfolder = draft.subfolder_suffix.is_some();
-    if (is_create || input.contains_key("domainId") || input.contains_key("subfolderSuffix"))
-        && has_domain
-        && has_subfolder
-    {
-        errors.push(market_user_error(
-            vec!["input"],
-            "Cannot have both a subfolder suffix and a domain.",
-            json!("CANNOT_HAVE_SUBFOLDER_AND_DOMAIN"),
-        ));
+    // A domainId makes this a domain-backed presence: Shopify validates the domain
+    // reference and ignores the subfolder-routing rules (subfolder format,
+    // cannot-have-both, locale duplication). A domainId that does not resolve to a
+    // real domain fails with DOMAIN_NOT_FOUND, reported ahead of any locale errors
+    // already collected by web_presence_draft_from_input.
+    if has_domain {
+        if is_create && draft.domain_id.as_deref() != Some("gid://shopify/Domain/1000") {
+            errors.insert(
+                0,
+                market_user_error(
+                    vec!["input", "domainId"],
+                    "Domain does not exist",
+                    json!("DOMAIN_NOT_FOUND"),
+                ),
+            );
+        }
+        return;
     }
-    if is_create && !has_domain && !has_subfolder {
+    if is_create && !has_subfolder {
         errors.push(market_user_error(
             vec!["input"],
             "Requires a domain or subfolder suffix.",
             json!("REQUIRES_DOMAIN_OR_SUBFOLDER"),
-        ));
-    }
-    if is_create
-        && draft.domain_id.as_deref().is_some()
-        && draft.domain_id.as_deref() != Some("gid://shopify/Domain/1000")
-    {
-        errors.push(market_user_error(
-            vec!["input", "domainId"],
-            "Domain does not exist",
-            json!("DOMAIN_NOT_FOUND"),
         ));
     }
     if let Some(suffix) = draft.subfolder_suffix.as_deref() {
@@ -1366,12 +1364,24 @@ pub(in crate::proxy) fn web_presence_validate_routing_and_uniqueness(
             }
         }
     }
-    if draft
+    // Duplicate-language detection across the default + alternate locales. Shopify
+    // raises a `defaultLocale` error when the default repeats an alternate, and a
+    // separate `alternateLocales` error listing the offending languages. The listed
+    // set is the alternates alone when they already collide with each other, or the
+    // default prepended to the alternates when the collision is default-vs-alternate.
+    let default_collides = draft
         .alternate_locales
         .iter()
-        .any(|locale| locale == &draft.default_locale)
-    {
-        if is_create || input.contains_key("defaultLocale") {
+        .any(|locale| locale == &draft.default_locale);
+    let alternates_internal_dup = {
+        let mut seen = std::collections::HashSet::new();
+        !draft
+            .alternate_locales
+            .iter()
+            .all(|locale| seen.insert(locale.clone()))
+    };
+    if default_collides || alternates_internal_dup {
+        if default_collides && (is_create || input.contains_key("defaultLocale")) {
             errors.push(market_user_error(
                 vec!["input", "defaultLocale"],
                 &format!(
@@ -1382,15 +1392,33 @@ pub(in crate::proxy) fn web_presence_validate_routing_and_uniqueness(
             ));
         }
         if input.contains_key("alternateLocales") {
+            let listed: Vec<String> = if alternates_internal_dup {
+                draft.alternate_locales.clone()
+            } else {
+                std::iter::once(draft.default_locale.clone())
+                    .chain(draft.alternate_locales.iter().cloned())
+                    .collect()
+            };
             errors.push(market_user_error(
                 vec!["input", "alternateLocales"],
                 &format!(
-                    "Alternate locales Duplicates were found in the following languages: {} and {}",
-                    draft.default_locale, draft.default_locale
+                    "Alternate locales Duplicates were found in the following languages: {}",
+                    humanize_and_list(&listed)
                 ),
                 json!("DUPLICATE_LANGUAGES"),
             ));
         }
+    }
+}
+
+/// Join a list with commas and a trailing "and": `[a]`->`a`, `[a,b]`->`a and b`,
+/// `[a,b,c]`->`a, b, and c` (Shopify's duplicate-language error phrasing).
+fn humanize_and_list(items: &[String]) -> String {
+    match items {
+        [] => String::new(),
+        [only] => only.clone(),
+        [first, second] => format!("{first} and {second}"),
+        [rest @ .., last] => format!("{}, and {last}", rest.join(", ")),
     }
 }
 
