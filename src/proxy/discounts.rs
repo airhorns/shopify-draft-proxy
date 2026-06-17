@@ -1,6 +1,8 @@
 use super::*;
 
 const DISCOUNT_DEFAULT_TIMESTAMP: &str = "2026-04-27T19:32:14Z";
+const DISCOUNT_CONTEXT_CUSTOMER_SELECTION_CONFLICT_MESSAGE: &str =
+    "Only one of context or customerSelection can be provided.";
 const DISCOUNT_MINIMUM_QUANTITY_UPPER_BOUND: i64 = 2_147_483_647;
 const DISCOUNT_MINIMUM_SUBTOTAL_UPPER_BOUND: i64 = 1_000_000_000_000_000_000;
 const DISCOUNT_MINIMUM_SUBTOTAL_UPPER_BOUND_DECIMAL: &str = "1000000000000000000";
@@ -952,18 +954,8 @@ fn discount_input_user_errors(
             )),
         }
     }
-    if resolved_object_path(Some(&ResolvedValue::Object(input.clone())), &["context"]).is_some()
-        && resolved_object_path(
-            Some(&ResolvedValue::Object(input.clone())),
-            &["customerSelection"],
-        )
-        .is_some()
-    {
-        errors.push(discount_user_error(
-            vec![input_arg, "context"],
-            "Specify either context or customerSelection, not both.",
-            "INVALID",
-        ));
+    if let Some(error) = discount_context_customer_selection_user_error(input, input_arg) {
+        errors.push(error);
     }
     if resolved_object_path(
         Some(&ResolvedValue::Object(input.clone())),
@@ -1017,6 +1009,23 @@ fn discount_input_user_errors(
         errors.push(error);
     }
     errors
+}
+
+fn discount_context_customer_selection_user_error(
+    input: &BTreeMap<String, ResolvedValue>,
+    input_arg: &str,
+) -> Option<Value> {
+    let input_value = ResolvedValue::Object(input.clone());
+    if resolved_object_path(Some(&input_value), &["context"]).is_some()
+        && resolved_object_path(Some(&input_value), &["customerSelection"]).is_some()
+    {
+        return Some(discount_user_error(
+            vec![input_arg, "context"],
+            DISCOUNT_CONTEXT_CUSTOMER_SELECTION_CONFLICT_MESSAGE,
+            "INVALID",
+        ));
+    }
+    None
 }
 
 fn app_discount_input_user_errors(
@@ -1106,16 +1115,10 @@ fn app_discount_input_user_errors(
             Some("INVALID"),
         ));
     }
-    if resolved_object_path(Some(&ResolvedValue::Object(input.clone())), &["context"]).is_some()
-        && resolved_object_path(
-            Some(&ResolvedValue::Object(input.clone())),
-            &["customerSelection"],
-        )
-        .is_some()
-    {
+    if discount_context_customer_selection_user_error(input, input_arg).is_some() {
         errors.push(app_discount_user_error(
             vec![json!(input_arg), json!("context")],
-            "Only one of context or customerSelection can be provided.",
+            DISCOUNT_CONTEXT_CUSTOMER_SELECTION_CONFLICT_MESSAGE,
             Some("INVALID"),
         ));
     }

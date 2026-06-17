@@ -967,6 +967,18 @@ fn discount_generic_handler_validates_input_and_handles_lifecycle_by_arguments()
             .as_array()
             .unwrap()
             .iter()
+            .any(|error| {
+                error["field"] == json!(["basicCodeDiscount", "context"])
+                    && error["message"]
+                        == json!("Only one of context or customerSelection can be provided.")
+                    && error["code"] == json!("INVALID")
+            })
+    );
+    assert!(
+        invalid.body["data"]["discountCodeBasicCreate"]["userErrors"]
+            .as_array()
+            .unwrap()
+            .iter()
             .any(|error| error["field"] == json!(["basicCodeDiscount", "code"]))
     );
     assert!(
