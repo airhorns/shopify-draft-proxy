@@ -2201,16 +2201,36 @@ impl DraftProxy {
         &self,
         inventory_item_id: &str,
     ) -> Vec<(String, BTreeMap<String, i64>)> {
-        // Levels are keyed by (item_id, location_id) in a BTreeMap, so iteration
-        // yields locations sorted by id. Reordering by location_order here regresses
-        // the inventory lifecycle specs, so we keep the stable sorted order.
-        self.store
-            .staged
-            .inventory_levels
-            .iter()
-            .filter(|((item_id, _), _)| item_id == inventory_item_id)
-            .map(|((_, location_id), quantities)| (location_id.clone(), quantities.clone()))
-            .collect::<Vec<_>>()
+        // Levels created via local mutations (e.g. inventoryActivate) are surfaced in
+        // their creation order, tracked by `inventory_level_order`. Any remaining
+        // levels (observed/hydrated from upstream) fall back to the BTreeMap's stable
+        // sorted-by-location-id order, which the inventory lifecycle specs depend on.
+        let mut levels = Vec::new();
+        let mut seen = BTreeSet::new();
+        for (item_id, location_id) in &self.store.staged.inventory_level_order {
+            if item_id != inventory_item_id || seen.contains(location_id) {
+                continue;
+            }
+            if let Some(quantities) = self
+                .store
+                .staged
+                .inventory_levels
+                .get(&(item_id.clone(), location_id.clone()))
+            {
+                seen.insert(location_id.clone());
+                levels.push((location_id.clone(), quantities.clone()));
+            }
+        }
+        levels.extend(
+            self.store
+                .staged
+                .inventory_levels
+                .iter()
+                .filter(|((item_id, _), _)| item_id == inventory_item_id)
+                .filter(|((_, location_id), _)| !seen.contains(location_id))
+                .map(|((_, location_id), quantities)| (location_id.clone(), quantities.clone())),
+        );
+        levels
     }
 
     fn active_inventory_levels_for_item(
@@ -2700,19 +2720,15 @@ impl DraftProxy {
         }
 
         let key = (inventory_item_id.clone(), location_id.clone());
-        let already_active = self.store.staged.inventory_levels.contains_key(&key)
-            && !self.store.staged.inactive_inventory_levels.contains(&key);
-        if !already_active
-            && self.inventory_item_exists(&inventory_item_id)
-            && self
-                .active_inventory_levels_for_item(&inventory_item_id)
-                .is_empty()
-        {
-            self.ensure_default_inventory_level(&inventory_item_id, &location_id);
-        }
-        let already_active = self.store.staged.inventory_levels.contains_key(&key)
-            && !self.store.staged.inactive_inventory_levels.contains(&key);
-        if already_active && has_available {
+        // The "already active" decision must be based on the level's state *before*
+        // this call. A fresh activation (a brand-new level, or reactivating an
+        // inactive one) is allowed to seed `available`; only a level that was
+        // already active rejects it. Computing this up-front avoids the earlier bug
+        // where pre-creating a default level flipped the flag and spuriously errored.
+        let existed_before = self.store.staged.inventory_levels.contains_key(&key);
+        let was_active =
+            existed_before && !self.store.staged.inactive_inventory_levels.contains(&key);
+        if was_active && has_available {
             user_errors.push(inventory_activate_user_error(
                 vec!["available"],
                 "Not allowed to set available quantity when the item is already active at the location.",
@@ -2729,8 +2745,7 @@ impl DraftProxy {
                 user_errors,
             ));
         }
-        if !already_active
-            && !self.store.staged.inactive_inventory_levels.contains(&key)
+        if !was_active
             && self
                 .active_inventory_levels_for_item(&inventory_item_id)
                 .len()
@@ -2748,8 +2763,37 @@ impl DraftProxy {
             ));
         }
 
-        if !already_active {
+        if !was_active {
+            if !existed_before {
+                self.store.staged.inventory_level_order.push(key.clone());
+            }
             self.activate_inventory_level(&inventory_item_id, &location_id);
+            // A first-time activation with `available` seeds both available and
+            // on_hand to that value. Reactivating an existing (inactive) level must
+            // preserve its prior quantities, so only seed on a brand-new level.
+            if !existed_before {
+                if let Some(value) = available {
+                    if value >= 0 {
+                        let updated_at = self.next_inventory_quantity_timestamp();
+                        if let Some(level) = self.store.staged.inventory_levels.get_mut(&key) {
+                            level.insert("available".to_string(), value);
+                            level.insert("on_hand".to_string(), value);
+                        }
+                        self.stamp_inventory_quantity(
+                            &inventory_item_id,
+                            &location_id,
+                            "available",
+                            &updated_at,
+                        );
+                        self.stamp_inventory_quantity(
+                            &inventory_item_id,
+                            &location_id,
+                            "on_hand",
+                            &updated_at,
+                        );
+                    }
+                }
+            }
         }
         let level = self.inventory_level_for_payload(
             &inventory_item_id,

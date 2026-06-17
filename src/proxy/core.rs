@@ -239,6 +239,10 @@ impl DraftProxy {
             snapshot["stagedState"]["inventoryLevelIds"] =
                 inventory_level_ids_json(&self.store.staged.inventory_level_ids);
         }
+        if !self.store.staged.inventory_level_order.is_empty() {
+            snapshot["stagedState"]["inventoryLevelOrder"] =
+                inventory_level_order_json(&self.store.staged.inventory_level_order);
+        }
         if !self.store.staged.inactive_inventory_levels.is_empty() {
             snapshot["stagedState"]["inactiveInventoryLevels"] =
                 inactive_inventory_levels_json(&self.store.staged.inactive_inventory_levels);
@@ -767,6 +771,8 @@ impl DraftProxy {
             inventory_levels_from_json(&state["stagedState"]["inventoryLevels"]);
         self.store.staged.inventory_level_ids =
             inventory_level_ids_from_json(&state["stagedState"]["inventoryLevelIds"]);
+        self.store.staged.inventory_level_order =
+            inventory_level_order_from_json(&state["stagedState"]["inventoryLevelOrder"]);
         self.store.staged.inactive_inventory_levels =
             inactive_inventory_levels_from_json(&state["stagedState"]["inactiveInventoryLevels"]);
         self.store.staged.inventory_quantity_updated_at = inventory_quantity_updated_at_from_json(
@@ -1160,6 +1166,31 @@ fn inventory_level_ids_json(ids: &BTreeMap<(String, String), String>) -> Value {
             })
         })
         .collect::<Vec<_>>())
+}
+
+fn inventory_level_order_json(order: &[(String, String)]) -> Value {
+    json!(order
+        .iter()
+        .map(|(inventory_item_id, location_id)| {
+            json!({
+                "inventoryItemId": inventory_item_id,
+                "locationId": location_id
+            })
+        })
+        .collect::<Vec<_>>())
+}
+
+fn inventory_level_order_from_json(value: &Value) -> Vec<(String, String)> {
+    value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| {
+            let inventory_item_id = entry.get("inventoryItemId")?.as_str()?.to_string();
+            let location_id = entry.get("locationId")?.as_str()?.to_string();
+            Some((inventory_item_id, location_id))
+        })
+        .collect()
 }
 
 fn inactive_inventory_levels_json(levels: &BTreeSet<(String, String)>) -> Value {
