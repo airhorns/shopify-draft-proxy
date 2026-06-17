@@ -1612,7 +1612,11 @@ pub(in crate::proxy) fn theme_file_operation_result(record: &Value) -> Value {
             .cloned()
             .unwrap_or_else(|| json!("2024-01-01T00:00:00.000Z")),
         "checksumMd5": record["checksumMd5"],
-        "size": record["size"]
+        "size": record["size"],
+        "body": record
+            .get("body")
+            .cloned()
+            .unwrap_or(Value::Null)
     })
 }
 
