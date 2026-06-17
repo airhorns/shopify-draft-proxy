@@ -185,18 +185,42 @@ function deepClone<T>(value: T): T {
   return value === undefined ? value : (JSON.parse(JSON.stringify(value)) as T);
 }
 
+function tokenizeJsonPathWithWildcards(jsonPath: string): string[] {
+  if (!jsonPath.startsWith('$')) throw new Error(`Unsupported JSONPath (must start with $): ${jsonPath}`);
+  const parts: string[] = [];
+  const pattern = /\.([^.[\]]+)|\[(\d+)\]|\[\*\]/gu;
+  for (const match of jsonPath.matchAll(pattern)) {
+    if (match[1] !== undefined) parts.push(match[1]);
+    else if (match[2] !== undefined) parts.push(match[2]);
+    else parts.push('*');
+  }
+  return parts;
+}
+
+function deletePathParts(cursor: unknown, parts: string[]): void {
+  if (parts.length === 0 || cursor === undefined || cursor === null) return;
+  const [head, ...rest] = parts;
+  if (head === '*') {
+    // Wildcard array segment: recurse into every element.
+    if (Array.isArray(cursor)) for (const item of cursor) deletePathParts(item, rest);
+    return;
+  }
+  if (rest.length === 0) {
+    if (Array.isArray(cursor)) cursor.splice(Number(head), 1);
+    else if (typeof cursor === 'object' && cursor !== null) delete (cursor as Record<string, unknown>)[head];
+    return;
+  }
+  const next = Array.isArray(cursor)
+    ? cursor[Number(head)]
+    : (cursor as Record<string, unknown> | undefined)?.[head];
+  deletePathParts(next, rest);
+}
+
 function deletePath(root: unknown, jsonPath: string): unknown {
   const copy = deepClone(root);
-  const parts = tokenizeJsonPath(jsonPath);
+  const parts = tokenizeJsonPathWithWildcards(jsonPath);
   if (parts.length === 0) return undefined;
-  let cursor: unknown = copy;
-  for (const part of parts.slice(0, -1)) {
-    cursor = Array.isArray(cursor) ? cursor[Number(part)] : (cursor as Record<string, unknown> | undefined)?.[part];
-    if (cursor === undefined || cursor === null) return copy;
-  }
-  const last = parts[parts.length - 1] ?? '';
-  if (Array.isArray(cursor)) cursor.splice(Number(last), 1);
-  else if (typeof cursor === 'object' && cursor !== null) delete (cursor as Record<string, unknown>)[last];
+  deletePathParts(copy, parts);
   return copy;
 }
 

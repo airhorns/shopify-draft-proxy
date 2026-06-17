@@ -46,7 +46,7 @@ impl DraftProxy {
     }
 
     fn admin_platform_query_response(
-        &self,
+        &mut self,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
@@ -72,7 +72,15 @@ impl DraftProxy {
                 if let Some(data) = self.local_node_query_data(&fields, false) {
                     ok_json(json!({ "data": data }))
                 } else if self.config.read_mode != ReadMode::Snapshot {
-                    (self.upstream_transport)(request.clone())
+                    // Cold read: forward upstream and hydrate the observed
+                    // products/variants/collections into the base store so
+                    // subsequent local mutations (e.g. productOptionsCreate)
+                    // operate on a known owner — a read-through cache.
+                    let response = (self.upstream_transport)(request.clone());
+                    if response.status < 400 {
+                        self.observe_nodes_response(&response);
+                    }
+                    response
                 } else {
                     ok_json(
                         json!({ "data": self.local_node_query_data(&fields, true).unwrap_or_else(|| Value::Object(serde_json::Map::new())) }),
@@ -658,6 +666,20 @@ impl DraftProxy {
                     return (self.upstream_transport)(request.clone());
                 }
                 let outcome = self.selling_plan_group_mutation(root_field, &query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "productOptionsCreate"
+                            | "productOptionUpdate"
+                            | "productOptionsDelete"
+                            | "productOptionsReorder"
+                    ) =>
+            {
+                let outcome = self.product_option_mutation(root_field, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)

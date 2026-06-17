@@ -3,6 +3,7 @@ use super::*;
 const PRODUCT_OPTION_LIMIT: usize = 3;
 const PRODUCT_OPTION_VALUE_LIMIT: usize = 100;
 const PRODUCT_OPTION_NAME_LIMIT: usize = 255;
+const PRODUCT_VARIANT_LIMIT: usize = 2048;
 
 #[derive(Clone)]
 struct ProductOptionGraph {
@@ -87,6 +88,36 @@ impl DraftProxy {
                 errors,
             ));
         }
+        // Adding options with the CREATE strategy multiplies the product's
+        // existing variants by every new option-value combination. Shopify caps
+        // a product at 2048 variants and rejects the mutation when the resulting
+        // count would exceed it.
+        if resolved_variant_strategy(variables).as_deref() == Some("CREATE") {
+            let existing_variants = self
+                .store
+                .product_variants_for_product(&product_id)
+                .len()
+                .max(1);
+            let new_value_product: usize = input_options
+                .iter()
+                .map(|option| option_input_value_names(option).len().max(1))
+                .product();
+            if existing_variants.saturating_mul(new_value_product) > PRODUCT_VARIANT_LIMIT {
+                return MutationOutcome::response(self.product_option_payload_response(
+                    query,
+                    "productOptionsCreate",
+                    Some(&product),
+                    None,
+                    Vec::new(),
+                    vec![ProductOptionUserError::new(
+                        json!(["options"]),
+                        "The number of created variants would exceed the 2048 variants per product limit",
+                        Some("TOO_MANY_VARIANTS_CREATED"),
+                    )],
+                ));
+            }
+        }
+
         self.record_product_option_linked_metaobject_definitions(&input_options);
 
         let default_only = graph.is_default_only();
@@ -519,6 +550,12 @@ impl DraftProxy {
         for variant in &variants {
             self.store.stage_product_variant(variant.clone());
         }
+        // Persist the new variant ordering so subsequent reads reflect it; staging an
+        // already-present variant does not move it in the staged order vector.
+        let ordered_variant_ids: Vec<String> =
+            variants.iter().map(|variant| variant.id.clone()).collect();
+        self.store
+            .reorder_product_variants(&product.id, &ordered_variant_ids);
         mark_variant_backed_values(&mut reordered, &variants);
         product = product_with_option_graph(product, &reordered);
         self.store.stage_product(product.clone());
@@ -1068,6 +1105,42 @@ fn validate_product_options_reorder(
     inputs: &[BTreeMap<String, ResolvedValue>],
 ) -> Vec<ProductOptionUserError> {
     let mut errors = Vec::new();
+
+    // Shopify rejects mixing `id` and `name` selector keys wholesale, before any
+    // per-element existence or duplicate checks. Options are validated first, then
+    // values, each producing a single atomic error.
+    let option_has_id = inputs
+        .iter()
+        .any(|input| resolved_string_field(input, "id").is_some());
+    let option_has_name = inputs
+        .iter()
+        .any(|input| resolved_string_field(input, "name").is_some());
+    if option_has_id && option_has_name {
+        return vec![ProductOptionUserError::new(
+            json!(["options"]),
+            "Only specify one of `id` or `name` fields for options.",
+            Some("MIXING_ID_AND_NAME_KEYS_IS_NOT_ALLOWED"),
+        )];
+    }
+    // Value-selector mixing is rejected per option (mixing `id` and `name` within a
+    // single option's values), not across different options.
+    for input in inputs {
+        let value_inputs = resolved_object_list_field(input, "values");
+        let value_has_id = value_inputs
+            .iter()
+            .any(|value| resolved_string_field(value, "id").is_some());
+        let value_has_name = value_inputs
+            .iter()
+            .any(|value| resolved_string_field(value, "name").is_some());
+        if value_has_id && value_has_name {
+            return vec![ProductOptionUserError::new(
+                json!(["options"]),
+                "Only specify one of `id` or `name` fields for option values.",
+                Some("MIXING_ID_AND_NAME_KEYS_IS_NOT_ALLOWED"),
+            )];
+        }
+    }
+
     let mut seen_options = BTreeSet::new();
     for (index, input) in inputs.iter().enumerate() {
         let option_match = option_match_for_reorder(graph, input);
@@ -1103,10 +1176,13 @@ fn validate_product_options_reorder(
             ));
         }
         let mut seen_values = BTreeSet::new();
-        for value_input in resolved_object_list_field(input, "values") {
-            let value_match = option_value_match_for_reorder(option, &value_input);
+        for (value_index, value_input) in resolved_object_list_field(input, "values")
+            .iter()
+            .enumerate()
+        {
+            let value_match = option_value_match_for_reorder(option, value_input);
             let Some(value) = value_match else {
-                if let Some(id) = resolved_string_field(&value_input, "id") {
+                if let Some(id) = resolved_string_field(value_input, "id") {
                     errors.push(ProductOptionUserError::new(
                         json!(["options"]),
                         format!(
@@ -1115,7 +1191,7 @@ fn validate_product_options_reorder(
                         ),
                         Some("OPTION_VALUE_ID_DOES_NOT_EXIST"),
                     ));
-                } else if let Some(name) = resolved_string_field(&value_input, "name") {
+                } else if let Some(name) = resolved_string_field(value_input, "name") {
                     errors.push(ProductOptionUserError::new(
                         json!(["options"]),
                         format!("Option value '{name}' does not exist."),
@@ -1126,7 +1202,7 @@ fn validate_product_options_reorder(
             };
             if !seen_values.insert(value.name.to_ascii_lowercase()) {
                 errors.push(ProductOptionUserError::new(
-                    json!(["options", index.to_string()]),
+                    json!(["options", value_index.to_string()]),
                     format!("Duplicated option value '{}'.", value.name),
                     Some("DUPLICATED_OPTION_VALUE"),
                 ));
@@ -1149,17 +1225,25 @@ fn reorder_product_option_graph(
         let mut option = graph.options[index].clone();
         let value_inputs = resolved_object_list_field(input, "values");
         if !value_inputs.is_empty() {
-            let mut values = option.values.clone();
+            // Reorder the option's values to match the order given in the input,
+            // appending any values the input did not mention in their original order.
+            let mut reordered_values = Vec::new();
+            let mut used_value_ids = BTreeSet::new();
             for value_input in &value_inputs {
                 if let Some(value) = option_value_match_for_reorder(&option, value_input) {
-                    if let Some(existing) =
-                        values.iter_mut().find(|existing| existing.id == value.id)
-                    {
-                        *existing = value.clone();
+                    if used_value_ids.insert(value.id.clone()) {
+                        reordered_values.push(value.clone());
                     }
                 }
             }
-            option.values = values;
+            reordered_values.extend(
+                option
+                    .values
+                    .iter()
+                    .filter(|value| !used_value_ids.contains(&value.id))
+                    .cloned(),
+            );
+            option.values = reordered_values;
         }
         used_ids.insert(option.id.clone());
         reordered.push(option);

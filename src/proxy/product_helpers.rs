@@ -327,7 +327,7 @@ impl DraftProxy {
             .stage_collection_membership(collection.clone(), product_nodes);
     }
 
-    fn observe_nodes_response(&mut self, response: &Response) {
+    pub(in crate::proxy) fn observe_nodes_response(&mut self, response: &Response) {
         let nodes = response
             .body
             .pointer("/data/nodes")
