@@ -443,6 +443,20 @@ fn validate_resolved_scalar(
     type_ref: &SchemaTypeRef,
 ) -> Option<ScalarValidationProblem> {
     match type_ref.named_type.as_str() {
+        "ID" => {
+            // Admin GraphQL coerces ID scalars as global ids. A blank string
+            // (e.g. catalogId: "" provided through a variable input object)
+            // fails coercion with the same "Invalid global id ''" problem the
+            // literal-argument path reports, anchored at the variable
+            // definition. Non-blank values are left to the local handler.
+            let ResolvedValue::String(raw) = value else {
+                return None;
+            };
+            raw.trim().is_empty().then(|| ScalarValidationProblem {
+                explanation: format!("Invalid global id '{raw}'"),
+                include_message: true,
+            })
+        }
         "Decimal" => {
             let ResolvedValue::String(raw) = value else {
                 return None;
@@ -945,6 +959,35 @@ fn extend_markets_input_schema(schema: &mut AdminInputSchema) {
             "input".to_string(),
             mutation_arg(non_null("PriceListCreateInput")),
         )]),
+    );
+
+    // PriceListUpdateInput on Admin API 2026-04: every field is optional on
+    // update. `catalogId` is an ID; a blank string fails global-id coercion
+    // (INVALID_VARIABLE) before the local handler runs. `parent`'s type is
+    // intentionally left unregistered in `input_objects` so adjustment-range
+    // checks stay with the local handler (which emits INVALID_ADJUSTMENT_VALUE
+    // as a userError, not a coercion error).
+    schema.input_objects.insert(
+        "PriceListUpdateInput".to_string(),
+        BTreeMap::from([
+            ("name".to_string(), input_field(named("String"))),
+            ("currency".to_string(), input_field(named("CurrencyCode"))),
+            (
+                "parent".to_string(),
+                input_field(named("PriceListParentUpdateInput")),
+            ),
+            ("catalogId".to_string(), input_field(named("ID"))),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "priceListUpdate".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "input".to_string(),
+                mutation_arg(non_null("PriceListUpdateInput")),
+            ),
+        ]),
     );
 }
 
