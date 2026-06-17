@@ -1,5 +1,18 @@
 use super::*;
 
+/// Predicates the local product-overlay search (`products_connection_value`)
+/// can evaluate against partial staged state: an empty query, `status:`
+/// filters, `sku:` lookups, and tag filters. Anything else (notably catalog
+/// aggregates like `inventory_total:` or store-wide `vendor:` filters) requires
+/// the full catalog and must be answered upstream.
+fn catalog_search_predicate_is_locally_servable(predicate: &str) -> bool {
+    let trimmed = predicate.trim();
+    trimmed.is_empty()
+        || trimmed.contains("status:")
+        || trimmed.starts_with("sku:")
+        || product_tag_query_value(trimmed).is_some()
+}
+
 impl DraftProxy {
     pub(in crate::proxy) fn finalize_mutation_outcome(
         &mut self,
@@ -20,6 +33,32 @@ impl DraftProxy {
     ) -> Result<Vec<RootFieldSelection>, Response> {
         root_fields(query, variables)
             .ok_or_else(|| json_error(400, "Could not parse GraphQL operation"))
+    }
+
+    /// A `products`/`productsCount`/`productVariants` root carrying a `query:`
+    /// search predicate the local overlay cannot faithfully evaluate (anything
+    /// beyond `status:`/`sku:`/tag filters — e.g. `inventory_total:` or
+    /// `vendor:`) needs the full store catalog. Answering it from partial
+    /// overlay state would fabricate wrong matches, so such a query is forwarded
+    /// upstream where the real backend (or a recorded cassette) resolves it
+    /// authoritatively, even when unrelated overlay state has been staged.
+    fn product_query_needs_upstream_catalog_search(
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        let Some(fields) = root_fields(query, variables) else {
+            return false;
+        };
+        fields.iter().any(|field| {
+            matches!(
+                field.name.as_str(),
+                "products" | "productsCount" | "productVariants" | "productVariantsCount"
+            ) && matches!(
+                field.arguments.get("query"),
+                Some(ResolvedValue::String(predicate))
+                    if !catalog_search_predicate_is_locally_servable(predicate)
+            )
+        })
     }
 
     fn should_route_owner_metafields_read(
@@ -529,6 +568,8 @@ impl DraftProxy {
                     } else {
                         json_error(400, "Could not parse GraphQL operation")
                     }
+                } else if Self::product_query_needs_upstream_catalog_search(&query, &variables) {
+                    (self.upstream_transport)(request.clone())
                 } else if self.has_product_overlay_state()
                     || self.config.read_mode == ReadMode::Snapshot
                 {
