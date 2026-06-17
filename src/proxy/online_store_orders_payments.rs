@@ -9,6 +9,49 @@ struct OrdersLocalLogEntry<'a> {
     outcome: OrdersLocalLogOutcome<'a>,
 }
 
+#[derive(Clone, Copy)]
+struct OnlineStoreIntegrationDeleteSpec {
+    expected_type: &'static str,
+    deleted_id_field: &'static str,
+    input_object_field: &'static str,
+    user_error_typename: Option<&'static str>,
+    resource_label: &'static str,
+}
+
+const SCRIPT_TAG_DELETE_SPEC: OnlineStoreIntegrationDeleteSpec = OnlineStoreIntegrationDeleteSpec {
+    expected_type: "ScriptTag",
+    deleted_id_field: "deletedScriptTagId",
+    input_object_field: "scriptTag",
+    user_error_typename: Some("ScriptTagUserError"),
+    resource_label: "Script tag",
+};
+
+const WEB_PIXEL_DELETE_SPEC: OnlineStoreIntegrationDeleteSpec = OnlineStoreIntegrationDeleteSpec {
+    expected_type: "WebPixel",
+    deleted_id_field: "deletedWebPixelId",
+    input_object_field: "webPixel",
+    user_error_typename: Some("WebPixelUserError"),
+    resource_label: "Pixel",
+};
+
+const STOREFRONT_ACCESS_TOKEN_DELETE_SPEC: OnlineStoreIntegrationDeleteSpec =
+    OnlineStoreIntegrationDeleteSpec {
+        expected_type: "StorefrontAccessToken",
+        deleted_id_field: "deletedStorefrontAccessTokenId",
+        input_object_field: "storefrontAccessToken",
+        user_error_typename: None,
+        resource_label: "Storefront access token",
+    };
+
+const MOBILE_PLATFORM_APPLICATION_DELETE_SPEC: OnlineStoreIntegrationDeleteSpec =
+    OnlineStoreIntegrationDeleteSpec {
+        expected_type: "MobilePlatformApplication",
+        deleted_id_field: "deletedMobilePlatformApplicationId",
+        input_object_field: "mobilePlatformApplication",
+        user_error_typename: None,
+        resource_label: "Mobile platform application",
+    };
+
 const ORDER_LIFECYCLE_HYDRATE_QUERY: &str = "query OrderManagementDownstreamRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    closed\n    closedAt\n    updatedAt\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    paymentGatewayNames\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    customer {\n      id\n      email\n      displayName\n    }\n    transactions {\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n}";
 
 const MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH: usize = 100;
@@ -1381,6 +1424,28 @@ impl DraftProxy {
                         value_id_cursor,
                     )
                 }
+                "scriptTags" => {
+                    let mut records: Vec<Value> = self
+                        .store
+                        .staged
+                        .online_store_integrations
+                        .values()
+                        .filter(|record| {
+                            record
+                                .get("id")
+                                .and_then(Value::as_str)
+                                .is_some_and(|id| id.starts_with("gid://shopify/ScriptTag/"))
+                        })
+                        .cloned()
+                        .collect();
+                    records.sort_by_key(value_id_cursor);
+                    selected_connection_json_with_args(
+                        records,
+                        &field.arguments,
+                        &field.selection,
+                        value_id_cursor,
+                    )
+                }
                 "mobilePlatformApplications" => {
                     let mut records: Vec<Value> = self
                         .store
@@ -1429,6 +1494,11 @@ impl DraftProxy {
                 }
                 "scriptTagCreate" => self.script_tag_create(field, &mut staged_ids),
                 "scriptTagUpdate" => self.script_tag_update(field, &mut staged_ids),
+                "scriptTagDelete" => self.delete_online_store_integration(
+                    field,
+                    SCRIPT_TAG_DELETE_SPEC,
+                    &mut staged_ids,
+                ),
                 "themeCreate" => self.theme_create(field, &mut staged_ids),
                 "themePublish" => self.theme_publish(field, &mut staged_ids),
                 "themeUpdate" => self.theme_update(field, &mut staged_ids),
@@ -1437,17 +1507,29 @@ impl DraftProxy {
                 "themeFilesCopy" => self.theme_files_copy(field),
                 "themeFilesDelete" => self.theme_files_delete(field),
                 "webPixelCreate" => self.web_pixel_create(field, &mut staged_ids),
-                "webPixelUpdate" => self.web_pixel_update(
+                "webPixelUpdate" => self.web_pixel_update(field, false, &mut staged_ids),
+                "webPixelDelete" => self.delete_online_store_integration(
                     field,
-                    query.contains("WebPixelUpdateValidationLocalRuntime"),
+                    WEB_PIXEL_DELETE_SPEC,
                     &mut staged_ids,
                 ),
                 "serverPixelCreate" => self.server_pixel_create(field, &mut staged_ids),
+                "serverPixelDelete" => self.server_pixel_delete(field, &mut staged_ids),
                 "eventBridgeServerPixelUpdate" => self.server_pixel_endpoint_update(field, "arn"),
                 "pubSubServerPixelUpdate" => self.server_pixel_endpoint_update(field, "pubsub"),
                 "storefrontAccessTokenCreate" => {
                     self.storefront_access_token_create(field, request, &mut staged_ids)
                 }
+                "storefrontAccessTokenDelete" => self.delete_online_store_integration(
+                    field,
+                    STOREFRONT_ACCESS_TOKEN_DELETE_SPEC,
+                    &mut staged_ids,
+                ),
+                "mobilePlatformApplicationDelete" => self.delete_online_store_integration(
+                    field,
+                    MOBILE_PLATFORM_APPLICATION_DELETE_SPEC,
+                    &mut staged_ids,
+                ),
                 _ => Value::Null,
             };
             data.insert(field.response_key.clone(), value);
@@ -1474,6 +1556,59 @@ impl DraftProxy {
         );
         self.next_synthetic_id += 1;
         id
+    }
+
+    fn delete_online_store_integration(
+        &mut self,
+        field: &RootFieldSelection,
+        spec: OnlineStoreIntegrationDeleteSpec,
+        staged_ids: &mut Vec<String>,
+    ) -> Value {
+        let supplied_id =
+            online_store_delete_id_arg(field, spec.input_object_field).unwrap_or_default();
+        let mut deleted_id = Value::Null;
+        let mut user_errors = Vec::new();
+
+        if shopify_gid_resource_type(&supplied_id) != Some(spec.expected_type) {
+            user_errors.push(online_store_delete_user_error(
+                spec.user_error_typename,
+                "INVALID",
+                &[online_store_delete_id_field_path(spec.input_object_field)],
+                &format!("{} id is invalid", spec.resource_label),
+            ));
+        } else if self
+            .store
+            .staged
+            .online_store_integrations
+            .remove(&supplied_id)
+            .is_some()
+        {
+            deleted_id = json!(supplied_id);
+            staged_ids.push(
+                deleted_id
+                    .as_str()
+                    .expect("deleted integration id is a string")
+                    .to_string(),
+            );
+        } else {
+            user_errors.push(online_store_delete_user_error(
+                spec.user_error_typename,
+                "NOT_FOUND",
+                &[online_store_delete_id_field_path(spec.input_object_field)],
+                &format!("{} not found", spec.resource_label),
+            ));
+        }
+
+        selected_payload_json(&field.selection, |selection| {
+            match selection.name.as_str() {
+                name if name == spec.deleted_id_field => Some(deleted_id.clone()),
+                "userErrors" => Some(selected_online_store_user_errors(
+                    &user_errors,
+                    &selection.selection,
+                )),
+                _ => None,
+            }
+        })
     }
 
     pub(in crate::proxy) fn mobile_platform_application_create(
@@ -2232,6 +2367,47 @@ impl DraftProxy {
             &json!({"serverPixel": record, "userErrors": []}),
             &field.selection,
         )
+    }
+
+    pub(in crate::proxy) fn server_pixel_delete(
+        &mut self,
+        field: &RootFieldSelection,
+        staged_ids: &mut Vec<String>,
+    ) -> Value {
+        let Some(id) = self
+            .store
+            .staged
+            .online_store_integrations
+            .iter()
+            .find(|(_, record)| is_server_pixel_record(record))
+            .map(|(id, _)| id.clone())
+        else {
+            return selected_payload_json(&field.selection, |selection| {
+                match selection.name.as_str() {
+                    "deletedServerPixelId" => Some(Value::Null),
+                    "userErrors" => Some(selected_online_store_user_errors(
+                        &[online_store_delete_user_error(
+                            None,
+                            "NOT_FOUND",
+                            &[json!(["id"])],
+                            "Server pixel not found",
+                        )],
+                        &selection.selection,
+                    )),
+                    _ => None,
+                }
+            });
+        };
+
+        self.store.staged.online_store_integrations.remove(&id);
+        staged_ids.push(id.clone());
+        selected_payload_json(&field.selection, |selection| {
+            match selection.name.as_str() {
+                "deletedServerPixelId" => Some(json!(id)),
+                "userErrors" => Some(selected_online_store_user_errors(&[], &selection.selection)),
+                _ => None,
+            }
+        })
     }
 
     pub(in crate::proxy) fn server_pixel_endpoint_update(
