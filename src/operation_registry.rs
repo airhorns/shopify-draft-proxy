@@ -804,6 +804,7 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_query("marketLocalizableResources", CapabilityDomain::Markets),
     local_mutation("marketCreate", CapabilityDomain::Markets),
     local_mutation("marketUpdate", CapabilityDomain::Markets),
+    local_mutation("marketDelete", CapabilityDomain::Markets),
     local_mutation("catalogCreate", CapabilityDomain::Markets),
     local_mutation("catalogUpdate", CapabilityDomain::Markets),
     local_mutation("catalogContextUpdate", CapabilityDomain::Markets),

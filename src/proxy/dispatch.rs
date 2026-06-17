@@ -1481,6 +1481,12 @@ impl DraftProxy {
                     {
                         return self.web_presence_helper_query(&query);
                     }
+                    // A market-localizable resource read carries request-scoped
+                    // staging (content/digest hydration), so it keeps its
+                    // dedicated handler. Every other markets-domain read — even
+                    // when it selects several entity roots at once (market +
+                    // catalog + webPresences) — projects each field from its
+                    // staged store via the unified overlay handler.
                     let data = if operation.root_fields.iter().any(|field| {
                         matches!(
                             field.as_str(),
@@ -1490,16 +1496,8 @@ impl DraftProxy {
                         )
                     }) {
                         self.market_localization_query_data(&fields, request)
-                    } else if operation.root_fields.iter().any(|field| {
-                        matches!(field.as_str(), "priceList" | "priceLists")
-                    }) {
-                        self.price_list_query_data(&fields)
-                    } else if operation.root_fields.iter().any(|field| {
-                        matches!(field.as_str(), "catalog" | "catalogs")
-                    }) {
-                        self.catalog_query_data(&fields)
                     } else {
-                        self.market_query_data(&fields)
+                        self.markets_overlay_query_data(&fields)
                     };
                     ok_json(json!({ "data": data }))
                 } else {

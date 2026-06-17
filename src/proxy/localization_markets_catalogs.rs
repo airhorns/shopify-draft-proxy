@@ -505,6 +505,92 @@ impl DraftProxy {
         Value::Object(data)
     }
 
+    /// Unified Markets overlay read. A single GraphQL query can select several
+    /// markets-domain root fields at once (e.g. the delete-cascade downstream
+    /// read selects `webPresences`, `market`, and `catalog` together). Routing
+    /// the whole operation to one entity-specific handler would null every field
+    /// that handler doesn't own, so each root field is projected independently
+    /// from its staged store here. This is a superset of the per-entity
+    /// `market_query_data`/`catalog_query_data`/`price_list_query_data`/
+    /// `web_presence_helper_query` projections.
+    pub(in crate::proxy) fn markets_overlay_query_data(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "market" => {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    self.store
+                        .staged
+                        .markets
+                        .get(&id)
+                        .map(|market| selected_json(market, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "catalog" => {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    self.store
+                        .staged
+                        .catalogs
+                        .get(&id)
+                        .map(|catalog| selected_json(catalog, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "catalogs" => {
+                    let nodes = self
+                        .store
+                        .staged
+                        .catalogs
+                        .values()
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    selected_json(&json!({"nodes": nodes}), &field.selection)
+                }
+                "priceList" => {
+                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                    self.store
+                        .staged
+                        .price_lists
+                        .get(&id)
+                        .map(|price_list| selected_json(price_list, &field.selection))
+                        .unwrap_or(Value::Null)
+                }
+                "priceLists" => {
+                    let nodes = self
+                        .store
+                        .staged
+                        .price_lists
+                        .values()
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    selected_json(&json!({"nodes": nodes}), &field.selection)
+                }
+                "webPresences" => {
+                    let nodes = self
+                        .store
+                        .staged
+                        .web_presences
+                        .values()
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    selected_json(
+                        &json!({"nodes": nodes, "edges": [], "pageInfo": empty_page_info()}),
+                        &field.selection,
+                    )
+                }
+                "marketLocalizableResources" | "marketLocalizableResourcesByIds" => selected_json(
+                    &json!({"edges": [], "nodes": [], "pageInfo": empty_page_info()}),
+                    &field.selection,
+                ),
+                _ => Value::Null,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
     pub(in crate::proxy) fn market_create_mutation_data(
         &mut self,
         fields: &[RootFieldSelection],
@@ -3293,7 +3379,24 @@ impl DraftProxy {
         }
         for record in &web_presence_records {
             if let Some(id) = record_gid(record, "gid://shopify/MarketWebPresence/") {
-                self.store.staged.web_presences.insert(id, record.clone());
+                // A web presence can surface both as a full top-level node (with
+                // its `markets` connection) and as a sparse `{id}` pointer nested
+                // under `market.webPresences`. Keep the richer projection so a
+                // relationship stub never clobbers the markets connection the
+                // delete cascade relies on to detach the deleted market.
+                let richer = self
+                    .store
+                    .staged
+                    .web_presences
+                    .get(&id)
+                    .map(|existing| {
+                        record.as_object().map_or(0, serde_json::Map::len)
+                            > existing.as_object().map_or(0, serde_json::Map::len)
+                    })
+                    .unwrap_or(true);
+                if richer {
+                    self.store.staged.web_presences.insert(id, record.clone());
+                }
             }
         }
         // Products / variants (fixed-price preflight, localizable resources).
