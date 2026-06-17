@@ -1310,6 +1310,508 @@ fn inventory_adjust_quantities_stages_levels_logs_and_reads_back_by_root_field()
     assert_eq!(log["entries"][0]["status"], json!("staged"));
 }
 
+fn inventory_activation_base_product() -> ProductRecord {
+    ProductRecord {
+        id: "gid://shopify/Product/1".to_string(),
+        created_at: "2024-01-01T00:00:00.000Z".to_string(),
+        updated_at: "2024-01-01T00:00:00.000Z".to_string(),
+        title: "Seeded inventory product".to_string(),
+        handle: "seeded-inventory-product".to_string(),
+        status: "ACTIVE".to_string(),
+        description_html: String::new(),
+        vendor: String::new(),
+        product_type: String::new(),
+        tags: Vec::new(),
+        template_suffix: String::new(),
+        seo_title: String::new(),
+        seo_description: String::new(),
+        ..ProductRecord::default()
+    }
+}
+
+fn inventory_level_id_for_test(inventory_item_id: &str, location_id: &str) -> String {
+    let item_tail = inventory_item_id
+        .rsplit('/')
+        .next()
+        .unwrap_or(inventory_item_id)
+        .split('?')
+        .next()
+        .unwrap_or(inventory_item_id);
+    let location_tail = location_id
+        .rsplit('/')
+        .next()
+        .unwrap_or(location_id)
+        .split('?')
+        .next()
+        .unwrap_or(location_id);
+    format!(
+        "gid://shopify/InventoryLevel/{item_tail}-{location_tail}?inventory_item_id={inventory_item_id}"
+    )
+}
+
+#[test]
+fn inventory_activation_roots_stage_locally_and_read_inactive_levels() {
+    use shopify_draft_proxy::proxy::UnsupportedMutationMode;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(UnsupportedMutationMode::Passthrough),
+    )
+    .with_base_products(vec![inventory_activation_base_product()])
+    .with_upstream_transport({
+        let calls = calls.clone();
+        move |_request| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            shopify_draft_proxy::proxy::Response {
+                status: 599,
+                headers: Default::default(),
+                body: json!({"unexpectedUpstream": true}),
+            }
+        }
+    });
+
+    let variant = create_legacy_variant(
+        &mut proxy,
+        "gid://shopify/Product/1",
+        "INV-ACTIVATE",
+        "10.00",
+    );
+    let variant_id = variant["id"].as_str().unwrap().to_string();
+    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
+    let source_location_id = "gid://shopify/Location/1";
+    let second_location_id = "gid://shopify/Location/2";
+    let source_level_id = inventory_level_id_for_test(&inventory_item_id, source_location_id);
+
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) { userErrors { field message code } }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": source_location_id, "quantity": 5}
+        ]}}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ActivateInventoryLevel($inventoryItemId: ID!, $locationId: ID!) {
+          inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId) {
+            inventoryLevel {
+              id
+              isActive
+              location { id name }
+              quantities(names: ["available", "on_hand", "incoming"]) { name quantity updatedAt }
+              item {
+                id
+                tracked
+                variant { id inventoryQuantity product { id totalInventory tracksInventory } }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id, "locationId": second_location_id}),
+    ));
+    assert_eq!(
+        activate.body["data"]["inventoryActivate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        activate.body["data"]["inventoryActivate"]["inventoryLevel"]["isActive"],
+        json!(true)
+    );
+    assert_eq!(
+        activate.body["data"]["inventoryActivate"]["inventoryLevel"]["quantities"],
+        json!([
+            {"name": "available", "quantity": 0, "updatedAt": "2024-01-01T00:00:01.000Z"},
+            {"name": "on_hand", "quantity": 0, "updatedAt": null},
+            {"name": "incoming", "quantity": 0, "updatedAt": null}
+        ])
+    );
+    assert_eq!(
+        activate.body["data"]["inventoryActivate"]["inventoryLevel"]["item"]["variant"]
+            ["inventoryQuantity"],
+        json!(5)
+    );
+
+    let deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DeactivateInventoryLevel($inventoryLevelId: ID!) {
+          inventoryDeactivate(inventoryLevelId: $inventoryLevelId) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"inventoryLevelId": source_level_id}),
+    ));
+    assert_eq!(
+        deactivate.body["data"]["inventoryDeactivate"]["userErrors"],
+        json!([])
+    );
+
+    let inactive_read = proxy.process_request(json_graphql_request(
+        r#"
+        query InactiveInventoryRead($inventoryItemId: ID!, $inventoryLevelId: ID!) {
+          inventoryItem(id: $inventoryItemId) {
+            inventoryLevels(first: 5) { nodes { location { id } isActive } }
+            allLevels: inventoryLevels(first: 5, includeInactive: true) { nodes { location { id } isActive } }
+          }
+          inventoryLevel(id: $inventoryLevelId) {
+            id
+            isActive
+            quantities(names: ["available", "incoming"]) { name quantity }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id, "inventoryLevelId": source_level_id}),
+    ));
+    assert_eq!(
+        inactive_read.body["data"]["inventoryItem"]["inventoryLevels"]["nodes"],
+        json!([{"location": {"id": second_location_id}, "isActive": true}])
+    );
+    assert_eq!(
+        inactive_read.body["data"]["inventoryItem"]["allLevels"]["nodes"],
+        json!([
+            {"location": {"id": source_location_id}, "isActive": false},
+            {"location": {"id": second_location_id}, "isActive": true}
+        ])
+    );
+    assert_eq!(
+        inactive_read.body["data"]["inventoryLevel"],
+        json!({
+            "id": source_level_id,
+            "isActive": false,
+            "quantities": [
+                {"name": "available", "quantity": 5},
+                {"name": "incoming", "quantity": 0}
+            ]
+        })
+    );
+
+    let bulk = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkToggleActivation($inventoryItemId: ID!, $updates: [InventoryBulkToggleActivationInput!]!) {
+          inventoryBulkToggleActivation(inventoryItemId: $inventoryItemId, inventoryItemUpdates: $updates) {
+            inventoryItem {
+              id
+              inventoryLevels(first: 5) { nodes { location { id } isActive } }
+            }
+            inventoryLevels {
+              location { id }
+              quantities(names: ["available", "on_hand", "incoming"]) { name quantity }
+              item { id tracked }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id, "updates": [
+            {"locationId": source_location_id, "activate": true},
+            {"locationId": second_location_id, "activate": false}
+        ]}),
+    ));
+    assert_eq!(
+        bulk.body["data"]["inventoryBulkToggleActivation"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        bulk.body["data"]["inventoryBulkToggleActivation"]["inventoryItem"]["inventoryLevels"]
+            ["nodes"],
+        json!([{"location": {"id": source_location_id}, "isActive": true}])
+    );
+    assert_eq!(
+        bulk.body["data"]["inventoryBulkToggleActivation"]["inventoryLevels"][0]["quantities"],
+        json!([
+            {"name": "available", "quantity": 5},
+            {"name": "on_hand", "quantity": 5},
+            {"name": "incoming", "quantity": 0}
+        ])
+    );
+
+    let item_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateInventoryItem($id: ID!, $input: InventoryItemInput!) {
+          inventoryItemUpdate(id: $id, input: $input) {
+            inventoryItem {
+              id
+              tracked
+              requiresShipping
+              countryCodeOfOrigin
+              provinceCodeOfOrigin
+              harmonizedSystemCode
+              measurement { weight { value unit } }
+              countryHarmonizedSystemCodes { countryCode harmonizedSystemCode }
+              variant { id inventoryQuantity }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": inventory_item_id, "input": {
+            "tracked": false,
+            "requiresShipping": false,
+            "cost": "12.50",
+            "countryCodeOfOrigin": "CA",
+            "provinceCodeOfOrigin": "ON",
+            "harmonizedSystemCode": "1234.56",
+            "measurement": {"weight": {"value": 2.5, "unit": "KILOGRAMS"}},
+            "countryHarmonizedSystemCodes": [{"countryCode": "US", "harmonizedSystemCode": "654321"}]
+        }}),
+    ));
+    assert_eq!(
+        item_update.body["data"]["inventoryItemUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        item_update.body["data"]["inventoryItemUpdate"]["inventoryItem"],
+        json!({
+            "id": inventory_item_id,
+            "tracked": false,
+            "requiresShipping": false,
+            "countryCodeOfOrigin": "CA",
+            "provinceCodeOfOrigin": "ON",
+            "harmonizedSystemCode": "123456",
+            "measurement": {"weight": {"value": 2.5, "unit": "KILOGRAMS"}},
+            "countryHarmonizedSystemCodes": [{"countryCode": "US", "harmonizedSystemCode": "654321"}],
+            "variant": {"id": variant_id, "inventoryQuantity": 5}
+        })
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryItemUpdateDownstream($inventoryItemId: ID!) {
+          inventoryItem(id: $inventoryItemId) { tracked requiresShipping harmonizedSystemCode }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id}),
+    ));
+    assert_eq!(
+        downstream.body["data"]["inventoryItem"],
+        json!({"tracked": false, "requiresShipping": false, "harmonizedSystemCode": "123456"})
+    );
+    let variant_downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryItemUpdateVariantDownstream($variantId: ID!) {
+          productVariant(id: $variantId) { inventoryItem { tracked requiresShipping harmonizedSystemCode } }
+        }
+        "#,
+        json!({"variantId": variant_id}),
+    ));
+    assert_eq!(
+        variant_downstream.body["data"]["productVariant"]["inventoryItem"],
+        json!({"tracked": false, "requiresShipping": false, "harmonizedSystemCode": "123456"})
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn inventory_activation_and_item_update_validation_errors_are_local() {
+    let mut proxy = snapshot_proxy().with_base_products(vec![inventory_activation_base_product()]);
+    let variant = create_legacy_variant(
+        &mut proxy,
+        "gid://shopify/Product/1",
+        "INV-VALIDATION",
+        "10.00",
+    );
+    let inventory_item_id = variant["inventoryItem"]["id"].as_str().unwrap().to_string();
+    let location_id = "gid://shopify/Location/1";
+    let level_id = inventory_level_id_for_test(&inventory_item_id, location_id);
+
+    let seed = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) { userErrors { field message code } }
+        }
+        "#,
+        json!({"input": {"name": "available", "reason": "correction", "ignoreCompareQuantity": true, "quantities": [
+            {"inventoryItemId": inventory_item_id, "locationId": location_id, "quantity": 1}
+        ]}}),
+    ));
+    assert_eq!(
+        seed.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
+
+    let invalid_activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidActivate($inventoryItemId: ID!, $locationId: ID!, $available: Int) {
+          inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: $available) {
+            inventoryLevel { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id, "locationId": "gid://shopify/Location/999999999999", "available": -1}),
+    ));
+    let activate_errors = invalid_activate.body["data"]["inventoryActivate"]["userErrors"]
+        .as_array()
+        .unwrap();
+    assert!(activate_errors.contains(&json!({
+        "field": ["available"],
+        "message": "Available must be greater than or equal to 0",
+        "code": "NEGATIVE"
+    })));
+    assert!(activate_errors.contains(&json!({
+        "field": ["locationId"],
+        "message": "The product couldn't be stocked because the location wasn't found.",
+        "code": "NOT_FOUND"
+    })));
+
+    let duplicate_activate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DuplicateActivate($inventoryItemId: ID!, $locationId: ID!) {
+          inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId, available: 1) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id, "locationId": location_id}),
+    ));
+    assert_eq!(
+        duplicate_activate.body["data"]["inventoryActivate"]["userErrors"],
+        json!([{
+            "field": ["available"],
+            "message": "Not allowed to set available quantity when the item is already active at the location."
+        }])
+    );
+
+    let last_location_deactivate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation LastLocationDeactivate($inventoryLevelId: ID!) {
+          inventoryDeactivate(inventoryLevelId: $inventoryLevelId) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"inventoryLevelId": level_id}),
+    ));
+    assert_eq!(
+        last_location_deactivate.body["data"]["inventoryDeactivate"]["userErrors"][0]["code"],
+        json!("CANNOT_DEACTIVATE_LAST_LOCATION")
+    );
+
+    let invalid_bulk = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidBulk($inventoryItemId: ID!, $updates: [InventoryBulkToggleActivationInput!]!) {
+          inventoryBulkToggleActivation(inventoryItemId: $inventoryItemId, inventoryItemUpdates: $updates) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"inventoryItemId": inventory_item_id, "updates": [
+            {"locationId": location_id, "activate": false}
+        ]}),
+    ));
+    assert_eq!(
+        invalid_bulk.body["data"]["inventoryBulkToggleActivation"]["userErrors"][0]["code"],
+        json!("CANNOT_DEACTIVATE_FROM_ONLY_LOCATION")
+    );
+
+    let invalid_item_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidInventoryItemUpdate($id: ID!, $input: InventoryItemInput!) {
+          inventoryItemUpdate(id: $id, input: $input) {
+            inventoryItem { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": inventory_item_id, "input": {
+            "cost": "-5.00",
+            "countryCodeOfOrigin": "ZZZ",
+            "provinceCodeOfOrigin": "ONTARIO",
+            "harmonizedSystemCode": "abc",
+            "measurement": {"weight": {"value": -1, "unit": "KILOGRAMS"}},
+            "countryHarmonizedSystemCodes": [
+                {"countryCode": "US", "harmonizedSystemCode": "123456"},
+                {"countryCode": "US", "harmonizedSystemCode": "654321"}
+            ]
+        }}),
+    ));
+    let item_errors = invalid_item_update.body["data"]["inventoryItemUpdate"]["userErrors"]
+        .as_array()
+        .unwrap();
+    assert!(item_errors.contains(&json!({
+        "field": ["input", "cost"],
+        "message": "Cost must be greater than or equal to 0",
+        "code": "INVALID"
+    })));
+    assert!(item_errors.contains(&json!({
+        "field": ["input", "measurement", "weight"],
+        "message": "Measurement weight value -1 kg must be >= 0 kg",
+        "code": "INVALID"
+    })));
+    assert!(item_errors.contains(&json!({
+        "field": ["input", "countryCodeOfOrigin"],
+        "message": "Country code of origin is invalid",
+        "code": "INVALID"
+    })));
+    assert!(item_errors.contains(&json!({
+        "field": ["input", "provinceCodeOfOrigin"],
+        "message": "Province code of origin is invalid",
+        "code": "INVALID"
+    })));
+    assert!(item_errors.contains(&json!({
+        "field": ["input", "harmonizedSystemCode"],
+        "message": "Harmonized system code must be a number between six and thirteen digits",
+        "code": "INVALID"
+    })));
+    assert!(item_errors.contains(&json!({
+        "field": ["input", "countryHarmonizedSystemCodes", "1", "countryCode"],
+        "message": "Country code has already been taken",
+        "code": "TAKEN"
+    })));
+
+    let invalid_unit = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidWeightUnit($id: ID!, $input: InventoryItemInput!) {
+          inventoryItemUpdate(id: $id, input: $input) {
+            inventoryItem { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": inventory_item_id, "input": {
+            "measurement": {"weight": {"value": 1, "unit": "STONE"}}
+        }}),
+    ));
+    assert_eq!(
+        invalid_unit.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+
+    let missing_item = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingInventoryItem($id: ID!, $input: InventoryItemInput!) {
+          inventoryItemUpdate(id: $id, input: $input) {
+            inventoryItem { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": "gid://shopify/InventoryItem/999999999999", "input": {"tracked": true}}),
+    ));
+    assert_eq!(
+        missing_item.body["data"]["inventoryItemUpdate"]["inventoryItem"],
+        Value::Null
+    );
+    assert_eq!(
+        missing_item.body["data"]["inventoryItemUpdate"]["userErrors"],
+        json!([{
+            "field": ["id"],
+            "message": "The product couldn't be updated because it does not exist."
+        }])
+    );
+}
+
 #[test]
 fn inventory_quantity_name_validation_rejects_invalid_names_without_staging() {
     let mut proxy = snapshot_proxy();

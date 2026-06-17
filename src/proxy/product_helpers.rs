@@ -369,6 +369,10 @@ impl DraftProxy {
                 if let Some(product) = node.get("product").and_then(product_state_from_json) {
                     self.store.stage_observed_product(product);
                 }
+            } else if id.starts_with("gid://shopify/InventoryItem/") {
+                self.observe_inventory_item_node(&node);
+            } else if id.starts_with("gid://shopify/InventoryLevel/") {
+                self.observe_inventory_level_node(&node);
             }
         }
     }
@@ -891,7 +895,11 @@ pub(in crate::proxy) fn product_variant_json(
         )),
         "product" => Some(match product {
             Some(product) => product_json_with_variants(product, &[], &selection.selection),
-            None => Value::Null,
+            None => variant
+                .extra_fields
+                .get("product")
+                .map(|value| product_variant_extra_field_json(value, &selection.selection))
+                .unwrap_or(Value::Null),
         }),
         _ => variant
             .extra_fields
@@ -961,7 +969,10 @@ fn observed_product_variant_json(
     })
 }
 
-fn product_variant_extra_field_json(value: &Value, selections: &[SelectedField]) -> Value {
+pub(in crate::proxy) fn product_variant_extra_field_json(
+    value: &Value,
+    selections: &[SelectedField],
+) -> Value {
     if selections.is_empty() || value.is_null() {
         value.clone()
     } else if let Some(values) = value.as_array() {
@@ -1473,7 +1484,7 @@ pub(in crate::proxy) fn product_variant_state_json(variant: &ProductVariantRecor
     value
 }
 
-fn product_variant_state_extra_fields(
+pub(in crate::proxy) fn product_variant_state_extra_fields(
     value: &Value,
     known_fields: &[&str],
 ) -> BTreeMap<String, Value> {

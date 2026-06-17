@@ -389,6 +389,10 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("inventoryAdjustQuantities", CapabilityDomain::Products),
     local_mutation("inventorySetQuantities", CapabilityDomain::Products),
     local_mutation("inventoryMoveQuantities", CapabilityDomain::Products),
+    local_mutation("inventoryActivate", CapabilityDomain::Products),
+    local_mutation("inventoryDeactivate", CapabilityDomain::Products),
+    local_mutation("inventoryBulkToggleActivation", CapabilityDomain::Products),
+    local_mutation("inventoryItemUpdate", CapabilityDomain::Products),
     local_mutation("inventoryTransferCreate", CapabilityDomain::Products),
     local_mutation(
         "inventoryTransferCreateAsReadyToShip",

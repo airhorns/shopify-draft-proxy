@@ -1970,22 +1970,41 @@ pub(in crate::proxy) fn inventory_empty_connection(selection: &[SelectedField]) 
     )
 }
 
+pub(in crate::proxy) struct InventoryLevelViewState<'a> {
+    pub inventory_level_ids: &'a BTreeMap<(String, String), String>,
+    pub inactive_levels: &'a BTreeSet<(String, String)>,
+    pub quantity_updated_at: &'a BTreeMap<(String, String, String), String>,
+    pub locations: Option<&'a BTreeMap<String, Value>>,
+}
+
 pub(in crate::proxy) fn inventory_levels_connection_selected_json(
     inventory_item_id: &str,
     levels: &[(String, BTreeMap<String, i64>)],
-    quantity_updated_at: &BTreeMap<(String, String, String), String>,
+    view_state: &InventoryLevelViewState<'_>,
     arguments: &BTreeMap<String, ResolvedValue>,
     selections: &[SelectedField],
-    locations: Option<&BTreeMap<String, Value>>,
 ) -> Value {
+    let include_inactive = matches!(
+        arguments.get("includeInactive"),
+        Some(ResolvedValue::Bool(true))
+    );
+    let visible_levels = levels
+        .iter()
+        .filter(|(location_id, _)| {
+            include_inactive
+                || !view_state
+                    .inactive_levels
+                    .contains(&(inventory_item_id.to_string(), location_id.clone()))
+        })
+        .collect::<Vec<_>>();
     let first = resolved_int_field(arguments, "first")
         .and_then(|value| usize::try_from(value).ok())
-        .unwrap_or(levels.len());
+        .unwrap_or(visible_levels.len());
     let mut fields = serde_json::Map::new();
     for selection in selections {
         let value = match selection.name.as_str() {
             "nodes" => Some(Value::Array(
-                levels
+                visible_levels
                     .iter()
                     .take(first)
                     .map(|(location_id, quantities)| {
@@ -1993,9 +2012,8 @@ pub(in crate::proxy) fn inventory_levels_connection_selected_json(
                             inventory_item_id,
                             location_id,
                             quantities,
-                            quantity_updated_at,
+                            view_state,
                             &selection.selection,
-                            locations,
                         )
                     })
                     .collect(),
@@ -2022,21 +2040,31 @@ pub(in crate::proxy) fn inventory_level_selected_json(
     inventory_item_id: &str,
     location_id: &str,
     quantities: &BTreeMap<String, i64>,
-    quantity_updated_at: &BTreeMap<(String, String, String), String>,
+    view_state: &InventoryLevelViewState<'_>,
     selections: &[SelectedField],
-    locations: Option<&BTreeMap<String, Value>>,
 ) -> Value {
+    let is_active = !view_state
+        .inactive_levels
+        .contains(&(inventory_item_id.to_string(), location_id.to_string()));
     let mut fields = serde_json::Map::new();
     for selection in selections {
         let value = match selection.name.as_str() {
-            "id" => Some(json!(inventory_level_id(inventory_item_id, location_id))),
-            "isActive" => Some(json!(true)),
+            "id" => Some(json!(view_state
+                .inventory_level_ids
+                .get(&(inventory_item_id.to_string(), location_id.to_string()))
+                .cloned()
+                .unwrap_or_else(|| inventory_level_id(
+                    inventory_item_id,
+                    location_id
+                )))),
+            "isActive" => Some(json!(is_active)),
             "item" => Some(selected_json(
                 &json!({ "id": inventory_item_id }),
                 &selection.selection,
             )),
             "location" => Some(
-                locations
+                view_state
+                    .locations
                     .and_then(|locations| locations.get(location_id))
                     .map(|location| selected_json(location, &selection.selection))
                     .unwrap_or_else(|| {
@@ -2053,7 +2081,8 @@ pub(in crate::proxy) fn inventory_level_selected_json(
                 inventory_quantity_names(&selection.arguments)
                     .into_iter()
                     .map(|name| {
-                        let updated_at = quantity_updated_at
+                        let updated_at = view_state
+                            .quantity_updated_at
                             .get(&(
                                 inventory_item_id.to_string(),
                                 location_id.to_string(),
