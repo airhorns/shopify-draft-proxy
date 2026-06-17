@@ -3,21 +3,20 @@
   "operationNames": ["orderCreate", "orderUpdate", "order", "orders", "ordersCount"],
   "scenarioStatus": "captured",
   "assertionKinds": [
+    "payload-shape",
     "runtime-staging",
     "read-after-write",
     "downstream-read-parity",
     "mutation-log-raw-body",
-    "no-upstream-passthrough",
-    "local-runtime-backed"
+    "no-upstream-passthrough"
   ],
   "liveCaptureFiles": [
-    "fixtures/conformance/local-runtime/2026-04/orders/orderUpdate-snapshot-staging.json",
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/order-update-parity.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderUpdate-snapshot-staging.json"
   ],
   "runtimeTestFiles": ["tests/graphql_routes/orders.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/orderUpdate-snapshot-staging-create.graphql",
-    "variablesPath": "config/parity-requests/orders/orderUpdate-snapshot-staging-create.variables.json",
+    "variablesCapturePath": "$.operations.create.variables",
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
@@ -27,13 +26,53 @@
     "targets": [
       {
         "name": "create-baseline-order",
-        "capturePath": "$.expected.create",
-        "proxyPath": "$"
+        "capturePath": "$.operations.create.response.payload.data.orderCreate",
+        "proxyPath": "$.data.orderCreate",
+        "selectedPaths": [
+          "$.order.email",
+          "$.order.note",
+          "$.order.tags",
+          "$.order.lineItems.nodes[0].title",
+          "$.order.lineItems.nodes[0].quantity",
+          "$.userErrors"
+        ]
       },
       {
         "name": "order-update-stages-simple-fields",
-        "capturePath": "$.expected.update",
-        "proxyPath": "$",
+        "capturePath": "$.operations.update.response.payload.data.orderUpdate",
+        "proxyPath": "$.data.orderUpdate",
+        "selectedPaths": [
+          "$.order.email",
+          "$.order.phone",
+          "$.order.poNumber",
+          "$.order.note",
+          "$.order.tags",
+          "$.order.customer.email",
+          "$.order.customAttributes",
+          "$.order.shippingAddress.firstName",
+          "$.order.shippingAddress.lastName",
+          "$.order.shippingAddress.address1",
+          "$.order.shippingAddress.address2",
+          "$.order.shippingAddress.company",
+          "$.order.shippingAddress.city",
+          "$.order.shippingAddress.province",
+          "$.order.shippingAddress.provinceCode",
+          "$.order.shippingAddress.country",
+          "$.order.shippingAddress.countryCodeV2",
+          "$.order.shippingAddress.zip",
+          "$.order.shippingAddress.phone",
+          "$.order.gift.namespace",
+          "$.order.gift.key",
+          "$.order.gift.type",
+          "$.order.gift.value",
+          "$.order.metafields.nodes[0].namespace",
+          "$.order.metafields.nodes[0].key",
+          "$.order.metafields.nodes[0].type",
+          "$.order.metafields.nodes[0].value",
+          "$.order.lineItems.nodes[0].title",
+          "$.order.lineItems.nodes[0].quantity",
+          "$.userErrors"
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/orders/orderUpdate-snapshot-staging.graphql",
           "variables": {
@@ -41,39 +80,30 @@
               "id": {
                 "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
               },
-              "email": "order-update-snapshot-after@example.com",
-              "phone": "+16135551111",
-              "poNumber": "PO-SNAPSHOT-123",
-              "note": "order update snapshot after",
-              "tags": ["snapshot-after", "vip"],
-              "customAttributes": [
-                {
-                  "key": "source",
-                  "value": "snapshot-staging"
-                }
-              ],
-              "shippingAddress": {
-                "firstName": "Ada",
-                "lastName": "Lovelace",
-                "address1": "190 MacLaren",
-                "address2": "Suite 200",
-                "company": "Analytical Engines Ltd",
-                "city": "Sudbury",
-                "province": "Ontario",
-                "provinceCode": "ON",
-                "country": "Canada",
-                "countryCode": "CA",
-                "zip": "K2P0V6",
-                "phone": "+16135552222"
+              "email": {
+                "fromCapturePath": "$.operations.update.variables.input.email"
               },
-              "metafields": [
-                {
-                  "namespace": "custom",
-                  "key": "gift",
-                  "type": "single_line_text_field",
-                  "value": "wrapped"
-                }
-              ]
+              "phone": {
+                "fromCapturePath": "$.operations.update.variables.input.phone"
+              },
+              "poNumber": {
+                "fromCapturePath": "$.operations.update.variables.input.poNumber"
+              },
+              "note": {
+                "fromCapturePath": "$.operations.update.variables.input.note"
+              },
+              "tags": {
+                "fromCapturePath": "$.operations.update.variables.input.tags"
+              },
+              "customAttributes": {
+                "fromCapturePath": "$.operations.update.variables.input.customAttributes"
+              },
+              "shippingAddress": {
+                "fromCapturePath": "$.operations.update.variables.input.shippingAddress"
+              },
+              "metafields": {
+                "fromCapturePath": "$.operations.update.variables.input.metafields"
+              }
             }
           },
           "apiVersion": "2026-04"
@@ -81,24 +111,48 @@
       },
       {
         "name": "downstream-order-reads-reflect-update",
-        "capturePath": "$.expected.downstreamRead",
-        "proxyPath": "$",
+        "capturePath": "$.operations.downstreamRead.response.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.byId.email",
+          "$.byId.phone",
+          "$.byId.poNumber",
+          "$.byId.note",
+          "$.byId.tags",
+          "$.byId.customer.email",
+          "$.byId.customAttributes",
+          "$.byId.shippingAddress.provinceCode",
+          "$.byId.shippingAddress.countryCodeV2",
+          "$.byId.shippingAddress.phone",
+          "$.byId.gift.namespace",
+          "$.byId.gift.key",
+          "$.byId.gift.type",
+          "$.byId.gift.value",
+          "$.byId.metafields.nodes[0].namespace",
+          "$.byId.metafields.nodes[0].key",
+          "$.byId.metafields.nodes[0].type",
+          "$.byId.metafields.nodes[0].value",
+          "$.byId.lineItems.nodes[0].title",
+          "$.byId.lineItems.nodes[0].quantity",
+          "$.orders.nodes[0].email",
+          "$.orders.nodes[0].note",
+          "$.orders.nodes[0].tags",
+          "$.ordersCount"
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/orders/orderUpdate-snapshot-staging-read.graphql",
           "variables": {
             "id": {
               "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "query": {
+              "fromCapturePath": "$.operations.downstreamRead.variables.query"
             }
           },
           "apiVersion": "2026-04"
         }
-      },
-      {
-        "name": "mutation-log-retains-raw-create-and-update",
-        "capturePath": "$.expected.logEntries",
-        "proxyLogPath": "$.entries"
       }
     ]
   },
-  "notes": "Executable local-runtime snapshot staging proof for orderUpdate over a public orderCreate setup. The scenario stages note, tags, customAttributes, email, phone, poNumber, shippingAddress, and an order-scoped metafield; then it verifies immediate order(id:), orders, and ordersCount read-after-write plus raw mutation-log retention. The existing live Shopify fixture remains linked as note/tags happy-path evidence, while this local-runtime fixture intentionally performs no Shopify writes."
+  "notes": "Live Shopify capture for public orderCreate -> orderUpdate -> downstream order/order connection/ordersCount behavior. The capture script polls the post-update order email search because Shopify search indexing can lag immediately after orderUpdate. Shopify updates Order.email but preserves the nested Customer.email from the original order customer. The proxy replay uses the same public GraphQL request surface in snapshot-style local staging without runtime Shopify writes; runtime tests cover raw mutation-log retention and synthetic identity/line-item preservation."
 }

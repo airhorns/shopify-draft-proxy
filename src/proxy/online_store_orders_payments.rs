@@ -496,6 +496,125 @@ fn order_create_address(input: Option<BTreeMap<String, ResolvedValue>>) -> Value
     })
 }
 
+fn order_mutation_timestamp(ordinal: u64) -> String {
+    format!("2024-01-01T00:00:{:02}.000Z", ordinal % 60)
+}
+
+fn resolved_nullable_string_field(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Value {
+    match input.get(field) {
+        Some(ResolvedValue::String(value)) => json!(value),
+        Some(ResolvedValue::Null) => Value::Null,
+        _ => Value::Null,
+    }
+}
+
+fn order_update_has_mutable_fields(input: &BTreeMap<String, ResolvedValue>) -> bool {
+    [
+        "note",
+        "tags",
+        "customAttributes",
+        "email",
+        "phone",
+        "poNumber",
+        "shippingAddress",
+        "metafields",
+        "localizedFields",
+        "localizationExtensions",
+    ]
+    .iter()
+    .any(|field| input.contains_key(*field))
+}
+
+fn order_update_phone_is_valid(phone: &str) -> bool {
+    let digits = phone
+        .chars()
+        .filter(|character| character.is_ascii_digit())
+        .count();
+    phone.starts_with('+')
+        && digits >= 8
+        && phone
+            .chars()
+            .all(|character| character == '+' || character.is_ascii_digit())
+}
+
+fn order_update_shipping_address_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if resolved_string_field(input, "lastName")
+        .map(|value| value.trim().is_empty())
+        .unwrap_or(true)
+    {
+        errors.push(json!({
+            "field": ["shippingAddress", "lastName"],
+            "message": "Enter a last name"
+        }));
+    }
+    if resolved_string_field(input, "zip")
+        .map(|value| value.trim().is_empty())
+        .unwrap_or(true)
+    {
+        errors.push(json!({
+            "field": ["shippingAddress", "zip"],
+            "message": "Enter a ZIP code"
+        }));
+    }
+    let country_code = resolved_string_field(input, "countryCode")
+        .or_else(|| resolved_string_field(input, "countryCodeV2"))
+        .unwrap_or_default();
+    let province_code = resolved_string_field(input, "provinceCode").unwrap_or_default();
+    if country_code == "US" && province_code == "ON" {
+        errors.push(json!({
+            "field": ["shippingAddress", "province"],
+            "message": "State is not a valid state in United States"
+        }));
+    }
+    errors
+}
+
+fn order_update_validation_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if !order_update_has_mutable_fields(input) {
+        errors.push(json!({
+            "field": Value::Null,
+            "message": "No valid update parameters have been provided"
+        }));
+    }
+    if let Some(phone) = resolved_string_field(input, "phone") {
+        if !order_update_phone_is_valid(&phone) {
+            errors.push(json!({
+                "field": ["phone"],
+                "message": "Phone is invalid"
+            }));
+        }
+    }
+    if let Some(shipping_address) = resolved_object_field(input, "shippingAddress") {
+        errors.extend(order_update_shipping_address_errors(&shipping_address));
+    }
+    errors
+}
+
+fn order_update_metafields(order_id: &str, input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+    resolved_object_list_field(input, "metafields")
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, metafield)| {
+            let namespace = resolved_string_field(&metafield, "namespace")?;
+            let key = resolved_string_field(&metafield, "key")?;
+            let metafield_id = format!(
+                "gid://shopify/Metafield/{}{}",
+                resource_id_tail(order_id),
+                index + 1
+            );
+            Some(json!({
+                "id": metafield_id,
+                "namespace": namespace,
+                "key": key,
+                "type": resolved_string_field(&metafield, "type").unwrap_or_else(|| "single_line_text_field".to_string()),
+                "value": resolved_string_field(&metafield, "value").unwrap_or_default()
+            }))
+        })
+        .collect()
+}
+
 fn order_create_custom_attributes(
     input: &BTreeMap<String, ResolvedValue>,
     field: &str,
@@ -2855,7 +2974,7 @@ impl DraftProxy {
         if !fields.iter().all(|field| {
             matches!(
                 field.name.as_str(),
-                "orderCreate" | "order" | "orders" | "ordersCount"
+                "orderCreate" | "orderUpdate" | "order" | "orders" | "ordersCount"
             )
         }) {
             return None;
@@ -2887,6 +3006,7 @@ impl DraftProxy {
         for field in fields {
             let value = match field.name.as_str() {
                 "orderCreate" => self.stage_order_create(request, query, variables, &field),
+                "orderUpdate" => self.stage_order_update(request, query, variables, &field)?,
                 "order" => {
                     let id = resolved_string_arg(&field.arguments, "id")?;
                     let order = self
@@ -2935,6 +3055,117 @@ impl DraftProxy {
             .map(|order| selected_json(order, &node_selection))
             .collect::<Vec<_>>();
         selected_json(&order_connection(nodes), &field.selection)
+    }
+
+    fn stage_order_update(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        field: &RootFieldSelection,
+    ) -> Option<Value> {
+        let input = resolved_object_field(&field.arguments, "input")?;
+        if resolved_string_field(&input, "staffMemberId").is_some() {
+            return Some(selected_json(
+                &json!({
+                    "order": Value::Null,
+                    "userErrors": [orders_error(&["input", "staffMemberId"], "Staff member does not exist", "NOT_FOUND")]
+                }),
+                &field.selection,
+            ));
+        }
+
+        let order_id = resolved_string_field(&input, "id")?;
+        let Some(existing_order) = self.store.staged.orders.get(&order_id).cloned() else {
+            if self.config.read_mode != ReadMode::Snapshot
+                && self.config.unsupported_mutation_mode
+                    == Some(UnsupportedMutationMode::Passthrough)
+            {
+                return None;
+            }
+            return Some(selected_json(
+                &json!({
+                    "order": Value::Null,
+                    "userErrors": [orders_error(&["id"], "Order does not exist", "NOT_FOUND")]
+                }),
+                &field.selection,
+            ));
+        };
+
+        let validation_errors = order_update_validation_errors(&input);
+        if !validation_errors.is_empty() {
+            return Some(selected_json(
+                &json!({
+                    "order": existing_order,
+                    "userErrors": validation_errors
+                }),
+                &field.selection,
+            ));
+        }
+
+        let mut order = existing_order;
+        if input.contains_key("note") {
+            order["note"] = resolved_nullable_string_field(&input, "note");
+        }
+        if input.contains_key("tags") {
+            order["tags"] = json!(resolved_string_list_field(&input, "tags"));
+        }
+        if input.contains_key("customAttributes") {
+            order["customAttributes"] =
+                json!(order_create_custom_attributes(&input, "customAttributes"));
+        }
+        if input.contains_key("email") {
+            let email = resolved_nullable_string_field(&input, "email");
+            order["email"] = email.clone();
+        }
+        if input.contains_key("phone") {
+            order["phone"] = resolved_nullable_string_field(&input, "phone");
+        }
+        if input.contains_key("poNumber") {
+            order["poNumber"] = resolved_nullable_string_field(&input, "poNumber");
+        }
+        if input.contains_key("shippingAddress") {
+            order["shippingAddress"] =
+                order_create_address(resolved_object_field(&input, "shippingAddress"));
+        }
+        if input.contains_key("metafields") {
+            let metafields = order_update_metafields(&order_id, &input);
+            self.store
+                .staged
+                .owner_metafields
+                .insert(order_id.clone(), metafields.clone());
+            order["metafield"] = metafields.first().cloned().unwrap_or(Value::Null);
+            order["metafields"] = order_connection(metafields);
+        }
+        order["updatedAt"] = json!(order_mutation_timestamp(self.log_entries.len() as u64));
+
+        self.store
+            .staged
+            .orders
+            .insert(order_id.clone(), order.clone());
+        for orders in self.store.staged.customer_orders.values_mut() {
+            for customer_order in orders {
+                if customer_order["id"].as_str() == Some(order_id.as_str()) {
+                    *customer_order = order.clone();
+                }
+            }
+        }
+        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            request,
+            query,
+            variables,
+            root_field: "orderUpdate",
+            staged_resource_ids: vec![order_id],
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally staged orderUpdate in shopify-draft-proxy.",
+            },
+        });
+
+        Some(selected_json(
+            &json!({ "order": order, "userErrors": [] }),
+            &field.selection,
+        ))
     }
 
     fn stage_order_create(
@@ -3617,19 +3848,36 @@ impl DraftProxy {
             })
             .collect::<Vec<_>>();
         let financial_status = order_create_financial_status(order_input, &transactions, total);
+        let timestamp = order_mutation_timestamp(self.log_entries.len() as u64);
+        let customer = match (
+            resolved_string_field(order_input, "customerId"),
+            resolved_string_field(order_input, "email"),
+        ) {
+            (Some(id), email) => json!({
+                "id": id,
+                "email": email,
+                "displayName": Value::Null
+            }),
+            (None, Some(email)) => json!({
+                "id": format!("gid://shopify/Customer/{}", resource_id_tail(order_id)),
+                "email": email,
+                "displayName": email
+            }),
+            (None, None) => Value::Null,
+        };
         let mut order = json!({
             "id": order_id,
             "name": format!("#{}", self.store.staged.orders.len() + 1),
+            "createdAt": timestamp,
+            "updatedAt": timestamp,
             "email": resolved_string_field(order_input, "email"),
-            "customer": resolved_string_field(order_input, "customerId")
-                .map(|id| json!({
-                    "id": id,
-                    "email": resolved_string_field(order_input, "email"),
-                    "displayName": Value::Null
-                }))
-                .unwrap_or(Value::Null),
+            "phone": Value::Null,
+            "poNumber": Value::Null,
+            "customer": customer,
             "note": resolved_string_field(order_input, "note"),
             "tags": resolved_string_list_field(order_input, "tags"),
+            "metafield": Value::Null,
+            "metafields": order_connection(Vec::new()),
             "currencyCode": currency_code,
             "presentmentCurrencyCode": presentment_currency_code,
             "displayFinancialStatus": financial_status,

@@ -616,6 +616,7 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
         CapabilityDomain::ShippingFulfillments,
     ),
     local_mutation("orderCreate", CapabilityDomain::Orders),
+    local_mutation("orderUpdate", CapabilityDomain::Orders),
     local_mutation("orderCancel", CapabilityDomain::Orders),
     local_mutation("orderCustomerSet", CapabilityDomain::Orders),
     local_mutation("orderCustomerRemove", CapabilityDomain::Orders),

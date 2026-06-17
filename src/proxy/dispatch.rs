@@ -1160,6 +1160,19 @@ impl DraftProxy {
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && has_local_dispatch
+                    && root_field == "orderUpdate" =>
+            {
+                if let Some(data) =
+                    self.order_create_local_data(request, root_field, &query, &variables)
+                {
+                    ok_json(data)
+                } else {
+                    (self.upstream_transport)(request.clone())
+                }
+            }
+            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
                     && matches!(root_field, "draftOrderCreate" | "draftOrderInvoiceSend") =>
             {
                 if let Some(response) =

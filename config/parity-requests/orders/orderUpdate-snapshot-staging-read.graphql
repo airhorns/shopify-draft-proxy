@@ -1,4 +1,4 @@
-query OrderUpdateSnapshotStagingRead($id: ID!) {
+query OrderUpdateSnapshotStagingRead($id: ID!, $query: String!) {
   byId: order(id: $id) {
     id
     name
@@ -44,7 +44,7 @@ query OrderUpdateSnapshotStagingRead($id: ID!) {
       }
     }
   }
-  orders(first: 5) {
+  orders(first: 5, query: $query) {
     nodes {
       id
       email
@@ -52,7 +52,7 @@ query OrderUpdateSnapshotStagingRead($id: ID!) {
       tags
     }
   }
-  ordersCount {
+  ordersCount(query: $query) {
     count
     precision
   }
