@@ -2250,7 +2250,7 @@ pub(in crate::proxy) fn marketing_activity_from_input(
             .to_string()
     });
     let status = resolved_string_field(&input, "status")
-        .unwrap_or_else(|| old["status"].as_str().unwrap_or("ACTIVE").to_string());
+        .unwrap_or_else(|| old["status"].as_str().unwrap_or("UNDEFINED").to_string());
     let tactic = resolved_string_field(&input, "tactic")
         .unwrap_or_else(|| old["tactic"].as_str().unwrap_or("NEWSLETTER").to_string());
     let channel_type = resolved_string_field(&input, "marketingChannelType").unwrap_or_else(|| {
@@ -2318,7 +2318,20 @@ pub(in crate::proxy) fn marketing_activity_from_input(
     let budget = resolved_object_field(&input, "budget")
         .map(marketing_budget_json)
         .unwrap_or_else(|| old.get("budget").cloned().unwrap_or(Value::Null));
-    let ad_spend = old.get("adSpend").cloned().unwrap_or(Value::Null);
+    let ad_spend = resolved_object_field(&input, "adSpend")
+        .map(|obj| {
+            json!({
+                "amount": resolved_string_field(&obj, "amount")
+                    .map(|a| normalized_money_amount(&a))
+                    .unwrap_or_default(),
+                "currencyCode": resolved_string_field(&obj, "currencyCode")
+                    .unwrap_or_else(|| "USD".to_string())
+            })
+        })
+        .unwrap_or_else(|| old.get("adSpend").cloned().unwrap_or(Value::Null));
+    let scheduled_to_end_at = resolved_string_field(&input, "scheduledEnd")
+        .map(Value::String)
+        .unwrap_or_else(|| old["marketingEvent"]["scheduledToEndAt"].clone());
     json!({
         "__typename": "MarketingActivity",
         "id": id,
@@ -2329,15 +2342,19 @@ pub(in crate::proxy) fn marketing_activity_from_input(
         "updatedAt": "2026-05-05T00:00:00Z",
         "status": status,
         "statusLabel": status_label,
-        "targetStatus": status,
+        "targetStatus": null,
         "tactic": tactic,
         "marketingChannelType": channel_type,
         "sourceAndMedium": source_medium,
         "isExternal": true,
         "inMainWorkflowVersion": false,
         "urlParameterValue": url_parameter_value,
-        "parentRemoteId": resolved_string_field(&input, "parentRemoteId").unwrap_or_else(|| old["parentRemoteId"].as_str().unwrap_or("").to_string()),
-        "hierarchyLevel": resolved_string_field(&input, "hierarchyLevel").unwrap_or_else(|| old["hierarchyLevel"].as_str().unwrap_or("ROOT").to_string()),
+        "parentRemoteId": resolved_string_field(&input, "parentRemoteId")
+            .map(Value::String)
+            .unwrap_or_else(|| old.get("parentRemoteId").cloned().unwrap_or(Value::Null)),
+        "hierarchyLevel": resolved_string_field(&input, "hierarchyLevel")
+            .map(Value::String)
+            .unwrap_or_else(|| old.get("hierarchyLevel").cloned().unwrap_or(Value::Null)),
         "utmParameters": { "campaign": campaign, "source": source, "medium": medium },
         "budget": budget,
         "adSpend": ad_spend,
@@ -2350,7 +2367,7 @@ pub(in crate::proxy) fn marketing_activity_from_input(
             "channelHandle": channel_handle,
             "startedAt": "2026-05-05T00:00:00Z",
             "endedAt": if matches!(status.as_str(), "INACTIVE" | "DELETED_EXTERNALLY") { json!("2026-05-05T00:00:00Z") } else { Value::Null },
-            "scheduledToEndAt": null,
+            "scheduledToEndAt": scheduled_to_end_at,
             "manageUrl": remote_url,
             "previewUrl": preview_url,
             "utmCampaign": campaign,
@@ -2381,9 +2398,9 @@ pub(in crate::proxy) fn marketing_engagement_from_input(
     let money = |key: &str| marketing_money_json(input, key);
     json!({
         "__typename": "MarketingEngagement",
-        "occurredOn": resolved_string_field(input, "occurredOn").unwrap_or_else(|| "2026-04-26".to_string()),
-        "utcOffset": resolved_string_field(input, "utcOffset").unwrap_or_else(|| "+00:00".to_string()),
-        "isCumulative": resolved_bool_field(input, "isCumulative").unwrap_or(false),
+        "occurredOn": resolved_string_field(input, "occurredOn"),
+        "utcOffset": resolved_string_field(input, "utcOffset"),
+        "isCumulative": resolved_bool_field(input, "isCumulative"),
         "impressionsCount": resolved_int_field(input, "impressionsCount"),
         "viewsCount": resolved_int_field(input, "viewsCount"),
         "clicksCount": resolved_int_field(input, "clicksCount"),
@@ -2468,6 +2485,75 @@ pub(in crate::proxy) fn invalid_marketing_url_error(
     None
 }
 
+/// How Shopify's URL scalar treats a marketing URL value.
+pub(in crate::proxy) enum MarketingUrlError {
+    /// The value parsed as a URL but its scheme is not http/https. Shopify rejects this
+    /// at field-argument validation: a top-level INVALID_FIELD_ARGUMENTS error with the
+    /// root field nulled out in `data`.
+    WrongScheme,
+    /// The value could not be coerced to the URL scalar at all (opaque scheme, no host,
+    /// e.g. `data:`/`javascript:`). Shopify rejects this during variable coercion: a
+    /// top-level INVALID_VARIABLE error and no execution of the operation.
+    MissingHost {
+        field: String,
+        url: String,
+        value: Value,
+    },
+}
+
+enum UrlScheme {
+    Valid,
+    WrongScheme,
+    MissingHost,
+}
+
+fn classify_url_scheme(url: &str) -> UrlScheme {
+    let scheme = url.split(':').next().unwrap_or("").to_ascii_lowercase();
+    if scheme == "http" || scheme == "https" {
+        return UrlScheme::Valid;
+    }
+    let rest = &url[scheme.len()..];
+    // A URI with an authority component (`scheme://host...`) coerces to the URL scalar
+    // successfully (so does `mailto:`, a recognized hierarchical scheme); only then does
+    // the http/https field validator reject it. Opaque schemes with no host fail coercion.
+    if rest.starts_with("://") || scheme == "mailto" {
+        UrlScheme::WrongScheme
+    } else {
+        UrlScheme::MissingHost
+    }
+}
+
+/// Returns the marketing URL scheme error (if any) for the URL-typed fields of an external
+/// marketing activity input, modelling Shopify's URL scalar coercion + scheme validation.
+pub(in crate::proxy) fn marketing_url_scheme_error(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Option<MarketingUrlError> {
+    for field in ["remoteUrl", "remotePreviewImageUrl"] {
+        if let Some(url) = resolved_string_field(input, field) {
+            match classify_url_scheme(&url) {
+                UrlScheme::Valid => {}
+                UrlScheme::WrongScheme => return Some(MarketingUrlError::WrongScheme),
+                UrlScheme::MissingHost => {
+                    return Some(MarketingUrlError::MissingHost {
+                        field: field.to_string(),
+                        url,
+                        value: resolved_variables_json(input),
+                    });
+                }
+            }
+        }
+    }
+    None
+}
+
+pub(in crate::proxy) fn marketing_external_input_type_name(root_field: &str) -> &'static str {
+    match root_field {
+        "marketingActivityUpdateExternal" => "MarketingActivityUpdateExternalInput",
+        "marketingActivityUpsertExternal" => "MarketingActivityUpsertExternalInput",
+        _ => "MarketingActivityCreateExternalInput",
+    }
+}
+
 pub(in crate::proxy) fn marketing_input_has_tactic(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> bool {
@@ -2506,6 +2592,7 @@ pub(in crate::proxy) fn marketing_status_label(
         ("INACTIVE", "NEWSLETTER") => "Sent",
         ("INACTIVE", _) => "Ended",
         ("DELETED_EXTERNALLY", _) => "Deleted",
+        ("UNDEFINED", _) => "Undefined",
         _ => status,
     }
     .to_string()

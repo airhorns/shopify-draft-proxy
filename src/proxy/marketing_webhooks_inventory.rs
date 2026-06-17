@@ -728,7 +728,53 @@ impl DraftProxy {
     ) -> Response {
         let mut data = serde_json::Map::new();
         let mut top_errors: Vec<Value> = Vec::new();
+        let mut omit_data = false;
         for field in fields {
+            if matches!(
+                field.name.as_str(),
+                "marketingActivityCreateExternal"
+                    | "marketingActivityUpdateExternal"
+                    | "marketingActivityUpsertExternal"
+            ) {
+                let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+                match marketing_url_scheme_error(&input) {
+                    Some(MarketingUrlError::WrongScheme) => {
+                        top_errors.push(json!({
+                            "message": "The URL scheme must be one of the following: https,http",
+                            "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
+                            "path": [field.name.clone()]
+                        }));
+                        data.insert(field.response_key.clone(), Value::Null);
+                        continue;
+                    }
+                    Some(MarketingUrlError::MissingHost {
+                        field: bad_field,
+                        url,
+                        value,
+                    }) => {
+                        let type_name = marketing_external_input_type_name(&field.name);
+                        let explanation = format!("Invalid url '{url}', missing host");
+                        let message = format!(
+                            "Variable $input of type {type_name}! was provided invalid value for {bad_field} ({explanation})"
+                        );
+                        top_errors.push(json!({
+                            "message": message,
+                            "extensions": {
+                                "code": "INVALID_VARIABLE",
+                                "value": value,
+                                "problems": [{
+                                    "path": [bad_field],
+                                    "explanation": explanation.clone(),
+                                    "message": explanation
+                                }]
+                            }
+                        }));
+                        omit_data = true;
+                        continue;
+                    }
+                    None => {}
+                }
+            }
             let value = match field.name.as_str() {
                 "marketingActivityCreateExternal" => self.marketing_create_external(field, request),
                 "marketingActivityUpdateExternal" => self.marketing_update_external(field, request),
@@ -798,7 +844,11 @@ impl DraftProxy {
             };
             data.insert(field.response_key.clone(), value);
         }
-        let mut body = json!({ "data": Value::Object(data) });
+        let mut body = if omit_data {
+            json!({})
+        } else {
+            json!({ "data": Value::Object(data) })
+        };
         if !top_errors.is_empty() {
             body["errors"] = Value::Array(top_errors);
         }
@@ -827,19 +877,12 @@ impl DraftProxy {
             let target_by_remote = self.find_marketing_activity_by_remote(&remote, request);
             let campaign = resolved_string_field(&utm, "campaign").unwrap_or_default();
             let target_by_utm = self.find_marketing_activity_by_utm(&campaign, request);
-            if target_by_remote.is_some()
-                && target_by_utm.is_some()
-                && target_by_remote != target_by_utm
+            if target_by_remote.is_none()
+                || target_by_utm.is_none()
+                || target_by_remote != target_by_utm
             {
                 return selected_json(
-                    &marketing_activity_payload(
-                        None,
-                        vec![json!({
-                            "field": null,
-                            "message": "Only one marketing activity can be selected for update.",
-                            "code": "INVALID_MARKETING_ACTIVITY_ARGUMENTS"
-                        })],
-                    ),
+                    &marketing_activity_payload(None, vec![marketing_activity_missing_error()]),
                     &field.selection,
                 );
             }
@@ -1515,9 +1558,9 @@ impl DraftProxy {
                 "code": "IMMUTABLE_CHANNEL_HANDLE"
             }));
         }
-        if input_string_field_value(input, "urlParameterValue")
-            != json_string_value(&existing["urlParameterValue"])
-        {
+        if input_string_field_value(input, "urlParameterValue").is_some_and(|value| {
+            json_string_value(&existing["urlParameterValue"]) != Some(value)
+        }) {
             return Some(json!({
                 "field": ["input"],
                 "message": "URL parameter value cannot be modified.",

@@ -28,6 +28,7 @@ struct AdminInputSchema {
 
 #[derive(Debug, Clone, Copy)]
 struct ValidationContext<'a> {
+    query: &'a str,
     operation_path: &'a str,
     response_key: &'a str,
     field_location: SourceLocation,
@@ -57,6 +58,7 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
             continue;
         };
         let context = ValidationContext {
+            query,
             operation_path: &document.operation_path,
             response_key: &field.response_key,
             field_location: field.location,
@@ -123,6 +125,7 @@ fn validate_argument_value(
             &[argument_name.to_string()],
             schema,
             context,
+            inline_argument_value_location(context.query, field, argument_name),
         ),
         RawArgumentValue::Variable { name, value } => {
             let Some(ResolvedValue::Object(fields)) = value.as_ref() else {
@@ -180,6 +183,7 @@ fn validate_raw_input_object(
     path: &[String],
     schema: &AdminInputSchema,
     context: ValidationContext<'_>,
+    location: Option<SourceLocation>,
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     for field_name in fields.keys() {
@@ -205,6 +209,7 @@ fn validate_raw_input_object(
                 &field_schema.type_ref,
                 path,
                 context,
+                location.unwrap_or(context.field_location),
             ));
         }
     }
@@ -226,6 +231,7 @@ fn validate_raw_input_object(
                 &nested_path,
                 schema,
                 context,
+                None,
             ));
         }
     }
@@ -433,13 +439,14 @@ fn missing_required_input_object_attribute_error(
     type_ref: &SchemaTypeRef,
     path: &[String],
     context: ValidationContext<'_>,
+    location: SourceLocation,
 ) -> Value {
     json!({
         "message": format!(
             "Argument '{argument_name}' on InputObject '{input_type_name}' is required. Expected type {}",
             type_ref.display
         ),
-        "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
+        "locations": [{ "line": location.line, "column": location.column }],
         "path": input_error_path(context, path, argument_name),
         "extensions": {
             "code": "missingRequiredInputObjectAttribute",
@@ -448,6 +455,85 @@ fn missing_required_input_object_attribute_error(
             "inputObjectType": input_type_name
         }
     })
+}
+
+fn inline_argument_value_location(
+    query: &str,
+    field: &RootFieldSelection,
+    argument_name: &str,
+) -> Option<SourceLocation> {
+    let start = byte_offset_for_location(query, field.location)?;
+    let haystack = &query[start..];
+    let argument_start = find_argument_name_with_colon(haystack, argument_name)?;
+    let after_name = start + argument_start + argument_name.len();
+    let after_colon = query[after_name..].find(':')? + after_name + 1;
+    let value_offset = query[after_colon..]
+        .char_indices()
+        .find_map(|(offset, ch)| (!ch.is_whitespace()).then_some(after_colon + offset))?;
+    source_location_for_byte_offset(query, value_offset)
+}
+
+fn find_argument_name_with_colon(haystack: &str, argument_name: &str) -> Option<usize> {
+    let mut search_start = 0;
+    while search_start < haystack.len() {
+        let relative = haystack[search_start..].find(argument_name)?;
+        let candidate = search_start + relative;
+        let before_ok = haystack[..candidate]
+            .chars()
+            .next_back()
+            .is_none_or(|ch| !is_graphql_name_char(ch));
+        let after_name = candidate + argument_name.len();
+        let followed_by_colon = haystack[after_name..]
+            .chars()
+            .find(|ch| !ch.is_whitespace())
+            .is_some_and(|ch| ch == ':');
+        if before_ok && followed_by_colon {
+            return Some(candidate);
+        }
+        search_start = after_name;
+    }
+    None
+}
+
+fn byte_offset_for_location(query: &str, location: SourceLocation) -> Option<usize> {
+    let mut line = 1;
+    let mut column = 1;
+    for (offset, ch) in query.char_indices() {
+        if line == location.line && column == location.column {
+            return Some(offset);
+        }
+        if ch == '\n' {
+            line += 1;
+            column = 1;
+        } else {
+            column += 1;
+        }
+    }
+    (line == location.line && column == location.column).then_some(query.len())
+}
+
+fn source_location_for_byte_offset(query: &str, target_offset: usize) -> Option<SourceLocation> {
+    if target_offset > query.len() || !query.is_char_boundary(target_offset) {
+        return None;
+    }
+    let mut line = 1;
+    let mut column = 1;
+    for (offset, ch) in query.char_indices() {
+        if offset == target_offset {
+            return Some(SourceLocation { line, column });
+        }
+        if ch == '\n' {
+            line += 1;
+            column = 1;
+        } else {
+            column += 1;
+        }
+    }
+    (target_offset == query.len()).then_some(SourceLocation { line, column })
+}
+
+fn is_graphql_name_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || ch == '_'
 }
 
 fn invalid_variable_error(
@@ -524,6 +610,7 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         extend_gift_card_input_schema(&mut schema);
         extend_discount_basic_input_schema(&mut schema);
         extend_customer_merge_input_schema(&mut schema);
+        extend_marketing_engagement_input_schema(&mut schema);
         schema
     })
 }
@@ -558,6 +645,52 @@ fn extend_gift_card_input_schema(schema: &mut AdminInputSchema) {
             "input".to_string(),
             mutation_arg(non_null("GiftCardCreateInput")),
         )]),
+    );
+}
+
+fn extend_marketing_engagement_input_schema(schema: &mut AdminInputSchema) {
+    // MarketingEngagementInput on Admin API 2026-04: occurredOn, utcOffset, and
+    // isCumulative are required (non-null) schema fields. Omitting any of them must
+    // produce top-level coercion errors before the local handler stages anything.
+    schema.input_objects.insert(
+        "MarketingEngagementInput".to_string(),
+        BTreeMap::from([
+            ("occurredOn".to_string(), input_field(non_null("Date"))),
+            ("utcOffset".to_string(), input_field(non_null("UtcOffset"))),
+            ("isCumulative".to_string(), input_field(non_null("Boolean"))),
+            ("impressionsCount".to_string(), input_field(named("Int"))),
+            ("viewsCount".to_string(), input_field(named("Int"))),
+            ("clicksCount".to_string(), input_field(named("Int"))),
+            ("sharesCount".to_string(), input_field(named("Int"))),
+            ("favoritesCount".to_string(), input_field(named("Int"))),
+            ("commentsCount".to_string(), input_field(named("Int"))),
+            ("unsubscribesCount".to_string(), input_field(named("Int"))),
+            ("complaintsCount".to_string(), input_field(named("Int"))),
+            ("failsCount".to_string(), input_field(named("Int"))),
+            ("sendsCount".to_string(), input_field(named("Int"))),
+            ("uniqueViewsCount".to_string(), input_field(named("Int"))),
+            ("uniqueClicksCount".to_string(), input_field(named("Int"))),
+            ("adSpend".to_string(), input_field(named("MoneyInput"))),
+            ("sales".to_string(), input_field(named("MoneyInput"))),
+            ("sessionsCount".to_string(), input_field(named("Int"))),
+            ("orders".to_string(), input_field(named("Decimal"))),
+            ("firstTimeCustomers".to_string(), input_field(named("Decimal"))),
+            ("returningCustomers".to_string(), input_field(named("Decimal"))),
+            ("primaryConversions".to_string(), input_field(named("Decimal"))),
+            ("allConversions".to_string(), input_field(named("Decimal"))),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "marketingEngagementCreate".to_string(),
+        BTreeMap::from([
+            ("marketingActivityId".to_string(), mutation_arg(named("ID"))),
+            ("remoteId".to_string(), mutation_arg(named("String"))),
+            ("channelHandle".to_string(), mutation_arg(named("String"))),
+            (
+                "marketingEngagement".to_string(),
+                mutation_arg(non_null("MarketingEngagementInput")),
+            ),
+        ]),
     );
 }
 
