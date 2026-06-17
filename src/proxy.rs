@@ -1223,10 +1223,29 @@ impl Store {
     }
 
     fn delete_product_variant(&mut self, id: &str) -> bool {
-        let existed = self.product_variant_by_id(id).is_some();
+        let product_id = self
+            .product_variant_by_id(id)
+            .map(|variant| variant.product_id.clone());
+        let existed = product_id.is_some();
         self.staged.product_variants.remove_staged(id);
         if existed {
             self.staged.product_variants.tombstone(id.to_string());
+        }
+        // Drop the variant from the owning product's embedded observed variants
+        // list as well, otherwise the connection fallback would resurrect it:
+        // the fallback surfaces observed variants that lack a staged record, and
+        // a just-deleted variant has neither a staged record nor a tombstone the
+        // fallback is aware of.
+        if let Some(product_id) = product_id {
+            if let Some(mut product) = self.product_by_id(&product_id).cloned() {
+                let before = product.variants.len();
+                product
+                    .variants
+                    .retain(|variant| variant.get("id").and_then(Value::as_str) != Some(id));
+                if product.variants.len() != before {
+                    self.stage_product(product);
+                }
+            }
         }
         existed
     }

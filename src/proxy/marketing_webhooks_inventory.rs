@@ -1755,7 +1755,8 @@ impl DraftProxy {
             .store
             .product_variant_by_inventory_item_id(inventory_item_id)
         {
-            return product_variant_inventory_item_json(variant, selections);
+            let product = self.store.product_by_id(&variant.product_id);
+            return product_variant_inventory_item_json(variant, product, selections);
         }
 
         let inventory_quantity = self.inventory_total(inventory_item_id, "available");

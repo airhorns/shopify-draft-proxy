@@ -1933,6 +1933,51 @@ impl DraftProxy {
         }
     }
 
+    /// Stage the `metafields` array on a product-variant create/update input into
+    /// the owner-metafield overlay keyed by the variant GID, mirroring how
+    /// `metafieldsSet` records owner metafields. This lets a follow-up
+    /// `variants { nodes { metafield(namespace:, key:) } }` read resolve the
+    /// metafield through the same overlay path used for products.
+    fn stage_input_variant_metafields(
+        &mut self,
+        owner_id: &str,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) {
+        for metafield in resolved_object_list_field(input, "metafields") {
+            let Some(namespace) = resolved_string_field(&metafield, "namespace") else {
+                continue;
+            };
+            let Some(key) = resolved_string_field(&metafield, "key") else {
+                continue;
+            };
+            let value = resolved_string_field(&metafield, "value").unwrap_or_default();
+            let metafield_type = resolved_string_field(&metafield, "type")
+                .unwrap_or_else(|| "single_line_text_field".to_string());
+            let index = self
+                .store
+                .staged
+                .owner_metafields
+                .values()
+                .map(Vec::len)
+                .sum::<usize>()
+                + 1;
+            let timestamp = owner_metafield_timestamp(index as u64);
+            let record = json!({
+                "id": format!("gid://shopify/Metafield/{index}"),
+                "namespace": namespace,
+                "key": key,
+                "type": metafield_type,
+                "value": normalize_metafield_value_string(&metafield_type, &value),
+                "jsonValue": metafield_json_value(&metafield_type, &value),
+                "compareDigest": format!("local-metafield-digest-{index}"),
+                "createdAt": timestamp,
+                "updatedAt": timestamp,
+                "ownerType": owner_type_from_gid(owner_id),
+            });
+            self.upsert_owner_metafield_record(owner_id, record);
+        }
+    }
+
     fn owner_record_json_for_read(
         &self,
         root_field: &str,
@@ -2544,7 +2589,8 @@ impl DraftProxy {
         selection: &[SelectedField],
     ) -> Option<Value> {
         if let Some(variant) = self.store.product_variant_by_inventory_item_id(id) {
-            return Some(product_variant_inventory_item_json(variant, selection));
+            let product = self.store.product_by_id(&variant.product_id);
+            return Some(product_variant_inventory_item_json(variant, product, selection));
         }
         self.store.products().iter().find_map(|product| {
             product.variants.iter().find_map(|variant| {
@@ -2792,7 +2838,7 @@ impl DraftProxy {
         let extra_fields = resolved_string_field(&input, "combinedListingRole")
             .map(|role| BTreeMap::from([("combinedListingRole".to_string(), json!(role))]))
             .unwrap_or_default();
-        let product = ProductRecord {
+        let mut product = ProductRecord {
             id: id.clone(),
             created_at: timestamp.clone(),
             updated_at: timestamp,
@@ -2814,6 +2860,20 @@ impl DraftProxy {
             collections: Vec::new(),
             extra_fields,
         };
+        // `productCreate` with `productOptions` materializes the product's options and a
+        // single default variant built from the first value of each option (Shopify only
+        // creates the lead combination; further values are added later via bulk create).
+        let mut staged_ids = vec![id.clone()];
+        if let Some((options, variant)) =
+            self.product_options_and_default_variant(&input, &id)
+        {
+            product
+                .extra_fields
+                .insert("options".to_string(), json!(options));
+            product.variants = vec![product_variant_state_json(&variant)];
+            staged_ids.push(variant.id.clone());
+            self.store.stage_product_variant(variant);
+        }
         self.store.stage_product(product.clone());
 
         let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
@@ -2826,8 +2886,84 @@ impl DraftProxy {
                     response_key: product_mutation_payload_json(&product, &payload_selection, &product_selection)
                 }
             })),
-            LogDraft::staged("productCreate", "products", vec![id]),
+            LogDraft::staged("productCreate", "products", staged_ids),
         )
+    }
+
+    /// Build the `options` JSON and the single default variant implied by a
+    /// `productCreate` `productOptions` input. Returns `None` when no `productOptions`
+    /// were supplied. The lead variant uses the first value of every option; option value
+    /// lists likewise contain only those lead values, matching Shopify's create behaviour.
+    fn product_options_and_default_variant(
+        &mut self,
+        input: &BTreeMap<String, ResolvedValue>,
+        product_id: &str,
+    ) -> Option<(Vec<Value>, ProductVariantRecord)> {
+        let product_options = Self::resolved_object_list_arg(input, "productOptions");
+        if product_options.is_empty() {
+            return None;
+        }
+        let mut options = Vec::new();
+        let mut selected_options = Vec::new();
+        for (index, option) in product_options.iter().enumerate() {
+            let name = resolved_string_field(option, "name").unwrap_or_default();
+            let value_names: Vec<String> = Self::resolved_object_list_arg(option, "values")
+                .iter()
+                .filter_map(|value| resolved_string_field(value, "name"))
+                .collect();
+            let first_value = value_names.first().cloned().unwrap_or_default();
+            let option_id = self.next_proxy_synthetic_gid("ProductOption");
+            // `optionValues` lists every supplied value, but only the lead value gains a
+            // variant on create, so `hasVariants` is true for it alone; the string `values`
+            // list (legacy field) contains just the value(s) that back a variant.
+            let mut option_values = Vec::new();
+            for (value_index, value_name) in value_names.iter().enumerate() {
+                let option_value_id = self.next_proxy_synthetic_gid("ProductOptionValue");
+                option_values.push(json!({
+                    "id": option_value_id,
+                    "name": value_name,
+                    "hasVariants": value_index == 0,
+                }));
+            }
+            options.push(json!({
+                "id": option_id,
+                "name": name,
+                "position": index + 1,
+                "values": [first_value.clone()],
+                "optionValues": option_values,
+            }));
+            selected_options.push(ProductVariantSelectedOption {
+                name,
+                value: first_value,
+            });
+        }
+        let title = selected_options
+            .iter()
+            .map(|option| option.value.clone())
+            .collect::<Vec<_>>()
+            .join(" / ");
+        let variant = ProductVariantRecord {
+            id: self.next_proxy_synthetic_gid("ProductVariant"),
+            product_id: product_id.to_string(),
+            title,
+            sku: String::new(),
+            barcode: None,
+            price: "0.00".to_string(),
+            compare_at_price: None,
+            taxable: true,
+            inventory_policy: "DENY".to_string(),
+            inventory_quantity: 0,
+            selected_options,
+            inventory_item: ProductVariantInventoryItem {
+                id: self.next_proxy_synthetic_gid("InventoryItem"),
+                tracked: true,
+                requires_shipping: true,
+                extra_fields: BTreeMap::new(),
+            },
+            media_ids: Vec::new(),
+            extra_fields: BTreeMap::from([("position".to_string(), json!(1))]),
+        };
+        Some((options, variant))
     }
 
     pub(in crate::proxy) fn product_update(
@@ -2948,6 +3084,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn product_variant_mutation(
         &mut self,
+        request: &Request,
         root_field: &str,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
@@ -2956,6 +3093,18 @@ impl DraftProxy {
             "productVariantCreate" => self.product_variant_create(query, variables),
             "productVariantUpdate" => self.product_variant_update(query, variables),
             "productVariantDelete" => self.product_variant_delete(query, variables),
+            "productVariantsBulkCreate" => {
+                self.product_variants_bulk_create(request, query, variables)
+            }
+            "productVariantsBulkUpdate" => {
+                self.product_variants_bulk_update(request, query, variables)
+            }
+            "productVariantsBulkDelete" => {
+                self.product_variants_bulk_delete(request, query, variables)
+            }
+            "productVariantsBulkReorder" => {
+                self.product_variants_bulk_reorder(request, query, variables)
+            }
             _ => MutationOutcome::response(json_error(
                 400,
                 "No mutation dispatcher implemented for product variant root",
@@ -3095,6 +3244,660 @@ impl DraftProxy {
         )
     }
 
+    /// Shopify's auto-generated standalone variant carries the single option
+    /// `Title: Default Title`. Recognising it lets the default bulk-create strategy
+    /// replace it (rather than appending alongside it).
+    fn is_standalone_default_variant(variant: &ProductVariantRecord) -> bool {
+        variant.selected_options.len() == 1
+            && variant.selected_options[0].name == "Title"
+            && variant.selected_options[0].value == "Default Title"
+    }
+
+    /// Rederive a product's `options` (and their `optionValues`) from the supplied
+    /// variant set, in first-seen order. Existing option and option-value identities are
+    /// preserved by name so a value that survives keeps its id; newly introduced values
+    /// receive freshly allocated synthetic ids.
+    fn recompute_product_options_from_variants(
+        &mut self,
+        product_id: &str,
+        final_variants: &[ProductVariantRecord],
+    ) {
+        let Some(mut product) = self.store.product_by_id(product_id).cloned() else {
+            return;
+        };
+        let existing_options: Vec<Value> = product
+            .extra_fields
+            .get("options")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let mut existing_option_id: BTreeMap<String, Value> = BTreeMap::new();
+        let mut existing_value_id: BTreeMap<(String, String), Value> = BTreeMap::new();
+        for option in &existing_options {
+            let name = option
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            if let Some(id) = option.get("id") {
+                if !id.is_null() {
+                    existing_option_id.insert(name.clone(), id.clone());
+                }
+            }
+            for value in option
+                .get("optionValues")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                if let (Some(value_name), Some(id)) = (
+                    value.get("name").and_then(Value::as_str),
+                    value.get("id"),
+                ) {
+                    if !id.is_null() {
+                        existing_value_id
+                            .insert((name.clone(), value_name.to_string()), id.clone());
+                    }
+                }
+            }
+        }
+
+        let mut option_names: Vec<String> = Vec::new();
+        let mut option_values_by_name: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        for variant in final_variants {
+            for selected in &variant.selected_options {
+                if !option_names.contains(&selected.name) {
+                    option_names.push(selected.name.clone());
+                }
+                let values = option_values_by_name.entry(selected.name.clone()).or_default();
+                if !values.contains(&selected.value) {
+                    values.push(selected.value.clone());
+                }
+            }
+        }
+
+        let mut new_options = Vec::new();
+        for (position, name) in option_names.iter().enumerate() {
+            let values = option_values_by_name.get(name).cloned().unwrap_or_default();
+            let option_id = match existing_option_id.get(name) {
+                Some(id) => id.clone(),
+                None => json!(self.next_proxy_synthetic_gid("ProductOption")),
+            };
+            let mut option_values = Vec::new();
+            for value in &values {
+                let value_id = match existing_value_id.get(&(name.clone(), value.clone())) {
+                    Some(id) => id.clone(),
+                    None => json!(self.next_proxy_synthetic_gid("ProductOptionValue")),
+                };
+                option_values.push(json!({
+                    "id": value_id,
+                    "name": value,
+                    "hasVariants": true,
+                }));
+            }
+            new_options.push(json!({
+                "id": option_id,
+                "name": name,
+                "position": position + 1,
+                "values": values,
+                "optionValues": option_values,
+            }));
+        }
+
+        product
+            .extra_fields
+            .insert("options".to_string(), json!(new_options));
+        self.store.stage_product(product);
+    }
+
+    fn product_variants_bulk_create(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        let Some(field) =
+            Self::product_variant_bulk_root_field(query, variables, "productVariantsBulkCreate")
+        else {
+            return MutationOutcome::response(json_error(
+                400,
+                "No productVariantsBulkCreate root field found",
+            ));
+        };
+        let product_id = resolved_string_arg(&field.arguments, "productId").unwrap_or_default();
+        let variants_input = Self::resolved_object_list_arg(&field.arguments, "variants");
+        if variants_input.len() > 2048 {
+            return MutationOutcome::response(Self::product_variant_bulk_input_size_error(
+                &field,
+                variants_input.len(),
+            ));
+        }
+        let Some(product) = self
+            .product_for_bulk_variant_mutation(request, &product_id)
+            .cloned()
+        else {
+            return MutationOutcome::response(self.product_variants_bulk_response(
+                &field,
+                "productVariantsBulkCreate",
+                None,
+                Some(Vec::new()),
+                vec![Self::bulk_user_error(
+                    &["productId"],
+                    "Product does not exist",
+                    Some("PRODUCT_DOES_NOT_EXIST"),
+                )],
+            ));
+        };
+
+        let mut user_errors = Vec::new();
+        for (index, input) in variants_input.iter().enumerate() {
+            user_errors.extend(product_variant_input_user_errors_with_prefix(
+                input,
+                &["variants".to_string(), index.to_string()],
+            ));
+            user_errors.extend(Self::product_variant_bulk_option_user_errors(
+                input, &product, index, false,
+            ));
+            user_errors
+                .extend(self.product_variant_bulk_inventory_location_user_errors(input, index));
+        }
+        if Self::product_variant_effective_count_after_create(
+            &self.store,
+            &product.id,
+            variants_input.len(),
+        ) > 2048
+        {
+            user_errors.push(Self::bulk_user_error(
+                &["variants"],
+                "Product cannot have more than 2048 variants",
+                Some("TOO_MANY_VARIANTS"),
+            ));
+        }
+        if !user_errors.is_empty() {
+            return MutationOutcome::response(self.product_variants_bulk_response(
+                &field,
+                "productVariantsBulkCreate",
+                None,
+                Some(Vec::new()),
+                user_errors,
+            ));
+        }
+
+        let strategy = resolved_string_arg(&field.arguments, "strategy");
+        let existing_variants = self.store.product_variants_for_product(&product.id);
+        let existing_variant_count = existing_variants.len();
+        let mut created_variants = Vec::new();
+        for (index, input) in variants_input.iter().enumerate() {
+            let variant_id = self.next_proxy_synthetic_gid("ProductVariant");
+            let inventory_item_id = self.next_proxy_synthetic_gid("InventoryItem");
+            let mut variant = product_variant_record_from_create_input(
+                input,
+                variant_id,
+                product.id.clone(),
+                inventory_item_id,
+            );
+            Self::normalize_bulk_variant_title(&mut variant);
+            // Shopify assigns sequential 1-based positions in product-variant order;
+            // the bulk create input never supplies one, so derive it from the variant
+            // count already on the product.
+            variant
+                .extra_fields
+                .entry("position".to_string())
+                .or_insert_with(|| json!(existing_variant_count + index + 1));
+            created_variants.push(variant);
+        }
+        for variant in &created_variants {
+            self.store.stage_product_variant(variant.clone());
+        }
+        for (variant, input) in created_variants.iter().zip(variants_input.iter()) {
+            self.stage_input_variant_metafields(&variant.id, input);
+        }
+
+        // Apply the bulk-create variant strategy. `REMOVE_STANDALONE_VARIANT` drops the
+        // product's lone pre-existing variant; the default strategy only drops it when it
+        // is Shopify's auto-generated `Title: Default Title` standalone variant. With either
+        // removal, and whenever a strategy is supplied, the product's option values are
+        // rederived from the surviving variant set (existing values are preserved by name).
+        if let Some(strategy) = strategy.as_deref() {
+            let remove_existing = match strategy {
+                "REMOVE_STANDALONE_VARIANT" => existing_variant_count == 1,
+                "DEFAULT" => {
+                    existing_variant_count == 1
+                        && existing_variants
+                            .first()
+                            .is_some_and(Self::is_standalone_default_variant)
+                }
+                _ => false,
+            };
+            if remove_existing {
+                for variant in &existing_variants {
+                    self.store.delete_product_variant(&variant.id);
+                }
+            }
+            let final_variants = self.store.product_variants_for_product(&product.id);
+            self.recompute_product_options_from_variants(&product.id, &final_variants);
+        }
+
+        let mut staged_ids = vec![product.id.clone()];
+        staged_ids.extend(created_variants.iter().map(|variant| variant.id.clone()));
+        MutationOutcome::staged(
+            self.product_variants_bulk_response(
+                &field,
+                "productVariantsBulkCreate",
+                self.store.product_by_id(&product.id),
+                Some(created_variants),
+                Vec::new(),
+            ),
+            LogDraft::staged("productVariantsBulkCreate", "products", staged_ids),
+        )
+    }
+
+    fn product_variants_bulk_update(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        let Some(field) =
+            Self::product_variant_bulk_root_field(query, variables, "productVariantsBulkUpdate")
+        else {
+            return MutationOutcome::response(json_error(
+                400,
+                "No productVariantsBulkUpdate root field found",
+            ));
+        };
+        let product_id = resolved_string_arg(&field.arguments, "productId").unwrap_or_default();
+        let variants_input = Self::resolved_object_list_arg(&field.arguments, "variants");
+        // Hydrate the product together with the variants referenced by the update so
+        // a cold backend stages both before the update is applied, matching the
+        // node hydration the proxy records during capture.
+        let hydrate_variant_ids: Vec<String> = variants_input
+            .iter()
+            .filter_map(|input| resolved_string_field(input, "id"))
+            .collect();
+        let Some(product) = self
+            .product_for_bulk_variant_mutation_with_variant_ids(
+                request,
+                &product_id,
+                &hydrate_variant_ids,
+            )
+            .cloned()
+        else {
+            return MutationOutcome::response(self.product_variants_bulk_response(
+                &field,
+                "productVariantsBulkUpdate",
+                None,
+                None,
+                vec![Self::bulk_user_error(
+                    &["productId"],
+                    "Product does not exist",
+                    Some("PRODUCT_DOES_NOT_EXIST"),
+                )],
+            ));
+        };
+        if variants_input.is_empty() {
+            return MutationOutcome::response(self.product_variants_bulk_response(
+                &field,
+                "productVariantsBulkUpdate",
+                None,
+                None,
+                vec![json!({
+                    "field": Value::Null,
+                    "message": "Something went wrong, please try again.",
+                    "code": Value::Null,
+                })],
+            ));
+        }
+
+        let mut user_errors = Vec::new();
+        let mut updated_variants = Vec::new();
+        for (index, input) in variants_input.iter().enumerate() {
+            let prefix = ["variants".to_string(), index.to_string()];
+            let Some(variant_id) = resolved_string_field(input, "id") else {
+                user_errors.push(Self::bulk_user_error(
+                    &["variants", &index.to_string(), "id"],
+                    "Product variant is missing ID attribute",
+                    Some("PRODUCT_VARIANT_ID_MISSING"),
+                ));
+                continue;
+            };
+            let Some(existing) = self.store.product_variant_by_id(&variant_id).cloned() else {
+                user_errors.push(Self::bulk_user_error(
+                    &["variants", &index.to_string(), "id"],
+                    "Product variant does not exist",
+                    Some("PRODUCT_VARIANT_DOES_NOT_EXIST"),
+                ));
+                continue;
+            };
+            if existing.product_id != product.id {
+                user_errors.push(Self::bulk_user_error(
+                    &["variants", &index.to_string(), "id"],
+                    "Product variant does not exist",
+                    Some("PRODUCT_VARIANT_DOES_NOT_EXIST"),
+                ));
+                continue;
+            }
+            if input.contains_key("inventoryQuantities") {
+                user_errors.push(Self::bulk_user_error(
+                    &["variants", &index.to_string(), "inventoryQuantities"],
+                    "Inventory quantities can only be provided during create. To update inventory for existing variants, use inventoryAdjustQuantities.",
+                    Some("NO_INVENTORY_QUANTITIES_ON_VARIANTS_UPDATE"),
+                ));
+            }
+            user_errors.extend(product_variant_input_user_errors_with_prefix(
+                input, &prefix,
+            ));
+            user_errors.extend(Self::product_variant_bulk_option_user_errors(
+                input, &product, index, true,
+            ));
+            let mut variant = existing;
+            apply_product_variant_input(&mut variant, input);
+            Self::normalize_bulk_variant_title(&mut variant);
+            updated_variants.push(variant);
+        }
+        if !user_errors.is_empty() {
+            return MutationOutcome::response(self.product_variants_bulk_response(
+                &field,
+                "productVariantsBulkUpdate",
+                Some(&product),
+                None,
+                user_errors,
+            ));
+        }
+
+        for variant in &updated_variants {
+            self.store.stage_product_variant(variant.clone());
+        }
+        for (variant, input) in updated_variants.iter().zip(variants_input.iter()) {
+            self.stage_input_variant_metafields(&variant.id, input);
+        }
+        let mut staged_ids = vec![product.id.clone()];
+        staged_ids.extend(updated_variants.iter().map(|variant| variant.id.clone()));
+        MutationOutcome::staged(
+            self.product_variants_bulk_response(
+                &field,
+                "productVariantsBulkUpdate",
+                self.store.product_by_id(&product.id),
+                Some(updated_variants),
+                Vec::new(),
+            ),
+            LogDraft::staged("productVariantsBulkUpdate", "products", staged_ids),
+        )
+    }
+
+    fn product_variants_bulk_delete(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        let Some(field) =
+            Self::product_variant_bulk_root_field(query, variables, "productVariantsBulkDelete")
+        else {
+            return MutationOutcome::response(json_error(
+                400,
+                "No productVariantsBulkDelete root field found",
+            ));
+        };
+        let product_id = resolved_string_arg(&field.arguments, "productId").unwrap_or_default();
+        let variant_ids = resolved_string_list_arg(&field.arguments, "variantsIds");
+        // Hydrate the product together with the variants being deleted so a cold
+        // backend stages both before applying the delete, matching the node
+        // hydration recorded during capture.
+        let Some(product) = self
+            .product_for_bulk_variant_mutation_with_variant_ids(request, &product_id, &variant_ids)
+            .cloned()
+        else {
+            return MutationOutcome::response(self.product_variants_bulk_response(
+                &field,
+                "productVariantsBulkDelete",
+                None,
+                None,
+                vec![Self::bulk_user_error(
+                    &["productId"],
+                    "Product does not exist",
+                    Some("PRODUCT_DOES_NOT_EXIST"),
+                )],
+            ));
+        };
+
+        let mut user_errors = Vec::new();
+        for (index, variant_id) in variant_ids.iter().enumerate() {
+            let belongs_to_product = self
+                .store
+                .product_variant_by_id(variant_id)
+                .is_some_and(|variant| variant.product_id == product.id);
+            if !belongs_to_product {
+                user_errors.push(Self::bulk_user_error(
+                    &["variantsIds", &index.to_string()],
+                    "At least one variant does not belong to the product",
+                    Some("AT_LEAST_ONE_VARIANT_DOES_NOT_BELONG_TO_THE_PRODUCT"),
+                ));
+            }
+        }
+        if !user_errors.is_empty() {
+            return MutationOutcome::response(self.product_variants_bulk_response(
+                &field,
+                "productVariantsBulkDelete",
+                None,
+                None,
+                user_errors,
+            ));
+        }
+
+        for variant_id in &variant_ids {
+            self.store.delete_product_variant(variant_id);
+        }
+        MutationOutcome::staged(
+            self.product_variants_bulk_response(
+                &field,
+                "productVariantsBulkDelete",
+                self.store.product_by_id(&product.id),
+                None,
+                Vec::new(),
+            ),
+            LogDraft::staged(
+                "productVariantsBulkDelete",
+                "products",
+                std::iter::once(product.id.clone())
+                    .chain(variant_ids.iter().cloned())
+                    .collect(),
+            ),
+        )
+    }
+
+    fn product_variants_bulk_reorder(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        let Some(field) =
+            Self::product_variant_bulk_root_field(query, variables, "productVariantsBulkReorder")
+        else {
+            return MutationOutcome::response(json_error(
+                400,
+                "No productVariantsBulkReorder root field found",
+            ));
+        };
+        let product_id = resolved_string_arg(&field.arguments, "productId").unwrap_or_default();
+        let positions = Self::resolved_object_list_arg(&field.arguments, "positions");
+        let position_variant_ids = positions
+            .iter()
+            .filter_map(|position| resolved_string_field(position, "id"))
+            .collect::<Vec<_>>();
+        let Some(product) = self
+            .product_for_bulk_variant_mutation_with_variant_ids(
+                request,
+                &product_id,
+                &position_variant_ids,
+            )
+            .cloned()
+        else {
+            return MutationOutcome::response(self.product_variants_bulk_response(
+                &field,
+                "productVariantsBulkReorder",
+                None,
+                None,
+                vec![Self::bulk_user_error(
+                    &["productId"],
+                    "Product does not exist",
+                    Some("PRODUCT_DOES_NOT_EXIST"),
+                )],
+            ));
+        };
+
+        let mut user_errors = Vec::new();
+        let mut ordered_positions = Vec::new();
+        for (index, position) in positions.iter().enumerate() {
+            let Some(variant_id) = resolved_string_field(position, "id") else {
+                user_errors.push(Self::bulk_user_error(
+                    &["positions", &index.to_string(), "id"],
+                    "Product variant is missing ID attribute",
+                    Some("PRODUCT_VARIANT_ID_MISSING"),
+                ));
+                continue;
+            };
+            if self
+                .store
+                .product_variant_by_id(&variant_id)
+                .is_none_or(|variant| variant.product_id != product.id)
+            {
+                user_errors.push(Self::bulk_user_error(
+                    &["positions", &index.to_string(), "id"],
+                    "Product variant does not exist",
+                    Some("PRODUCT_VARIANT_DOES_NOT_EXIST"),
+                ));
+                continue;
+            }
+            let position_value = resolved_int_field(position, "position").unwrap_or(index as i64);
+            ordered_positions.push((position_value, index, variant_id));
+        }
+        if !user_errors.is_empty() {
+            return MutationOutcome::response(self.product_variants_bulk_response(
+                &field,
+                "productVariantsBulkReorder",
+                None,
+                None,
+                user_errors,
+            ));
+        }
+
+        ordered_positions.sort_by(|left, right| left.0.cmp(&right.0).then(left.1.cmp(&right.1)));
+        let ordered_ids = ordered_positions
+            .into_iter()
+            .map(|(_, _, variant_id)| variant_id)
+            .collect::<Vec<_>>();
+        self.store
+            .reorder_product_variants(&product.id, &ordered_ids);
+        MutationOutcome::staged(
+            self.product_variants_bulk_response(
+                &field,
+                "productVariantsBulkReorder",
+                self.store.product_by_id(&product.id),
+                None,
+                Vec::new(),
+            ),
+            LogDraft::staged(
+                "productVariantsBulkReorder",
+                "products",
+                std::iter::once(product.id.clone())
+                    .chain(ordered_ids)
+                    .collect(),
+            ),
+        )
+    }
+
+    fn product_variants_bulk_response(
+        &self,
+        field: &RootFieldSelection,
+        _root_field: &str,
+        product: Option<&ProductRecord>,
+        variants: Option<Vec<ProductVariantRecord>>,
+        user_errors: Vec<Value>,
+    ) -> Response {
+        let payload =
+            self.product_variants_bulk_payload_json(field, product, variants, user_errors);
+        ok_json(json!({
+            "data": {
+                field.response_key.clone(): payload
+            }
+        }))
+    }
+
+    fn product_variants_bulk_payload_json(
+        &self,
+        field: &RootFieldSelection,
+        product: Option<&ProductRecord>,
+        variants: Option<Vec<ProductVariantRecord>>,
+        user_errors: Vec<Value>,
+    ) -> Value {
+        let root_field = field.name.as_str();
+        selected_payload_json(&field.selection, |selection| {
+            match selection.name.as_str() {
+                "product" => Some(match product {
+                    Some(product) => {
+                        let variants = self.store.product_variants_for_product(&product.id);
+                        product_json_with_variants(product, &variants, &selection.selection)
+                    }
+                    None => Value::Null,
+                }),
+                "productVariants" => Some(match variants.as_ref() {
+                    Some(variants) => Value::Array(
+                        variants
+                            .iter()
+                            .map(|variant| {
+                                product_variant_json(
+                                    variant,
+                                    self.store.product_by_id(&variant.product_id),
+                                    &selection.selection,
+                                )
+                            })
+                            .collect(),
+                    ),
+                    None if root_field == "productVariantsBulkCreate" => Value::Array(Vec::new()),
+                    None => Value::Null,
+                }),
+                "userErrors" => Some(Value::Array(
+                    user_errors
+                        .iter()
+                        .map(|error| selected_json(error, &selection.selection))
+                        .collect(),
+                )),
+                _ => None,
+            }
+        })
+    }
+
+    fn product_for_bulk_variant_mutation(
+        &mut self,
+        request: &Request,
+        product_id: &str,
+    ) -> Option<&ProductRecord> {
+        self.product_for_bulk_variant_mutation_with_variant_ids(request, product_id, &[])
+    }
+
+    fn product_for_bulk_variant_mutation_with_variant_ids(
+        &mut self,
+        request: &Request,
+        product_id: &str,
+        variant_ids: &[String],
+    ) -> Option<&ProductRecord> {
+        if self.store.product_by_id(product_id).is_none()
+            && self.config.read_mode == ReadMode::LiveHybrid
+        {
+            let mut hydrate_ids = vec![product_id.to_string()];
+            hydrate_ids.extend(variant_ids.iter().cloned());
+            if hydrate_ids.len() > 1 {
+                let mut tail = hydrate_ids.split_off(1);
+                tail.sort();
+                hydrate_ids.extend(tail);
+            }
+            self.hydrate_product_nodes_for_observation_with_request(request, hydrate_ids);
+        }
+        self.store.product_by_id(product_id)
+    }
+
     fn product_variant_success_response(
         &self,
         query: &str,
@@ -3186,6 +3989,196 @@ impl DraftProxy {
                 _ => None,
             }
         })
+    }
+
+    fn product_variant_bulk_root_field(
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+    ) -> Option<RootFieldSelection> {
+        root_fields(query, variables)?
+            .into_iter()
+            .find(|field| field.name == root_field)
+    }
+
+    fn resolved_object_list_arg(
+        arguments: &BTreeMap<String, ResolvedValue>,
+        name: &str,
+    ) -> Vec<BTreeMap<String, ResolvedValue>> {
+        match arguments.get(name) {
+            Some(ResolvedValue::List(values)) => values
+                .iter()
+                .filter_map(|value| match value {
+                    ResolvedValue::Object(object) => Some(object.clone()),
+                    _ => None,
+                })
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+
+    fn product_variant_bulk_input_size_error(field: &RootFieldSelection, size: usize) -> Response {
+        ok_json(json!({
+            "errors": [{
+                "message": format!(
+                    "The input array size of {} is greater than the maximum allowed of 2048.",
+                    size
+                ),
+                "locations": [{
+                    "line": field.location.line,
+                    "column": field.location.column
+                }],
+                "path": [field.name, "variants"],
+                "extensions": {
+                    "code": "MAX_INPUT_SIZE_EXCEEDED"
+                }
+            }]
+        }))
+    }
+
+    fn bulk_user_error(field: &[&str], message: &str, code: Option<&str>) -> Value {
+        json!({
+            "field": field,
+            "message": message,
+            "code": code
+                .map(|code| Value::String(code.to_string()))
+                .unwrap_or(Value::Null),
+        })
+    }
+
+    fn product_variant_bulk_option_user_errors(
+        input: &BTreeMap<String, ResolvedValue>,
+        product: &ProductRecord,
+        index: usize,
+        update: bool,
+    ) -> Vec<Value> {
+        let options = resolved_object_list_field(input, "optionValues");
+        let mut errors = Vec::new();
+        let mut names = BTreeSet::new();
+        let product_option_names = Self::product_option_names(product);
+        for (option_index, option) in options.iter().enumerate() {
+            let option_name = resolved_string_field(option, "optionName")
+                .or_else(|| resolved_string_field(option, "name"))
+                .unwrap_or_default();
+            if !option_name.is_empty() && !names.insert(option_name.clone()) {
+                errors.push(Self::bulk_user_error(
+                    &["variants", &index.to_string(), "optionValues"],
+                    &format!("Duplicated option name '{}'", option_name),
+                    Some("INVALID_INPUT"),
+                ));
+                break;
+            }
+            if (option_name.is_empty()
+                && (option.contains_key("optionId") || option.contains_key("id")))
+                || (!option_name.is_empty()
+                    && !product_option_names.is_empty()
+                    && !product_option_names.contains(&option_name))
+            {
+                errors.push(Self::bulk_user_error(
+                    &[
+                        "variants",
+                        &index.to_string(),
+                        "optionValues",
+                        &option_index.to_string(),
+                    ],
+                    "Option does not exist",
+                    Some(if update {
+                        "OPTION_DOES_NOT_EXIST"
+                    } else {
+                        "INVALID_INPUT"
+                    }),
+                ));
+                break;
+            }
+        }
+        if errors.is_empty() && !update {
+            for option_name in product_option_names {
+                if !names.contains(&option_name) {
+                    errors.push(Self::bulk_user_error(
+                        &["variants", &index.to_string()],
+                        &format!("You need to add option values for {}", option_name),
+                        Some("NEED_TO_ADD_OPTION_VALUES"),
+                    ));
+                    break;
+                }
+            }
+        }
+        errors
+    }
+
+    fn product_variant_bulk_inventory_location_user_errors(
+        &self,
+        input: &BTreeMap<String, ResolvedValue>,
+        index: usize,
+    ) -> Vec<Value> {
+        let variant_title = resolved_product_variant_selected_options(input)
+            .iter()
+            .map(|option| option.value.as_str())
+            .collect::<Vec<_>>()
+            .join(" / ");
+        if resolved_object_list_field(input, "inventoryQuantities")
+            .iter()
+            .any(|quantity| {
+                resolved_string_field(quantity, "locationId")
+                    .is_some_and(|location_id| !self.bulk_variant_location_exists(&location_id))
+            })
+        {
+            vec![Self::bulk_user_error(
+                &["variants", &index.to_string(), "inventoryQuantities"],
+                &format!(
+                    "Quantity for {} couldn't be set because the location was deleted.",
+                    if variant_title.is_empty() {
+                        "variant"
+                    } else {
+                        &variant_title
+                    }
+                ),
+                Some("TRACKED_VARIANT_LOCATION_NOT_FOUND"),
+            )]
+        } else {
+            Vec::new()
+        }
+    }
+
+    fn bulk_variant_location_exists(&self, location_id: &str) -> bool {
+        location_id == "gid://shopify/Location/1"
+            || self.store.staged.locations.contains_key(location_id)
+            || self
+                .store
+                .staged
+                .fulfillment_service_locations
+                .contains_key(location_id)
+    }
+
+    fn product_option_names(product: &ProductRecord) -> BTreeSet<String> {
+        product
+            .extra_fields
+            .get("options")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|option| option.get("name").and_then(Value::as_str))
+            .map(str::to_string)
+            .collect()
+    }
+
+    fn product_variant_effective_count_after_create(
+        store: &Store,
+        product_id: &str,
+        create_count: usize,
+    ) -> usize {
+        store.product_variants_for_product(product_id).len() + create_count
+    }
+
+    fn normalize_bulk_variant_title(variant: &mut ProductVariantRecord) {
+        if variant.title == "Default Title" && !variant.selected_options.is_empty() {
+            variant.title = variant
+                .selected_options
+                .iter()
+                .map(|option| option.value.as_str())
+                .collect::<Vec<_>>()
+                .join(" / ");
+        }
     }
 
     fn product_variant_delete_response(
@@ -4457,7 +5450,7 @@ fn owner_product_variant_state_from_observed_json(value: &Value) -> Option<Produ
             tracked: inventory_item
                 .and_then(|item| item.get("tracked"))
                 .and_then(Value::as_bool)
-                .unwrap_or(true),
+                .unwrap_or(false),
             requires_shipping: inventory_item
                 .and_then(|item| item.get("requiresShipping"))
                 .and_then(Value::as_bool)

@@ -609,10 +609,17 @@ impl DraftProxy {
                     && has_local_dispatch
                     && matches!(
                         root_field,
-                        "productVariantCreate" | "productVariantUpdate" | "productVariantDelete"
+                        "productVariantCreate"
+                            | "productVariantUpdate"
+                            | "productVariantDelete"
+                            | "productVariantsBulkCreate"
+                            | "productVariantsBulkUpdate"
+                            | "productVariantsBulkDelete"
+                            | "productVariantsBulkReorder"
                     ) =>
             {
-                let outcome = self.product_variant_mutation(root_field, &query, &variables);
+                let outcome =
+                    self.product_variant_mutation(request, root_field, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
