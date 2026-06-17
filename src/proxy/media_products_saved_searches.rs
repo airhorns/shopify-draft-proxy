@@ -10,6 +10,12 @@ const TAGGABLE_ARTICLE_HYDRATE_QUERY: &str = "query TagsArticleHydrate($id: ID!)
 const TAGGABLE_PRODUCT_HYDRATE_QUERY: &str = "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n    }\n  }\n}";
 const OWNER_METAFIELD_HYDRATE_QUERY: &str = "query OwnerMetafieldsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Collection { id title handle metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Customer { id displayName email metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Order { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Company { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } }";
 const BULK_OPERATION_HYDRATE_QUERY: &str = "query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }";
+// fileUpdate validates against existing file records that may only be known
+// upstream. In LiveHybrid these hydration reads fetch the referenced file/product
+// records before staging local updates; in replay they match the recorded
+// cassette calls, and against a live backend they are ordinary GraphQL reads.
+const MEDIA_FILE_UPDATE_HYDRATE_QUERY: &str = "query MediaFileUpdateHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}";
+const MEDIA_PRODUCT_HYDRATE_QUERY: &str = "query MediaProductHydrate($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    handle\n    status\n    media(first: 50) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n        preview { image { url width height } }\n        ... on MediaImage { image { url width height } }\n      }\n    }\n    variants(first: 50) {\n      nodes {\n        id\n        title\n        media(first: 10) { nodes { id } }\n      }\n    }\n  }\n}";
 // Canonical mutation forwarded to upstream when a schema-valid bulk query root is
 // accepted by the validator but is not one of the locally synthesized roots
 // (`products`/`productVariants`). LiveHybrid replays the recorded upstream
@@ -752,6 +758,20 @@ impl DraftProxy {
                 "fileUpdate",
             ));
         }
+        // originalSource over the 2048-char argument limit is a document-level
+        // coercion error (top-level errors + null payload), matching Shopify.
+        for input in &inputs {
+            if let Some(source) = resolved_string_field(input, "originalSource") {
+                if source.chars().count() > 2048 {
+                    return MutationOutcome::response(media_invalid_field_arguments_response(
+                        &response_key,
+                        "fileUpdate",
+                        "originalSource is too long (maximum is 2048)",
+                    ));
+                }
+            }
+        }
+
         let required_field_errors = inputs
             .iter()
             .enumerate()
@@ -764,6 +784,12 @@ impl DraftProxy {
                 required_field_errors,
             ));
         }
+
+        // Hydrate referenced products and file-update targets from upstream so
+        // existence/validation checks run against the real records (Gleam parity:
+        // maybe_hydrate_referenced_products + maybe_hydrate_file_update_targets).
+        self.hydrate_referenced_products(request, &inputs);
+        self.hydrate_file_update_targets(request, &inputs);
 
         let missing_ids = inputs
             .iter()
@@ -856,6 +882,15 @@ impl DraftProxy {
             ));
         }
 
+        let reference_target_errors = self.validate_file_update_reference_targets(&inputs);
+        if !reference_target_errors.is_empty() {
+            return MutationOutcome::response(media_file_update_error_response(
+                &response_key,
+                &payload_selection,
+                reference_target_errors,
+            ));
+        }
+
         let mut updated_files = Vec::new();
         for input in &inputs {
             let Some(id) = resolved_string_field(input, "id") else {
@@ -871,14 +906,33 @@ impl DraftProxy {
                 file["filename"] = json!(filename);
                 file["displayName"] = json!(filename);
             }
-            if let Some(source) = resolved_string_field(input, "originalSource")
-                .or_else(|| resolved_string_field(input, "previewImageSource"))
-            {
-                if file.get("__typename").and_then(Value::as_str) == Some("GenericFile") {
+            // Source/preview updates invalidate the rendered image until the
+            // backend reprocesses it. The immediate payload nulls `image` (Gleam
+            // update_file_record) while the existing `preview`/`url` are retained,
+            // because regeneration is asynchronous.
+            let content_type = file
+                .get("contentType")
+                .and_then(Value::as_str)
+                .map(str::to_string);
+            let original_source =
+                resolved_string_field(input, "originalSource").filter(|value| !value.is_empty());
+            let preview_source = resolved_string_field(input, "previewImageSource")
+                .filter(|value| !value.is_empty());
+            let source_as_preview = if content_type.as_deref() == Some("IMAGE") {
+                original_source.clone()
+            } else {
+                None
+            };
+            let explicit_preview = preview_source.or(source_as_preview);
+            if explicit_preview.is_some() {
+                file["image"] = Value::Null;
+            }
+            // GenericFile renders `url` from the accepted originalSource (Gleam
+            // next_original_source for FILE). Image-type files defer to async
+            // regeneration and keep their hydrated preview/url instead.
+            if content_type.as_deref() == Some("FILE") {
+                if let Some(source) = &original_source {
                     file["url"] = json!(source);
-                } else {
-                    file["preview"] =
-                        json!({"image": {"url": source, "width": null, "height": null}});
                 }
             }
             file["updatedAt"] = json!("2024-01-01T00:00:59.000Z");
@@ -1131,6 +1185,128 @@ impl DraftProxy {
             return None;
         }
         Some(file)
+    }
+
+    // Hydrate file-update target records from upstream when they are not already
+    // known locally, so existence/type/state validation matches the real backend.
+    // In replay these reads match the recorded cassette calls; against a live
+    // backend they are ordinary `nodes(ids:)` reads. A node the backend does not
+    // know about comes back null and is simply not staged (-> FILE_DOES_NOT_EXIST).
+    fn hydrate_file_update_targets(
+        &mut self,
+        request: &Request,
+        inputs: &[BTreeMap<String, ResolvedValue>],
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let missing_ids = dedupe_media_strings(
+            inputs
+                .iter()
+                .filter_map(|input| resolved_string_field(input, "id"))
+                .filter(|id| !id.is_empty() && self.media_file_for_update(id).is_none())
+                .collect(),
+        );
+        if missing_ids.is_empty() {
+            return;
+        }
+        let hydrate_request = Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: serde_json::to_string(&json!({
+                "query": MEDIA_FILE_UPDATE_HYDRATE_QUERY,
+                "operationName": "MediaFileUpdateHydrate",
+                "variables": { "fileIds": missing_ids },
+            }))
+            .unwrap_or_default(),
+        };
+        let response = (self.upstream_transport)(hydrate_request);
+        if response.status >= 400 {
+            return;
+        }
+        if let Some(nodes) = response.body["data"]["nodes"].as_array() {
+            for node in nodes {
+                if let Some(record) = media_file_record_from_node(node) {
+                    if let Some(id) = record.get("id").and_then(Value::as_str).map(str::to_string) {
+                        self.store.staged.media_files.insert(id, record);
+                    }
+                }
+            }
+        }
+    }
+
+    // Hydrate products referenced by referencesToAdd/referencesToRemove so that
+    // attaching an existing product stays local-only after the read, and a missing
+    // product surfaces REFERENCE_TARGET_DOES_NOT_EXIST.
+    fn hydrate_referenced_products(
+        &mut self,
+        request: &Request,
+        inputs: &[BTreeMap<String, ResolvedValue>],
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let product_ids = dedupe_media_strings(
+            inputs
+                .iter()
+                .flat_map(|input| {
+                    let mut ids = list_string_field(input, "referencesToAdd");
+                    ids.extend(list_string_field(input, "referencesToRemove"));
+                    ids
+                })
+                .collect(),
+        );
+        for product_id in product_ids {
+            if product_id.is_empty() || self.store.product_by_id(&product_id).is_some() {
+                continue;
+            }
+            let hydrate_request = Request {
+                method: "POST".to_string(),
+                path: request.path.clone(),
+                headers: request.headers.clone(),
+                body: serde_json::to_string(&json!({
+                    "query": MEDIA_PRODUCT_HYDRATE_QUERY,
+                    "operationName": "MediaProductHydrate",
+                    "variables": { "id": product_id },
+                }))
+                .unwrap_or_default(),
+            };
+            let response = (self.upstream_transport)(hydrate_request);
+            if response.status >= 400 {
+                continue;
+            }
+            if response.body["data"]["product"].is_object() {
+                self.store
+                    .stage_observed_product_json(&response.body["data"]["product"]);
+            }
+        }
+    }
+
+    // Files referencing products that do not exist (after hydration) fail with
+    // REFERENCE_TARGET_DOES_NOT_EXIST (Gleam parity: validate_file_update_reference_targets).
+    fn validate_file_update_reference_targets(
+        &self,
+        inputs: &[BTreeMap<String, ResolvedValue>],
+    ) -> Vec<Value> {
+        let any_missing = inputs.iter().any(|input| {
+            let mut product_ids = list_string_field(input, "referencesToAdd");
+            product_ids.extend(list_string_field(input, "referencesToRemove"));
+            dedupe_media_strings(product_ids)
+                .iter()
+                .any(|product_id| {
+                    !product_id.is_empty() && self.store.product_by_id(product_id).is_none()
+                })
+        });
+        if any_missing {
+            vec![json!({
+                "field": ["files"],
+                "message": "The reference target does not exist",
+                "code": "REFERENCE_TARGET_DOES_NOT_EXIST"
+            })]
+        } else {
+            Vec::new()
+        }
     }
 
     fn validate_file_update_target(
@@ -4469,13 +4645,16 @@ fn validate_file_update_post_readiness_fields(
             }));
         }
     }
+    // Gleam parity (validate_optional_url): an invalid originalSource OR
+    // previewImageSource is always reported against the previewImageSource field
+    // with the INVALID_IMAGE_SOURCE_URL code, regardless of which field carried it.
     for source_field in ["originalSource", "previewImageSource"] {
         if let Some(source) = resolved_string_field(input, source_field) {
             if !source.is_empty() && !is_http_url(&source) {
                 errors.push(json!({
-                    "field": ["files", index.to_string(), source_field],
-                    "message": "File URL is invalid",
-                    "code": if source_field == "previewImageSource" { "INVALID_IMAGE_SOURCE_URL" } else { "INVALID" }
+                    "field": ["files", index.to_string(), "previewImageSource"],
+                    "message": "Invalid image source url value provided",
+                    "code": "INVALID_IMAGE_SOURCE_URL"
                 }));
             }
         }
@@ -4823,6 +5002,68 @@ fn seeded_media_file_for_update(id: &str) -> Option<Value> {
         )),
         _ => None,
     }
+}
+
+// Build a staged media-file record from an upstream `nodes(ids:)` hydration node,
+// preserving the observed image/preview/url so reads echo the real upstream shape.
+fn media_file_record_from_node(node: &Value) -> Option<Value> {
+    let id = node.get("id").and_then(Value::as_str)?.to_string();
+    let typename = node.get("__typename").and_then(Value::as_str)?;
+    let content_type = match typename {
+        "MediaImage" => "IMAGE",
+        "Video" => "VIDEO",
+        "ExternalVideo" => "EXTERNAL_VIDEO",
+        "Model3d" => "MODEL_3D",
+        "GenericFile" => "FILE",
+        _ => return None,
+    };
+    let created_at = node
+        .get("createdAt")
+        .and_then(Value::as_str)
+        .unwrap_or("2024-01-01T00:00:00.000Z")
+        .to_string();
+    let updated_at = node
+        .get("updatedAt")
+        .and_then(Value::as_str)
+        .or_else(|| node.get("createdAt").and_then(Value::as_str))
+        .unwrap_or("2024-01-01T00:00:00.000Z")
+        .to_string();
+    let file_status = node
+        .get("fileStatus")
+        .and_then(Value::as_str)
+        .or_else(|| node.get("status").and_then(Value::as_str))
+        .unwrap_or("READY")
+        .to_string();
+    let source_url = node
+        .get("url")
+        .and_then(Value::as_str)
+        .or_else(|| node.pointer("/image/url").and_then(Value::as_str))
+        .or_else(|| node.pointer("/preview/image/url").and_then(Value::as_str))
+        .map(str::to_string);
+    let filename = source_url.as_deref().map(filename_from_source);
+
+    let mut record = node.clone();
+    record["__typename"] = json!(typename);
+    record["id"] = json!(id);
+    record["contentType"] = json!(content_type);
+    record["createdAt"] = json!(created_at);
+    record["updatedAt"] = json!(updated_at);
+    record["fileStatus"] = json!(file_status);
+    record["updateStatus"] = json!(file_status);
+    record["fileErrors"] = json!([]);
+    record["fileWarnings"] = json!([]);
+    if let Some(filename) = &filename {
+        record["filename"] = json!(filename);
+        record["displayName"] = json!(filename);
+        record["mimeType"] = json!(mime_type_for_filename(filename, content_type));
+    } else if record.get("mimeType").is_none() {
+        record["mimeType"] = Value::Null;
+    }
+    if matches!(typename, "MediaImage" | "Video" | "ExternalVideo" | "Model3d") {
+        record["mediaErrors"] = json!([]);
+        record["mediaWarnings"] = json!([]);
+    }
+    Some(record)
 }
 
 fn media_file_gid_type(content_type: &str) -> &'static str {
