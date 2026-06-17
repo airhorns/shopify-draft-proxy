@@ -1837,7 +1837,7 @@ pub(in crate::proxy) fn payment_customization_not_found_error(id: &str) -> Value
     payment_customization_user_error(
         vec!["id"],
         "PAYMENT_CUSTOMIZATION_NOT_FOUND",
-        &format!("Payment customization {id} does not exist."),
+        &format!("Could not find PaymentCustomization with id: {id}"),
     )
 }
 
@@ -1921,13 +1921,14 @@ pub(in crate::proxy) fn payment_terms_success_record(
     id: &str,
     name: &str,
     terms_type: &str,
+    due_in_days: Option<i64>,
     schedules: Value,
 ) -> Value {
     json!({
         "id": id,
         "due": false,
         "overdue": false,
-        "dueInDays": if terms_type == "RECEIPT" { Value::Null } else { json!(30) },
+        "dueInDays": due_in_days.map(|days| json!(days)).unwrap_or(Value::Null),
         "paymentTermsName": name,
         "paymentTermsType": terms_type,
         "translatedName": name,
@@ -1943,21 +1944,53 @@ pub(in crate::proxy) fn payment_terms_success_record(
     })
 }
 
+/// Projects the Shopify payment-terms template id onto its (name, type, dueInDays)
+/// tuple. The template catalog is fixed (see the live payment-terms-templates-read
+/// capture): Net N templates carry their day count, Fixed/Due-on-receipt/Due-on-
+/// fulfillment carry a null dueInDays. Unknown or blank template ids fall back to
+/// Net 30, matching Shopify's default term.
+pub(in crate::proxy) fn payment_terms_template_projection(
+    template_id: &str,
+) -> (&'static str, &'static str, Option<i64>) {
+    let tail = template_id
+        .strip_prefix("gid://shopify/PaymentTermsTemplate/")
+        .unwrap_or(template_id);
+    match tail {
+        "1" => ("Due on receipt", "RECEIPT", None),
+        "2" => ("Net 7", "NET", Some(7)),
+        "3" => ("Net 15", "NET", Some(15)),
+        "5" => ("Net 60", "NET", Some(60)),
+        "6" => ("Net 90", "NET", Some(90)),
+        "7" => ("Fixed", "FIXED", None),
+        "8" => ("Net 45", "NET", Some(45)),
+        "9" => ("Due on fulfillment", "FULFILLMENT", None),
+        // Template/4 is Net 30; unknown/blank ids fall back to the same default term.
+        _ => ("Net 30", "NET", Some(30)),
+    }
+}
+
+/// The materialized payment-schedule node Shopify projects for fixed/net terms.
+/// Due-on-receipt and due-on-fulfillment terms project no schedule node.
+fn payment_terms_default_schedule_nodes(id: &str) -> Value {
+    json!([{
+        "id": format!("gid://shopify/PaymentSchedule/{}", resource_id_tail(id)),
+        "amount": { "amount": "57.00", "currencyCode": "CAD" },
+        "balanceDue": { "amount": "57.00", "currencyCode": "CAD" },
+        "totalBalance": { "amount": "57.00", "currencyCode": "CAD" },
+        "issuedAt": "2026-05-05T00:00:00Z",
+        "dueAt": "2026-06-04T00:00:00Z",
+        "completedAt": Value::Null,
+        "due": false
+    }])
+}
+
 pub(in crate::proxy) fn payment_terms_net_record(id: &str) -> Value {
     payment_terms_success_record(
         id,
         "Net 30",
         "NET",
-        json!([{
-            "id": format!("gid://shopify/PaymentSchedule/{}", resource_id_tail(id)),
-            "amount": { "amount": "57.00", "currencyCode": "CAD" },
-            "balanceDue": { "amount": "57.00", "currencyCode": "CAD" },
-            "totalBalance": { "amount": "57.00", "currencyCode": "CAD" },
-            "issuedAt": "2026-05-05T00:00:00Z",
-            "dueAt": "2026-06-04T00:00:00Z",
-            "completedAt": Value::Null,
-            "due": false
-        }]),
+        Some(30),
+        payment_terms_default_schedule_nodes(id),
     )
 }
 
@@ -2054,11 +2087,15 @@ pub(in crate::proxy) fn payment_terms_record_from_attrs(
     attrs: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
     let template_id = resolved_string_field(attrs, "paymentTermsTemplateId").unwrap_or_default();
-    if template_id == "gid://shopify/PaymentTermsTemplate/1" {
-        payment_terms_success_record(id, "Due on receipt", "RECEIPT", json!([]))
+    let (name, terms_type, due_in_days) = payment_terms_template_projection(&template_id);
+    // Due-on-receipt and due-on-fulfillment terms have no materialized schedule;
+    // fixed and net terms project a single schedule node.
+    let schedules = if matches!(terms_type, "RECEIPT" | "FULFILLMENT") {
+        json!([])
     } else {
-        payment_terms_net_record(id)
-    }
+        payment_terms_default_schedule_nodes(id)
+    };
+    payment_terms_success_record(id, name, terms_type, due_in_days, schedules)
 }
 
 pub(in crate::proxy) fn payment_terms_create_value(
