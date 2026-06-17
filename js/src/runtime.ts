@@ -104,38 +104,48 @@ async function fetchJson(origin: string, request: DraftProxyRequest): Promise<Dr
 
 function fetchJsonSync(origin: string, request: DraftProxyRequest, timeoutMs = 10_000): DraftProxyHttpResponse {
   const script = `
-    const request = JSON.parse(process.env.DRAFT_PROXY_REQUEST);
-    const timeoutMs = Number(process.env.DRAFT_PROXY_FETCH_TIMEOUT_MS || 10000);
-    const signal = AbortSignal.timeout(timeoutMs);
-    fetch(process.env.DRAFT_PROXY_URL + request.path, {
-      method: request.method,
-      headers: request.headers,
-      body: request.body.length === 0 ? undefined : request.body,
-      signal,
-    }).then(async (response) => {
-      const text = await response.text();
-      let body = text;
-      if (text.length > 0) {
-        try { body = JSON.parse(text); } catch {}
-      }
-      console.log(JSON.stringify({ status: response.status, headers: Object.fromEntries(response.headers.entries()), body }));
-    }).catch((error) => {
+    const chunks = [];
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', (chunk) => chunks.push(chunk));
+    process.stdin.on('end', () => {
+      const request = JSON.parse(chunks.join(''));
+      const timeoutMs = Number(process.env.DRAFT_PROXY_FETCH_TIMEOUT_MS || 10000);
+      const signal = AbortSignal.timeout(timeoutMs);
+      fetch(process.env.DRAFT_PROXY_URL + request.path, {
+        method: request.method,
+        headers: request.headers,
+        body: request.body.length === 0 ? undefined : request.body,
+        signal,
+      }).then(async (response) => {
+        const text = await response.text();
+        let body = text;
+        if (text.length > 0) {
+          try { body = JSON.parse(text); } catch {}
+        }
+        console.log(JSON.stringify({ status: response.status, headers: Object.fromEntries(response.headers.entries()), body }));
+      }).catch((error) => {
+        console.error(error && error.stack ? error.stack : String(error));
+        process.exit(1);
+      });
+    });
+    process.stdin.on('error', (error) => {
       console.error(error && error.stack ? error.stack : String(error));
       process.exit(1);
     });
   `;
+  const input = JSON.stringify({
+    method: request.method,
+    path: request.path,
+    headers: normalizeHeaders(request.headers),
+    body: bodyToString(request.body),
+  });
   const result = spawnSync(process.execPath, ['-e', script], {
+    input,
     encoding: 'utf8',
     env: {
       ...process.env,
       DRAFT_PROXY_URL: origin,
       DRAFT_PROXY_FETCH_TIMEOUT_MS: String(timeoutMs),
-      DRAFT_PROXY_REQUEST: JSON.stringify({
-        method: request.method,
-        path: request.path,
-        headers: normalizeHeaders(request.headers),
-        body: bodyToString(request.body),
-      }),
     },
     timeout: 10_000,
   });
