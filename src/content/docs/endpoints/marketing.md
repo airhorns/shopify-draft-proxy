@@ -42,6 +42,7 @@ Snapshot reads are served from normalized marketing activity and event records h
 External activity lifecycle:
 
 - External create/update/upsert/delete roots stage `MarketingActivity` and nested `MarketingEvent` records locally from remote ID and UTM attribution evidence.
+- External create/update/upsert preserve activity-level `adSpend`, schedule input, and `referringDomain` values in staged activity state when supplied. Updates that omit those fields keep the previous staged values; the public 2026-04 schema exposes read-back for `MarketingActivity.adSpend` and nested `MarketingEvent.scheduledToEndAt`, while the currently captured public `MarketingActivity` type does not expose scheduled or referring-domain output fields directly.
 - Selector resolution by `remoteId`, `marketingActivityId`, and UTM is app-scoped when `x-shopify-draft-proxy-api-client-id` is present. Legacy unowned fixture records remain visible to all callers.
 - Multiple selectors must resolve to the same effective activity before validation or staging. Conflicts return `MARKETING_ACTIVITY_DOES_NOT_EXIST` with no local mutation.
 - Upsert creates or updates by `remoteId`; delete can resolve by activity ID or remote ID and applies the same selector consistency rule.
@@ -94,6 +95,7 @@ Engagement behavior:
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-update-external-multi-selector.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-upsert-immutable-fields.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-delete-external-guards.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-activity-create-external-read-after-write.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-activity-update-currency-and-tactic-guards.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-external-activity-url-scheme-validation.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-engagement-lifecycle.json`
@@ -109,6 +111,7 @@ Engagement behavior:
 - `config/parity-specs/marketing/marketing-activity-update-external-multi-selector.json`
 - `config/parity-specs/marketing/marketing-activity-upsert-immutable-fields.json`
 - `config/parity-specs/marketing/marketing-activity-delete-external-guards.json`
+- `config/parity-specs/marketing/marketing-activity-create-external-read-after-write.json`
 - `config/parity-specs/marketing/marketing-activity-update-currency-and-tactic-guards.json`
 - `config/parity-specs/marketing/marketing-external-activity-url-scheme-validation.json`
 - `config/parity-specs/marketing/marketing-engagement-lifecycle.json`
@@ -121,6 +124,7 @@ Engagement behavior:
 
 - `corepack pnpm parity -- marketing-activity-lifecycle`
 - `corepack pnpm parity -- marketing-activity-create-external-validation`
+- `corepack pnpm parity -- marketing-activity-create-external-read-after-write`
 - `corepack pnpm parity -- marketing-activity-upsert-external-validation`
 - `corepack pnpm parity -- marketing-engagement-lifecycle`
 - `corepack pnpm parity -- marketing-activity-per-app-scoping`
