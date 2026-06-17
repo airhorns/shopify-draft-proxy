@@ -105,12 +105,47 @@ fn metaobject_field_record_from_definition(
     let field_type = field_definition["type"]["name"]
         .as_str()
         .unwrap_or("single_line_text_field");
-    let value = value.map(String::as_str).unwrap_or_default();
+    let raw_value = value.map(String::as_str).unwrap_or_default();
+    // Most fields echo their stored string verbatim; measurement and date_time fields
+    // are normalized to Shopify's canonical form (uppercased units / decimal values /
+    // explicit UTC offset). `json`/`rich_text_field` are free-form and never reshaped.
+    let stored_value = if raw_value.is_empty() {
+        raw_value.to_string()
+    } else if field_type == "date_time" {
+        metaobject_normalize_date_time_value(raw_value)
+    } else if field_type == "rating" {
+        serde_json::from_str::<Value>(raw_value)
+            .ok()
+            .as_ref()
+            .and_then(metaobject_rating_value_string)
+            .unwrap_or_else(|| raw_value.to_string())
+    } else if matches!(field_type, "json" | "rich_text_field") {
+        raw_value.to_string()
+    } else if field_type.starts_with("list.") {
+        serde_json::from_str::<Value>(raw_value)
+            .ok()
+            .as_ref()
+            .and_then(|parsed| metaobject_list_value_string(field_type, parsed))
+            .unwrap_or_else(|| raw_value.to_string())
+    } else {
+        serde_json::from_str::<Value>(raw_value)
+            .ok()
+            .as_ref()
+            .and_then(metaobject_measurement_value_string)
+            .unwrap_or_else(|| raw_value.to_string())
+    };
+    // jsonValue derives from the raw stored string so list-measurement units stay in
+    // their verbatim (lowercase) form; only date_time reflects the normalized offset.
+    let json_value_source = if field_type == "date_time" {
+        stored_value.as_str()
+    } else {
+        raw_value
+    };
     json!({
         "key": field_definition.get("key").cloned().unwrap_or(Value::Null),
         "type": field_type,
-        "value": value,
-        "jsonValue": metaobject_field_json_value(field_type, Some(value)),
+        "value": stored_value,
+        "jsonValue": metaobject_field_json_value(field_type, Some(json_value_source)),
         "definition": field_definition
     })
 }
@@ -226,9 +261,15 @@ fn metaobject_definition_capabilities(input: &BTreeMap<String, ResolvedValue>) -
     let publishable = resolved_object_field(&capabilities, "publishable")
         .and_then(|publishable| resolved_bool_field(&publishable, "enabled"))
         .unwrap_or(false);
-    let online_store = resolved_object_field(&capabilities, "onlineStore")
-        .and_then(|online_store| resolved_bool_field(&online_store, "enabled"))
+    let online_store_input = resolved_object_field(&capabilities, "onlineStore");
+    let online_store = online_store_input
+        .as_ref()
+        .and_then(|online_store| resolved_bool_field(online_store, "enabled"))
         .unwrap_or(false);
+    let online_store_data = online_store_input
+        .as_ref()
+        .and_then(|online_store| resolved_object_field(online_store, "data"))
+        .map_or(Value::Null, |data| metaobject_online_store_capability_data(&data));
     let renderable = resolved_object_field(&capabilities, "renderable")
         .and_then(|renderable| resolved_bool_field(&renderable, "enabled"))
         .unwrap_or(false);
@@ -237,9 +278,23 @@ fn metaobject_definition_capabilities(input: &BTreeMap<String, ResolvedValue>) -
         .unwrap_or(false);
     json!({
         "publishable": {"enabled": publishable},
-        "onlineStore": {"enabled": online_store, "data": Value::Null},
+        "onlineStore": {"enabled": online_store, "data": online_store_data},
         "renderable": {"enabled": renderable},
         "translatable": {"enabled": translatable}
+    })
+}
+
+/// Normalises an onlineStore capability `data` input into its stored shape. The
+/// admin API accepts `createRedirects` on input but echoes it back as
+/// `canCreateRedirects`, so we translate the field name here.
+fn metaobject_online_store_capability_data(data: &BTreeMap<String, ResolvedValue>) -> Value {
+    let can_create_redirects = resolved_bool_field(data, "createRedirects")
+        .or_else(|| resolved_bool_field(data, "canCreateRedirects"))
+        .unwrap_or(false);
+    json!({
+        "urlHandle": resolved_string_field(data, "urlHandle")
+            .map_or(Value::Null, |url_handle| json!(url_handle)),
+        "canCreateRedirects": can_create_redirects
     })
 }
 
@@ -585,9 +640,70 @@ fn metaobject_definition_create_validation_errors(
     errors
 }
 
+fn metaobject_renderable_capability_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    field_definitions: &[Value],
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    let Some(capabilities) = resolved_object_field(input, "capabilities") else {
+        return errors;
+    };
+    let Some(renderable) = resolved_object_field(&capabilities, "renderable") else {
+        return errors;
+    };
+    if resolved_bool_field(&renderable, "enabled") != Some(true) {
+        return errors;
+    }
+    let Some(data) = resolved_object_field(&renderable, "data") else {
+        return errors;
+    };
+    // The renderable capability's meta-title/meta-description keys must reference
+    // existing text-typed field definitions. Shopify validates them in a fixed
+    // order and reports a single error anchored at ["definition","capabilities","renderable"].
+    for (input_key, capability_key) in [
+        ("metaTitleKey", "meta_title_key"),
+        ("metaDescriptionKey", "meta_description_key"),
+    ] {
+        let Some(field_key) = resolved_string_field(&data, input_key) else {
+            continue;
+        };
+        match field_definitions
+            .iter()
+            .find(|definition| definition["key"].as_str() == Some(field_key.as_str()))
+        {
+            None => errors.push(metaobject_user_error(
+                vec!["definition", "capabilities", "renderable"],
+                &format!("Field definition \"{field_key}\" does not exist"),
+                "INVALID",
+                Value::Null,
+                Value::Null,
+            )),
+            Some(field_definition) => {
+                let field_type = field_definition["type"]["name"].as_str().unwrap_or_default();
+                if !matches!(
+                    field_type,
+                    "single_line_text_field" | "multi_line_text_field" | "rich_text_field"
+                ) {
+                    errors.push(metaobject_user_error(
+                        vec!["definition", "capabilities", "renderable"],
+                        &format!(
+                            "Renderable Capability \"{capability_key}\" cannot reference the field definition \"{field_key}\" of type \"{field_type}\". Only single_line_text_field, multi_line_text_field, rich_text_field definitions are allowed."
+                        ),
+                        "FIELD_TYPE_INVALID",
+                        Value::Null,
+                        Value::Null,
+                    ));
+                }
+            }
+        }
+    }
+    errors
+}
+
 fn metaobject_definition_update_validation_errors(
     input: &BTreeMap<String, ResolvedValue>,
     meta_type: &str,
+    field_definitions: &[Value],
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     if let Some(name) = resolved_string_field(input, "name") {
@@ -633,6 +749,114 @@ fn metaobject_definition_update_validation_errors(
             ));
         }
     }
+    errors.extend(metaobject_renderable_capability_errors(input, field_definitions));
+    errors.extend(metaobject_field_operation_errors(input, field_definitions));
+    errors
+}
+
+/// Validates the `fieldDefinitions` operation list on a definition update. Each
+/// entry is a one-of `{create|update|delete}` operation; Shopify reports errors
+/// per operation index anchored at ["definition","fieldDefinitions",<idx>,<op>,…].
+fn metaobject_field_operation_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    field_definitions: &[Value],
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    let operations = resolved_object_list_field(input, "fieldDefinitions");
+    if operations.is_empty() {
+        return errors;
+    }
+    let mut known_keys: BTreeSet<String> = field_definitions
+        .iter()
+        .filter_map(|definition| definition["key"].as_str().map(str::to_string))
+        .collect();
+    for (index, operation) in operations.iter().enumerate() {
+        let index_string = index.to_string();
+        if let Some(create) = resolved_object_field(operation, "create") {
+            let key = resolved_string_field(&create, "key").unwrap_or_default();
+            // Presence/length/format validators anchor at the `create` object;
+            // the already-taken validator anchors one level deeper at `create.key`.
+            if key.trim().is_empty() {
+                // Shopify runs presence, length, and format validators independently,
+                // so a blank create key surfaces all three errors in that order.
+                errors.push(metaobject_user_error(
+                    vec!["definition", "fieldDefinitions", &index_string, "create"],
+                    "Key can't be blank",
+                    "BLANK",
+                    json!(key),
+                    Value::Null,
+                ));
+                errors.push(metaobject_user_error(
+                    vec!["definition", "fieldDefinitions", &index_string, "create"],
+                    "Key is too short (minimum is 2 characters)",
+                    "TOO_SHORT",
+                    json!(key),
+                    Value::Null,
+                ));
+                errors.push(metaobject_user_error(
+                    vec!["definition", "fieldDefinitions", &index_string, "create"],
+                    "Key contains one or more invalid characters.",
+                    "INVALID",
+                    json!(key),
+                    Value::Null,
+                ));
+                continue;
+            }
+            if key.chars().count() < 2 {
+                errors.push(metaobject_user_error(
+                    vec!["definition", "fieldDefinitions", &index_string, "create"],
+                    "Key is too short (minimum is 2 characters)",
+                    "TOO_SHORT",
+                    json!(key),
+                    Value::Null,
+                ));
+                continue;
+            }
+            if !metaobject_definition_field_key_chars_valid(&key) {
+                errors.push(metaobject_user_error(
+                    vec!["definition", "fieldDefinitions", &index_string, "create"],
+                    "Key contains one or more invalid characters. Only lowercase alphanumeric characters, underscores, and dashes are allowed.",
+                    "INVALID",
+                    json!(key),
+                    Value::Null,
+                ));
+                continue;
+            }
+            if known_keys.contains(&key) {
+                errors.push(metaobject_user_error(
+                    vec!["definition", "fieldDefinitions", &index_string, "create", "key"],
+                    &format!("Field definition \"{key}\" is already taken"),
+                    "OBJECT_FIELD_TAKEN",
+                    json!(key),
+                    Value::Null,
+                ));
+                continue;
+            }
+            known_keys.insert(key);
+        } else if let Some(update) = resolved_object_field(operation, "update") {
+            let key = resolved_string_field(&update, "key").unwrap_or_default();
+            if !known_keys.contains(&key) {
+                errors.push(metaobject_user_error(
+                    vec!["definition", "fieldDefinitions", &index_string, "update", "key"],
+                    &format!("Field definition \"{key}\" does not exist"),
+                    "UNDEFINED_OBJECT_FIELD",
+                    json!(key),
+                    Value::Null,
+                ));
+            }
+        } else if let Some(delete) = resolved_object_field(operation, "delete") {
+            let key = resolved_string_field(&delete, "key").unwrap_or_default();
+            if !known_keys.contains(&key) {
+                errors.push(metaobject_user_error(
+                    vec!["definition", "fieldDefinitions", &index_string, "delete", "key"],
+                    &format!("Field definition \"{key}\" does not exist"),
+                    "UNDEFINED_OBJECT_FIELD",
+                    json!(key),
+                    Value::Null,
+                ));
+            }
+        }
+    }
     errors
 }
 
@@ -671,7 +895,102 @@ fn update_metaobject_definition_record(
         }
         definition["access"] = access;
     }
+    apply_metaobject_definition_capability_updates(&mut definition, input);
+    apply_metaobject_definition_field_operations(&mut definition, input);
     definition
+}
+
+/// Merges the capability changes from a definition-update input into the stored
+/// capabilities, preserving capabilities the caller did not mention.
+fn apply_metaobject_definition_capability_updates(
+    definition: &mut Value,
+    input: &BTreeMap<String, ResolvedValue>,
+) {
+    let Some(input_capabilities) = resolved_object_field(input, "capabilities") else {
+        return;
+    };
+    for key in ["publishable", "onlineStore", "renderable", "translatable"] {
+        let Some(capability) = resolved_object_field(&input_capabilities, key) else {
+            continue;
+        };
+        if let Some(enabled) = resolved_bool_field(&capability, "enabled") {
+            definition["capabilities"][key]["enabled"] = json!(enabled);
+        }
+        if key == "onlineStore" {
+            if let Some(data) = resolved_object_field(&capability, "data") {
+                definition["capabilities"]["onlineStore"]["data"] =
+                    metaobject_online_store_capability_data(&data);
+            }
+        }
+    }
+}
+
+/// Applies the `fieldDefinitions` create/update/delete operations from a
+/// definition-update input to the stored field-definition list. Validation has
+/// already run, so every operation here is known to be applicable.
+fn apply_metaobject_definition_field_operations(
+    definition: &mut Value,
+    input: &BTreeMap<String, ResolvedValue>,
+) {
+    let operations = resolved_object_list_field(input, "fieldDefinitions");
+    if operations.is_empty() {
+        return;
+    }
+    let mut fields = definition["fieldDefinitions"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    for operation in operations {
+        if let Some(create) = resolved_object_field(&operation, "create") {
+            fields.push(metaobject_field_definition_record(create));
+        } else if let Some(update) = resolved_object_field(&operation, "update") {
+            let key = resolved_string_field(&update, "key").unwrap_or_default();
+            if let Some(field) = fields
+                .iter_mut()
+                .find(|field| field["key"].as_str() == Some(key.as_str()))
+            {
+                apply_metaobject_field_definition_update(field, &update);
+            }
+        } else if let Some(delete) = resolved_object_field(&operation, "delete") {
+            let key = resolved_string_field(&delete, "key").unwrap_or_default();
+            fields.retain(|field| field["key"].as_str() != Some(key.as_str()));
+        }
+    }
+    definition["fieldDefinitions"] = json!(fields);
+}
+
+fn apply_metaobject_field_definition_update(
+    field: &mut Value,
+    update: &BTreeMap<String, ResolvedValue>,
+) {
+    if let Some(name) = resolved_string_field(update, "name") {
+        field["name"] = json!(name);
+    }
+    if update.contains_key("description") {
+        field["description"] = update
+            .get("description")
+            .and_then(resolved_value_string)
+            .map_or(Value::Null, |description| json!(description));
+    }
+    if let Some(required) = resolved_bool_field(update, "required") {
+        field["required"] = json!(required);
+    }
+    if update.contains_key("validations") {
+        field["validations"] = json!(resolved_object_list_field(update, "validations")
+            .into_iter()
+            .map(|validation| json!({
+                "name": resolved_string_field(&validation, "name").unwrap_or_default(),
+                "value": resolved_string_field(&validation, "value").unwrap_or_default()
+            }))
+            .collect::<Vec<_>>());
+    }
+    if update.contains_key("type") {
+        let field_type = metaobject_field_definition_type(update);
+        field["type"] = json!({
+            "name": field_type,
+            "category": metaobject_field_type_category(&field_type)
+        });
+    }
 }
 
 fn metaobject_field_json_value(field_type: &str, value: Option<&str>) -> Value {
@@ -682,9 +1001,9 @@ fn metaobject_field_json_value(field_type: &str, value: Option<&str>) -> Value {
         "number_integer" => value
             .parse::<i64>()
             .map_or(Value::Null, |number| json!(number)),
-        "number_decimal" => value
-            .parse::<f64>()
-            .map_or(Value::Null, |number| json!(number)),
+        // Shopify returns number_decimal jsonValue as the verbatim decimal string,
+        // not a JSON number.
+        "number_decimal" => json!(value),
         "boolean" => match value {
             "true" => json!(true),
             "false" => json!(false),
@@ -692,9 +1011,237 @@ fn metaobject_field_json_value(field_type: &str, value: Option<&str>) -> Value {
         },
         "json" | "rich_text_field" => serde_json::from_str(value).unwrap_or_else(|_| json!(value)),
         value_type if value_type.starts_with("list.") => {
-            serde_json::from_str(value).unwrap_or_else(|_| json!([value]))
+            let parsed = serde_json::from_str(value).unwrap_or_else(|_| json!([value]));
+            metaobject_normalize_list_json_value(value_type, parsed)
         }
-        _ => json!(value),
+        // Structured scalar types (money, link, rating, and the measurement family)
+        // serialize jsonValue as the parsed JSON object. Measurement objects also
+        // uppercase their unit. Plain scalar strings (color, date, references, etc.)
+        // fall through to the verbatim string.
+        _ => match serde_json::from_str::<Value>(value) {
+            Ok(parsed) if parsed.is_object() || parsed.is_array() => {
+                metaobject_measurement_unit_uppercased(parsed)
+            }
+            _ => json!(value),
+        },
+    }
+}
+
+/// If `value` is a measurement-shaped object (`{"value": <number>, "unit": "<string>"}`)
+/// returns the value and unit. Distinguishes measurements from money/link/rating which
+/// have different key sets.
+fn metaobject_measurement_parts(value: &Value) -> Option<(&Value, &str)> {
+    let object = value.as_object()?;
+    if object.len() != 2 {
+        return None;
+    }
+    let number = object.get("value")?;
+    if !number.is_number() {
+        return None;
+    }
+    let unit = object.get("unit")?.as_str()?;
+    Some((number, unit))
+}
+
+/// Uppercases the `unit` of a scalar measurement object, leaving every other shape
+/// (money, link, rating, json, arrays) untouched. Scalar measurements normalize their
+/// unit in jsonValue; list measurements echo the parsed input verbatim.
+fn metaobject_measurement_unit_uppercased(value: Value) -> Value {
+    if let Some((number, unit)) = metaobject_measurement_parts(&value) {
+        return json!({"value": number, "unit": unit.to_uppercase()});
+    }
+    value
+}
+
+/// Shopify's classic `dimension`/`weight`/`volume` measurement families store their
+/// unit as an abbreviation in jsonValue (e.g. `centimeters` -> `cm`). All newer
+/// measurement families echo the verbatim lowercase unit. Returns the abbreviation when
+/// one exists, otherwise the lowercase unit unchanged.
+fn metaobject_measurement_storage_unit(field_type: &str, unit: &str) -> String {
+    let lower = unit.to_lowercase();
+    let abbreviation = match field_type {
+        "dimension" | "list.dimension" => match lower.as_str() {
+            "millimeters" => Some("mm"),
+            "centimeters" => Some("cm"),
+            "meters" => Some("m"),
+            "inches" => Some("in"),
+            "feet" => Some("ft"),
+            "yards" => Some("yd"),
+            _ => None,
+        },
+        "weight" | "list.weight" => match lower.as_str() {
+            "grams" => Some("g"),
+            "kilograms" => Some("kg"),
+            "ounces" => Some("oz"),
+            "pounds" => Some("lb"),
+            _ => None,
+        },
+        "volume" | "list.volume" => match lower.as_str() {
+            "milliliters" => Some("ml"),
+            "centiliters" => Some("cl"),
+            "liters" => Some("l"),
+            "cubic_meters" => Some("m3"),
+            "fluid_ounces" => Some("fl oz"),
+            "imperial_fluid_ounces" => Some("imp fl oz"),
+            "pints" => Some("pt"),
+            "imperial_pints" => Some("imp pt"),
+            "quarts" => Some("qt"),
+            "imperial_quarts" => Some("imp qt"),
+            "gallons" => Some("gal"),
+            "imperial_gallons" => Some("imp gal"),
+            _ => None,
+        },
+        _ => None,
+    };
+    abbreviation.map(str::to_string).unwrap_or(lower)
+}
+
+/// Normalizes a list field's jsonValue array per element: date_time strings gain an
+/// explicit UTC offset, and dimension/weight/volume measurements use abbreviated units.
+/// Every other list element is echoed verbatim from the parsed input.
+fn metaobject_normalize_list_json_value(field_type: &str, parsed: Value) -> Value {
+    let Some(items) = parsed.as_array() else {
+        return parsed;
+    };
+    let normalized = items
+        .iter()
+        .map(|item| {
+            if field_type == "list.date_time" {
+                if let Some(text) = item.as_str() {
+                    return json!(metaobject_normalize_date_time_value(text));
+                }
+            }
+            if matches!(field_type, "list.dimension" | "list.weight" | "list.volume") {
+                if let Some((number, unit)) = metaobject_measurement_parts(item) {
+                    return json!({
+                        "value": number,
+                        "unit": metaobject_measurement_storage_unit(field_type, unit),
+                    });
+                }
+            }
+            // number_decimal elements echo as decimal strings, not JSON numbers.
+            if field_type == "list.number_decimal" && item.is_number() {
+                return json!(item.to_string());
+            }
+            item.clone()
+        })
+        .collect::<Vec<_>>();
+    Value::Array(normalized)
+}
+
+/// Renders one element of a list field's `value` string with Shopify's canonical
+/// formatting (measurement floats + uppercased units, date_time offsets, decimal
+/// stringification, rating key order). Other elements serialize verbatim.
+fn metaobject_list_value_token(field_type: &str, item: &Value) -> String {
+    if let Some((number, unit)) = metaobject_measurement_parts(item) {
+        return format!(
+            "{{\"value\":{},\"unit\":\"{}\"}}",
+            metaobject_format_measurement_number(number),
+            unit.to_uppercase()
+        );
+    }
+    match field_type {
+        "list.date_time" => {
+            if let Some(text) = item.as_str() {
+                return Value::String(metaobject_normalize_date_time_value(text)).to_string();
+            }
+        }
+        // number_decimal elements are stored as decimal strings ([10.4] -> ["10.4"]).
+        "list.number_decimal" => {
+            if item.is_number() {
+                return Value::String(item.to_string()).to_string();
+            }
+        }
+        "list.rating" => {
+            if let Some(rendered) = metaobject_rating_value_string(item) {
+                return rendered;
+            }
+        }
+        _ => {}
+    }
+    serde_json::to_string(item).unwrap_or_else(|_| item.to_string())
+}
+
+/// Renders the full `value` string of any `list.*` field. Returns `None` when the parsed
+/// JSON is not an array.
+fn metaobject_list_value_string(field_type: &str, parsed: &Value) -> Option<String> {
+    let items = parsed.as_array()?;
+    let rendered = items
+        .iter()
+        .map(|item| metaobject_list_value_token(field_type, item))
+        .collect::<Vec<_>>()
+        .join(",");
+    Some(format!("[{rendered}]"))
+}
+
+fn metaobject_format_measurement_number(number: &Value) -> String {
+    match number.as_f64() {
+        Some(number) if number.fract() == 0.0 => format!("{number:.1}"),
+        Some(number) => format!("{number}"),
+        None => number.to_string(),
+    }
+}
+
+/// Renders a measurement object's `value` field with Shopify's canonical formatting:
+/// the numeric value is always emitted as a decimal (`5` -> `5.0`) and the unit is
+/// uppercased. Returns `None` when the parsed JSON is not measurement-shaped.
+fn metaobject_measurement_value_string(parsed: &Value) -> Option<String> {
+    if let Some((number, unit)) = metaobject_measurement_parts(parsed) {
+        return Some(format!(
+            "{{\"value\":{},\"unit\":\"{}\"}}",
+            metaobject_format_measurement_number(number),
+            unit.to_uppercase()
+        ));
+    }
+    let items = parsed.as_array()?;
+    if items.is_empty()
+        || !items
+            .iter()
+            .all(|item| metaobject_measurement_parts(item).is_some())
+    {
+        return None;
+    }
+    let rendered = items
+        .iter()
+        .map(|item| {
+            let (number, unit) = metaobject_measurement_parts(item).expect("checked above");
+            format!(
+                "{{\"value\":{},\"unit\":\"{}\"}}",
+                metaobject_format_measurement_number(number),
+                unit.to_uppercase()
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    Some(format!("[{rendered}]"))
+}
+
+/// Shopify re-emits a `rating` field's value with its keys in canonical order
+/// (`scale_min`, `scale_max`, `value`) regardless of the order they were submitted in.
+fn metaobject_rating_value_string(parsed: &Value) -> Option<String> {
+    let object = parsed.as_object()?;
+    if object.len() != 3 {
+        return None;
+    }
+    let scale_min = object.get("scale_min")?;
+    let scale_max = object.get("scale_max")?;
+    let value = object.get("value")?;
+    Some(format!(
+        "{{\"scale_min\":{scale_min},\"scale_max\":{scale_max},\"value\":{value}}}"
+    ))
+}
+
+/// Shopify normalizes a date_time without an explicit offset to UTC (`+00:00`).
+fn metaobject_normalize_date_time_value(value: &str) -> String {
+    let Some((_, time)) = value.split_once('T') else {
+        return value.to_string();
+    };
+    let has_offset =
+        time.contains('+') || time.contains('-') || time.ends_with('Z') || time.ends_with('z');
+    if has_offset {
+        value.to_string()
+    } else {
+        format!("{value}+00:00")
     }
 }
 
@@ -708,6 +1255,262 @@ fn metaobject_value_matches_type(field_type: &str, value: &str) -> bool {
             .ok()
             .is_some_and(|value| value.is_array()),
         _ => true,
+    }
+}
+
+fn metaobject_field_validation_value(validations: &[Value], name: &str) -> Option<String> {
+    validations
+        .iter()
+        .find(|validation| validation["name"].as_str() == Some(name))
+        .and_then(|validation| validation["value"].as_str())
+        .map(str::to_string)
+}
+
+fn metaobject_value_is_valid_date(value: &str) -> bool {
+    let parts: Vec<&str> = value.split('-').collect();
+    if parts.len() != 3 {
+        return false;
+    }
+    let (Ok(year), Ok(month), Ok(day)) = (
+        parts[0].parse::<u32>(),
+        parts[1].parse::<u32>(),
+        parts[2].parse::<u32>(),
+    ) else {
+        return false;
+    };
+    parts[0].len() == 4
+        && (1..=9999).contains(&year)
+        && (1..=12).contains(&month)
+        && (1..=31).contains(&day)
+}
+
+fn metaobject_value_is_valid_date_time(value: &str) -> bool {
+    let Some((date_part, time_part)) = value.split_once(['T', ' ']) else {
+        return false;
+    };
+    if !metaobject_value_is_valid_date(date_part) {
+        return false;
+    }
+    let time_core = time_part
+        .split(['+', 'Z', '.'])
+        .next()
+        .unwrap_or(time_part);
+    let segments: Vec<&str> = time_core.split(':').collect();
+    if !(2..=3).contains(&segments.len()) {
+        return false;
+    }
+    segments
+        .iter()
+        .all(|segment| !segment.is_empty() && segment.chars().all(|character| character.is_ascii_digit()))
+}
+
+fn metaobject_value_is_valid_measurement(value: &str) -> bool {
+    let Ok(parsed) = serde_json::from_str::<Value>(value) else {
+        return false;
+    };
+    let Some(object) = parsed.as_object() else {
+        return false;
+    };
+    let has_numeric_value = object.get("value").is_some_and(|value| {
+        value.is_number() || value.as_str().is_some_and(|value| value.parse::<f64>().is_ok())
+    });
+    let has_unit = object
+        .get("unit")
+        .and_then(Value::as_str)
+        .is_some_and(|unit| !unit.is_empty());
+    has_numeric_value && has_unit
+}
+
+fn metaobject_value_is_hex_color(value: &str) -> bool {
+    let Some(hex) = value.strip_prefix('#') else {
+        return false;
+    };
+    matches!(hex.len(), 3 | 4 | 6 | 8) && hex.chars().all(|character| character.is_ascii_hexdigit())
+}
+
+fn metaobject_value_is_valid_url(value: &str) -> bool {
+    let lowercased = value.to_ascii_lowercase();
+    ["http://", "https://", "mailto:", "sms:", "tel:"]
+        .iter()
+        .any(|scheme| lowercased.starts_with(scheme))
+}
+
+fn metaobject_reference_value_error(value: &str, gid_type: &str, message: &str) -> Option<String> {
+    if value.starts_with(&format!("gid://shopify/{gid_type}/")) {
+        None
+    } else {
+        Some(message.to_string())
+    }
+}
+
+/// Validates a single (non-list) metaobject field value against its type and
+/// declared validations, returning Shopify's specific error message when the
+/// value is unacceptable. `is_update` captures create/update asymmetry (a
+/// malformed boolean is tolerated on create but rejected on update).
+fn metaobject_scalar_value_error(
+    field_type: &str,
+    value: &str,
+    validations: &[Value],
+    is_update: bool,
+) -> Option<String> {
+    match field_type {
+        "number_integer" => {
+            let Ok(parsed) = value.parse::<i64>() else {
+                return Some("Value must be an integer.".to_string());
+            };
+            if let Some(max) = metaobject_field_validation_value(validations, "max")
+                .and_then(|max| max.parse::<i64>().ok())
+            {
+                if parsed > max {
+                    return Some(format!("Value has a maximum of {max}."));
+                }
+            }
+            if let Some(min) = metaobject_field_validation_value(validations, "min")
+                .and_then(|min| min.parse::<i64>().ok())
+            {
+                if parsed < min {
+                    return Some(format!("Value has a minimum of {min}."));
+                }
+            }
+            None
+        }
+        "number_decimal" => {
+            if value.parse::<f64>().is_err() {
+                Some("Value must be a decimal.".to_string())
+            } else {
+                None
+            }
+        }
+        "boolean" => {
+            if matches!(value, "true" | "false") || !is_update {
+                None
+            } else {
+                Some("Value must be true or false.".to_string())
+            }
+        }
+        "date" => {
+            if metaobject_value_is_valid_date(value) {
+                None
+            } else {
+                Some("Value must be in YYYY-MM-DD format.".to_string())
+            }
+        }
+        "date_time" => {
+            if metaobject_value_is_valid_date_time(value) {
+                None
+            } else {
+                Some("Value must be in “YYYY-MM-DDTHH:MM:SS” format. For example: 2022-06-01T15:30:00".to_string())
+            }
+        }
+        "dimension" | "volume" | "weight" => {
+            if metaobject_value_is_valid_measurement(value) {
+                None
+            } else {
+                Some("Value must contain unit and value.".to_string())
+            }
+        }
+        "rating" => {
+            let parsed = serde_json::from_str::<Value>(value).ok()?;
+            let rating = parsed
+                .get("value")
+                .and_then(|value| value.as_f64().or_else(|| value.as_str()?.parse::<f64>().ok()))?;
+            if let Some(scale_max) = metaobject_field_validation_value(validations, "scale_max") {
+                if scale_max.parse::<f64>().ok().is_some_and(|max| rating > max) {
+                    return Some(format!("Value has a maximum of {scale_max}."));
+                }
+            }
+            if let Some(scale_min) = metaobject_field_validation_value(validations, "scale_min") {
+                if scale_min.parse::<f64>().ok().is_some_and(|min| rating < min) {
+                    return Some(format!("Value has a minimum of {scale_min}."));
+                }
+            }
+            None
+        }
+        "color" => {
+            if metaobject_value_is_hex_color(value) {
+                None
+            } else {
+                Some("Value must be a hex color code.".to_string())
+            }
+        }
+        "url" => {
+            if metaobject_value_is_valid_url(value) {
+                None
+            } else {
+                Some("Value cannot have an empty scheme (protocol), must include one of the following URL schemes: [\"http\", \"https\", \"mailto\", \"sms\", \"tel\"].'".to_string())
+            }
+        }
+        "product_reference" => {
+            metaobject_reference_value_error(value, "Product", "Value must be a valid product reference.")
+        }
+        "variant_reference" => metaobject_reference_value_error(
+            value,
+            "ProductVariant",
+            "Value must be a valid product variant reference.",
+        ),
+        "collection_reference" => metaobject_reference_value_error(
+            value,
+            "Collection",
+            "Value must be a valid collection reference.",
+        ),
+        "customer_reference" => {
+            metaobject_reference_value_error(value, "Customer", "Value must be a valid customer reference.")
+        }
+        "company_reference" => {
+            metaobject_reference_value_error(value, "Company", "Value must be a valid company reference.")
+        }
+        "metaobject_reference" => metaobject_reference_value_error(
+            value,
+            "Metaobject",
+            "Value require that you select a metaobject.",
+        ),
+        "single_line_text_field" | "multi_line_text_field" => {
+            if let Some(max) = metaobject_field_validation_value(validations, "max")
+                .and_then(|max| max.parse::<usize>().ok())
+            {
+                if value.chars().count() > max {
+                    return Some(format!("Value has a maximum length of {max}."));
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// Validates a metaobject field value (scalar or `list.<type>`), returning the
+/// error message and the `elementIndex` Shopify reports (null for scalars, the
+/// offending element's index for list values).
+/// Types whose structural validity is checked by `metaobject_value_matches_type`
+/// rather than the typed value validator (which returns no opinion for them).
+fn metaobject_value_uses_generic_fallback(field_type: &str) -> bool {
+    field_type.starts_with("list.") || matches!(field_type, "json" | "rich_text_field")
+}
+
+fn metaobject_field_value_error(
+    field_type: &str,
+    value: &str,
+    validations: &[Value],
+    is_update: bool,
+) -> Option<(String, Value)> {
+    if let Some(base_type) = field_type.strip_prefix("list.") {
+        let parsed = serde_json::from_str::<Value>(value).ok()?;
+        let elements = parsed.as_array()?;
+        for (index, element) in elements.iter().enumerate() {
+            let element_value = match element {
+                Value::String(text) => text.clone(),
+                other => other.to_string(),
+            };
+            if let Some(message) =
+                metaobject_scalar_value_error(base_type, &element_value, validations, is_update)
+            {
+                return Some((message, json!(index)));
+            }
+        }
+        None
+    } else {
+        metaobject_scalar_value_error(field_type, value, validations, is_update)
+            .map(|message| (message, Value::Null))
     }
 }
 
@@ -830,6 +1633,7 @@ fn metaobject_create_validation_errors(
     input: &BTreeMap<String, ResolvedValue>,
     definition: &Value,
     input_values: &BTreeMap<String, String>,
+    is_update: bool,
 ) -> Vec<Value> {
     let mut errors = metaobject_create_duplicate_field_errors(input);
     let definition_keys = definition["fieldDefinitions"]
@@ -862,12 +1666,26 @@ fn metaobject_create_validation_errors(
                 })
             {
                 let value = resolved_string_field(field, "value").unwrap_or_default();
-                if !metaobject_value_matches_type(
-                    field_definition["type"]["name"]
-                        .as_str()
-                        .unwrap_or_default(),
-                    &value,
-                ) {
+                let field_type = field_definition["type"]["name"].as_str().unwrap_or_default();
+                let validations = field_definition["validations"]
+                    .as_array()
+                    .map(Vec::as_slice)
+                    .unwrap_or(&[]);
+                if let Some((message, element_index)) =
+                    metaobject_field_value_error(field_type, &value, validations, is_update)
+                {
+                    errors.push(metaobject_user_error(
+                        vec!["metaobject", "fields", &index.to_string()],
+                        &message,
+                        "INVALID_VALUE",
+                        json!(key),
+                        element_index,
+                    ));
+                } else if metaobject_value_uses_generic_fallback(field_type)
+                    && !metaobject_value_matches_type(field_type, &value)
+                {
+                    // json/rich-text/list-shape validation that the typed
+                    // validator intentionally defers to the structural check.
                     errors.push(metaobject_user_error(
                         vec!["metaobject", "fields", &index.to_string()],
                         &format!("Value is invalid for field \"{key}\"."),
@@ -920,16 +1738,23 @@ fn metaobject_create_validation_errors(
     }
 
     if let Some(capabilities) = resolved_object_field(input, "capabilities") {
-        for key in capabilities.keys() {
+        // Shopify reports capability guard errors in a fixed capability order
+        // (publishable, onlineStore, renderable, translatable) regardless of the
+        // order the caller supplied them, anchored at ["capabilities", <name>]
+        // with a null elementKey.
+        for key in ["publishable", "onlineStore", "renderable", "translatable"] {
+            if !capabilities.contains_key(key) {
+                continue;
+            }
             let enabled = definition["capabilities"][key]["enabled"]
                 .as_bool()
                 .unwrap_or(false);
             if !enabled {
                 errors.push(metaobject_user_error(
-                    vec!["metaobject", "capabilities", key],
-                    "Capability is not enabled for this metaobject definition.",
+                    vec!["capabilities", key],
+                    "Capability is not enabled on this definition",
                     "CAPABILITY_NOT_ENABLED",
-                    json!(key),
+                    Value::Null,
                     Value::Null,
                 ));
             }
@@ -1160,6 +1985,36 @@ impl DraftProxy {
             || !self.store.staged.deleted_metaobject_ids.is_empty()
     }
 
+    /// Decides whether a metaobject mutation request should be staged locally or
+    /// forwarded upstream. Create/Delete and definition Create/Delete are always
+    /// emulated locally. Update/Upsert/DefinitionUpdate are emulated locally only
+    /// when their target already exists in local staged state (i.e. it was created
+    /// in this scenario): a backend that staged the resource locally also expects
+    /// the proxy to mutate it locally. When the target lives upstream (seeded or
+    /// live-captured records the proxy never created), the request is forwarded so
+    /// the real backend response is used instead of a synthetic one.
+    pub(in crate::proxy) fn metaobject_mutation_is_local(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        fields.iter().all(|field| match field.name.as_str() {
+            "metaobjectUpdate" => resolved_string_arg(&field.arguments, "id")
+                .map(|id| self.metaobject_by_id(&id).is_some())
+                .unwrap_or(false),
+            "metaobjectUpsert" => match field.arguments.get("handle") {
+                Some(ResolvedValue::Object(handle)) => resolved_string_field(handle, "type")
+                    .map(|meta_type| self.metaobject_definition_by_type(&meta_type).is_some())
+                    .unwrap_or(false),
+                _ => false,
+            },
+            "metaobjectDefinitionUpdate" => resolved_string_arg(&field.arguments, "id")
+                .map(|id| self.metaobject_definition_by_id(&id).is_some())
+                .unwrap_or(false),
+            // Creates and deletes are always emulated locally.
+            _ => true,
+        })
+    }
+
     pub(in crate::proxy) fn metaobject_query_data(
         &self,
         fields: &[RootFieldSelection],
@@ -1293,6 +2148,11 @@ impl DraftProxy {
             data.insert(field.response_key.clone(), value);
         }
         if !staged_ids.is_empty() {
+            // Each successful metaobject mutation reserves one synthetic id for its
+            // mutation-log entry after allocating the resources it creates, matching
+            // the Gleam reference's id bookkeeping (e.g. a definition lands on /1 and
+            // the next entry on /3 because the definition's log entry consumed /2).
+            self.reserve_synthetic_log_id();
             self.record_mutation_log_entry(
                 request,
                 query,
@@ -1687,7 +2547,7 @@ impl DraftProxy {
         }
         let input_values = metaobject_create_input_values(input);
         let mut validation_errors =
-            metaobject_create_validation_errors(input, &definition, &input_values);
+            metaobject_create_validation_errors(input, &definition, &input_values, false);
         if upsert_required_errors {
             validation_errors =
                 metaobject_required_field_errors_for_upsert(validation_errors, &definition);
@@ -1840,7 +2700,7 @@ impl DraftProxy {
 
         let input_values = metaobject_merged_input_values(&existing, input);
         let mut validation_errors =
-            metaobject_create_validation_errors(input, &definition, &input_values);
+            metaobject_create_validation_errors(input, &definition, &input_values, true);
         validation_errors.extend(self.metaobject_display_name_conflict_errors(
             &id,
             &definition,
@@ -1961,7 +2821,7 @@ impl DraftProxy {
             }
             let input_values = metaobject_merged_input_values(&existing, &update_input);
             let mut validation_errors = metaobject_required_field_errors_for_upsert(
-                metaobject_create_validation_errors(&update_input, &definition, &input_values),
+                metaobject_create_validation_errors(&update_input, &definition, &input_values, true),
                 &definition,
             );
             validation_errors.extend(
@@ -2360,8 +3220,15 @@ impl DraftProxy {
             .get("type")
             .and_then(Value::as_str)
             .unwrap_or_default();
-        let validation_errors =
-            metaobject_definition_update_validation_errors(definition_input, meta_type);
+        let existing_field_definitions = definition["fieldDefinitions"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let validation_errors = metaobject_definition_update_validation_errors(
+            definition_input,
+            meta_type,
+            &existing_field_definitions,
+        );
         if !validation_errors.is_empty() {
             return selected_json(
                 &json!({"metaobjectDefinition": null, "userErrors": validation_errors}),

@@ -675,6 +675,7 @@ async function runSpec(
           mainState = proxy.dumpState('1970-01-01T00:00:00.000Z');
         }
         namedResponses.set(target.name, targetResponse);
+        previousResponse = targetResponse;
         proxySource = targetResponse.body;
         if (debug)
           log(

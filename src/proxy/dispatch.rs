@@ -946,7 +946,13 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
             {
                 if let Some(fields) = root_fields(&query, &variables) {
-                    self.metaobject_mutation(&fields, request, &query, &variables)
+                    if self.metaobject_mutation_is_local(&fields) {
+                        self.metaobject_mutation(&fields, request, &query, &variables)
+                    } else {
+                        // Target lives upstream (seeded/live-captured): forward so the
+                        // real backend response is replayed instead of a synthetic one.
+                        (self.upstream_transport)(request.clone())
+                    }
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
                 }

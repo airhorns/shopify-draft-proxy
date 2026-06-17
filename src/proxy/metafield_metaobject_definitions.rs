@@ -2054,77 +2054,13 @@ fn metafield_definition_token_chars_valid(value: &str) -> bool {
 }
 
 pub(in crate::proxy) fn metafield_definition_type_allowed(value: &str) -> bool {
-    METAFIELD_DEFINITION_TYPES.contains(&value)
+    // Derive the accepted set directly from the advertised valid-types message so
+    // the validator and the error text can never drift apart (Shopify lists every
+    // list.<measurement> variant as valid, e.g. list.number_decimal/list.date).
+    metafield_definition_valid_type_message()
+        .split(", ")
+        .any(|valid_type| valid_type == value)
 }
-
-const METAFIELD_DEFINITION_TYPES: &[&str] = &[
-    "antenna_gain",
-    "area",
-    "battery_charge_capacity",
-    "battery_energy_capacity",
-    "boolean",
-    "capacitance",
-    "color",
-    "concentration",
-    "data_storage_capacity",
-    "data_transfer_rate",
-    "date_time",
-    "date",
-    "dimension",
-    "display_density",
-    "distance",
-    "duration",
-    "electric_current",
-    "electrical_resistance",
-    "energy",
-    "frequency",
-    "id",
-    "illuminance",
-    "inductance",
-    "json",
-    "language",
-    "link",
-    "luminous_flux",
-    "mass_flow_rate",
-    "money",
-    "multi_line_text_field",
-    "number_decimal",
-    "number_integer",
-    "power",
-    "pressure",
-    "rating",
-    "resolution",
-    "rich_text_field",
-    "rotational_speed",
-    "single_line_text_field",
-    "sound_level",
-    "speed",
-    "temperature",
-    "thermal_power",
-    "url",
-    "voltage",
-    "volume",
-    "volumetric_flow_rate",
-    "weight",
-    "company_reference",
-    "customer_reference",
-    "product_reference",
-    "collection_reference",
-    "variant_reference",
-    "file_reference",
-    "product_taxonomy_value_reference",
-    "metaobject_reference",
-    "mixed_reference",
-    "page_reference",
-    "article_reference",
-    "order_reference",
-    "list.single_line_text_field",
-    "list.number_integer",
-    "list.product_reference",
-    "list.variant_reference",
-    "list.collection_reference",
-    "list.metaobject_reference",
-];
 
 pub(in crate::proxy) fn metafield_definition_valid_type_message() -> &'static str {
     "antenna_gain, area, battery_charge_capacity, battery_energy_capacity, boolean, capacitance, color, concentration, data_storage_capacity, data_transfer_rate, date_time, date, dimension, display_density, distance, duration, electric_current, electrical_resistance, energy, frequency, id, illuminance, inductance, json, language, link, list.antenna_gain, list.area, list.battery_charge_capacity, list.battery_energy_capacity, list.capacitance, list.color, list.concentration, list.data_storage_capacity, list.data_transfer_rate, list.date_time, list.date, list.dimension, list.display_density, list.distance, list.duration, list.electric_current, list.electrical_resistance, list.energy, list.frequency, list.illuminance, list.inductance, list.link, list.luminous_flux, list.mass_flow_rate, list.number_decimal, list.number_integer, list.power, list.pressure, list.rating, list.resolution, list.rotational_speed, list.single_line_text_field, list.sound_level, list.speed, list.temperature, list.thermal_power, list.url, list.voltage, list.volume, list.volumetric_flow_rate, list.weight, luminous_flux, mass_flow_rate, money, multi_line_text_field, number_decimal, number_integer, power, pressure, rating, resolution, rich_text_field, rotational_speed, single_line_text_field, sound_level, speed, temperature, thermal_power, url, voltage, volume, volumetric_flow_rate, weight, company_reference, list.company_reference, customer_reference, list.customer_reference, product_reference, list.product_reference, collection_reference, list.collection_reference, variant_reference, list.variant_reference, file_reference, list.file_reference, product_taxonomy_value_reference, list.product_taxonomy_value_reference, metaobject_reference, list.metaobject_reference, mixed_reference, list.mixed_reference, page_reference, list.page_reference, article_reference, list.article_reference, order_reference, list.order_reference"
