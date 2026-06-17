@@ -503,6 +503,95 @@ pub(in crate::proxy) fn canonical_app_metafield_namespace(namespace: Option<&str
     }
 }
 
+/// Shopify rejects `metafieldsSet` at *variable coercion* time — before the mutation
+/// resolver runs — when a non-null `MetafieldsSetInput` field (`key`, `ownerId`, `value`)
+/// is omitted or explicitly null. The response is a top-level `INVALID_VARIABLE` GraphQL
+/// error (no `data`), anchored at the variable definition, echoing the provided value and
+/// listing the offending `[index, field]` paths under `problems`.
+pub(in crate::proxy) fn metafields_set_coercion_error(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<Response> {
+    let inputs = metafields_mutation_inputs(query, variables, "metafieldsSet");
+    let mut problems: Vec<(usize, &'static str)> = Vec::new();
+    for (index, input) in inputs.iter().enumerate() {
+        for field in ["key", "ownerId", "value"] {
+            let present = matches!(input.get(field), Some(value) if !matches!(value, ResolvedValue::Null));
+            if !present {
+                problems.push((index, field));
+            }
+        }
+    }
+    let (first_index, first_field) = *problems.first()?;
+    // Echo the provided variable value verbatim (present fields only). Object key order is
+    // normalized away by the strict differ, so reconstructing from the parsed input is exact.
+    let value: Vec<Value> = inputs
+        .iter()
+        .map(|input| {
+            Value::Object(
+                input
+                    .iter()
+                    .map(|(name, resolved)| (name.clone(), resolved_value_json(resolved)))
+                    .collect(),
+            )
+        })
+        .collect();
+    let problems_json: Vec<Value> = problems
+        .iter()
+        .map(|(index, field)| {
+            json!({
+                "path": [index, field],
+                "explanation": "Expected value to not be null",
+            })
+        })
+        .collect();
+    let variable_name = metafields_set_variable_name(query).unwrap_or_else(|| "metafields".to_string());
+    let message = format!(
+        "Variable ${variable_name} of type [MetafieldsSetInput!]! was provided invalid value for {first_index}.{first_field} (Expected value to not be null)"
+    );
+    let mut error = serde_json::Map::new();
+    error.insert("message".to_string(), json!(message));
+    if let Some((line, column)) = graphql_variable_definition_location(query, &variable_name) {
+        error.insert(
+            "locations".to_string(),
+            json!([{ "line": line, "column": column }]),
+        );
+    }
+    error.insert(
+        "extensions".to_string(),
+        json!({
+            "code": "INVALID_VARIABLE",
+            "value": value,
+            "problems": problems_json,
+        }),
+    );
+    Some(ok_json(json!({ "errors": [Value::Object(error)] })))
+}
+
+/// Resolves the variable name bound to the `metafields:` argument of a `metafieldsSet`
+/// mutation (e.g. `metafieldsSet(metafields: $metafields)` -> `metafields`).
+fn metafields_set_variable_name(query: &str) -> Option<String> {
+    let mut search = 0;
+    while let Some(relative) = query[search..].find("metafields") {
+        let start = search + relative;
+        let after = start + "metafields".len();
+        let rest = query[after..].trim_start();
+        if let Some(rest) = rest.strip_prefix(':') {
+            if let Some(rest) = rest.trim_start().strip_prefix('$') {
+                let name: String = rest
+                    .chars()
+                    .take_while(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
+                    .collect();
+                if !name.is_empty() {
+                    return Some(name);
+                }
+            }
+        }
+        search = after;
+    }
+    None
+}
+
 pub(in crate::proxy) fn metafields_set_input_errors(
     inputs: &[BTreeMap<String, ResolvedValue>],
 ) -> Vec<Value> {

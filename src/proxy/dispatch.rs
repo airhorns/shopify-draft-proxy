@@ -739,8 +739,13 @@ impl DraftProxy {
                     && has_local_dispatch
                     && root_field == "metafieldsSet" =>
             {
-                let outcome = self.owner_metafields_set(request, &query, &variables);
-                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                match metafields_set_coercion_error(&query, &variables) {
+                    Some(response) => response,
+                    None => {
+                        let outcome = self.owner_metafields_set(request, &query, &variables);
+                        self.finalize_mutation_outcome(request, &query, &variables, outcome)
+                    }
+                }
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation

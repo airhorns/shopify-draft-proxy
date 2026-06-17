@@ -3908,7 +3908,10 @@ fn tax_exemption_invalid_variable_response(
 /// Resolves the 1-based (line, column) of a variable *definition* (`$name`) in the query
 /// document. Shopify anchors `INVALID_VARIABLE` coercion errors to the variable definition,
 /// which is always the first `$name` occurrence (definitions precede usages).
-fn graphql_variable_definition_location(query: &str, variable_name: &str) -> Option<(usize, usize)> {
+pub(in crate::proxy) fn graphql_variable_definition_location(
+    query: &str,
+    variable_name: &str,
+) -> Option<(usize, usize)> {
     let needle = format!("${variable_name}");
     let bytes = query.as_bytes();
     let mut search_from = 0;

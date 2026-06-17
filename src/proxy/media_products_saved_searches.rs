@@ -5193,7 +5193,7 @@ impl DraftProxy {
 // Resolves the `metafields` input list for a metafieldsSet/metafieldsDelete
 // root field from the parsed document arguments (covering both inline and
 // `$metafields` variable forms), falling back to the raw top-level variables.
-fn metafields_mutation_inputs(
+pub(in crate::proxy) fn metafields_mutation_inputs(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
     root_name: &str,
