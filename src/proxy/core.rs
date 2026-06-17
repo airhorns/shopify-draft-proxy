@@ -366,6 +366,24 @@ impl DraftProxy {
         if self.store.staged.functions_dirty {
             snapshot["stagedState"]["functionsDirty"] = json!(true);
         }
+        if let Some(order) = &self.store.staged.order_edit_existing_order {
+            snapshot["stagedState"]["orderEditExistingOrder"] = order.clone();
+        }
+        if let Some(calculated_order) = &self.store.staged.order_edit_existing_calculated_order {
+            snapshot["stagedState"]["orderEditExistingCalculatedOrder"] = calculated_order.clone();
+        }
+        if let Some(calculated_order_id) =
+            &self.store.staged.order_edit_existing_calculated_order_id
+        {
+            snapshot["stagedState"]["orderEditExistingCalculatedOrderId"] =
+                json!(calculated_order_id);
+        }
+        if let Some(session_order_id) = &self.store.staged.order_edit_existing_session_order_id {
+            snapshot["stagedState"]["orderEditExistingSessionOrderId"] = json!(session_order_id);
+        }
+        if let Some(mode) = &self.store.staged.order_edit_existing_mode {
+            snapshot["stagedState"]["orderEditExistingMode"] = json!(mode);
+        }
         snapshot
     }
 
@@ -790,6 +808,26 @@ impl DraftProxy {
             .get("locationLimitReached")
             .and_then(Value::as_bool)
             .unwrap_or(false);
+        self.store.staged.order_edit_existing_order = state["stagedState"]
+            .get("orderEditExistingOrder")
+            .filter(|order| order.is_object())
+            .cloned();
+        self.store.staged.order_edit_existing_calculated_order = state["stagedState"]
+            .get("orderEditExistingCalculatedOrder")
+            .filter(|order| order.is_object())
+            .cloned();
+        self.store.staged.order_edit_existing_calculated_order_id = state["stagedState"]
+            .get("orderEditExistingCalculatedOrderId")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        self.store.staged.order_edit_existing_session_order_id = state["stagedState"]
+            .get("orderEditExistingSessionOrderId")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        self.store.staged.order_edit_existing_mode = state["stagedState"]
+            .get("orderEditExistingMode")
+            .and_then(Value::as_str)
+            .map(str::to_string);
         self.store.staged.b2b_companies = state["stagedState"]
             .get("b2bCompanies")
             .and_then(Value::as_object)
