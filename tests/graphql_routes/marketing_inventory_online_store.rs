@@ -2368,6 +2368,8 @@ fn inventory_shipment_lifecycle_stages_locally_updates_inventory_and_preserves_l
 #[test]
 fn inventory_shipment_validation_guards_reject_without_staging() {
     let mut proxy = snapshot_proxy();
+    seed_origin_inventory(&mut proxy, "gid://shopify/InventoryItem/guard-item", 2);
+
     let transfer_response = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/products/inventory-transfer-create-ready.graphql"
@@ -2552,6 +2554,8 @@ fn inventory_shipment_validation_guards_reject_without_staging() {
 #[test]
 fn inventory_shipment_draft_mutators_stage_tracking_items_and_in_transit_state() {
     let mut proxy = snapshot_proxy();
+    seed_origin_inventory(&mut proxy, "gid://shopify/InventoryItem/mutator-item", 3);
+
     let transfer_response = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/products/inventory-transfer-create-ready.graphql"
@@ -2718,6 +2722,33 @@ fn inventory_has_level_quantities(
         .unwrap()
         .iter()
         .any(|node| node["quantities"] == expected)
+}
+
+fn seed_origin_inventory(proxy: &mut DraftProxy, inventory_item_id: &str, quantity: i64) {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedOriginInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "name": "available",
+            "reason": "correction",
+            "referenceDocumentUri": "logistics://inventory/shipment-seed",
+            "ignoreCompareQuantity": true,
+            "quantities": [{
+                "inventoryItemId": inventory_item_id,
+                "locationId": "gid://shopify/Location/1",
+                "quantity": quantity
+            }]
+        }}),
+    ));
+    assert_eq!(
+        response.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
 }
 
 #[test]
