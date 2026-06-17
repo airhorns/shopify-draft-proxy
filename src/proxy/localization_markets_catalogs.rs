@@ -260,7 +260,7 @@ impl DraftProxy {
                 "translatableResource" => {
                     let resource_id = resolved_string_arg(&field.arguments, "resourceId")
                         .unwrap_or_else(|| "gid://shopify/Product/9801098789170".to_string());
-                    if resource_id.contains("999999999999999") {
+                    if !self.localization_translatable_resource_exists(&resource_id) {
                         Value::Null
                     } else {
                         self.localization_translatable_resource_selected(
@@ -2561,7 +2561,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let resource_id = resolved_string_arg(&field.arguments, "resourceId").unwrap_or_default();
-        if resource_id.contains("999999999999999") {
+        if !self.localization_translatable_resource_exists(&resource_id) {
             return selected_json(
                 &json!({
                     "translations": null,
@@ -2712,7 +2712,7 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let resource_id = resolved_string_arg(&field.arguments, "resourceId").unwrap_or_default();
-        if resource_id.contains("999999999999999") {
+        if !self.localization_translatable_resource_exists(&resource_id) {
             return selected_json(
                 &json!({
                     "translations": null,
@@ -2773,6 +2773,17 @@ impl DraftProxy {
         )
     }
 
+    pub(in crate::proxy) fn localization_translatable_resource_exists(
+        &self,
+        resource_id: &str,
+    ) -> bool {
+        if localization_resource_type_matches(resource_id, "PRODUCT") {
+            return self.store.has_product(resource_id);
+        }
+
+        true
+    }
+
     pub(in crate::proxy) fn localization_translatable_resource_selected(
         &self,
         resource_id: &str,
@@ -2815,7 +2826,7 @@ impl DraftProxy {
             .into_iter()
             .filter(|id| localization_resource_type_matches(id, &resource_type))
             .collect::<Vec<_>>();
-        if records.is_empty() {
+        if records.is_empty() && !resource_type.eq_ignore_ascii_case("PRODUCT") {
             records.push(default_localization_resource_id(&resource_type));
         }
         selected_typed_connection_with_args(
@@ -2833,7 +2844,7 @@ impl DraftProxy {
     ) -> Value {
         let records = resolved_string_list_arg(&field.arguments, "resourceIds")
             .into_iter()
-            .filter(|id| !id.contains("999999999999999"))
+            .filter(|id| self.localization_translatable_resource_exists(id))
             .collect::<Vec<_>>();
         selected_typed_connection_with_args(
             &records,
@@ -2990,10 +3001,18 @@ impl DraftProxy {
     pub(in crate::proxy) fn localization_translatable_resource_ids(&self) -> Vec<String> {
         let mut ids = self
             .store
-            .staged
-            .localization_translations
-            .iter()
-            .filter_map(|translation| translation["resourceId"].as_str().map(ToString::to_string))
+            .products()
+            .into_iter()
+            .map(|product| product.id)
+            .chain(
+                self.store
+                    .staged
+                    .localization_translations
+                    .iter()
+                    .filter_map(|translation| {
+                        translation["resourceId"].as_str().map(ToString::to_string)
+                    }),
+            )
             .collect::<Vec<_>>();
         ids.sort();
         ids.dedup();
