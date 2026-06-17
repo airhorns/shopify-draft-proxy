@@ -121,6 +121,11 @@ pub(in crate::proxy) fn upsert_minimal_collection(
     }
 }
 
+fn remove_minimal_collection(collections: &mut Vec<Value>, collection_id: &str) {
+    collections
+        .retain(|collection| collection.get("id").and_then(Value::as_str) != Some(collection_id));
+}
+
 pub(in crate::proxy) fn collection_json(collection: &Value, selections: &[SelectedField]) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "products" => {
@@ -164,6 +169,13 @@ pub(in crate::proxy) fn collection_json(collection: &Value, selections: &[Select
                         .unwrap_or(0);
                     product_count_json(count, &selection.selection)
                 }),
+        ),
+        "ruleSet" => Some(collection.get("ruleSet").cloned().unwrap_or(Value::Null)),
+        "sortOrder" => Some(
+            collection
+                .get("sortOrder")
+                .cloned()
+                .unwrap_or_else(|| json!("BEST_SELLING")),
         ),
         _ => collection.get(&selection.name).cloned(),
     })
@@ -220,6 +232,26 @@ fn collection_product_ids_from_response(response: &Response, path: &str) -> Vec<
 }
 
 impl DraftProxy {
+    /// In live-hybrid mode a `collection(id:)` read for a collection that was
+    /// never staged locally must read through to upstream (the recorded
+    /// cassette) rather than fabricate a `null`. Mirrors the location overlay
+    /// read-through guard. Returns true only when there is a by-id collection
+    /// field whose target is absent from local overlay state.
+    pub(in crate::proxy) fn collection_read_needs_upstream(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return false;
+        }
+        fields.iter().any(|field| {
+            field.name == "collection"
+                && resolved_string_field(&field.arguments, "id")
+                    .map(|id| !id.is_empty() && self.store.collection_by_id(&id).is_none())
+                    .unwrap_or(false)
+        })
+    }
+
     pub(in crate::proxy) fn collection_membership_downstream_read_data(
         &self,
         fields: &[RootFieldSelection],
@@ -229,6 +261,7 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "collection" => self.collection_membership_value(field),
                 "product" => self.product_by_id_field(field),
+                "job" => self.collection_job_read(field),
                 _ => continue,
             };
             data.insert(field.response_key.clone(), value);
@@ -307,15 +340,23 @@ impl DraftProxy {
     pub(in crate::proxy) fn collection_membership_value(&self, field: &RootFieldSelection) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         self.store
-            .staged
-            .collections
-            .get(&id)
+            .collection_by_id(&id)
             .map(|collection| collection_json(collection, &field.selection))
             .unwrap_or(Value::Null)
     }
 
+    fn collection_job_read(&self, field: &RootFieldSelection) -> Value {
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+        self.store
+            .staged
+            .collection_jobs
+            .get(&id)
+            .map(|job| selected_json(job, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
     fn stage_collection_from_observed_json(&mut self, collection: &Value) {
-        let product_nodes = collection
+        let products = collection
             .get("products")
             .and_then(|connection| connection.get("nodes"))
             .and_then(Value::as_array)
@@ -324,7 +365,7 @@ impl DraftProxy {
             .filter_map(product_state_from_json)
             .collect::<Vec<_>>();
         self.store
-            .stage_collection_membership(collection.clone(), product_nodes);
+            .stage_collection_membership(collection.clone(), products);
     }
 
     pub(in crate::proxy) fn observe_nodes_response(&mut self, response: &Response) {
@@ -336,7 +377,7 @@ impl DraftProxy {
             .flatten()
             .cloned()
             .collect::<Vec<_>>();
-        for node in nodes {
+        for node in &nodes {
             let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
             if id.starts_with("gid://shopify/Product/") {
                 self.store.stage_observed_product_json(&node);
@@ -363,7 +404,7 @@ impl DraftProxy {
             } else if id.starts_with("gid://shopify/Collection/") {
                 self.stage_collection_from_observed_json(&node);
             } else if id.starts_with("gid://shopify/ProductVariant/") {
-                if let Some(variant) = product_variant_state_from_observed_json(&node) {
+                if let Some(variant) = product_variant_state_from_observed_json(node) {
                     self.store.stage_product_variant(variant);
                 }
                 if let Some(product) = node.get("product").and_then(product_state_from_json) {
@@ -375,6 +416,857 @@ impl DraftProxy {
                 self.observe_inventory_level_node(&node);
             }
         }
+        for node in nodes {
+            let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
+            if id.starts_with("gid://shopify/Collection/") {
+                self.stage_collection_from_observed_json(&node);
+            }
+        }
+    }
+
+    pub(in crate::proxy) fn collection_mutation(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        match root_field {
+            "collectionCreate" => self.collection_create(query, variables),
+            "collectionUpdate" => self.collection_update(query, variables),
+            "collectionDelete" => self.collection_delete(query, variables),
+            "collectionAddProducts" => self.collection_add_products(root_field, query, variables),
+            "collectionAddProductsV2" => {
+                self.collection_async_membership(root_field, query, variables, true)
+            }
+            "collectionRemoveProducts" => {
+                self.collection_async_membership(root_field, query, variables, false)
+            }
+            "collectionReorderProducts" => self.collection_reorder_products(query, variables),
+            _ => MutationOutcome::response(json_error(
+                400,
+                "No mutation dispatcher implemented for collection root",
+            )),
+        }
+    }
+
+    fn collection_payload_selection(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Vec<SelectedField> {
+        root_fields(query, variables)
+            .and_then(|fields| fields.into_iter().next())
+            .map(|field| field.selection)
+            .or_else(|| root_field_selection(query))
+            .unwrap_or_default()
+    }
+
+    fn collection_create(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        let input = collection_input(query, variables).unwrap_or_default();
+        if let Some(response) = self.collection_input_validation_response(
+            query,
+            variables,
+            "collectionCreate",
+            &input,
+            true,
+        ) {
+            return MutationOutcome::response(response);
+        }
+
+        let title = resolved_string_field(&input, "title").unwrap_or_default();
+        let id = self.next_proxy_synthetic_gid("Collection");
+        let handle = self.collection_unique_handle(
+            resolved_string_field(&input, "handle").as_deref(),
+            &title,
+            None,
+        );
+        let initial_product_ids = resolved_string_list_field_unsorted(&input, "products");
+        self.hydrate_missing_collection_baseline("", &initial_product_ids);
+        let mut collection = collection_from_input(&input, &id, &title, &handle, None);
+        let products = initial_product_ids
+            .into_iter()
+            .filter_map(|id| self.store.product_by_id(&id).cloned())
+            .collect::<Vec<_>>();
+        apply_collection_products(&mut collection, &products);
+        let mut payload_collection = collection.clone();
+        apply_collection_create_payload_products_count(&mut payload_collection);
+        self.store.stage_collection(collection.clone());
+        self.sync_collection_products(&id, products);
+
+        MutationOutcome::staged(
+            self.collection_payload_response(
+                query,
+                variables,
+                "collectionCreate",
+                Some(&payload_collection),
+                None,
+                Vec::new(),
+            ),
+            LogDraft::staged("collectionCreate", "products", vec![id]),
+        )
+    }
+
+    fn collection_update(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        let input = collection_input(query, variables).unwrap_or_default();
+        let Some(id) = resolved_string_field(&input, "id") else {
+            return MutationOutcome::response(self.collection_payload_response(
+                query,
+                variables,
+                "collectionUpdate",
+                None,
+                None,
+                vec![collection_user_error(["id"], "Collection does not exist")],
+            ));
+        };
+        self.hydrate_missing_collection_baseline(&id, &[]);
+        let Some(existing) = self.store.collection_by_id(&id).cloned() else {
+            return MutationOutcome::response(self.collection_payload_response(
+                query,
+                variables,
+                "collectionUpdate",
+                None,
+                None,
+                vec![collection_user_error(["id"], "Collection does not exist")],
+            ));
+        };
+        if let Some(response) = self.collection_input_validation_response(
+            query,
+            variables,
+            "collectionUpdate",
+            &input,
+            false,
+        ) {
+            return MutationOutcome::response(response);
+        }
+
+        let mut updated = existing;
+        if let Some(object) = updated.as_object_mut() {
+            if let Some(title) = resolved_string_field(&input, "title") {
+                object.insert("title".to_string(), json!(title));
+            }
+            if input.contains_key("handle") {
+                let title = object
+                    .get("title")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string();
+                let handle = self.collection_unique_handle(
+                    resolved_string_field(&input, "handle").as_deref(),
+                    &title,
+                    Some(&id),
+                );
+                object.insert("handle".to_string(), json!(handle));
+            }
+            if let Some(sort_order) = resolved_string_field(&input, "sortOrder") {
+                object.insert("sortOrder".to_string(), json!(sort_order));
+            }
+            if input.contains_key("ruleSet") {
+                object.insert(
+                    "ruleSet".to_string(),
+                    resolved_object_field(&input, "ruleSet")
+                        .map(collection_rule_set_json)
+                        .unwrap_or(Value::Null),
+                );
+            }
+            if let Some(description) = resolved_string_field(&input, "descriptionHtml") {
+                object.insert("descriptionHtml".to_string(), json!(description));
+            }
+            if let Some(template_suffix) = resolved_string_field(&input, "templateSuffix") {
+                object.insert("templateSuffix".to_string(), json!(template_suffix));
+            }
+        }
+        self.store.stage_collection(updated.clone());
+        self.refresh_collection_summary_on_products(&id);
+
+        MutationOutcome::staged(
+            self.collection_payload_response(
+                query,
+                variables,
+                "collectionUpdate",
+                Some(&updated),
+                None,
+                Vec::new(),
+            ),
+            LogDraft::staged("collectionUpdate", "products", vec![id]),
+        )
+    }
+
+    fn collection_delete(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        let input = collection_input(query, variables).unwrap_or_default();
+        let id = resolved_string_field(&input, "id").unwrap_or_default();
+        self.hydrate_missing_collection_baseline(&id, &[]);
+        let deleted = self.store.delete_collection(&id);
+        let response = self.collection_delete_response(
+            query,
+            variables,
+            deleted.then_some(id.as_str()),
+            if deleted {
+                Vec::new()
+            } else {
+                vec![collection_user_error(["id"], "Collection does not exist")]
+            },
+        );
+        if deleted {
+            MutationOutcome::staged(
+                response,
+                LogDraft::staged("collectionDelete", "products", vec![id]),
+            )
+        } else {
+            MutationOutcome::response(response)
+        }
+    }
+
+    fn collection_add_products(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let collection_id = resolved_string_field(&arguments, "id").unwrap_or_default();
+        let requested_product_ids = resolved_string_list_field_unsorted(&arguments, "productIds");
+        self.hydrate_missing_collection_baseline(&collection_id, &requested_product_ids);
+        if let Some(response) = self.collection_membership_guard_response(
+            query,
+            variables,
+            root_field,
+            &collection_id,
+            false,
+        ) {
+            return MutationOutcome::response(response);
+        }
+        let mut products = self.collection_products(&collection_id);
+        if requested_product_ids
+            .iter()
+            .any(|product_id| products.iter().any(|product| product.id == *product_id))
+        {
+            return MutationOutcome::response(self.collection_payload_response(
+                query,
+                variables,
+                root_field,
+                None,
+                None,
+                vec![collection_user_error(
+                    ["productIds"],
+                    "Product is already included in this collection",
+                )],
+            ));
+        }
+        for product_id in requested_product_ids {
+            if let Some(product) = self.store.product_by_id(&product_id).cloned() {
+                products.push(product);
+            }
+        }
+        let collection = self.replace_collection_products(&collection_id, products);
+        MutationOutcome::staged(
+            self.collection_payload_response(
+                query,
+                variables,
+                root_field,
+                collection.as_ref(),
+                None,
+                Vec::new(),
+            ),
+            LogDraft::staged(root_field, "products", vec![collection_id]),
+        )
+    }
+
+    fn collection_async_membership(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        add: bool,
+    ) -> MutationOutcome {
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let collection_id = resolved_string_field(&arguments, "id").unwrap_or_default();
+        let product_ids = resolved_string_list_field_unsorted(&arguments, "productIds");
+        if product_ids.len() > COLLECTION_PRODUCT_IDS_LIMIT {
+            return MutationOutcome::response(collection_product_ids_too_long_response(
+                root_field,
+                product_ids.len(),
+            ));
+        }
+        self.hydrate_missing_collection_baseline(&collection_id, &product_ids);
+        if let Some(response) = self.collection_membership_guard_response(
+            query,
+            variables,
+            root_field,
+            &collection_id,
+            true,
+        ) {
+            return MutationOutcome::response(response);
+        }
+        let mut products = self.collection_products(&collection_id);
+        if add {
+            for product_id in &product_ids {
+                if products.iter().any(|product| product.id == *product_id) {
+                    continue;
+                }
+                if let Some(product) = self.store.product_by_id(product_id).cloned() {
+                    products.push(product);
+                }
+            }
+        } else {
+            products.retain(|product| !product_ids.iter().any(|id| id == &product.id));
+        }
+        self.replace_collection_products(&collection_id, products);
+        let job = self.stage_collection_job();
+        let job_id = job
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let payload_job = collection_inline_job(&job);
+        MutationOutcome::staged(
+            self.collection_payload_response(
+                query,
+                variables,
+                root_field,
+                None,
+                Some(&payload_job),
+                Vec::new(),
+            ),
+            LogDraft::staged(root_field, "products", vec![collection_id, job_id]),
+        )
+    }
+
+    fn collection_reorder_products(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let collection_id = resolved_string_field(&arguments, "id").unwrap_or_default();
+        let moves = resolved_object_list_field(&arguments, "moves");
+        let move_product_ids = moves
+            .iter()
+            .filter_map(|move_input| {
+                resolved_string_field(move_input, "id")
+                    .or_else(|| resolved_string_field(move_input, "productId"))
+            })
+            .collect::<Vec<_>>();
+        self.hydrate_missing_collection_baseline(&collection_id, &move_product_ids);
+        if let Some(response) = self.collection_membership_guard_response(
+            query,
+            variables,
+            "collectionReorderProducts",
+            &collection_id,
+            true,
+        ) {
+            return MutationOutcome::response(response);
+        }
+        let mut products = self.collection_products(&collection_id);
+        for move_input in moves {
+            let product_id = resolved_string_field(&move_input, "id")
+                .or_else(|| resolved_string_field(&move_input, "productId"))
+                .unwrap_or_default();
+            let new_position = resolved_string_field(&move_input, "newPosition")
+                .and_then(|value| value.parse::<usize>().ok())
+                .or_else(|| {
+                    resolved_i64_field(&move_input, "newPosition")
+                        .map(|value| value.max(0) as usize)
+                })
+                .unwrap_or(0);
+            if let Some(index) = products.iter().position(|product| product.id == product_id) {
+                let product = products.remove(index);
+                products.insert(new_position.min(products.len()), product);
+            }
+        }
+        self.replace_collection_products(&collection_id, products);
+        let job = self.stage_collection_job();
+        let job_id = job
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let payload_job = collection_inline_job(&job);
+        MutationOutcome::staged(
+            self.collection_payload_response(
+                query,
+                variables,
+                "collectionReorderProducts",
+                None,
+                Some(&payload_job),
+                Vec::new(),
+            ),
+            LogDraft::staged(
+                "collectionReorderProducts",
+                "products",
+                vec![collection_id, job_id],
+            ),
+        )
+    }
+}
+
+const COLLECTION_PRODUCT_IDS_LIMIT: usize = 250;
+const COLLECTION_SORT_ORDERS: &[&str] = &[
+    "ALPHA_ASC",
+    "ALPHA_DESC",
+    "BEST_SELLING",
+    "CREATED",
+    "CREATED_DESC",
+    "MANUAL",
+    "PRICE_ASC",
+    "PRICE_DESC",
+];
+
+impl DraftProxy {
+    fn collection_input_validation_response(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        input: &BTreeMap<String, ResolvedValue>,
+        title_required: bool,
+    ) -> Option<Response> {
+        let mut errors = Vec::new();
+        match resolved_string_field(input, "title") {
+            Some(title) if title.chars().count() > 255 => errors.push(collection_user_error(
+                ["title"],
+                "Title is too long (maximum is 255 characters)",
+            )),
+            Some(title) if title_required && title.trim().is_empty() => {
+                errors.push(collection_user_error(["title"], "Title can't be blank"))
+            }
+            None if title_required => {
+                errors.push(collection_user_error(["title"], "Title can't be blank"))
+            }
+            _ => {}
+        }
+        if let Some(handle) = resolved_string_field(input, "handle") {
+            if handle.chars().count() > 255 {
+                errors.push(collection_user_error(
+                    ["handle"],
+                    "Handle is too long (maximum is 255 characters)",
+                ));
+            }
+        }
+        if let Some(sort_order) = resolved_string_field(input, "sortOrder") {
+            if !COLLECTION_SORT_ORDERS.contains(&sort_order.as_str()) {
+                return Some(collection_invalid_sort_order_response(
+                    query,
+                    input,
+                    &sort_order,
+                ));
+            }
+        }
+        (!errors.is_empty()).then(|| {
+            self.collection_payload_response(query, variables, root_field, None, None, errors)
+        })
+    }
+
+    fn collection_membership_guard_response(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        collection_id: &str,
+        job_payload: bool,
+    ) -> Option<Response> {
+        let Some(collection) = self.store.collection_by_id(collection_id) else {
+            return Some(self.collection_payload_response(
+                query,
+                variables,
+                root_field,
+                None,
+                None,
+                vec![collection_user_error(["id"], "Collection does not exist")],
+            ));
+        };
+        if collection_is_smart(collection) {
+            let message = if root_field == "collectionRemoveProducts" {
+                "Can't manually remove products from a smart collection"
+            } else {
+                "Can't manually add products to a smart collection"
+            };
+            return Some(self.collection_payload_response(
+                query,
+                variables,
+                root_field,
+                None,
+                job_payload.then_some(&Value::Null),
+                vec![collection_user_error(["id"], message)],
+            ));
+        }
+        None
+    }
+
+    fn collection_payload_response(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        collection: Option<&Value>,
+        job: Option<&Value>,
+        user_errors: Vec<Value>,
+    ) -> Response {
+        let payload_selection = self.collection_payload_selection(query, variables);
+        let error_selection =
+            selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
+        let collection_selection =
+            selected_child_selection(&payload_selection, "collection").unwrap_or_default();
+        let job_selection = selected_child_selection(&payload_selection, "job").unwrap_or_default();
+        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
+        ok_json(json!({
+            "data": {
+                response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
+                    "collection" => Some(collection.map(|collection| collection_json(collection, &collection_selection)).unwrap_or(Value::Null)),
+                    "job" => Some(job.map(|job| selected_json(job, &job_selection)).unwrap_or(Value::Null)),
+                    "userErrors" => Some(Value::Array(
+                        user_errors.iter().map(|error| selected_json(error, &error_selection)).collect(),
+                    )),
+                    _ => None,
+                })
+            }
+        }))
+    }
+
+    fn collection_delete_response(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        deleted_id: Option<&str>,
+        user_errors: Vec<Value>,
+    ) -> Response {
+        let payload_selection = self.collection_payload_selection(query, variables);
+        let error_selection =
+            selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "collectionDelete".to_string());
+        ok_json(json!({
+            "data": {
+                response_key: selected_payload_json(&payload_selection, |selection| match selection.name.as_str() {
+                    "deletedCollectionId" => Some(deleted_id.map_or(Value::Null, |id| json!(id))),
+                    "userErrors" => Some(Value::Array(
+                        user_errors.iter().map(|error| selected_json(error, &error_selection)).collect(),
+                    )),
+                    _ => None,
+                })
+            }
+        }))
+    }
+
+    fn collection_products(&self, collection_id: &str) -> Vec<ProductRecord> {
+        self.store
+            .collection_by_id(collection_id)
+            .and_then(|collection| collection.get("products"))
+            .and_then(|connection| connection.get("nodes"))
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|product| {
+                product
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .and_then(|id| self.store.product_by_id(id).cloned())
+                    .or_else(|| product_state_from_json(product))
+            })
+            .collect()
+    }
+
+    fn replace_collection_products(
+        &mut self,
+        collection_id: &str,
+        products: Vec<ProductRecord>,
+    ) -> Option<Value> {
+        let mut collection = self.store.collection_by_id(collection_id)?.clone();
+        apply_collection_products(&mut collection, &products);
+        self.store.stage_collection(collection.clone());
+        self.sync_collection_products(collection_id, products);
+        Some(collection)
+    }
+
+    fn sync_collection_products(&mut self, collection_id: &str, products: Vec<ProductRecord>) {
+        let Some(collection) = self.store.collection_by_id(collection_id).cloned() else {
+            return;
+        };
+        let product_ids = products
+            .iter()
+            .map(|product| product.id.clone())
+            .collect::<BTreeSet<_>>();
+        for mut product in self.store.products() {
+            if product_ids.contains(&product.id) {
+                upsert_minimal_collection(&mut product.collections, &collection);
+                self.store.stage_product(product);
+            } else if product
+                .collections
+                .iter()
+                .any(|existing| existing.get("id").and_then(Value::as_str) == Some(collection_id))
+            {
+                remove_minimal_collection(&mut product.collections, collection_id);
+                self.store.stage_product(product);
+            }
+        }
+    }
+
+    fn refresh_collection_summary_on_products(&mut self, collection_id: &str) {
+        let Some(collection) = self.store.collection_by_id(collection_id).cloned() else {
+            return;
+        };
+        for mut product in self.store.products() {
+            if product
+                .collections
+                .iter()
+                .any(|existing| existing.get("id").and_then(Value::as_str) == Some(collection_id))
+            {
+                upsert_minimal_collection(&mut product.collections, &collection);
+                self.store.stage_product(product);
+            }
+        }
+    }
+
+    fn hydrate_missing_collection_baseline(&mut self, collection_id: &str, product_ids: &[String]) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let mut ids = Vec::new();
+        if !collection_id.is_empty() && self.store.collection_by_id(collection_id).is_none() {
+            ids.push(collection_id.to_string());
+        }
+        ids.extend(
+            product_ids
+                .iter()
+                .filter(|id| self.store.product_by_id(id).is_none())
+                .cloned(),
+        );
+        ids.sort();
+        ids.dedup();
+        self.hydrate_product_nodes_for_observation(ids);
+    }
+
+    fn stage_collection_job(&mut self) -> Value {
+        let job = json!({
+            "__typename": "Job",
+            "id": self.next_proxy_synthetic_gid("Job"),
+            "done": true,
+            "query": { "__typename": "QueryRoot" }
+        });
+        if let Some(id) = job.get("id").and_then(Value::as_str) {
+            self.store
+                .staged
+                .collection_jobs
+                .insert(id.to_string(), job.clone());
+        }
+        job
+    }
+
+    fn collection_unique_handle(
+        &self,
+        requested_handle: Option<&str>,
+        title: &str,
+        current_id: Option<&str>,
+    ) -> String {
+        let requested = requested_handle
+            .filter(|handle| !handle.trim().is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| slugify_handle(title));
+        let base = strip_numeric_suffix(&requested);
+        let mut candidate = requested;
+        let mut suffix = 1;
+        while self.collection_handle_exists(&candidate, current_id) {
+            candidate = format!("{base}-{suffix}");
+            suffix += 1;
+        }
+        candidate
+    }
+
+    fn collection_handle_exists(&self, handle: &str, current_id: Option<&str>) -> bool {
+        self.store
+            .staged
+            .collections
+            .iter()
+            .any(|(id, collection)| {
+                Some(id.as_str()) != current_id
+                    && collection.get("handle").and_then(Value::as_str) == Some(handle)
+            })
+    }
+}
+
+fn collection_input(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Option<BTreeMap<String, ResolvedValue>> {
+    let mut arguments = root_field_arguments(query, variables)?;
+    match arguments.remove("input") {
+        Some(ResolvedValue::Object(input)) => Some(input),
+        _ => None,
+    }
+}
+
+fn collection_from_input(
+    input: &BTreeMap<String, ResolvedValue>,
+    id: &str,
+    title: &str,
+    handle: &str,
+    existing: Option<&Value>,
+) -> Value {
+    let mut collection = existing.cloned().unwrap_or_else(|| {
+        json!({
+            "id": id,
+            "title": title,
+            "handle": handle,
+            "sortOrder": "BEST_SELLING",
+            "ruleSet": null,
+            "products": connection_json(Vec::<Value>::new()),
+            "defaultProducts": connection_json(Vec::<Value>::new()),
+            "manualProducts": connection_json(Vec::<Value>::new()),
+            "productsCount": {"count": 0, "precision": "EXACT"}
+        })
+    });
+    if let Some(object) = collection.as_object_mut() {
+        object.insert("id".to_string(), json!(id));
+        object.insert("title".to_string(), json!(title));
+        object.insert("handle".to_string(), json!(handle));
+        object.insert(
+            "sortOrder".to_string(),
+            json!(resolved_string_field(input, "sortOrder")
+                .unwrap_or_else(|| "BEST_SELLING".to_string())),
+        );
+        object.insert(
+            "ruleSet".to_string(),
+            resolved_object_field(input, "ruleSet")
+                .map(collection_rule_set_json)
+                .unwrap_or(Value::Null),
+        );
+        if let Some(description) = resolved_string_field(input, "descriptionHtml") {
+            object.insert("descriptionHtml".to_string(), json!(description));
+        }
+        if let Some(template_suffix) = resolved_string_field(input, "templateSuffix") {
+            object.insert("templateSuffix".to_string(), json!(template_suffix));
+        }
+    }
+    collection
+}
+
+fn apply_collection_products(collection: &mut Value, products: &[ProductRecord]) {
+    let product_nodes = products
+        .iter()
+        .map(product_summary_json)
+        .collect::<Vec<_>>();
+    if let Some(object) = collection.as_object_mut() {
+        object.insert(
+            "products".to_string(),
+            connection_json(product_nodes.clone()),
+        );
+        object.insert(
+            "defaultProducts".to_string(),
+            connection_json(product_nodes.clone()),
+        );
+        object.insert("manualProducts".to_string(), connection_json(product_nodes));
+        object.insert(
+            "productsCount".to_string(),
+            json!({"count": products.len(), "precision": "EXACT"}),
+        );
+    }
+}
+
+fn apply_collection_create_payload_products_count(collection: &mut Value) {
+    if let Some(object) = collection.as_object_mut() {
+        object.insert(
+            "productsCount".to_string(),
+            json!({"count": 0, "precision": "EXACT"}),
+        );
+    }
+}
+
+fn collection_inline_job(job: &Value) -> Value {
+    json!({
+        "__typename": "Job",
+        "id": job.get("id").cloned().unwrap_or(Value::Null),
+        "done": false,
+        "query": Value::Null
+    })
+}
+
+fn collection_rule_set_json(input: BTreeMap<String, ResolvedValue>) -> Value {
+    json!({
+        "appliedDisjunctively": resolved_bool_field(&input, "appliedDisjunctively").unwrap_or(false),
+        "rules": resolved_object_list_field(&input, "rules")
+            .into_iter()
+            .map(|rule| json!({
+                "column": resolved_string_field(&rule, "column").unwrap_or_default(),
+                "relation": resolved_string_field(&rule, "relation").unwrap_or_default(),
+                "condition": resolved_string_field(&rule, "condition").unwrap_or_default()
+            }))
+            .collect::<Vec<_>>()
+    })
+}
+
+fn collection_is_smart(collection: &Value) -> bool {
+    collection.get("ruleSet").is_some_and(|rule_set| {
+        !rule_set.is_null()
+            && rule_set
+                .get("rules")
+                .and_then(Value::as_array)
+                .is_some_and(|rules| !rules.is_empty())
+    })
+}
+
+fn collection_product_ids_too_long_response(root_field: &str, len: usize) -> Response {
+    ok_json(json!({
+        "errors": [{
+            "message": format!("The input array size of {len} is greater than the maximum allowed of 250."),
+            "locations": [{"line": 2, "column": 3}],
+            "path": [root_field, "productIds"],
+            "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
+        }]
+    }))
+}
+
+fn collection_invalid_sort_order_response(
+    query: &str,
+    input: &BTreeMap<String, ResolvedValue>,
+    sort_order: &str,
+) -> Response {
+    let location = variable_definition_info(query, "input")
+        .map(|definition| definition.location)
+        .or_else(|| parsed_document(query, &BTreeMap::new()).map(|document| document.location))
+        .unwrap_or(SourceLocation { line: 1, column: 1 });
+    ok_json(json!({
+        "errors": [{
+            "message": format!("Variable $input of type CollectionInput! was provided invalid value for sortOrder (Expected \"{sort_order}\" to be one of: ALPHA_ASC, ALPHA_DESC, BEST_SELLING, CREATED, CREATED_DESC, MANUAL, PRICE_ASC, PRICE_DESC)"),
+            "locations": [{"line": location.line, "column": location.column}],
+            "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": resolved_value_json(&ResolvedValue::Object(input.clone())),
+                "problems": [{
+                    "path": ["sortOrder"],
+                    "explanation": format!("Expected \"{sort_order}\" to be one of: ALPHA_ASC, ALPHA_DESC, BEST_SELLING, CREATED, CREATED_DESC, MANUAL, PRICE_ASC, PRICE_DESC")
+                }]
+            }
+        }]
+    }))
+}
+
+fn collection_user_error<const N: usize>(field: [&str; N], message: &str) -> Value {
+    let field = field.into_iter().collect::<Vec<_>>();
+    json!({
+        "field": field,
+        "message": message
+    })
+}
+
+fn strip_numeric_suffix(handle: &str) -> String {
+    let Some((base, suffix)) = handle.rsplit_once('-') else {
+        return handle.to_string();
+    };
+    if suffix.chars().all(|ch| ch.is_ascii_digit()) && !base.is_empty() {
+        base.to_string()
+    } else {
+        handle.to_string()
     }
 }
 
@@ -647,10 +1539,7 @@ pub(in crate::proxy) fn product_json(
             product.variants.clone(),
             &selection.selection,
         )),
-        "collections" => Some(selected_connection_json(
-            product.collections.clone(),
-            &selection.selection,
-        )),
+        "collections" => Some(product_collections_connection_json(product, selection)),
         "media" => Some(selected_connection_json(
             product.media.clone(),
             &selection.selection,
@@ -677,6 +1566,35 @@ pub(in crate::proxy) fn product_json(
             .cloned()
             .map(|value| nullable_selected_json(&value, &selection.selection)),
     })
+}
+
+fn product_collections_connection_json(
+    product: &ProductRecord,
+    selection: &SelectedField,
+) -> Value {
+    let mut collections = product.collections.clone();
+    if selection.arguments.get("sortKey") == Some(&ResolvedValue::String("TITLE".to_string())) {
+        collections.sort_by(|left, right| {
+            let left_title = left
+                .get("title")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let right_title = right
+                .get("title")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            left_title.cmp(right_title)
+        });
+    }
+    if selection.arguments.get("reverse") == Some(&ResolvedValue::Bool(true)) {
+        collections.reverse();
+    }
+    selected_connection_json_with_args(
+        collections,
+        &selection.arguments,
+        &selection.selection,
+        value_id_cursor,
+    )
 }
 
 pub(in crate::proxy) fn product_json_with_variants(
@@ -779,10 +1697,7 @@ pub(in crate::proxy) fn product_json_with_variants(
                 &selection.selection,
             )
         }),
-        "collections" => Some(selected_connection_json(
-            product.collections.clone(),
-            &selection.selection,
-        )),
+        "collections" => Some(product_collections_connection_json(product, selection)),
         "media" => Some(selected_connection_json(
             product.media.clone(),
             &selection.selection,

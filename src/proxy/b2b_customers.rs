@@ -2857,6 +2857,9 @@ impl DraftProxy {
         {
             return selected_json(&product_tail_full_sync_job(), &field.selection);
         }
+        if let Some(job) = self.store.staged.collection_jobs.get(&id) {
+            return selected_json(job, &field.selection);
+        }
         // A job enqueued locally (e.g. a metafield-definition validation job)
         // is addressed by a synthetic Job gid. Reading it back returns a
         // freshly-enqueued, not-yet-complete Job with no backing bulk query —

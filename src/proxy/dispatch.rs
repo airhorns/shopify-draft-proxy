@@ -624,6 +624,22 @@ impl DraftProxy {
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "collectionCreate"
+                            | "collectionUpdate"
+                            | "collectionDelete"
+                            | "collectionAddProducts"
+                            | "collectionAddProductsV2"
+                            | "collectionRemoveProducts"
+                            | "collectionReorderProducts"
+                    ) =>
+            {
+                let outcome = self.collection_mutation(root_field, &query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && has_local_dispatch
                     && matches!(
@@ -1571,6 +1587,8 @@ impl DraftProxy {
                     if root_field == "collection" {
                         if self.should_route_owner_metafields_read(&query, &variables) {
                             self.owner_metafields_read(request, &query, &variables)
+                        } else if self.collection_read_needs_upstream(&fields) {
+                            (self.upstream_transport)(request.clone())
                         } else {
                             ok_json(json!({
                                 "data": self.collection_membership_downstream_read_data(&fields)
