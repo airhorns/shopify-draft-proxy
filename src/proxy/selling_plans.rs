@@ -522,6 +522,58 @@ impl DraftProxy {
         }
     }
 
+    /// Decide whether a selling-plan mutation can be served authentically from
+    /// local staged state. A lifecycle scenario stages its product/group locally
+    /// before operating on it, so we own the truth and answer locally. A
+    /// validation scenario instead exercises Shopify's own error behaviour
+    /// against live-store products/groups that were never staged here; for those
+    /// we must forward upstream rather than fabricate an inaccurate
+    /// NOT_FOUND/GROUP_DOES_NOT_EXIST userError from empty local state.
+    pub(in crate::proxy) fn selling_plan_mutation_serves_locally(
+        &self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        let Some(field) = mutation_root_field(query, variables, root_field) else {
+            // Unparseable: let the local handler surface the parse error.
+            return true;
+        };
+        match root_field {
+            "sellingPlanGroupCreate" => {
+                let resources =
+                    resolved_object_field(&field.arguments, "resources").unwrap_or_default();
+                let product_ids = resolved_string_list_field_unsorted(&resources, "productIds");
+                let variant_ids =
+                    resolved_string_list_field_unsorted(&resources, "productVariantIds");
+                product_ids
+                    .iter()
+                    .all(|id| self.has_resource(id, ResourceKind::Product))
+                    && variant_ids
+                        .iter()
+                        .all(|id| self.has_resource(id, ResourceKind::ProductVariant))
+            }
+            "sellingPlanGroupUpdate"
+            | "sellingPlanGroupDelete"
+            | "sellingPlanGroupAddProducts"
+            | "sellingPlanGroupRemoveProducts"
+            | "sellingPlanGroupAddProductVariants"
+            | "sellingPlanGroupRemoveProductVariants" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                self.store.selling_plan_group_by_id(&id).is_some()
+            }
+            "productJoinSellingPlanGroups" | "productLeaveSellingPlanGroups" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                self.has_resource(&id, ResourceKind::Product)
+            }
+            "productVariantJoinSellingPlanGroups" | "productVariantLeaveSellingPlanGroups" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                self.has_resource(&id, ResourceKind::ProductVariant)
+            }
+            _ => true,
+        }
+    }
+
     fn join_leave_preflight_errors(
         &self,
         resource_kind: ResourceKind,

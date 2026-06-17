@@ -550,6 +550,17 @@ impl DraftProxy {
                     json_error(400, "Could not parse GraphQL operation")
                 }
             }
+            (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query
+                    && has_local_dispatch
+                    && matches!(root_field, "sellingPlanGroup" | "sellingPlanGroups") =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    ok_json(json!({ "data": self.selling_plan_group_query_data(&fields) }))
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
+            }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && has_local_dispatch
@@ -620,6 +631,33 @@ impl DraftProxy {
             {
                 let outcome =
                     self.product_variant_mutation(request, root_field, &query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "sellingPlanGroupCreate"
+                            | "sellingPlanGroupUpdate"
+                            | "sellingPlanGroupDelete"
+                            | "sellingPlanGroupAddProducts"
+                            | "sellingPlanGroupRemoveProducts"
+                            | "sellingPlanGroupAddProductVariants"
+                            | "sellingPlanGroupRemoveProductVariants"
+                            | "productJoinSellingPlanGroups"
+                            | "productLeaveSellingPlanGroups"
+                            | "productVariantJoinSellingPlanGroups"
+                            | "productVariantLeaveSellingPlanGroups"
+                    ) =>
+            {
+                // Validation scenarios reference live-store products/groups that
+                // were never staged here; serve those from upstream rather than
+                // fabricate an inaccurate userError from empty local state.
+                if !self.selling_plan_mutation_serves_locally(root_field, &query, &variables) {
+                    return (self.upstream_transport)(request.clone());
+                }
+                let outcome = self.selling_plan_group_mutation(root_field, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)

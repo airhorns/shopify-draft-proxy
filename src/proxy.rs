@@ -153,6 +153,36 @@ pub struct ProductVariantInventoryItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct SellingPlanRecord {
+    id: String,
+    name: String,
+    description: String,
+    options: Vec<String>,
+    position: i64,
+    category: String,
+    created_at: String,
+    billing_policy: Value,
+    delivery_policy: Value,
+    inventory_policy: Value,
+    pricing_policies: Vec<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct SellingPlanGroupRecord {
+    id: String,
+    app_id: Option<String>,
+    name: String,
+    merchant_code: String,
+    description: String,
+    options: Vec<String>,
+    position: i64,
+    created_at: String,
+    selling_plans: Vec<SellingPlanRecord>,
+    product_ids: Vec<String>,
+    product_variant_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct ProductOperationRecord {
     id: String,
     kind: ProductOperationKind,
@@ -212,6 +242,7 @@ struct BaseState {
 struct StagedState {
     products: StagedRecords<ProductRecord>,
     product_variants: StagedRecords<ProductVariantRecord>,
+    selling_plan_groups: StagedRecords<SellingPlanGroupRecord>,
     saved_searches: StagedRecords<SavedSearchRecord>,
     shop_policies: StagedRecords<ShopPolicyRecord>,
     product_search_tags: BTreeMap<String, BTreeSet<String>>,
@@ -515,6 +546,7 @@ impl Default for StagedState {
         Self {
             products: StagedRecords::default(),
             product_variants: StagedRecords::default(),
+            selling_plan_groups: StagedRecords::default(),
             saved_searches: StagedRecords::default(),
             shop_policies: StagedRecords::default(),
             product_search_tags: BTreeMap::new(),
@@ -1280,6 +1312,42 @@ impl Store {
             normalized_order(self.staged.product_variants.records.keys(), staged_order);
     }
 
+    fn selling_plan_group_by_id(&self, id: &str) -> Option<&SellingPlanGroupRecord> {
+        if self.staged.selling_plan_groups.is_tombstoned(id) {
+            return None;
+        }
+        self.staged.selling_plan_groups.get(id)
+    }
+
+    fn selling_plan_groups(&self) -> Vec<SellingPlanGroupRecord> {
+        self.staged
+            .selling_plan_groups
+            .order
+            .iter()
+            .filter(|id| !self.staged.selling_plan_groups.is_tombstoned(id))
+            .filter_map(|id| self.staged.selling_plan_groups.get(id).cloned())
+            .collect()
+    }
+
+    fn has_selling_plan_group_state(&self) -> bool {
+        !self.staged.selling_plan_groups.records.is_empty()
+            || !self.staged.selling_plan_groups.tombstones.is_empty()
+    }
+
+    fn stage_selling_plan_group(&mut self, group: SellingPlanGroupRecord) {
+        self.staged
+            .selling_plan_groups
+            .stage(group.id.clone(), group);
+    }
+
+    fn delete_selling_plan_group(&mut self, id: &str) -> bool {
+        let had_staged = self.staged.selling_plan_groups.remove_staged(id).is_some();
+        if had_staged {
+            self.staged.selling_plan_groups.tombstone(id.to_string());
+        }
+        had_staged
+    }
+
     fn saved_search_base_with_defaults(
         &self,
         resource_type: &str,
@@ -1415,6 +1483,21 @@ impl LogDraft {
                 .to_string(),
         }
     }
+
+    fn failed(
+        root_field: impl Into<String>,
+        domain: &'static str,
+        notes: impl Into<String>,
+    ) -> Self {
+        Self {
+            root_field: root_field.into(),
+            staged_resource_ids: Vec::new(),
+            status: "failed".to_string(),
+            capability_domain: domain.to_string(),
+            capability_execution: "stage-locally".to_string(),
+            notes: notes.into(),
+        }
+    }
 }
 
 fn default_commit_transport(_request: Request) -> Response {
@@ -1460,6 +1543,7 @@ mod resource_ids;
 mod routing;
 mod schema_validation;
 mod selection;
+mod selling_plans;
 mod store_properties;
 
 #[allow(unused_imports)]
@@ -1510,6 +1594,8 @@ pub(in crate::proxy) use self::routing::*;
 pub(in crate::proxy) use self::schema_validation::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::selection::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::selling_plans::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::store_properties::*;
 

@@ -2494,7 +2494,7 @@ impl DraftProxy {
         match self.product_record_by_id(id) {
             Some(product) => {
                 let variants = self.store.product_variants_for_product(&product.id);
-                let base = product_json_with_variants(product, &variants, selection);
+                let base = self.product_json_with_selling_plan_overlay(product, &variants, selection);
                 self.owner_metafield_overlay_owner_json_with_product_variants(
                     "product",
                     &product.id,
@@ -2536,7 +2536,7 @@ impl DraftProxy {
         match product {
             Some(product) => {
                 let variants = self.store.product_variants_for_product(&product.id);
-                let base = product_json_with_variants(product, &variants, selection);
+                let base = self.product_json_with_selling_plan_overlay(product, &variants, selection);
                 self.owner_metafield_overlay_owner_json_with_product_variants(
                     "product",
                     &product.id,
@@ -2578,7 +2578,7 @@ impl DraftProxy {
                 Value::Null
             };
         };
-        let base = product_variant_json(
+        let base = self.product_variant_json_with_selling_plan_overlay(
             variant,
             self.store.product_by_id(&variant.product_id),
             selection,
@@ -3369,7 +3369,26 @@ impl DraftProxy {
             product_id,
             inventory_item_id,
         );
+
+        // Shopify replaces the implicit `Title: Default Title` standalone variant the first
+        // time a real variant is created on a product that still only carries it, rather than
+        // keeping the auto-generated default alongside the new variant. Capture the pre-create
+        // variant set so we can drop the default once the real variant is staged.
+        let existing_variants = self.store.product_variants_for_product(&variant.product_id);
+        let replace_default = existing_variants.len() == 1
+            && existing_variants
+                .first()
+                .is_some_and(Self::is_standalone_default_variant);
+
         self.store.stage_product_variant(variant.clone());
+
+        if replace_default {
+            for existing in &existing_variants {
+                self.store.delete_product_variant(&existing.id);
+            }
+            let final_variants = self.store.product_variants_for_product(&variant.product_id);
+            self.recompute_product_options_from_variants(&variant.product_id, &final_variants);
+        }
 
         MutationOutcome::staged(
             self.product_variant_success_response(
