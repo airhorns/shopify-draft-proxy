@@ -176,7 +176,9 @@
           "variantMedia": [
             {
               "variantId": "gid://shopify/ProductVariant/51129633210674",
-              "mediaIds": ["gid://shopify/MediaImage/43672585961778"]
+              "mediaIds": [
+                "gid://shopify/MediaImage/43672585961778"
+              ]
             }
           ]
         },
@@ -251,12 +253,16 @@
     },
     "mutation": {
       "variables": {
-        "fileIds": ["gid://shopify/MediaImage/43672585961778"]
+        "fileIds": [
+          "gid://shopify/MediaImage/43672585961778"
+        ]
       },
       "response": {
         "data": {
           "fileDelete": {
-            "deletedFileIds": ["gid://shopify/MediaImage/43672585961778"],
+            "deletedFileIds": [
+              "gid://shopify/MediaImage/43672585961778"
+            ],
             "userErrors": []
           }
         },
@@ -475,7 +481,9 @@
           "variantMedia": [
             {
               "variantId": "gid://shopify/ProductVariant/51129633931570",
-              "mediaIds": ["gid://shopify/MediaImage/43672586977586"]
+              "mediaIds": [
+                "gid://shopify/MediaImage/43672586977586"
+              ]
             }
           ]
         },
@@ -553,7 +561,9 @@
         "files": [
           {
             "id": "gid://shopify/MediaImage/43672586977586",
-            "referencesToRemove": ["gid://shopify/Product/10178048164146"]
+            "referencesToRemove": [
+              "gid://shopify/Product/10178048164146"
+            ]
           }
         ]
       },
@@ -614,7 +624,9 @@
     {
       "operationName": "MediaFileReferencesHydrate",
       "variables": {
-        "fileIds": ["gid://shopify/MediaImage/43672585961778"]
+        "fileIds": [
+          "gid://shopify/MediaImage/43672585961778"
+        ]
       },
       "query": "hand-synthesized from live media cascade setup capture",
       "response": {
@@ -703,7 +715,7 @@
       "variables": {
         "id": "gid://shopify/Product/10178048164146"
       },
-      "query": "hand-synthesized from live media cascade setup capture",
+      "query": "query MediaProductHydrate($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    handle\n    status\n    media(first: 50) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n        preview { image { url width height } }\n        ... on MediaImage { image { url width height } }\n      }\n    }\n    variants(first: 50) {\n      nodes {\n        id\n        title\n        media(first: 10) { nodes { id } }\n      }\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {

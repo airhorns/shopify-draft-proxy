@@ -98,7 +98,11 @@
             "files": [],
             "userErrors": [
               {
-                "field": ["files", "0", "alt"],
+                "field": [
+                  "files",
+                  "0",
+                  "alt"
+                ],
                 "message": "The alt value exceeds the maximum limit of 512 characters.",
                 "code": "ALT_VALUE_LIMIT_EXCEEDED"
               }
@@ -134,7 +138,11 @@
             "files": [],
             "userErrors": [
               {
-                "field": ["files", "0", "previewImageSource"],
+                "field": [
+                  "files",
+                  "0",
+                  "previewImageSource"
+                ],
                 "message": "Invalid image source url value provided",
                 "code": "INVALID_IMAGE_SOURCE_URL"
               }
@@ -183,7 +191,9 @@
             "extensions": {
               "code": "INVALID_FIELD_ARGUMENTS"
             },
-            "path": ["fileUpdate"]
+            "path": [
+              "fileUpdate"
+            ]
           }
         ],
         "data": {
@@ -253,9 +263,11 @@
     {
       "operationName": "MediaFileUpdateHydrate",
       "variables": {
-        "fileIds": ["gid://shopify/MediaImage/43683084894514"]
+        "fileIds": [
+          "gid://shopify/MediaImage/43683084894514"
+        ]
       },
-      "query": "sha:media-file-update-hydrate",
+      "query": "query MediaFileUpdateHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {
@@ -288,12 +300,16 @@
   ],
   "cleanup": {
     "variables": {
-      "fileIds": ["gid://shopify/MediaImage/43683084894514"]
+      "fileIds": [
+        "gid://shopify/MediaImage/43683084894514"
+      ]
     },
     "response": {
       "data": {
         "fileDelete": {
-          "deletedFileIds": ["gid://shopify/MediaImage/43683084894514"],
+          "deletedFileIds": [
+            "gid://shopify/MediaImage/43683084894514"
+          ],
           "userErrors": []
         }
       },

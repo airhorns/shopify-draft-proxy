@@ -96,12 +96,16 @@
   "cleanup": {
     "deleteMutation": {
       "variables": {
-        "fileIds": ["gid://shopify/MediaImage/39516006121705"]
+        "fileIds": [
+          "gid://shopify/MediaImage/39516006121705"
+        ]
       },
       "response": {
         "data": {
           "fileDelete": {
-            "deletedFileIds": ["gid://shopify/MediaImage/39516006121705"],
+            "deletedFileIds": [
+              "gid://shopify/MediaImage/39516006121705"
+            ],
             "userErrors": []
           }
         },
@@ -123,9 +127,11 @@
     {
       "operationName": "MediaFileUpdateHydrate",
       "variables": {
-        "fileIds": ["gid://shopify/MediaImage/39516006121705"]
+        "fileIds": [
+          "gid://shopify/MediaImage/39516006121705"
+        ]
       },
-      "query": "sha:media-file-update-hydrate",
+      "query": "query MediaFileUpdateHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {

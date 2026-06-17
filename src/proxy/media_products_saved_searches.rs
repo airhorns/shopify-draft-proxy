@@ -712,14 +712,16 @@ impl DraftProxy {
             .into_iter()
             .enumerate()
             .map(|(index, input)| {
-                let content_type = resolved_string_field(&input, "contentType")
-                    .unwrap_or_else(|| "IMAGE".to_string());
-                let resource_type = media_file_gid_type(&content_type);
-                let id = self.next_synthetic_gid(resource_type);
                 let original_source =
                     resolved_string_field(&input, "originalSource").unwrap_or_default();
                 let filename = resolved_string_field(&input, "filename")
                     .unwrap_or_else(|| filename_from_source(&original_source));
+                // When contentType is omitted, Shopify infers it from the
+                // source/filename extension (image/video/model vs generic file).
+                let content_type = resolved_string_field(&input, "contentType")
+                    .unwrap_or_else(|| infer_content_type_from_source(&filename).to_string());
+                let resource_type = media_file_gid_type(&content_type);
+                let id = self.next_synthetic_gid(resource_type);
                 let alt = resolved_string_field(&input, "alt").unwrap_or_default();
                 let created_at = format!("2024-01-01T00:00:{:02}.000Z", index + 1);
                 let file = media_file_record(
@@ -1381,12 +1383,18 @@ impl DraftProxy {
                 .filter(|(id, _)| !self.store.staged.deleted_media_file_ids.contains(*id))
                 .map(|(_, file)| file.clone())
                 .collect::<Vec<_>>();
-            files.sort_by_key(|file| {
-                file.get("id")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string()
-            });
+            // Order by sortKey: ID (the numeric resource id), then honor
+            // `reverse`. Synthetic creation order tracks the numeric id, so this
+            // also approximates the default CREATED_AT ordering. A lexicographic
+            // string sort over the full gid would interleave by typename
+            // (GenericFile < MediaImage < Video), so it must be numeric.
+            files.sort_by_key(media_file_numeric_id);
+            if matches!(
+                field.arguments.get("reverse"),
+                Some(ResolvedValue::Bool(true))
+            ) {
+                files.reverse();
+            }
             data.insert(
                 field.response_key,
                 selected_connection_json_with_args(
@@ -4957,6 +4965,13 @@ fn media_file_record(
         "GenericFile" => {
             file["url"] = json!(original_source);
         }
+        "Video" => {
+            file["mediaContentType"] = json!("VIDEO");
+            file["status"] = json!(file_status);
+            file["preview"] = json!({"image": Value::Null});
+            file["mediaErrors"] = json!([]);
+            file["mediaWarnings"] = json!([]);
+        }
         _ => {
             file["preview"] = json!({"image": Value::Null});
             file["mediaErrors"] = json!([]);
@@ -4964,6 +4979,15 @@ fn media_file_record(
         }
     }
     file
+}
+
+fn media_file_numeric_id(file: &Value) -> u64 {
+    file.get("id")
+        .and_then(Value::as_str)
+        .and_then(|id| id.split('?').next())
+        .and_then(|id| id.rsplit('/').next())
+        .and_then(|tail| tail.parse::<u64>().ok())
+        .unwrap_or(0)
 }
 
 fn seeded_media_file_for_update(id: &str) -> Option<Value> {
@@ -5115,28 +5139,63 @@ fn filename_from_source(source: &str) -> String {
 }
 
 fn file_extension(value: &str) -> String {
-    value
-        .split('?')
-        .next()
-        .unwrap_or(value)
-        .rsplit('.')
-        .next()
-        .filter(|extension| *extension != value)
-        .unwrap_or_default()
-        .to_ascii_lowercase()
+    // Mirror Gleam derive_filename + file_extension: first reduce to the last
+    // non-empty path segment (after stripping query/fragment), then take the
+    // substring after that segment's final dot. A URL like
+    // `https://www.w3.org/.../dummy` must yield "" — not "org/.../dummy" — even
+    // though the host contains dots.
+    let path = value.split(['?', '#']).next().unwrap_or(value);
+    let filename = path
+        .rsplit('/')
+        .find(|segment| !segment.is_empty())
+        .unwrap_or("");
+    match filename.rsplit_once('.') {
+        Some((_, extension)) => extension.to_ascii_lowercase(),
+        None => String::new(),
+    }
+}
+
+// Shopify infers the FileContentType from the source/filename extension when
+// the caller omits `contentType`, picking the typed media subtype (MediaImage /
+// Video / Model3d) for recognized media extensions and GenericFile otherwise.
+fn infer_content_type_from_source(filename: &str) -> &'static str {
+    match file_extension(filename).as_str() {
+        "png" | "jpg" | "jpeg" | "gif" | "webp" | "heic" | "heif" => "IMAGE",
+        "mp4" | "mov" | "m4v" | "webm" => "VIDEO",
+        "glb" | "gltf" | "usdz" => "MODEL_3D",
+        _ => "FILE",
+    }
 }
 
 fn mime_type_for_filename(filename: &str, content_type: &str) -> &'static str {
-    match (content_type, file_extension(filename).as_str()) {
-        ("IMAGE", "png") => "image/png",
-        ("IMAGE", "gif") => "image/gif",
-        ("IMAGE", "webp") => "image/webp",
-        ("IMAGE", _) => "image/jpeg",
-        ("VIDEO", "mov") => "video/quicktime",
-        ("VIDEO", _) => "video/mp4",
-        ("MODEL_3D", "glb") => "model/gltf-binary",
-        ("MODEL_3D", "usdz") => "model/vnd.usdz+zip",
-        _ => "application/octet-stream",
+    // Extension-first derivation (Gleam media/serializers.gleam `derive_mime_type`):
+    // the recognized extension wins regardless of contentType, and only an
+    // unrecognized extension falls back to the contentType default.
+    match file_extension(filename).as_str() {
+        "gif" => "image/gif",
+        "heic" => "image/heic",
+        "heif" => "image/heif",
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
+        "webp" => "image/webp",
+        "m4v" => "video/x-m4v",
+        "mov" => "video/quicktime",
+        "mp4" => "video/mp4",
+        "webm" => "video/webm",
+        "glb" => "model/gltf-binary",
+        "gltf" => "model/gltf+json",
+        "usdz" => "model/vnd.usdz+zip",
+        "csv" => "text/csv",
+        "json" => "application/json",
+        "pdf" => "application/pdf",
+        "txt" => "text/plain",
+        "zip" => "application/zip",
+        _ => match content_type {
+            "IMAGE" => "image/jpeg",
+            "VIDEO" => "video/mp4",
+            "MODEL_3D" => "model/gltf-binary",
+            _ => "application/octet-stream",
+        },
     }
 }
 

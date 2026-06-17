@@ -150,12 +150,20 @@
             "files": [],
             "userErrors": [
               {
-                "field": ["files", "0", "previewImageSource"],
+                "field": [
+                  "files",
+                  "0",
+                  "previewImageSource"
+                ],
                 "message": "Cannot update the preview image and image at the same time because they are one and the same.",
                 "code": "INVALID"
               },
               {
-                "field": ["files", "0", "originalSource"],
+                "field": [
+                  "files",
+                  "0",
+                  "originalSource"
+                ],
                 "message": "Cannot update the preview image and image at the same time because they are one and the same.",
                 "code": "INVALID"
               }
@@ -196,22 +204,38 @@
             "files": [],
             "userErrors": [
               {
-                "field": ["files", "0", "previewImageSource"],
+                "field": [
+                  "files",
+                  "0",
+                  "previewImageSource"
+                ],
                 "message": "Cannot update the preview image and image at the same time because they are one and the same.",
                 "code": "INVALID"
               },
               {
-                "field": ["files", "0", "originalSource"],
+                "field": [
+                  "files",
+                  "0",
+                  "originalSource"
+                ],
                 "message": "Cannot update the preview image and image at the same time because they are one and the same.",
                 "code": "INVALID"
               },
               {
-                "field": ["files", "1", "previewImageSource"],
+                "field": [
+                  "files",
+                  "1",
+                  "previewImageSource"
+                ],
                 "message": "Cannot update the preview image and image at the same time because they are one and the same.",
                 "code": "INVALID"
               },
               {
-                "field": ["files", "1", "originalSource"],
+                "field": [
+                  "files",
+                  "1",
+                  "originalSource"
+                ],
                 "message": "Cannot update the preview image and image at the same time because they are one and the same.",
                 "code": "INVALID"
               }
@@ -236,9 +260,11 @@
     {
       "operationName": "MediaFileUpdateHydrate",
       "variables": {
-        "fileIds": ["gid://shopify/MediaImage/43688000094514"]
+        "fileIds": [
+          "gid://shopify/MediaImage/43688000094514"
+        ]
       },
-      "query": "sha:media-file-update-hydrate",
+      "query": "query MediaFileUpdateHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {
@@ -271,9 +297,12 @@
     {
       "operationName": "MediaFileUpdateHydrate",
       "variables": {
-        "fileIds": ["gid://shopify/MediaImage/43688000094514", "gid://shopify/MediaImage/43688000127282"]
+        "fileIds": [
+          "gid://shopify/MediaImage/43688000094514",
+          "gid://shopify/MediaImage/43688000127282"
+        ]
       },
-      "query": "sha:media-file-update-hydrate",
+      "query": "query MediaFileUpdateHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {
@@ -325,9 +354,11 @@
     {
       "operationName": "MediaFileUpdateHydrate",
       "variables": {
-        "fileIds": ["gid://shopify/MediaImage/43688000127282"]
+        "fileIds": [
+          "gid://shopify/MediaImage/43688000127282"
+        ]
       },
-      "query": "sha:media-file-update-hydrate",
+      "query": "query MediaFileUpdateHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {
@@ -360,12 +391,18 @@
   ],
   "cleanup": {
     "variables": {
-      "fileIds": ["gid://shopify/MediaImage/43688000094514", "gid://shopify/MediaImage/43688000127282"]
+      "fileIds": [
+        "gid://shopify/MediaImage/43688000094514",
+        "gid://shopify/MediaImage/43688000127282"
+      ]
     },
     "response": {
       "data": {
         "fileDelete": {
-          "deletedFileIds": ["gid://shopify/MediaImage/43688000094514", "gid://shopify/MediaImage/43688000127282"],
+          "deletedFileIds": [
+            "gid://shopify/MediaImage/43688000094514",
+            "gid://shopify/MediaImage/43688000127282"
+          ],
           "userErrors": []
         }
       },
