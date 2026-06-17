@@ -849,6 +849,9 @@ impl DraftProxy {
             ));
         }
 
+        // Supplying both originalSource and previewImageSource is rejected with
+        // two INVALID userErrors, but only for ready files: Shopify resolves the
+        // NON_READY_STATE gate above first (see media-file-update-validation-ordering).
         let ready_source_errors = inputs
             .iter()
             .enumerate()
@@ -1109,12 +1112,26 @@ impl DraftProxy {
                 }]
             })));
         }
+        // Validate every input up front so we know whether the mutation will
+        // succeed. A successful mutation reserves a synthetic id for its log
+        // entry before allocating target ids (Gleam reserves a MutationLogEntry
+        // id first), keeping target ids in lockstep with parity.
+        let validations: Vec<Vec<Value>> = inputs
+            .iter()
+            .enumerate()
+            .map(|(index, input)| validate_staged_upload_input(input, index))
+            .collect();
+        if validations.iter().all(Vec::is_empty) {
+            self.reserve_synthetic_log_id();
+        }
         let mut errors = Vec::new();
         let mut targets = Vec::new();
-        for (index, input) in inputs.iter().enumerate() {
-            let input_errors = validate_staged_upload_input(input, index);
+        for ((index, input), input_errors) in
+            inputs.iter().enumerate().zip(validations.into_iter())
+        {
             if input_errors.is_empty() {
-                targets.push(staged_upload_target(input, index));
+                let id = self.next_synthetic_gid(&format!("StagedUploadTarget{index}"));
+                targets.push(staged_upload_target(input, index, &id));
             } else {
                 errors.extend(input_errors);
                 targets.push(
@@ -1372,38 +1389,57 @@ impl DraftProxy {
     ) -> Response {
         let mut data = serde_json::Map::new();
         for field in root_fields(query, variables).unwrap_or_default() {
-            if field.name != "files" {
-                continue;
+            match field.name.as_str() {
+                "files" => {
+                    let mut files = self
+                        .store
+                        .staged
+                        .media_files
+                        .iter()
+                        .filter(|(id, _)| {
+                            !self.store.staged.deleted_media_file_ids.contains(*id)
+                        })
+                        .map(|(_, file)| file.clone())
+                        .collect::<Vec<_>>();
+                    // Order by sortKey: ID (the numeric resource id), then honor
+                    // `reverse`. Synthetic creation order tracks the numeric id,
+                    // so this also approximates the default CREATED_AT ordering. A
+                    // lexicographic string sort over the full gid would interleave
+                    // by typename (GenericFile < MediaImage < Video), so it must be
+                    // numeric.
+                    files.sort_by_key(media_file_numeric_id);
+                    if matches!(
+                        field.arguments.get("reverse"),
+                        Some(ResolvedValue::Bool(true))
+                    ) {
+                        files.reverse();
+                    }
+                    data.insert(
+                        field.response_key,
+                        selected_connection_json_with_args(
+                            files,
+                            &field.arguments,
+                            &field.selection,
+                            media_file_cursor,
+                        ),
+                    );
+                }
+                // Saved searches are not modeled yet, so the connection mirrors
+                // Shopify's empty-state shape (no nodes, null cursors) rather than
+                // being dropped from a combined `files`/`fileSavedSearches` read.
+                "fileSavedSearches" => {
+                    data.insert(
+                        field.response_key,
+                        selected_connection_json_with_args(
+                            Vec::<Value>::new(),
+                            &field.arguments,
+                            &field.selection,
+                            media_file_cursor,
+                        ),
+                    );
+                }
+                _ => continue,
             }
-            let mut files = self
-                .store
-                .staged
-                .media_files
-                .iter()
-                .filter(|(id, _)| !self.store.staged.deleted_media_file_ids.contains(*id))
-                .map(|(_, file)| file.clone())
-                .collect::<Vec<_>>();
-            // Order by sortKey: ID (the numeric resource id), then honor
-            // `reverse`. Synthetic creation order tracks the numeric id, so this
-            // also approximates the default CREATED_AT ordering. A lexicographic
-            // string sort over the full gid would interleave by typename
-            // (GenericFile < MediaImage < Video), so it must be numeric.
-            files.sort_by_key(media_file_numeric_id);
-            if matches!(
-                field.arguments.get("reverse"),
-                Some(ResolvedValue::Bool(true))
-            ) {
-                files.reverse();
-            }
-            data.insert(
-                field.response_key,
-                selected_connection_json_with_args(
-                    files,
-                    &field.arguments,
-                    &field.selection,
-                    media_file_cursor,
-                ),
-            );
         }
         ok_json(json!({"data": Value::Object(data)}))
     }
@@ -4803,73 +4839,82 @@ fn validate_staged_upload_input(
     errors
 }
 
-fn staged_upload_target(input: &BTreeMap<String, ResolvedValue>, index: usize) -> Value {
+/// Encode the path-unsafe characters of a staged-upload URL segment, mirroring
+/// the Gleam `encode_upload_segment` (`:` -> `%3A`, `/` -> `%2F`).
+fn encode_upload_segment(value: &str) -> String {
+    value.replace(':', "%3A").replace('/', "%2F")
+}
+
+/// Build a single staged upload target. The synthetic `id`
+/// (`gid://shopify/StagedUploadTarget{index}/{n}`) is allocated by the caller so
+/// that target ids stay in lockstep with the shared synthetic counter, exactly
+/// as Gleam's `make_staged_target` does. URLs and signature material are inert
+/// `shopify-draft-proxy.local` placeholders: the proxy never allocates real
+/// external storage, so every signed value is a deterministic placeholder rather
+/// than a captured Shopify secret.
+fn staged_upload_target(input: &BTreeMap<String, ResolvedValue>, index: usize, id: &str) -> Value {
     let resource = resolved_string_field(input, "resource").unwrap_or_else(|| "FILE".to_string());
     let filename =
         resolved_string_field(input, "filename").unwrap_or_else(|| format!("upload-{index}"));
     let mime_type = resolved_string_field(input, "mimeType")
         .unwrap_or_else(|| "application/octet-stream".to_string());
     let method = resolved_string_field(input, "httpMethod").unwrap_or_else(|| "PUT".to_string());
-    let key = format!(
-        "tmp/shopify-draft-proxy/{}/{}",
-        resource.to_ascii_lowercase(),
-        filename
+
+    let key = format!("shopify-draft-proxy/{id}/{filename}");
+    let url = format!(
+        "https://shopify-draft-proxy.local/staged-uploads/{}",
+        encode_upload_segment(id)
     );
-    if resource == "MODEL_3D" {
-        let model_key = format!("models/75920d31bd249020/{filename}");
-        return json!({
-            "url": format!("https://shopify-draft-proxy.local/staged-uploads/{resource}/{filename}"),
-            "resourceUrl": format!("https://shopify-draft-proxy.local/staged-uploads/{resource}/{filename}"),
-            "parameters": [
-                {"name": "GoogleAccessId", "value": "threed-model-service-prod@threed-model-service.iam.gserviceaccount.com"},
-                {"name": "key", "value": model_key},
-                {"name": "policy", "value": "eyJleHBpcmF0aW9uIjoiMjAyNi0wNS0wNVQxMDoyNToyMFoiLCJjb25kaXRpb25zIjpbWyJlcSIsIiRidWNrZXQiLCJ0aHJlZWQtbW9kZWxzLXByb2R1Y3Rpb24iXSxbImVxIiwiJGtleSIsIm1vZGVscy83NTkyMGQzMWJkMjQ5MDIwL2hhci03MDQtbW9kZWwuZ2xiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMTAyNCwxMDI0XV19"},
-                {"name": "signature", "value": "GW9yMNrWfTYMOX/0b4vxzNhvpqlA3eTEBJf+AiW2bDUr4q+97mY3AkGbS9YTPDsEhQeqGpcaXk5W917xzwxyJIqT/thhIw8Q38uaWxhJ+5nxfdXGIMfTUb9ukUm+S1Y6OTEUl9B5xKpfrYSJrPkX3JXGYbyGfX8K5W1DSwK8UVyuXAe/BfiHPp55aiHxWlalI4cm4h8mnlpxO8n5WUQ0AJcRZOJkn/o24A7DLFZe/fouXaaeHR4jmKn6JavvSmj1PKbGOry/z/JWF2fus5O3cPmL9AdlkH35J+AL9SGVadCTPzFE2Md4AlZEqeU0ufSCRJWIa3h5fFj9M4ySLPoQEQ=="}
-            ]
-        });
-    }
+    let resource_url = format!("{url}/{}", encode_upload_segment(&filename));
+
+    // VIDEO and MODEL_3D resolve to Google signed-policy uploads
+    // (GoogleAccessId/key/policy/signature); every other resource resolves to a
+    // GCS form (POST) or simple object (PUT) upload.
     if matches!(resource.as_str(), "VIDEO" | "MODEL_3D") {
-        return json!({
-            "url": format!("https://shopify-draft-proxy.local/staged-uploads/{resource}/{filename}"),
-            "resourceUrl": format!("https://shopify-draft-proxy.local/staged-uploads/{resource}/{filename}"),
-            "parameters": [
-                {"name": "GoogleAccessId", "value": "shopify-draft-proxy.local"},
-                {"name": "key", "value": key},
-                {"name": "policy", "value": "shopify-draft-proxy-policy"},
-                {"name": "signature", "value": "shopify-draft-proxy-signature"}
-            ]
-        });
+        let parameters: Vec<Value> = ["GoogleAccessId", "key", "policy", "signature"]
+            .into_iter()
+            .map(|name| {
+                let value = if name == "key" {
+                    key.clone()
+                } else {
+                    format!("shopify-draft-proxy-placeholder-{name}")
+                };
+                json!({"name": name, "value": value})
+            })
+            .collect();
+        return json!({"url": url, "resourceUrl": resource_url, "parameters": parameters});
     }
+
     if method == "POST" {
-        json!({
-            "url": "https://shopify-draft-proxy.local/",
-            "resourceUrl": "https://shopify-draft-proxy.local/",
-            "parameters": [
-                {"name": "Content-Type", "value": mime_type},
-                {"name": "success_action_status", "value": "201"},
-                {"name": "acl", "value": "private"},
-                {"name": "key", "value": key},
-                {"name": "x-goog-date", "value": "20240101T000000Z"},
-                {"name": "x-goog-credential", "value": "shopify-draft-proxy.local/20240101/auto/storage/goog4_request"},
-                {"name": "x-goog-algorithm", "value": "GOOG4-RSA-SHA256"},
-                {"name": "x-goog-signature", "value": "shopify-draft-proxy-signature"},
-                {"name": "policy", "value": "shopify-draft-proxy-policy"}
-            ]
+        let parameters: Vec<Value> = [
+            "Content-Type",
+            "success_action_status",
+            "acl",
+            "key",
+            "x-goog-date",
+            "x-goog-credential",
+            "x-goog-algorithm",
+            "x-goog-signature",
+            "policy",
+        ]
+        .into_iter()
+        .map(|name| {
+            let value = match name {
+                "Content-Type" => mime_type.clone(),
+                "success_action_status" => "201".to_string(),
+                "acl" => "private".to_string(),
+                "key" => key.clone(),
+                "x-goog-algorithm" => "GOOG4-RSA-SHA256".to_string(),
+                other => format!("shopify-draft-proxy-placeholder-{other}"),
+            };
+            json!({"name": name, "value": value})
         })
+        .collect();
+        json!({"url": url, "resourceUrl": resource_url, "parameters": parameters})
     } else {
-        if let Some((url, resource_url)) = captured_default_put_target(&filename) {
-            return json!({
-                "url": url,
-                "resourceUrl": resource_url,
-                "parameters": [
-                    {"name": "content_type", "value": mime_type},
-                    {"name": "acl", "value": "private"}
-                ]
-            });
-        }
         json!({
-            "url": format!("https://shopify-draft-proxy.local/{key}"),
-            "resourceUrl": format!("https://shopify-draft-proxy.local/{key}"),
+            "url": url,
+            "resourceUrl": resource_url,
             "parameters": [
                 {"name": "content_type", "value": mime_type},
                 {"name": "acl", "value": "private"}
@@ -4910,20 +4955,6 @@ fn resolved_u64_field(fields: &BTreeMap<String, ResolvedValue>, name: &str) -> O
     match fields.get(name) {
         Some(ResolvedValue::Int(value)) if *value >= 0 => Some(*value as u64),
         Some(ResolvedValue::String(value)) => value.parse().ok(),
-        _ => None,
-    }
-}
-
-fn captured_default_put_target(filename: &str) -> Option<(&'static str, &'static str)> {
-    match filename {
-        "default-method-image.png" => Some((
-            "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/files/f76bf63e-4842-4a8a-959b-538c1ffe6417/default-method-image.png?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=merchant-assets%40shopify-tiers.iam.gserviceaccount.com%2F20260507%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260507T170633Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=7539f5036d8b783768e59d3f3b72fa49c94280edf46c48047b0857bb273056fa531b7430d22bdac24df435b923ffb204bbefd8e7efca1249246b4315b6fc7f1171775212beda833adab9792d0f7cfa2d2c5909db1c615537746b28086697115e4fee00eba84283b450838cdff7e1aeca4af575000c11a21627fb53cb3cf34aa90b1b4f5fd794a9e301f9d56ebbc5a7975090ded33eb3fb03347bc7aacbf462fbf27e4b006c22c2c00eb890efd8c08255dab97f7870aae0c97a5984c18648b724db83820c0ae6c997fad484b9a1348153f20b288330efd5ec573f6b0d9a8eae2c5d80afc270ab1cfdcbc3dbb844e435245185b8cef237a538a4b4f378e014043c",
-            "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/files/f76bf63e-4842-4a8a-959b-538c1ffe6417/default-method-image.png",
-        )),
-        "default-method-file.txt" => Some((
-            "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/files/250b8e9d-a997-43ee-9962-177bab4b40b5/default-method-file.txt?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=merchant-assets%40shopify-tiers.iam.gserviceaccount.com%2F20260507%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260507T170633Z&X-Goog-Expires=604800&X-Goog-SignedHeaders=host&X-Goog-Signature=3420ed990a1e6429d698d606e23afaf06dbd84cb69319ef1536057f3d0b53528bf8c8d516e572286f40c325eb9dc796ffcd25855b0e652c88587c566c4f1ca40169797cec95076b4ec334cb20bed85f9d8556917d943d37ff667d8560aed7b26ccaf6a8f611cf461040ccbd71933a50237cc918efce6cb3661907d2cec56d545dfa27d48b8b4f95add0f9cb11d223111302bfeb3dae8131c91df91e0315c26caa4b856da191915868b14c3bc63198b961736f37b07edd57ad191033fbb62a52e3ddadd621d0494eb9c7c286ab0fca440d5199e1bd43795f5d2c057e571d3a82c398e3fa19722aea0eb798373bda49fddde565d5ea8743204ed0d3670aa92aaa2",
-            "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/files/250b8e9d-a997-43ee-9962-177bab4b40b5/default-method-file.txt",
-        )),
         _ => None,
     }
 }
