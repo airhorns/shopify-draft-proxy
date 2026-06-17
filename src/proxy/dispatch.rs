@@ -1255,25 +1255,7 @@ impl DraftProxy {
             (CapabilityDomain::Webhooks, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
             {
-                match root_field {
-                    "webhookSubscriptionCreate"
-                    | "pubSubWebhookSubscriptionCreate"
-                    | "eventBridgeWebhookSubscriptionCreate" => {
-                        self.webhook_subscription_create(root_field, request, &query, &variables)
-                    }
-                    "webhookSubscriptionUpdate"
-                    | "pubSubWebhookSubscriptionUpdate"
-                    | "eventBridgeWebhookSubscriptionUpdate" => {
-                        self.webhook_subscription_update(root_field, request, &query, &variables)
-                    }
-                    "webhookSubscriptionDelete" => {
-                        self.webhook_subscription_delete(request, &query, &variables)
-                    }
-                    _ => json_error(
-                        501,
-                        &format!("No Rust webhooks dispatcher implemented for root field: {root_field}"),
-                    ),
-                }
+                self.webhook_mutation(request, &query, &variables)
             }
             (CapabilityDomain::Events, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>

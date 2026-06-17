@@ -235,115 +235,133 @@ impl DraftProxy {
             .collect()
     }
 
-    pub(in crate::proxy) fn webhook_subscription_create(
+    /// Dispatch a webhook subscription mutation document. Iterates over every
+    /// root field so aliased multi-mutation documents (e.g. several
+    /// `webhookSubscriptionCreate` aliases in one request) all resolve, keyed by
+    /// their response alias. Schema-level errors (invalid topic literal, missing
+    /// required pub/sub fields) abort the whole operation with top-level errors,
+    /// matching GraphQL execution semantics.
+    pub(in crate::proxy) fn webhook_mutation(
         &mut self,
-        root_field: &str,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let document = parsed_document(query, variables);
-        let root_selection = document
-            .as_ref()
-            .and_then(|document| document.root_fields.first());
-        if let Some(error) = root_selection
-            .and_then(|field| webhook_subscription_topic_coercion_error(field, document.as_ref()))
-        {
-            return ok_json(json!({ "errors": [error] }));
+        let Some(document) = parsed_document(query, variables) else {
+            return json_error(400, "Could not parse GraphQL operation");
+        };
+        let mut data = serde_json::Map::new();
+        for field in &document.root_fields {
+            let required_errors = webhook_required_argument_errors(field, &document);
+            if !required_errors.is_empty() {
+                return ok_json(json!({ "errors": required_errors }));
+            }
+            if let Some(error) =
+                webhook_subscription_topic_coercion_error(field, Some(&document))
+            {
+                return ok_json(json!({ "errors": [error] }));
+            }
+            if let Some(error) =
+                dedicated_pubsub_required_field_error(&field.name, field, &document)
+            {
+                return ok_json(json!({ "errors": [error] }));
+            }
+            let payload = match field.name.as_str() {
+                "webhookSubscriptionCreate"
+                | "pubSubWebhookSubscriptionCreate"
+                | "eventBridgeWebhookSubscriptionCreate" => {
+                    self.webhook_subscription_create_field(field, request, query, variables)
+                }
+                "webhookSubscriptionUpdate"
+                | "pubSubWebhookSubscriptionUpdate"
+                | "eventBridgeWebhookSubscriptionUpdate" => {
+                    self.webhook_subscription_update_field(field, request, query, variables)
+                }
+                "webhookSubscriptionDelete" => {
+                    self.webhook_subscription_delete_field(field, request, query, variables)
+                }
+                other => {
+                    return json_error(
+                        501,
+                        &format!(
+                            "No Rust webhooks dispatcher implemented for root field: {other}"
+                        ),
+                    );
+                }
+            };
+            data.insert(field.response_key.clone(), payload);
         }
-        if let Some(error) = root_selection
-            .and_then(|field| dedicated_pubsub_required_field_error(root_field, field))
-        {
-            return ok_json(json!({ "errors": [error] }));
-        }
-        let arguments = root_selection
-            .map(|field| field.arguments.clone())
-            .unwrap_or_else(|| root_field_arguments(query, variables).unwrap_or_default());
+        ok_json(json!({ "data": data }))
+    }
+
+    fn webhook_subscription_create_field(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
         let id = self.next_proxy_synthetic_gid("WebhookSubscription");
-        let record = self.webhook_subscription_record(&id, &arguments, None);
-        let errors = self.webhook_subscription_validation_errors(root_field, &id, &record, request);
+        let api_client_id = request
+            .headers
+            .get("x-shopify-draft-proxy-api-client-id")
+            .map(String::as_str);
+        let record = self.webhook_subscription_record(&id, &field.arguments, None, api_client_id);
+        let errors =
+            self.webhook_subscription_validation_errors(&field.name, &id, &record, request);
         if !errors.is_empty() {
-            let payload = self.webhook_subscription_payload(Value::Null, payload_selection, errors);
-            return ok_json(json!({ "data": { response_key: payload } }));
+            return self.webhook_subscription_payload(Value::Null, field.selection.clone(), errors);
         }
         self.store
             .staged
             .webhook_subscriptions
             .insert(id.clone(), record.clone());
-        self.record_mutation_log_entry(request, query, variables, root_field, vec![id]);
-        ok_json(json!({
-            "data": {
-                response_key: self.webhook_subscription_payload(record, payload_selection, Vec::new())
-            }
-        }))
+        self.record_mutation_log_entry(request, query, variables, &field.name, vec![id]);
+        self.webhook_subscription_payload(record, field.selection.clone(), Vec::new())
     }
 
-    pub(in crate::proxy) fn webhook_subscription_update(
+    fn webhook_subscription_update_field(
         &mut self,
-        root_field: &str,
+        field: &RootFieldSelection,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let document = parsed_document(query, variables);
-        let root_selection = document
-            .as_ref()
-            .and_then(|document| document.root_fields.first());
-        if let Some(error) = root_selection
-            .and_then(|field| webhook_subscription_topic_coercion_error(field, document.as_ref()))
-        {
-            return ok_json(json!({ "errors": [error] }));
-        }
-        if let Some(error) = root_selection
-            .and_then(|field| dedicated_pubsub_required_field_error(root_field, field))
-        {
-            return ok_json(json!({ "errors": [error] }));
-        }
-        let arguments = root_selection
-            .map(|field| field.arguments.clone())
-            .unwrap_or_else(|| root_field_arguments(query, variables).unwrap_or_default());
-        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+    ) -> Value {
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let Some(existing) = self.store.staged.webhook_subscriptions.get(&id).cloned() else {
-            let payload = self.webhook_subscription_payload(
+            return self.webhook_subscription_payload(
                 Value::Null,
-                payload_selection,
+                field.selection.clone(),
                 vec![json!({ "field": ["id"], "message": "Webhook subscription does not exist" })],
             );
-            return ok_json(json!({ "data": { response_key: payload } }));
         };
-        let record = self.webhook_subscription_record(&id, &arguments, Some(existing));
-        let errors = self.webhook_subscription_validation_errors(root_field, &id, &record, request);
+        let api_client_id = request
+            .headers
+            .get("x-shopify-draft-proxy-api-client-id")
+            .map(String::as_str);
+        let record =
+            self.webhook_subscription_record(&id, &field.arguments, Some(existing), api_client_id);
+        let errors =
+            self.webhook_subscription_validation_errors(&field.name, &id, &record, request);
         if !errors.is_empty() {
-            let payload = self.webhook_subscription_payload(Value::Null, payload_selection, errors);
-            return ok_json(json!({ "data": { response_key: payload } }));
+            return self.webhook_subscription_payload(Value::Null, field.selection.clone(), errors);
         }
         self.store
             .staged
             .webhook_subscriptions
             .insert(id.clone(), record.clone());
-        self.record_mutation_log_entry(request, query, variables, root_field, vec![id]);
-        ok_json(json!({
-            "data": {
-                response_key: self.webhook_subscription_payload(record, payload_selection, Vec::new())
-            }
-        }))
+        self.record_mutation_log_entry(request, query, variables, &field.name, vec![id]);
+        self.webhook_subscription_payload(record, field.selection.clone(), Vec::new())
     }
 
-    pub(in crate::proxy) fn webhook_subscription_delete(
+    fn webhook_subscription_delete_field(
         &mut self,
+        field: &RootFieldSelection,
         request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Response {
-        let response_key = root_field_response_key(query)
-            .unwrap_or_else(|| "webhookSubscriptionDelete".to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let id = resolved_string_field(&arguments, "id").unwrap_or_default();
+    ) -> Value {
+        let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         let deleted_id = if self
             .store
             .staged
@@ -372,7 +390,7 @@ impl DraftProxy {
                 json!([])
             }
         });
-        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+        selected_json(&payload, &field.selection)
     }
 
     pub(in crate::proxy) fn webhook_subscription_payload(
@@ -439,7 +457,9 @@ impl DraftProxy {
             }));
         }
         if let Some(pubsub_tail) = uri.strip_prefix("pubsub://") {
-            if !pubsub_tail.contains(':') {
+            let pubsub_parts = pubsub_tail.split_once(':');
+            let (project, topic) = pubsub_parts.unwrap_or((pubsub_tail, ""));
+            if pubsub_parts.is_none() || project.is_empty() || topic.is_empty() {
                 errors.push(json!({
                     "field": ["webhookSubscription", "callbackUrl"],
                     "message": "Address protocol pubsub:// is not supported"
@@ -448,40 +468,37 @@ impl DraftProxy {
                     "field": ["webhookSubscription", "callbackUrl"],
                     "message": "Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic"
                 }));
-            } else {
-                let (project, topic) = pubsub_tail.split_once(':').unwrap_or((pubsub_tail, ""));
-                if !valid_gcp_project_id(project) {
-                    if root_field.starts_with("pubSubWebhookSubscription") {
-                        errors.push(json!({
-                            "field": ["webhookSubscription", "pubSubProject"],
-                            "message": "Google Cloud Pub/Sub project ID is not valid"
-                        }));
-                    } else {
-                        errors.push(json!({
-                            "field": ["webhookSubscription", "callbackUrl"],
-                            "message": "Address is invalid"
-                        }));
-                        errors.push(json!({
-                            "field": ["webhookSubscription", "callbackUrl"],
-                            "message": "Address is not a valid GCP project id."
-                        }));
-                    }
-                } else if !valid_gcp_pubsub_topic_id(topic) {
-                    if root_field.starts_with("pubSubWebhookSubscription") {
-                        errors.push(json!({
-                            "field": ["webhookSubscription", "pubSubTopic"],
-                            "message": "Google Cloud Pub/Sub topic ID is not valid"
-                        }));
-                    } else {
-                        errors.push(json!({
-                            "field": ["webhookSubscription", "callbackUrl"],
-                            "message": "Address is invalid"
-                        }));
-                        errors.push(json!({
-                            "field": ["webhookSubscription", "callbackUrl"],
-                            "message": "Address is not a valid GCP topic id."
-                        }));
-                    }
+            } else if !valid_gcp_project_id(project) {
+                if root_field.starts_with("pubSubWebhookSubscription") {
+                    errors.push(json!({
+                        "field": ["webhookSubscription", "pubSubProject"],
+                        "message": "Google Cloud Pub/Sub project ID is not valid"
+                    }));
+                } else {
+                    errors.push(json!({
+                        "field": ["webhookSubscription", "callbackUrl"],
+                        "message": "Address is invalid"
+                    }));
+                    errors.push(json!({
+                        "field": ["webhookSubscription", "callbackUrl"],
+                        "message": "Address is not a valid GCP project id."
+                    }));
+                }
+            } else if !valid_gcp_pubsub_topic_id(topic) {
+                if root_field.starts_with("pubSubWebhookSubscription") {
+                    errors.push(json!({
+                        "field": ["webhookSubscription", "pubSubTopic"],
+                        "message": "Google Cloud Pub/Sub topic ID is not valid"
+                    }));
+                } else {
+                    errors.push(json!({
+                        "field": ["webhookSubscription", "callbackUrl"],
+                        "message": "Address is invalid"
+                    }));
+                    errors.push(json!({
+                        "field": ["webhookSubscription", "callbackUrl"],
+                        "message": "Address is not a valid GCP topic id."
+                    }));
                 }
             }
         }
@@ -517,7 +534,9 @@ impl DraftProxy {
         }
         let topic = record["topic"].as_str().unwrap_or_default();
         let format = record["format"].as_str().unwrap_or_default();
-        if uri.starts_with("pubsub://") && format.eq_ignore_ascii_case("XML") {
+        if (uri.starts_with("pubsub://") || uri.starts_with("arn:aws:events:"))
+            && !format.eq_ignore_ascii_case("JSON")
+        {
             errors.push(json!({
                 "field": ["webhookSubscription", "format"],
                 "message": "Format can only be used with format: 'json'"
@@ -556,9 +575,10 @@ impl DraftProxy {
                     "message": "Name is too short (minimum is 1 character)"
                 }));
             }
-            if !name
-                .chars()
-                .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+            if name.is_empty()
+                || !name
+                    .chars()
+                    .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
             {
                 errors.push(json!({
                     "field": ["webhookSubscription", "name"],
@@ -589,6 +609,14 @@ impl DraftProxy {
                 }));
             }
         }
+        if let Some(filter) = record["filter"].as_str() {
+            if webhook_filter_is_invalid(filter) {
+                errors.push(json!({
+                    "field": ["webhookSubscription"],
+                    "message": "The specified filter is invalid, please ensure you specify the field(s) you wish to filter on."
+                }));
+            }
+        }
         errors
     }
 
@@ -597,6 +625,7 @@ impl DraftProxy {
         id: &str,
         arguments: &BTreeMap<String, ResolvedValue>,
         existing: Option<Value>,
+        api_client_id: Option<&str>,
     ) -> Value {
         let webhook_input =
             resolved_object_field(arguments, "webhookSubscription").unwrap_or_default();
@@ -619,7 +648,7 @@ impl DraftProxy {
                     .as_ref()
                     .and_then(|record| record["callbackUrl"].as_str().map(ToString::to_string))
             })
-            .unwrap_or_else(|| "https://hooks.example.com/orders".to_string())
+            .unwrap_or_default()
             .trim()
             .to_string();
         let format = resolved_string_field(&webhook_input, "format")
@@ -656,7 +685,10 @@ impl DraftProxy {
             json!(resolved_string_list_field_unsorted(
                 &webhook_input,
                 "metafieldNamespaces"
-            ))
+            )
+            .into_iter()
+            .map(|namespace| resolve_webhook_metafield_namespace(&namespace, api_client_id))
+            .collect::<Vec<_>>())
         } else {
             existing
                 .as_ref()
@@ -2720,6 +2752,88 @@ fn marketing_activity_delete_not_external_error() -> Value {
     })
 }
 
+/// The ordered required (non-null) arguments for each webhook mutation root,
+/// paired with the GraphQL type Shopify reports for them. The `webhookSubscription`
+/// input type varies by delivery flavor (unified / Pub/Sub / EventBridge).
+fn webhook_required_arguments(field_name: &str) -> Vec<(&'static str, &'static str)> {
+    let input_type = if field_name.starts_with("pubSubWebhookSubscription") {
+        "PubSubWebhookSubscriptionInput!"
+    } else if field_name.starts_with("eventBridgeWebhookSubscription") {
+        "EventBridgeWebhookSubscriptionInput!"
+    } else {
+        "WebhookSubscriptionInput!"
+    };
+    if field_name.ends_with("Create") {
+        vec![
+            ("topic", "WebhookSubscriptionTopic!"),
+            ("webhookSubscription", input_type),
+        ]
+    } else if field_name.ends_with("Update") {
+        vec![("id", "ID!"), ("webhookSubscription", input_type)]
+    } else if field_name.ends_with("Delete") {
+        vec![("id", "ID!")]
+    } else {
+        Vec::new()
+    }
+}
+
+/// Static GraphQL validation for the webhook mutation roots: a required argument
+/// that is entirely absent yields a `missingRequiredArguments` error, while one
+/// present with a literal `null` yields an `argumentLiteralsIncompatible` error.
+fn webhook_required_argument_errors(
+    field: &RootFieldSelection,
+    document: &ParsedDocument,
+) -> Vec<Value> {
+    let required = webhook_required_arguments(&field.name);
+    if required.is_empty() {
+        return Vec::new();
+    }
+    let mut errors = Vec::new();
+    let mut missing = Vec::new();
+    for (arg, type_display) in &required {
+        match field.raw_arguments.get(*arg) {
+            None => missing.push(*arg),
+            Some(value) if value.is_literal_null() => {
+                errors.push(json!({
+                    "message": format!(
+                        "Argument '{}' on Field '{}' has an invalid value (null). Expected type '{}'.",
+                        arg, field.name, type_display
+                    ),
+                    "locations": [{ "line": field.location.line, "column": field.location.column }],
+                    "path": [document.operation_path.clone(), field.name.clone(), *arg],
+                    "extensions": {
+                        "code": "argumentLiteralsIncompatible",
+                        "typeName": "Field",
+                        "argumentName": arg
+                    }
+                }));
+            }
+            Some(_) => {}
+        }
+    }
+    if !missing.is_empty() {
+        errors.insert(
+            0,
+            json!({
+                "message": format!(
+                    "Field '{}' is missing required arguments: {}",
+                    field.name,
+                    missing.join(", ")
+                ),
+                "locations": [{ "line": field.location.line, "column": field.location.column }],
+                "path": [document.operation_path.clone(), field.name.clone()],
+                "extensions": {
+                    "code": "missingRequiredArguments",
+                    "className": "Field",
+                    "name": field.name.clone(),
+                    "arguments": missing.join(", ")
+                }
+            }),
+        );
+    }
+    errors
+}
+
 fn webhook_subscription_topic_coercion_error(
     field: &RootFieldSelection,
     document: Option<&ParsedDocument>,
@@ -2753,12 +2867,15 @@ fn webhook_subscription_topic_coercion_error(
                 "argumentName": "topic"
             }
         }),
-        RawArgumentValue::Variable { name, .. } => json!({
+        RawArgumentValue::Variable { name, .. } => {
+            // Shopify anchors a coerced-variable error at the variable's
+            // *definition* in the operation signature, not at the field.
+            let location = document
+                .and_then(|document| document.variable_definitions.get(name))
+                .map_or(field.location, |definition| definition.location);
+            json!({
             "message": format!("Variable ${} of type WebhookSubscriptionTopic! was provided invalid value", name),
-            "locations": [{
-                "line": document.map_or(field.location.line, |document| document.location.line),
-                "column": document.map_or(field.location.column, |document| document.location.column)
-            }],
+            "locations": [{ "line": location.line, "column": location.column }],
             "extensions": {
                 "code": "INVALID_VARIABLE",
                 "value": topic,
@@ -2767,7 +2884,8 @@ fn webhook_subscription_topic_coercion_error(
                     "explanation": format!("Expected \"{}\" to be one of: {}", topic, WEBHOOK_SUBSCRIPTION_TOPIC_EXPECTED_VALUES)
                 }]
             }
-        }),
+        })
+        }
         _ => unreachable!(),
     })
 }
@@ -2775,6 +2893,7 @@ fn webhook_subscription_topic_coercion_error(
 fn dedicated_pubsub_required_field_error(
     root_field: &str,
     field: &RootFieldSelection,
+    document: &ParsedDocument,
 ) -> Option<Value> {
     if !root_field.starts_with("pubSubWebhookSubscription") {
         return None;
@@ -2783,7 +2902,7 @@ fn dedicated_pubsub_required_field_error(
         RawArgumentValue::Variable {
             name,
             value: Some(ResolvedValue::Object(value)),
-        } => dedicated_pubsub_variable_required_field_error(name, value, field),
+        } => dedicated_pubsub_variable_required_field_error(name, value, field, document),
         RawArgumentValue::Object(value) => {
             dedicated_pubsub_inline_required_field_error(value, field)
         }
@@ -2795,11 +2914,18 @@ fn dedicated_pubsub_variable_required_field_error(
     variable_name: &str,
     value: &BTreeMap<String, ResolvedValue>,
     field: &RootFieldSelection,
+    document: &ParsedDocument,
 ) -> Option<Value> {
     let missing = missing_pubsub_resolved_fields(value);
     if missing.is_empty() {
         return None;
     }
+    // Shopify anchors a coerced-variable error at the variable's *definition*
+    // in the operation signature, not at the field where it is used.
+    let location = document
+        .variable_definitions
+        .get(variable_name)
+        .map_or(field.location, |definition| definition.location);
     let message_detail = missing
         .iter()
         .map(|key| format!("{key} (Expected value to not be null)"))
@@ -2807,7 +2933,7 @@ fn dedicated_pubsub_variable_required_field_error(
         .join(", ");
     Some(json!({
         "message": format!("Variable ${} of type PubSubWebhookSubscriptionInput! was provided invalid value for {}", variable_name, message_detail),
-        "locations": [{ "line": field.location.line, "column": field.location.column }],
+        "locations": [{ "line": location.line, "column": location.column }],
         "extensions": {
             "code": "INVALID_VARIABLE",
             "value": resolved_value_json(&ResolvedValue::Object(value.clone())),
@@ -2868,6 +2994,43 @@ fn webhook_subscription_address_error_field(root_field: &str) -> Value {
 
 fn webhook_subscription_optional_string_key(record: &Value, key: &str) -> Option<String> {
     record[key].as_str().map(ToString::to_string)
+}
+
+/// Resolve an app-reserved metafield namespace shorthand. Shopify expands
+/// `$app:NAME` to `app--<api_client_id>--NAME` (and bare `$app` to
+/// `app--<api_client_id>`) using the requesting app's client id. Namespaces
+/// that are already fully qualified (e.g. `app--999999999999--kept`) or
+/// unrelated (e.g. `custom`) are returned unchanged.
+fn resolve_webhook_metafield_namespace(namespace: &str, api_client_id: Option<&str>) -> String {
+    let Some(client_id) = api_client_id else {
+        return namespace.to_string();
+    };
+    if let Some(rest) = namespace.strip_prefix("$app:") {
+        format!("app--{client_id}--{rest}")
+    } else if namespace == "$app" {
+        format!("app--{client_id}")
+    } else {
+        namespace.to_string()
+    }
+}
+
+/// A webhook filter is a search-query string that must reference at least one
+/// field via `field:value` syntax. A non-empty filter that names no field
+/// (e.g. `totally bogus syntax`) is rejected by Shopify. Empty/blank filters
+/// mean "no filter" and are accepted.
+fn webhook_filter_is_invalid(filter: &str) -> bool {
+    let trimmed = filter.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    !trimmed.split_whitespace().any(|token| {
+        token.split_once(':').is_some_and(|(field, _)| {
+            !field.is_empty()
+                && field
+                    .chars()
+                    .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+        })
+    })
 }
 
 fn is_known_webhook_subscription_topic(topic: &str) -> bool {

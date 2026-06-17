@@ -30,14 +30,6 @@
         "name": "dedicated-update-setup-json-succeeds",
         "capturePath": "$.setup.dedicatedUpdateSetup.response.payload.data.eventBridgeWebhookSubscriptionCreate",
         "proxyPath": "$.data.eventBridgeWebhookSubscriptionCreate",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/webhooks/eventBridgeWebhookSubscriptionCreate-parity.graphql",
-          "variablesCapturePath": "$.setup.dedicatedUpdateSetup.variables",
-          "apiVersion": "2026-04",
-          "headers": {
-            "x-shopify-draft-proxy-api-client-id": "347082227713"
-          }
-        },
         "expectedDifferences": [
           {
             "path": "$.webhookSubscription.id",
