@@ -456,6 +456,23 @@ impl DraftProxy {
                         .map(|market| selected_json(market, &field.selection))
                         .unwrap_or(Value::Null)
                 }
+                // Market-localizable resource connections list metafield/resource owners
+                // that have registered localizable content; a backend with none staged
+                // returns an empty connection (not null) for both the type-scoped and
+                // by-ids variants.
+                "marketLocalizableResources" | "marketLocalizableResourcesByIds" => selected_json(
+                    &json!({
+                        "edges": [],
+                        "nodes": [],
+                        "pageInfo": {
+                            "hasNextPage": false,
+                            "hasPreviousPage": false,
+                            "startCursor": null,
+                            "endCursor": null
+                        }
+                    }),
+                    &field.selection,
+                ),
                 _ => Value::Null,
             };
             data.insert(field.response_key.clone(), value);
