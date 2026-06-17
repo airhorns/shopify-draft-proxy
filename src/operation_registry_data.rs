@@ -1439,24 +1439,24 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[
                 "customerGenerateAccountActivationUrl",
                 "CustomerGenerateAccountActivationUrl",
             ],
-            &[],
+            &["tests/graphql_routes.rs"],
         ),
         registry_entry(
             "customerSendAccountInviteEmail",
             OperationType::Mutation,
             CapabilityDomain::Customers,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &[
                 "customerSendAccountInviteEmail",
                 "CustomerSendAccountInviteEmail",
             ],
-            &[],
+            &["tests/graphql_routes.rs"],
         ),
         registry_entry(
             "storeCreditAccountCredit",
