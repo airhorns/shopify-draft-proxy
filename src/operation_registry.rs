@@ -350,6 +350,7 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("themeFilesDelete", CapabilityDomain::OnlineStore),
     local_mutation("scriptTagCreate", CapabilityDomain::OnlineStore),
     local_mutation("scriptTagUpdate", CapabilityDomain::OnlineStore),
+    local_mutation("scriptTagDelete", CapabilityDomain::OnlineStore),
     local_mutation("webPixelCreate", CapabilityDomain::OnlineStore),
     local_mutation("webPixelUpdate", CapabilityDomain::OnlineStore),
     local_mutation("serverPixelCreate", CapabilityDomain::OnlineStore),

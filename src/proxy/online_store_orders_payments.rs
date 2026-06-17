@@ -182,6 +182,78 @@ fn order_create_inventory_behaviour(field: &RootFieldSelection) -> String {
         .unwrap_or_else(|| "DECREMENT_IGNORING_POLICY".to_string())
 }
 
+/// Validates the arguments of a server-pixel endpoint mutation
+/// (`eventBridgeServerPixelUpdate` / `pubSubServerPixelUpdate`), returning the top-level
+/// GraphQL error Shopify raises before executing the mutation, if any.
+fn server_pixel_endpoint_argument_error(field: &RootFieldSelection) -> Option<Value> {
+    match field.name.as_str() {
+        "eventBridgeServerPixelUpdate" => match resolved_string_arg(&field.arguments, "arn") {
+            None => Some(server_pixel_missing_argument_error(field, "arn")),
+            Some(arn) if !is_valid_event_bridge_arn(&arn) => {
+                Some(server_pixel_arn_coercion_error(&arn))
+            }
+            Some(_) => None,
+        },
+        "pubSubServerPixelUpdate" => {
+            let project = resolved_string_arg(&field.arguments, "pubSubProject");
+            if project.is_none() {
+                return Some(server_pixel_missing_argument_error(field, "pubSubProject"));
+            }
+            let topic = resolved_string_arg(&field.arguments, "pubSubTopic");
+            if topic.is_none() {
+                return Some(server_pixel_missing_argument_error(field, "pubSubTopic"));
+            }
+            if project.as_deref().unwrap_or_default().trim().is_empty() {
+                return Some(server_pixel_blank_argument_error(field, "pubSubProject"));
+            }
+            if topic.as_deref().unwrap_or_default().trim().is_empty() {
+                return Some(server_pixel_blank_argument_error(field, "pubSubTopic"));
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn is_valid_event_bridge_arn(arn: &str) -> bool {
+    !arn.trim().is_empty() && arn.starts_with("arn:aws:events:")
+}
+
+fn server_pixel_missing_argument_error(field: &RootFieldSelection, argument_name: &str) -> Value {
+    json!({
+        "message": format!(
+            "Field '{}' is missing required arguments: {}",
+            field.name, argument_name
+        ),
+        "locations": [{ "line": field.location.line, "column": field.location.column }],
+        "path": [field.response_key],
+        "extensions": {
+            "code": "missingRequiredArguments",
+            "className": "Field",
+            "name": field.name,
+            "arguments": argument_name
+        }
+    })
+}
+
+fn server_pixel_blank_argument_error(field: &RootFieldSelection, argument_name: &str) -> Value {
+    json!({
+        "message": format!("{argument_name} can't be blank"),
+        "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
+        "path": [field.response_key]
+    })
+}
+
+fn server_pixel_arn_coercion_error(arn: &str) -> Value {
+    json!({
+        "message": format!("Invalid ARN '{arn}'"),
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "CoercionError"
+        }
+    })
+}
+
 fn order_line_inventory_item_id(line_item: &BTreeMap<String, ResolvedValue>) -> Option<String> {
     resolved_string_field(line_item, "inventoryItemId").or_else(|| {
         resolved_string_field(line_item, "variantId").map(|variant_id| {
@@ -1601,6 +1673,23 @@ impl DraftProxy {
                         value_id_cursor,
                     )
                 }
+                "scriptTags" => {
+                    let mut records: Vec<Value> = self
+                        .store
+                        .staged
+                        .online_store_integrations
+                        .values()
+                        .filter(|record| is_online_store_script_tag_record(record))
+                        .cloned()
+                        .collect();
+                    records.sort_by_key(value_id_cursor);
+                    selected_connection_json_with_args(
+                        records,
+                        &field.arguments,
+                        &field.selection,
+                        value_id_cursor,
+                    )
+                }
                 "mobilePlatformApplications" => {
                     let mut records: Vec<Value> = self
                         .store
@@ -1639,6 +1728,15 @@ impl DraftProxy {
     ) -> Response {
         let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
+        // Server-pixel endpoint mutations reject invalid arguments with top-level GraphQL
+        // errors (and no `data`) before any local staging: missing required arguments are a
+        // query-validation error, blank Pub/Sub fields are an INVALID_FIELD_ARGUMENTS
+        // field-argument error, and a malformed/blank ARN fails ARN-scalar coercion.
+        for field in fields {
+            if let Some(error) = server_pixel_endpoint_argument_error(field) {
+                return ok_json(json!({ "errors": [error] }));
+            }
+        }
         for field in fields {
             let value = match field.name.as_str() {
                 "mobilePlatformApplicationCreate" => {
@@ -1649,6 +1747,7 @@ impl DraftProxy {
                 }
                 "scriptTagCreate" => self.script_tag_create(field, &mut staged_ids),
                 "scriptTagUpdate" => self.script_tag_update(field, &mut staged_ids),
+                "scriptTagDelete" => self.script_tag_delete(field, &mut staged_ids),
                 "themeCreate" => self.theme_create(field, &mut staged_ids),
                 "themePublish" => self.theme_publish(field, &mut staged_ids),
                 "themeUpdate" => self.theme_update(field, &mut staged_ids),
@@ -1694,6 +1793,14 @@ impl DraftProxy {
         );
         self.next_synthetic_id += 1;
         id
+    }
+
+    fn mobile_platform_application_exists(&self, typename: &str) -> bool {
+        self.store
+            .staged
+            .online_store_integrations
+            .values()
+            .any(|record| record.get("__typename").and_then(Value::as_str) == Some(typename))
     }
 
     pub(in crate::proxy) fn mobile_platform_application_create(
@@ -1774,6 +1881,17 @@ impl DraftProxy {
                     )],
                 );
             }
+            if self.mobile_platform_application_exists("AndroidApplication") {
+                return mobile_app_payload(
+                    &field.selection,
+                    None,
+                    vec![mobile_app_error(
+                        "TAKEN",
+                        ["mobilePlatformApplication", "android"],
+                        "Android has already been taken",
+                    )],
+                );
+            }
             let id = self.next_online_store_id("MobilePlatformApplication");
             let record = json!({
                 "__typename": "AndroidApplication", "id": id, "applicationId": application_id,
@@ -1815,6 +1933,17 @@ impl DraftProxy {
         }
         if let Some(error) = validate_mobile_app_clip_application_id(apple, false) {
             return mobile_app_payload(&field.selection, None, vec![error]);
+        }
+        if self.mobile_platform_application_exists("AppleApplication") {
+            return mobile_app_payload(
+                &field.selection,
+                None,
+                vec![mobile_app_error(
+                    "TAKEN",
+                    ["mobilePlatformApplication", "apple"],
+                    "Apple has already been taken",
+                )],
+            );
         }
         let id = self.next_online_store_id("MobilePlatformApplication");
         let record = json!({
@@ -2042,6 +2171,40 @@ impl DraftProxy {
             .insert(id.clone(), record.clone());
         staged_ids.push(id);
         script_tag_payload(&field.selection, Some(record), Vec::new())
+    }
+
+    pub(in crate::proxy) fn script_tag_delete(
+        &mut self,
+        field: &RootFieldSelection,
+        staged_ids: &mut Vec<String>,
+    ) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let is_staged_script_tag = self
+            .store
+            .staged
+            .online_store_integrations
+            .get(&id)
+            .is_some_and(is_online_store_script_tag_record);
+        if !is_staged_script_tag {
+            return selected_json(
+                &json!({
+                    "deletedScriptTagId": Value::Null,
+                    "userErrors": [{
+                        "__typename": "ScriptTagUserError",
+                        "code": "NOT_FOUND",
+                        "field": ["id"],
+                        "message": "Script tag not found"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
+        self.store.staged.online_store_integrations.remove(&id);
+        staged_ids.push(id.clone());
+        selected_json(
+            &json!({ "deletedScriptTagId": id, "userErrors": [] }),
+            &field.selection,
+        )
     }
 
     pub(in crate::proxy) fn theme_create(

@@ -2570,7 +2570,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::OnlineStore,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &["scriptTagDelete", "ScriptTagDelete"],
             &[],
         ),

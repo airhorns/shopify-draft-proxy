@@ -1470,6 +1470,13 @@ pub(in crate::proxy) fn is_online_store_theme_record(record: &Value) -> bool {
             .is_some_and(|id| id.starts_with("gid://shopify/OnlineStoreTheme/"))
 }
 
+pub(in crate::proxy) fn is_online_store_script_tag_record(record: &Value) -> bool {
+    record
+        .get("id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| id.starts_with("gid://shopify/ScriptTag/"))
+}
+
 pub(in crate::proxy) fn is_web_pixel_record(record: &Value) -> bool {
     record.get("__typename").and_then(Value::as_str) == Some("WebPixel")
         || record

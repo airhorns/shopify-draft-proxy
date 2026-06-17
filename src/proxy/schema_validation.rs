@@ -425,9 +425,18 @@ fn input_object_argument_not_accepted_error(
     path: &[String],
     context: ValidationContext<'_>,
 ) -> Value {
+    // Shopify anchors the error at the rejected field-name token inside the input-object
+    // literal. The token sits at bracket depth 1 + the nesting (path) depth of its parent
+    // input object: e.g. `themeUpdate(id: …, input: { role: MAIN })` reports `role`, not
+    // `themeUpdate`. Variable-supplied input objects have no literal token, so fall back to
+    // the field location.
+    let target_depth = 1 + path.len() as i32;
+    let location =
+        inline_input_field_name_location(context.query, context.field_location, target_depth, argument_name)
+            .unwrap_or(context.field_location);
     json!({
         "message": format!("InputObject '{input_type_name}' doesn't accept argument '{argument_name}'"),
-        "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
+        "locations": [{ "line": location.line, "column": location.column }],
         "path": input_error_path(context, path, argument_name),
         "extensions": {
             "code": "argumentNotAccepted",
@@ -467,7 +476,23 @@ fn inline_argument_name_location(
     field: &RootFieldSelection,
     argument_name: &str,
 ) -> Option<SourceLocation> {
-    let start = byte_offset_for_location(query, field.location)?;
+    // A root argument lives at bracket depth 1 (inside the field's `(...)`).
+    inline_input_field_name_location(query, field.location, 1, argument_name)
+}
+
+/// Locates the `name:` token of an argument or input-object field at a specific bracket
+/// depth, starting from the root field. Depth 1 is the field's argument list, depth 2 is a
+/// directly-nested input object (`field(arg: { name: ... })`), and so on. Shopify anchors an
+/// argumentNotAccepted error at the rejected name token, not the enclosing field, so nested
+/// input-object fields report their own column. String literals are skipped so a quoted
+/// occurrence of the name is never matched.
+fn inline_input_field_name_location(
+    query: &str,
+    field_location: SourceLocation,
+    target_depth: i32,
+    name: &str,
+) -> Option<SourceLocation> {
+    let start = byte_offset_for_location(query, field_location)?;
     let bytes = query.as_bytes();
     // Find the field's argument list. If a selection set opens first, the field
     // takes no arguments.
@@ -482,9 +507,6 @@ fn inline_argument_name_location(
     if index >= bytes.len() {
         return None;
     }
-    // Walk the argument list tracking bracket depth and string literals so a
-    // root argument name is matched only at the top level — never a nested
-    // input-object field of the same name, nor text inside a string value.
     let mut depth = 0i32;
     let mut in_string = false;
     let mut escaped = false;
@@ -510,10 +532,10 @@ fn inline_argument_name_location(
                     return None;
                 }
             }
-            _ if depth == 1 => {
+            _ if depth == target_depth => {
                 let before_ok = index == 0 || !is_graphql_name_byte(bytes[index - 1]);
-                if before_ok && query[index..].starts_with(argument_name) {
-                    let after = index + argument_name.len();
+                if before_ok && query[index..].starts_with(name) {
+                    let after = index + name.len();
                     let after_ok = bytes.get(after).is_none_or(|next| !is_graphql_name_byte(*next));
                     let followed_by_colon = query[after..].trim_start().starts_with(':');
                     if after_ok && followed_by_colon {
@@ -687,6 +709,7 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         extend_customer_merge_input_schema(&mut schema);
         extend_marketing_engagement_input_schema(&mut schema);
         extend_functions_input_schema(&mut schema);
+        extend_online_store_input_schema(&mut schema);
         schema
     })
 }
@@ -812,6 +835,27 @@ fn extend_functions_input_schema(schema: &mut AdminInputSchema) {
             (
                 "metafields".to_string(),
                 mutation_arg(list_of_non_null("MetafieldInput")),
+            ),
+        ]),
+    );
+}
+
+fn extend_online_store_input_schema(schema: &mut AdminInputSchema) {
+    // OnlineStoreThemeInput on Admin API 2025-01 accepts only `name`. A theme's role is
+    // set at creation (themeCreate(role:)) and changed via themePublish, never through
+    // themeUpdate's input, so supplying `role` must raise a top-level argumentNotAccepted
+    // schema error before the themeUpdate resolver runs.
+    schema.input_objects.insert(
+        "OnlineStoreThemeInput".to_string(),
+        BTreeMap::from([("name".to_string(), input_field(named("String")))]),
+    );
+    schema.mutation_fields.insert(
+        "themeUpdate".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "input".to_string(),
+                mutation_arg(non_null("OnlineStoreThemeInput")),
             ),
         ]),
     );
