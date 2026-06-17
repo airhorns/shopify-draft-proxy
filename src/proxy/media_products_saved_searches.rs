@@ -704,6 +704,10 @@ impl DraftProxy {
             })));
         }
 
+        // Each successful mutation reserves a synthetic id for its log entry
+        // before allocating resource ids (Gleam fileCreate reserves a
+        // MutationLogEntry id first), keeping file ids in lockstep with parity.
+        self.reserve_synthetic_log_id();
         let files = inputs
             .into_iter()
             .enumerate()
@@ -711,7 +715,7 @@ impl DraftProxy {
                 let content_type = resolved_string_field(&input, "contentType")
                     .unwrap_or_else(|| "IMAGE".to_string());
                 let resource_type = media_file_gid_type(&content_type);
-                let id = self.next_proxy_synthetic_gid(resource_type);
+                let id = self.next_synthetic_gid(resource_type);
                 let original_source =
                     resolved_string_field(&input, "originalSource").unwrap_or_default();
                 let filename = resolved_string_field(&input, "filename")
@@ -1389,7 +1393,7 @@ impl DraftProxy {
                     files,
                     &field.arguments,
                     &field.selection,
-                    value_id_cursor,
+                    media_file_cursor,
                 ),
             );
         }
@@ -5064,6 +5068,13 @@ fn media_file_record_from_node(node: &Value) -> Option<Value> {
         record["mediaWarnings"] = json!([]);
     }
     Some(record)
+}
+
+// Files-connection cursors are the record gid prefixed with `cursor:` (Gleam
+// serializer convention), distinct from the bare-id cursors other connections
+// emit via value_id_cursor.
+fn media_file_cursor(record: &Value) -> String {
+    format!("cursor:{}", value_id_cursor(record))
 }
 
 fn media_file_gid_type(content_type: &str) -> &'static str {

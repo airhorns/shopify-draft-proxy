@@ -4339,6 +4339,25 @@ impl DraftProxy {
         self.next_synthetic_id += 1;
         synthetic_shopify_gid(resource_type, id)
     }
+
+    /// Mint a plain `gid://shopify/<type>/<id>` without the proxy-synthetic
+    /// marker, mirroring Gleam `synthetic_identity.make_synthetic_gid`. Used for
+    /// entities (e.g. media files) the proxy fabricates with stable identifiers
+    /// rather than commit-rewritten placeholders.
+    pub(in crate::proxy) fn next_synthetic_gid(&mut self, resource_type: &str) -> String {
+        let id = self.next_synthetic_id;
+        self.next_synthetic_id += 1;
+        shopify_gid(resource_type, id)
+    }
+
+    /// Reserve a synthetic id for a mutation-log entry, mirroring the
+    /// `make_synthetic_gid(_, "MutationLogEntry")` reservation Gleam performs at
+    /// the start of every successful mutation. This keeps entity ids in lockstep
+    /// with the reference implementation (each mutation advances the counter once
+    /// for its log entry before allocating the resources it creates).
+    pub(in crate::proxy) fn reserve_synthetic_log_id(&mut self) {
+        self.next_synthetic_id += 1;
+    }
 }
 
 enum BackupRegionCountryCodeInput {
