@@ -22,6 +22,7 @@ The local read roots for staged B2B contact state are:
 - `companyContact`
 - `companyContactRole`
 - `companyLocation`
+- `companyLocations`
 - `node(id:)` for staged B2B contact, contact-role, location, address, and
   role-assignment IDs
 
@@ -49,26 +50,25 @@ company-contact parity flows:
 - `companyLocationCreate`
 - `companyLocationUpdate`
 - `companyLocationAssignAddress`
+- `companyLocationAssignStaffMembers`
 - `companyAddressDelete`
 - `companyLocationAssignRoles`
+- `companyLocationDelete`
+- `companyLocationRemoveStaffMembers`
 - `companyLocationRevokeRoles`
 - `companyLocationTaxSettingsUpdate`
+- `companyLocationsDelete`
 
 The registry-only read roots are:
 
 - `companies`
 - `companiesCount`
-- `companyLocations`
 
 The registry-only mutation roots are:
 
 - `companiesDelete`
 - `companyContactSendWelcomeEmail`
 - `companyDelete`
-- `companyLocationAssignStaffMembers`
-- `companyLocationDelete`
-- `companyLocationRemoveStaffMembers`
-- `companyLocationsDelete`
 
 ### Local behavior
 
@@ -108,14 +108,20 @@ payload projection. Validation failures return B2B `userErrors` and mark the
 log entry as failed when no state is staged; invalid `TaxExemption` values are
 rejected as top-level GraphQL coercion errors before staging.
 
-`companyLocationCreate`, `companyLocationUpdate`,
-`companyLocationAssignAddress`, `companyAddressDelete`,
-`companyLocationAssignRoles`, and `companyLocationRevokeRoles` stage the
-location-side state needed by captured contact/location parity flows.
-Location updates preserve name and buyer-experience fields that are covered by
-runtime tests; address assignment/delete updates staged billing-address reads;
-location role assign/revoke shares the same local role-assignment graph as
-contact-side assignment roots.
+`companyLocationCreate`, `companyLocationUpdate`, `companyLocationDelete`,
+`companyLocationsDelete`, `companyLocationAssignAddress`, `companyAddressDelete`,
+`companyLocationAssignStaffMembers`, `companyLocationRemoveStaffMembers`,
+`companyLocationAssignRoles`, and `companyLocationRevokeRoles` stage
+location-side state needed by captured contact/location parity flows. Location
+create uses the Shopify-like fallback chain from `input.name` to
+`shippingAddress.address1` to company name; blank location update names are
+rejected without mutating staged state. Address assignment rejects duplicate
+address types and preserves existing `CompanyAddress` IDs; address delete clears
+shared shipping/billing slots and resets `billingSameAsShipping`. Staff
+assignment dedups already-assigned staff, enforces the 10-staff cap, and
+returns per-index `RESOURCE_NOT_FOUND` or `LIMIT_REACHED` paths. Location role
+assign/revoke shares the same local role-assignment graph as contact-side
+assignment roots.
 
 Fixture-backed read helpers cover stable B2B read shapes used as evidence,
 including `company.customerSince`,
@@ -124,10 +130,9 @@ including `company.customerSince`,
 the selected payloads, not a broad local B2B catalog implementation.
 
 Parity specs also describe richer B2B lifecycle behavior captured from Shopify,
-including deletion blockers beyond the currently modeled contact graph, staff
-assignment, and staff-assignment guardrails. Endpoint consumers should treat
-those remaining roots as captured evidence rather than current local support
-until their own lifecycle behavior is modeled.
+including deletion blockers beyond the currently modeled contact/location graph.
+Endpoint consumers should treat those remaining roots as captured evidence
+rather than current local support until their own lifecycle behavior is modeled.
 
 ### Boundaries
 
@@ -137,14 +142,15 @@ until their own lifecycle behavior is modeled.
   assignment IDs are covered by validation evidence, while authorized
   staff-catalog reads remain access-scope dependent.
 - Validation-only B2B parity specs prove guardrail payloads and no-stage
-  behavior for those inputs only. For B2B roots outside the contact/role family,
-  they do not make the corresponding mutation roots generally supported.
+  behavior for those inputs only. For B2B roots outside the implemented
+  contact/location/role/staff slices, they do not make the corresponding
+  mutation roots generally supported.
 - Generic `node(id:)` dispatch for B2B-only IDs is limited to the staged B2B IDs
   named above. `nodes(ids:)` and staff/catalog Node hydration remain outside the
   current B2B support surface.
-- B2B roots outside the implemented contact/role family still use visible
-  passthrough or reject behavior according to runtime configuration unless a
-  request matches a documented local runtime slice.
+- B2B roots outside the implemented contact/location/role/staff slices still
+  use visible passthrough or reject behavior according to runtime configuration
+  unless a request matches a documented local runtime slice.
 
 ### Evidence
 

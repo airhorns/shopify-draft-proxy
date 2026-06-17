@@ -868,6 +868,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
         .expect("expected stagedState object");
     staged_state.insert("b2bCompanies".to_string(), json!({}));
     staged_state.insert("b2bLocations".to_string(), json!({}));
+    staged_state.insert("b2bLocationOrder".to_string(), json!([]));
     staged_state.insert("b2bContacts".to_string(), json!({}));
     staged_state.insert("deletedB2bContactIds".to_string(), json!([]));
     staged_state.insert("b2bContactRoles".to_string(), json!({}));
@@ -876,6 +877,7 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
     staged_state.insert("nextB2bCompanyId".to_string(), json!(1));
     staged_state.insert("nextB2bContactId".to_string(), json!(1));
     staged_state.insert("nextB2bContactRoleAssignmentId".to_string(), json!(1));
+    staged_state.insert("b2bStaffAssignments".to_string(), json!({}));
     assert_eq!(state.body, expected);
 }
 

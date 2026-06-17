@@ -201,7 +201,11 @@ impl DraftProxy {
                 if parsed_root_fields.iter().all(|field| {
                     matches!(
                         field.as_str(),
-                        "companyCreate" | "companyUpdate" | "companyLocationCreate"
+                        "companyCreate"
+                            | "companyUpdate"
+                            | "companyLocationCreate"
+                            | "companyLocationDelete"
+                            | "companyLocationsDelete"
                     )
                 }) =>
             {
@@ -211,6 +215,10 @@ impl DraftProxy {
                         "companyCreate" => self.b2b_company_create_payload(&field),
                         "companyUpdate" => self.b2b_company_update_payload(&field),
                         "companyLocationCreate" => self.b2b_company_location_create_payload(&field),
+                        "companyLocationDelete" => self.b2b_company_location_delete_payload(&field),
+                        "companyLocationsDelete" => {
+                            self.b2b_company_locations_delete_payload(&field)
+                        }
                         _ => return None,
                     };
                     self.record_mutation_log_entry(
@@ -234,16 +242,33 @@ impl DraftProxy {
             }
             OperationType::Query
                 if self.has_b2b_contact_state()
-                    && parsed_root_fields.iter().all(|field| field == "company") =>
+                    && parsed_root_fields
+                        .iter()
+                        .all(|field| matches!(field.as_str(), "company" | "companyLocations")) =>
             {
                 let mut data = serde_json::Map::new();
                 for field in fields {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    let company = self
-                        .b2b_company_materialized(&id)
-                        .map(|company| selected_json(&company, &field.selection))
-                        .unwrap_or(Value::Null);
-                    data.insert(field.response_key.clone(), company);
+                    let value = match field.name.as_str() {
+                        "company" => {
+                            let id =
+                                resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+                            self.b2b_company_materialized(&id)
+                                .map(|company| selected_json(&company, &field.selection))
+                                .unwrap_or(Value::Null)
+                        }
+                        "companyLocations" => {
+                            let locations = self.b2b_all_locations();
+                            selected_typed_connection_with_args(
+                                &locations,
+                                &field.arguments,
+                                &field.selection,
+                                selected_json,
+                                value_id_cursor,
+                            )
+                        }
+                        _ => return None,
+                    };
+                    data.insert(field.response_key.clone(), value);
                 }
                 Some(ok_json(json!({ "data": Value::Object(data) })))
             }
@@ -492,6 +517,16 @@ impl DraftProxy {
                             .and_then(|id| self.b2b_company_location_materialized(&id))
                             .map(|location| selected_json(&location, &field.selection))
                             .unwrap_or(Value::Null),
+                        "companyLocations" => {
+                            let locations = self.b2b_all_locations();
+                            selected_typed_connection_with_args(
+                                &locations,
+                                &field.arguments,
+                                &field.selection,
+                                selected_json,
+                                value_id_cursor,
+                            )
+                        }
                         "node" => resolved_string_arg(&field.arguments, "id")
                             .and_then(|id| self.b2b_node_materialized(&id))
                             .map(|node| selected_json(&node, &field.selection))
@@ -549,6 +584,12 @@ impl DraftProxy {
                             self.b2b_company_location_assign_address_payload(&field)
                         }
                         "companyAddressDelete" => self.b2b_company_address_delete_payload(&field),
+                        "companyLocationAssignStaffMembers" => {
+                            self.b2b_company_location_assign_staff_members_payload(&field)
+                        }
+                        "companyLocationRemoveStaffMembers" => {
+                            self.b2b_company_location_remove_staff_members_payload(&field)
+                        }
                         _ => return None,
                     };
                     self.record_mutation_log_entry(
@@ -580,6 +621,7 @@ impl DraftProxy {
             || !self.store.staged.b2b_contacts.is_empty()
             || !self.store.staged.b2b_contact_roles.is_empty()
             || !self.store.staged.b2b_contact_role_assignments.is_empty()
+            || !self.store.staged.b2b_staff_assignments.is_empty()
     }
 
     fn b2b_company_contact_create_payload(
@@ -1206,8 +1248,9 @@ impl DraftProxy {
                 .b2b_contact_role_assignments
                 .get(assignment_id)
                 .is_some_and(|assignment| {
-                    assignment.get("companyLocationId").and_then(Value::as_str)
-                        == Some(location_id.as_str())
+                    location_id.is_empty()
+                        || assignment.get("companyLocationId").and_then(Value::as_str)
+                            == Some(location_id.as_str())
                 });
             if exists {
                 self.store
@@ -1246,8 +1289,9 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let location_id =
-            resolved_string_arg(&field.arguments, "companyLocationId").unwrap_or_default();
+        let location_id = resolved_string_arg(&field.arguments, "companyLocationId")
+            .or_else(|| resolved_string_arg(&field.arguments, "id"))
+            .unwrap_or_default();
         let Some(mut location) = self.store.staged.b2b_locations.get(&location_id).cloned() else {
             return (
                 b2b_company_location_payload(
@@ -1264,8 +1308,53 @@ impl DraftProxy {
             );
         };
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        if resolved_string_field(&input, "name").is_some_and(|name| name.trim().is_empty()) {
+            return (
+                b2b_company_location_payload(
+                    None,
+                    vec![b2b_company_user_error(
+                        vec!["input", "name"],
+                        "Name can't be blank",
+                        "BLANK",
+                        None,
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
         if let Some(name) = resolved_string_field(&input, "name") {
-            location["name"] = json!(name);
+            location["name"] = json!(b2b_strip_html_tags(&name));
+        }
+        if let Some(external_id) = resolved_string_field(&input, "externalId") {
+            location["externalId"] = json!(external_id);
+        }
+        if let Some(locale) = resolved_string_field(&input, "locale") {
+            location["locale"] = json!(locale);
+        }
+        if let Some(phone) = resolved_string_field(&input, "phone") {
+            location["phone"] = json!(phone);
+        }
+        if let Some(shipping_input) = resolved_object_field(&input, "shippingAddress") {
+            let address_id = location["shippingAddress"]["id"]
+                .as_str()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| self.next_proxy_synthetic_gid("CompanyAddress"));
+            location["shippingAddress"] = b2b_company_address_json(&address_id, &shipping_input);
+        }
+        if let Some(billing_input) = resolved_object_field(&input, "billingAddress") {
+            let address_id = location["billingAddress"]["id"]
+                .as_str()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| self.next_proxy_synthetic_gid("CompanyAddress"));
+            location["billingAddress"] = b2b_company_address_json(&address_id, &billing_input);
+            location["billingSameAsShipping"] = json!(false);
+        }
+        if resolved_bool_field(&input, "billingSameAsShipping") == Some(true) {
+            location["billingAddress"] = location["shippingAddress"].clone();
+            location["billingSameAsShipping"] = json!(true);
+        } else if resolved_bool_field(&input, "billingSameAsShipping") == Some(false) {
+            location["billingSameAsShipping"] = json!(false);
         }
         self.store
             .staged
@@ -1278,40 +1367,128 @@ impl DraftProxy {
         )
     }
 
+    fn b2b_company_location_delete_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let location_id = resolved_string_arg(&field.arguments, "companyLocationId")
+            .or_else(|| resolved_string_arg(&field.arguments, "id"))
+            .unwrap_or_default();
+        if !self.store.staged.b2b_locations.contains_key(&location_id) {
+            return (
+                json!({
+                    "deletedCompanyLocationId": Value::Null,
+                    "userErrors": [{
+                        "field": ["companyLocationId"],
+                        "message": "Resource requested does not exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        self.b2b_delete_company_location(&location_id);
+        (
+            json!({
+                "deletedCompanyLocationId": location_id,
+                "userErrors": []
+            }),
+            "staged",
+            vec![location_id],
+        )
+    }
+
+    fn b2b_company_locations_delete_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let location_ids =
+            resolved_string_list_field_unsorted(&field.arguments, "companyLocationIds");
+        let mut deleted_ids = Vec::new();
+        let mut user_errors = Vec::new();
+        for (index, location_id) in location_ids.iter().enumerate() {
+            if self.store.staged.b2b_locations.contains_key(location_id) {
+                self.b2b_delete_company_location(location_id);
+                deleted_ids.push(location_id.clone());
+            } else {
+                user_errors.push(b2b_indexed_user_error(
+                    "companyLocationIds",
+                    index,
+                    "Resource requested does not exist.",
+                    "RESOURCE_NOT_FOUND",
+                ));
+            }
+        }
+        let status = if deleted_ids.is_empty() && !user_errors.is_empty() {
+            "failed"
+        } else {
+            "staged"
+        };
+        (
+            json!({
+                "deletedCompanyLocationIds": deleted_ids,
+                "userErrors": user_errors
+            }),
+            status,
+            deleted_ids,
+        )
+    }
+
     fn b2b_company_address_delete_payload(
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let address_id = resolved_string_arg(&field.arguments, "addressId").unwrap_or_default();
-        for location in self.store.staged.b2b_locations.values_mut() {
-            if location
-                .get("billingAddress")
-                .and_then(|address| address.get("id"))
-                .and_then(Value::as_str)
-                == Some(address_id.as_str())
-            {
-                location["billingAddress"] = Value::Null;
-                return (
-                    json!({
-                        "deletedAddressId": address_id,
-                        "userErrors": []
-                    }),
-                    "staged",
-                    vec![address_id],
-                );
+        let address_id = resolved_string_arg(&field.arguments, "addressId")
+            .or_else(|| resolved_string_arg(&field.arguments, "id"))
+            .unwrap_or_default();
+        let mut touched_location_ids = Vec::new();
+        for (location_id, location) in self.store.staged.b2b_locations.iter_mut() {
+            let billing_matches = location["billingAddress"]["id"].as_str() == Some(&address_id);
+            let shipping_matches = location["shippingAddress"]["id"].as_str() == Some(&address_id);
+            if !billing_matches && !shipping_matches {
+                continue;
             }
+            let shared = location["billingSameAsShipping"].as_bool().unwrap_or(false)
+                || (location["billingAddress"]["id"].as_str().is_some()
+                    && location["billingAddress"]["id"].as_str()
+                        == location["shippingAddress"]["id"].as_str());
+            if shared {
+                location["billingAddress"] = Value::Null;
+                location["shippingAddress"] = Value::Null;
+                location["billingSameAsShipping"] = json!(false);
+            } else {
+                if billing_matches {
+                    location["billingAddress"] = Value::Null;
+                }
+                if shipping_matches {
+                    location["shippingAddress"] = Value::Null;
+                }
+                location["billingSameAsShipping"] = json!(false);
+            }
+            touched_location_ids.push(location_id.clone());
+        }
+        if touched_location_ids.is_empty() {
+            return (
+                json!({
+                    "deletedAddressId": Value::Null,
+                    "userErrors": [{
+                        "field": ["addressId"],
+                        "message": "Resource requested does not exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
         }
         (
             json!({
-                "deletedAddressId": Value::Null,
-                "userErrors": [{
-                    "field": ["addressId"],
-                    "message": "Resource requested does not exist.",
-                    "code": "RESOURCE_NOT_FOUND"
-                }]
+                "deletedAddressId": address_id,
+                "userErrors": []
             }),
-            "failed",
-            Vec::new(),
+            "staged",
+            touched_location_ids,
         )
     }
 
@@ -1319,9 +1496,26 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let location_id = resolved_string_arg(&field.arguments, "locationId").unwrap_or_default();
+        let location_id = resolved_string_arg(&field.arguments, "locationId")
+            .or_else(|| resolved_string_arg(&field.arguments, "companyLocationId"))
+            .unwrap_or_default();
         let address_input = resolved_object_field(&field.arguments, "address").unwrap_or_default();
-        let Some(location) = self.store.staged.b2b_locations.get_mut(&location_id) else {
+        let address_types = resolved_string_list_field_unsorted(&field.arguments, "addressTypes");
+        if !b2b_unique_strings(&address_types) {
+            return (
+                json!({
+                    "addresses": Value::Null,
+                    "userErrors": [{
+                        "field": Value::Null,
+                        "message": "Invalid input.",
+                        "code": "INVALID_INPUT"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        let Some(mut location) = self.store.staged.b2b_locations.get(&location_id).cloned() else {
             return (
                 json!({
                     "addresses": Value::Null,
@@ -1335,22 +1529,187 @@ impl DraftProxy {
                 Vec::new(),
             );
         };
-        let address = b2b_company_address_json(&location_id, &address_input);
-        location["billingAddress"] = address.clone();
+        let mut changed_addresses = Vec::new();
+        let response_order = b2b_address_type_response_order(&address_types);
+        for address_type in &response_order {
+            let slot = b2b_location_address_slot(address_type);
+            let address_id = location[slot]["id"]
+                .as_str()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| self.next_proxy_synthetic_gid("CompanyAddress"));
+            let address = b2b_company_address_json(&address_id, &address_input);
+            location[slot] = address.clone();
+            changed_addresses.push(address);
+        }
+        if response_order.len() == 2 {
+            location["billingSameAsShipping"] = json!(false);
+        } else if response_order
+            .iter()
+            .any(|address_type| matches!(address_type.as_str(), "BILLING" | "SHIPPING"))
+        {
+            let billing_id = location["billingAddress"]["id"].as_str();
+            let shipping_id = location["shippingAddress"]["id"].as_str();
+            location["billingSameAsShipping"] =
+                json!(billing_id.is_some() && billing_id == shipping_id);
+        }
+        self.store
+            .staged
+            .b2b_locations
+            .insert(location_id.clone(), location);
         (
             json!({
-                "addresses": [address.clone()],
+                "addresses": changed_addresses,
                 "userErrors": []
             }),
             "staged",
-            vec![
-                location_id,
-                address
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string(),
-            ],
+            vec![location_id],
+        )
+    }
+
+    fn b2b_company_location_assign_staff_members_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let location_id = resolved_string_arg(&field.arguments, "companyLocationId")
+            .or_else(|| resolved_string_arg(&field.arguments, "locationId"))
+            .unwrap_or_default();
+        let staff_ids = resolved_string_list_field_unsorted(&field.arguments, "staffMemberIds");
+        let Some(mut location) = self.store.staged.b2b_locations.get(&location_id).cloned() else {
+            return (
+                json!({
+                    "companyLocationStaffMemberAssignments": Value::Null,
+                    "userErrors": [{
+                        "field": ["companyLocationId"],
+                        "message": "Resource requested does not exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        };
+
+        let mut assignments = Vec::new();
+        let mut user_errors = Vec::new();
+        let mut seen_input = BTreeSet::new();
+        for (index, staff_id) in staff_ids.iter().enumerate() {
+            if !b2b_valid_staff_member_id(staff_id) {
+                user_errors.push(b2b_indexed_user_error(
+                    "staffMemberIds",
+                    index,
+                    "Resource requested does not exist.",
+                    "RESOURCE_NOT_FOUND",
+                ));
+                continue;
+            }
+            if !seen_input.insert(staff_id.clone()) {
+                continue;
+            }
+            if let Some(existing) = self.b2b_staff_assignment_for(&location_id, staff_id) {
+                assignments.push(existing);
+                continue;
+            }
+            if b2b_json_id_list(&location, "staffAssignmentIds").len() >= 10 {
+                user_errors.push(b2b_indexed_user_error(
+                    "staffMemberIds",
+                    index,
+                    "Cannot assign more than 10 staff members to a company location.",
+                    "LIMIT_REACHED",
+                ));
+                continue;
+            }
+            let assignment_id =
+                self.next_proxy_synthetic_gid("CompanyLocationStaffMemberAssignment");
+            let assignment = json!({
+                "id": assignment_id,
+                "companyLocationId": location_id,
+                "staffMember": { "id": staff_id },
+                "staffMemberId": staff_id
+            });
+            self.store
+                .staged
+                .b2b_staff_assignments
+                .insert(assignment_id.clone(), assignment.clone());
+            b2b_push_json_id(&mut location, "staffAssignmentIds", &assignment_id);
+            assignments.push(assignment);
+        }
+        self.store
+            .staged
+            .b2b_locations
+            .insert(location_id.clone(), location);
+        let status = if assignments.is_empty() && !user_errors.is_empty() {
+            "failed"
+        } else {
+            "staged"
+        };
+        let staged_ids = assignments
+            .iter()
+            .filter_map(|assignment| assignment["id"].as_str().map(ToString::to_string))
+            .collect::<Vec<_>>();
+        (
+            json!({
+                "companyLocationStaffMemberAssignments": if assignments.is_empty() && !user_errors.is_empty() {
+                    Value::Null
+                } else {
+                    Value::Array(assignments)
+                },
+                "userErrors": user_errors
+            }),
+            status,
+            staged_ids,
+        )
+    }
+
+    fn b2b_company_location_remove_staff_members_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let assignment_ids = resolved_string_list_field_unsorted(
+            &field.arguments,
+            "companyLocationStaffMemberAssignmentIds",
+        );
+        let mut deleted_ids = Vec::new();
+        let mut user_errors = Vec::new();
+        for (index, assignment_id) in assignment_ids.iter().enumerate() {
+            if let Some(assignment) = self
+                .store
+                .staged
+                .b2b_staff_assignments
+                .remove(assignment_id)
+            {
+                if let Some(location_id) = assignment["companyLocationId"].as_str() {
+                    self.b2b_remove_location_assignment_id(
+                        location_id,
+                        "staffAssignmentIds",
+                        assignment_id,
+                    );
+                }
+                deleted_ids.push(assignment_id.clone());
+            } else {
+                user_errors.push(b2b_indexed_user_error(
+                    "companyLocationStaffMemberAssignmentIds",
+                    index,
+                    "Resource requested does not exist.",
+                    "RESOURCE_NOT_FOUND",
+                ));
+            }
+        }
+        let status = if deleted_ids.is_empty() && !user_errors.is_empty() {
+            "failed"
+        } else {
+            "staged"
+        };
+        (
+            json!({
+                "deletedCompanyLocationStaffMemberAssignmentIds": if deleted_ids.is_empty() && !user_errors.is_empty() {
+                    Value::Null
+                } else {
+                    json!(deleted_ids)
+                },
+                "userErrors": user_errors
+            }),
+            status,
+            deleted_ids,
         )
     }
 
@@ -1537,6 +1896,8 @@ impl DraftProxy {
             })?;
         location["roleAssignments"] =
             connection_json(self.b2b_role_assignments_for_location(location_id));
+        location["staffMemberAssignments"] =
+            connection_json(self.b2b_staff_assignments_for_location(location_id));
         if let Some(company_id) = location.get("companyId").and_then(Value::as_str) {
             location["company"] = self.b2b_company_summary(company_id).unwrap_or(Value::Null);
         }
@@ -1599,7 +1960,13 @@ impl DraftProxy {
             .staged
             .b2b_locations
             .values()
-            .filter_map(|location| location.get("billingAddress"))
+            .flat_map(|location| {
+                [
+                    location.get("billingAddress"),
+                    location.get("shippingAddress"),
+                ]
+            })
+            .flatten()
             .find(|address| address.get("id").and_then(Value::as_str) == Some(address_id))
             .cloned()
     }
@@ -1688,8 +2055,22 @@ impl DraftProxy {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
+        let mut ordered_location_ids = self
+            .store
+            .staged
+            .b2b_location_order
+            .iter()
+            .filter(|location_id| ordered_ids.iter().any(|id| id == *location_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        ordered_location_ids.extend(ordered_ids);
         let mut locations = Vec::new();
-        for location_id in ordered_ids {
+        for location_id in ordered_location_ids {
+            if locations.iter().any(|existing: &Value| {
+                existing.get("id").and_then(Value::as_str) == Some(&location_id)
+            }) {
+                continue;
+            }
             if let Some(location) = self.b2b_company_location_materialized(&location_id) {
                 locations.push(location);
             }
@@ -1767,6 +2148,46 @@ impl DraftProxy {
             .collect()
     }
 
+    fn b2b_staff_assignments_for_location(&self, location_id: &str) -> Vec<Value> {
+        self.store
+            .staged
+            .b2b_staff_assignments
+            .values()
+            .filter(|assignment| {
+                assignment.get("companyLocationId").and_then(Value::as_str) == Some(location_id)
+            })
+            .map(|assignment| {
+                let mut assignment = assignment.clone();
+                assignment["companyLocation"] = self
+                    .b2b_company_location_summary(location_id)
+                    .unwrap_or(Value::Null);
+                assignment
+            })
+            .collect()
+    }
+
+    fn b2b_all_locations(&self) -> Vec<Value> {
+        let mut locations = Vec::new();
+        for location_id in &self.store.staged.b2b_location_order {
+            if let Some(location) = self.b2b_company_location_materialized(location_id) {
+                locations.push(location);
+            }
+        }
+        for location in self.store.staged.b2b_locations.values() {
+            let Some(location_id) = location.get("id").and_then(Value::as_str) else {
+                continue;
+            };
+            if !locations.iter().any(|existing: &Value| {
+                existing.get("id").and_then(Value::as_str) == Some(location_id)
+            }) {
+                if let Some(materialized) = self.b2b_company_location_materialized(location_id) {
+                    locations.push(materialized);
+                }
+            }
+        }
+        locations
+    }
+
     fn ensure_b2b_contact_role(&mut self, company_id: &str, name: &str, default: bool) -> Value {
         let role = b2b_contact_role(company_id, name, default);
         let id = role
@@ -1789,24 +2210,61 @@ impl DraftProxy {
     ) -> String {
         let id = synthetic_shopify_gid("CompanyLocation", self.store.staged.next_b2b_company_id);
         self.store.staged.next_b2b_company_id += 1;
-        let name = resolved_string_field(input, "name").unwrap_or_else(|| "HQ".to_string());
-        let billing_address = resolved_object_field(input, "billingAddress")
-            .map(|address| b2b_company_address_json(&id, &address))
+        let shipping_address = resolved_object_field(input, "shippingAddress")
+            .map(|address| {
+                let address_id = self.next_proxy_synthetic_gid("CompanyAddress");
+                b2b_company_address_json(&address_id, &address)
+            })
+            .unwrap_or(Value::Null);
+        let billing_same_as_shipping =
+            resolved_bool_field(input, "billingSameAsShipping").unwrap_or(false);
+        let billing_address = if billing_same_as_shipping {
+            shipping_address.clone()
+        } else {
+            resolved_object_field(input, "billingAddress")
+                .map(|address| {
+                    let address_id = self.next_proxy_synthetic_gid("CompanyAddress");
+                    b2b_company_address_json(&address_id, &address)
+                })
+                .unwrap_or(Value::Null)
+        };
+        let name = b2b_location_name(
+            input,
+            self.store.staged.b2b_companies.get(company_id),
+            &shipping_address,
+        );
+        let buyer_experience = resolved_object_field(input, "buyerExperienceConfiguration")
+            .map(|buyer_experience| b2b_buyer_experience_configuration_json(&buyer_experience))
             .unwrap_or(Value::Null);
         let location = json!({
             "id": id,
             "companyId": company_id,
             "name": name,
+            "externalId": resolved_string_field(input, "externalId").map(Value::String).unwrap_or(Value::Null),
+            "locale": resolved_string_field(input, "locale").map(Value::String).unwrap_or(Value::Null),
             "phone": resolved_string_field(input, "phone").map(Value::String).unwrap_or(Value::Null),
+            "shippingAddress": shipping_address,
             "billingAddress": billing_address,
+            "billingSameAsShipping": billing_same_as_shipping,
             "taxSettings": {
                 "taxRegistrationId": Value::Null,
-                "taxExempt": false,
+                "taxExempt": resolved_bool_field(input, "taxExempt").unwrap_or(false),
                 "taxExemptions": []
             },
-            "roleAssignments": connection_json(Vec::new())
+            "buyerExperienceConfiguration": buyer_experience,
+            "roleAssignments": connection_json(Vec::new()),
+            "staffAssignmentIds": []
         });
         self.store.staged.b2b_locations.insert(id.clone(), location);
+        if !self
+            .store
+            .staged
+            .b2b_location_order
+            .iter()
+            .any(|existing| existing == &id)
+        {
+            self.store.staged.b2b_location_order.push(id.clone());
+        }
         if let Some(company) = self.store.staged.b2b_companies.get_mut(company_id) {
             let mut ids = company
                 .get("locationIds")
@@ -1819,6 +2277,82 @@ impl DraftProxy {
             company["locationIds"] = Value::Array(ids);
         }
         id
+    }
+
+    fn b2b_delete_company_location(&mut self, location_id: &str) {
+        let Some(location) = self.store.staged.b2b_locations.remove(location_id) else {
+            return;
+        };
+        self.store
+            .staged
+            .b2b_location_order
+            .retain(|id| id != location_id);
+        if let Some(company_id) = location.get("companyId").and_then(Value::as_str) {
+            if let Some(company) = self.store.staged.b2b_companies.get_mut(company_id) {
+                b2b_retain_json_ids(company, "locationIds", |id| id != location_id);
+            }
+        }
+        let role_assignment_ids = self
+            .store
+            .staged
+            .b2b_contact_role_assignments
+            .values()
+            .filter(|assignment| {
+                assignment.get("companyLocationId").and_then(Value::as_str) == Some(location_id)
+            })
+            .filter_map(|assignment| assignment.get("id").and_then(Value::as_str))
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        for assignment_id in role_assignment_ids {
+            self.store
+                .staged
+                .b2b_contact_role_assignments
+                .remove(&assignment_id);
+            self.store
+                .staged
+                .deleted_b2b_contact_role_assignment_ids
+                .insert(assignment_id);
+        }
+        let staff_assignment_ids = self
+            .store
+            .staged
+            .b2b_staff_assignments
+            .values()
+            .filter(|assignment| {
+                assignment.get("companyLocationId").and_then(Value::as_str) == Some(location_id)
+            })
+            .filter_map(|assignment| assignment.get("id").and_then(Value::as_str))
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        for assignment_id in staff_assignment_ids {
+            self.store
+                .staged
+                .b2b_staff_assignments
+                .remove(&assignment_id);
+        }
+    }
+
+    fn b2b_remove_location_assignment_id(
+        &mut self,
+        location_id: &str,
+        list_field: &str,
+        assignment_id: &str,
+    ) {
+        if let Some(location) = self.store.staged.b2b_locations.get_mut(location_id) {
+            b2b_retain_json_ids(location, list_field, |id| id != assignment_id);
+        }
+    }
+
+    fn b2b_staff_assignment_for(&self, location_id: &str, staff_id: &str) -> Option<Value> {
+        self.store
+            .staged
+            .b2b_staff_assignments
+            .values()
+            .find(|assignment| {
+                assignment.get("companyLocationId").and_then(Value::as_str) == Some(location_id)
+                    && assignment.get("staffMemberId").and_then(Value::as_str) == Some(staff_id)
+            })
+            .cloned()
     }
 
     fn append_b2b_company_contact(&mut self, company_id: &str, contact_id: &str) {
@@ -2931,7 +3465,12 @@ impl DraftProxy {
 fn b2b_contact_query_root(field: &str) -> bool {
     matches!(
         field,
-        "company" | "companyContact" | "companyContactRole" | "companyLocation" | "node"
+        "company"
+            | "companyContact"
+            | "companyContactRole"
+            | "companyLocation"
+            | "companyLocations"
+            | "node"
     )
 }
 
@@ -2955,6 +3494,8 @@ fn b2b_contact_mutation_root(field: &str) -> bool {
             | "companyLocationUpdate"
             | "companyLocationAssignAddress"
             | "companyAddressDelete"
+            | "companyLocationAssignStaffMembers"
+            | "companyLocationRemoveStaffMembers"
     )
 }
 
@@ -3238,25 +3779,164 @@ fn b2b_contact_role(company_id: &str, name: &str, default: bool) -> Value {
     })
 }
 
-fn b2b_company_address_json(location_id: &str, address: &BTreeMap<String, ResolvedValue>) -> Value {
-    let id = synthetic_shopify_gid(
-        "CompanyAddress",
-        format!("{}-billing", resource_id_tail(location_id)),
-    );
+fn b2b_company_address_json(id: &str, address: &BTreeMap<String, ResolvedValue>) -> Value {
+    let mut output = serde_json::Map::new();
+    output.insert("id".to_string(), json!(id));
+    for field in [
+        "address1",
+        "address2",
+        "city",
+        "company",
+        "country",
+        "countryCode",
+        "countryCodeV2",
+        "firstName",
+        "lastName",
+        "name",
+        "phone",
+        "province",
+        "provinceCode",
+        "recipient",
+        "zip",
+    ] {
+        if address.contains_key(field) {
+            output.insert(
+                if field == "countryCodeV2" {
+                    "countryCode".to_string()
+                } else {
+                    field.to_string()
+                },
+                resolved_string_field(address, field)
+                    .map(Value::String)
+                    .unwrap_or(Value::Null),
+            );
+        }
+    }
+    Value::Object(output)
+}
+
+fn b2b_location_name(
+    input: &BTreeMap<String, ResolvedValue>,
+    company: Option<&Value>,
+    shipping_address: &Value,
+) -> String {
+    resolved_string_field(input, "name")
+        .map(|name| b2b_strip_html_tags(&name))
+        .filter(|name| !name.trim().is_empty())
+        .or_else(|| {
+            shipping_address
+                .get("address1")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .filter(|address1| !address1.trim().is_empty())
+        })
+        .or_else(|| {
+            company
+                .and_then(|company| company.get("name"))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| "B2B Draft".to_string())
+}
+
+fn b2b_buyer_experience_configuration_json(input: &BTreeMap<String, ResolvedValue>) -> Value {
     json!({
-        "id": id,
-        "address1": resolved_string_field(address, "address1").unwrap_or_default(),
-        "address2": resolved_string_field(address, "address2").unwrap_or_default(),
-        "city": resolved_string_field(address, "city").unwrap_or_default(),
-        "province": resolved_string_field(address, "province").unwrap_or_default(),
-        "provinceCode": resolved_string_field(address, "provinceCode").unwrap_or_default(),
-        "country": resolved_string_field(address, "country").unwrap_or_default(),
-        "countryCode": resolved_string_field(address, "countryCode")
-            .or_else(|| resolved_string_field(address, "countryCodeV2"))
-            .unwrap_or_default(),
-        "zip": resolved_string_field(address, "zip").unwrap_or_default(),
-        "phone": resolved_string_field(address, "phone").map(Value::String).unwrap_or(Value::Null)
+        "editableShippingAddress": resolved_bool_field(input, "editableShippingAddress").unwrap_or(false),
+        "checkoutToDraft": resolved_bool_field(input, "checkoutToDraft").unwrap_or(false),
+        "paymentTermsTemplate": resolved_string_field(input, "paymentTermsTemplateId")
+            .map(|id| json!({ "id": id }))
+            .unwrap_or(Value::Null),
+        "deposit": if input.contains_key("deposit") {
+            json!({ "__typename": "DepositPercentage" })
+        } else {
+            Value::Null
+        }
     })
+}
+
+fn b2b_indexed_user_error(field: &str, index: usize, message: &str, code: &str) -> Value {
+    json!({
+        "field": [field, index.to_string()],
+        "message": message,
+        "code": code
+    })
+}
+
+fn b2b_unique_strings(values: &[String]) -> bool {
+    let mut seen = BTreeSet::new();
+    values.iter().all(|value| seen.insert(value))
+}
+
+fn b2b_address_type_response_order(address_types: &[String]) -> Vec<String> {
+    let mut ordered = Vec::new();
+    if address_types
+        .iter()
+        .any(|address_type| address_type == "SHIPPING")
+    {
+        ordered.push("SHIPPING".to_string());
+    }
+    if address_types
+        .iter()
+        .any(|address_type| address_type == "BILLING")
+    {
+        ordered.push("BILLING".to_string());
+    }
+    for address_type in address_types {
+        if address_type != "SHIPPING"
+            && address_type != "BILLING"
+            && !ordered.iter().any(|known| known == address_type)
+        {
+            ordered.push(address_type.clone());
+        }
+    }
+    ordered
+}
+
+fn b2b_location_address_slot(address_type: &str) -> &'static str {
+    match address_type {
+        "SHIPPING" => "shippingAddress",
+        _ => "billingAddress",
+    }
+}
+
+fn b2b_json_id_list(record: &Value, field: &str) -> Vec<String> {
+    record[field]
+        .as_array()
+        .map(|ids| {
+            ids.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn b2b_push_json_id(record: &mut Value, field: &str, id: &str) {
+    if !record[field].is_array() {
+        record[field] = json!([]);
+    }
+    let ids = record[field]
+        .as_array_mut()
+        .expect("JSON id list must be an array");
+    if !ids.iter().any(|existing| existing.as_str() == Some(id)) {
+        ids.push(json!(id));
+    }
+}
+
+fn b2b_retain_json_ids<F>(record: &mut Value, field: &str, mut retain: F)
+where
+    F: FnMut(&str) -> bool,
+{
+    if let Some(ids) = record[field].as_array_mut() {
+        ids.retain(|id| id.as_str().is_some_and(&mut retain));
+    }
+}
+
+fn b2b_valid_staff_member_id(id: &str) -> bool {
+    shopify_gid_resource_type(id) == Some("StaffMember")
+        && resource_id_tail(id)
+            .parse::<u64>()
+            .is_ok_and(|tail| (1..=100).contains(&tail))
 }
 
 fn b2b_contact_customer_json(

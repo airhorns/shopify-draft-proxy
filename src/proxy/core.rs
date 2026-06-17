@@ -165,6 +165,8 @@ impl DraftProxy {
         });
         snapshot["stagedState"]["b2bCompanies"] = json!(self.store.staged.b2b_companies.clone());
         snapshot["stagedState"]["b2bLocations"] = json!(self.store.staged.b2b_locations.clone());
+        snapshot["stagedState"]["b2bLocationOrder"] =
+            json!(self.store.staged.b2b_location_order.clone());
         snapshot["stagedState"]["b2bContacts"] = json!(self.store.staged.b2b_contacts.clone());
         snapshot["stagedState"]["deletedB2bContactIds"] = json!(self
             .store
@@ -188,6 +190,8 @@ impl DraftProxy {
         snapshot["stagedState"]["nextB2bContactId"] = json!(self.store.staged.next_b2b_contact_id);
         snapshot["stagedState"]["nextB2bContactRoleAssignmentId"] =
             json!(self.store.staged.next_b2b_contact_role_assignment_id);
+        snapshot["stagedState"]["b2bStaffAssignments"] =
+            json!(self.store.staged.b2b_staff_assignments.clone());
         if !self.store.staged.metaobject_definitions.is_empty() {
             snapshot["stagedState"]["metaobjectDefinitions"] =
                 json!(self.store.staged.metaobject_definitions);
@@ -757,6 +761,10 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.b2b_location_order = state["stagedState"]
+            .get("b2bLocationOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| self.store.staged.b2b_locations.keys().cloned().collect());
         self.store.staged.b2b_contacts = state["stagedState"]
             .get("b2bContacts")
             .and_then(Value::as_object)
@@ -785,6 +793,7 @@ impl DraftProxy {
             .unwrap_or_default();
         self.store.staged.b2b_contact_role_assignments = state["stagedState"]
             .get("b2bContactRoleAssignments")
+            .or_else(|| state["stagedState"].get("b2bRoleAssignments"))
             .and_then(Value::as_object)
             .map(|assignments| {
                 assignments
@@ -799,6 +808,16 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store.staged.b2b_staff_assignments = state["stagedState"]
+            .get("b2bStaffAssignments")
+            .and_then(Value::as_object)
+            .map(|assignments| {
+                assignments
+                    .iter()
+                    .map(|(id, assignment)| (id.clone(), assignment.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
         self.store.staged.next_b2b_company_id = state["stagedState"]
             .get("nextB2bCompanyId")
             .and_then(Value::as_u64)
