@@ -2179,6 +2179,7 @@ pub(in crate::proxy) fn inventory_change_json(
     _quantity_after_change: i64,
     ledger: Option<&str>,
     location_id: &str,
+    location_name: &str,
 ) -> Value {
     // Real Shopify returns `quantityAfterChange: null` for changes read back
     // from inventoryAdjust/Set/MoveQuantities mutation responses (the field is
@@ -2194,7 +2195,7 @@ pub(in crate::proxy) fn inventory_change_json(
         },
         "location": {
             "id": location_id,
-            "name": inventory_location_name(location_id)
+            "name": location_name
         }
     })
 }

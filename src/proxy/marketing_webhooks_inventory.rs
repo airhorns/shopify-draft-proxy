@@ -2266,6 +2266,27 @@ impl DraftProxy {
             .sum()
     }
 
+    /// After an `available` inventory mutation, keep the owning variant's
+    /// denormalized `inventoryQuantity` in lockstep with the summed available
+    /// level so direct product/variant overlay reads reflect the new stock.
+    /// Mirrors the sync `inventoryItemUpdate` and inventory-level item payloads
+    /// already perform. No-op for non-`available` names (those don't feed
+    /// `ProductVariant.inventoryQuantity`).
+    fn sync_variant_available_quantity(&mut self, inventory_item_id: &str, name: &str) {
+        if name != "available" {
+            return;
+        }
+        let Some(mut variant) = self
+            .store
+            .product_variant_by_inventory_item_id(inventory_item_id)
+            .cloned()
+        else {
+            return;
+        };
+        variant.inventory_quantity = self.inventory_total(inventory_item_id, "available");
+        self.store.stage_product_variant(variant);
+    }
+
     pub(in crate::proxy) fn next_inventory_quantity_timestamp(&mut self) -> String {
         let sequence = self.store.staged.next_inventory_quantity_timestamp;
         self.store.staged.next_inventory_quantity_timestamp += 1;
@@ -2410,6 +2431,7 @@ impl DraftProxy {
         for quantity in quantities {
             let item_id = resolved_string_field(&quantity, "inventoryItemId").unwrap_or_default();
             let location_id = resolved_string_field(&quantity, "locationId").unwrap_or_default();
+            let location_name = self.inventory_location_display_name(&location_id);
             let new_quantity = resolved_int_field(&quantity, "quantity").unwrap_or(0);
             let key = (item_id.clone(), location_id.clone());
             let level = self.store.staged.inventory_levels.entry(key).or_default();
@@ -2429,9 +2451,11 @@ impl DraftProxy {
                     on_hand_after_change,
                     None,
                     &location_id,
+                    &location_name,
                 ));
             }
             self.stamp_inventory_quantity(&item_id, &location_id, &name, &updated_at);
+            self.sync_variant_available_quantity(&item_id, &name);
             changes.push(inventory_change_json(
                 &item_id,
                 &name,
@@ -2439,6 +2463,7 @@ impl DraftProxy {
                 new_quantity,
                 None,
                 &location_id,
+                &location_name,
             ));
         }
         changes.extend(on_hand_changes);
@@ -2446,6 +2471,8 @@ impl DraftProxy {
             selected_json(
                 &json!({
                     "inventoryAdjustmentGroup": {
+                        "id": self.next_proxy_synthetic_gid("InventoryAdjustmentGroup"),
+                        "createdAt": updated_at,
                         "reason": reason,
                         "referenceDocumentUri": reference,
                         "changes": changes
@@ -2494,6 +2521,8 @@ impl DraftProxy {
         for change in changes_input {
             let item_id = resolved_string_field(&change, "inventoryItemId").unwrap_or_default();
             let location_id = resolved_string_field(&change, "locationId").unwrap_or_default();
+            let location_name = self.inventory_location_display_name(&location_id);
+            let ledger = resolved_string_field(&change, "ledgerDocumentUri");
             let delta = resolved_int_field(&change, "delta").unwrap_or(0);
             let level = self
                 .store
@@ -2521,16 +2550,19 @@ impl DraftProxy {
                     on_hand_after_change,
                     None,
                     &location_id,
+                    &location_name,
                 ));
             }
             self.stamp_inventory_quantity(&item_id, &location_id, &name, &updated_at);
+            self.sync_variant_available_quantity(&item_id, &name);
             changes.push(inventory_change_json(
                 &item_id,
                 &name,
                 delta,
                 after_change,
-                None,
+                ledger.as_deref(),
                 &location_id,
+                &location_name,
             ));
         }
         changes.extend(on_hand_changes);
@@ -2538,6 +2570,8 @@ impl DraftProxy {
             selected_json(
                 &json!({
                     "inventoryAdjustmentGroup": {
+                        "id": self.next_proxy_synthetic_gid("InventoryAdjustmentGroup"),
+                        "createdAt": updated_at,
                         "reason": reason,
                         "referenceDocumentUri": reference,
                         "changes": changes
@@ -2603,6 +2637,7 @@ impl DraftProxy {
             let from = resolved_object_field(&change, "from").unwrap_or_default();
             let to = resolved_object_field(&change, "to").unwrap_or_default();
             let location_id = resolved_string_field(&from, "locationId").unwrap_or_default();
+            let location_name = self.inventory_location_display_name(&location_id);
             let from_name = resolved_string_field(&from, "name").unwrap_or_default();
             let to_name = resolved_string_field(&to, "name").unwrap_or_default();
             let ledger = resolved_string_field(&to, "ledgerDocumentUri");
@@ -2629,6 +2664,8 @@ impl DraftProxy {
             };
             self.stamp_inventory_quantity(&item_id, &location_id, &from_name, &updated_at);
             self.stamp_inventory_quantity(&item_id, &location_id, &to_name, &updated_at);
+            self.sync_variant_available_quantity(&item_id, &from_name);
+            self.sync_variant_available_quantity(&item_id, &to_name);
             changes.push(inventory_change_json(
                 &item_id,
                 &from_name,
@@ -2636,6 +2673,7 @@ impl DraftProxy {
                 from_after_change,
                 None,
                 &location_id,
+                &location_name,
             ));
             changes.push(inventory_change_json(
                 &item_id,
@@ -2644,6 +2682,7 @@ impl DraftProxy {
                 to_after_change,
                 ledger.as_deref(),
                 &location_id,
+                &location_name,
             ));
         }
         MutationFieldOutcome::staged(
