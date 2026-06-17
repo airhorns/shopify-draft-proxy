@@ -1,35 +1,37 @@
 use super::*;
 
-const PUBLISHABLE_SHOP_HYDRATE_QUERY: &str = r#"
-query StorePropertiesPublishablePayloadShopHydrate($id: ID!) {
-  publishable: node(id: $id) {
-    ... on Product {
-      id
-      publishedOnCurrentPublication
-      availablePublicationsCount {
-        count
-        precision
+// Must byte-match the recorded upstream hydrate query in the store-properties
+// publishable captures (strict cassette compares query text + variables). See
+// fixtures/conformance/.../store-properties/publishable-*-shop-count-parity.json.
+const PUBLISHABLE_SHOP_HYDRATE_QUERY: &str = r#"#graphql
+  query StorePropertiesPublishableInputValidationHydrate($id: ID!) {
+    publishable: node(id: $id) {
+      ... on Product {
+        id
+        publishedOnCurrentPublication
+        resourcePublicationsCount {
+          count
+          precision
+        }
       }
-      resourcePublicationsCount {
-        count
-        precision
+    }
+    shop {
+      publicationCount
+    }
+    publications(first: 20) {
+      nodes {
+        id
+        name
       }
     }
   }
-  shop {
-    id
-    name
-    myshopifyDomain
-    currencyCode
-    publicationCount
-  }
-  publications(first: 250) {
-    nodes {
-      id
-    }
-  }
-}
 "#;
+// Must byte-match the recorded upstream location hydrate query in the
+// store-properties lifecycle captures (strict cassette compares query text +
+// variables). Issued to replay the real baseline location through the cassette
+// so activate/deactivate preserve its captured name/scope/state instead of
+// fabricating a synthetic record.
+const LOCATION_HYDRATE_QUERY: &str = r#"query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: "custom", key: "hours") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: ["available", "committed", "on_hand"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }"#;
 const APP_DOMAIN_SYNTHETIC_NOW: &str = "2026-04-28T02:10:00.000Z";
 
 impl DraftProxy {
@@ -1336,6 +1338,17 @@ impl DraftProxy {
             {
                 return ok_json(error);
             }
+            if resolved_object_list_field(&input, "metafields")
+                .iter()
+                .any(|metafield| {
+                    metafield.contains_key("key")
+                        && resolved_string_field(metafield, "key")
+                            .map(|key| key.trim().is_empty())
+                            .unwrap_or(true)
+                })
+            {
+                return ok_json(location_add_metafield_blank_key_error(field, &document));
+            }
 
             let user_errors = self.location_add_user_errors(&input);
             let location = if user_errors.is_empty() {
@@ -1378,6 +1391,7 @@ impl DraftProxy {
             }
             let location_id =
                 resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
+            self.ensure_location_hydrated(&location_id, request);
             let source_location = self.location_source_record(&location_id);
             let errors = self.location_activate_errors(&source_location);
             let location = if errors.is_empty() {
@@ -1410,6 +1424,243 @@ impl DraftProxy {
             );
         }
         ok_json(json!({ "data": Value::Object(data) }))
+    }
+
+    /// True when every `locationEdit` root field targets a location the proxy has
+    /// already staged locally (created via `locationAdd` or hydrated for a prior
+    /// lifecycle mutation). Only then is the edit applied locally; edits to real
+    /// upstream baselines the proxy has never staged forward verbatim.
+    pub(in crate::proxy) fn location_edit_targets_all_staged(
+        &self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> bool {
+        let Some(document) = parsed_document(query, variables) else {
+            return false;
+        };
+        let edits = document
+            .root_fields
+            .iter()
+            .filter(|field| field.name == "locationEdit")
+            .collect::<Vec<_>>();
+        !edits.is_empty()
+            && edits.iter().all(|field| {
+                resolved_string_field(&field.arguments, "id")
+                    .map(|id| self.store.staged.locations.contains_key(&id))
+                    .unwrap_or(false)
+            })
+    }
+
+    /// Applies a `locationEdit` against a locally-staged location: merges the
+    /// supplied scalar/address fields onto the staged record, re-derives the
+    /// country/province display names from the (possibly updated) ISO codes, and
+    /// re-stages it so later local reads observe the change. The gate in
+    /// `dispatch_graphql` guarantees every target is already staged before this
+    /// runs, so the inputs here are always valid edits.
+    pub(in crate::proxy) fn location_edit(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let Some(document) = parsed_document(query, variables) else {
+            return json_error(400, "Unable to parse locationEdit mutation");
+        };
+        let mut data = serde_json::Map::new();
+        for field in document
+            .root_fields
+            .iter()
+            .filter(|field| field.name == "locationEdit")
+        {
+            let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+            let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+            let Some(mut location) = self.store.staged.locations.get(&id).cloned() else {
+                data.insert(
+                    field.response_key.clone(),
+                    location_add_payload_selected_json(Value::Null, &field.selection, Vec::new()),
+                );
+                continue;
+            };
+            let user_errors = self.location_edit_user_errors(&id, &input);
+            let payload_location = if user_errors.is_empty() {
+                self.apply_location_edit_input(&mut location, &input, &id);
+                self.stage_location(location.clone());
+                self.record_mutation_log_entry(
+                    request,
+                    query,
+                    variables,
+                    "locationEdit",
+                    vec![id.clone()],
+                );
+                location
+            } else {
+                Value::Null
+            };
+            data.insert(
+                field.response_key.clone(),
+                location_add_payload_selected_json(payload_location, &field.selection, user_errors),
+            );
+        }
+        ok_json(json!({ "data": Value::Object(data) }))
+    }
+
+    fn apply_location_edit_input(
+        &mut self,
+        location: &mut Value,
+        input: &BTreeMap<String, ResolvedValue>,
+        id: &str,
+    ) {
+        if let Some(name) = resolved_string_field(input, "name") {
+            location["name"] = json!(name);
+        }
+        if let Some(fulfills) = resolved_bool_field(input, "fulfillsOnlineOrders") {
+            location["fulfillsOnlineOrders"] = json!(fulfills);
+        }
+        if let Some(active) = resolved_bool_field(input, "isActive")
+            .or_else(|| resolved_bool_field(input, "active"))
+        {
+            location["isActive"] = json!(active);
+        }
+        if let Some(address_input) = resolved_object_field(input, "address") {
+            let mut address = location.get("address").cloned().unwrap_or_else(|| json!({}));
+            if !address.is_object() {
+                address = json!({});
+            }
+            if let Some(object) = address.as_object_mut() {
+                for key in ["address1", "address2", "city", "countryCode", "provinceCode", "zip"] {
+                    if address_input.contains_key(key) {
+                        object.insert(
+                            key.to_string(),
+                            resolved_string_field(&address_input, key)
+                                .map(Value::from)
+                                .unwrap_or(Value::Null),
+                        );
+                    }
+                }
+            }
+            // Re-derive the display names from the merged ISO codes so a code-only
+            // edit (e.g. provinceCode) updates the human-readable country/province.
+            let country_code = address
+                .get("countryCode")
+                .and_then(Value::as_str)
+                .map(str::to_string);
+            let province_code = address
+                .get("provinceCode")
+                .and_then(Value::as_str)
+                .filter(|code| !code.is_empty())
+                .map(str::to_string);
+            let country = country_code
+                .as_deref()
+                .and_then(country_name_for_code)
+                .map(Value::from)
+                .unwrap_or(Value::Null);
+            let province = match (country_code.as_deref(), province_code.as_deref()) {
+                (Some(country), Some(province)) => province_name_for_code(country, province)
+                    .map(Value::from)
+                    .unwrap_or(Value::Null),
+                _ => Value::Null,
+            };
+            if let Some(object) = address.as_object_mut() {
+                object.insert("country".to_string(), country);
+                object.insert("province".to_string(), province);
+            }
+            location["address"] = address;
+        }
+        if input.contains_key("metafields") {
+            location["metafields"] = json!(self.location_metafields_from_input(id, input));
+        }
+        location["updatedAt"] = json!("2024-01-01T00:00:01.000Z");
+    }
+
+    /// Validates a `locationEdit` input against the staged record, mirroring the
+    /// public Admin API's `locationEdit` user errors. Only fields present in the
+    /// input are validated (edit inputs are sparse), and the name-uniqueness check
+    /// excludes the location being edited.
+    fn location_edit_user_errors(
+        &self,
+        location_id: &str,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> Vec<Value> {
+        let mut errors = Vec::new();
+        if let Some(name) = resolved_string_field(input, "name") {
+            if name.trim().is_empty() {
+                errors.push(json!({
+                    "field": ["input", "name"],
+                    "message": "Add a location name",
+                    "code": "BLANK"
+                }));
+            } else if name.chars().count() > 100 {
+                errors.push(json!({
+                    "field": ["input", "name"],
+                    "message": "Use a shorter location name (up to 100 characters)",
+                    "code": "TOO_LONG"
+                }));
+            } else if self.location_name_exists_except(&name, location_id) {
+                errors.push(json!({
+                    "field": ["input", "name"],
+                    "message": "You already have a location with this name",
+                    "code": "TAKEN"
+                }));
+            }
+        }
+        if let Some(address) = resolved_object_field(input, "address") {
+            if resolved_string_field(&address, "address1")
+                .is_some_and(|address1| address1.chars().count() > 255)
+            {
+                errors.push(json!({
+                    "field": ["input", "address", "address1"],
+                    "message": "Use a shorter name for the street (up to 255 characters)",
+                    "code": "TOO_LONG"
+                }));
+            }
+            if resolved_string_field(&address, "city")
+                .is_some_and(|city| city.chars().count() > 255)
+            {
+                errors.push(json!({
+                    "field": ["input", "address", "city"],
+                    "message": "Use a shorter city name (up to 255 characters)",
+                    "code": "TOO_LONG"
+                }));
+            }
+            if resolved_string_field(&address, "zip")
+                .is_some_and(|zip| zip.chars().count() > 255)
+            {
+                errors.push(json!({
+                    "field": ["input", "address", "zip"],
+                    "message": "Use a shorter postal / ZIP code (up to 255 characters)",
+                    "code": "TOO_LONG"
+                }));
+            }
+        }
+        for (index, metafield) in resolved_object_list_field(input, "metafields")
+            .into_iter()
+            .enumerate()
+        {
+            if let Some(metafield_type) = resolved_string_field(&metafield, "type") {
+                if !LOCATION_METAFIELD_VALID_TYPES.contains(&metafield_type.as_str()) {
+                    errors.push(json!({
+                        "field": ["input", "metafields", index.to_string(), "type"],
+                        "message": format!(
+                            "Type must be one of the following: {}.",
+                            LOCATION_METAFIELD_VALID_TYPES.join(", ")
+                        ),
+                        "code": "INVALID_TYPE"
+                    }));
+                }
+            }
+        }
+        errors
+    }
+
+    fn location_name_exists_except(&self, name: &str, except_id: &str) -> bool {
+        let normalized = name.trim().to_lowercase();
+        self.store.staged.locations.iter().any(|(id, location)| {
+            id != except_id
+                && location
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .is_some_and(|existing| existing.trim().eq_ignore_ascii_case(&normalized))
+        })
     }
 
     pub(in crate::proxy) fn has_staged_locations(&self) -> bool {
@@ -1519,6 +1770,43 @@ impl DraftProxy {
                 "code": "TAKEN"
             }));
         }
+        if let Some(address) = resolved_object_field(input, "address") {
+            if resolved_string_field(&address, "address1")
+                .is_some_and(|address1| address1.chars().count() > 255)
+            {
+                errors.push(json!({
+                    "field": ["input", "address", "address1"],
+                    "message": "Use a shorter name for the street (up to 255 characters)",
+                    "code": "TOO_LONG"
+                }));
+            }
+            if resolved_string_field(&address, "zip")
+                .is_some_and(|zip| zip.chars().count() > 255)
+            {
+                errors.push(json!({
+                    "field": ["input", "address", "zip"],
+                    "message": "Use a shorter postal / ZIP code (up to 255 characters)",
+                    "code": "TOO_LONG"
+                }));
+            }
+        }
+        for (index, metafield) in resolved_object_list_field(input, "metafields")
+            .into_iter()
+            .enumerate()
+        {
+            if let Some(metafield_type) = resolved_string_field(&metafield, "type") {
+                if !LOCATION_METAFIELD_VALID_TYPES.contains(&metafield_type.as_str()) {
+                    errors.push(json!({
+                        "field": ["input", "metafields", index.to_string(), "type"],
+                        "message": format!(
+                            "Type must be one of the following: {}.",
+                            LOCATION_METAFIELD_VALID_TYPES.join(", ")
+                        ),
+                        "code": "INVALID_TYPE"
+                    }));
+                }
+            }
+        }
         if self.location_limit_reached() {
             errors.push(json!({
                 "field": ["input"],
@@ -1535,14 +1823,7 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let address_input = resolved_object_field(input, "address").unwrap_or_default();
-        let address = json!({
-            "address1": resolved_string_field(&address_input, "address1").unwrap_or_default(),
-            "address2": resolved_string_field(&address_input, "address2").unwrap_or_default(),
-            "city": resolved_string_field(&address_input, "city").unwrap_or_default(),
-            "countryCode": resolved_string_field(&address_input, "countryCode").unwrap_or_default(),
-            "provinceCode": resolved_string_field(&address_input, "provinceCode").unwrap_or_default(),
-            "zip": resolved_string_field(&address_input, "zip").unwrap_or_default()
-        });
+        let address = location_address_json(&address_input);
         json!({
             "__typename": "Location",
             "id": id,
@@ -1627,6 +1908,67 @@ impl DraftProxy {
             })];
         }
         Vec::new()
+    }
+
+    /// Hydrates a baseline location from upstream for lifecycle mutations
+    /// (activate/deactivate) when it is neither already staged nor covered by a
+    /// synthetic guard fixture. Issues the recorded `StorePropertiesLocationHydrate`
+    /// query so the cassette replays the real captured location, letting the
+    /// proxy preserve the baseline name/scope/state across the mutation instead
+    /// of fabricating one. A miss (no recorded call) returns non-2xx and falls
+    /// back to the existing synthetic resolution, so non-hydrate scenarios are
+    /// unaffected.
+    fn ensure_location_hydrated(&mut self, location_id: &str, request: &Request) {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return;
+        }
+        if self.store.staged.locations.contains_key(location_id)
+            || self
+                .store
+                .staged
+                .fulfillment_service_locations
+                .contains_key(location_id)
+        {
+            return;
+        }
+        if fixture_location_activate_guard_location(location_id).is_some()
+            || fixture_location_deactivate_state_machine_location(location_id).is_some()
+        {
+            return;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": LOCATION_HYDRATE_QUERY,
+                "variables": { "id": location_id }
+            })
+            .to_string(),
+        });
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        let Some(node) = response
+            .body
+            .get("data")
+            .and_then(|data| data.get("location"))
+            .filter(|node| node.is_object())
+        else {
+            return;
+        };
+        let mut record = node.clone();
+        if let Some(object) = record.as_object_mut() {
+            object.insert("__typename".to_string(), json!("Location"));
+        }
+        if record.get("isFulfillmentService").and_then(Value::as_bool) == Some(true) {
+            self.store
+                .staged
+                .fulfillment_service_locations
+                .insert(location_id.to_string(), record);
+        } else {
+            self.stage_location(record);
+        }
     }
 
     fn stage_location(&mut self, location: Value) {
@@ -1839,6 +2181,7 @@ impl DraftProxy {
                 resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
             let destination_location_id =
                 resolved_string_field(&field.arguments, "destinationLocationId");
+            self.ensure_location_hydrated(&location_id, request);
             let source_location = self.location_deactivate_source_location(&location_id);
             let errors = self
                 .location_deactivate_errors(&source_location, destination_location_id.as_deref());
@@ -5093,6 +5436,156 @@ fn location_country_code_is_valid(country_code: &str) -> bool {
         .any(|candidate| candidate == country_code)
 }
 
+/// Shopify projects the full ISO country name alongside the `countryCode` on an
+/// address. Returns the display name for a known ISO 3166-1 alpha-2 code, or
+/// `None` for codes we do not carry a name for (the proxy then emits null,
+/// matching Shopify's behavior for unset addresses).
+fn country_name_for_code(country_code: &str) -> Option<&'static str> {
+    Some(match country_code {
+        "US" => "United States",
+        "CA" => "Canada",
+        "AU" => "Australia",
+        "GB" => "United Kingdom",
+        "IE" => "Ireland",
+        "FR" => "France",
+        "DE" => "Germany",
+        "ES" => "Spain",
+        "IT" => "Italy",
+        "NL" => "Netherlands",
+        "BE" => "Belgium",
+        "PT" => "Portugal",
+        "SE" => "Sweden",
+        "NO" => "Norway",
+        "DK" => "Denmark",
+        "FI" => "Finland",
+        "CH" => "Switzerland",
+        "AT" => "Austria",
+        "PL" => "Poland",
+        "NZ" => "New Zealand",
+        "JP" => "Japan",
+        "CN" => "China",
+        "IN" => "India",
+        "BR" => "Brazil",
+        "MX" => "Mexico",
+        "AR" => "Argentina",
+        "ZA" => "South Africa",
+        "SG" => "Singapore",
+        "HK" => "Hong Kong SAR",
+        _ => return None,
+    })
+}
+
+/// Shopify derives the full province/state name from the `provinceCode` for
+/// countries with administrative subdivisions (US, CA, AU). Countries without
+/// subdivisions (e.g. GB) carry no province, so this returns `None`.
+fn province_name_for_code(country_code: &str, province_code: &str) -> Option<&'static str> {
+    Some(match (country_code, province_code) {
+        ("US", "AL") => "Alabama",
+        ("US", "AK") => "Alaska",
+        ("US", "AZ") => "Arizona",
+        ("US", "AR") => "Arkansas",
+        ("US", "CA") => "California",
+        ("US", "CO") => "Colorado",
+        ("US", "CT") => "Connecticut",
+        ("US", "DE") => "Delaware",
+        ("US", "DC") => "District of Columbia",
+        ("US", "FL") => "Florida",
+        ("US", "GA") => "Georgia",
+        ("US", "HI") => "Hawaii",
+        ("US", "ID") => "Idaho",
+        ("US", "IL") => "Illinois",
+        ("US", "IN") => "Indiana",
+        ("US", "IA") => "Iowa",
+        ("US", "KS") => "Kansas",
+        ("US", "KY") => "Kentucky",
+        ("US", "LA") => "Louisiana",
+        ("US", "ME") => "Maine",
+        ("US", "MD") => "Maryland",
+        ("US", "MA") => "Massachusetts",
+        ("US", "MI") => "Michigan",
+        ("US", "MN") => "Minnesota",
+        ("US", "MS") => "Mississippi",
+        ("US", "MO") => "Missouri",
+        ("US", "MT") => "Montana",
+        ("US", "NE") => "Nebraska",
+        ("US", "NV") => "Nevada",
+        ("US", "NH") => "New Hampshire",
+        ("US", "NJ") => "New Jersey",
+        ("US", "NM") => "New Mexico",
+        ("US", "NY") => "New York",
+        ("US", "NC") => "North Carolina",
+        ("US", "ND") => "North Dakota",
+        ("US", "OH") => "Ohio",
+        ("US", "OK") => "Oklahoma",
+        ("US", "OR") => "Oregon",
+        ("US", "PA") => "Pennsylvania",
+        ("US", "RI") => "Rhode Island",
+        ("US", "SC") => "South Carolina",
+        ("US", "SD") => "South Dakota",
+        ("US", "TN") => "Tennessee",
+        ("US", "TX") => "Texas",
+        ("US", "UT") => "Utah",
+        ("US", "VT") => "Vermont",
+        ("US", "VA") => "Virginia",
+        ("US", "WA") => "Washington",
+        ("US", "WV") => "West Virginia",
+        ("US", "WI") => "Wisconsin",
+        ("US", "WY") => "Wyoming",
+        ("CA", "AB") => "Alberta",
+        ("CA", "BC") => "British Columbia",
+        ("CA", "MB") => "Manitoba",
+        ("CA", "NB") => "New Brunswick",
+        ("CA", "NL") => "Newfoundland and Labrador",
+        ("CA", "NT") => "Northwest Territories",
+        ("CA", "NS") => "Nova Scotia",
+        ("CA", "NU") => "Nunavut",
+        ("CA", "ON") => "Ontario",
+        ("CA", "PE") => "Prince Edward Island",
+        ("CA", "QC") => "Quebec",
+        ("CA", "SK") => "Saskatchewan",
+        ("CA", "YT") => "Yukon",
+        ("AU", "ACT") => "Australian Capital Territory",
+        ("AU", "NSW") => "New South Wales",
+        ("AU", "NT") => "Northern Territory",
+        ("AU", "QLD") => "Queensland",
+        ("AU", "SA") => "South Australia",
+        ("AU", "TAS") => "Tasmania",
+        ("AU", "VIC") => "Victoria",
+        ("AU", "WA") => "Western Australia",
+        _ => return None,
+    })
+}
+
+/// Build the `address` object for a staged location from a Location*Input
+/// address, deriving the full country/province names from the supplied codes the
+/// way Shopify does. Absent codes serialize as null (not empty string).
+fn location_address_json(address_input: &BTreeMap<String, ResolvedValue>) -> Value {
+    let country_code = resolved_string_field(address_input, "countryCode");
+    let province_code =
+        resolved_string_field(address_input, "provinceCode").filter(|code| !code.is_empty());
+    let country = country_code
+        .as_deref()
+        .and_then(country_name_for_code)
+        .map(Value::from)
+        .unwrap_or(Value::Null);
+    let province = match (country_code.as_deref(), province_code.as_deref()) {
+        (Some(country), Some(province)) => province_name_for_code(country, province)
+            .map(Value::from)
+            .unwrap_or(Value::Null),
+        _ => Value::Null,
+    };
+    json!({
+        "address1": resolved_string_field(address_input, "address1"),
+        "address2": resolved_string_field(address_input, "address2"),
+        "city": resolved_string_field(address_input, "city"),
+        "country": country,
+        "countryCode": country_code,
+        "province": province,
+        "provinceCode": province_code,
+        "zip": resolved_string_field(address_input, "zip")
+    })
+}
+
 fn input_was_variable(field: &RootFieldSelection) -> bool {
     matches!(
         field.raw_arguments.get("input"),
@@ -5168,6 +5661,67 @@ fn location_add_inline_argument_not_accepted_error(
                 "argumentName": argument_name
             }
         }]
+    })
+}
+
+/// Metafield content types accepted by Shopify, in the exact order they appear
+/// in the public Admin API `INVALID_TYPE` user error. Used to validate location
+/// metafield input and to render the "Type must be one of the following: ..."
+/// message verbatim.
+const LOCATION_METAFIELD_VALID_TYPES: &[&str] = &[
+    "antenna_gain", "area", "battery_charge_capacity", "battery_energy_capacity", "boolean",
+    "capacitance", "color", "concentration", "data_storage_capacity", "data_transfer_rate",
+    "date_time", "date", "dimension", "display_density", "distance", "duration", "electric_current",
+    "electrical_resistance", "energy", "float", "frequency", "id", "illuminance", "inductance",
+    "integer", "json_string", "json", "language", "link", "list.antenna_gain", "list.area",
+    "list.battery_charge_capacity", "list.battery_energy_capacity", "list.boolean",
+    "list.capacitance", "list.color", "list.concentration", "list.data_storage_capacity",
+    "list.data_transfer_rate", "list.date_time", "list.date", "list.dimension",
+    "list.display_density", "list.distance", "list.duration", "list.electric_current",
+    "list.electrical_resistance", "list.energy", "list.frequency", "list.illuminance",
+    "list.inductance", "list.link", "list.luminous_flux", "list.mass_flow_rate",
+    "list.multi_line_text_field", "list.number_decimal", "list.number_integer", "list.power",
+    "list.pressure", "list.rating", "list.resolution", "list.rotational_speed",
+    "list.single_line_text_field", "list.sound_level", "list.speed", "list.temperature",
+    "list.thermal_power", "list.url", "list.voltage", "list.volume", "list.volumetric_flow_rate",
+    "list.weight", "luminous_flux", "mass_flow_rate", "money", "multi_line_text_field",
+    "number_decimal", "number_integer", "power", "pressure", "rating", "resolution",
+    "rich_text_field", "rotational_speed", "single_line_text_field", "sound_level", "speed",
+    "string", "temperature", "thermal_power", "url", "voltage", "volume", "volumetric_flow_rate",
+    "weight", "company_reference", "list.company_reference", "customer_reference",
+    "list.customer_reference", "product_reference", "list.product_reference", "collection_reference",
+    "list.collection_reference", "variant_reference", "list.variant_reference", "file_reference",
+    "list.file_reference", "product_taxonomy_value_reference",
+    "list.product_taxonomy_value_reference", "metaobject_reference", "list.metaobject_reference",
+    "mixed_reference", "list.mixed_reference", "page_reference", "list.page_reference",
+    "article_reference", "list.article_reference", "order_reference", "list.order_reference",
+];
+
+/// Top-level GraphQL error returned when a `locationAdd` metafield carries a
+/// blank `key`. Shopify rejects this as an input-arguments coercion failure
+/// anchored at both the field and the `$input` variable definition.
+fn location_add_metafield_blank_key_error(
+    field: &RootFieldSelection,
+    document: &crate::graphql::ParsedDocument,
+) -> Value {
+    let mut locations = vec![json!({
+        "line": field.location.line,
+        "column": field.location.column
+    })];
+    if let Some(definition) = document.variable_definitions.get("input") {
+        locations.push(json!({
+            "line": definition.location.line,
+            "column": definition.location.column
+        }));
+    }
+    json!({
+        "errors": [{
+            "message": "key can't be blank",
+            "locations": locations,
+            "extensions": { "code": "INVALID_FIELD_ARGUMENTS" },
+            "path": [field.response_key.clone()]
+        }],
+        "data": { field.response_key.clone(): Value::Null }
     })
 }
 

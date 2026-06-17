@@ -1537,6 +1537,29 @@ impl DraftProxy {
             (CapabilityDomain::StoreProperties, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && has_local_dispatch
+                    && root_field == "locationEdit" =>
+            {
+                // Edits to a location the proxy created/staged locally are applied
+                // locally (address-code derivation, field merges) so subsequent
+                // local reads reflect the change. Edits targeting a real upstream
+                // location the proxy has not staged forward verbatim, preserving
+                // the existing passthrough/replay behavior for those baselines.
+                if self.location_edit_targets_all_staged(&query, &variables) {
+                    self.location_edit(&query, &variables, request)
+                } else {
+                    self.dispatch_unknown_passthrough_or_legacy_error(
+                        request,
+                        &query,
+                        &variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    )
+                }
+            }
+            (CapabilityDomain::StoreProperties, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
                     && root_field == "locationDeactivate" =>
             {
                 self.location_deactivate(&query, &variables, request)

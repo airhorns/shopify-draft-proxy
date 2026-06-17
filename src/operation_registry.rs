@@ -303,6 +303,7 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("productDelete", CapabilityDomain::Products),
     local_mutation("productChangeStatus", CapabilityDomain::Products),
     local_mutation("locationAdd", CapabilityDomain::StoreProperties),
+    local_mutation("locationEdit", CapabilityDomain::StoreProperties),
     local_mutation("locationActivate", CapabilityDomain::StoreProperties),
     local_mutation("locationDeactivate", CapabilityDomain::StoreProperties),
     local_mutation("publishablePublish", CapabilityDomain::StoreProperties),
