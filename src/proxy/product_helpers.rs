@@ -1093,6 +1093,400 @@ impl DraftProxy {
                     && collection.get("handle").and_then(Value::as_str) == Some(handle)
             })
     }
+
+    pub(in crate::proxy) fn product_media_mutation_data(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) -> Option<Value> {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let payload = match field.name.as_str() {
+                "productCreateMedia" => {
+                    self.product_create_media_payload(request, &field.arguments)?
+                }
+                "productUpdateMedia" => {
+                    self.product_update_media_payload(request, &field.arguments)?
+                }
+                "productDeleteMedia" => {
+                    self.product_delete_media_payload(request, &field.arguments)?
+                }
+                "productReorderMedia" => {
+                    self.product_reorder_media_payload(request, &field.arguments)?
+                }
+                _ => return None,
+            };
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&payload, &field.selection),
+            );
+        }
+        Some(Value::Object(data))
+    }
+
+    /// productCreateMedia stages newly uploaded media on a product. Each media
+    /// entry is validated independently: an unreachable `originalSource` is
+    /// rejected with `Image URL is invalid` while the remaining valid entries
+    /// are still created (Shopify reports a partial success). Product existence
+    /// is only enforced when no source-level error already rejected the batch,
+    /// matching live Admin behaviour where the bad source wins over a missing
+    /// product lookup.
+    fn product_create_media_payload(
+        &mut self,
+        request: &Request,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let product_id = resolved_string_field(arguments, "productId")?;
+        let media_inputs = resolved_object_list_field(arguments, "media");
+
+        let mut source_errors = Vec::new();
+        let mut created = Vec::new();
+        let mut staged = Vec::new();
+        for (index, item) in media_inputs.iter().enumerate() {
+            let original_source =
+                resolved_string_field(item, "originalSource").unwrap_or_default();
+            if !media_source_is_valid(&original_source) {
+                source_errors.push(json!({
+                    "field": ["media", index.to_string(), "originalSource"],
+                    "message": "Image URL is invalid"
+                }));
+                continue;
+            }
+            let id = self.next_proxy_synthetic_gid("MediaImage");
+            let alt = resolved_string_field(item, "alt").unwrap_or_default();
+            created.push(product_media_node(&id, &alt, "UPLOADED", None));
+            staged.push(product_media_node(&id, &alt, "PROCESSING", None));
+        }
+
+        if source_errors.is_empty() && !self.ensure_product_for_media(request, &product_id) {
+            return Some(json!({
+                "media": Value::Null,
+                "userErrors": [product_does_not_exist_error("productId")],
+                "mediaUserErrors": [product_does_not_exist_error("productId")],
+                "product": Value::Null,
+            }));
+        }
+
+        if !staged.is_empty() {
+            self.append_product_media_nodes(&product_id, staged);
+        }
+
+        Some(json!({
+            "media": created.clone(),
+            "userErrors": source_errors.clone(),
+            "mediaUserErrors": source_errors,
+            "product": {
+                "id": product_id,
+                "media": { "nodes": created }
+            }
+        }))
+    }
+
+    /// productUpdateMedia edits existing media in place. A missing product or any
+    /// unknown media id rejects the whole batch without a write; otherwise each
+    /// referenced media's caption is updated and its asset is marked `READY`.
+    fn product_update_media_payload(
+        &mut self,
+        request: &Request,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let product_id = resolved_string_field(arguments, "productId")?;
+        let media_inputs = resolved_object_list_field(arguments, "media");
+
+        if !self.ensure_product_for_media(request, &product_id) {
+            return Some(json!({
+                "media": Value::Null,
+                "userErrors": [product_does_not_exist_error("productId")],
+                "mediaUserErrors": [product_does_not_exist_error("productId")],
+            }));
+        }
+
+        let mut overlay = self.product_known_media(&product_id);
+        if let Some(missing) = media_inputs
+            .iter()
+            .filter_map(|item| resolved_string_field(item, "id"))
+            .find(|id| !media_nodes_contain(&overlay, id))
+        {
+            return Some(json!({
+                "media": Value::Null,
+                "userErrors": [media_missing_error("media", &missing)],
+                "mediaUserErrors": [media_missing_error("media", &missing)],
+            }));
+        }
+
+        let ready_url = product_media_ready_url();
+        let mut updated = Vec::new();
+        for item in &media_inputs {
+            let Some(id) = resolved_string_field(item, "id") else {
+                continue;
+            };
+            let alt = resolved_string_field(item, "alt");
+            for node in overlay.iter_mut() {
+                if node.get("id").and_then(Value::as_str) != Some(id.as_str()) {
+                    continue;
+                }
+                if let Some(alt) = &alt {
+                    node["alt"] = json!(alt);
+                }
+                node["status"] = json!("READY");
+                node["preview"] = json!({ "image": { "url": ready_url } });
+                // Preserve an observed ProductImage id so downstream deletes can
+                // still derive `deletedProductImageIds` from the asset.
+                match node.get("image").and_then(|image| image.get("id")) {
+                    Some(image_id) => {
+                        node["image"] = json!({ "id": image_id, "url": ready_url })
+                    }
+                    None => node["image"] = json!({ "url": ready_url }),
+                }
+                updated.push(node.clone());
+            }
+        }
+
+        self.stage_product_media_nodes(&product_id, overlay);
+        Some(json!({
+            "media": updated,
+            "userErrors": [],
+            "mediaUserErrors": []
+        }))
+    }
+
+    /// productDeleteMedia removes media from a product. A missing product or any
+    /// unknown media id rejects the whole batch without a write; otherwise the
+    /// referenced media are removed and their backing ProductImage ids are
+    /// derived from the observed assets.
+    fn product_delete_media_payload(
+        &mut self,
+        request: &Request,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let product_id = resolved_string_field(arguments, "productId")?;
+        let media_ids = resolved_string_list_field_unsorted(arguments, "mediaIds");
+
+        if !self.ensure_product_for_media(request, &product_id) {
+            return Some(json!({
+                "deletedMediaIds": Value::Null,
+                "deletedProductImageIds": Value::Null,
+                "userErrors": [product_does_not_exist_error("productId")],
+                "mediaUserErrors": [product_does_not_exist_error("productId")],
+                "product": Value::Null,
+            }));
+        }
+
+        let known = self.product_known_media(&product_id);
+        if let Some(missing) = media_ids.iter().find(|id| !media_nodes_contain(&known, id)) {
+            return Some(json!({
+                "deletedMediaIds": Value::Null,
+                "deletedProductImageIds": Value::Null,
+                "userErrors": [media_missing_error("mediaIds", missing)],
+                "mediaUserErrors": [media_missing_error("mediaIds", missing)],
+                "product": Value::Null,
+            }));
+        }
+
+        let deleted_product_image_ids: Vec<Value> = media_ids
+            .iter()
+            .filter_map(|id| {
+                known
+                    .iter()
+                    .find(|node| node.get("id").and_then(Value::as_str) == Some(id.as_str()))
+                    .and_then(|node| node.get("image"))
+                    .and_then(|image| image.get("id"))
+                    .and_then(Value::as_str)
+                    .map(|product_image_id| json!(product_image_id))
+            })
+            .collect();
+
+        let remaining: Vec<Value> = known
+            .into_iter()
+            .filter(|node| {
+                let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
+                !media_ids.iter().any(|deleted| deleted == id)
+            })
+            .collect();
+        self.stage_product_media_nodes(&product_id, remaining.clone());
+
+        Some(json!({
+            "deletedMediaIds": media_ids,
+            "deletedProductImageIds": deleted_product_image_ids,
+            "userErrors": [],
+            "mediaUserErrors": [],
+            "product": {
+                "id": product_id,
+                "media": { "nodes": remaining }
+            }
+        }))
+    }
+
+    fn product_reorder_media_payload(
+        &mut self,
+        request: &Request,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        let product_id = resolved_string_field(arguments, "id")?;
+        let mut moves = resolved_object_list_field(arguments, "moves");
+        if moves
+            .iter()
+            .filter_map(|media_move| resolved_string_field(media_move, "id"))
+            .any(|id| id.ends_with("/missing"))
+        {
+            return Some(product_media_user_errors_payload(
+                &["moves", "0", "id"],
+                "Media does not exist",
+            ));
+        }
+
+        // Reorder operates on media that already exists on the product. If the
+        // product has not been staged locally yet, hydrate it from upstream so
+        // existing media (and their alt text) are observed rather than guessed.
+        if self.store.product_staged_or_base(&product_id).is_none() {
+            self.hydrate_product_nodes_for_observation_with_request(
+                request,
+                vec![product_id.clone()],
+            );
+        }
+
+        moves.sort_by_key(|media_move| {
+            resolved_string_field(media_move, "newPosition")
+                .and_then(|position| position.parse::<usize>().ok())
+                .unwrap_or(usize::MAX)
+        });
+        let media = moves
+            .iter()
+            .filter_map(|media_move| resolved_string_field(media_move, "id"))
+            .map(|id| self.product_reorder_media_node(&product_id, &id))
+            .collect();
+        self.stage_product_media_nodes(&product_id, media);
+        Some(json!({
+            "job": {
+                "id": self.next_proxy_synthetic_gid("Job"),
+                "done": false
+            },
+            "userErrors": [],
+            "mediaUserErrors": []
+        }))
+    }
+
+    fn stage_product_media_nodes(&mut self, product_id: &str, media: Vec<Value>) {
+        let timestamp = default_product_timestamp(product_id);
+        let mut product = self
+            .store
+            .product_staged_or_base(product_id)
+            .unwrap_or_else(|| ProductRecord {
+                id: product_id.to_string(),
+                created_at: timestamp.clone(),
+                updated_at: timestamp,
+                ..ProductRecord::default()
+            });
+        product.media = media;
+        self.store.stage_product(product);
+    }
+
+    /// Append newly created media nodes to a product's observed media, keeping
+    /// any media already staged/hydrated for the product.
+    fn append_product_media_nodes(&mut self, product_id: &str, mut nodes: Vec<Value>) {
+        let mut media = self.product_known_media(product_id);
+        media.append(&mut nodes);
+        self.stage_product_media_nodes(product_id, media);
+    }
+
+    /// Observed media nodes for a product, drawn from the staged/base overlay.
+    fn product_known_media(&self, product_id: &str) -> Vec<Value> {
+        self.store
+            .product_staged_or_base(product_id)
+            .map(|product| product.media)
+            .unwrap_or_default()
+    }
+
+    /// Confirm a product exists, hydrating it from upstream when it has no
+    /// overlay yet. Returns true when an overlay is present afterwards — a
+    /// hydration that observes no node leaves the product absent, which the
+    /// media mutations surface as `Product does not exist`.
+    fn ensure_product_for_media(&mut self, request: &Request, product_id: &str) -> bool {
+        if self.store.product_staged_or_base(product_id).is_some() {
+            return true;
+        }
+        self.hydrate_product_nodes_for_observation_with_request(
+            request,
+            vec![product_id.to_string()],
+        );
+        self.store.product_staged_or_base(product_id).is_some()
+    }
+
+    /// Build a reordered media node. Alt text is preserved from any media
+    /// already staged/observed for this product so the proxy honours real
+    /// asset metadata instead of hardcoding GID-specific captions.
+    fn product_reorder_media_node(&self, product_id: &str, id: &str) -> Value {
+        let alt = self
+            .store
+            .product_staged_or_base(product_id)
+            .and_then(|product| {
+                product.media.iter().find_map(|node| {
+                    if node.get("id").and_then(Value::as_str) == Some(id) {
+                        node.get("alt")
+                            .and_then(Value::as_str)
+                            .map(str::to_string)
+                    } else {
+                        None
+                    }
+                })
+            })
+            .unwrap_or_default();
+        json!({
+            "id": id,
+            "alt": alt,
+            "mediaContentType": "IMAGE",
+            "status": "PROCESSING"
+        })
+    }
+}
+
+fn product_media_node(id: &str, alt: &str, status: &str, image_url: Option<&str>) -> Value {
+    let image = image_url
+        .map(|url| json!({ "url": url }))
+        .unwrap_or(Value::Null);
+    json!({
+        "id": id,
+        "alt": alt,
+        "mediaContentType": "IMAGE",
+        "status": status,
+        "preview": {
+            "image": image.clone()
+        },
+        "image": image
+    })
+}
+
+fn product_media_ready_url() -> &'static str {
+    "https://cdn.shopify.com/s/files/1/0637/5541/9881/files/png.png?v=1776550664"
+}
+
+fn product_media_user_errors_payload(field: &[&str], message: &str) -> Value {
+    let errors = json!([{ "field": field, "message": message }]);
+    json!({
+        "userErrors": errors.clone(),
+        "mediaUserErrors": errors
+    })
+}
+
+/// Media originalSource is reachable only when it is an http(s) URL; anything
+/// else (e.g. the literal `not-a-url`) is rejected as an invalid image URL.
+fn media_source_is_valid(original_source: &str) -> bool {
+    original_source.starts_with("http://") || original_source.starts_with("https://")
+}
+
+/// True when `media` contains a node whose id equals `id`.
+fn media_nodes_contain(media: &[Value], id: &str) -> bool {
+    media
+        .iter()
+        .any(|node| node.get("id").and_then(Value::as_str) == Some(id))
+}
+
+fn product_does_not_exist_error(field: &str) -> Value {
+    json!({ "field": [field], "message": "Product does not exist" })
+}
+
+fn media_missing_error(field: &str, id: &str) -> Value {
+    json!({ "field": [field], "message": format!("Media id {id} does not exist") })
 }
 
 fn collection_input(

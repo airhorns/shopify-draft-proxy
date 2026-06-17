@@ -94,7 +94,128 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
             }
         }
     }
+    errors.extend(product_media_variable_errors(&document));
     errors
+}
+
+/// The product media mutations are not modelled in the declarative input
+/// schema above, but they still reject a couple of variable-level shapes that
+/// the parity captures assert on: a blank/invalid global id for the product,
+/// and a `mediaContentType` enum value outside the allowed set. These are
+/// genuine input checks (driven by the supplied values, not the fixture), so
+/// they emit the same `INVALID_VARIABLE` coercion errors Shopify returns.
+fn product_media_variable_errors(document: &ParsedDocument) -> Vec<Value> {
+    let mut errors = Vec::new();
+    for field in &document.root_fields {
+        let (id_argument, media_argument) = match field.name.as_str() {
+            "productCreateMedia" => ("productId", Some("media")),
+            "productUpdateMedia" | "productDeleteMedia" => ("productId", None),
+            "productReorderMedia" => ("id", None),
+            _ => continue,
+        };
+        if let Some(error) = media_invalid_global_id_error(document, field, id_argument) {
+            errors.push(error);
+            // Product id precedence: a single coercion error short-circuits the
+            // rest of the variable validation for this field.
+            continue;
+        }
+        if let Some(media_argument) = media_argument {
+            if let Some(error) = media_content_type_enum_error(document, field, media_argument) {
+                errors.push(error);
+            }
+        }
+    }
+    errors
+}
+
+fn media_variable_binding(
+    document: &ParsedDocument,
+    field: &RootFieldSelection,
+    argument_name: &str,
+) -> Option<(String, String, ResolvedValue)> {
+    match field.raw_arguments.get(argument_name)? {
+        RawArgumentValue::Variable { name, value } => {
+            let variable_type = document
+                .variable_definitions
+                .get(name)
+                .map(|definition| definition.type_display.clone())?;
+            Some((name.clone(), variable_type, value.clone()?))
+        }
+        _ => None,
+    }
+}
+
+fn media_invalid_global_id_error(
+    document: &ParsedDocument,
+    field: &RootFieldSelection,
+    argument_name: &str,
+) -> Option<Value> {
+    let (variable_name, variable_type, value) =
+        media_variable_binding(document, field, argument_name)?;
+    let id = match &value {
+        ResolvedValue::String(raw) => raw.clone(),
+        ResolvedValue::Null => String::new(),
+        _ => return None,
+    };
+    if id.starts_with("gid://") {
+        return None;
+    }
+    let explanation = format!("Invalid global id '{id}'");
+    Some(json!({
+        "message": format!(
+            "Variable ${variable_name} of type {variable_type} was provided invalid value"
+        ),
+        "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": resolved_value_json(&value),
+            "problems": [{
+                "path": [],
+                "explanation": explanation,
+                "message": explanation,
+            }]
+        }
+    }))
+}
+
+fn media_content_type_enum_error(
+    document: &ParsedDocument,
+    field: &RootFieldSelection,
+    argument_name: &str,
+) -> Option<Value> {
+    const ALLOWED: [&str; 4] = ["VIDEO", "EXTERNAL_VIDEO", "MODEL_3D", "IMAGE"];
+    let (variable_name, variable_type, value) =
+        media_variable_binding(document, field, argument_name)?;
+    let ResolvedValue::List(items) = &value else {
+        return None;
+    };
+    for (index, item) in items.iter().enumerate() {
+        let ResolvedValue::Object(fields) = item else {
+            continue;
+        };
+        let Some(ResolvedValue::String(content_type)) = fields.get("mediaContentType") else {
+            continue;
+        };
+        if ALLOWED.contains(&content_type.as_str()) {
+            continue;
+        }
+        let explanation = format!(
+            "Expected \"{content_type}\" to be one of: VIDEO, EXTERNAL_VIDEO, MODEL_3D, IMAGE"
+        );
+        return Some(json!({
+            "message": format!(
+                "Variable ${variable_name} of type {variable_type} was provided invalid value for {index}.mediaContentType ({explanation})"
+            ),
+            "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": resolved_value_json(&value),
+                "problems": [{
+                    "path": [index, "mediaContentType"],
+                    "explanation": explanation,
+                }]
+            }
+        }));
+    }
+    None
 }
 
 fn validate_argument_value(

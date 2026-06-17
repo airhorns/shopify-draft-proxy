@@ -657,6 +657,35 @@ impl DraftProxy {
                 if has_local_dispatch
                     && matches!(
                         root_field,
+                        "productCreateMedia"
+                            | "productUpdateMedia"
+                            | "productDeleteMedia"
+                            | "productReorderMedia"
+                    ) =>
+            {
+                match root_fields(&query, &variables) {
+                    Some(fields) => match self.product_media_mutation_data(request, &fields) {
+                        Some(data) => {
+                            self.record_mutation_log_entry(
+                                request,
+                                &query,
+                                &variables,
+                                root_field,
+                                Vec::new(),
+                            );
+                            ok_json(json!({ "data": data }))
+                        }
+                        // Error scenarios (e.g. unstaged live products) fall
+                        // through to the real upstream rather than a 501.
+                        None => (self.upstream_transport)(request.clone()),
+                    },
+                    None => (self.upstream_transport)(request.clone()),
+                }
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if has_local_dispatch
+                    && matches!(
+                        root_field,
                         "collectionCreate"
                             | "collectionUpdate"
                             | "collectionDelete"
