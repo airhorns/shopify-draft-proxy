@@ -1,0 +1,515 @@
+{
+  "capturedAt": "2026-06-15T03:42:34.164Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "file_create_content_type_inference",
+  "notes": [
+    "Captures fileCreate with omitted contentType for deterministic image, video, document, and extensionless source URLs.",
+    "Shopify derives image/video types from extension/MIME and defaults undetectable sources to GenericFile; this script uses extension-bearing URLs except the explicit extensionless branch to avoid relying on proxy-side network inference.",
+    "The video branch uploads a real MP4 to Shopify staged storage first, then passes a Shopify-accepted .mp4 staged-video URL with external_video_id to fileCreate without contentType."
+  ],
+  "setup": {
+    "videoFixtureSource": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+    "videoStagedUpload": {
+      "query": "mutation MediaFileCreateContentTypeInferenceStagedUpload($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": [
+          {
+            "filename": "media-file-content-type-inference-1781494952790-video.mp4",
+            "mimeType": "video/mp4",
+            "resource": "VIDEO",
+            "httpMethod": "POST",
+            "fileSize": "1128375"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "stagedUploadsCreate": {
+              "stagedTargets": [
+                {
+                  "url": "https://shopify-video-production-core-originals.storage.googleapis.com",
+                  "resourceUrl": "https://shopify-video-production-core-originals.storage.googleapis.com?external_video_id=86542889",
+                  "parameters": [
+                    {
+                      "name": "GoogleAccessId",
+                      "value": "video-production@video-production-225115.iam.gserviceaccount.com"
+                    },
+                    {
+                      "name": "key",
+                      "value": "c/o/v/bfdda9f9fe6a429ba8a3e32620657768.mp4"
+                    },
+                    {
+                      "name": "policy",
+                      "value": "eyJjb25kaXRpb25zIjpbWyJlcSIsIiRidWNrZXQiLCJzaG9waWZ5LXZpZGVvLXByb2R1Y3Rpb24tY29yZS1vcmlnaW5hbHMiXSxbImVxIiwiJGtleSIsImMvby92L2JmZGRhOWY5ZmU2YTQyOWJhOGEzZTMyNjIwNjU3NzY4Lm1wNCJdLFsiY29udGVudC1sZW5ndGgtcmFuZ2UiLDExMjgzNzUsMTEyODM3NV1dLCJleHBpcmF0aW9uIjoiMjAyNi0wNi0xNVQwNDo0MjozM1oifQ=="
+                    },
+                    {
+                      "name": "signature",
+                      "value": "ov35Tc8H+Ovy+gpAThiQtnVRi2kofT+Ja7VJwhg9/t+3NMJcTZ8+7n/0psQUByIadIvOHHNC4dYHlNqxpl/31I9y03tTQZ+/IiYsq6FfoiQwFpcReQv4bvXx4Wmy5okbd+wtC6+bphrPa1JjkvVgmTsU0AbevSkt+Yth7jeCWo9qDsuA9mM7Oi2MZhACh3s6lWwOXU+Kh1HyloNkZUYgHkYBZwQshl9tspT4UUVZyx+45SWa0jU+594ziyRnfsaIG0eedKItgdCBpblOlHQ54PltXTpJ2FRJLSQbu4kzNMox/yMdBG9SXTmU4pv0AuCBLIi4Lw1V/7P7G7PgDuUu/A=="
+                    }
+                  ]
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "videoUpload": {
+      "status": 204,
+      "body": ""
+    }
+  },
+  "create": {
+    "query": "mutation MediaFileCreateContentTypeInference($files: [FileCreateInput!]!) {\n  fileCreate(files: $files) {\n    files {\n      __typename\n      id\n      alt\n      createdAt\n      updatedAt\n      fileStatus\n      ... on MediaImage {\n        mimeType\n        image {\n          url\n          width\n          height\n        }\n        preview {\n          image {\n            url\n          }\n        }\n      }\n      ... on Video {\n        mediaContentType\n        status\n        preview {\n          image {\n            url\n          }\n        }\n      }\n      ... on GenericFile {\n        mimeType\n        url\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}",
+    "variables": {
+      "files": [
+        {
+          "originalSource": "https://placehold.co/600x400.png",
+          "filename": "media-file-content-type-inference-1781494952790-image.png",
+          "alt": "media-file-content-type-inference-1781494952790 image"
+        },
+        {
+          "originalSource": "https://shopify-video-production-core-originals.storage.googleapis.com/c/o/v/bfdda9f9fe6a429ba8a3e32620657768.mp4?external_video_id=86542889",
+          "filename": "media-file-content-type-inference-1781494952790-video.mp4",
+          "alt": "media-file-content-type-inference-1781494952790 video"
+        },
+        {
+          "originalSource": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+          "filename": "media-file-content-type-inference-1781494952790-document.pdf",
+          "alt": "media-file-content-type-inference-1781494952790 document"
+        },
+        {
+          "originalSource": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy",
+          "filename": "media-file-content-type-inference-1781494952790-extensionless",
+          "alt": "media-file-content-type-inference-1781494952790 extensionless"
+        }
+      ]
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "fileCreate": {
+            "files": [
+              {
+                "__typename": "MediaImage",
+                "id": "gid://shopify/MediaImage/43886179516722",
+                "alt": "media-file-content-type-inference-1781494952790 image",
+                "createdAt": "2026-06-15T03:42:33Z",
+                "updatedAt": "2026-06-15T03:42:33Z",
+                "fileStatus": "UPLOADED",
+                "mimeType": null,
+                "image": null,
+                "preview": {
+                  "image": null
+                }
+              },
+              {
+                "__typename": "Video",
+                "id": "gid://shopify/Video/43886179549490",
+                "alt": "media-file-content-type-inference-1781494952790 video",
+                "createdAt": "2026-06-15T03:42:33Z",
+                "updatedAt": "2026-06-15T03:42:33Z",
+                "fileStatus": "UPLOADED",
+                "mediaContentType": "VIDEO",
+                "status": "UPLOADED",
+                "preview": {
+                  "image": null
+                }
+              },
+              {
+                "__typename": "GenericFile",
+                "id": "gid://shopify/GenericFile/43886179582258",
+                "alt": "media-file-content-type-inference-1781494952790 document",
+                "createdAt": "2026-06-15T03:42:33Z",
+                "updatedAt": "2026-06-15T03:42:33Z",
+                "fileStatus": "UPLOADED",
+                "mimeType": null,
+                "url": null
+              },
+              {
+                "__typename": "GenericFile",
+                "id": "gid://shopify/GenericFile/43886179615026",
+                "alt": "media-file-content-type-inference-1781494952790 extensionless",
+                "createdAt": "2026-06-15T03:42:33Z",
+                "updatedAt": "2026-06-15T03:42:33Z",
+                "fileStatus": "UPLOADED",
+                "mimeType": null,
+                "url": null
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 23,
+            "actualQueryCost": 23,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1977,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "reads": {
+    "filesRead": {
+      "query": "query MediaFileCreateContentTypeInferenceFilesRead {\n  files(first: 10, reverse: true, sortKey: ID) {\n    nodes {\n      __typename\n      id\n      alt\n      createdAt\n      updatedAt\n      fileStatus\n      ... on MediaImage {\n        mimeType\n        image {\n          url\n          width\n          height\n        }\n        preview {\n          image {\n            url\n          }\n        }\n      }\n      ... on Video {\n        mediaContentType\n        status\n        preview {\n          image {\n            url\n          }\n        }\n      }\n      ... on GenericFile {\n        mimeType\n        url\n      }\n    }\n  }\n}",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "files": {
+              "nodes": [
+                {
+                  "__typename": "GenericFile",
+                  "id": "gid://shopify/GenericFile/43886179615026",
+                  "alt": "media-file-content-type-inference-1781494952790 extensionless",
+                  "createdAt": "2026-06-15T03:42:33Z",
+                  "updatedAt": "2026-06-15T03:42:33Z",
+                  "fileStatus": "PROCESSING",
+                  "mimeType": null,
+                  "url": null
+                },
+                {
+                  "__typename": "GenericFile",
+                  "id": "gid://shopify/GenericFile/43886179582258",
+                  "alt": "media-file-content-type-inference-1781494952790 document",
+                  "createdAt": "2026-06-15T03:42:33Z",
+                  "updatedAt": "2026-06-15T03:42:33Z",
+                  "fileStatus": "PROCESSING",
+                  "mimeType": null,
+                  "url": null
+                },
+                {
+                  "__typename": "Video",
+                  "id": "gid://shopify/Video/43886179549490",
+                  "alt": "media-file-content-type-inference-1781494952790 video",
+                  "createdAt": "2026-06-15T03:42:33Z",
+                  "updatedAt": "2026-06-15T03:42:33Z",
+                  "fileStatus": "UPLOADED",
+                  "mediaContentType": "VIDEO",
+                  "status": "UPLOADED",
+                  "preview": {
+                    "image": null
+                  }
+                },
+                {
+                  "__typename": "MediaImage",
+                  "id": "gid://shopify/MediaImage/43886179516722",
+                  "alt": "media-file-content-type-inference-1781494952790 image",
+                  "createdAt": "2026-06-15T03:42:33Z",
+                  "updatedAt": "2026-06-15T03:42:33Z",
+                  "fileStatus": "PROCESSING",
+                  "mimeType": null,
+                  "image": null,
+                  "preview": {
+                    "image": null
+                  }
+                },
+                {
+                  "__typename": "MediaImage",
+                  "id": "gid://shopify/MediaImage/41691586658610",
+                  "alt": "",
+                  "createdAt": "2025-06-14T20:54:35Z",
+                  "updatedAt": "2025-06-14T20:54:35Z",
+                  "fileStatus": "READY",
+                  "mimeType": "image/jpeg",
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MINNA_PAIR_BACK_WEB.jpg?v=1749934475",
+                    "width": 2048,
+                    "height": 1365
+                  },
+                  "preview": {
+                    "image": {
+                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MINNA_PAIR_BACK_WEB.jpg?v=1749934475"
+                    }
+                  }
+                },
+                {
+                  "__typename": "MediaImage",
+                  "id": "gid://shopify/MediaImage/41691586625842",
+                  "alt": "",
+                  "createdAt": "2025-06-14T20:54:35Z",
+                  "updatedAt": "2025-06-14T20:54:35Z",
+                  "fileStatus": "READY",
+                  "mimeType": "image/jpeg",
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MINNA_PAIR_FRONT_WEB.jpg?v=1749934475",
+                    "width": 2048,
+                    "height": 1365
+                  },
+                  "preview": {
+                    "image": {
+                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MINNA_PAIR_FRONT_WEB.jpg?v=1749934475"
+                    }
+                  }
+                },
+                {
+                  "__typename": "MediaImage",
+                  "id": "gid://shopify/MediaImage/41691586527538",
+                  "alt": "",
+                  "createdAt": "2025-06-14T20:54:32Z",
+                  "updatedAt": "2025-06-14T20:54:32Z",
+                  "fileStatus": "READY",
+                  "mimeType": "image/jpeg",
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MECHANIC_PAIR_BACK_WEB.jpg?v=1749934472",
+                    "width": 2048,
+                    "height": 1365
+                  },
+                  "preview": {
+                    "image": {
+                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MECHANIC_PAIR_BACK_WEB.jpg?v=1749934472"
+                    }
+                  }
+                },
+                {
+                  "__typename": "MediaImage",
+                  "id": "gid://shopify/MediaImage/41691586494770",
+                  "alt": "",
+                  "createdAt": "2025-06-14T20:54:32Z",
+                  "updatedAt": "2025-06-14T20:54:32Z",
+                  "fileStatus": "READY",
+                  "mimeType": "image/jpeg",
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MECHANIC_PAIR_FRONT_WEB.jpg?v=1749934472",
+                    "width": 2048,
+                    "height": 1365
+                  },
+                  "preview": {
+                    "image": {
+                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MECHANIC_PAIR_FRONT_WEB.jpg?v=1749934472"
+                    }
+                  }
+                },
+                {
+                  "__typename": "MediaImage",
+                  "id": "gid://shopify/MediaImage/41691586462002",
+                  "alt": "",
+                  "createdAt": "2025-06-14T20:54:28Z",
+                  "updatedAt": "2025-06-14T20:54:28Z",
+                  "fileStatus": "READY",
+                  "mimeType": "image/jpeg",
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MAMBA_PAIR_BACK_WEB.jpg?v=1749934468",
+                    "width": 2048,
+                    "height": 1365
+                  },
+                  "preview": {
+                    "image": {
+                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MAMBA_PAIR_BACK_WEB.jpg?v=1749934468"
+                    }
+                  }
+                },
+                {
+                  "__typename": "MediaImage",
+                  "id": "gid://shopify/MediaImage/41691586429234",
+                  "alt": "",
+                  "createdAt": "2025-06-14T20:54:28Z",
+                  "updatedAt": "2025-06-14T20:54:28Z",
+                  "fileStatus": "READY",
+                  "mimeType": "image/jpeg",
+                  "image": {
+                    "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MAMBA_PAIR_FRONT_WEB.jpg?v=1749934468",
+                    "width": 2048,
+                    "height": 1365
+                  },
+                  "preview": {
+                    "image": {
+                      "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MAMBA_PAIR_FRONT_WEB.jpg?v=1749934468"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "videoNode": {
+      "query": "query MediaFileCreateContentTypeInferenceVideoNode($id: ID!) {\n  node(id: $id) {\n    __typename\n    id\n    ... on Video {\n      alt\n      createdAt\n      updatedAt\n      fileStatus\n      mediaContentType\n      status\n      preview {\n        image {\n          url\n        }\n      }\n    }\n    ... on MediaImage {\n      image {\n        url\n      }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/Video/43886179549490"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "node": {
+              "__typename": "Video",
+              "id": "gid://shopify/Video/43886179549490",
+              "alt": "media-file-content-type-inference-1781494952790 video",
+              "createdAt": "2026-06-15T03:42:33Z",
+              "updatedAt": "2026-06-15T03:42:33Z",
+              "fileStatus": "UPLOADED",
+              "mediaContentType": "VIDEO",
+              "status": "UPLOADED",
+              "preview": {
+                "image": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "documentNode": {
+      "query": "query MediaFileCreateContentTypeInferenceGenericNode($id: ID!) {\n  node(id: $id) {\n    __typename\n    id\n    ... on GenericFile {\n      alt\n      createdAt\n      updatedAt\n      fileStatus\n      mimeType\n      url\n    }\n    ... on MediaImage {\n      image {\n        url\n      }\n    }\n    ... on Video {\n      mediaContentType\n      status\n      preview {\n        image {\n          url\n        }\n      }\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/GenericFile/43886179582258"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "node": {
+              "__typename": "GenericFile",
+              "id": "gid://shopify/GenericFile/43886179582258",
+              "alt": "media-file-content-type-inference-1781494952790 document",
+              "createdAt": "2026-06-15T03:42:33Z",
+              "updatedAt": "2026-06-15T03:42:33Z",
+              "fileStatus": "PROCESSING",
+              "mimeType": null,
+              "url": null
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "extensionlessNode": {
+      "query": "query MediaFileCreateContentTypeInferenceGenericNode($id: ID!) {\n  node(id: $id) {\n    __typename\n    id\n    ... on GenericFile {\n      alt\n      createdAt\n      updatedAt\n      fileStatus\n      mimeType\n      url\n    }\n    ... on MediaImage {\n      image {\n        url\n      }\n    }\n    ... on Video {\n      mediaContentType\n      status\n      preview {\n        image {\n          url\n        }\n      }\n    }\n  }\n}",
+      "variables": {
+        "id": "gid://shopify/GenericFile/43886179615026"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "node": {
+              "__typename": "GenericFile",
+              "id": "gid://shopify/GenericFile/43886179615026",
+              "alt": "media-file-content-type-inference-1781494952790 extensionless",
+              "createdAt": "2026-06-15T03:42:33Z",
+              "updatedAt": "2026-06-15T03:42:33Z",
+              "fileStatus": "PROCESSING",
+              "mimeType": null,
+              "url": null
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [],
+  "cleanup": {
+    "variables": {
+      "fileIds": [
+        "gid://shopify/MediaImage/43886179516722",
+        "gid://shopify/Video/43886179549490",
+        "gid://shopify/GenericFile/43886179582258",
+        "gid://shopify/GenericFile/43886179615026"
+      ]
+    },
+    "response": {
+      "query": "mutation MediaFileCreateContentTypeInferenceCleanup($fileIds: [ID!]!) {\n      fileDelete(fileIds: $fileIds) {\n        deletedFileIds\n        userErrors { field message code }\n      }\n    }",
+      "variables": {
+        "fileIds": [
+          "gid://shopify/MediaImage/43886179516722",
+          "gid://shopify/Video/43886179549490",
+          "gid://shopify/GenericFile/43886179582258",
+          "gid://shopify/GenericFile/43886179615026"
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fileDelete": {
+              "deletedFileIds": [
+                "gid://shopify/MediaImage/43886179516722",
+                "gid://shopify/Video/43886179549490",
+                "gid://shopify/GenericFile/43886179582258",
+                "gid://shopify/GenericFile/43886179615026"
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

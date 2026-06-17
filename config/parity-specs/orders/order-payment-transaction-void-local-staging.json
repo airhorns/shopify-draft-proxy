@@ -14,7 +14,28 @@
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
+    "expectedDifferences": [
+      {
+        "path": "$.data.transactionVoid.transaction.id",
+        "matcher": "shopify-gid:OrderTransaction",
+        "reason": "Void transaction IDs are allocated from per-proxy staged state instead of the legacy fixture-fitted /5 literal."
+      },
+      {
+        "path": "$.data.transactionVoid.transaction.paymentId",
+        "matcher": "shopify-gid:Payment",
+        "reason": "Void payment IDs derive from the synthetic void transaction ID."
+      },
+      {
+        "path": "$.data.order.transactions[1].id",
+        "matcher": "shopify-gid:OrderTransaction",
+        "reason": "Downstream reads expose the generated void transaction ID from staged order state."
+      },
+      {
+        "path": "$.data.order.transactions[1].paymentId",
+        "matcher": "shopify-gid:Payment",
+        "reason": "Downstream reads expose the generated void payment ID from staged order state."
+      }
+    ],
     "targets": [
       {
         "name": "void-authorization-stages-void-transaction",
