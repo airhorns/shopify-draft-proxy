@@ -1465,7 +1465,11 @@ pub(in crate::proxy) fn invalid_locale_message(invalid_locales: &[String]) -> St
     }
 }
 
-pub(in crate::proxy) fn market_web_presence_helper_record(draft: &WebPresenceDraft) -> Value {
+pub(in crate::proxy) fn market_web_presence_helper_record(
+    draft: &WebPresenceDraft,
+    shop_domain: &str,
+) -> Value {
+    let origin = format!("https://{shop_domain}");
     let domain = draft
         .domain_id
         .as_deref()
@@ -1473,32 +1477,32 @@ pub(in crate::proxy) fn market_web_presence_helper_record(draft: &WebPresenceDra
         .map(|domain_id| {
             json!({
                 "id": domain_id,
-                "host": "acme.myshopify.com",
-                "url": "https://acme.myshopify.com",
+                "host": shop_domain,
+                "url": origin,
                 "sslEnabled": true
             })
         })
         .unwrap_or(Value::Null);
+    // Shopify lists root URLs as the default locale first, then the alternate
+    // locales sorted alphabetically by locale code (the `alternateLocales` field
+    // itself preserves the caller's input order; only `rootUrls` is sorted).
+    let mut sorted_alternates = draft.alternate_locales.clone();
+    sorted_alternates.sort();
     let locales = std::iter::once(draft.default_locale.clone())
-        .chain(draft.alternate_locales.iter().cloned())
+        .chain(sorted_alternates.into_iter())
         .collect::<Vec<_>>();
+    // Shopify roots a subfolder web presence at `/{language}-{suffix}/` for every
+    // locale (the language subtag of e.g. `en-us`/`fr-CA` collapses to `en`/`fr`).
+    // Domain-backed presences root each locale at `/{language}/` on the domain host.
     let root_urls = locales
         .iter()
-        .enumerate()
-        .map(|(index, locale)| {
+        .map(|locale| {
+            let language = locale.split('-').next().unwrap_or(locale.as_str());
             let url = if draft.domain_id.is_some() {
-                if index == 0 {
-                    "https://acme.myshopify.com/".to_string()
-                } else {
-                    format!("https://acme.myshopify.com/{locale}/")
-                }
+                format!("{origin}/{language}/")
             } else {
                 let suffix = draft.subfolder_suffix.as_deref().unwrap_or_default();
-                if index == 0 {
-                    format!("https://acme.myshopify.com/{suffix}/")
-                } else {
-                    format!("https://acme.myshopify.com/{suffix}/{locale}/")
-                }
+                format!("{origin}/{language}-{suffix}/")
             };
             json!({"locale": locale, "url": url})
         })

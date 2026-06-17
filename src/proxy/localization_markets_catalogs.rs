@@ -2128,7 +2128,8 @@ impl DraftProxy {
             self.store.staged.web_presences.len() + 1
         );
         draft.id = id.clone();
-        let record = market_web_presence_helper_record(&draft);
+        let shop_domain = web_presence_shop_domain(&self.store);
+        let record = market_web_presence_helper_record(&draft, &shop_domain);
         self.store
             .staged
             .web_presences
@@ -2161,7 +2162,8 @@ impl DraftProxy {
         if !errors.is_empty() {
             return json!({"webPresence": null, "userErrors": errors});
         }
-        let record = market_web_presence_helper_record(&draft);
+        let shop_domain = web_presence_shop_domain(&self.store);
+        let record = market_web_presence_helper_record(&draft, &shop_domain);
         self.store
             .staged
             .web_presences
@@ -3327,6 +3329,17 @@ fn web_presence_remove_locale(record: &mut Value, locale: &str) {
     if let Some(root_urls) = obj.get_mut("rootUrls").and_then(Value::as_array_mut) {
         root_urls.retain(|entry| entry["locale"].as_str() != Some(locale));
     }
+}
+
+/// The shop's myshopify domain, used as the host for synthesized web-presence
+/// root URLs. Falls back to the conformance default when the shop record has no
+/// `myshopifyDomain` (mirrors the fallback used by region-coverage lookups).
+fn web_presence_shop_domain(store: &Store) -> String {
+    effective_shop_json(store)
+        .get("myshopifyDomain")
+        .and_then(Value::as_str)
+        .unwrap_or("harry-test-heelo.myshopify.com")
+        .to_string()
 }
 
 /// Extract `scheme://host` from a URL, dropping any path/query suffix.
