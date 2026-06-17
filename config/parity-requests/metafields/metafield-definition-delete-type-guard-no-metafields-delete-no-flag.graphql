@@ -1,0 +1,16 @@
+mutation MetafieldDefinitionDeleteTypeGuardNoMetafieldsDeleteNoFlag($id: ID!) {
+  metafieldDefinitionDelete(id: $id) {
+    deletedDefinitionId
+    deletedDefinition {
+      ownerType
+      namespace
+      key
+    }
+    userErrors {
+      __typename
+      field
+      message
+      code
+    }
+  }
+}

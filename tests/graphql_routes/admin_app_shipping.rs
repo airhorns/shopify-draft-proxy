@@ -453,6 +453,45 @@ fn bulk_operation_run_mutation_validates_without_dispatcher_errors() {
     }
 }
 
+fn staged_bulk_mutation_upload_path(
+    proxy: &mut DraftProxy,
+    filename: &str,
+    file_size: &str,
+) -> String {
+    let staged = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateBulkUpload($input: [StagedUploadInput!]!) {
+          stagedUploadsCreate(input: $input) {
+            stagedTargets { parameters { name value } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": [{
+                "resource": "BULK_MUTATION_VARIABLES",
+                "filename": filename,
+                "mimeType": "text/jsonl",
+                "httpMethod": "POST",
+                "fileSize": file_size
+            }]
+        }),
+    ));
+    assert_eq!(staged.status, 200);
+    assert_eq!(
+        staged.body["data"]["stagedUploadsCreate"]["userErrors"],
+        json!([])
+    );
+    staged.body["data"]["stagedUploadsCreate"]["stagedTargets"][0]["parameters"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|parameter| parameter["name"] == "key")
+        .and_then(|parameter| parameter["value"].as_str())
+        .unwrap()
+        .to_string()
+}
+
 #[test]
 fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
     let mut proxy = snapshot_proxy();
@@ -536,35 +575,66 @@ fn bulk_operation_run_mutation_stages_created_status_from_staged_upload() {
 }
 
 #[test]
-fn bulk_operation_run_mutation_validates_client_identifier_and_file_size() {
-    let mut proxy = configured_proxy_with_bulk_mutation_max(ReadMode::Snapshot, None, Some(10));
-    let staged = proxy.process_request(json_graphql_request(
+fn bulk_operation_run_mutation_rejects_oversized_staged_upload_with_shopify_error_shape() {
+    let mut proxy = snapshot_proxy();
+    let path = staged_bulk_mutation_upload_path(&mut proxy, "oversized-import.jsonl", "104857601");
+    let log_before = proxy.get_log_snapshot();
+
+    let response = proxy.process_request(json_graphql_request(
         r#"
-        mutation CreateBulkUpload($input: [StagedUploadInput!]!) {
-          stagedUploadsCreate(input: $input) {
-            stagedTargets { parameters { name value } }
-            userErrors { field message }
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id }
+            userErrors { field message code }
           }
         }
         "#,
         json!({
-            "input": [{
-                "resource": "BULK_MUTATION_VARIABLES",
-                "filename": "oversized-import.jsonl",
-                "mimeType": "text/jsonl",
-                "httpMethod": "POST",
-                "fileSize": "11"
-            }]
+            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+            "path": path
         }),
     ));
-    let path = staged.body["data"]["stagedUploadsCreate"]["stagedTargets"][0]["parameters"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|parameter| parameter["name"] == "key")
-        .and_then(|parameter| parameter["value"].as_str())
-        .unwrap()
-        .to_string();
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "The input file size exceeds the maximum allowed size of 100 MB.",
+            "code": "INVALID_STAGED_UPLOAD_FILE"
+        }])
+    );
+    assert_eq!(proxy.get_log_snapshot(), log_before);
+
+    let current = proxy.process_request(json_graphql_request(
+        r#"
+        query CurrentMutation {
+          currentBulkOperation(type: MUTATION) { id }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        current.body["data"]["currentBulkOperation"],
+        Value::Null,
+        "oversized validation must not stage a mutation bulk operation"
+    );
+}
+
+#[test]
+fn bulk_operation_run_mutation_validates_client_identifier_and_configured_file_size() {
+    let max_bytes = 2 * 1024 * 1024;
+    let mut proxy =
+        configured_proxy_with_bulk_mutation_max(ReadMode::Snapshot, None, Some(max_bytes));
+    let path = staged_bulk_mutation_upload_path(
+        &mut proxy,
+        "configured-oversized-import.jsonl",
+        &(max_bytes + 1).to_string(),
+    );
     let mutation =
         "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }";
 
@@ -606,10 +676,78 @@ fn bulk_operation_run_mutation_validates_client_identifier_and_file_size() {
     assert_eq!(
         oversized.body["data"]["bulkOperationRunMutation"]["userErrors"],
         json!([{
-            "field": ["stagedUploadPath"],
-            "message": "The JSONL file exceeds the maximum allowed size of 100 MB.",
-            "code": "INVALID_MUTATION"
+            "field": null,
+            "message": "The input file size exceeds the maximum allowed size of 2 MB.",
+            "code": "INVALID_STAGED_UPLOAD_FILE"
         }])
+    );
+}
+
+#[test]
+fn bulk_operation_run_mutation_file_size_error_precedes_in_progress_throttle() {
+    let max_bytes = 2 * 1024 * 1024;
+    let mut proxy =
+        configured_proxy_with_bulk_mutation_max(ReadMode::Snapshot, None, Some(max_bytes));
+    let path = staged_bulk_mutation_upload_path(
+        &mut proxy,
+        "oversized-import-with-running-mutation.jsonl",
+        &(max_bytes + 1).to_string(),
+    );
+    let mut cancel_request = json_graphql_request(
+        r#"
+        mutation CancelCapturedMutation($id: ID!) {
+          bulkOperationCancel(id: $id) {
+            bulkOperation { id status type }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/BulkOperation/7749099127090" }),
+    );
+    cancel_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let cancel = proxy.process_request(cancel_request);
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["type"],
+        json!("MUTATION")
+    );
+    assert_eq!(
+        cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
+        json!("CANCELING")
+    );
+    let log_before = proxy.get_log_snapshot();
+
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation RunBulkImport($mutation: String!, $path: String!) {
+          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
+            bulkOperation { id status type }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+            "path": path
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["bulkOperation"],
+        Value::Null
+    );
+    assert_eq!(
+        response.body["data"]["bulkOperationRunMutation"]["userErrors"],
+        json!([{
+            "field": null,
+            "message": "The input file size exceeds the maximum allowed size of 2 MB.",
+            "code": "INVALID_STAGED_UPLOAD_FILE"
+        }])
+    );
+    assert_eq!(
+        proxy.get_log_snapshot(),
+        log_before,
+        "oversized validation must not append a bulk mutation log entry"
     );
 }
 
@@ -4861,6 +4999,308 @@ fn shipping_package_lifecycle_stages_state_defaults_deletes_and_log_order() {
         json!("shippingPackageDelete")
     );
     assert_eq!(log["entries"][3]["status"], json!("staged"));
+}
+
+#[test]
+fn location_local_pickup_enable_disable_stage_settings_and_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedPickupLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) { location { id name localPickupSettingsV2 { pickupTime instructions } } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "input": {
+                "name": "Pickup Warehouse",
+                "address": { "countryCode": "US" },
+                "fulfillsOnlineOrders": false
+            }
+        }),
+    ));
+    let location_id = add.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let enable_query = r#"
+        mutation ConsumerNamedAnything($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) {
+          aliasedEnable: locationLocalPickupEnable(localPickupSettings: $localPickupSettings) {
+            localPickupSettings { pickupTime instructions }
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let enable = proxy.process_request(json_graphql_request(
+        enable_query,
+        json!({
+            "localPickupSettings": {
+                "locationId": location_id,
+                "pickupTime": "ONE_HOUR",
+                "instructions": "Ring bell"
+            }
+        }),
+    ));
+    assert_eq!(enable.status, 200);
+    assert_eq!(
+        enable.body["data"]["aliasedEnable"],
+        json!({
+            "localPickupSettings": { "pickupTime": "ONE_HOUR", "instructions": "Ring bell" },
+            "userErrors": []
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadPickup($id: ID!) {
+          location(id: $id) { id name localPickupSettingsV2 { pickupTime instructions } }
+          locationsAvailableForDeliveryProfilesConnection(first: 5) {
+            nodes { id localPickupSettingsV2 { pickupTime instructions } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        read.body["data"]["location"]["localPickupSettingsV2"],
+        json!({ "pickupTime": "ONE_HOUR", "instructions": "Ring bell" })
+    );
+    assert_eq!(
+        read.body["data"]["locationsAvailableForDeliveryProfilesConnection"]["nodes"][0]
+            ["localPickupSettingsV2"],
+        json!({ "pickupTime": "ONE_HOUR", "instructions": "Ring bell" })
+    );
+
+    let disable_query = r#"
+        mutation DisablePickup($locationId: ID!) {
+          locationLocalPickupDisable(locationId: $locationId) {
+            locationId
+            userErrors { field message code }
+          }
+        }
+    "#;
+    let disable = proxy.process_request(json_graphql_request(
+        disable_query,
+        json!({ "locationId": location_id }),
+    ));
+    assert_eq!(
+        disable.body["data"]["locationLocalPickupDisable"],
+        json!({ "locationId": location_id, "userErrors": [] })
+    );
+
+    let after_disable = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadPickup($id: ID!) {
+          location(id: $id) { id localPickupSettingsV2 { pickupTime instructions } }
+        }
+        "#,
+        json!({ "id": location_id }),
+    ));
+    assert_eq!(
+        after_disable.body["data"]["location"]["localPickupSettingsV2"],
+        Value::Null
+    );
+
+    let state = proxy.get_state_snapshot();
+    assert_eq!(
+        state["stagedState"]["locations"][location_id.as_str()]["localPickupSettingsV2"],
+        Value::Null
+    );
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"][1]["status"], json!("staged"));
+    assert_eq!(
+        log["entries"][1]["interpreted"]["primaryRootField"],
+        json!("locationLocalPickupEnable")
+    );
+    let raw_body: Value =
+        serde_json::from_str(log["entries"][1]["rawBody"].as_str().unwrap()).unwrap();
+    assert_eq!(raw_body["query"], json!(enable_query));
+    assert_eq!(
+        log["entries"][2]["interpreted"]["primaryRootField"],
+        json!("locationLocalPickupDisable")
+    );
+}
+
+#[test]
+fn location_local_pickup_enable_validates_pickup_time_and_location_status() {
+    let mut proxy = snapshot_proxy();
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedPickupLocation($input: LocationAddInput!) {
+          locationAdd(input: $input) { location { id } userErrors { field message code } }
+        }
+        "#,
+        json!({ "input": { "name": "Pickup Validation", "address": { "countryCode": "US" } } }),
+    ));
+    let location_id = add.body["data"]["locationAdd"]["location"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let query = r#"
+        mutation ValidatePickup($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) {
+          locationLocalPickupEnable(localPickupSettings: $localPickupSettings) {
+            localPickupSettings { pickupTime instructions }
+            userErrors { field message code }
+          }
+        }
+    "#;
+
+    let invalid_time = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "localPickupSettings": {
+                "locationId": location_id,
+                "pickupTime": "CUSTOM",
+                "instructions": "Nope"
+            }
+        }),
+    ));
+    assert_eq!(
+        invalid_time.body["data"]["locationLocalPickupEnable"],
+        json!({
+            "localPickupSettings": null,
+            "userErrors": [{
+                "field": ["localPickupSettings"],
+                "message": "Custom pickup time is not allowed for local pickup settings.",
+                "code": "CUSTOM_PICKUP_TIME_NOT_ALLOWED"
+            }]
+        })
+    );
+
+    let unknown = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "localPickupSettings": {
+                "locationId": "gid://shopify/Location/999999999999",
+                "pickupTime": "ONE_HOUR"
+            }
+        }),
+    ));
+    assert_eq!(
+        unknown.body["data"]["locationLocalPickupEnable"],
+        json!({
+            "localPickupSettings": null,
+            "userErrors": [{
+                "field": ["localPickupSettings"],
+                "message": "Unable to find an active location for location ID 999999999999",
+                "code": "ACTIVE_LOCATION_NOT_FOUND"
+            }]
+        })
+    );
+
+    let inactive_id = "gid://shopify/Location/112849158450";
+    let inactive = proxy.process_request(json_graphql_request(
+        query,
+        json!({
+            "localPickupSettings": {
+                "locationId": inactive_id,
+                "pickupTime": "ONE_HOUR"
+            }
+        }),
+    ));
+    assert_eq!(
+        inactive.body["data"]["locationLocalPickupEnable"]["userErrors"][0]["code"],
+        json!("ACTIVE_LOCATION_NOT_FOUND")
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn location_local_pickup_live_hybrid_mutations_are_local_and_overlay_observed_reads() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let captured = Arc::clone(&forwarded);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request);
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "locationsAvailableForDeliveryProfilesConnection": {
+                            "nodes": [{
+                                "id": "gid://shopify/Location/106318496050",
+                                "name": "Snow City Warehouse",
+                                "localPickupSettingsV2": null,
+                                "isActive": true,
+                                "isFulfillmentService": false
+                            }],
+                            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+                        }
+                    }
+                }),
+            }
+        });
+
+    let hydrate = proxy.process_request(json_graphql_request(
+        r#"
+        query HydratePickupLocations {
+          locationsAvailableForDeliveryProfilesConnection(first: 1) {
+            nodes { id name localPickupSettingsV2 { pickupTime instructions } }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(hydrate.status, 200);
+    assert_eq!(forwarded.lock().unwrap().len(), 1);
+
+    let enable = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PickupEnable($localPickupSettings: DeliveryLocationLocalPickupEnableInput!) {
+          locationLocalPickupEnable(localPickupSettings: $localPickupSettings) {
+            localPickupSettings { pickupTime instructions }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "localPickupSettings": {
+                "locationId": "gid://shopify/Location/106318496050",
+                "pickupTime": "TWO_HOURS",
+                "instructions": "Desk pickup"
+            }
+        }),
+    ));
+    assert_eq!(
+        enable.body["data"]["locationLocalPickupEnable"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        forwarded.lock().unwrap().len(),
+        1,
+        "supported local-pickup mutation must not write upstream"
+    );
+
+    let after = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAfterPickupEnable($id: ID!) {
+          location(id: $id) { id name localPickupSettingsV2 { pickupTime instructions } }
+          locationsAvailableForDeliveryProfilesConnection(first: 1) {
+            nodes { id localPickupSettingsV2 { pickupTime instructions } }
+          }
+        }
+        "#,
+        json!({ "id": "gid://shopify/Location/106318496050" }),
+    ));
+    assert_eq!(
+        after.body["data"]["location"]["localPickupSettingsV2"],
+        json!({ "pickupTime": "TWO_HOURS", "instructions": "Desk pickup" })
+    );
+    assert_eq!(
+        after.body["data"]["locationsAvailableForDeliveryProfilesConnection"]["nodes"][0]
+            ["localPickupSettingsV2"],
+        json!({ "pickupTime": "TWO_HOURS", "instructions": "Desk pickup" })
+    );
+    assert_eq!(forwarded.lock().unwrap().len(), 1);
 }
 
 #[test]

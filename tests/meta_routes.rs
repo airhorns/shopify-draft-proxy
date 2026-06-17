@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 use std::sync::{Arc, Mutex};
 
 use pretty_assertions::assert_eq;
@@ -830,16 +832,20 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
             "discounts": {},
             "discountCodeIndex": {},
             "deletedDiscountIds": [],
+            "discountBulkOperations": {},
             "discountRedeemCodeBulkCreations": {},
             "ownerMetafields": {},
             "deletedOwnerMetafields": [],
             "customerOrders": {},
             "taggableResources": {},
             "orders": {},
+            "deletedOrderIds": [],
             "returns": {},
             "returnsByOrder": {},
             "reverseDeliveries": {},
             "reverseFulfillmentOrders": {},
+            "observedShippingLocations": {},
+            "observedShippingLocationOrder": [],
             "locations": {},
             "locationOrder": [],
             "locationLimitReached": false,
@@ -857,12 +863,25 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
             "deletedSavedSearchIds": []
         }
     });
-    expected["stagedState"]["storeCreditAccounts"] = json!({});
-    expected["stagedState"]["storeCreditAccountOrder"] = json!([]);
-    expected["stagedState"]["storeCreditTransactions"] = json!({});
-    expected["stagedState"]["storeCreditTransactionOrder"] = json!([]);
-    expected["stagedState"]["nextStoreCreditAccountId"] = json!(1);
-    expected["stagedState"]["nextStoreCreditTransactionId"] = json!(1);
+    let staged_state = expected["stagedState"]
+        .as_object_mut()
+        .expect("expected stagedState object");
+    staged_state.insert("storeCreditAccounts".to_string(), json!({}));
+    staged_state.insert("storeCreditAccountOrder".to_string(), json!([]));
+    staged_state.insert("storeCreditTransactions".to_string(), json!({}));
+    staged_state.insert("storeCreditTransactionOrder".to_string(), json!([]));
+    staged_state.insert("nextStoreCreditAccountId".to_string(), json!(1));
+    staged_state.insert("nextStoreCreditTransactionId".to_string(), json!(1));
+    staged_state.insert("b2bCompanies".to_string(), json!({}));
+    staged_state.insert("b2bLocations".to_string(), json!({}));
+    staged_state.insert("b2bContacts".to_string(), json!({}));
+    staged_state.insert("deletedB2bContactIds".to_string(), json!([]));
+    staged_state.insert("b2bContactRoles".to_string(), json!({}));
+    staged_state.insert("b2bContactRoleAssignments".to_string(), json!({}));
+    staged_state.insert("deletedB2bContactRoleAssignmentIds".to_string(), json!([]));
+    staged_state.insert("nextB2bCompanyId".to_string(), json!(1));
+    staged_state.insert("nextB2bContactId".to_string(), json!(1));
+    staged_state.insert("nextB2bContactRoleAssignmentId".to_string(), json!(1));
     assert_eq!(state.body, expected);
 }
 

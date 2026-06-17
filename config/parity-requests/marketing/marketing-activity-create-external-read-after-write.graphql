@@ -1,0 +1,41 @@
+mutation MarketingActivityLifecycle(
+  $createInput: MarketingActivityCreateExternalInput!
+  $remoteId: String!
+  $updateInput: MarketingActivityUpdateExternalInput!
+) {
+  createExternal: marketingActivityCreateExternal(input: $createInput) {
+    marketingActivity {
+      id
+      adSpend {
+        amount
+        currencyCode
+      }
+      marketingEvent {
+        scheduledToEndAt
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  updateExternal: marketingActivityUpdateExternal(remoteId: $remoteId, input: $updateInput) {
+    marketingActivity {
+      id
+      title
+      adSpend {
+        amount
+        currencyCode
+      }
+      marketingEvent {
+        scheduledToEndAt
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
