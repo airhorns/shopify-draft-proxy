@@ -882,6 +882,13 @@ impl DraftProxy {
             && (self.config.read_mode == ReadMode::Snapshot || self.has_staged_locations())
         {
             if let Some(fields) = root_fields(&query, &variables) {
+                if self.config.read_mode != ReadMode::Snapshot
+                    && !self.location_read_can_be_served_locally(&fields)
+                {
+                    let mut response = (self.upstream_transport)(request.clone());
+                    self.overlay_location_read_response(&mut response, &fields);
+                    return response;
+                }
                 let mut data = self.location_read_data(&fields);
                 merge_json_object_fields(
                     &mut data,
@@ -1608,7 +1615,10 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && matches!(root_field, "locationAdd" | "locationActivate")
+            && matches!(
+                root_field,
+                "locationAdd" | "locationEdit" | "locationActivate" | "locationDelete"
+            )
         {
             return self.location_mutation(root_field, &query, &variables, request);
         }
@@ -2347,6 +2357,7 @@ impl DraftProxy {
                         "inventoryAdjustQuantities"
                             | "inventorySetQuantities"
                             | "inventoryMoveQuantities"
+                            | "inventoryActivate"
                             | "inventoryTransferCreate"
                             | "inventoryTransferCreateAsReadyToShip"
                             | "inventoryTransferMarkAsReadyToShip"

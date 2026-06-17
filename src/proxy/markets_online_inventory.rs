@@ -1742,7 +1742,7 @@ fn inventory_quantity_names(arguments: &BTreeMap<String, ResolvedValue>) -> Vec<
     }
 }
 
-fn inventory_level_id(inventory_item_id: &str, location_id: &str) -> String {
+pub(in crate::proxy) fn inventory_level_id(inventory_item_id: &str, location_id: &str) -> String {
     format!(
         "gid://shopify/InventoryLevel/{}-{}?inventory_item_id={}",
         resource_id_tail(inventory_item_id),

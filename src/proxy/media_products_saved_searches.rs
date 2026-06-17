@@ -2670,13 +2670,25 @@ impl DraftProxy {
         self.store.stage_product(product.clone());
 
         let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
+        let default_variants = if selected_child_selection(&product_selection, "variants").is_some()
+        {
+            let variant = product_variant_record_from_create_input(
+                &BTreeMap::new(),
+                self.next_proxy_synthetic_gid("ProductVariant"),
+                id.clone(),
+                self.next_proxy_synthetic_gid("InventoryItem"),
+            );
+            vec![variant]
+        } else {
+            Vec::new()
+        };
         let payload_selection = root_field_selection(query).unwrap_or_default();
         let response_key =
             root_field_response_key(query).unwrap_or_else(|| "productCreate".to_string());
         MutationOutcome::staged(
             ok_json(json!({
                 "data": {
-                    response_key: product_mutation_payload_json(&product, &payload_selection, &product_selection)
+                    response_key: product_mutation_payload_json(&product, &default_variants, &payload_selection, &product_selection)
                 }
             })),
             LogDraft::staged("productCreate", "products", vec![id]),
@@ -2792,7 +2804,7 @@ impl DraftProxy {
         MutationOutcome::staged(
             ok_json(json!({
                 "data": {
-                    response_key: product_mutation_payload_json(&product, &payload_selection, &product_selection)
+                    response_key: product_mutation_payload_json(&product, &[], &payload_selection, &product_selection)
                 }
             })),
             LogDraft::staged("productUpdate", "products", vec![id]),
@@ -3193,7 +3205,7 @@ impl DraftProxy {
         MutationOutcome::staged(
             ok_json(json!({
                 "data": {
-                    root_field_response_key(query).unwrap_or_else(|| "productSet".to_string()): product_mutation_payload_json(&product, &payload_selection, &product_selection)
+                    root_field_response_key(query).unwrap_or_else(|| "productSet".to_string()): product_mutation_payload_json(&product, &[], &payload_selection, &product_selection)
                 }
             })),
             LogDraft::staged("productSet", "products", vec![id]),
@@ -3302,7 +3314,7 @@ impl DraftProxy {
         MutationOutcome::staged(
             ok_json(json!({
                 "data": {
-                    field.response_key.clone(): product_mutation_payload_json(&product, &payload_selection, &product_selection)
+                    field.response_key.clone(): product_mutation_payload_json(&product, &[], &payload_selection, &product_selection)
                 }
             })),
             LogDraft::staged("productChangeStatus", "products", vec![id.clone()]),

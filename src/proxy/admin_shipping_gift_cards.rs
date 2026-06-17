@@ -31,6 +31,134 @@ query StorePropertiesPublishablePayloadShopHydrate($id: ID!) {
 }
 "#;
 
+const LOCATION_HYDRATE_QUERY_WITH_IS_PRIMARY: &str = r#"query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: "custom", key: "hours") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: ["available", "committed", "on_hand"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }"#;
+
+const LOCATION_HYDRATE_QUERY: &str = r#"query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: "custom", key: "hours") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: ["available", "committed", "on_hand"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }"#;
+
+const LOCATION_METAFIELD_TYPES: &[&str] = &[
+    "antenna_gain",
+    "area",
+    "battery_charge_capacity",
+    "battery_energy_capacity",
+    "boolean",
+    "capacitance",
+    "color",
+    "concentration",
+    "data_storage_capacity",
+    "data_transfer_rate",
+    "date_time",
+    "date",
+    "dimension",
+    "display_density",
+    "distance",
+    "duration",
+    "electric_current",
+    "electrical_resistance",
+    "energy",
+    "float",
+    "frequency",
+    "id",
+    "illuminance",
+    "inductance",
+    "integer",
+    "json_string",
+    "json",
+    "language",
+    "link",
+    "luminous_flux",
+    "mass_flow_rate",
+    "money",
+    "multi_line_text_field",
+    "number_decimal",
+    "number_integer",
+    "power",
+    "pressure",
+    "rating",
+    "resolution",
+    "rich_text_field",
+    "rotational_speed",
+    "single_line_text_field",
+    "sound_level",
+    "speed",
+    "string",
+    "temperature",
+    "thermal_power",
+    "url",
+    "voltage",
+    "volume",
+    "volumetric_flow_rate",
+    "weight",
+    "company_reference",
+    "customer_reference",
+    "product_reference",
+    "collection_reference",
+    "variant_reference",
+    "file_reference",
+    "product_taxonomy_value_reference",
+    "metaobject_reference",
+    "mixed_reference",
+    "page_reference",
+    "article_reference",
+    "order_reference",
+    "list.antenna_gain",
+    "list.area",
+    "list.battery_charge_capacity",
+    "list.battery_energy_capacity",
+    "list.boolean",
+    "list.capacitance",
+    "list.color",
+    "list.concentration",
+    "list.data_storage_capacity",
+    "list.data_transfer_rate",
+    "list.date_time",
+    "list.date",
+    "list.dimension",
+    "list.display_density",
+    "list.distance",
+    "list.duration",
+    "list.electric_current",
+    "list.electrical_resistance",
+    "list.energy",
+    "list.frequency",
+    "list.illuminance",
+    "list.inductance",
+    "list.link",
+    "list.luminous_flux",
+    "list.mass_flow_rate",
+    "list.multi_line_text_field",
+    "list.number_decimal",
+    "list.number_integer",
+    "list.power",
+    "list.pressure",
+    "list.rating",
+    "list.resolution",
+    "list.rotational_speed",
+    "list.single_line_text_field",
+    "list.sound_level",
+    "list.speed",
+    "list.temperature",
+    "list.thermal_power",
+    "list.url",
+    "list.voltage",
+    "list.volume",
+    "list.volumetric_flow_rate",
+    "list.weight",
+    "list.company_reference",
+    "list.customer_reference",
+    "list.product_reference",
+    "list.collection_reference",
+    "list.variant_reference",
+    "list.file_reference",
+    "list.product_taxonomy_value_reference",
+    "list.metaobject_reference",
+    "list.mixed_reference",
+    "list.page_reference",
+    "list.article_reference",
+    "list.order_reference",
+];
+
+const LOCATION_METAFIELD_TYPE_MESSAGE: &str = "antenna_gain, area, battery_charge_capacity, battery_energy_capacity, boolean, capacitance, color, concentration, data_storage_capacity, data_transfer_rate, date_time, date, dimension, display_density, distance, duration, electric_current, electrical_resistance, energy, float, frequency, id, illuminance, inductance, integer, json_string, json, language, link, list.antenna_gain, list.area, list.battery_charge_capacity, list.battery_energy_capacity, list.boolean, list.capacitance, list.color, list.concentration, list.data_storage_capacity, list.data_transfer_rate, list.date_time, list.date, list.dimension, list.display_density, list.distance, list.duration, list.electric_current, list.electrical_resistance, list.energy, list.frequency, list.illuminance, list.inductance, list.link, list.luminous_flux, list.mass_flow_rate, list.multi_line_text_field, list.number_decimal, list.number_integer, list.power, list.pressure, list.rating, list.resolution, list.rotational_speed, list.single_line_text_field, list.sound_level, list.speed, list.temperature, list.thermal_power, list.url, list.voltage, list.volume, list.volumetric_flow_rate, list.weight, luminous_flux, mass_flow_rate, money, multi_line_text_field, number_decimal, number_integer, power, pressure, rating, resolution, rich_text_field, rotational_speed, single_line_text_field, sound_level, speed, string, temperature, thermal_power, url, voltage, volume, volumetric_flow_rate, weight, company_reference, list.company_reference, customer_reference, list.customer_reference, product_reference, list.product_reference, collection_reference, list.collection_reference, variant_reference, list.variant_reference, file_reference, list.file_reference, product_taxonomy_value_reference, list.product_taxonomy_value_reference, metaobject_reference, list.metaobject_reference, mixed_reference, list.mixed_reference, page_reference, list.page_reference, article_reference, list.article_reference, order_reference, list.order_reference";
+
 impl DraftProxy {
     pub(in crate::proxy) fn backup_region_update(
         &mut self,
@@ -1293,7 +1421,9 @@ impl DraftProxy {
     ) -> Response {
         match root_field {
             "locationAdd" => self.location_add(query, variables, request),
+            "locationEdit" => self.location_edit(query, variables, request),
             "locationActivate" => self.location_activate(query, variables, request),
+            "locationDelete" => self.location_delete(query, variables, request),
             _ => json_error(501, "Unsupported location mutation"),
         }
     }
@@ -1400,10 +1530,69 @@ impl DraftProxy {
         ok_json(json!({ "data": Value::Object(data) }))
     }
 
+    pub(in crate::proxy) fn location_edit(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let Some(fields) = root_fields(query, variables) else {
+            return json_error(400, "Unable to parse locationEdit mutation");
+        };
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name != "locationEdit" {
+                continue;
+            }
+            let location_id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+            let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+            if let Some(error) = self.location_edit_input_shape_error(&input) {
+                return ok_json(error);
+            }
+
+            let source_location = self
+                .location_for_read(&location_id)
+                .or_else(|| self.hydrate_location_for_mutation(request, &location_id));
+            let mut user_errors = Vec::new();
+            if source_location.is_none() {
+                user_errors.push(json!({
+                    "field": ["id"],
+                    "message": "Location not found."
+                }));
+            } else {
+                user_errors.extend(self.location_edit_user_errors(&location_id, &input));
+            }
+
+            let location = if user_errors.is_empty() {
+                let mut location =
+                    source_location.unwrap_or_else(|| self.staged_location_record(&location_id));
+                self.apply_location_edit_input(&mut location, &input);
+                self.stage_location(location.clone());
+                self.record_mutation_log_entry(
+                    request,
+                    query,
+                    variables,
+                    "locationEdit",
+                    vec![location_id.clone()],
+                );
+                location
+            } else {
+                Value::Null
+            };
+
+            data.insert(
+                field.response_key,
+                location_edit_payload_selected_json(location, &field.selection, user_errors),
+            );
+        }
+        ok_json(json!({ "data": Value::Object(data) }))
+    }
+
     pub(in crate::proxy) fn has_staged_locations(&self) -> bool {
         !self.store.staged.locations.is_empty()
             || !self.store.staged.fulfillment_service_locations.is_empty()
             || !self.store.staged.observed_shipping_locations.is_empty()
+            || !self.store.staged.deleted_location_ids.is_empty()
             || self.store.staged.location_limit_reached
     }
 
@@ -1431,6 +1620,118 @@ impl DraftProxy {
             data.insert(field.response_key.clone(), value);
         }
         Value::Object(data)
+    }
+
+    pub(in crate::proxy) fn location_read_can_be_served_locally(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> bool {
+        fields.iter().all(|field| match field.name.as_str() {
+            "location" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                self.location_for_read(&id).is_some()
+                    || self.store.staged.deleted_location_ids.contains(&id)
+            }
+            "locationByIdentifier" => {
+                let identifier =
+                    resolved_object_field(&field.arguments, "identifier").unwrap_or_default();
+                let id = resolved_string_field(&identifier, "id").unwrap_or_default();
+                self.location_for_read(&id).is_some()
+                    || self.store.staged.deleted_location_ids.contains(&id)
+            }
+            "locations" => {
+                !self.store.staged.locations.is_empty()
+                    || !self.store.staged.location_order.is_empty()
+            }
+            "locationsAvailableForDeliveryProfilesConnection" => true,
+            _ => false,
+        })
+    }
+
+    pub(in crate::proxy) fn overlay_location_read_response(
+        &self,
+        response: &mut Response,
+        fields: &[RootFieldSelection],
+    ) {
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        let Some(data) = response.body.get_mut("data").and_then(Value::as_object_mut) else {
+            return;
+        };
+        for field in fields {
+            match field.name.as_str() {
+                "location" => {
+                    let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                    if let Some(value) = self.location_overlay_value(&id, &field.selection) {
+                        data.insert(field.response_key.clone(), value);
+                    }
+                }
+                "locationByIdentifier" => {
+                    let identifier =
+                        resolved_object_field(&field.arguments, "identifier").unwrap_or_default();
+                    let id = resolved_string_field(&identifier, "id").unwrap_or_default();
+                    if let Some(value) = self.location_overlay_value(&id, &field.selection) {
+                        data.insert(field.response_key.clone(), value);
+                    }
+                }
+                "locations" => {
+                    if let Some(connection) = data
+                        .get_mut(&field.response_key)
+                        .and_then(Value::as_object_mut)
+                    {
+                        self.overlay_locations_connection(connection, &field.selection);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn location_overlay_value(
+        &self,
+        location_id: &str,
+        selection: &[SelectedField],
+    ) -> Option<Value> {
+        if location_id.is_empty() {
+            return None;
+        }
+        if self.store.staged.deleted_location_ids.contains(location_id) {
+            return Some(Value::Null);
+        }
+        self.store
+            .staged
+            .locations
+            .get(location_id)
+            .map(|location| location_selected_json(location, selection))
+    }
+
+    fn overlay_locations_connection(
+        &self,
+        connection: &mut serde_json::Map<String, Value>,
+        selections: &[SelectedField],
+    ) {
+        let node_selection = locations_connection_node_selection(selections);
+        let edge_selection = locations_connection_edge_selection(selections);
+        if let Some(nodes) = connection.get_mut("nodes").and_then(Value::as_array_mut) {
+            overlay_location_node_list(
+                nodes,
+                &node_selection,
+                &self.store.staged.locations,
+                &self.store.staged.location_order,
+                &self.store.staged.deleted_location_ids,
+            );
+        }
+        if let Some(edges) = connection.get_mut("edges").and_then(Value::as_array_mut) {
+            overlay_location_edge_list(
+                edges,
+                &edge_selection,
+                &node_selection,
+                &self.store.staged.locations,
+                &self.store.staged.location_order,
+                &self.store.staged.deleted_location_ids,
+            );
+        }
     }
 
     fn location_add_input_shape_error(
@@ -1515,6 +1816,123 @@ impl DraftProxy {
                 "message": "You have reached the maximum number of locations (200)"
             }));
         }
+        if let Some(address) = resolved_object_field(input, "address") {
+            if resolved_string_field(&address, "address1")
+                .is_some_and(|value| value.chars().count() > 255)
+            {
+                errors.push(json!({
+                    "field": ["input", "address", "address1"],
+                    "message": "Use a shorter name for the street (up to 255 characters)",
+                    "code": "TOO_LONG"
+                }));
+            }
+            if resolved_string_field(&address, "zip")
+                .is_some_and(|value| value.chars().count() > 255)
+            {
+                errors.push(json!({
+                    "field": ["input", "address", "zip"],
+                    "message": "Use a shorter postal / ZIP code (up to 255 characters)",
+                    "code": "TOO_LONG"
+                }));
+            }
+        }
+        errors
+    }
+
+    fn location_edit_input_shape_error(
+        &self,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        if let Some(address) = resolved_object_field(input, "address") {
+            if let Some(country_code) = resolved_string_field(&address, "countryCode") {
+                if !location_country_code_is_valid(&country_code) {
+                    return Some(location_edit_invalid_variable_error(
+                        "address.countryCode",
+                        &format!(
+                            "Expected \"{}\" to be one of: {}",
+                            country_code, LOCATION_COUNTRY_CODES
+                        ),
+                        input,
+                    ));
+                }
+            }
+        }
+        None
+    }
+
+    fn location_edit_user_errors(
+        &self,
+        location_id: &str,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> Vec<Value> {
+        let mut errors = Vec::new();
+        if let Some(name) = resolved_string_field(input, "name") {
+            if name.trim().is_empty() {
+                errors.push(json!({
+                    "field": ["input", "name"],
+                    "message": "Add a location name",
+                    "code": "BLANK"
+                }));
+            } else if name.chars().count() > 100 {
+                errors.push(json!({
+                    "field": ["input", "name"],
+                    "message": "Use a shorter location name (up to 100 characters)",
+                    "code": "TOO_LONG"
+                }));
+            } else if self.location_name_exists_except(&name, location_id) {
+                errors.push(json!({
+                    "field": ["input", "name"],
+                    "message": "You already have a location with this name",
+                    "code": "TAKEN"
+                }));
+            }
+        }
+        if let Some(address) = resolved_object_field(input, "address") {
+            if resolved_string_field(&address, "city")
+                .is_some_and(|value| value.chars().count() > 255)
+            {
+                errors.push(json!({
+                    "field": ["input", "address", "city"],
+                    "message": "Use a shorter city name (up to 255 characters)",
+                    "code": "TOO_LONG"
+                }));
+            }
+            if resolved_string_field(&address, "zip")
+                .is_some_and(|value| value.chars().count() > 255)
+            {
+                errors.push(json!({
+                    "field": ["input", "address", "zip"],
+                    "message": "Use a shorter postal / ZIP code (up to 255 characters)",
+                    "code": "TOO_LONG"
+                }));
+            }
+        }
+        for (index, metafield) in resolved_object_list_field(input, "metafields")
+            .iter()
+            .enumerate()
+        {
+            if resolved_string_field(metafield, "type").is_some_and(|metafield_type| {
+                !location_metafield_type_is_supported(&metafield_type)
+            }) {
+                errors.push(json!({
+                    "field": ["input", "metafields", (index + 1).to_string(), "type"],
+                    "message": format!(
+                        "Type must be one of the following: {}.",
+                        LOCATION_METAFIELD_TYPE_MESSAGE
+                    ),
+                    "code": "INVALID_TYPE"
+                }));
+            }
+        }
+        if resolved_bool_field(input, "fulfillsOnlineOrders") == Some(false)
+            && !self.has_other_online_order_fulfillment_location(location_id)
+        {
+            errors.push(json!({
+                "field": ["input"],
+                "message": "Online order fulfillment could not be disabled for this location as it is the only location that fulfills online orders.",
+                "code": "CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT"
+            }));
+        }
         errors
     }
 
@@ -1525,12 +1943,12 @@ impl DraftProxy {
     ) -> Value {
         let address_input = resolved_object_field(input, "address").unwrap_or_default();
         let address = json!({
-            "address1": resolved_string_field(&address_input, "address1").unwrap_or_default(),
-            "address2": resolved_string_field(&address_input, "address2").unwrap_or_default(),
-            "city": resolved_string_field(&address_input, "city").unwrap_or_default(),
-            "countryCode": resolved_string_field(&address_input, "countryCode").unwrap_or_default(),
-            "provinceCode": resolved_string_field(&address_input, "provinceCode").unwrap_or_default(),
-            "zip": resolved_string_field(&address_input, "zip").unwrap_or_default()
+            "address1": location_optional_string_json(&address_input, "address1"),
+            "address2": location_optional_string_json(&address_input, "address2"),
+            "city": location_optional_string_json(&address_input, "city"),
+            "countryCode": location_optional_string_json(&address_input, "countryCode"),
+            "provinceCode": location_optional_string_json(&address_input, "provinceCode"),
+            "zip": location_optional_string_json(&address_input, "zip")
         });
         json!({
             "__typename": "Location",
@@ -1552,6 +1970,66 @@ impl DraftProxy {
             "createdAt": "2024-01-01T00:00:00.000Z",
             "updatedAt": "2024-01-01T00:00:00.000Z"
         })
+    }
+
+    fn apply_location_edit_input(
+        &mut self,
+        location: &mut Value,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) {
+        let location_id = location
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        if let Some(name) = resolved_string_field(input, "name") {
+            location["name"] = json!(name);
+        }
+        if let Some(is_active) =
+            resolved_bool_field(input, "isActive").or_else(|| resolved_bool_field(input, "active"))
+        {
+            location["isActive"] = json!(is_active);
+            location["deletable"] = json!(!is_active && !self.location_has_inventory(&location_id));
+        }
+        if let Some(fulfills_online_orders) = resolved_bool_field(input, "fulfillsOnlineOrders") {
+            location["fulfillsOnlineOrders"] = json!(fulfills_online_orders);
+        }
+        if let Some(address_input) = resolved_object_field(input, "address") {
+            let mut address = location
+                .get("address")
+                .cloned()
+                .unwrap_or_else(|| json!({}));
+            for field in [
+                "address1",
+                "address2",
+                "city",
+                "countryCode",
+                "provinceCode",
+                "zip",
+            ] {
+                if let Some(value) = resolved_string_field(&address_input, field) {
+                    address[field] = json!(value);
+                }
+            }
+            if let Some(country_code) = resolved_string_field(&address_input, "countryCode") {
+                if let Some(country) = location_country_name(&country_code) {
+                    address["country"] = json!(country);
+                }
+            }
+            location["address"] = address;
+        }
+        let metafields = self.location_metafields_from_input(
+            location
+                .get("id")
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
+            input,
+        );
+        if !metafields.is_empty() {
+            location["metafields"] = Value::Array(metafields);
+        }
+        location["hasActiveInventory"] = json!(self.location_has_inventory(&location_id));
+        location["updatedAt"] = json!("2024-01-01T00:00:01.000Z");
     }
 
     fn location_metafields_from_input(
@@ -1631,6 +2109,7 @@ impl DraftProxy {
         if !self.store.staged.locations.contains_key(&id) {
             self.store.staged.location_order.push(id.clone());
         }
+        self.store.staged.deleted_location_ids.remove(&id);
         self.store.staged.locations.insert(id, location);
     }
 
@@ -1661,6 +2140,9 @@ impl DraftProxy {
     }
 
     fn location_for_read(&self, location_id: &str) -> Option<Value> {
+        if self.store.staged.deleted_location_ids.contains(location_id) {
+            return None;
+        }
         self.store
             .staged
             .locations
@@ -1712,6 +2194,7 @@ impl DraftProxy {
             .staged
             .location_order
             .iter()
+            .filter(|id| !self.store.staged.deleted_location_ids.contains(*id))
             .filter_map(|id| self.store.staged.locations.get(id).cloned())
             .collect::<Vec<_>>();
         if let Some(limit) = arguments.get("first").and_then(resolved_as_usize) {
@@ -1903,13 +2386,16 @@ impl DraftProxy {
         let mut locations = Vec::new();
         let mut seen = BTreeSet::new();
         for id in &self.store.staged.observed_shipping_location_order {
+            if self.store.staged.deleted_location_ids.contains(id) {
+                continue;
+            }
             if let Some(location) = self.location_for_read(id) {
                 seen.insert(id.clone());
                 locations.push(location);
             }
         }
         for id in &self.store.staged.location_order {
-            if seen.contains(id) {
+            if seen.contains(id) || self.store.staged.deleted_location_ids.contains(id) {
                 continue;
             }
             if let Some(location) = self.store.staged.locations.get(id).cloned() {
@@ -1982,14 +2468,78 @@ impl DraftProxy {
             .insert(id, location);
     }
 
+    fn hydrate_location_for_mutation(
+        &mut self,
+        request: &Request,
+        location_id: &str,
+    ) -> Option<Value> {
+        if self.config.read_mode == ReadMode::Snapshot
+            || location_id.is_empty()
+            || self.store.staged.deleted_location_ids.contains(location_id)
+        {
+            return None;
+        }
+        for query in [
+            LOCATION_HYDRATE_QUERY,
+            LOCATION_HYDRATE_QUERY_WITH_IS_PRIMARY,
+        ] {
+            let response = (self.upstream_transport)(Request {
+                method: "POST".to_string(),
+                path: request.path.clone(),
+                headers: request.headers.clone(),
+                body: json!({
+                    "query": query,
+                    "operationName": "StorePropertiesLocationHydrate",
+                    "variables": { "id": location_id }
+                })
+                .to_string(),
+            });
+            if !(200..300).contains(&response.status) {
+                continue;
+            }
+            let Some(location) = response.body["data"]["location"]
+                .as_object()
+                .map(|_| response.body["data"]["location"].clone())
+            else {
+                continue;
+            };
+            self.stage_observed_shipping_location(location.clone());
+            return Some(location);
+        }
+        None
+    }
+
     fn location_name_exists(&self, name: &str) -> bool {
-        let normalized = name.trim().to_lowercase();
-        self.store.staged.locations.values().any(|location| {
-            location
-                .get("name")
-                .and_then(Value::as_str)
-                .is_some_and(|existing| existing.trim().eq_ignore_ascii_case(&normalized))
-        })
+        self.location_name_exists_with_optional_except(name, None)
+    }
+
+    fn location_name_exists_except(&self, name: &str, location_id: &str) -> bool {
+        self.location_name_exists_with_optional_except(name, Some(location_id))
+    }
+
+    fn location_name_exists_with_optional_except(
+        &self,
+        name: &str,
+        except_location_id: Option<&str>,
+    ) -> bool {
+        let normalized = name.trim();
+        self.store
+            .staged
+            .locations
+            .iter()
+            .chain(self.store.staged.observed_shipping_locations.iter())
+            .chain(self.store.staged.fulfillment_service_locations.iter())
+            .any(|(id, location)| {
+                if except_location_id == Some(id.as_str())
+                    || self.store.staged.deleted_location_ids.contains(id)
+                {
+                    return false;
+                }
+                location
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .is_some_and(|existing| existing.trim().eq_ignore_ascii_case(normalized))
+            })
     }
 
     fn location_limit_reached(&self) -> bool {
@@ -2059,6 +2609,52 @@ impl DraftProxy {
             data.insert(
                 field.response_key,
                 location_deactivate_payload_json(location, &field.selection, errors),
+            );
+        }
+        ok_json(json!({ "data": Value::Object(data) }))
+    }
+
+    pub(in crate::proxy) fn location_delete(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let Some(fields) = root_fields(query, variables) else {
+            return json_error(400, "Unable to parse locationDelete mutation");
+        };
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name != "locationDelete" {
+                continue;
+            }
+            let location_id =
+                resolved_string_field(&field.arguments, "locationId").unwrap_or_default();
+            let location = self
+                .location_for_read(&location_id)
+                .or_else(|| self.hydrate_location_for_mutation(request, &location_id));
+            let errors = self.location_delete_errors(&location_id, location.as_ref());
+            let deleted_location_id = if errors.is_empty() {
+                self.delete_location_inventory_levels(&location_id);
+                self.delete_staged_location(&location_id);
+                self.record_mutation_log_entry(
+                    request,
+                    query,
+                    variables,
+                    "locationDelete",
+                    vec![location_id.clone()],
+                );
+                Value::String(location_id)
+            } else {
+                Value::Null
+            };
+            data.insert(
+                field.response_key,
+                location_delete_payload_selected_json(
+                    deleted_location_id,
+                    &field.selection,
+                    errors,
+                ),
             );
         }
         ok_json(json!({ "data": Value::Object(data) }))
@@ -2201,8 +2797,111 @@ impl DraftProxy {
         self.store
             .staged
             .inventory_levels
+            .iter()
+            .any(|((_, staged_location_id), quantities)| {
+                staged_location_id == location_id
+                    && quantities.values().any(|quantity| *quantity > 0)
+            })
+    }
+
+    fn location_delete_errors(&self, location_id: &str, location: Option<&Value>) -> Vec<Value> {
+        let Some(location) = location else {
+            return vec![location_delete_user_error(
+                "LOCATION_NOT_FOUND",
+                "Location not found.",
+            )];
+        };
+        if location
+            .get("isFulfillmentService")
+            .and_then(Value::as_bool)
+            == Some(true)
+        {
+            return vec![location_delete_user_error(
+                "LOCATION_NOT_FOUND",
+                "Location not found.",
+            )];
+        }
+
+        let mut errors = Vec::new();
+        if location.get("isActive").and_then(Value::as_bool) == Some(true) {
+            errors.push(location_delete_user_error(
+                "LOCATION_IS_ACTIVE",
+                "The location cannot be deleted while it is active.",
+            ));
+        }
+        let has_inventory = if self.store.staged.locations.contains_key(location_id) {
+            self.location_has_inventory(location_id)
+        } else {
+            location
+                .get("hasActiveInventory")
+                .and_then(Value::as_bool)
+                .unwrap_or_else(|| self.location_has_inventory(location_id))
+                || self.location_has_inventory(location_id)
+        };
+        if has_inventory {
+            errors.push(location_delete_user_error(
+                "LOCATION_HAS_INVENTORY",
+                "The location cannot be deleted while it has inventory.",
+            ));
+        }
+        if location
+            .get("hasUnfulfilledOrders")
+            .and_then(Value::as_bool)
+            == Some(true)
+        {
+            errors.push(location_delete_user_error(
+                "LOCATION_HAS_PENDING_ORDERS",
+                "The location cannot be deleted while it has pending orders.",
+            ));
+        }
+        if !self.store.staged.locations.contains_key(location_id)
+            && location.get("deletable").and_then(Value::as_bool) == Some(false)
+            && errors.is_empty()
+        {
+            errors.push(location_delete_user_error(
+                "LOCATION_NOT_DELETABLE",
+                "The location cannot be deleted.",
+            ));
+        }
+        errors
+    }
+
+    fn delete_staged_location(&mut self, location_id: &str) {
+        self.store.staged.locations.remove(location_id);
+        self.store
+            .staged
+            .observed_shipping_locations
+            .remove(location_id);
+        self.store
+            .staged
+            .fulfillment_service_locations
+            .remove(location_id);
+        self.store
+            .staged
+            .deleted_location_ids
+            .insert(location_id.to_string());
+    }
+
+    fn delete_location_inventory_levels(&mut self, location_id: &str) {
+        let keys = self
+            .store
+            .staged
+            .inventory_levels
             .keys()
-            .any(|(_, staged_location_id)| staged_location_id == location_id)
+            .filter(|(_, staged_location_id)| staged_location_id == location_id)
+            .cloned()
+            .collect::<Vec<_>>();
+        for key in keys {
+            self.store.staged.inventory_levels.remove(&key);
+        }
+        self.store
+            .staged
+            .inventory_level_order
+            .retain(|(_, staged_location_id)| staged_location_id != location_id);
+        self.store
+            .staged
+            .inventory_quantity_updated_at
+            .retain(|(_, staged_location_id, _), _| staged_location_id != location_id);
     }
 
     fn relocate_inventory_levels_for_location(
@@ -2237,6 +2936,10 @@ impl DraftProxy {
                 *destination_quantities.entry(name).or_insert(0) += quantity;
             }
         }
+        self.store
+            .staged
+            .inventory_level_order
+            .retain(|(_, staged_location_id)| staged_location_id != source_location_id);
     }
 
     pub(in crate::proxy) fn fulfillment_order_move_assignment_status(
@@ -5518,6 +6221,31 @@ fn location_add_invalid_variable_error(
     })
 }
 
+fn location_edit_invalid_variable_error(
+    path: &str,
+    explanation: &str,
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let path_parts = path.split('.').collect::<Vec<_>>();
+    json!({
+        "errors": [{
+            "message": format!(
+                "Variable $input of type LocationEditInput! was provided invalid value for {} ({})",
+                path,
+                explanation
+            ),
+            "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": resolved_value_json(&ResolvedValue::Object(input.clone())),
+                "problems": [{
+                    "path": path_parts,
+                    "explanation": explanation
+                }]
+            }
+        }]
+    })
+}
+
 fn location_requires_idempotency(request: &Request, query: &str) -> bool {
     admin_graphql_version(&request.path).is_some_and(location_version_requires_idempotency)
         && !query.contains("@idempotent")
@@ -5585,6 +6313,29 @@ fn location_add_payload_selected_json(
     })
 }
 
+fn location_edit_payload_selected_json(
+    location: Value,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
+            "location" => Some(if location.is_null() {
+                Value::Null
+            } else {
+                location_selected_json(&location, &selection.selection)
+            }),
+            "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        }
+    })
+}
+
 fn location_activate_payload_selected_json(
     location: Value,
     payload_selection: &[SelectedField],
@@ -5594,6 +6345,25 @@ fn location_activate_payload_selected_json(
         match selection.name.as_str() {
             "location" => Some(location_selected_json(&location, &selection.selection)),
             "locationActivateUserErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        }
+    })
+}
+
+fn location_delete_payload_selected_json(
+    deleted_location_id: Value,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
+            "deletedLocationId" => Some(deleted_location_id.clone()),
+            "locationDeleteUserErrors" | "userErrors" => Some(Value::Array(
                 user_errors
                     .iter()
                     .map(|error| selected_json(error, &selection.selection))
@@ -5660,6 +6430,129 @@ fn local_pickup_time_is_standard(pickup_time: &str) -> bool {
 
 fn location_id_display_tail(location_id: &str) -> &str {
     location_id.rsplit('/').next().unwrap_or(location_id)
+}
+
+fn location_optional_string_json(input: &BTreeMap<String, ResolvedValue>, field: &str) -> Value {
+    input
+        .get(field)
+        .map(resolved_value_json)
+        .unwrap_or(Value::Null)
+}
+
+fn location_metafield_type_is_supported(metafield_type: &str) -> bool {
+    LOCATION_METAFIELD_TYPES.contains(&metafield_type)
+}
+
+fn location_country_name(country_code: &str) -> Option<&'static str> {
+    match country_code {
+        "CA" => Some("Canada"),
+        "US" => Some("United States"),
+        "GB" => Some("United Kingdom"),
+        "AU" => Some("Australia"),
+        _ => None,
+    }
+}
+
+fn location_delete_user_error(code: &str, message: &str) -> Value {
+    json!({
+        "field": ["locationId"],
+        "message": message,
+        "code": code
+    })
+}
+
+fn locations_connection_node_selection(selections: &[SelectedField]) -> Vec<SelectedField> {
+    selections
+        .iter()
+        .find_map(|selection| match selection.name.as_str() {
+            "nodes" => Some(selection.selection.clone()),
+            "edges" => selection
+                .selection
+                .iter()
+                .find(|edge_selection| edge_selection.name == "node")
+                .map(|node| node.selection.clone()),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
+fn locations_connection_edge_selection(selections: &[SelectedField]) -> Vec<SelectedField> {
+    selections
+        .iter()
+        .find(|selection| selection.name == "edges")
+        .map(|selection| selection.selection.clone())
+        .unwrap_or_default()
+}
+
+fn overlay_location_node_list(
+    nodes: &mut Vec<Value>,
+    node_selection: &[SelectedField],
+    staged_locations: &BTreeMap<String, Value>,
+    staged_order: &[String],
+    deleted_location_ids: &BTreeSet<String>,
+) {
+    nodes.retain(|node| {
+        node.get("id")
+            .and_then(Value::as_str)
+            .is_none_or(|id| !deleted_location_ids.contains(id))
+    });
+    for location_id in staged_order {
+        if deleted_location_ids.contains(location_id) {
+            continue;
+        }
+        let Some(location) = staged_locations.get(location_id) else {
+            continue;
+        };
+        let projected = location_selected_json(location, node_selection);
+        if let Some(existing) = nodes.iter_mut().find(|node| {
+            node.get("id")
+                .and_then(Value::as_str)
+                .is_some_and(|id| id == location_id)
+        }) {
+            *existing = projected;
+        } else {
+            nodes.push(projected);
+        }
+    }
+}
+
+fn overlay_location_edge_list(
+    edges: &mut Vec<Value>,
+    edge_selection: &[SelectedField],
+    node_selection: &[SelectedField],
+    staged_locations: &BTreeMap<String, Value>,
+    staged_order: &[String],
+    deleted_location_ids: &BTreeSet<String>,
+) {
+    edges.retain(|edge| {
+        edge.get("node")
+            .and_then(|node| node.get("id"))
+            .and_then(Value::as_str)
+            .is_none_or(|id| !deleted_location_ids.contains(id))
+    });
+    for location_id in staged_order {
+        if deleted_location_ids.contains(location_id) {
+            continue;
+        }
+        let Some(location) = staged_locations.get(location_id) else {
+            continue;
+        };
+        let edge = json!({
+            "cursor": location_id,
+            "node": location_selected_json(location, node_selection)
+        });
+        let projected = selected_json(&edge, edge_selection);
+        if let Some(existing) = edges.iter_mut().find(|edge| {
+            edge.get("node")
+                .and_then(|node| node.get("id"))
+                .and_then(Value::as_str)
+                .is_some_and(|id| id == location_id)
+        }) {
+            *existing = projected;
+        } else {
+            edges.push(projected);
+        }
+    }
 }
 
 fn location_selected_json(location: &Value, selections: &[SelectedField]) -> Value {
