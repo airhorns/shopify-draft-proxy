@@ -2201,13 +2201,16 @@ impl DraftProxy {
         &self,
         inventory_item_id: &str,
     ) -> Vec<(String, BTreeMap<String, i64>)> {
+        // Levels are keyed by (item_id, location_id) in a BTreeMap, so iteration
+        // yields locations sorted by id. Reordering by location_order here regresses
+        // the inventory lifecycle specs, so we keep the stable sorted order.
         self.store
             .staged
             .inventory_levels
             .iter()
             .filter(|((item_id, _), _)| item_id == inventory_item_id)
             .map(|((_, location_id), quantities)| (location_id.clone(), quantities.clone()))
-            .collect()
+            .collect::<Vec<_>>()
     }
 
     fn active_inventory_levels_for_item(
@@ -2243,7 +2246,7 @@ impl DraftProxy {
             .sum()
     }
 
-    fn next_inventory_quantity_timestamp(&mut self) -> String {
+    pub(in crate::proxy) fn next_inventory_quantity_timestamp(&mut self) -> String {
         let sequence = self.store.staged.next_inventory_quantity_timestamp;
         self.store.staged.next_inventory_quantity_timestamp += 1;
         format!("2024-01-01T00:00:{sequence:02}.000Z")

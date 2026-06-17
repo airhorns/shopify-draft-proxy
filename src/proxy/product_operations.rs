@@ -219,14 +219,55 @@ impl DraftProxy {
         }
         if input.contains_key("variants") {
             let variants = self.stage_product_set_variants(&product_id, &input);
+            // `totalInventory` only counts tracked variants (see product_json_with_variants).
             product.total_inventory = variants
                 .iter()
+                .filter(|variant| variant.inventory_item.tracked)
                 .map(|variant| variant.inventory_quantity)
                 .sum::<i64>();
             product.tracks_inventory = variants
                 .iter()
                 .any(|variant| variant.inventory_item.tracked);
         }
+
+        // Stage `metafields` supplied on the input so the mutation payload and the
+        // downstream `product`/`metafield(s)` reads resolve them. Shopify allocates the
+        // metafield GIDs independently, so the parity spec matches `id` via `shopify-gid`.
+        let metafield_nodes = self.product_set_input_metafield_nodes(&input);
+        if !metafield_nodes.is_empty() {
+            product
+                .extra_fields
+                .insert("metafields".to_string(), connection_json(metafield_nodes.clone()));
+            if let Some(first) = metafield_nodes.first() {
+                product
+                    .extra_fields
+                    .insert("metafield".to_string(), first.clone());
+            }
+        }
+        // Shopify returns a store-specific signed preview URL for staged products; the
+        // parity spec matches it via `non-empty-string`, so a stable local URL suffices.
+        product.extra_fields.entry("onlineStorePreviewUrl".to_string()).or_insert_with(|| {
+            json!(format!(
+                "https://shopify-draft-proxy.preview/products/{}",
+                resource_id_tail(&product_id)
+            ))
+        });
+        // Shopify reports `null` (not an empty string) for unset SEO fields and template
+        // suffix. Render the effective value (input or carried-over base) as null when empty.
+        product.extra_fields.insert(
+            "seo".to_string(),
+            json!({
+                "title": (!product.seo_title.is_empty()).then(|| product.seo_title.clone()),
+                "description":
+                    (!product.seo_description.is_empty()).then(|| product.seo_description.clone()),
+            }),
+        );
+        product.extra_fields.insert(
+            "templateSuffix".to_string(),
+            (!product.template_suffix.is_empty())
+                .then(|| json!(product.template_suffix))
+                .unwrap_or(Value::Null),
+        );
 
         self.store.stage_product(product.clone());
 
@@ -274,6 +315,36 @@ impl DraftProxy {
             ok_json(json!({ "data": { response_key: payload } })),
             LogDraft::staged("productSet", "products", vec![product_id]),
         )
+    }
+
+    /// Build metafield node JSON for the `metafields` supplied on a `productSet` input.
+    /// Each gets a locally allocated synthetic Metafield GID; namespace/key/type/value are
+    /// echoed verbatim from the input so downstream reads resolve the same values Shopify
+    /// would persist. Entries without a namespace and key are skipped.
+    fn product_set_input_metafield_nodes(
+        &mut self,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> Vec<Value> {
+        let mut nodes = Vec::new();
+        for metafield in resolved_object_list_field(input, "metafields") {
+            let namespace = resolved_string_field(&metafield, "namespace").unwrap_or_default();
+            let key = resolved_string_field(&metafield, "key").unwrap_or_default();
+            if namespace.is_empty() && key.is_empty() {
+                continue;
+            }
+            let metafield_type = resolved_string_field(&metafield, "type")
+                .unwrap_or_else(|| "single_line_text_field".to_string());
+            let value = resolved_string_field(&metafield, "value").unwrap_or_default();
+            let id = self.next_proxy_synthetic_gid("Metafield");
+            nodes.push(json!({
+                "id": id,
+                "namespace": namespace,
+                "key": key,
+                "type": metafield_type,
+                "value": value,
+            }));
+        }
+        nodes
     }
 
     pub(in crate::proxy) fn product_duplicate(
@@ -512,26 +583,153 @@ impl DraftProxy {
         product_id: &str,
         input: &BTreeMap<String, ResolvedValue>,
     ) -> Vec<ProductVariantRecord> {
-        resolved_object_list_field(input, "variants")
-            .into_iter()
-            .map(|variant_input| {
-                let variant_id = resolved_string_field(&variant_input, "id")
-                    .unwrap_or_else(|| self.next_proxy_synthetic_gid("ProductVariant"));
-                let inventory_item_id = resolved_object_field(&variant_input, "inventoryItem")
-                    .and_then(|inventory_item| resolved_string_field(&inventory_item, "id"))
-                    .unwrap_or_else(|| self.next_proxy_synthetic_gid("InventoryItem"));
-                let mut variant = product_variant_record_from_create_input(
-                    &variant_input,
-                    variant_id,
-                    product_id.to_string(),
-                    inventory_item_id,
-                );
-                apply_product_set_option_values_to_variant(&mut variant, &variant_input);
-                apply_inventory_quantities_to_variant(&mut variant, &variant_input);
-                self.store.stage_product_variant(variant.clone());
-                variant
+        // `productSet` replaces the full variant set, but Shopify matches incoming
+        // variants to existing ones by their option-value signature and updates them
+        // in place: the variant id and inventory item id are preserved, as are fields
+        // the input does not re-specify (notably `inventoryItem.tracked`). Capture the
+        // existing variants so we can reuse their identities and carried-over fields.
+        let existing_variants = self.store.product_variants_for_product(product_id);
+        let existing_by_signature = existing_variants
+            .iter()
+            .map(|variant| {
+                (
+                    variant_selected_option_signature(&variant.selected_options),
+                    variant.clone(),
+                )
             })
-            .collect()
+            .collect::<BTreeMap<_, _>>();
+
+        let variant_inputs = resolved_object_list_field(input, "variants");
+        let mut staged = Vec::new();
+        let mut staged_signatures = BTreeSet::new();
+        for variant_input in &variant_inputs {
+            let signature = product_set_variant_option_signature(variant_input);
+            let existing = existing_by_signature.get(&signature);
+            let variant_id = resolved_string_field(variant_input, "id")
+                .or_else(|| existing.map(|variant| variant.id.clone()))
+                .unwrap_or_else(|| self.next_proxy_synthetic_gid("ProductVariant"));
+            let inventory_item_id = resolved_object_field(variant_input, "inventoryItem")
+                .and_then(|inventory_item| resolved_string_field(&inventory_item, "id"))
+                .or_else(|| existing.map(|variant| variant.inventory_item.id.clone()))
+                .unwrap_or_else(|| self.next_proxy_synthetic_gid("InventoryItem"));
+            let mut variant = product_variant_record_from_create_input(
+                variant_input,
+                variant_id,
+                product_id.to_string(),
+                inventory_item_id,
+            );
+            apply_product_set_option_values_to_variant(&mut variant, variant_input);
+            apply_inventory_quantities_to_variant(&mut variant, variant_input);
+            // When the input omits `inventoryItem.tracked`, Shopify preserves the
+            // existing variant's value (defaulting to `true` for a brand-new variant).
+            let explicit_tracked = resolved_object_field(variant_input, "inventoryItem")
+                .and_then(|inventory_item| resolved_bool_field(&inventory_item, "tracked"));
+            if explicit_tracked.is_none() {
+                if let Some(existing) = existing {
+                    variant.inventory_item.tracked = existing.inventory_item.tracked;
+                }
+            }
+            self.stage_product_set_variant_inventory(&mut variant, variant_input);
+            self.store.stage_product_variant(variant.clone());
+            staged_signatures.insert(signature);
+            staged.push(variant);
+        }
+
+        // Drop existing variants whose option signature is absent from the new set.
+        for existing in &existing_variants {
+            let signature = variant_selected_option_signature(&existing.selected_options);
+            if !staged_signatures.contains(&signature) {
+                self.store.delete_product_variant(&existing.id);
+            }
+        }
+
+        staged
+    }
+
+    /// Synthesize per-location inventory levels for a staged `productSet` variant from
+    /// the input's `inventoryQuantities`. This populates both the store-level inventory
+    /// state (so top-level `inventoryItem`/`productVariant` reads resolve `inventoryLevels`)
+    /// and the variant's `inventoryItem.extra_fields` (so nested
+    /// `product.variants.nodes[].inventoryItem` reads render the same connection). Shopify
+    /// mirrors `on_hand` to the supplied `available` quantity and leaves `incoming` at 0.
+    fn stage_product_set_variant_inventory(
+        &mut self,
+        variant: &mut ProductVariantRecord,
+        variant_input: &BTreeMap<String, ResolvedValue>,
+    ) {
+        let inventory_item_id = variant.inventory_item.id.clone();
+        // Group the `available` quantities by location, preserving first-seen order.
+        let mut location_order_local: Vec<String> = Vec::new();
+        let mut available_by_location: BTreeMap<String, i64> = BTreeMap::new();
+        for quantity in resolved_object_list_field(variant_input, "inventoryQuantities") {
+            let name = resolved_string_field(&quantity, "name")
+                .unwrap_or_else(|| "available".to_string());
+            if name != "available" {
+                continue;
+            }
+            let Some(location_id) = resolved_string_field(&quantity, "locationId") else {
+                continue;
+            };
+            let amount = resolved_int_field(&quantity, "quantity").unwrap_or(0);
+            if !location_order_local.contains(&location_id) {
+                location_order_local.push(location_id.clone());
+            }
+            *available_by_location.entry(location_id).or_insert(0) += amount;
+        }
+        if available_by_location.is_empty() {
+            return;
+        }
+
+        let updated_at = self.next_inventory_quantity_timestamp();
+        let mut level_nodes = Vec::new();
+        for location_id in &location_order_local {
+            let available = available_by_location.get(location_id).copied().unwrap_or(0);
+            if !self.store.staged.location_order.contains(location_id) {
+                self.store.staged.location_order.push(location_id.clone());
+            }
+            let key = (inventory_item_id.clone(), location_id.clone());
+            let mut quantities = BTreeMap::new();
+            quantities.insert("available".to_string(), available);
+            quantities.insert("on_hand".to_string(), available);
+            self.store.staged.inventory_levels.insert(key, quantities);
+            self.store.staged.inventory_quantity_updated_at.insert(
+                (
+                    inventory_item_id.clone(),
+                    location_id.clone(),
+                    "available".to_string(),
+                ),
+                updated_at.clone(),
+            );
+            level_nodes.push(json!({
+                "id": inventory_level_id(&inventory_item_id, location_id),
+                "location": {
+                    "id": location_id,
+                    "name": inventory_location_name(location_id)
+                },
+                "quantities": [
+                    { "name": "available", "quantity": available, "updatedAt": updated_at },
+                    { "name": "on_hand", "quantity": available, "updatedAt": Value::Null },
+                    { "name": "incoming", "quantity": 0, "updatedAt": Value::Null }
+                ]
+            }));
+        }
+
+        // Seed the nested `inventoryItem` fields the downstream reads select. Shopify
+        // reports `null` for unset origin/HS-code fields and a zero-weight measurement.
+        let inventory_item = &mut variant.inventory_item.extra_fields;
+        inventory_item.insert("inventoryLevels".to_string(), json!({ "nodes": level_nodes }));
+        inventory_item
+            .entry("countryCodeOfOrigin".to_string())
+            .or_insert(Value::Null);
+        inventory_item
+            .entry("provinceCodeOfOrigin".to_string())
+            .or_insert(Value::Null);
+        inventory_item
+            .entry("harmonizedSystemCode".to_string())
+            .or_insert(Value::Null);
+        inventory_item
+            .entry("measurement".to_string())
+            .or_insert(json!({ "weight": { "unit": "KILOGRAMS", "value": 0 } }));
     }
 
     fn duplicate_product_record(
@@ -1000,11 +1198,44 @@ fn apply_inventory_quantities_to_variant(
         })
         .filter_map(|quantity| resolved_int_field(quantity, "quantity"))
         .sum();
-    let explicit_tracked = resolved_object_field(input, "inventoryItem")
-        .and_then(|inventory_item| resolved_bool_field(&inventory_item, "tracked"));
-    if explicit_tracked.is_none() {
-        variant.inventory_item.tracked = true;
-    }
+}
+
+/// Option-value signature for an existing variant, used to match `productSet` input
+/// variants to the variants they replace. Mirrors
+/// [`product_set_variant_option_signature`], which derives the same key from input.
+fn variant_selected_option_signature(options: &[ProductVariantSelectedOption]) -> String {
+    let mut pairs = options
+        .iter()
+        .map(|option| (option.name.clone(), option.value.clone()))
+        .collect::<Vec<_>>();
+    pairs.sort();
+    pairs
+        .into_iter()
+        .map(|(name, value)| format!("{name}\u{1}{value}"))
+        .collect::<Vec<_>>()
+        .join("\u{2}")
+}
+
+/// Option-value signature for a `productSet` input variant. Mirrors the selected-option
+/// derivation in [`apply_product_set_option_values_to_variant`] so the key matches the
+/// signature produced from a staged variant's `selected_options`.
+fn product_set_variant_option_signature(input: &BTreeMap<String, ResolvedValue>) -> String {
+    let mut pairs = resolved_object_list_field(input, "optionValues")
+        .into_iter()
+        .filter_map(|option_value| {
+            let name = resolved_string_field(&option_value, "optionName")
+                .or_else(|| resolved_string_field(&option_value, "name"))?;
+            let value = resolved_string_field(&option_value, "name")
+                .or_else(|| resolved_string_field(&option_value, "value"))?;
+            Some((name, value))
+        })
+        .collect::<Vec<_>>();
+    pairs.sort();
+    pairs
+        .into_iter()
+        .map(|(name, value)| format!("{name}\u{1}{value}"))
+        .collect::<Vec<_>>()
+        .join("\u{2}")
 }
 
 fn apply_product_set_option_values_to_variant(

@@ -542,6 +542,17 @@ impl DraftProxy {
             (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query
                     && has_local_dispatch
+                    && root_field == "productOperation" =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    ok_json(json!({ "data": self.product_operation_query_data(&fields) }))
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
+            }
+            (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query
+                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "inventoryItem"
@@ -615,6 +626,25 @@ impl DraftProxy {
                 if has_local_dispatch && root_field == "productDelete" =>
             {
                 let outcome = self.product_delete(request, &query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if has_local_dispatch && root_field == "productSet" =>
+            {
+                let outcome = self.product_set(&query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if has_local_dispatch && root_field == "productDuplicate" =>
+            {
+                let outcome = self.product_duplicate(&query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if has_local_dispatch
+                    && matches!(root_field, "productBundleCreate" | "productBundleUpdate") =>
+            {
+                let outcome = self.product_bundle_mutation(root_field, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)

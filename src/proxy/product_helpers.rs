@@ -1618,8 +1618,12 @@ pub(in crate::proxy) fn product_json_with_variants(
         "totalInventory" => Some(if variants.is_empty() {
             json!(product.total_inventory)
         } else {
+            // Shopify's `Product.totalInventory` aggregates stocked quantity across
+            // tracked variants only; untracked variants report their own
+            // `inventoryQuantity` but never contribute to the product total.
             json!(variants
                 .iter()
+                .filter(|variant| variant.inventory_item.tracked)
                 .map(|variant| variant.inventory_quantity)
                 .sum::<i64>())
         }),

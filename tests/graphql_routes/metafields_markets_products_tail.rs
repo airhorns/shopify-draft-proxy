@@ -4728,12 +4728,59 @@ fn product_options_create_variant_strategy_edges_do_not_replay_captured_shapes()
 fn product_duplicate_fixture_shape_does_not_replay_canned_data() {
     let mut proxy = snapshot_proxy();
 
-    let sync_fixture = product_fixture(include_str!(
-        "../../fixtures/conformance/very-big-test-store.myshopify.com/2025-01/products/product-duplicate-parity.json"
+    let source = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DuplicateSourceProductSet($input: ProductSetInput!) {
+          productSet(input: $input) {
+            product {
+              id
+              title
+              handle
+              variants(first: 10) { nodes { sku selectedOptions { name value } } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "title": "Natural Duplicate Source",
+                "status": "ACTIVE",
+                "productOptions": [{"name": "Color", "values": [{"name": "Red"}]}],
+                "variants": [{
+                    "optionValues": [{"optionName": "Color", "name": "Red"}],
+                    "sku": "DUP-RED",
+                    "price": "12.34",
+                    "inventoryQuantities": [{"quantity": 2, "name": "available"}]
+                }]
+            }
+        }),
     ));
+    assert_eq!(source.status, 200);
+    assert_eq!(source.body["data"]["productSet"]["userErrors"], json!([]));
+    let source_id = source.body["data"]["productSet"]["product"]["id"].clone();
+
     let duplicate = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/products/productDuplicate-parity-plan.graphql"),
-        sync_fixture["mutation"]["variables"].clone(),
+        r#"
+        mutation NaturalProductDuplicate($productId: ID!, $newTitle: String!, $synchronous: Boolean!) {
+          productDuplicate(productId: $productId, newTitle: $newTitle, synchronous: $synchronous) {
+            newProduct {
+              id
+              title
+              handle
+              status
+              variants(first: 10) { nodes { sku selectedOptions { name value } } }
+            }
+            productDuplicateOperation { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "productId": source_id.clone(),
+            "newTitle": "Natural Duplicate Sync Copy",
+            "synchronous": true
+        }),
     ));
     assert_ne!(duplicate.status, 200);
     assert_eq!(duplicate.body.get("data"), None);
