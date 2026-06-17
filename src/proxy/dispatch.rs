@@ -1521,6 +1521,7 @@ impl DraftProxy {
                             "webPresenceCreate" | "webPresenceUpdate" | "webPresenceDelete"
                         )
                     }) {
+                        self.web_presence_mutation_preflight(&variables, request);
                         return self.web_presence_helper_mutation(
                             root_field,
                             &query,

@@ -19,6 +19,15 @@ const FIXED_PRICE_VARIANT_PREFLIGHT_QUERY: &str =
 /// keyed on the de-duplicated product ids.
 const FIXED_PRICE_BY_PRODUCT_PREFLIGHT_QUERY: &str = "query MarketsMutationPreflightHydrate($priceListId: ID!, $productIds: [ID!]!, $priceQuery: String) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount prices(first: 10, query: $priceQuery, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } productNodes: nodes(ids: $productIds) { __typename ... on Product { id title handle status variants(first: 10) { nodes { id title sku price compareAtPrice } } } } }";
 
+/// Web-presence mutations (`webPresenceCreate`/`Update`/`Delete`) hydrate the
+/// shop's baseline web presences from a recorded preflight keyed on this sentinel
+/// query plus the mutation's own variables, mirroring the variant-level fixed-price
+/// preflight. On a cold store the first web-presence mutation forwards this sentinel
+/// upstream; the cassette returns the real `webPresences` baseline Shopify served
+/// during capture, which the proxy stages before applying the mutation so downstream
+/// `webPresences` reads return the live baseline plus the locally staged record.
+const WEB_PRESENCE_PREFLIGHT_QUERY: &str = "hand-synthesized from checked-in capture";
+
 impl DraftProxy {
     pub(in crate::proxy) fn functions_metadata_mutation_data(
         &mut self,
@@ -2069,6 +2078,59 @@ impl DraftProxy {
         ok_json(json!({"data": Value::Object(data)}))
     }
 
+    /// Hydrate the staged store from a cassette-backed preflight before applying a
+    /// web-presence mutation on a cold store, mirroring `fixed_price_mutation_preflight`.
+    /// Gated on LiveHybrid so other read modes are untouched, and on a cold markets
+    /// overlay so only the first mutation in a scenario seeds the baseline (later
+    /// mutations operate on the already-staged records). The cassette serves recorded
+    /// real Shopify `webPresences` data, which `stage_web_presence_preflight` loads
+    /// into the local store — no fixture is hardcoded.
+    pub(in crate::proxy) fn web_presence_mutation_preflight(
+        &mut self,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        if self.has_markets_overlay_state() {
+            return;
+        }
+        let body = json!({
+            "query": WEB_PRESENCE_PREFLIGHT_QUERY,
+            "variables": resolved_variables_json(variables),
+            "operationName": "MarketsMutationPreflightHydrate",
+        });
+        let preflight_request = Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: body.to_string(),
+        };
+        let response = (self.upstream_transport)(preflight_request);
+        if response.status < 400 {
+            self.stage_web_presence_preflight(&response.body);
+        }
+    }
+
+    /// Stage the baseline `webPresences` a preflight returns. Records insert only
+    /// when absent so a multi-step lifecycle (create → update → delete) preserves
+    /// records staged by earlier mutations instead of resetting to the baseline.
+    pub(in crate::proxy) fn stage_web_presence_preflight(&mut self, body: &Value) {
+        let Some(data) = body.get("data").filter(|data| data.is_object()) else {
+            return;
+        };
+        for record in markets_collect_records(data, "webPresences", "webPresence") {
+            if let Some(id) = record_gid(&record, "gid://shopify/MarketWebPresence/") {
+                self.store
+                    .staged
+                    .web_presences
+                    .entry(id)
+                    .or_insert(record);
+            }
+        }
+    }
+
     pub(in crate::proxy) fn web_presence_helper_mutation(
         &mut self,
         root_field: &str,
@@ -2141,7 +2203,7 @@ impl DraftProxy {
         }
         let id = format!(
             "gid://shopify/MarketWebPresence/{}",
-            self.store.staged.web_presences.len() + 1
+            next_web_presence_numeric_id(&self.store.staged.web_presences)
         );
         draft.id = id.clone();
         let shop_domain = web_presence_shop_domain(&self.store);
@@ -3424,6 +3486,22 @@ fn record_gid(record: &Value, prefix: &str) -> Option<String> {
         .and_then(Value::as_str)
         .filter(|id| id.starts_with(prefix))
         .map(str::to_string)
+}
+
+/// Next synthetic `MarketWebPresence` numeric id: one greater than the highest
+/// numeric id already staged. Deriving from the max (not the count) keeps a newly
+/// created presence sorting after any live baseline ids hydrated by the preflight,
+/// so a downstream `webPresences` read returns Shopify's id-ascending order. The
+/// live ids are equal-width integers, so the staged `BTreeMap` key order matches
+/// numeric order.
+fn next_web_presence_numeric_id(web_presences: &BTreeMap<String, Value>) -> u64 {
+    web_presences
+        .keys()
+        .filter_map(|key| key.rsplit('/').next())
+        .filter_map(|numeric| numeric.parse::<u64>().ok())
+        .max()
+        .unwrap_or(0)
+        + 1
 }
 
 /// Per-shop region coverage used when no markets are hydrated yet, ported from
