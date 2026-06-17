@@ -133,6 +133,9 @@ impl DraftProxy {
                 "delegatedAccessTokens": self.store.staged.delegate_access_tokens.clone(),
                 "customers": self.store.staged.customers.clone(),
                 "deletedCustomerIds": self.store.staged.deleted_customer_ids.iter().cloned().collect::<Vec<_>>(),
+                "customerAddresses": self.store.staged.customer_addresses.clone(),
+                "customerAddressOrder": self.store.staged.customer_address_order.clone(),
+                "customerAddressOwners": self.store.staged.customer_address_owners.clone(),
                 "customerOrders": self.store.staged.customer_orders.clone(),
                 "taggableResources": self.store.staged.taggable_resources.clone(),
                 "orders": self.store.staged.orders.clone(),
@@ -466,6 +469,46 @@ impl DraftProxy {
             .flatten()
             .filter_map(|value| value.as_str().map(str::to_string))
             .collect();
+        self.store.staged.customer_addresses = state["stagedState"]["customerAddresses"]
+            .as_object()
+            .map(|addresses| {
+                addresses
+                    .iter()
+                    .map(|(id, address)| (id.clone(), address.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.customer_address_order = state["stagedState"]["customerAddressOrder"]
+            .as_object()
+            .map(|addresses_by_customer| {
+                addresses_by_customer
+                    .iter()
+                    .map(|(customer_id, ids)| {
+                        (
+                            customer_id.clone(),
+                            ids.as_array()
+                                .into_iter()
+                                .flatten()
+                                .filter_map(|value| value.as_str().map(str::to_string))
+                                .collect(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.customer_address_owners = state["stagedState"]["customerAddressOwners"]
+            .as_object()
+            .map(|owners| {
+                owners
+                    .iter()
+                    .filter_map(|(address_id, customer_id)| {
+                        customer_id
+                            .as_str()
+                            .map(|customer_id| (address_id.clone(), customer_id.to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         self.store.staged.customer_orders = state["stagedState"]["customerOrders"]
             .as_object()
             .map(|orders_by_customer| {

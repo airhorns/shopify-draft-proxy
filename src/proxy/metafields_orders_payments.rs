@@ -1186,18 +1186,9 @@ pub(in crate::proxy) fn is_local_customer_create_document(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
 ) -> bool {
-    if query.contains("CustomerCreateParityPlan")
-        || query.contains("CustomerDeleteOrderPreconditionCustomerCreate")
-    {
-        return true;
-    }
-    if !query.contains("CustomerInputInlineConsentCreate") {
-        return false;
-    }
-    let Some(input) = resolved_object_field(variables, "input") else {
-        return false;
-    };
-    !input.contains_key("emailMarketingConsent") && !input.contains_key("smsMarketingConsent")
+    let arguments = root_field_arguments(query, variables).unwrap_or_default();
+    resolved_object_field(&arguments, "input").is_some()
+        || resolved_object_field(variables, "input").is_some()
 }
 
 pub(in crate::proxy) fn is_local_customer_delete_document(query: &str) -> bool {
