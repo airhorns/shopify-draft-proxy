@@ -7,7 +7,7 @@ pub(super) use shopify_draft_proxy::operation_registry::{
     CapabilityDomain, CapabilityExecution, OperationRegistryEntry,
 };
 pub(super) use shopify_draft_proxy::proxy::{
-    Config, DraftProxy, ProductRecord, ReadMode, Request, Response,
+    Config, DraftProxy, ProductRecord, ReadMode, Request, Response, UnsupportedMutationMode,
 };
 
 pub(super) fn snapshot_proxy() -> DraftProxy {
