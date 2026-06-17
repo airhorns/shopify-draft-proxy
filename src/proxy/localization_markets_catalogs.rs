@@ -28,6 +28,22 @@ const FIXED_PRICE_BY_PRODUCT_PREFLIGHT_QUERY: &str = "query MarketsMutationPrefl
 /// `webPresences` reads return the live baseline plus the locally staged record.
 const WEB_PRESENCE_PREFLIGHT_QUERY: &str = "hand-synthesized from checked-in capture";
 
+/// Market-localization mutations (`marketLocalizationsRegister`/`Remove`) hydrate the
+/// target resource's `marketLocalizableContent` (valid keys + digests), the shop's
+/// markets (id -> name), and any existing localizations from a recorded preflight
+/// keyed on this sentinel query plus the mutation's own variables. On a cold store
+/// the first such mutation forwards this sentinel upstream; the cassette returns the
+/// real baseline Shopify served during capture, which the proxy stages before
+/// validating + applying the mutation. Mirrors the web-presence / fixed-price
+/// preflights; the cassette matches query + variables exactly.
+const MARKET_LOCALIZATION_PREFLIGHT_QUERY: &str =
+    "synthesized from live capture setup before disposable cleanup";
+
+/// Synthetic `updatedAt` stamped on locally-staged market localizations. The specs
+/// match this field loosely (`iso-timestamp` / `non-empty-string`), so a fixed
+/// deterministic value keeps state round-tripping reproducible.
+const SYNTHETIC_MARKET_LOCALIZATION_TIMESTAMP: &str = "2026-01-01T00:00:00Z";
+
 impl DraftProxy {
     pub(in crate::proxy) fn functions_metadata_mutation_data(
         &mut self,
@@ -2113,6 +2129,43 @@ impl DraftProxy {
         }
     }
 
+    /// Forward a market-localization mutation preflight on a cold store so the
+    /// target resource's content (valid keys/digests), the shop's markets, and any
+    /// existing localizations are staged before the register/remove is validated and
+    /// applied. Gated like the web-presence preflight: once any markets-domain record
+    /// is staged (including markets observed from a read carrying a `markets` field),
+    /// the baseline is already known and the preflight is skipped. The cassette
+    /// matches the sentinel query plus the mutation's own variables exactly; an
+    /// unmatched preflight (a capture recorded with a different preflight form, or
+    /// none) returns an error body and is ignored.
+    pub(in crate::proxy) fn market_localization_mutation_preflight(
+        &mut self,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        if self.has_markets_overlay_state() {
+            return;
+        }
+        let body = json!({
+            "query": MARKET_LOCALIZATION_PREFLIGHT_QUERY,
+            "variables": resolved_variables_json(variables),
+            "operationName": "MarketsMutationPreflightHydrate",
+        });
+        let preflight_request = Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: body.to_string(),
+        };
+        let response = (self.upstream_transport)(preflight_request);
+        if response.status < 400 {
+            self.hydrate_markets_from_upstream(&response.body);
+        }
+    }
+
     /// Stage the baseline `webPresences` a preflight returns. Records insert only
     /// when absent so a multi-step lifecycle (create → update → delete) preserves
     /// records staged by earlier mutations instead of resetting to the baseline.
@@ -2384,19 +2437,23 @@ impl DraftProxy {
                     if resource_id.contains("missing") {
                         Value::Null
                     } else {
+                        let market_filter = market_localizations_market_filter(&field.selection);
                         selected_json(
-                            &self.market_localizable_resource(&resource_id),
+                            &self.market_localizable_resource(
+                                &resource_id,
+                                market_filter.as_deref(),
+                            ),
                             &field.selection,
                         )
                     }
                 }
-                "marketLocalizableResources" => selected_json(
+                // Local read-after-write serve only reaches the connections after the
+                // resource was observed; a backend with no staged localizable owners
+                // returns an empty connection (not a fabricated node) for both variants.
+                "marketLocalizableResources" | "marketLocalizableResourcesByIds" => selected_json(
                     &json!({
-                        "nodes": [self.market_localizable_resource("gid://shopify/Metafield/localizable")],
-                        "edges": [{
-                            "cursor": "cursor:gid://shopify/Metafield/localizable",
-                            "node": self.market_localizable_resource("gid://shopify/Metafield/localizable")
-                        }],
+                        "edges": [],
+                        "nodes": [],
                         "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}
                     }),
                     &field.selection,
@@ -2409,22 +2466,38 @@ impl DraftProxy {
         Value::Object(data)
     }
 
-    pub(in crate::proxy) fn market_localizable_resource(&self, resource_id: &str) -> Value {
-        let staged = self
+    /// Project a market-localizable resource from observed/staged state: the
+    /// `marketLocalizableContent` recorded when the resource was first read (empty
+    /// when never observed), plus the staged `marketLocalizations` for this resource
+    /// filtered to the read's `marketId` argument. No field metadata is fabricated.
+    pub(in crate::proxy) fn market_localizable_resource(
+        &self,
+        resource_id: &str,
+        market_filter: Option<&str>,
+    ) -> Value {
+        let content = self
+            .store
+            .staged
+            .localization_resources
+            .get(resource_id)
+            .cloned()
+            .unwrap_or_else(|| json!([]));
+        let localizations = self
             .store
             .staged
             .localization_translations
             .iter()
             .filter(|translation| translation["resourceId"].as_str() == Some(resource_id))
+            .filter(|translation| match market_filter {
+                Some(market_id) => translation["market"]["id"].as_str() == Some(market_id),
+                None => true,
+            })
             .cloned()
             .collect::<Vec<_>>();
         json!({
             "resourceId": resource_id,
-            "marketLocalizableContent": [
-                {"key": "title", "value": "Title", "digest": "digest-title"},
-                {"key": "subtitle", "value": "Subtitle", "digest": "digest-subtitle"}
-            ],
-            "marketLocalizations": staged
+            "marketLocalizableContent": content,
+            "marketLocalizations": localizations
         })
     }
 
@@ -2450,78 +2523,84 @@ impl DraftProxy {
     ) -> Value {
         let resource_id = resolved_string_arg(&field.arguments, "resourceId").unwrap_or_default();
         let localizations = resolved_list_arg(&field.arguments, "marketLocalizations");
+        // 1. Per-mutation key cap fires before resource existence (matches live Shopify).
         if localizations.len() > 100 {
             return selected_json(
                 &json!({
                     "marketLocalizations": null,
-                    "userErrors": [market_localization_error(vec!["resourceId"], "TOO_MANY_KEYS_FOR_RESOURCE")]
+                    "userErrors": [market_localization_error(vec!["resourceId"], "TOO_MANY_KEYS_FOR_RESOURCE", "Too many keys for resource - maximum 100 per mutation")]
                 }),
                 &field.selection,
             );
         }
-        if resource_id.contains("missing") {
+        // 2. The resource must have been observed (cold read / mutation preflight).
+        let Some(content) = self
+            .store
+            .staged
+            .localization_resources
+            .get(&resource_id)
+            .cloned()
+        else {
             return selected_json(
                 &json!({
                     "marketLocalizations": null,
-                    "userErrors": [market_localization_error(vec!["resourceId"], "RESOURCE_NOT_FOUND")]
+                    "userErrors": [market_localization_error(vec!["resourceId"], "RESOURCE_NOT_FOUND", &format!("Resource {resource_id} does not exist"))]
                 }),
                 &field.selection,
             );
-        }
+        };
 
         let mut staged = Vec::new();
         for (index, input) in localizations.iter().enumerate() {
             let field_index = index.to_string();
             let market_id = resolved_object_string(input, "marketId").unwrap_or_default();
-            if market_id.contains("missing")
-                || (!market_id.is_empty()
-                    && market_id != "gid://shopify/Market/ca"
-                    && !self.market_exists(&market_id))
-            {
+            if market_id.is_empty() || !self.market_exists(&market_id) {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketId"], "MARKET_DOES_NOT_EXIST")]
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketId"], "MARKET_DOES_NOT_EXIST", "The market does not exist")]
                     }),
                     &field.selection,
                 );
             }
-            let key = resolved_object_string(input, "key").unwrap_or_else(|| "title".to_string());
-            if key != "title" && key != "subtitle" {
+            let key = resolved_object_string(input, "key").unwrap_or_default();
+            // 3. The key must be one of the resource's localizable content keys.
+            let Some(content_entry) = content
+                .as_array()
+                .and_then(|entries| entries.iter().find(|entry| entry["key"].as_str() == Some(key.as_str())))
+            else {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "key"], "INVALID_KEY_FOR_MODEL")]
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "key"], "INVALID_KEY_FOR_MODEL", &format!("Key {key} is not a valid market localizable field"))]
                     }),
                     &field.selection,
                 );
-            }
-            let expected_digest = if key == "subtitle" {
-                "digest-subtitle"
-            } else {
-                "digest-title"
             };
+            // 4. The supplied digest must match the resource's current content digest.
+            let expected_digest = content_entry["digest"].as_str();
             if resolved_object_string(input, "marketLocalizableContentDigest").as_deref()
-                != Some(expected_digest)
+                != expected_digest
             {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketLocalizableContentDigest"], "INVALID_MARKET_LOCALIZABLE_CONTENT")]
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "marketLocalizableContentDigest"], "INVALID_MARKET_LOCALIZABLE_CONTENT", "The provided content digest does not match the latest resource content")]
                     }),
                     &field.selection,
                 );
             }
+            // 5. The localized value must not be blank.
             if resolved_object_string(input, "value").as_deref() == Some("") {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
-                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "value"], "FAILS_RESOURCE_VALIDATION")]
+                        "userErrors": [market_localization_error(vec!["marketLocalizations", &field_index, "value"], "FAILS_RESOURCE_VALIDATION", "Value can't be blank")]
                     }),
                     &field.selection,
                 );
             }
-            staged.push(market_localization_record(&resource_id, input));
+            staged.push(self.market_localization_staged_record(&resource_id, &market_id, input));
         }
 
         for record in &staged {
@@ -2548,23 +2627,57 @@ impl DraftProxy {
         )
     }
 
+    /// Build a staged market-localization record with the live market name resolved
+    /// from staged markets and a synthetic `updatedAt` (matched loosely by the specs).
+    fn market_localization_staged_record(
+        &self,
+        resource_id: &str,
+        market_id: &str,
+        input: &ResolvedValue,
+    ) -> Value {
+        let value = resolved_object_string(input, "value").unwrap_or_default();
+        let key = resolved_object_string(input, "key").unwrap_or_default();
+        let market_name = self
+            .store
+            .staged
+            .markets
+            .get(market_id)
+            .and_then(|market| market.get("name"))
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        json!({
+            "resourceId": resource_id,
+            "key": key,
+            "value": value,
+            "updatedAt": SYNTHETIC_MARKET_LOCALIZATION_TIMESTAMP,
+            "outdated": false,
+            "market": { "id": market_id, "name": market_name }
+        })
+    }
+
     pub(in crate::proxy) fn market_localizations_remove_response(
         &mut self,
         field: &RootFieldSelection,
     ) -> Value {
         let resource_id = resolved_string_arg(&field.arguments, "resourceId").unwrap_or_default();
-        if resource_id.contains("missing") {
+        if !self
+            .store
+            .staged
+            .localization_resources
+            .contains_key(&resource_id)
+        {
             return selected_json(
                 &json!({
                     "marketLocalizations": null,
-                    "userErrors": [market_localization_error(vec!["resourceId"], "RESOURCE_NOT_FOUND")]
+                    "userErrors": [market_localization_error(vec!["resourceId"], "RESOURCE_NOT_FOUND", &format!("Resource {resource_id} does not exist"))]
                 }),
                 &field.selection,
             );
         }
         let keys = resolved_string_list_arg(&field.arguments, "marketLocalizationKeys");
         let market_ids = resolved_string_list_arg(&field.arguments, "marketIds");
-        if keys.is_empty() || market_ids.iter().any(|id| id.contains("missing")) {
+        if keys.is_empty() {
             return selected_json(
                 &json!({ "marketLocalizations": null, "userErrors": [] }),
                 &field.selection,
@@ -3063,6 +3176,19 @@ impl DraftProxy {
             "priceList" => {
                 !markets_variables_have_local_id(variables, &self.store.staged.price_lists)
             }
+            // A market-localizable resource read forwards once per resource: until the
+            // resource's content has been observed (cold read or mutation preflight),
+            // forward verbatim so Shopify reports its real content/digests; afterwards
+            // serve the staged read-after-write projection locally.
+            "marketLocalizableResource" => resolved_string_arg(variables, "resourceId")
+                .map(|resource_id| {
+                    !self
+                        .store
+                        .staged
+                        .localization_resources
+                        .contains_key(&resource_id)
+                })
+                .unwrap_or(true),
             "markets" | "catalogs" | "catalogsCount" | "priceLists" | "webPresences"
             | "marketsResolvedValues" | "marketLocalizableResources"
             | "marketLocalizableResourcesByIds" => !self.has_markets_overlay_state(),
@@ -3135,6 +3261,67 @@ impl DraftProxy {
                     self.store.stage_observed_product_json(product);
                 }
             }
+        }
+        // Market-localizable resources: the singular field, the type-scoped and
+        // by-ids connections, plus the mutation-preflight `marketLocalizableResource`.
+        let mut localizable_records =
+            markets_collect_records(data, "marketLocalizableResources", "marketLocalizableResource");
+        localizable_records
+            .extend(markets_connection_nodes(data.get("marketLocalizableResourcesByIds")));
+        for record in &localizable_records {
+            self.stage_observed_market_localizable_resource(record);
+        }
+    }
+
+    /// Record a market-localizable resource observed upstream: index its
+    /// `marketLocalizableContent` by `resourceId` (existence + valid keys/digests)
+    /// and stage any pre-existing `marketLocalizations` so read-after-write filtering
+    /// reflects Shopify's prior state for an arbitrary backend.
+    fn stage_observed_market_localizable_resource(&mut self, resource: &Value) {
+        let Some(resource_id) = resource.get("resourceId").and_then(Value::as_str) else {
+            return;
+        };
+        if let Some(content) = resource
+            .get("marketLocalizableContent")
+            .filter(|content| content.is_array())
+        {
+            self.store
+                .staged
+                .localization_resources
+                .insert(resource_id.to_string(), content.clone());
+        }
+        let Some(localizations) = resource
+            .get("marketLocalizations")
+            .and_then(Value::as_array)
+            .filter(|localizations| !localizations.is_empty())
+        else {
+            return;
+        };
+        for localization in localizations {
+            let key = localization.get("key").and_then(Value::as_str);
+            let market_id = localization
+                .get("market")
+                .and_then(|market| market.get("id"))
+                .and_then(Value::as_str);
+            self.store
+                .staged
+                .localization_translations
+                .retain(|existing| {
+                    existing["resourceId"].as_str() != Some(resource_id)
+                        || existing["key"].as_str() != key
+                        || existing["market"]["id"].as_str() != market_id
+                });
+            let mut record = serde_json::Map::new();
+            record.insert("resourceId".to_string(), json!(resource_id));
+            for field in ["key", "value", "updatedAt", "outdated", "market"] {
+                if let Some(value) = localization.get(field) {
+                    record.insert(field.to_string(), value.clone());
+                }
+            }
+            self.store
+                .staged
+                .localization_translations
+                .push(Value::Object(record));
         }
     }
 
@@ -3478,6 +3665,16 @@ fn markets_collect_records(data: &Value, connection_key: &str, singular_key: &st
         records.push(record.clone());
     }
     records
+}
+
+/// The `marketId` argument applied to a read's nested `marketLocalizations`
+/// selection, used to filter staged localizations to a single market the way the
+/// live `marketLocalizableResource.marketLocalizations(marketId:)` field does.
+fn market_localizations_market_filter(selection: &[SelectedField]) -> Option<String> {
+    selection
+        .iter()
+        .find(|field| field.name == "marketLocalizations")
+        .and_then(|field| resolved_string_arg(&field.arguments, "marketId"))
 }
 
 fn record_gid(record: &Value, prefix: &str) -> Option<String> {

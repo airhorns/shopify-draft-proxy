@@ -1434,30 +1434,15 @@ pub(in crate::proxy) fn translation_from_input(input: &ResolvedValue) -> Value {
     })
 }
 
-pub(in crate::proxy) fn market_localization_record(
-    resource_id: &str,
-    input: &ResolvedValue,
+pub(in crate::proxy) fn market_localization_error(
+    field: Vec<&str>,
+    code: &str,
+    message: &str,
 ) -> Value {
-    let key = resolved_object_string(input, "key").unwrap_or_else(|| "title".to_string());
-    let value = resolved_object_string(input, "value").unwrap_or_default();
-    let market_id = resolved_object_string(input, "marketId")
-        .unwrap_or_else(|| "gid://shopify/Market/ca".to_string());
-    json!({
-        "resourceId": resource_id,
-        "key": key,
-        "value": value,
-        "outdated": false,
-        "market": {
-            "id": market_id,
-            "name": "Canada"
-        }
-    })
-}
-
-pub(in crate::proxy) fn market_localization_error(field: Vec<&str>, code: &str) -> Value {
     json!({
         "__typename": "TranslationUserError",
         "field": field,
+        "message": message,
         "code": code
     })
 }

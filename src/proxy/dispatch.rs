@@ -1481,10 +1481,12 @@ impl DraftProxy {
                     {
                         return self.web_presence_helper_query(&query);
                     }
-                    let data = if operation.root_fields.iter().all(|field| {
+                    let data = if operation.root_fields.iter().any(|field| {
                         matches!(
                             field.as_str(),
-                            "marketLocalizableResource" | "marketLocalizableResources"
+                            "marketLocalizableResource"
+                                | "marketLocalizableResources"
+                                | "marketLocalizableResourcesByIds"
                         )
                     }) {
                         self.market_localization_query_data(&fields, request)
@@ -1514,6 +1516,7 @@ impl DraftProxy {
                             "marketLocalizationsRegister" | "marketLocalizationsRemove"
                         )
                     }) {
+                        self.market_localization_mutation_preflight(&variables, request);
                         self.market_localization_mutation_data(&fields)
                     } else if operation.root_fields.iter().all(|field| {
                         matches!(

@@ -307,6 +307,12 @@ struct StagedState {
     created_publication_ids: BTreeSet<String>,
     shop_locales: BTreeMap<String, Value>,
     localization_translations: Vec<Value>,
+    // Market-localizable resources observed from a cold upstream read or mutation
+    // preflight: resourceId -> the resource's `marketLocalizableContent` array. The
+    // presence of a key records that the resource exists (so register/remove resolve
+    // RESOURCE_NOT_FOUND for never-observed ids); the stored content keys+digests drive
+    // INVALID_KEY_FOR_MODEL / digest validation without fabricating field metadata.
+    localization_resources: BTreeMap<String, Value>,
     // True once a localization mutation has cleared staged state (locale disable,
     // translation remove). Keeps the proxy authoritative for localization reads so a
     // now-empty staged set is not mistaken for a cold cache that must forward upstream.
@@ -611,6 +617,7 @@ impl Default for StagedState {
             created_publication_ids: BTreeSet::new(),
             shop_locales: BTreeMap::new(),
             localization_translations: Vec::new(),
+            localization_resources: BTreeMap::new(),
             localization_dirty: false,
             marketing_activities: BTreeMap::new(),
             deleted_marketing_activity_ids: BTreeSet::new(),

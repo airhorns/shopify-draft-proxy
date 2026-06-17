@@ -356,6 +356,10 @@ impl DraftProxy {
             snapshot["stagedState"]["localizationTranslations"] =
                 json!(self.store.staged.localization_translations.clone());
         }
+        if !self.store.staged.localization_resources.is_empty() {
+            snapshot["stagedState"]["localizationResources"] =
+                json!(self.store.staged.localization_resources.clone());
+        }
         if self.store.staged.localization_dirty {
             snapshot["stagedState"]["localizationDirty"] = json!(true);
         }
@@ -1116,6 +1120,15 @@ impl DraftProxy {
             ["localizationTranslations"]
             .as_array()
             .cloned()
+            .unwrap_or_default();
+        self.store.staged.localization_resources = state["stagedState"]["localizationResources"]
+            .as_object()
+            .map(|resources| {
+                resources
+                    .iter()
+                    .map(|(resource_id, content)| (resource_id.clone(), content.clone()))
+                    .collect()
+            })
             .unwrap_or_default();
         self.store.staged.localization_dirty = state["stagedState"]["localizationDirty"]
             .as_bool()
