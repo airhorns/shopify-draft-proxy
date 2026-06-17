@@ -3367,6 +3367,9 @@ impl DraftProxy {
             "productVariantCreate" => self.product_variant_create(query, variables),
             "productVariantUpdate" => self.product_variant_update(query, variables),
             "productVariantDelete" => self.product_variant_delete(query, variables),
+            "productVariantAppendMedia" | "productVariantDetachMedia" => {
+                self.product_variant_media_mutation(root_field, query, variables)
+            }
             "productVariantsBulkCreate" => {
                 self.product_variants_bulk_create(request, query, variables)
             }
@@ -3384,6 +3387,219 @@ impl DraftProxy {
                 "No mutation dispatcher implemented for product variant root",
             )),
         }
+    }
+
+    fn product_variant_media_mutation(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
+        let variant_media = resolved_object_list_field(variables, "variantMedia");
+        self.hydrate_product_variant_media_owner_state(&product_id, &variant_media);
+        let user_errors =
+            self.product_variant_media_user_errors(root_field, &product_id, &variant_media);
+
+        if !user_errors.is_empty() {
+            let payload = self.product_variant_media_payload_json(
+                &payload_selection,
+                &product_id,
+                Vec::new(),
+                user_errors,
+            );
+            return MutationOutcome::response(ok_json(json!({
+                "data": { response_key: payload }
+            })));
+        }
+
+        let mut changed_variant_ids = Vec::new();
+        for item in &variant_media {
+            let Some(variant_id) = resolved_string_field(item, "variantId") else {
+                continue;
+            };
+            let media_ids = resolved_string_list_field_unsorted(item, "mediaIds");
+            let Some(mut variant) = self.store.product_variant_by_id(&variant_id).cloned() else {
+                continue;
+            };
+            match root_field {
+                "productVariantAppendMedia" => {
+                    for media_id in media_ids {
+                        if !variant
+                            .media_ids
+                            .iter()
+                            .any(|existing| existing == &media_id)
+                        {
+                            variant.media_ids.push(media_id);
+                        }
+                    }
+                }
+                "productVariantDetachMedia" => {
+                    let removals = media_ids.into_iter().collect::<BTreeSet<_>>();
+                    variant
+                        .media_ids
+                        .retain(|media_id| !removals.contains(media_id));
+                }
+                _ => {}
+            }
+            changed_variant_ids.push(variant.id.clone());
+            self.store.stage_product_variant(variant);
+        }
+
+        let payload = self.product_variant_media_payload_json(
+            &payload_selection,
+            &product_id,
+            changed_variant_ids.clone(),
+            Vec::new(),
+        );
+        MutationOutcome::staged(
+            ok_json(json!({ "data": { response_key: payload } })),
+            LogDraft::staged(
+                root_field,
+                "products",
+                std::iter::once(product_id)
+                    .chain(changed_variant_ids)
+                    .collect(),
+            ),
+        )
+    }
+
+    fn hydrate_product_variant_media_owner_state(
+        &mut self,
+        product_id: &str,
+        variant_media: &[BTreeMap<String, ResolvedValue>],
+    ) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let mut ids = Vec::new();
+        if !product_id.is_empty() && self.store.product_by_id(product_id).is_none() {
+            ids.push(product_id.to_string());
+        }
+        for item in variant_media {
+            let Some(variant_id) = resolved_string_field(item, "variantId") else {
+                continue;
+            };
+            if self.store.product_variant_by_id(&variant_id).is_none() {
+                ids.push(variant_id);
+            }
+        }
+        ids.sort();
+        ids.dedup();
+        self.hydrate_product_nodes_for_observation(ids);
+    }
+
+    fn product_variant_media_user_errors(
+        &self,
+        root_field: &str,
+        product_id: &str,
+        variant_media: &[BTreeMap<String, ResolvedValue>],
+    ) -> Vec<Value> {
+        let mut user_errors = Vec::new();
+        for (entry_index, item) in variant_media.iter().enumerate() {
+            let variant_id = resolved_string_field(item, "variantId").unwrap_or_default();
+            let media_ids = resolved_string_list_field_unsorted(item, "mediaIds");
+            let Some(variant) = self.store.product_variant_by_id(&variant_id) else {
+                user_errors.push(product_variant_media_user_error(
+                    &["variantMedia", &entry_index.to_string(), "variantId"],
+                    "Variant does not exist on the specified product.",
+                    "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT",
+                ));
+                continue;
+            };
+            if variant.product_id != product_id {
+                user_errors.push(product_variant_media_user_error(
+                    &["variantMedia", &entry_index.to_string(), "variantId"],
+                    "Variant does not exist on the specified product.",
+                    "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT",
+                ));
+                continue;
+            }
+            for media_id in media_ids {
+                let media = self.store.product_media_by_id(product_id, &media_id);
+                if media.is_none() {
+                    user_errors.push(product_variant_media_user_error(
+                        &["variantMedia", &entry_index.to_string(), "mediaIds"],
+                        "Media does not exist on the specified product.",
+                        "MEDIA_DOES_NOT_EXIST_ON_PRODUCT",
+                    ));
+                    continue;
+                }
+                if root_field == "productVariantAppendMedia"
+                    && media
+                        .as_ref()
+                        .and_then(|media| media.get("status"))
+                        .and_then(Value::as_str)
+                        != Some("READY")
+                {
+                    user_errors.push(product_variant_media_user_error(
+                        &["variantMedia", &entry_index.to_string(), "mediaIds"],
+                        "Non-ready media cannot be attached to variants.",
+                        "NON_READY_MEDIA",
+                    ));
+                    continue;
+                }
+                if root_field == "productVariantDetachMedia"
+                    && !variant
+                        .media_ids
+                        .iter()
+                        .any(|existing| existing == &media_id)
+                {
+                    user_errors.push(product_variant_media_user_error(
+                        &["variantMedia", &entry_index.to_string(), "variantId"],
+                        "The specified media is not attached to the specified variant.",
+                        "MEDIA_IS_NOT_ATTACHED_TO_VARIANT",
+                    ));
+                }
+            }
+        }
+        user_errors
+    }
+
+    fn product_variant_media_payload_json(
+        &self,
+        payload_selection: &[SelectedField],
+        product_id: &str,
+        variant_ids: Vec<String>,
+        user_errors: Vec<Value>,
+    ) -> Value {
+        selected_payload_json(payload_selection, |selection| {
+            match selection.name.as_str() {
+                "product" => Some(match self.store.product_by_id(product_id) {
+                    Some(product) if user_errors.is_empty() => {
+                        let variants = self.store.product_variants_for_product(product_id);
+                        product_json_with_variants(product, &variants, &selection.selection)
+                    }
+                    _ => Value::Null,
+                }),
+                "productVariants" => Some(if user_errors.is_empty() {
+                    Value::Array(
+                        variant_ids
+                            .iter()
+                            .filter_map(|variant_id| self.store.product_variant_by_id(variant_id))
+                            .map(|variant| {
+                                product_variant_json(
+                                    variant,
+                                    self.store.product_by_id(&variant.product_id),
+                                    &selection.selection,
+                                )
+                            })
+                            .collect(),
+                    )
+                } else {
+                    Value::Null
+                }),
+                "userErrors" => Some(Value::Array(
+                    user_errors
+                        .iter()
+                        .map(|error| selected_json(error, &selection.selection))
+                        .collect(),
+                )),
+                _ => None,
+            }
+        })
     }
 
     fn product_variant_create(

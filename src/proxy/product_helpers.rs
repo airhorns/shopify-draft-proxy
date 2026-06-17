@@ -4529,6 +4529,18 @@ pub(in crate::proxy) fn product_delete_variable_required_id_error(
     }))
 }
 
+pub(in crate::proxy) fn product_variant_media_user_error(
+    field: &[&str],
+    message: &str,
+    code: &str,
+) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
 pub(in crate::proxy) fn variant_media_ids_from_json(value: &Value) -> Vec<String> {
     value
         .get("mediaIds")

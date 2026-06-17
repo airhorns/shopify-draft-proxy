@@ -401,6 +401,8 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("productOptionUpdate", CapabilityDomain::Products),
     local_mutation("productOptionsDelete", CapabilityDomain::Products),
     local_mutation("productOptionsReorder", CapabilityDomain::Products),
+    local_mutation("productVariantAppendMedia", CapabilityDomain::Products),
+    local_mutation("productVariantDetachMedia", CapabilityDomain::Products),
     local_mutation("inventoryAdjustQuantities", CapabilityDomain::Products),
     local_mutation("inventorySetQuantities", CapabilityDomain::Products),
     local_mutation("inventoryMoveQuantities", CapabilityDomain::Products),

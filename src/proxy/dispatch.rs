@@ -706,6 +706,8 @@ impl DraftProxy {
                         "productVariantCreate"
                             | "productVariantUpdate"
                             | "productVariantDelete"
+                            | "productVariantAppendMedia"
+                            | "productVariantDetachMedia"
                             | "productVariantsBulkCreate"
                             | "productVariantsBulkUpdate"
                             | "productVariantsBulkDelete"
