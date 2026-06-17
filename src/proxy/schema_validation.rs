@@ -400,6 +400,16 @@ fn validate_resolved_value(value: &ResolvedValue, type_ref: &SchemaTypeRef) -> O
             .parse::<f64>()
             .err()
             .map(|_| format!("invalid decimal '{raw}'")),
+        ("MetaobjectCustomerAccountAccess", ResolvedValue::String(raw)) => {
+            let allowed_values = raw_enum_allowed_values(&type_ref.named_type)?;
+            (!allowed_values.contains(&raw.as_str())).then(|| {
+                format!(
+                    "Expected \"{}\" to be one of: {}",
+                    raw,
+                    allowed_values.join(", ")
+                )
+            })
+        }
         ("PublicationCreateInputPublicationDefaultState", ResolvedValue::String(raw)) => {
             let allowed_values = raw_enum_allowed_values(&type_ref.named_type)?;
             (!allowed_values.contains(&raw.as_str())).then(|| {
@@ -426,6 +436,7 @@ fn validate_resolved_value(value: &ResolvedValue, type_ref: &SchemaTypeRef) -> O
 
 fn raw_enum_allowed_values(type_name: &str) -> Option<&'static [&'static str]> {
     match type_name {
+        "MetaobjectCustomerAccountAccess" => Some(&["NONE", "READ"]),
         "PublicationCreateInputPublicationDefaultState" => Some(&["EMPTY", "ALL_PRODUCTS"]),
         "ResourceFeedbackState" => Some(&["ACCEPTED", "REQUIRES_ACTION"]),
         _ => None,
@@ -539,7 +550,8 @@ fn input_object_argument_literal_incompatible_error(
     path: &[String],
     context: ValidationContext<'_>,
 ) -> Value {
-    let location = input_field_name_location(context.query, context.field_location, argument_name)
+    let location_field = path.last().map(String::as_str).unwrap_or(argument_name);
+    let location = raw_input_object_field_value_location(context.query, location_field)
         .unwrap_or(context.field_location);
     let expected_type = if raw_enum_allowed_values(&type_ref.named_type).is_some() {
         type_ref.named_type.as_str()
@@ -710,6 +722,44 @@ fn local_extension_input_field(input_type_name: &str, field_name: &str) -> bool 
         (input_type_name, field_name),
         ("GiftCardCreateInput", "notify")
     )
+}
+
+fn raw_input_object_field_value_location(query: &str, field_name: &str) -> Option<SourceLocation> {
+    let mut offset = 0;
+    while let Some(relative_index) = query[offset..].find(field_name) {
+        let name_start = offset + relative_index;
+        let name_end = name_start + field_name.len();
+        if !graphql_name_boundary(query, name_start, name_end) {
+            offset = name_end;
+            continue;
+        }
+        let colon_index = query[name_end..]
+            .char_indices()
+            .find_map(|(index, ch)| match ch {
+                ':' => Some(name_end + index),
+                ch if ch.is_whitespace() => None,
+                _ => Some(usize::MAX),
+            })?;
+        if colon_index == usize::MAX {
+            offset = name_end;
+            continue;
+        }
+        let value_start = query[colon_index + 1..]
+            .char_indices()
+            .find_map(|(index, ch)| (!ch.is_whitespace()).then_some(colon_index + 1 + index))?;
+        return source_location_for_byte_offset(query, value_start);
+    }
+    None
+}
+
+fn graphql_name_boundary(query: &str, start: usize, end: usize) -> bool {
+    let before = query[..start].chars().next_back();
+    let after = query[end..].chars().next();
+    !before.is_some_and(is_graphql_name_char) && !after.is_some_and(is_graphql_name_char)
+}
+
+fn is_graphql_name_char(ch: char) -> bool {
+    ch == '_' || ch.is_ascii_alphanumeric()
 }
 
 fn public_admin_input_schema() -> &'static AdminInputSchema {
@@ -1145,6 +1195,14 @@ fn extend_functions_input_schema(schema: &mut AdminInputSchema) {
 
 fn extend_metaobject_definition_input_schema(schema: &mut AdminInputSchema) {
     schema.input_objects.insert(
+        "MetaobjectAccessInput".to_string(),
+        input_fields(&[
+            ("admin", named("MetaobjectAdminAccess")),
+            ("storefront", named("MetaobjectStorefrontAccess")),
+            ("customerAccount", named("MetaobjectCustomerAccountAccess")),
+        ]),
+    );
+    schema.input_objects.insert(
         "MetaobjectDefinitionUpdateInput".to_string(),
         input_fields(&[
             ("access", named("MetaobjectAccessInput")),
@@ -1165,6 +1223,25 @@ fn extend_metaobject_definition_input_schema(schema: &mut AdminInputSchema) {
             ("id", non_null("ID")),
             ("definition", non_null("MetaobjectDefinitionUpdateInput")),
         ]),
+    );
+    schema.input_objects.insert(
+        "MetaobjectDefinitionCreateInput".to_string(),
+        input_fields(&[
+            ("access", named("MetaobjectAccessInput")),
+            ("capabilities", named("MetaobjectCapabilityDataInput")),
+            ("description", named("String")),
+            ("displayNameKey", named("String")),
+            (
+                "fieldDefinitions",
+                list_of_non_null("MetaobjectFieldDefinitionCreateInput"),
+            ),
+            ("name", named("String")),
+            ("type", named("String")),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "metaobjectDefinitionCreate".to_string(),
+        mutation_args(&[("definition", non_null("MetaobjectDefinitionCreateInput"))]),
     );
     schema.mutation_fields.insert(
         "standardMetaobjectDefinitionEnable".to_string(),

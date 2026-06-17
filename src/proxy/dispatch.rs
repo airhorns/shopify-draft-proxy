@@ -904,7 +904,7 @@ impl DraftProxy {
                     {
                         self.metaobject_live_hybrid_read(request, &fields)
                     } else {
-                        ok_json(json!({ "data": self.metaobject_query_data(&fields) }))
+                        ok_json(json!({ "data": self.metaobject_query_data(&fields, request) }))
                     }
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
@@ -1421,7 +1421,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
             {
                 if let Some(fields) = root_fields(&query, &variables) {
-                    ok_json(json!({ "data": self.localization_query_data(&fields, &query) }))
+                    ok_json(json!({ "data": self.localization_query_data(&fields, request) }))
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
                 }
@@ -1460,7 +1460,7 @@ impl DraftProxy {
                             "marketLocalizableResource" | "marketLocalizableResources"
                         )
                     }) {
-                        self.market_localization_query_data(&fields)
+                        self.market_localization_query_data(&fields, request)
                     } else if operation.root_fields.iter().any(|field| {
                         matches!(field.as_str(), "priceList" | "priceLists")
                     }) {
@@ -1469,6 +1469,24 @@ impl DraftProxy {
                         matches!(field.as_str(), "catalog" | "catalogs")
                     }) {
                         self.catalog_query_data(&fields)
+                    } else if operation
+                        .root_fields
+                        .iter()
+                        .any(|field| field.as_str() == "markets")
+                    {
+                        let mut data = serde_json::Map::new();
+                        for field in &fields {
+                            let value = if field.name == "markets" {
+                                self.localization_markets_connection(field, request)
+                            } else {
+                                self.market_query_data(std::slice::from_ref(field))
+                                    .get(&field.response_key)
+                                    .cloned()
+                                    .unwrap_or(Value::Null)
+                            };
+                            data.insert(field.response_key.clone(), value);
+                        }
+                        Value::Object(data)
                     } else {
                         self.market_query_data(&fields)
                     };
