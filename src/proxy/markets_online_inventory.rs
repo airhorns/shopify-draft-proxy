@@ -1,24 +1,5 @@
 use super::*;
 
-pub(in crate::proxy) fn is_ported_localization_document(query: &str) -> bool {
-    [
-        "LocalizationCollectionTranslationRead",
-        "LocalizationLocaleTranslationRead",
-        "LocalizationUnknownResourceValidation",
-        "LocalizationShopLocaleEnable(",
-        "LocalizationShopLocaleUpdate(",
-        "LocalizationShopLocaleDisable(",
-        "LocalizationTranslationsRead",
-        "LocalizationTranslationsRegister(",
-        "LocalizationTranslationsRemove(",
-        "LocalizationTranslationsMarketScopedRead",
-        "LocalizationTranslationsMarketScopedRemove",
-        "RustLocalizationShopLocaleTailHelpers",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
 pub(in crate::proxy) fn is_ported_market_create_document(query: &str) -> bool {
     query.contains("RustMarketCreateLocalRuntime")
 }
@@ -1000,26 +981,6 @@ pub(in crate::proxy) fn default_available_locales() -> BTreeMap<String, String> 
     ])
 }
 
-pub(in crate::proxy) fn localization_collection_read_data(with_translation: bool) -> Value {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-collection-translation-lifecycle.json"
-    ))
-    .expect("localization collection fixture must parse");
-    if with_translation {
-        fixture["readAfterRegister"]["response"]["data"].clone()
-    } else {
-        fixture["readBeforeRegister"]["response"]["data"].clone()
-    }
-}
-
-pub(in crate::proxy) fn localization_market_scoped_read_data() -> Value {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translations-market-scoped.json"
-    ))
-    .expect("localization market-scoped fixture must parse");
-    fixture["marketScopedTranslationLifecycle"]["readBeforeRegister"]["data"].clone()
-}
-
 pub(in crate::proxy) fn shop_locale_record(locale: &str, name: &str, published: bool) -> Value {
     json!({
         "locale": locale,
@@ -1888,41 +1849,6 @@ pub(in crate::proxy) fn inventory_location_name(location_id: &str) -> &'static s
     }
 }
 
-pub(in crate::proxy) fn is_log_draft_enforcement_document(query: &str) -> bool {
-    query.contains("RustLogDraftEnforcement")
-}
-
-pub(in crate::proxy) fn is_ported_marketing_document(query: &str) -> bool {
-    [
-        "MarketingBaselineRead",
-        "MarketingActivityLifecycle",
-        "MarketingActivityLifecycleRead",
-        "MarketingActivityLifecycleUpdateByUtm",
-        "MarketingActivityLifecycleDelete",
-        "MarketingActivityLifecycleDeleteAll",
-        "MarketingEngagementLifecycle",
-        "MarketingEngagementRead",
-        "MarketingActivityRead",
-        "MarketingActivityCreateExternalValidation",
-        "MarketingActivityUpsertExternalValidation",
-        "MarketingActivityUpdateCurrencyAndTacticGuards",
-        "MarketingActivitySourceAndMedium",
-        "MarketingActivityDeleteExternalGuards",
-        "MarketingActivityPerAppCreate",
-        "MarketingActivityPerAppUpdate",
-        "MarketingActivityPerAppDelete",
-        "MarketingActivityPerAppEngagement",
-        "MarketingActivityPerAppDeleteAll",
-        "MarketingActivityPerAppRead",
-        "MarketingEngagementCurrencyValidation",
-        "MarketingEngagementCreateValidationOrder",
-        "MarketingNativeActivityLifecycle",
-        "MarketingNativeActivityRead",
-    ]
-    .iter()
-    .any(|marker| query.contains(marker))
-}
-
 pub(in crate::proxy) fn marketing_connection(
     records: Vec<Value>,
     selection: &[SelectedField],
@@ -1933,6 +1859,47 @@ pub(in crate::proxy) fn marketing_connection(
         empty_page_info(),
     );
     selected_json(&full, selection)
+}
+
+pub(in crate::proxy) fn marketing_record_matches_query(record: &Value, query: &str) -> bool {
+    marketing_query_terms(query)
+        .iter()
+        .all(|(field, expected)| {
+            marketing_record_query_value(record, field).is_some_and(|value| {
+                value
+                    .to_ascii_lowercase()
+                    .contains(&expected.to_ascii_lowercase())
+            })
+        })
+}
+
+pub(in crate::proxy) fn marketing_query_terms(query: &str) -> Vec<(String, String)> {
+    query
+        .split_whitespace()
+        .filter_map(|term| {
+            let (field, value) = term.split_once(':')?;
+            let value = value.trim_matches(|ch| ch == '"' || ch == '\'');
+            (!field.is_empty() && !value.is_empty()).then(|| (field.to_string(), value.to_string()))
+        })
+        .collect()
+}
+
+pub(in crate::proxy) fn marketing_record_query_value(
+    record: &Value,
+    field: &str,
+) -> Option<String> {
+    match field {
+        "id" => record["id"].as_str(),
+        "remote_id" | "remoteId" => record["remoteId"]
+            .as_str()
+            .or_else(|| record["marketingEvent"]["remoteId"].as_str()),
+        "title" => record["title"].as_str(),
+        "description" => record["marketingEvent"]["description"].as_str(),
+        "status" => record["status"].as_str(),
+        "channel_handle" | "channelHandle" => record["marketingEvent"]["channelHandle"].as_str(),
+        _ => None,
+    }
+    .map(ToString::to_string)
 }
 
 pub(in crate::proxy) fn marketing_activity_payload(
@@ -2058,11 +2025,6 @@ pub(in crate::proxy) fn marketing_activity_from_input(
         .as_ref()
         .and_then(|u| resolved_string_field(u, "medium"))
         .unwrap_or_else(|| old_utm["medium"].as_str().unwrap_or("email").to_string());
-    let source_medium = marketing_source_and_medium(
-        &channel_type,
-        &tactic,
-        resolved_string_field(&input, "referringDomain").as_deref(),
-    );
     let numeric = resource_id_path_tail(id);
     let event_id = old["marketingEvent"]["id"]
         .as_str()
@@ -2077,7 +2039,44 @@ pub(in crate::proxy) fn marketing_activity_from_input(
     let budget = resolved_object_field(&input, "budget")
         .map(marketing_budget_json)
         .unwrap_or_else(|| old.get("budget").cloned().unwrap_or(Value::Null));
-    let ad_spend = old.get("adSpend").cloned().unwrap_or(Value::Null);
+    let ad_spend = resolved_object_field(&input, "adSpend")
+        .map(marketing_money_json_from_object)
+        .unwrap_or_else(|| old.get("adSpend").cloned().unwrap_or(Value::Null));
+    let scheduled_to_start_at = resolved_string_field(&input, "scheduledToStartAt")
+        .or_else(|| resolved_string_field(&input, "scheduledStart"))
+        .map(Value::String)
+        .unwrap_or_else(|| {
+            old.get("scheduledToStartAt")
+                .cloned()
+                .unwrap_or(Value::Null)
+        });
+    let scheduled_to_end_at = resolved_string_field(&input, "scheduledToEndAt")
+        .or_else(|| resolved_string_field(&input, "scheduledEnd"))
+        .map(Value::String)
+        .unwrap_or_else(|| old.get("scheduledToEndAt").cloned().unwrap_or(Value::Null));
+    let referring_domain = resolved_string_field(&input, "referringDomain")
+        .map(Value::String)
+        .unwrap_or_else(|| old.get("referringDomain").cloned().unwrap_or(Value::Null));
+    let source_medium =
+        marketing_source_and_medium(&channel_type, &tactic, referring_domain.as_str());
+    let marketing_event = json!({
+        "__typename": "MarketingEvent",
+        "id": event_id,
+        "type": tactic,
+        "remoteId": remote_id,
+        "channelHandle": channel_handle,
+        "startedAt": "2026-05-05T00:00:00Z",
+        "endedAt": if matches!(status.as_str(), "INACTIVE" | "DELETED_EXTERNALLY") { json!("2026-05-05T00:00:00Z") } else { Value::Null },
+        "scheduledToEndAt": scheduled_to_end_at.clone(),
+        "manageUrl": remote_url,
+        "previewUrl": preview_url,
+        "utmCampaign": campaign,
+        "utmMedium": medium,
+        "utmSource": source,
+        "description": title,
+        "marketingChannelType": channel_type,
+        "sourceAndMedium": source_medium
+    });
     json!({
         "__typename": "MarketingActivity",
         "id": id,
@@ -2100,26 +2099,38 @@ pub(in crate::proxy) fn marketing_activity_from_input(
         "utmParameters": { "campaign": campaign, "source": source, "medium": medium },
         "budget": budget,
         "adSpend": ad_spend,
+        "scheduledToStartAt": scheduled_to_start_at,
+        "scheduledToEndAt": scheduled_to_end_at,
+        "referringDomain": referring_domain,
         "app": { "id": "gid://shopify/App/1", "title": "Draft proxy app" },
-        "marketingEvent": {
-            "__typename": "MarketingEvent",
-            "id": event_id,
-            "type": tactic,
-            "remoteId": remote_id,
-            "channelHandle": channel_handle,
-            "startedAt": "2026-05-05T00:00:00Z",
-            "endedAt": if matches!(status.as_str(), "INACTIVE" | "DELETED_EXTERNALLY") { json!("2026-05-05T00:00:00Z") } else { Value::Null },
-            "scheduledToEndAt": null,
-            "manageUrl": remote_url,
-            "previewUrl": preview_url,
-            "utmCampaign": campaign,
-            "utmMedium": medium,
-            "utmSource": source,
-            "description": title,
-            "marketingChannelType": channel_type,
-            "sourceAndMedium": source_medium
-        }
+        "marketingEvent": marketing_event
     })
+}
+
+pub(in crate::proxy) fn marketing_money_json_from_object(
+    input: BTreeMap<String, ResolvedValue>,
+) -> Value {
+    json!({
+        "amount": resolved_string_field(&input, "amount")
+            .map(marketing_money_amount_json_string)
+            .unwrap_or_default(),
+        "currencyCode": resolved_string_field(&input, "currencyCode").unwrap_or_else(|| "USD".to_string())
+    })
+}
+
+fn marketing_money_amount_json_string(amount: String) -> String {
+    let Some((whole, fractional)) = amount.split_once('.') else {
+        return amount;
+    };
+    if fractional.is_empty() {
+        return amount;
+    }
+    let trimmed = fractional.trim_end_matches('0');
+    if trimmed.is_empty() {
+        format!("{whole}.0")
+    } else {
+        format!("{whole}.{trimmed}")
+    }
 }
 
 pub(in crate::proxy) fn marketing_budget_json(input: BTreeMap<String, ResolvedValue>) -> Value {
@@ -2165,10 +2176,7 @@ pub(in crate::proxy) fn marketing_money_json(
     let Some(obj) = resolved_object_field(input, key) else {
         return Value::Null;
     };
-    json!({
-        "amount": resolved_string_field(&obj, "amount").unwrap_or_default(),
-        "currencyCode": resolved_string_field(&obj, "currencyCode").unwrap_or_else(|| "USD".to_string())
-    })
+    marketing_money_json_from_object(obj)
 }
 
 pub(in crate::proxy) fn marketing_money_currency(

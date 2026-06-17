@@ -2464,12 +2464,21 @@ impl DraftProxy {
                     );
                 }
                 let response = (self.upstream_transport)(request.clone());
-                if operation_type == OperationType::Query
-                    && root_fields
+                if operation_type == OperationType::Query {
+                    if root_fields
                         .iter()
                         .all(|field| matches!(field.as_str(), "node" | "nodes"))
-                {
-                    self.observe_collection_passthrough_response(&response);
+                    {
+                        self.observe_collection_passthrough_response(&response);
+                    }
+                    if root_fields.iter().any(|field| {
+                        matches!(
+                            field.as_str(),
+                            "node" | "nodes" | "product" | "products" | "productVariant"
+                        )
+                    }) {
+                        self.observe_product_passthrough_response(&response);
+                    }
                 }
                 if operation_type == OperationType::Mutation
                     && matches!(

@@ -1,0 +1,155 @@
+{
+  "scenarioId": "metafield-definition-delete-type-guard-no-metafields",
+  "operationNames": ["metafieldDefinitionCreate", "metafieldDefinitionDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "validation-errors", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-delete-type-guard-no-metafields.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-create.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.cases.idNoValues.create.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "id-no-values-create-setup",
+        "capturePath": "$.cases.idNoValues.create.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "id-no-values-delete-userErrors",
+        "capturePath": "$.cases.idNoValues.delete.response.data.metafieldDefinitionDelete",
+        "proxyPath": "$.data.metafieldDefinitionDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-delete-no-flag.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "id-no-values-create-setup",
+              "path": "$.data.metafieldDefinitionCreate.createdDefinition.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "reference-no-values-create-setup",
+        "capturePath": "$.cases.referenceNoValues.create.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.referenceNoValues.create.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "reference-no-values-false-flag-userErrors",
+        "capturePath": "$.cases.referenceNoValues.delete.response.data.metafieldDefinitionDelete",
+        "proxyPath": "$.data.metafieldDefinitionDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-delete-with-flag.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "reference-no-values-create-setup",
+              "path": "$.data.metafieldDefinitionCreate.createdDefinition.id"
+            },
+            "deleteAllAssociatedMetafields": false
+          }
+        }
+      },
+      {
+        "name": "list-reference-no-values-create-setup",
+        "capturePath": "$.cases.listReferenceNoValues.create.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.listReferenceNoValues.create.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "list-reference-no-values-delete-userErrors",
+        "capturePath": "$.cases.listReferenceNoValues.delete.response.data.metafieldDefinitionDelete",
+        "proxyPath": "$.data.metafieldDefinitionDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-delete-no-flag.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "list-reference-no-values-create-setup",
+              "path": "$.data.metafieldDefinitionCreate.createdDefinition.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "reference-with-flag-create-setup",
+        "capturePath": "$.cases.referenceWithFlag.create.response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.referenceWithFlag.create.request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "reference-with-flag-delete-success",
+        "capturePath": "$.cases.referenceWithFlag.delete.response.data.metafieldDefinitionDelete",
+        "proxyPath": "$.data.metafieldDefinitionDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-delete-type-guard-no-metafields-delete-with-flag.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "reference-with-flag-create-setup",
+              "path": "$.data.metafieldDefinitionCreate.createdDefinition.id"
+            },
+            "deleteAllAssociatedMetafields": true
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedDefinitionId",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy deletes the locally staged synthetic definition ID while Shopify deleted the live-store definition ID."
+          }
+        ]
+      }
+    ]
+  },
+  "runtimeTestFiles": ["tests/graphql_routes/metafield_definitions.rs"],
+  "notes": "Recorded Shopify Admin behavior for PRODUCT id, product_reference, and list.product_reference definitions with no associated metafields. When deleteAllAssociatedMetafields is omitted or false, Shopify returns ID_TYPE_DELETION_ERROR or REFERENCE_TYPE_DELETION_ERROR and leaves the definition in place. With deleteAllAssociatedMetafields true, Shopify deletes the definition successfully."
+}
