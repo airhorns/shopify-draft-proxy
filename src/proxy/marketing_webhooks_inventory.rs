@@ -1,5 +1,6 @@
 use super::*;
 use crate::graphql::{parsed_document, ParsedDocument, RawArgumentValue};
+use std::collections::{BTreeMap, BTreeSet};
 
 const INVENTORY_VALID_REASONS: &[&str] = &[
     "correction",
@@ -20,6 +21,19 @@ const INVENTORY_VALID_REASONS: &[&str] = &[
     "safety_stock",
     "shrinkage",
 ];
+const INVENTORY_PUBLIC_ADJUST_QUANTITY_NAMES: &[&str] = &[
+    "available",
+    "damaged",
+    "incoming",
+    "quality_control",
+    "reserved",
+    "safety_stock",
+];
+const INVENTORY_SET_QUANTITY_NAMES: &[&str] = &["available", "on_hand"];
+const INVENTORY_INVALID_PUBLIC_QUANTITY_NAME_MESSAGE: &str = "The specified quantity name is invalid. Valid values are: available, damaged, incoming, quality_control, reserved, safety_stock.";
+const INVENTORY_INVALID_SET_QUANTITY_NAME_MESSAGE: &str =
+    "The quantity name must be either 'available' or 'on_hand'.";
+const INVENTORY_SET_QUANTITY_MAX: i64 = 1_000_000_000;
 const DEFAULT_INVENTORY_LOCATION_ID: &str = "gid://shopify/Location/106318430514";
 
 impl DraftProxy {
@@ -1994,6 +2008,12 @@ impl DraftProxy {
             ));
         }
         let name = resolved_string_field(&input, "name").unwrap_or_else(|| "available".to_string());
+        if let Some(error_payload) = inventory_invalid_set_quantity_name_payload(field, &name) {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
+        if let Some(error_payload) = inventory_invalid_set_quantities_payload(field, &quantities) {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
         let reason =
             resolved_string_field(&input, "reason").unwrap_or_else(|| "correction".to_string());
         let reference = resolved_string_field(&input, "referenceDocumentUri").unwrap_or_default();
@@ -2073,6 +2093,11 @@ impl DraftProxy {
             return MutationFieldOutcome::unlogged(error_payload);
         }
         let name = resolved_string_field(&input, "name").unwrap_or_else(|| "available".to_string());
+        if let Some(error_payload) =
+            inventory_invalid_public_quantity_name_payload(field, &name, json!(["input", "name"]))
+        {
+            return MutationFieldOutcome::unlogged(error_payload);
+        }
         let reason =
             resolved_string_field(&input, "reason").unwrap_or_else(|| "correction".to_string());
         let reference = resolved_string_field(&input, "referenceDocumentUri").unwrap_or_default();
@@ -2150,6 +2175,22 @@ impl DraftProxy {
         for (index, change) in changes_input.iter().enumerate() {
             let from = resolved_object_field(change, "from").unwrap_or_default();
             let to = resolved_object_field(change, "to").unwrap_or_default();
+            let from_name = resolved_string_field(&from, "name").unwrap_or_default();
+            if let Some(error_payload) = inventory_invalid_public_quantity_name_payload(
+                field,
+                &from_name,
+                json!(["input", "changes", index.to_string(), "from", "name"]),
+            ) {
+                return MutationFieldOutcome::unlogged(error_payload);
+            }
+            let to_name = resolved_string_field(&to, "name").unwrap_or_default();
+            if let Some(error_payload) = inventory_invalid_public_quantity_name_payload(
+                field,
+                &to_name,
+                json!(["input", "changes", index.to_string(), "to", "name"]),
+            ) {
+                return MutationFieldOutcome::unlogged(error_payload);
+            }
             if resolved_string_field(&from, "locationId")
                 != resolved_string_field(&to, "locationId")
             {
@@ -3109,6 +3150,98 @@ fn inventory_invalid_reason_payload(
                 ),
                 "code": "INVALID_REASON"
             }]
+        }),
+        &field.selection,
+    ))
+}
+
+fn inventory_invalid_public_quantity_name_payload(
+    field: &RootFieldSelection,
+    name: &str,
+    path: Value,
+) -> Option<Value> {
+    if INVENTORY_PUBLIC_ADJUST_QUANTITY_NAMES.contains(&name) {
+        return None;
+    }
+    Some(selected_json(
+        &json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": path,
+                "message": INVENTORY_INVALID_PUBLIC_QUANTITY_NAME_MESSAGE,
+                "code": "INVALID_QUANTITY_NAME"
+            }]
+        }),
+        &field.selection,
+    ))
+}
+
+fn inventory_invalid_set_quantity_name_payload(
+    field: &RootFieldSelection,
+    name: &str,
+) -> Option<Value> {
+    if INVENTORY_SET_QUANTITY_NAMES.contains(&name) {
+        return None;
+    }
+    Some(selected_json(
+        &json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [{
+                "field": ["input", "name"],
+                "message": INVENTORY_INVALID_SET_QUANTITY_NAME_MESSAGE,
+                "code": "INVALID_NAME"
+            }]
+        }),
+        &field.selection,
+    ))
+}
+
+fn inventory_invalid_set_quantities_payload(
+    field: &RootFieldSelection,
+    quantities: &[BTreeMap<String, ResolvedValue>],
+) -> Option<Value> {
+    let mut errors = Vec::new();
+    for (index, quantity) in quantities.iter().enumerate() {
+        if resolved_int_field(quantity, "quantity")
+            .is_some_and(|value| value > INVENTORY_SET_QUANTITY_MAX)
+        {
+            errors.push(json!({
+                "field": ["input", "quantities", index.to_string(), "quantity"],
+                "message": "The quantity can't be higher than 1,000,000,000.",
+                "code": "INVALID_QUANTITY_TOO_HIGH"
+            }));
+        }
+    }
+
+    let mut indexes_by_pair: BTreeMap<(String, String), Vec<usize>> = BTreeMap::new();
+    for (index, quantity) in quantities.iter().enumerate() {
+        let item_id = resolved_string_field(quantity, "inventoryItemId").unwrap_or_default();
+        let location_id = resolved_string_field(quantity, "locationId").unwrap_or_default();
+        indexes_by_pair
+            .entry((item_id, location_id))
+            .or_default()
+            .push(index);
+    }
+    let duplicate_indexes: BTreeSet<usize> = indexes_by_pair
+        .values()
+        .filter(|indexes| indexes.len() > 1)
+        .flat_map(|indexes| indexes.iter().copied())
+        .collect();
+    for index in duplicate_indexes {
+        errors.push(json!({
+            "field": ["input", "quantities", index.to_string(), "locationId"],
+            "message": "The combination of inventoryItemId and locationId must be unique.",
+            "code": "NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR"
+        }));
+    }
+
+    if errors.is_empty() {
+        return None;
+    }
+    Some(selected_json(
+        &json!({
+            "inventoryAdjustmentGroup": null,
+            "userErrors": errors
         }),
         &field.selection,
     ))
