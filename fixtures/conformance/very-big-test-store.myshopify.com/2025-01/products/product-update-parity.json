@@ -6,7 +6,11 @@
         "title": "Hermes Product Conformance 1776550632328 Updated",
         "vendor": "HERMES-LABS",
         "productType": "TEST-GOODS",
-        "tags": ["conformance", "product-mutation", "1776550632328-updated"],
+        "tags": [
+          "conformance",
+          "product-mutation",
+          "1776550632328-updated"
+        ],
         "descriptionHtml": "<p>Updated Hermes product mutation conformance 1776550632328</p>",
         "templateSuffix": "product-mutation-updated",
         "seo": {
@@ -25,7 +29,11 @@
             "status": "DRAFT",
             "vendor": "HERMES-LABS",
             "productType": "TEST-GOODS",
-            "tags": ["1776550632328-updated", "conformance", "product-mutation"],
+            "tags": [
+              "1776550632328-updated",
+              "conformance",
+              "product-mutation"
+            ],
             "descriptionHtml": "<p>Updated Hermes product mutation conformance 1776550632328</p>",
             "templateSuffix": "product-mutation-updated",
             "seo": {
@@ -64,7 +72,9 @@
             "product": null,
             "userErrors": [
               {
-                "field": ["id"],
+                "field": [
+                  "id"
+                ],
                 "message": "Product does not exist"
               }
             ]
@@ -95,7 +105,9 @@
             "product": null,
             "userErrors": [
               {
-                "field": ["id"],
+                "field": [
+                  "id"
+                ],
                 "message": "Product does not exist"
               }
             ]
@@ -131,7 +143,11 @@
               "status": "DRAFT",
               "vendor": "HERMES",
               "productType": "ACCESSORIES",
-              "tags": ["1776550632328", "conformance", "product-mutation"],
+              "tags": [
+                "1776550632328",
+                "conformance",
+                "product-mutation"
+              ],
               "descriptionHtml": "<p>Hermes product mutation conformance 1776550632328</p>",
               "templateSuffix": "product-mutation-parity",
               "seo": {
@@ -142,7 +158,9 @@
             },
             "userErrors": [
               {
-                "field": ["title"],
+                "field": [
+                  "title"
+                ],
                 "message": "Title can't be blank"
               }
             ]
@@ -317,7 +335,10 @@
             },
             "userErrors": [
               {
-                "field": ["input", "handle"],
+                "field": [
+                  "input",
+                  "handle"
+                ],
                 "message": "Handle 'hermes-product-conformance-1776550632328' already in use. Please provide a new handle."
               }
             ]
@@ -388,7 +409,11 @@
         "status": "DRAFT",
         "vendor": "HERMES-LABS",
         "productType": "TEST-GOODS",
-        "tags": ["1776550632328-updated", "conformance", "product-mutation"],
+        "tags": [
+          "1776550632328-updated",
+          "conformance",
+          "product-mutation"
+        ],
         "descriptionHtml": "<p>Updated Hermes product mutation conformance 1776550632328</p>",
         "templateSuffix": "product-mutation-updated",
         "seo": {
@@ -413,9 +438,11 @@
     {
       "operationName": "ProductsHydrateNodes",
       "variables": {
-        "ids": ["gid://shopify/Product/9257218801897"]
+        "ids": [
+          "gid://shopify/Product/9257218801897"
+        ]
       },
-      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -426,7 +453,11 @@
                 "title": "Hermes Product Conformance 1776550632328 Updated",
                 "vendor": "HERMES-LABS",
                 "productType": "TEST-GOODS",
-                "tags": ["1776550632328-updated", "conformance", "product-mutation"],
+                "tags": [
+                  "1776550632328-updated",
+                  "conformance",
+                  "product-mutation"
+                ],
                 "descriptionHtml": "<p>Updated Hermes product mutation conformance 1776550632328</p>",
                 "templateSuffix": "product-mutation-updated",
                 "seo": {

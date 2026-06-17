@@ -2860,20 +2860,47 @@ impl DraftProxy {
             collections: Vec::new(),
             extra_fields,
         };
-        // `productCreate` with `productOptions` materializes the product's options and a
-        // single default variant built from the first value of each option (Shopify only
-        // creates the lead combination; further values are added later via bulk create).
+        // Echo product-level inputs that Shopify persists verbatim onto the created product
+        // and surfaces through downstream reads.
+        if let Some(requires_selling_plan) = resolved_bool_field(&input, "requiresSellingPlan") {
+            product
+                .extra_fields
+                .insert("requiresSellingPlan".to_string(), json!(requires_selling_plan));
+        }
+        let is_gift_card = resolved_bool_field(&input, "giftCard").unwrap_or(false);
+        if is_gift_card {
+            product
+                .extra_fields
+                .insert("isGiftCard".to_string(), json!(true));
+        }
+        if let Some(suffix) = resolved_string_field(&input, "giftCardTemplateSuffix") {
+            product
+                .extra_fields
+                .insert("giftCardTemplateSuffix".to_string(), json!(suffix));
+        }
+
+        // `productCreate` always materializes at least one variant. With `productOptions`,
+        // Shopify creates the lead combination (only the first value of each option; further
+        // values are added later via bulk create). Without options it creates a single
+        // "Default Title" standalone variant.
         let mut staged_ids = vec![id.clone()];
-        if let Some((options, variant)) =
+        let variant = if let Some((options, variant)) =
             self.product_options_and_default_variant(&input, &id)
         {
             product
                 .extra_fields
                 .insert("options".to_string(), json!(options));
-            product.variants = vec![product_variant_state_json(&variant)];
-            staged_ids.push(variant.id.clone());
-            self.store.stage_product_variant(variant);
-        }
+            variant
+        } else {
+            self.default_standalone_variant(&id, is_gift_card)
+        };
+        product.variants = vec![product_variant_state_json(&variant)];
+        staged_ids.push(variant.id.clone());
+        self.store.stage_product_variant(variant);
+
+        // Stage any `metafields` supplied on create so downstream metafield reads resolve them.
+        self.stage_owner_metafields_from_input(&id, &input);
+
         self.store.stage_product(product.clone());
 
         let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
@@ -2966,8 +2993,94 @@ impl DraftProxy {
         Some((options, variant))
     }
 
+    /// Build the implicit "Default Title" standalone variant Shopify creates for a product
+    /// with no `productOptions`. Gift cards default to a non-taxable, non-shippable variant.
+    fn default_standalone_variant(
+        &mut self,
+        product_id: &str,
+        is_gift_card: bool,
+    ) -> ProductVariantRecord {
+        ProductVariantRecord {
+            id: self.next_proxy_synthetic_gid("ProductVariant"),
+            product_id: product_id.to_string(),
+            title: "Default Title".to_string(),
+            sku: String::new(),
+            barcode: None,
+            price: "0.00".to_string(),
+            compare_at_price: None,
+            taxable: !is_gift_card,
+            inventory_policy: "DENY".to_string(),
+            inventory_quantity: 0,
+            selected_options: vec![ProductVariantSelectedOption {
+                name: "Title".to_string(),
+                value: "Default Title".to_string(),
+            }],
+            inventory_item: ProductVariantInventoryItem {
+                id: self.next_proxy_synthetic_gid("InventoryItem"),
+                tracked: false,
+                requires_shipping: !is_gift_card,
+                extra_fields: BTreeMap::new(),
+            },
+            media_ids: Vec::new(),
+            extra_fields: BTreeMap::from([("position".to_string(), json!(1))]),
+        }
+    }
+
+    /// Stage product metafields supplied through a `metafields` create/update input so that
+    /// downstream `metafield`/`metafields` reads resolve them on the owning product.
+    fn stage_owner_metafields_from_input(
+        &mut self,
+        owner_id: &str,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) {
+        for metafield_input in resolved_object_list_field(input, "metafields") {
+            let namespace = resolved_string_field(&metafield_input, "namespace").unwrap_or_default();
+            let key = resolved_string_field(&metafield_input, "key").unwrap_or_default();
+            if namespace.is_empty() && key.is_empty() {
+                continue;
+            }
+            let metafield_type = resolved_string_field(&metafield_input, "type")
+                .unwrap_or_else(|| "single_line_text_field".to_string());
+            let value = resolved_string_field(&metafield_input, "value").unwrap_or_default();
+            let index = self
+                .store
+                .staged
+                .owner_metafields
+                .values()
+                .map(Vec::len)
+                .sum::<usize>()
+                + 1;
+            let timestamp = owner_metafield_timestamp(index as u64);
+            let metafield = json!({
+                "id": format!("gid://shopify/Metafield/{index}"),
+                "namespace": namespace,
+                "key": key,
+                "type": metafield_type,
+                "value": normalize_metafield_value_string(&metafield_type, &value),
+                "jsonValue": metafield_json_value(&metafield_type, &value),
+                "compareDigest": format!("local-metafield-digest-{index}"),
+                "createdAt": timestamp,
+                "updatedAt": timestamp,
+                "ownerType": owner_type_from_gid(owner_id),
+                "owner": owner_reference_from_gid(owner_id),
+            });
+            self.store.staged.deleted_owner_metafields.remove(&(
+                owner_id.to_string(),
+                namespace.clone(),
+                key.clone(),
+            ));
+            self.store
+                .staged
+                .owner_metafields
+                .entry(owner_id.to_string())
+                .or_default()
+                .push(metafield);
+        }
+    }
+
     pub(in crate::proxy) fn product_update(
         &mut self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
@@ -3005,9 +3118,39 @@ impl DraftProxy {
         let Some(id) = resolved_string_field(&input, "id") else {
             return MutationOutcome::response(product_update_missing_product(query));
         };
+        if self.store.product_by_id(&id).is_none()
+            && self.config.read_mode == ReadMode::LiveHybrid
+        {
+            self.hydrate_product_nodes_for_observation_with_request(request, vec![id.clone()]);
+        }
         let Some(existing) = self.store.product_staged_or_base(&id) else {
             return MutationOutcome::response(product_update_missing_product(query));
         };
+
+        if input.contains_key("title")
+            && resolved_string_field(&input, "title")
+                .unwrap_or_default()
+                .trim()
+                .is_empty()
+        {
+            return self.product_update_field_user_error(
+                query,
+                &existing,
+                "title",
+                "Title can't be blank",
+            );
+        }
+
+        if let Some(handle) = resolved_string_field(&input, "handle") {
+            if handle.chars().count() > 255 {
+                return self.product_update_field_user_error(
+                    query,
+                    &existing,
+                    "handle",
+                    "Handle is too long (maximum is 255 characters)",
+                );
+            }
+        }
 
         if let Some(tags) = incoming_tags.as_ref() {
             if tags.iter().any(|tag| tag.chars().count() > 255) {
@@ -3080,6 +3223,39 @@ impl DraftProxy {
             })),
             LogDraft::staged("productUpdate", "products", vec![id]),
         )
+    }
+
+    /// Build a productUpdate response that returns the (unchanged) product alongside a single
+    /// field-scoped userError — the shape Shopify emits when an input value is rejected
+    /// (e.g. blank title, over-long handle) without persisting the mutation.
+    fn product_update_field_user_error(
+        &self,
+        query: &str,
+        existing: &ProductRecord,
+        field: &str,
+        message: &str,
+    ) -> MutationOutcome {
+        let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let error_selection =
+            selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
+        let user_error = selected_json(
+            &json!({"field": [field], "message": message}),
+            &error_selection,
+        );
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| "productUpdate".to_string());
+        MutationOutcome::response(ok_json(json!({
+            "data": {
+                response_key: selected_json(
+                    &json!({
+                        "product": product_json(existing, &product_selection),
+                        "userErrors": [user_error]
+                    }),
+                    &payload_selection
+                )
+            }
+        })))
     }
 
     pub(in crate::proxy) fn product_variant_mutation(
