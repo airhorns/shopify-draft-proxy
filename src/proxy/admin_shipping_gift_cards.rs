@@ -90,11 +90,20 @@ impl DraftProxy {
             }
         };
 
-        match country_code.as_deref().and_then(backup_region_country) {
+        let region = country_code.as_deref().and_then(backup_region_country);
+        match region {
             None if country_code.is_none() => ok_json(json!({
                 "data": { response_key: { "backupRegion": self.store.staged.backup_region.clone(), "userErrors": [] } }
             })),
-            Some(region) => {
+            // A known country only becomes the backup region when it is still
+            // covered by an active, non-legacy region market. When every active
+            // region market has dropped the country, Shopify reports
+            // REGION_NOT_FOUND even though the country itself is recognized.
+            Some(region)
+                if country_code
+                    .as_deref()
+                    .is_some_and(|code| self.backup_region_country_has_region_market(code)) =>
+            {
                 self.store.staged.backup_region = region.clone();
                 let staged_id = region
                     .get("id")
@@ -112,7 +121,7 @@ impl DraftProxy {
                     "data": { response_key: { "backupRegion": region, "userErrors": [] } }
                 }))
             }
-            None => {
+            _ => {
                 let mut user_error = serde_json::Map::from_iter([
                     ("field".to_string(), json!(["region"])),
                     ("message".to_string(), json!("Region not found.")),

@@ -854,6 +854,33 @@ impl DraftProxy {
         self.store.staged.markets.contains_key(market_id)
     }
 
+    /// Whether the given country code is covered by an active, non-legacy
+    /// REGION-type market. Ported from Gleam
+    /// `markets.backup_region_country_has_region_market` (markets.gleam:209):
+    /// when no markets are hydrated, fall back to the per-shop captured region
+    /// coverage list; otherwise inspect the effective (staged) markets directly.
+    pub(in crate::proxy) fn backup_region_country_has_region_market(
+        &self,
+        country_code: &str,
+    ) -> bool {
+        let normalized = country_code.to_ascii_uppercase();
+        if self.store.staged.markets.is_empty() {
+            let shop = effective_shop_json(&self.store);
+            let domain = shop
+                .get("myshopifyDomain")
+                .and_then(Value::as_str)
+                .unwrap_or("harry-test-heelo.myshopify.com")
+                .to_ascii_lowercase();
+            return captured_region_market_for_country(&domain, &normalized);
+        }
+        self.store.staged.markets.values().any(|market| {
+            market_record_is_active_region_non_legacy(market)
+                && market_record_country_codes(market)
+                    .iter()
+                    .any(|code| code.to_ascii_uppercase() == normalized)
+        })
+    }
+
     pub(in crate::proxy) fn catalog_query_data(&self, fields: &[RootFieldSelection]) -> Value {
         let mut data = serde_json::Map::new();
         for field in fields {
@@ -3332,6 +3359,87 @@ fn record_gid(record: &Value, prefix: &str) -> Option<String> {
         .get("id")
         .and_then(Value::as_str)
         .filter(|id| id.starts_with(prefix))
+        .map(str::to_string)
+}
+
+/// Per-shop region coverage used when no markets are hydrated yet, ported from
+/// Gleam `markets.captured_region_market_for_country` (markets.gleam:271). These
+/// lists encode the captured baseline region markets each test shop ships with.
+/// `US` extends the Gleam baseline for harry-test-heelo per HAR-1436, whose
+/// capture records a US backup-region success branch on this shop's default
+/// (no markets read) state.
+fn captured_region_market_for_country(domain: &str, code: &str) -> bool {
+    match domain {
+        "very-big-test-store.myshopify.com" => code == "CA",
+        "harry-test-heelo.myshopify.com" => matches!(
+            code,
+            "CA" | "AE" | "AT" | "AU" | "BE" | "CH" | "CZ" | "DE" | "DK" | "ES" | "FI" | "MX" | "US"
+        ),
+        _ => code == "CA",
+    }
+}
+
+/// A market participates in backup-region coverage when it is enabled, of REGION
+/// type, and not a legacy market. Ported from Gleam
+/// `markets.market_record_is_active_region_non_legacy` (markets.gleam:227).
+fn market_record_is_active_region_non_legacy(market: &Value) -> bool {
+    market_record_enabled(market)
+        && market_record_region_type(market)
+        && !market_record_legacy(market)
+}
+
+fn market_record_enabled(market: &Value) -> bool {
+    match market.get("enabled") {
+        Some(Value::Bool(enabled)) => *enabled,
+        _ => market.get("status").and_then(Value::as_str) == Some("ACTIVE"),
+    }
+}
+
+fn market_record_region_type(market: &Value) -> bool {
+    match market.get("type").and_then(Value::as_str) {
+        Some("REGION") => true,
+        _ => !market_record_country_codes(market).is_empty(),
+    }
+}
+
+fn market_record_legacy(market: &Value) -> bool {
+    market
+        .get("isLegacyMarket")
+        .or_else(|| market.get("isLegacy"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
+/// Region country codes declared by a market record, reading from the captured
+/// `conditions.regionsCondition.regions` connection (nodes and/or edges). Ported
+/// from Gleam `serializers.market_country_codes` (markets/serializers.gleam:450)
+/// so both upstream-hydrated and mutation-staged market shapes resolve.
+fn market_record_country_codes(market: &Value) -> Vec<String> {
+    let Some(regions) = market
+        .get("conditions")
+        .and_then(|conditions| conditions.get("regionsCondition"))
+        .and_then(|regions_condition| regions_condition.get("regions"))
+    else {
+        return Vec::new();
+    };
+    let mut codes = Vec::new();
+    if let Some(nodes) = regions.get("nodes").and_then(Value::as_array) {
+        codes.extend(nodes.iter().filter_map(region_code_from_node));
+    }
+    if let Some(edges) = regions.get("edges").and_then(Value::as_array) {
+        codes.extend(
+            edges
+                .iter()
+                .filter_map(|edge| edge.get("node").and_then(region_code_from_node)),
+        );
+    }
+    codes
+}
+
+fn region_code_from_node(node: &Value) -> Option<String> {
+    node.get("code")
+        .and_then(Value::as_str)
+        .or_else(|| node.get("countryCode").and_then(Value::as_str))
         .map(str::to_string)
 }
 
