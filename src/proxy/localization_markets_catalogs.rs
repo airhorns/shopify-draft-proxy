@@ -1,4 +1,9 @@
 use super::*;
+use sha2::{Digest, Sha256};
+
+const FALLBACK_PRODUCT_TRANSLATION_TITLE: &str = "The Inventory Not Tracked Snowboard";
+const FALLBACK_PRODUCT_TRANSLATION_HANDLE: &str = "the-inventory-not-tracked-snowboard";
+const FALLBACK_PRODUCT_TRANSLATION_PRODUCT_TYPE: &str = "snowboard";
 
 impl DraftProxy {
     pub(in crate::proxy) fn discount_timestamps_monotonic_create_data(
@@ -2595,14 +2600,6 @@ impl DraftProxy {
         let mut has_null_translation_error = false;
         for (index, translation_input) in translations.iter().enumerate() {
             let field_index = index.to_string();
-            if resolved_object_string(translation_input, "value").as_deref() == Some("") {
-                user_errors.push(json!({
-                    "field": ["translations", field_index, "value"],
-                    "message": "Value can't be blank",
-                    "code": "FAILS_RESOURCE_VALIDATION"
-                }));
-                continue;
-            }
             let locale = resolved_object_string(translation_input, "locale")
                 .unwrap_or_else(|| "fr".to_string());
             if locale == "en" {
@@ -2616,18 +2613,8 @@ impl DraftProxy {
             if !self.store.staged.shop_locales.contains_key(&locale) {
                 user_errors.push(json!({
                     "field": ["translations", field_index, "locale"],
-                    "message": "Locale is not enabled for this shop",
+                    "message": "Locale is not a valid locale for the shop",
                     "code": "INVALID_LOCALE_FOR_SHOP"
-                }));
-                continue;
-            }
-            if resolved_object_string(translation_input, "translatableContentDigest")
-                .is_some_and(|digest| digest.starts_with("invalid-"))
-            {
-                user_errors.push(json!({
-                    "field": ["translations", field_index, "translatableContentDigest"],
-                    "message": "Translatable content hash is invalid",
-                    "code": "INVALID_TRANSLATABLE_CONTENT"
                 }));
                 continue;
             }
@@ -2638,6 +2625,31 @@ impl DraftProxy {
                     "field": ["translations", field_index, "marketId"],
                     "message": "The market corresponding to the `marketId` argument doesn't exist",
                     "code": "MARKET_DOES_NOT_EXIST"
+                }));
+                continue;
+            }
+            if resolved_object_string(translation_input, "value").as_deref() == Some("") {
+                user_errors.push(json!({
+                    "field": ["translations", field_index, "value"],
+                    "message": "Value can't be blank",
+                    "code": "FAILS_RESOURCE_VALIDATION"
+                }));
+                continue;
+            }
+            let key = resolved_object_string(translation_input, "key")
+                .unwrap_or_else(|| "title".to_string());
+            if self
+                .localization_translatable_content_digest(&resource_id, &key)
+                .is_some_and(|expected_digest| {
+                    resolved_object_string(translation_input, "translatableContentDigest")
+                        .as_deref()
+                        != Some(expected_digest.as_str())
+                })
+            {
+                user_errors.push(json!({
+                    "field": ["translations", field_index, "translatableContentDigest"],
+                    "message": "Translatable content hash is invalid",
+                    "code": "INVALID_TRANSLATABLE_CONTENT"
                 }));
                 continue;
             }
@@ -2769,7 +2781,7 @@ impl DraftProxy {
         selected_payload_json(selections, |selection| match selection.name.as_str() {
             "resourceId" => Some(json!(resource_id)),
             "translatableContent" => Some(Value::Array(
-                localization_translatable_content(resource_id)
+                self.localization_translatable_content(resource_id)
                     .iter()
                     .map(|content| selected_json(content, &selection.selection))
                     .collect(),
@@ -3009,17 +3021,84 @@ impl DraftProxy {
             .cloned()
             .collect()
     }
-}
 
-pub(in crate::proxy) fn localization_translatable_content(resource_id: &str) -> Vec<Value> {
-    let resource_type = shopify_gid_resource_type(resource_id).unwrap_or("Product");
-    vec![json!({
-        "key": "title",
-        "value": format!("{resource_type} title"),
-        "digest": "digest",
-        "locale": "en",
-        "type": "SINGLE_LINE_TEXT_FIELD"
-    })]
+    fn localization_translatable_content(&self, resource_id: &str) -> Vec<Value> {
+        if let Some(product) = self.store.product_by_id(resource_id) {
+            let mut content = vec![
+                localization_translatable_content_record(
+                    "title",
+                    &product.title,
+                    "SINGLE_LINE_TEXT_FIELD",
+                ),
+                localization_translatable_content_record("handle", &product.handle, "URI"),
+                localization_translatable_content_record(
+                    "product_type",
+                    &product.product_type,
+                    "SINGLE_LINE_TEXT_FIELD",
+                ),
+            ];
+            if !product.description_html.is_empty() {
+                content.push(localization_translatable_content_record(
+                    "body_html",
+                    &product.description_html,
+                    "HTML",
+                ));
+            }
+            if !product.seo_title.is_empty() {
+                content.push(localization_translatable_content_record(
+                    "seo_title",
+                    &product.seo_title,
+                    "SINGLE_LINE_TEXT_FIELD",
+                ));
+            }
+            if !product.seo_description.is_empty() {
+                content.push(localization_translatable_content_record(
+                    "seo_description",
+                    &product.seo_description,
+                    "MULTI_LINE_TEXT_FIELD",
+                ));
+            }
+            return content;
+        }
+
+        if localization_resource_type_matches(resource_id, "PRODUCT") {
+            return vec![
+                localization_translatable_content_record(
+                    "title",
+                    FALLBACK_PRODUCT_TRANSLATION_TITLE,
+                    "SINGLE_LINE_TEXT_FIELD",
+                ),
+                localization_translatable_content_record(
+                    "handle",
+                    FALLBACK_PRODUCT_TRANSLATION_HANDLE,
+                    "URI",
+                ),
+                localization_translatable_content_record(
+                    "product_type",
+                    FALLBACK_PRODUCT_TRANSLATION_PRODUCT_TYPE,
+                    "SINGLE_LINE_TEXT_FIELD",
+                ),
+            ];
+        }
+
+        let resource_type = shopify_gid_resource_type(resource_id).unwrap_or("Resource");
+        vec![localization_translatable_content_record(
+            "title",
+            &format!("{resource_type} title"),
+            "SINGLE_LINE_TEXT_FIELD",
+        )]
+    }
+
+    fn localization_translatable_content_digest(
+        &self,
+        resource_id: &str,
+        key: &str,
+    ) -> Option<String> {
+        self.localization_translatable_content(resource_id)
+            .into_iter()
+            .find(|content| content["key"].as_str() == Some(key))
+            .and_then(|content| content["digest"].as_str().map(str::to_string))
+    }
 }
 
 pub(in crate::proxy) fn localization_resource_type_matches(
@@ -3039,4 +3118,19 @@ pub(in crate::proxy) fn default_localization_resource_id(resource_type: &str) ->
         _ => "Product",
     };
     format!("gid://shopify/{gid_type}/9801098789170")
+}
+
+fn localization_translatable_content_record(key: &str, value: &str, content_type: &str) -> Value {
+    json!({
+        "key": key,
+        "value": value,
+        "digest": localization_content_digest(value),
+        "locale": "en",
+        "type": content_type
+    })
+}
+
+fn localization_content_digest(value: &str) -> String {
+    let digest = Sha256::digest(value.as_bytes());
+    format!("{digest:x}")
 }

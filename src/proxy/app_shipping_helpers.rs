@@ -68,6 +68,23 @@ pub(in crate::proxy) fn fulfillment_service_name_is_reserved(name: &str) -> bool
     )
 }
 
+pub(in crate::proxy) fn fulfillment_service_name_whitespace_errors(name: &str) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if name.starts_with(char::is_whitespace) {
+        errors.push(json!({
+            "field": ["name"],
+            "message": "Name cannot begin with a whitespace character"
+        }));
+    }
+    if name.ends_with(char::is_whitespace) {
+        errors.push(json!({
+            "field": ["name"],
+            "message": "Name cannot end with a whitespace character"
+        }));
+    }
+    errors
+}
+
 pub(in crate::proxy) fn fulfillment_service_callback_url_host_is_allowed(
     host: &str,
     shopify_admin_origin: &str,
@@ -1672,6 +1689,7 @@ impl DraftProxy {
             .unwrap_or_else(|| {
                 "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic".to_string()
             });
+        let has_tax_registration_id = field.arguments.contains_key("taxRegistrationId");
         let has_tax_exempt = field.arguments.contains_key("taxExempt");
         let tax_exempt_is_null =
             matches!(field.arguments.get("taxExempt"), Some(ResolvedValue::Null));
@@ -1691,7 +1709,7 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        if !has_tax_exempt && assign.is_empty() && remove.is_empty() {
+        if !has_tax_registration_id && !has_tax_exempt && assign.is_empty() && remove.is_empty() {
             return (
                 json!({
                     "companyLocation": null,
@@ -1720,8 +1738,34 @@ impl DraftProxy {
             );
         }
 
-        let mut exemptions = if remove.is_empty() {
+        let mut location = self
+            .store
+            .staged
+            .b2b_locations
+            .get(&location_id)
+            .cloned()
+            .unwrap_or_else(|| b2b_synthetic_seed_company_location(&location_id));
+        let existing_settings = location.get("taxSettings").cloned().unwrap_or_else(|| {
+            json!({
+                "taxRegistrationId": Value::Null,
+                "taxExempt": false,
+                "taxExemptions": []
+            })
+        });
+        let mut exemptions = if !assign.is_empty() {
             assign
+        } else if remove.is_empty() {
+            existing_settings
+                .get("taxExemptions")
+                .and_then(Value::as_array)
+                .map(|values| {
+                    values
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string)
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default()
         } else {
             vec![
                 "CA_BC_RESELLER_EXEMPTION".to_string(),
@@ -1730,15 +1774,26 @@ impl DraftProxy {
         };
         exemptions.retain(|exemption| !remove.iter().any(|removed| removed == exemption));
         exemptions.sort();
-        let tax_exempt = resolved_bool_field(&field.arguments, "taxExempt").unwrap_or(false);
-        let mut location = self
-            .store
-            .staged
-            .b2b_locations
-            .get(&location_id)
-            .cloned()
-            .unwrap_or_else(|| b2b_synthetic_seed_company_location(&location_id));
+        let tax_exempt = if has_tax_exempt {
+            resolved_bool_field(&field.arguments, "taxExempt").unwrap_or(false)
+        } else {
+            existing_settings
+                .get("taxExempt")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+        };
+        let tax_registration_id = if has_tax_registration_id {
+            resolved_string_arg(&field.arguments, "taxRegistrationId")
+                .map(Value::String)
+                .unwrap_or(Value::Null)
+        } else {
+            existing_settings
+                .get("taxRegistrationId")
+                .cloned()
+                .unwrap_or(Value::Null)
+        };
         location["taxSettings"] = json!({
+            "taxRegistrationId": tax_registration_id,
             "taxExempt": tax_exempt,
             "taxExemptions": exemptions
         });
