@@ -2122,9 +2122,9 @@ pub(in crate::proxy) fn marketing_engagement_from_input(
     let money = |key: &str| marketing_money_json(input, key);
     json!({
         "__typename": "MarketingEngagement",
-        "occurredOn": resolved_string_field(input, "occurredOn").unwrap_or_else(|| "2026-04-26".to_string()),
-        "utcOffset": resolved_string_field(input, "utcOffset").unwrap_or_else(|| "+00:00".to_string()),
-        "isCumulative": resolved_bool_field(input, "isCumulative").unwrap_or(false),
+        "occurredOn": resolved_string_field(input, "occurredOn"),
+        "utcOffset": resolved_string_field(input, "utcOffset"),
+        "isCumulative": resolved_bool_field(input, "isCumulative"),
         "impressionsCount": resolved_int_field(input, "impressionsCount"),
         "viewsCount": resolved_int_field(input, "viewsCount"),
         "clicksCount": resolved_int_field(input, "clicksCount"),

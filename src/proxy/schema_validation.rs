@@ -117,6 +117,7 @@ fn validate_argument_value(
             &[argument_name.to_string()],
             schema,
             context,
+            inline_argument_value_location(context.query, field, argument_name),
         ),
         RawArgumentValue::Variable { name, value } => {
             let Some(ResolvedValue::Object(fields)) = value.as_ref() else {
@@ -171,6 +172,7 @@ fn validate_raw_input_object(
     path: &[String],
     schema: &AdminInputSchema,
     context: ValidationContext<'_>,
+    location: Option<SourceLocation>,
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     for field_name in fields.keys() {
@@ -196,6 +198,7 @@ fn validate_raw_input_object(
                 &field_schema.type_ref,
                 path,
                 context,
+                location.unwrap_or(context.field_location),
             ));
         }
     }
@@ -227,6 +230,7 @@ fn validate_raw_input_object(
                 &nested_path,
                 schema,
                 context,
+                None,
             ));
         }
     }
@@ -484,13 +488,14 @@ fn missing_required_input_object_attribute_error(
     type_ref: &SchemaTypeRef,
     path: &[String],
     context: ValidationContext<'_>,
+    location: SourceLocation,
 ) -> Value {
     json!({
         "message": format!(
             "Argument '{argument_name}' on InputObject '{input_type_name}' is required. Expected type {}",
             type_ref.display
         ),
-        "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
+        "locations": [{ "line": location.line, "column": location.column }],
         "path": input_error_path(context, path, argument_name),
         "extensions": {
             "code": "missingRequiredInputObjectAttribute",
@@ -499,6 +504,44 @@ fn missing_required_input_object_attribute_error(
             "inputObjectType": input_type_name
         }
     })
+}
+
+fn inline_argument_value_location(
+    query: &str,
+    field: &RootFieldSelection,
+    argument_name: &str,
+) -> Option<SourceLocation> {
+    let start = byte_offset_for_location(query, field.location)?;
+    let haystack = &query[start..];
+    let argument_start = find_argument_name_with_colon(haystack, argument_name)?;
+    let after_name = start + argument_start + argument_name.len();
+    let after_colon = query[after_name..].find(':')? + after_name + 1;
+    let value_offset = query[after_colon..]
+        .char_indices()
+        .find_map(|(offset, ch)| (!ch.is_whitespace()).then_some(after_colon + offset))?;
+    source_location_for_byte_offset(query, value_offset)
+}
+
+fn find_argument_name_with_colon(haystack: &str, argument_name: &str) -> Option<usize> {
+    let mut search_start = 0;
+    while search_start < haystack.len() {
+        let relative = haystack[search_start..].find(argument_name)?;
+        let candidate = search_start + relative;
+        let before_ok = haystack[..candidate]
+            .chars()
+            .next_back()
+            .is_none_or(|ch| !is_graphql_name_char(ch));
+        let after_name = candidate + argument_name.len();
+        let followed_by_colon = haystack[after_name..]
+            .chars()
+            .find(|ch| !ch.is_whitespace())
+            .is_some_and(|ch| ch == ':');
+        if before_ok && followed_by_colon {
+            return Some(candidate);
+        }
+        search_start = after_name;
+    }
+    None
 }
 
 fn argument_literals_incompatible_error(
@@ -678,6 +721,7 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         let mut schema = schema_from_fixture(&fixture).unwrap_or_default();
         register_fulfillment_service_fields(&mut schema);
         extend_discount_basic_input_schema(&mut schema);
+        extend_marketing_engagement_input_schema(&mut schema);
         extend_metaobject_definition_input_schema(&mut schema);
         extend_functions_input_schema(&mut schema);
         schema
@@ -743,6 +787,10 @@ fn extend_discount_basic_input_schema(schema: &mut AdminInputSchema) {
             "discountAutomaticBasicUpdate",
         ],
     );
+}
+
+fn extend_marketing_engagement_input_schema(schema: &mut AdminInputSchema) {
+    extend_mutation_input_schema(schema, &["marketingEngagementCreate"]);
 }
 
 fn extend_metaobject_definition_input_schema(schema: &mut AdminInputSchema) {
