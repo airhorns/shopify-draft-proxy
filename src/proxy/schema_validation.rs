@@ -379,21 +379,27 @@ fn validate_resolved_input_object(
             ));
         }
     }
+    // Coerce each schema field in a single pass (BTreeMap key order). Shopify's
+    // GraphQL coercion reports problems in the order it walks the input object's
+    // fields, interleaving "missing required" with "invalid scalar" rather than
+    // emitting all of one kind before the other. Walking the schema fields once
+    // — non-null check first, then scalar, then nested recursion — reproduces
+    // that interleaving (e.g. PriceListCreateInput yields [currency, parent],
+    // not [parent, currency]).
     for (field_name, field_schema) in input_object {
-        if field_schema.type_ref.non_null
-            && (!fields.contains_key(field_name)
-                || matches!(fields.get(field_name), Some(ResolvedValue::Null)))
-        {
+        let provided = fields.get(field_name);
+        let missing_or_null =
+            !fields.contains_key(field_name) || matches!(provided, Some(ResolvedValue::Null));
+        if field_schema.type_ref.non_null && missing_or_null {
             let mut nested_path = problem_path.to_vec();
             nested_path.push(field_name.clone());
             problems.push(variable_problem(
                 &nested_path,
                 "Expected value to not be null",
             ));
+            continue;
         }
-    }
-    for (field_name, field_value) in fields {
-        let Some(field_schema) = input_object.get(field_name) else {
+        let Some(field_value) = provided else {
             continue;
         };
         if let Some(problem) = validate_resolved_scalar(field_value, &field_schema.type_ref) {
@@ -408,20 +414,20 @@ fn validate_resolved_input_object(
                 problems.push(variable_problem(&nested_path, &problem.explanation));
             }
         }
-        let Some(nested_input_object) = schema.input_objects.get(&field_schema.type_ref.named_type)
-        else {
-            continue;
-        };
-        if let ResolvedValue::Object(nested_fields) = field_value {
-            let mut nested_path = problem_path.to_vec();
-            nested_path.push(field_name.clone());
-            problems.extend(validate_resolved_input_object(
-                &field_schema.type_ref.named_type,
-                nested_input_object,
-                nested_fields,
-                &nested_path,
-                schema,
-            ));
+        if let Some(nested_input_object) =
+            schema.input_objects.get(&field_schema.type_ref.named_type)
+        {
+            if let ResolvedValue::Object(nested_fields) = field_value {
+                let mut nested_path = problem_path.to_vec();
+                nested_path.push(field_name.clone());
+                problems.extend(validate_resolved_input_object(
+                    &field_schema.type_ref.named_type,
+                    nested_input_object,
+                    nested_fields,
+                    &nested_path,
+                    schema,
+                ));
+            }
         }
     }
     problems
@@ -455,8 +461,26 @@ fn validate_resolved_scalar(
                 include_message: false,
             })
         }
+        "CurrencyCode" => {
+            let ResolvedValue::String(raw) = value else {
+                return None;
+            };
+            (!currency_code_is_allowed(raw)).then(|| ScalarValidationProblem {
+                explanation: format!("Expected \"{raw}\" to be one of: {CURRENCY_CODE_VALUES}"),
+                include_message: false,
+            })
+        }
         _ => None,
     }
+}
+
+/// The full `CurrencyCode` enum value list as Admin GraphQL 2026-04 reports it
+/// in coercion errors. Order matters: the error message lists values in this
+/// exact sequence, so it is reproduced verbatim rather than sorted.
+const CURRENCY_CODE_VALUES: &str = "USD, EUR, GBP, CAD, AFN, ALL, DZD, AOA, ARS, AMD, AWG, AUD, BBD, AZN, BDT, BSD, BHD, BIF, BYN, BZD, BMD, BTN, BAM, BRL, BOB, BWP, BND, BGN, MMK, KHR, CVE, KYD, XAF, CLP, CNY, COP, KMF, CDF, CRC, HRK, CZK, DKK, DJF, DOP, XCD, EGP, ERN, ETB, FKP, XPF, FJD, GIP, GMD, GHS, GTQ, GYD, GEL, GNF, HTG, HNL, HKD, HUF, ISK, INR, IDR, ILS, IRR, IQD, JMD, JPY, JEP, JOD, KZT, KES, KID, KWD, KGS, LAK, LVL, LBP, LSL, LRD, LYD, LTL, MGA, MKD, MOP, MWK, MVR, MRU, MXN, MYR, MUR, MDL, MAD, MNT, MZN, NAD, NPR, ANG, NZD, NIO, NGN, NOK, OMR, PAB, PKR, PGK, PYG, PEN, PHP, PLN, QAR, RON, RUB, RWF, WST, SHP, SAR, RSD, SCR, SLL, SGD, SDG, SOS, SYP, ZAR, KRW, SSP, SBD, LKR, SRD, SZL, SEK, CHF, TWD, THB, TJS, TZS, TOP, TTD, TND, TRY, TMT, UGX, UAH, AED, UYU, UZS, VUV, VES, VND, XOF, YER, ZMW, USDC, BYR, STD, STN, VED, VEF, XXX";
+
+fn currency_code_is_allowed(code: &str) -> bool {
+    CURRENCY_CODE_VALUES.split(", ").any(|value| value == code)
 }
 
 fn fulfillment_event_status_is_allowed(status: &str) -> bool {
@@ -831,6 +855,7 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         extend_marketing_engagement_input_schema(&mut schema);
         extend_functions_input_schema(&mut schema);
         extend_online_store_input_schema(&mut schema);
+        extend_markets_input_schema(&mut schema);
         schema
     })
 }
@@ -864,6 +889,61 @@ fn extend_gift_card_input_schema(schema: &mut AdminInputSchema) {
         BTreeMap::from([(
             "input".to_string(),
             mutation_arg(non_null("GiftCardCreateInput")),
+        )]),
+    );
+}
+
+fn extend_markets_input_schema(schema: &mut AdminInputSchema) {
+    // CatalogCreateInput on Admin API 2026-04: `context` is a required
+    // (non-null) input field. Omitting it must surface a top-level
+    // INVALID_VARIABLE coercion error before the local catalog handler runs.
+    schema.input_objects.insert(
+        "CatalogCreateInput".to_string(),
+        BTreeMap::from([
+            ("title".to_string(), input_field(named("String"))),
+            ("status".to_string(), input_field(named("CatalogStatus"))),
+            (
+                "context".to_string(),
+                input_field(non_null("CatalogContextInput")),
+            ),
+            (
+                "priceListId".to_string(),
+                input_field(named("ID")),
+            ),
+            (
+                "publicationId".to_string(),
+                input_field(named("ID")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "catalogCreate".to_string(),
+        BTreeMap::from([(
+            "input".to_string(),
+            mutation_arg(non_null("CatalogCreateInput")),
+        )]),
+    );
+
+    // PriceListCreateInput on Admin API 2026-04: `currency` (a CurrencyCode
+    // enum) and `parent` are both required. An out-of-range currency plus a
+    // missing parent yields two ordered problems ([currency, parent]).
+    schema.input_objects.insert(
+        "PriceListCreateInput".to_string(),
+        BTreeMap::from([
+            ("name".to_string(), input_field(named("String"))),
+            ("currency".to_string(), input_field(non_null("CurrencyCode"))),
+            (
+                "parent".to_string(),
+                input_field(non_null("PriceListParentCreateInput")),
+            ),
+            ("catalogId".to_string(), input_field(named("ID"))),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "priceListCreate".to_string(),
+        BTreeMap::from([(
+            "input".to_string(),
+            mutation_arg(non_null("PriceListCreateInput")),
         )]),
     );
 }
