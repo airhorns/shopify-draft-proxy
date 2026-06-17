@@ -1912,6 +1912,12 @@ impl DraftProxy {
             return;
         }
         record["owner"] = owner_reference_from_gid(owner_id);
+        // Metafields not backed by a definition return `definition: null`; hydration
+        // and metafieldsSet inputs never carry one, so default it so singular
+        // `metafield(namespace:, key:) { definition }` reads emit null, not undefined.
+        if record.get("definition").is_none() {
+            record["definition"] = Value::Null;
+        }
         let owner_metafields = self
             .store
             .staged
@@ -2289,7 +2295,32 @@ impl DraftProxy {
         selection: &SelectedField,
     ) -> Value {
         let namespace = resolved_string_field(&selection.arguments, "namespace");
-        let records = self.owner_metafields(owner_id, namespace.as_deref());
+        let mut records = self.owner_metafields(owner_id, namespace.as_deref());
+
+        // Relay pagination over the owner's metafields (stored id-ascending, which
+        // mirrors Shopify's default metafield ordering). `after` drops everything up
+        // to and including the cursor record; `first` truncates and drives
+        // hasNextPage so chained `metafields(first:n, after:)` reads page correctly.
+        let mut has_previous_page = false;
+        if let Some(after) = resolved_string_field(&selection.arguments, "after") {
+            if let Some(index) = records
+                .iter()
+                .position(|record| metafield_cursor(record).as_deref() == Some(after.as_str()))
+            {
+                records = records.split_off(index + 1);
+                has_previous_page = true;
+            }
+        }
+        let total_after_cursor = records.len();
+        let mut has_next_page = false;
+        if let Some(first) = resolved_int_field(&selection.arguments, "first") {
+            if first >= 0 {
+                let limit = first as usize;
+                has_next_page = total_after_cursor > limit;
+                records.truncate(limit);
+            }
+        }
+
         let node_selection = nested_selected_fields(&selection.selection, &["nodes"]);
         let edge_node_selection = nested_selected_fields(&selection.selection, &["edges", "node"]);
         let nodes = records
@@ -2311,7 +2342,12 @@ impl DraftProxy {
         let connection = json!({
             "nodes": nodes,
             "edges": edges,
-            "pageInfo": metafield_connection_page_info(start_cursor, end_cursor)
+            "pageInfo": metafield_connection_page_info(
+                start_cursor,
+                end_cursor,
+                has_next_page,
+                has_previous_page
+            )
         });
         selected_json(&connection, &selection.selection)
     }
@@ -6613,26 +6649,37 @@ fn shopify_cursor_resource_tail(cursor: &str) -> Option<String> {
 }
 
 fn metafield_cursor(metafield: &Value) -> Option<String> {
-    metafield
-        .get("__cursor")
-        .and_then(Value::as_str)
-        .or_else(|| metafield.get("id").and_then(Value::as_str))
-        .map(|value| {
-            if value.starts_with("gid://") {
-                format!("cursor:{value}")
-            } else {
-                value.to_string()
-            }
-        })
+    // Prefer a cursor captured from an upstream connection's pageInfo; otherwise
+    // synthesize Shopify's id-ordered metafield cursor — base64 of
+    // `{"last_id":<numeric>,"last_value":"<numeric>"}` — from the record id so
+    // relay pagination works for any backend, not just recorded fixtures.
+    if let Some(cursor) = metafield.get("__cursor").and_then(Value::as_str) {
+        return Some(cursor.to_string());
+    }
+    let id = metafield.get("id").and_then(Value::as_str)?;
+    let tail = resource_id_tail(id);
+    if let Ok(last_id) = tail.parse::<u64>() {
+        if let Ok(bytes) = serde_json::to_vec(&json!({ "last_id": last_id, "last_value": tail }))
+        {
+            return Some(base64::engine::general_purpose::STANDARD.encode(bytes));
+        }
+    }
+    if id.starts_with("gid://") {
+        Some(format!("cursor:{id}"))
+    } else {
+        Some(id.to_string())
+    }
 }
 
 fn metafield_connection_page_info(
     start_cursor: Option<String>,
     end_cursor: Option<String>,
+    has_next_page: bool,
+    has_previous_page: bool,
 ) -> Value {
     json!({
-        "hasNextPage": false,
-        "hasPreviousPage": false,
+        "hasNextPage": has_next_page,
+        "hasPreviousPage": has_previous_page,
         "startCursor": start_cursor,
         "endCursor": end_cursor
     })

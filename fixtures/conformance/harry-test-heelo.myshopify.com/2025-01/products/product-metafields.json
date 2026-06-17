@@ -271,68 +271,67 @@
       }
     },
     {
-      "operationName": "ProductMetafieldsReadNext",
+      "operationName": "OwnerMetafieldsHydrateNodes",
       "variables": {
-        "after": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDIyNDQzNCwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjI0NDM0In0=",
-        "id": "gid://shopify/Product/10170511687986"
+        "ids": [
+          "gid://shopify/Product/10170511687986"
+        ]
       },
-      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 product metafields pagination passthrough",
+      "query": "query OwnerMetafieldsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { __typename id ... on Product { id title handle status totalInventory tracksInventory createdAt updatedAt metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory createdAt updatedAt } metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Collection { id title handle metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Customer { id displayName email metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Order { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } ... on Company { id name metafields(first: 250) { nodes { id namespace key type value jsonValue compareDigest createdAt updatedAt ownerType } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } } }",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "product": {
-              "metafields": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/Metafield/42952770257202",
-                    "namespace": "details",
-                    "key": "origin",
-                    "type": "single_line_text_field",
-                    "value": "VN",
-                    "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3",
-                    "jsonValue": "VN",
-                    "createdAt": "2026-04-25T17:17:29Z",
-                    "updatedAt": "2026-04-25T17:17:29Z",
-                    "ownerType": "PRODUCT"
-                  }
-                ],
-                "edges": [
-                  {
-                    "cursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDI1NzIwMiwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjU3MjAyIn0=",
-                    "node": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10170511687986",
+                "title": "Hermes Product Metafield Conformance 1777137448583",
+                "handle": "hermes-product-metafield-conformance-1777137448583",
+                "status": "ACTIVE",
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-04-25T17:17:29Z",
+                "updatedAt": "2026-04-25T17:17:29Z",
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/42952770224434",
+                      "namespace": "custom",
+                      "key": "material",
+                      "type": "single_line_text_field",
+                      "value": "Canvas",
+                      "jsonValue": "Canvas",
+                      "compareDigest": "5604f34413e7aa54d8576ec602e7824b1ddbba13c2ce6799e333fe4594278b64",
+                      "createdAt": "2026-04-25T17:17:29Z",
+                      "updatedAt": "2026-04-25T17:17:29Z",
+                      "ownerType": "PRODUCT"
+                    },
+                    {
                       "id": "gid://shopify/Metafield/42952770257202",
                       "namespace": "details",
                       "key": "origin",
                       "type": "single_line_text_field",
                       "value": "VN",
-                      "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3",
                       "jsonValue": "VN",
+                      "compareDigest": "123c72f6668a307a4735685315ded337e4ab28d012c0635841607410478632b3",
                       "createdAt": "2026-04-25T17:17:29Z",
                       "updatedAt": "2026-04-25T17:17:29Z",
                       "ownerType": "PRODUCT"
                     }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false,
+                    "startCursor": null,
+                    "endCursor": null
                   }
-                ],
-                "pageInfo": {
-                  "hasNextPage": false,
-                  "hasPreviousPage": true,
-                  "startCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDI1NzIwMiwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjU3MjAyIn0=",
-                  "endCursor": "eyJsYXN0X2lkIjo0Mjk1Mjc3MDI1NzIwMiwibGFzdF92YWx1ZSI6IjQyOTUyNzcwMjU3MjAyIn0="
+                },
+                "variants": {
+                  "nodes": []
                 }
               }
-            }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 11,
-              "actualQueryCost": 11,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
-                "restoreRate": 100
-              }
-            }
+            ]
           }
         }
       }
