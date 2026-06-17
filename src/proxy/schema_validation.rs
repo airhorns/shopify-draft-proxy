@@ -95,6 +95,7 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
         }
     }
     errors.extend(product_media_variable_errors(&document));
+    errors.extend(metaobject_access_invalid_enum_errors(query, &document));
     errors
 }
 
@@ -216,6 +217,63 @@ fn media_content_type_enum_error(
         }));
     }
     None
+}
+
+/// Valid values for the `MetaobjectCustomerAccountAccess` enum.
+const METAOBJECT_CUSTOMER_ACCOUNT_ACCESS_VALUES: [&str; 3] = ["NONE", "READ", "READ_WRITE"];
+
+/// `metaobjectDefinition{Create,Update}` reject an out-of-set `access.customerAccount`
+/// enum literal at the GraphQL layer (before any local routing), reporting an
+/// `argumentLiteralsIncompatible` error anchored at the `access:` value literal. The
+/// declarative input schema does not model the definition input object, so this inline
+/// enum check is expressed directly against the raw arguments.
+fn metaobject_access_invalid_enum_errors(query: &str, document: &ParsedDocument) -> Vec<Value> {
+    let mut errors = Vec::new();
+    for field in &document.root_fields {
+        if !matches!(
+            field.name.as_str(),
+            "metaobjectDefinitionCreate" | "metaobjectDefinitionUpdate"
+        ) {
+            continue;
+        }
+        let Some(RawArgumentValue::Object(definition)) = field.raw_arguments.get("definition")
+        else {
+            continue;
+        };
+        let Some(RawArgumentValue::Object(access)) = definition.get("access") else {
+            continue;
+        };
+        let provided = match access.get("customerAccount") {
+            Some(RawArgumentValue::Enum(value)) | Some(RawArgumentValue::String(value)) => {
+                value.clone()
+            }
+            _ => continue,
+        };
+        if METAOBJECT_CUSTOMER_ACCOUNT_ACCESS_VALUES.contains(&provided.as_str()) {
+            continue;
+        }
+        let location =
+            inline_argument_value_location(query, field, "access").unwrap_or(field.location);
+        errors.push(json!({
+            "message": format!(
+                "Argument 'customerAccount' on InputObject 'MetaobjectAccessInput' has an invalid value ({provided}). Expected type 'MetaobjectCustomerAccountAccess'."
+            ),
+            "locations": [{ "line": location.line, "column": location.column }],
+            "path": [
+                document.operation_path.clone(),
+                field.response_key.clone(),
+                "definition".to_string(),
+                "access".to_string(),
+                "customerAccount".to_string(),
+            ],
+            "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "InputObject",
+                "argumentName": "customerAccount"
+            }
+        }));
+    }
+    errors
 }
 
 fn validate_argument_value(
