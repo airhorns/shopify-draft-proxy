@@ -2634,11 +2634,7 @@ impl DraftProxy {
         if !fields.iter().all(|field| {
             matches!(
                 field.name.as_str(),
-                "orderCreate"
-                    | "orderMarkAsPaid"
-                    | "refundCreate"
-                    | "orderEditBegin"
-                    | "orderEditCommit"
+                "orderCreate" | "refundCreate" | "orderEditBegin" | "orderEditCommit"
             )
         }) {
             return None;
@@ -2686,34 +2682,6 @@ impl DraftProxy {
                 "orderCreate" => {
                     let order = self.stage_money_bag_order(&field);
                     staged_ids.push(order["id"].as_str().unwrap_or_default().to_string());
-                    selected_json(
-                        &json!({ "order": order, "userErrors": [] }),
-                        &field.selection,
-                    )
-                }
-                "orderMarkAsPaid" => {
-                    let input =
-                        resolved_object_field(&field.arguments, "input").unwrap_or_default();
-                    let id = resolved_string_field(&input, "id").unwrap_or_default();
-                    let mut order = self
-                        .store
-                        .staged
-                        .orders
-                        .get(&id)
-                        .cloned()
-                        .unwrap_or_else(|| self.money_bag_default_order(&id));
-                    let amount_set = order["totalOutstandingSet"].clone();
-                    order["totalOutstandingSet"] =
-                        money_bag_set("0.0", money_bag_currency(&amount_set));
-                    order["totalReceivedSet"] = amount_set.clone();
-                    order["transactions"] = json!([{
-                        "kind": "SALE",
-                        "status": "SUCCESS",
-                        "gateway": "manual",
-                        "amountSet": amount_set
-                    }]);
-                    self.store.staged.orders.insert(id.clone(), order.clone());
-                    staged_ids.push(id);
                     selected_json(
                         &json!({ "order": order, "userErrors": [] }),
                         &field.selection,
@@ -2771,7 +2739,7 @@ impl DraftProxy {
                         .values()
                         .next()
                         .cloned()
-                        .unwrap_or_else(|| self.money_bag_default_order("gid://shopify/Order/1"));
+                        .unwrap_or(Value::Null);
                     selected_json(
                         &json!({
                             "order": order,
@@ -2857,17 +2825,6 @@ impl DraftProxy {
             order.clone(),
         );
         order
-    }
-
-    fn money_bag_default_order(&self, id: &str) -> Value {
-        json!({
-            "id": id,
-            "currentTotalPriceSet": money_bag_set("13.5", "USD"),
-            "totalPriceSet": money_bag_set("13.5", "USD"),
-            "totalOutstandingSet": money_bag_set("13.5", "USD"),
-            "totalReceivedSet": money_bag_set("0.0", "USD"),
-            "transactions": []
-        })
     }
 
     pub(in crate::proxy) fn customer_payment_method_local_data(

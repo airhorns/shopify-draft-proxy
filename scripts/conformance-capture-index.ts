@@ -7470,6 +7470,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-mark-as-paid-snapshot-staging',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-mark-as-paid-snapshot-staging-conformance.ts',
+    purpose:
+      'orderMarkAsPaid snapshot staging without money-bag selection, read-after-write, already-paid validation, and unknown-id validation.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderMarkAsPaid-snapshot-staging.json`,
+      `${CAPTURE_ROOT}orderMarkAsPaid-snapshot-staging-cleanup.json`,
+      'config/parity-specs/orders/orderMarkAsPaid-snapshot-staging.json',
+      'config/parity-requests/orders/orderMarkAsPaid-snapshot-staging-create.graphql',
+      'config/parity-requests/orders/orderMarkAsPaid-snapshot-staging-mark.graphql',
+      'config/parity-requests/orders/orderMarkAsPaid-snapshot-staging-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable markable and already-paid orders, marks the markable order paid, records validation branches, then attempts orderCancel cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'return-reverse-logistics',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-return-reverse-logistics-conformance.mts',
