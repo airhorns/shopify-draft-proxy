@@ -1,0 +1,25 @@
+mutation InventoryTransferEditParity($id: ID!, $input: InventoryTransferEditInput!) {
+  inventoryTransferEdit(id: $id, input: $input) {
+    inventoryTransfer {
+      id
+      name
+      status
+      totalQuantity
+      lineItems(first: 10) {
+        nodes {
+          id
+          totalQuantity
+          shippableQuantity
+          shippedQuantity
+          processableQuantity
+          pickedForShipmentQuantity
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

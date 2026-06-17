@@ -1935,6 +1935,230 @@ fn inventory_transfer_lifecycle_stages_and_updates_inventory_levels_from_store()
 }
 
 #[test]
+fn inventory_transfer_create_and_set_items_validate_before_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let create_validation = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-transfer-create-validation.graphql"),
+        json!({"input": {
+            "originLocationId": "gid://shopify/Location/1",
+            "destinationLocationId": "gid://shopify/Location/1",
+            "lineItems": [{"inventoryItemId": "gid://shopify/InventoryItem/transfer-item", "quantity": 1}]
+        }}),
+    ));
+    assert_eq!(
+        create_validation.body["data"]["inventoryTransferCreate"],
+        json!({
+            "inventoryTransfer": null,
+            "userErrors": [{
+                "field": ["input", "destinationLocationId"],
+                "message": "The origin location cannot be the same as the destination location.",
+                "code": "TRANSFER_ORIGIN_CANNOT_BE_THE_SAME_AS_DESTINATION"
+            }]
+        })
+    );
+    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
+
+    let create_response = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-transfer-create.graphql"),
+        json!({"input": {
+            "originLocationId": "gid://shopify/Location/1",
+            "destinationLocationId": "gid://shopify/Location/2",
+            "lineItems": [{"inventoryItemId": "gid://shopify/InventoryItem/transfer-item", "quantity": 2}]
+        }}),
+    ));
+    assert_eq!(
+        create_response.body["data"]["inventoryTransferCreate"]["userErrors"],
+        json!([])
+    );
+    let transfer_id = create_response.body["data"]["inventoryTransferCreate"]["inventoryTransfer"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let set_validation = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-transfer-set-items.graphql"),
+        json!({"input": {
+            "id": transfer_id,
+            "lineItems": [
+                {"inventoryItemId": "gid://shopify/InventoryItem/transfer-item", "quantity": 1},
+                {"inventoryItemId": "gid://shopify/InventoryItem/transfer-item", "quantity": -1},
+                {"inventoryItemId": "gid://shopify/InventoryItem/unknown", "quantity": 1}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        set_validation.body["data"]["inventoryTransferSetItems"]["inventoryTransfer"],
+        Value::Null
+    );
+    assert_eq!(
+        set_validation.body["data"]["inventoryTransferSetItems"]["updatedLineItems"],
+        Value::Null
+    );
+    assert_eq!(
+        set_validation.body["data"]["inventoryTransferSetItems"]["userErrors"],
+        json!([
+            {
+                "field": ["input", "lineItems", "0", "inventoryItemId"],
+                "message": "The inventory item is already present in the list. Each item must be unique.",
+                "code": "DUPLICATE_ITEM"
+            },
+            {
+                "field": ["input", "lineItems", "1", "inventoryItemId"],
+                "message": "The inventory item is already present in the list. Each item must be unique.",
+                "code": "DUPLICATE_ITEM"
+            },
+            {
+                "field": ["input", "lineItems", "1", "quantity"],
+                "message": "The quantity can't be negative.",
+                "code": "INVALID_QUANTITY"
+            },
+            {
+                "field": ["input", "lineItems", "2", "inventoryItemId"],
+                "message": "The inventory item could not be found.",
+                "code": "ITEM_NOT_FOUND"
+            }
+        ])
+    );
+
+    let read_after_rejected_set = proxy.process_request(json_graphql_request(
+        r#"
+        query InventoryTransferAfterRejectedSet($id: ID!) {
+          inventoryTransfer(id: $id) {
+            totalQuantity
+            lineItems(first: 10) { nodes { totalQuantity } }
+          }
+        }
+        "#,
+        json!({"id": transfer_id}),
+    ));
+    assert_eq!(
+        read_after_rejected_set.body["data"]["inventoryTransfer"]["totalQuantity"],
+        json!(2)
+    );
+    let roots: Vec<Value> = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["interpreted"]["operationName"].clone())
+        .collect();
+    assert_eq!(roots, vec![json!("inventoryTransferCreate")]);
+}
+
+#[test]
+fn inventory_transfer_edit_and_duplicate_stage_locally_without_upstream_passthrough() {
+    let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
+    let upstream_forwarded = Arc::clone(&forwarded);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            upstream_forwarded.lock().unwrap().push(request);
+            Response {
+                status: 599,
+                headers: Default::default(),
+                body: json!({"errors": [{"message": "unexpected upstream"}]}),
+            }
+        });
+
+    let create_response = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/products/inventory-transfer-create.graphql"),
+        json!({"input": {
+            "originLocationId": "gid://shopify/Location/1",
+            "destinationLocationId": "gid://shopify/Location/2",
+            "lineItems": [{"inventoryItemId": "gid://shopify/InventoryItem/transfer-item", "quantity": 2}]
+        }}),
+    ));
+    let transfer_id = create_response.body["data"]["inventoryTransferCreate"]["inventoryTransfer"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    forwarded.lock().unwrap().clear();
+
+    let edit_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryTransferEditLocal($id: ID!, $input: InventoryTransferEditInput!) {
+          inventoryTransferEdit(id: $id, input: $input) {
+            inventoryTransfer {
+              id
+              status
+              totalQuantity
+              lineItems(first: 10) { nodes { inventoryItem { id } totalQuantity } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": transfer_id,
+            "input": {
+                "originId": "gid://shopify/Location/1",
+                "destinationId": "gid://shopify/Location/2",
+                "note": "Edited locally"
+            }
+        }),
+    ));
+    assert_eq!(
+        edit_response.body["data"]["inventoryTransferEdit"]["inventoryTransfer"]["id"],
+        json!(transfer_id)
+    );
+    assert_eq!(
+        edit_response.body["data"]["inventoryTransferEdit"]["inventoryTransfer"]["totalQuantity"],
+        json!(2)
+    );
+    assert_eq!(
+        edit_response.body["data"]["inventoryTransferEdit"]["userErrors"],
+        json!([])
+    );
+
+    let duplicate_response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InventoryTransferDuplicateLocal($id: ID!) {
+          inventoryTransferDuplicate(id: $id) {
+            inventoryTransfer {
+              id
+              status
+              totalQuantity
+              lineItems(first: 10) { nodes { inventoryItem { id } totalQuantity } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"id": transfer_id}),
+    ));
+    assert_ne!(
+        duplicate_response.body["data"]["inventoryTransferDuplicate"]["inventoryTransfer"]["id"],
+        json!(transfer_id)
+    );
+    assert_eq!(
+        duplicate_response.body["data"]["inventoryTransferDuplicate"]["inventoryTransfer"]
+            ["totalQuantity"],
+        json!(2)
+    );
+    assert_eq!(
+        duplicate_response.body["data"]["inventoryTransferDuplicate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(forwarded.lock().unwrap().len(), 0);
+
+    let roots: Vec<Value> = proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["interpreted"]["operationName"].clone())
+        .collect();
+    assert_eq!(
+        roots,
+        vec![
+            json!("inventoryTransferCreate"),
+            json!("inventoryTransferEdit"),
+            json!("inventoryTransferDuplicate")
+        ]
+    );
+}
+
+#[test]
 fn inventory_shipment_unknown_transfer_returns_user_error_without_logging() {
     let mut proxy = snapshot_proxy();
 
@@ -2144,6 +2368,8 @@ fn inventory_shipment_lifecycle_stages_locally_updates_inventory_and_preserves_l
 #[test]
 fn inventory_shipment_validation_guards_reject_without_staging() {
     let mut proxy = snapshot_proxy();
+    seed_origin_inventory(&mut proxy, "gid://shopify/InventoryItem/guard-item", 2);
+
     let transfer_response = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/products/inventory-transfer-create-ready.graphql"
@@ -2328,6 +2554,8 @@ fn inventory_shipment_validation_guards_reject_without_staging() {
 #[test]
 fn inventory_shipment_draft_mutators_stage_tracking_items_and_in_transit_state() {
     let mut proxy = snapshot_proxy();
+    seed_origin_inventory(&mut proxy, "gid://shopify/InventoryItem/mutator-item", 3);
+
     let transfer_response = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/products/inventory-transfer-create-ready.graphql"
@@ -2494,6 +2722,33 @@ fn inventory_has_level_quantities(
         .unwrap()
         .iter()
         .any(|node| node["quantities"] == expected)
+}
+
+fn seed_origin_inventory(proxy: &mut DraftProxy, inventory_item_id: &str, quantity: i64) {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedOriginInventory($input: InventorySetQuantitiesInput!) {
+          inventorySetQuantities(input: $input) {
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"input": {
+            "name": "available",
+            "reason": "correction",
+            "referenceDocumentUri": "logistics://inventory/shipment-seed",
+            "ignoreCompareQuantity": true,
+            "quantities": [{
+                "inventoryItemId": inventory_item_id,
+                "locationId": "gid://shopify/Location/1",
+                "quantity": quantity
+            }]
+        }}),
+    ));
+    assert_eq!(
+        response.body["data"]["inventorySetQuantities"]["userErrors"],
+        json!([])
+    );
 }
 
 #[test]

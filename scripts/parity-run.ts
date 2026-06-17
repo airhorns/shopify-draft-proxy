@@ -306,7 +306,8 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
         'hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration' ||
       call.query ===
         'recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration';
-    const canMatchSynthesizedNodeQuery = isSyntheticNodeCassette && /\bnode(?:s)?\s*\(/u.test(query);
+    const canMatchSynthesizedNodeQuery =
+      isSyntheticNodeCassette && (/\bnode(?:s)?\s*\(/u.test(query) || query.includes('query ProductsHydrateNodes'));
     return (
       variablesMatch &&
       (canMatchSynthesizedNodeQuery ||
