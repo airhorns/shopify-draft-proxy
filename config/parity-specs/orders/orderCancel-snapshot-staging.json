@@ -1,0 +1,83 @@
+{
+  "scenarioId": "orderCancel-snapshot-staging",
+  "operationNames": ["orderCreate", "orderCancel", "order"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "payload-shape", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderCancel-parity.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql",
+    "variables": {
+      "order": {
+        "currency": "USD",
+        "financialStatus": "PENDING",
+        "email": "order-cancel-snapshot-staging@example.com",
+        "lineItems": [
+          {
+            "title": "Order cancel snapshot staging item",
+            "quantity": 1,
+            "priceSet": {
+              "shopMoney": {
+                "amount": "14.00",
+                "currencyCode": "USD"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cancel-staged-order-user-errors",
+        "capturePath": "$.mutation.response.data.orderCancel.orderCancelUserErrors",
+        "proxyPath": "$.data.orderCancel.orderCancelUserErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCancel-parity.graphql",
+          "variables": {
+            "orderId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "restock": false,
+            "reason": "OTHER",
+            "notifyCustomer": false,
+            "staffNote": "shopify-draft-proxy order cancel capture"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "downstream-cancelled-state",
+        "capturePath": "$.downstreamRead.response.data.order",
+        "proxyPath": "$.data.order",
+        "selectedPaths": ["$.closed", "$.closedAt", "$.cancelledAt", "$.cancelReason"],
+        "expectedDifferences": [
+          {
+            "path": "$.closedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic synthetic timestamps for locally staged cancellation."
+          },
+          {
+            "path": "$.cancelledAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic synthetic timestamps for locally staged cancellation."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-management-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Snapshot/live-hybrid replay for the store-backed orderCreate -> orderCancel -> order(id:) chain. The proxy stages a normal direct order locally, cancels the returned staged order id without runtime Shopify writes, and compares the selected cancelled-state fields against the existing 2026-04 live orderCancel capture. Existing orderCancel-state-transitions coverage continues to replay already-cancelled, overlong staffNote, refund/refundMethod conflict, and unknown-order branches."
+}
