@@ -154,19 +154,18 @@ impl DraftProxy {
                 "discounts": self.store.staged.discounts.clone(),
                 "discountCodeIndex": self.store.staged.discount_code_index.clone(),
                 "deletedDiscountIds": self.store.staged.deleted_discount_ids.iter().cloned().collect::<Vec<_>>(),
+                "discountBulkOperations": self.store.staged.discount_bulk_operations.clone(),
                 "discountRedeemCodeBulkCreations": self.store.staged.discount_redeem_code_bulk_creations.clone(),
-                "ownerMetafields": self.store.staged.owner_metafields.clone()
+                "ownerMetafields": self.store.staged.owner_metafields.clone(),
+                "deletedOwnerMetafields": self.store.staged.deleted_owner_metafields.iter().map(|(owner_id, namespace, key)| {
+                    let mut tombstone = serde_json::Map::new();
+                    tombstone.insert("ownerId".to_string(), Value::String(owner_id.clone()));
+                    tombstone.insert("namespace".to_string(), Value::String(namespace.clone()));
+                    tombstone.insert("key".to_string(), Value::String(key.clone()));
+                    Value::Object(tombstone)
+                }).collect::<Vec<_>>()
             }
         });
-        snapshot["stagedState"]["deletedOwnerMetafields"] = json!(self
-            .store
-            .staged
-            .deleted_owner_metafields
-            .iter()
-            .map(|(owner_id, namespace, key)| {
-                json!({"ownerId": owner_id, "namespace": namespace, "key": key})
-            })
-            .collect::<Vec<_>>());
         snapshot["stagedState"]["b2bCompanies"] = json!(self.store.staged.b2b_companies.clone());
         snapshot["stagedState"]["b2bLocations"] = json!(self.store.staged.b2b_locations.clone());
         snapshot["stagedState"]["b2bContacts"] = json!(self.store.staged.b2b_contacts.clone());
@@ -218,6 +217,25 @@ impl DraftProxy {
                 .store
                 .staged
                 .deleted_metaobject_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>());
+        }
+        if !self.store.staged.url_redirects.is_empty() {
+            snapshot["stagedState"]["urlRedirects"] = json!(self.store.staged.url_redirects);
+            snapshot["stagedState"]["urlRedirectOrder"] =
+                json!(self.store.staged.url_redirect_order);
+        }
+        if !self
+            .store
+            .staged
+            .product_option_linked_metaobject_definition_ids
+            .is_empty()
+        {
+            snapshot["stagedState"]["productOptionLinkedMetaobjectDefinitionIds"] = json!(self
+                .store
+                .staged
+                .product_option_linked_metaobject_definition_ids
                 .iter()
                 .cloned()
                 .collect::<Vec<_>>());
@@ -636,6 +654,28 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store.staged.url_redirects = state["stagedState"]
+            .get("urlRedirects")
+            .and_then(Value::as_object)
+            .map(|redirects| {
+                redirects
+                    .iter()
+                    .map(|(id, redirect)| (id.clone(), redirect.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.url_redirect_order = state["stagedState"]
+            .get("urlRedirectOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| self.store.staged.url_redirects.keys().cloned().collect());
+        self.store
+            .staged
+            .product_option_linked_metaobject_definition_ids = state["stagedState"]
+            .get("productOptionLinkedMetaobjectDefinitionIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.metafield_definitions = state["stagedState"]
             .get("metafieldDefinitions")
             .and_then(Value::as_object)
@@ -713,6 +753,15 @@ impl DraftProxy {
             .flatten()
             .filter_map(|value| value.as_str().map(str::to_string))
             .collect();
+        self.store.staged.discount_bulk_operations = state["stagedState"]["discountBulkOperations"]
+            .as_object()
+            .map(|operations| {
+                operations
+                    .iter()
+                    .map(|(id, operation)| (id.clone(), operation.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
         self.store.staged.discount_redeem_code_bulk_creations = state["stagedState"]
             ["discountRedeemCodeBulkCreations"]
             .as_object()
