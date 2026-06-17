@@ -7973,6 +7973,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'carrier-service-create-required-fields',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-carrier-service-create-required-fields-conformance.ts',
+    purpose:
+      'DeliveryCarrierServiceCreateInput active/supportsServiceDiscovery required-field coercion validation for carrierServiceCreate.',
+    requiredAuthScopes: ['read_shipping', 'write_shipping'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}carrier-service-create-required-fields.json`,
+      'config/parity-specs/shipping-fulfillments/carrier-service-create-required-fields.json',
+      'config/parity-requests/shipping-fulfillments/carrier-service-create-required-fields.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only capture; omitted required input fields fail GraphQL variable coercion before carrierServiceCreate can create live objects.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'fulfillment-service-callback-url-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-service-callback-url-validation-conformance.ts',
