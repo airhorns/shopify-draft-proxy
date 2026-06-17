@@ -1,0 +1,38 @@
+query MediaFileCreateContentTypeInferenceFilesRead {
+  files(first: 10, reverse: true, sortKey: ID) {
+    nodes {
+      __typename
+      id
+      alt
+      createdAt
+      updatedAt
+      fileStatus
+      ... on MediaImage {
+        mimeType
+        image {
+          url
+          width
+          height
+        }
+        preview {
+          image {
+            url
+          }
+        }
+      }
+      ... on Video {
+        mediaContentType
+        status
+        preview {
+          image {
+            url
+          }
+        }
+      }
+      ... on GenericFile {
+        mimeType
+        url
+      }
+    }
+  }
+}

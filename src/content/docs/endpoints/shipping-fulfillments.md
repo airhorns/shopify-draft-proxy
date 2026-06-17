@@ -10,20 +10,47 @@ order-editing shipping-line roots.
 
 ## Current support and limitations
 
-### Supported roots
+### Implemented roots
 
-The Rust runtime implements bounded shipping/fulfillments slices for the roots
-below. Registry presence remains a local-model commitment only; it is not a
-claim that the whole shipping/fulfillments domain is supported for arbitrary
-documents.
+The current Rust operation registry marks only bounded shipping/fulfillments
+slices as implemented. Registry presence is a local-model commitment only; it
+is not a claim that the whole shipping/fulfillments domain is supported for
+arbitrary documents.
 
-The locally handled fulfillment-order read roots are:
+The implemented read roots are:
 
 - `fulfillmentOrder`
 - `fulfillmentOrders`
+- `locationsAvailableForDeliveryProfilesConnection`
 - `manualHoldsFulfillmentOrders`
 
-Other registry-tracked read roots include:
+The implemented mutation roots are:
+
+- `carrierServiceCreate`
+- `carrierServiceDelete`
+- `carrierServiceUpdate`
+- `fulfillmentOrderCancel`
+- `fulfillmentOrderClose`
+- `fulfillmentOrderHold`
+- `fulfillmentOrderMerge`
+- `fulfillmentOrderMove`
+- `fulfillmentOrderOpen`
+- `fulfillmentOrderReleaseHold`
+- `fulfillmentOrderReportProgress`
+- `fulfillmentOrderReschedule`
+- `fulfillmentOrderSplit`
+- `fulfillmentOrdersReroute`
+- `fulfillmentOrdersSetFulfillmentDeadline`
+- `fulfillmentServiceCreate`
+- `fulfillmentServiceDelete`
+- `fulfillmentServiceUpdate`
+- `locationLocalPickupDisable`
+- `locationLocalPickupEnable`
+- `shippingPackageDelete`
+- `shippingPackageMakeDefault`
+- `shippingPackageUpdate`
+
+The registry-only read roots are:
 
 - `reverseDelivery`
 - `reverseFulfillmentOrder`
@@ -41,23 +68,9 @@ Other registry-tracked read roots include:
 - `deliverySettings`
 - `deliveryProfile`
 - `deliveryProfiles`
-- `locationsAvailableForDeliveryProfilesConnection`
 - `fulfillmentConstraintRules`
 
-The locally handled fulfillment-order lifecycle mutation roots are:
-
-- `fulfillmentOrderCancel`
-- `fulfillmentOrderClose`
-- `fulfillmentOrderHold`
-- `fulfillmentOrderMove`
-- `fulfillmentOrderOpen`
-- `fulfillmentOrderReleaseHold`
-- `fulfillmentOrderReportProgress`
-- `fulfillmentOrderReschedule`
-- `fulfillmentOrdersReroute`
-- `fulfillmentOrdersSetFulfillmentDeadline`
-
-Other registry-tracked mutation roots include:
+The registry-only mutation roots are:
 
 - `fulfillmentCreate`
 - `fulfillmentEventCreate`
@@ -66,23 +79,10 @@ Other registry-tracked mutation roots include:
 - `fulfillmentOrderAcceptCancellationRequest`
 - `fulfillmentOrderAcceptFulfillmentRequest`
 - `fulfillmentOrderLineItemsPreparedForPickup`
-- `fulfillmentOrderMerge`
 - `fulfillmentOrderRejectCancellationRequest`
 - `fulfillmentOrderRejectFulfillmentRequest`
-- `fulfillmentOrderSplit`
 - `fulfillmentOrderSubmitCancellationRequest`
 - `fulfillmentOrderSubmitFulfillmentRequest`
-- `fulfillmentServiceCreate`
-- `fulfillmentServiceDelete`
-- `fulfillmentServiceUpdate`
-- `carrierServiceCreate`
-- `carrierServiceDelete`
-- `carrierServiceUpdate`
-- `locationLocalPickupDisable`
-- `locationLocalPickupEnable`
-- `shippingPackageDelete`
-- `shippingPackageMakeDefault`
-- `shippingPackageUpdate`
 - `fulfillmentConstraintRuleCreate`
 - `fulfillmentConstraintRuleDelete`
 - `fulfillmentConstraintRuleUpdate`
@@ -159,10 +159,17 @@ empty/no-feature branch. Delivery profiles have fixture-backed read and bounded
 custom-profile write slices for create/update/remove, validation, variant
 dissociation, async removal payloads, and downstream null reads after removal.
 
-Local pickup and shipping package slices stage settings on known local
-locations or package records. Pickup changes are visible through the captured
-`Location`, `locationsAvailableForDeliveryProfilesConnection`, and
-`availableCarrierServices.locations` surfaces. Shipping packages have no direct
+Local pickup mutations stage settings on active local locations and retain the
+original raw GraphQL request for commit replay. `locationLocalPickupEnable`
+accepts captured standard pickup times, rejects non-standard values with
+`CUSTOM_PICKUP_TIME_NOT_ALLOWED`, and rejects unknown or inactive locations with
+`ACTIVE_LOCATION_NOT_FOUND`. `locationLocalPickupDisable` clears the staged
+settings. Pickup changes are visible through `Location.localPickupSettingsV2`
+and `locationsAvailableForDeliveryProfilesConnection` in snapshot mode and
+after LiveHybrid reads hydrate the existing shipping locations.
+
+Shipping package slices stage changes on known package records and retain the
+original raw GraphQL request for commit replay. Shipping packages have no direct
 Admin GraphQL package read root in the captured schema, so successful staging is
 verified through local state/log behavior and targeted validation.
 

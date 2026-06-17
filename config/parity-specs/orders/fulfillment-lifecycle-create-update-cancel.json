@@ -1,0 +1,130 @@
+{
+  "scenarioId": "fulfillment-lifecycle-create-update-cancel",
+  "operationNames": ["fulfillmentCreate", "fulfillmentTrackingInfoUpdate", "fulfillmentCancel"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "mutation-lifecycle",
+    "downstream-read-parity",
+    "runtime-staging",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/fulfillment-cancel-parity.json"
+  ],
+  "proxyRequest": {
+    "documentCapturePath": "$.setup.orderCreate.query",
+    "variablesCapturePath": "$.setup.orderCreate.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "order-create-fulfillment-order-readiness",
+        "capturePath": "$.setup.orderCreate.response.data.orderCreate.order",
+        "proxyPath": "$.data.orderCreate.order",
+        "selectedPaths": [
+          "$.displayFulfillmentStatus",
+          "$.fulfillmentOrders.nodes[0].status",
+          "$.fulfillmentOrders.nodes[0].requestStatus",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].totalQuantity",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].remainingQuantity",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].lineItem.title"
+        ]
+      },
+      {
+        "name": "fulfillment-create",
+        "capturePath": "$.setup.fulfillmentCreate.response.data.fulfillmentCreate",
+        "proxyPath": "$.data.fulfillmentCreate",
+        "selectedPaths": ["$.fulfillment.status", "$.fulfillment.trackingInfo", "$.userErrors"],
+        "proxyRequest": {
+          "documentCapturePath": "$.setup.fulfillmentCreate.query",
+          "variables": {
+            "fulfillment": {
+              "notifyCustomer": {
+                "fromCapturePath": "$.setup.fulfillmentCreate.variables.fulfillment.notifyCustomer"
+              },
+              "trackingInfo": {
+                "fromCapturePath": "$.setup.fulfillmentCreate.variables.fulfillment.trackingInfo"
+              },
+              "lineItemsByFulfillmentOrder": [
+                {
+                  "fulfillmentOrderId": {
+                    "fromPrimaryProxyPath": "$.data.orderCreate.order.fulfillmentOrders.nodes[0].id"
+                  }
+                }
+              ]
+            },
+            "message": {
+              "fromCapturePath": "$.setup.fulfillmentCreate.variables.message"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "fulfillment-tracking-update",
+        "capturePath": "$.setup.fulfillmentTrackingInfoUpdate.response.data.fulfillmentTrackingInfoUpdate",
+        "proxyPath": "$.data.fulfillmentTrackingInfoUpdate",
+        "selectedPaths": ["$.fulfillment.status", "$.fulfillment.trackingInfo", "$.userErrors"],
+        "proxyRequest": {
+          "documentCapturePath": "$.setup.fulfillmentTrackingInfoUpdate.query",
+          "variables": {
+            "fulfillmentId": {
+              "fromProxyResponse": "fulfillment-create",
+              "path": "$.data.fulfillmentCreate.fulfillment.id"
+            },
+            "trackingInfoInput": {
+              "fromCapturePath": "$.setup.fulfillmentTrackingInfoUpdate.variables.trackingInfoInput"
+            },
+            "notifyCustomer": {
+              "fromCapturePath": "$.setup.fulfillmentTrackingInfoUpdate.variables.notifyCustomer"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "fulfillment-cancel",
+        "capturePath": "$.mutation.response.data.fulfillmentCancel",
+        "proxyPath": "$.data.fulfillmentCancel",
+        "selectedPaths": ["$.fulfillment.status", "$.fulfillment.trackingInfo", "$.userErrors"],
+        "proxyRequest": {
+          "documentCapturePath": "$.query",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "fulfillment-create",
+              "path": "$.data.fulfillmentCreate.fulfillment.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "downstream-cancelled-fulfillment",
+        "capturePath": "$.downstreamRead.response.data.order",
+        "proxyPath": "$.data.order",
+        "selectedPaths": [
+          "$.fulfillments[0].status",
+          "$.fulfillments[0].trackingInfo",
+          "$.fulfillmentOrders.nodes[0].status",
+          "$.fulfillmentOrders.nodes[0].requestStatus",
+          "$.fulfillmentOrders.nodes[0].lineItems.nodes[0].lineItem.title"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-fulfillment-lifecycle-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "Replays the real Shopify fulfillment-cancel capture as one lifecycle scenario: public orderCreate exposes a fulfillment order, fulfillmentCreate stages SUCCESS tracking, fulfillmentTrackingInfoUpdate mutates trackingInfo, fulfillmentCancel transitions the same staged fulfillment to CANCELLED, and downstream order fulfillment reads expose the cancelled fulfillment without upstream runtime writes."
+}
