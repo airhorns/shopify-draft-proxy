@@ -203,6 +203,16 @@ fn validate_raw_input_object(
         let Some(field_schema) = input_object.get(field_name) else {
             continue;
         };
+        if let Some(error) = raw_enum_literal_error(
+            input_type_name,
+            field_name,
+            &field_schema.type_ref,
+            field_value,
+            path,
+            context,
+        ) {
+            errors.push(error);
+        }
         let Some(nested_input_object) = schema.input_objects.get(&field_schema.type_ref.named_type)
         else {
             continue;
@@ -260,7 +270,7 @@ fn validate_resolved_input_object(
         let Some(field_schema) = input_object.get(field_name) else {
             continue;
         };
-        if let Some(problem) = validate_resolved_scalar(field_value, &field_schema.type_ref) {
+        if let Some(problem) = validate_resolved_leaf(field_value, &field_schema.type_ref) {
             let mut nested_path = problem_path.to_vec();
             nested_path.push(field_name.clone());
             if problem.include_message {
@@ -296,7 +306,7 @@ struct ScalarValidationProblem {
     include_message: bool,
 }
 
-fn validate_resolved_scalar(
+fn validate_resolved_leaf(
     value: &ResolvedValue,
     type_ref: &SchemaTypeRef,
 ) -> Option<ScalarValidationProblem> {
@@ -319,7 +329,16 @@ fn validate_resolved_scalar(
                 include_message: false,
             })
         }
-        _ => None,
+        _ => {
+            let ResolvedValue::String(raw) = value else {
+                return None;
+            };
+            let values = enum_literal_valid_values(&type_ref.named_type)?;
+            (!values.contains(&raw.as_str())).then(|| ScalarValidationProblem {
+                explanation: format!("Expected value to be one of: {}", values.join(", ")),
+                include_message: true,
+            })
+        }
     }
 }
 
@@ -344,6 +363,55 @@ fn fulfillment_event_status_expected_message(status: &str) -> String {
     format!(
         "Expected \"{status}\" to be one of: LABEL_PURCHASED, LABEL_PRINTED, READY_FOR_PICKUP, CONFIRMED, IN_TRANSIT, OUT_FOR_DELIVERY, ATTEMPTED_DELIVERY, DELAYED, DELIVERED, FAILURE, CARRIER_PICKED_UP"
     )
+}
+
+fn raw_enum_literal_error(
+    input_type_name: &str,
+    argument_name: &str,
+    type_ref: &SchemaTypeRef,
+    value: &RawArgumentValue,
+    path: &[String],
+    context: ValidationContext<'_>,
+) -> Option<Value> {
+    let RawArgumentValue::Enum(raw) = value else {
+        return None;
+    };
+    enum_literal_allowed(&type_ref.named_type, raw)
+        .filter(|allowed| !allowed)
+        .map(|_| {
+            argument_literals_incompatible_error(
+                input_type_name,
+                argument_name,
+                raw,
+                &type_ref.named_type,
+                path,
+                context,
+            )
+        })
+}
+
+fn enum_literal_allowed(type_name: &str, raw: &str) -> Option<bool> {
+    enum_literal_valid_values(type_name).map(|values| values.contains(&raw))
+}
+
+fn enum_literal_valid_values(type_name: &str) -> Option<&'static [&'static str]> {
+    match type_name {
+        "FulfillmentEventStatus" => Some(&[
+            "LABEL_PURCHASED",
+            "LABEL_PRINTED",
+            "READY_FOR_PICKUP",
+            "CONFIRMED",
+            "IN_TRANSIT",
+            "OUT_FOR_DELIVERY",
+            "ATTEMPTED_DELIVERY",
+            "DELAYED",
+            "DELIVERED",
+            "FAILURE",
+            "CARRIER_PICKED_UP",
+        ]),
+        "MetaobjectCustomerAccountAccess" => Some(&["NONE", "READ"]),
+        _ => None,
+    }
 }
 
 fn root_argument_not_accepted_error(
@@ -492,6 +560,31 @@ fn missing_required_input_object_attribute_error(
     })
 }
 
+fn argument_literals_incompatible_error(
+    input_type_name: &str,
+    argument_name: &str,
+    raw_value: &str,
+    expected_type_name: &str,
+    path: &[String],
+    context: ValidationContext<'_>,
+) -> Value {
+    let location_field = path.last().map(String::as_str).unwrap_or(argument_name);
+    let location = raw_input_object_field_value_location(context.query, location_field)
+        .unwrap_or(context.field_location);
+    json!({
+        "message": format!(
+            "Argument '{argument_name}' on InputObject '{input_type_name}' has an invalid value ({raw_value}). Expected type '{expected_type_name}'."
+        ),
+        "locations": [{ "line": location.line, "column": location.column }],
+        "path": input_error_path(context, path, argument_name),
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "InputObject",
+            "argumentName": argument_name
+        }
+    })
+}
+
 fn invalid_variable_error(
     context: VariableValidationContext<'_>,
     value: &ResolvedValue,
@@ -594,6 +687,44 @@ fn local_extension_input_field(input_type_name: &str, field_name: &str) -> bool 
         (input_type_name, field_name),
         ("GiftCardCreateInput", "notify")
     )
+}
+
+fn raw_input_object_field_value_location(query: &str, field_name: &str) -> Option<SourceLocation> {
+    let mut offset = 0;
+    while let Some(relative_index) = query[offset..].find(field_name) {
+        let name_start = offset + relative_index;
+        let name_end = name_start + field_name.len();
+        if !graphql_name_boundary(query, name_start, name_end) {
+            offset = name_end;
+            continue;
+        }
+        let colon_index = query[name_end..]
+            .char_indices()
+            .find_map(|(index, ch)| match ch {
+                ':' => Some(name_end + index),
+                ch if ch.is_whitespace() => None,
+                _ => Some(usize::MAX),
+            })?;
+        if colon_index == usize::MAX {
+            offset = name_end;
+            continue;
+        }
+        let value_start = query[colon_index + 1..]
+            .char_indices()
+            .find_map(|(index, ch)| (!ch.is_whitespace()).then_some(colon_index + 1 + index))?;
+        return source_location_for_byte_offset(query, value_start);
+    }
+    None
+}
+
+fn graphql_name_boundary(query: &str, start: usize, end: usize) -> bool {
+    let before = query[..start].chars().next_back();
+    let after = query[end..].chars().next();
+    !before.is_some_and(is_graphql_name_char) && !after.is_some_and(is_graphql_name_char)
+}
+
+fn is_graphql_name_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || ch == '_'
 }
 
 fn public_admin_input_schema() -> &'static AdminInputSchema {
