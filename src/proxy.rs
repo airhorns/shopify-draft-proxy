@@ -367,6 +367,11 @@ struct StagedState {
     function_validation_order: Vec<String>,
     function_cart_transforms: BTreeMap<String, Value>,
     function_cart_transform_order: Vec<String>,
+    // True once any function lifecycle (validation / cart-transform) has been
+    // staged this session. Distinguishes a post-delete local read (serve the
+    // empty local result) from a cold read with no local backing (forward to
+    // the upstream so function ownership metadata reflects real installs).
+    functions_dirty: bool,
     code_basic_lifecycle_status: Option<String>,
     free_shipping_code_status: Option<String>,
     free_shipping_automatic_status: Option<String>,
@@ -662,6 +667,7 @@ impl Default for StagedState {
             function_validation_order: Vec::new(),
             function_cart_transforms: BTreeMap::new(),
             function_cart_transform_order: Vec::new(),
+            functions_dirty: false,
             code_basic_lifecycle_status: None,
             free_shipping_code_status: None,
             free_shipping_automatic_status: None,

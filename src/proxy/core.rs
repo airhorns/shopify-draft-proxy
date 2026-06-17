@@ -326,6 +326,9 @@ impl DraftProxy {
         if self.store.staged.localization_dirty {
             snapshot["stagedState"]["localizationDirty"] = json!(true);
         }
+        if self.store.staged.functions_dirty {
+            snapshot["stagedState"]["functionsDirty"] = json!(true);
+        }
         snapshot
     }
 
@@ -1028,6 +1031,9 @@ impl DraftProxy {
             .cloned()
             .unwrap_or_default();
         self.store.staged.localization_dirty = state["stagedState"]["localizationDirty"]
+            .as_bool()
+            .unwrap_or(false);
+        self.store.staged.functions_dirty = state["stagedState"]["functionsDirty"]
             .as_bool()
             .unwrap_or(false);
         self.log_entries = dump["log"]["entries"]

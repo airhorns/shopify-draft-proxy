@@ -1464,8 +1464,21 @@ impl DraftProxy {
             (CapabilityDomain::Functions, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
             {
-                if let Some(fields) = root_fields(&query, &variables) {
-                    ok_json(json!({ "data": self.functions_metadata_read_data(&fields) }))
+                // A cold function read (no validation/cart-transform staged this
+                // session) forwards to the upstream so `shopifyFunctions` /
+                // `shopifyFunction` reflect the shop's real installed functions
+                // and their app ownership metadata. Once a lifecycle is staged we
+                // serve locally (read-after-write / read-after-delete).
+                if self.config.read_mode != ReadMode::Snapshot && !self.local_has_function_state() {
+                    (self.upstream_transport)(request.clone())
+                } else if let Some(fields) = root_fields(&query, &variables) {
+                    let selection_errors =
+                        cart_transform_selection_errors(&query, &variables, &fields);
+                    if selection_errors.is_empty() {
+                        ok_json(json!({ "data": self.functions_metadata_read_data(&fields) }))
+                    } else {
+                        ok_json(json!({ "errors": selection_errors }))
+                    }
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
                 }

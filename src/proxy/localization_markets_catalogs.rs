@@ -24,6 +24,10 @@ impl DraftProxy {
         &mut self,
         fields: &[RootFieldSelection],
     ) -> Value {
+        // Any function mutation marks the session as having local function
+        // state, so later reads serve locally (read-after-write / -delete)
+        // instead of forwarding the cold read to the upstream.
+        self.store.staged.functions_dirty = true;
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = match field.name.as_str() {
@@ -140,6 +144,20 @@ impl DraftProxy {
         } else {
             nodes
         }
+    }
+
+    /// True when any function lifecycle has been staged locally (a validation or
+    /// cart-transform created/updated this session). Cold function reads with no
+    /// staged state forward to the upstream so `shopifyFunctions` /
+    /// `shopifyFunction` reflect the shop's real installed functions (with app
+    /// ownership metadata) rather than the synthetic staging catalog.
+    pub(in crate::proxy) fn local_has_function_state(&self) -> bool {
+        self.store.staged.functions_dirty
+            || self.store.staged.function_validation.is_some()
+            || !self.store.staged.function_validations.is_empty()
+            || !self.store.staged.function_validation_order.is_empty()
+            || !self.store.staged.function_cart_transforms.is_empty()
+            || !self.store.staged.function_cart_transform_order.is_empty()
     }
 
     pub(in crate::proxy) fn localization_query_data(

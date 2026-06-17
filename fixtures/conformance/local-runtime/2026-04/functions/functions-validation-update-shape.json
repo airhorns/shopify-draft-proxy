@@ -41,16 +41,22 @@
     "response": {
       "errors": [
         {
-          "message": "Field 'functionId' is not defined on ValidationUpdateInput",
+          "message": "InputObject 'ValidationUpdateInput' doesn't accept argument 'functionId'",
           "locations": [
             {
               "line": 2,
-              "column": 43
+              "column": 3
             }
           ],
-          "path": ["mutation ValidationUpdateRebind", "validationUpdate", "validation", "functionId"],
+          "path": [
+            "mutation ValidationUpdateRebind",
+            "validationUpdate",
+            "validation",
+            "functionId"
+          ],
           "extensions": {
-            "code": "argumentLiteralsIncompatible",
+            "code": "argumentNotAccepted",
+            "name": "ValidationUpdateInput",
             "typeName": "InputObject",
             "argumentName": "functionId"
           }

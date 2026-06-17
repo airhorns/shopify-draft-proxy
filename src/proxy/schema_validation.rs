@@ -366,9 +366,14 @@ fn root_argument_not_accepted_error(
     argument_name: &str,
     context: ValidationContext<'_>,
 ) -> Value {
+    // Shopify anchors an unaccepted-argument error at the argument name token,
+    // not at the field. For a multi-line mutation each rejected argument points
+    // at its own `name:` position.
+    let location = inline_argument_name_location(context.query, field, argument_name)
+        .unwrap_or(context.field_location);
     json!({
         "message": format!("Field '{}' doesn't accept argument '{}'", field.name, argument_name),
-        "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
+        "locations": [{ "line": location.line, "column": location.column }],
         "path": [context.operation_path, context.response_key, argument_name],
         "extensions": {
             "code": "argumentNotAccepted",
@@ -457,6 +462,72 @@ fn missing_required_input_object_attribute_error(
     })
 }
 
+fn inline_argument_name_location(
+    query: &str,
+    field: &RootFieldSelection,
+    argument_name: &str,
+) -> Option<SourceLocation> {
+    let start = byte_offset_for_location(query, field.location)?;
+    let bytes = query.as_bytes();
+    // Find the field's argument list. If a selection set opens first, the field
+    // takes no arguments.
+    let mut index = start;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'(' => break,
+            b'{' => return None,
+            _ => index += 1,
+        }
+    }
+    if index >= bytes.len() {
+        return None;
+    }
+    // Walk the argument list tracking bracket depth and string literals so a
+    // root argument name is matched only at the top level — never a nested
+    // input-object field of the same name, nor text inside a string value.
+    let mut depth = 0i32;
+    let mut in_string = false;
+    let mut escaped = false;
+    while index < bytes.len() {
+        let byte = bytes[index];
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if byte == b'\\' {
+                escaped = true;
+            } else if byte == b'"' {
+                in_string = false;
+            }
+            index += 1;
+            continue;
+        }
+        match byte {
+            b'"' => in_string = true,
+            b'(' | b'{' | b'[' => depth += 1,
+            b')' | b'}' | b']' => {
+                depth -= 1;
+                if depth == 0 {
+                    return None;
+                }
+            }
+            _ if depth == 1 => {
+                let before_ok = index == 0 || !is_graphql_name_byte(bytes[index - 1]);
+                if before_ok && query[index..].starts_with(argument_name) {
+                    let after = index + argument_name.len();
+                    let after_ok = bytes.get(after).is_none_or(|next| !is_graphql_name_byte(*next));
+                    let followed_by_colon = query[after..].trim_start().starts_with(':');
+                    if after_ok && followed_by_colon {
+                        return source_location_for_byte_offset(query, index);
+                    }
+                }
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    None
+}
+
 fn inline_argument_value_location(
     query: &str,
     field: &RootFieldSelection,
@@ -536,6 +607,10 @@ fn is_graphql_name_char(ch: char) -> bool {
     ch.is_ascii_alphanumeric() || ch == '_'
 }
 
+fn is_graphql_name_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_'
+}
+
 fn invalid_variable_error(
     context: VariableValidationContext<'_>,
     value: &ResolvedValue,
@@ -611,6 +686,7 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         extend_discount_basic_input_schema(&mut schema);
         extend_customer_merge_input_schema(&mut schema);
         extend_marketing_engagement_input_schema(&mut schema);
+        extend_functions_input_schema(&mut schema);
         schema
     })
 }
@@ -689,6 +765,53 @@ fn extend_marketing_engagement_input_schema(schema: &mut AdminInputSchema) {
             (
                 "marketingEngagement".to_string(),
                 mutation_arg(non_null("MarketingEngagementInput")),
+            ),
+        ]),
+    );
+}
+
+fn extend_functions_input_schema(schema: &mut AdminInputSchema) {
+    // ValidationUpdateInput on Admin API 2026-04 accepts only enable,
+    // blockOnFailure, metafields, and title. Rebinding a validation to a
+    // different function is not supported, so functionId / functionHandle are
+    // not fields on the input object — supplying them must raise a schema error
+    // (argumentNotAccepted for a literal, INVALID_VARIABLE for a variable)
+    // before the validationUpdate resolver runs.
+    schema.input_objects.insert(
+        "ValidationUpdateInput".to_string(),
+        BTreeMap::from([
+            ("enable".to_string(), input_field(named("Boolean"))),
+            ("blockOnFailure".to_string(), input_field(named("Boolean"))),
+            (
+                "metafields".to_string(),
+                input_field(list_of_non_null("MetafieldInput")),
+            ),
+            ("title".to_string(), input_field(named("String"))),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "validationUpdate".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "validation".to_string(),
+                mutation_arg(non_null("ValidationUpdateInput")),
+            ),
+        ]),
+    );
+    // cartTransformCreate takes scalar root arguments only; the function is
+    // selected by functionId or functionHandle. There is no `cartTransform`
+    // wrapper input and no `title` argument, so supplying either must raise a
+    // top-level argumentNotAccepted error.
+    schema.mutation_fields.insert(
+        "cartTransformCreate".to_string(),
+        BTreeMap::from([
+            ("functionId".to_string(), mutation_arg(named("ID"))),
+            ("functionHandle".to_string(), mutation_arg(named("String"))),
+            ("blockOnFailure".to_string(), mutation_arg(named("Boolean"))),
+            (
+                "metafields".to_string(),
+                mutation_arg(list_of_non_null("MetafieldInput")),
             ),
         ]),
     );

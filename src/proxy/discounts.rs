@@ -4061,6 +4061,116 @@ pub(in crate::proxy) fn local_cart_transform_function() -> Value {
     })
 }
 
+/// Output fields defined on the `CartTransform` type (2026-04). A selection of
+/// anything else is a query-validation error (`undefinedField`) Shopify rejects
+/// before execution — so the read returns errors with no data.
+const CART_TRANSFORM_OUTPUT_FIELDS: &[&str] = &[
+    "id",
+    "functionId",
+    "blockOnFailure",
+    "metafield",
+    "metafields",
+    "__typename",
+];
+
+pub(in crate::proxy) fn cart_transform_selection_errors(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+    fields: &[RootFieldSelection],
+) -> Vec<Value> {
+    let operation_path = parsed_document(query, variables)
+        .map(|document| document.operation_path)
+        .unwrap_or_default();
+    let mut errors = Vec::new();
+    for field in fields {
+        if field.name != "cartTransforms" {
+            continue;
+        }
+        for child in &field.selection {
+            // cartTransforms(first: N) { nodes { <CartTransform> } }
+            //                          { edges { node { <CartTransform> } } }
+            let (container_path, selections): (Vec<&str>, Vec<&SelectedField>) =
+                match child.name.as_str() {
+                    "nodes" => (vec!["nodes"], child.selection.iter().collect()),
+                    "edges" => (
+                        vec!["edges", "node"],
+                        child
+                            .selection
+                            .iter()
+                            .filter(|edge_child| edge_child.name == "node")
+                            .flat_map(|node| node.selection.iter())
+                            .collect(),
+                    ),
+                    _ => continue,
+                };
+            for selection in selections {
+                if !CART_TRANSFORM_OUTPUT_FIELDS.contains(&selection.name.as_str()) {
+                    errors.push(cart_transform_undefined_field_error(
+                        query,
+                        &operation_path,
+                        &field.response_key,
+                        &container_path,
+                        &selection.name,
+                    ));
+                }
+            }
+        }
+    }
+    errors
+}
+
+fn cart_transform_undefined_field_error(
+    query: &str,
+    operation_path: &str,
+    response_key: &str,
+    container_path: &[&str],
+    field_name: &str,
+) -> Value {
+    let location = cart_transform_field_token_location(query, field_name)
+        .unwrap_or(SourceLocation { line: 1, column: 1 });
+    let mut path = vec![
+        Value::from(operation_path),
+        Value::from(response_key),
+    ];
+    path.extend(container_path.iter().map(|segment| Value::from(*segment)));
+    path.push(Value::from(field_name));
+    json!({
+        "message": format!("Field '{field_name}' doesn't exist on type 'CartTransform'"),
+        "locations": [{ "line": location.line, "column": location.column }],
+        "path": path,
+        "extensions": {
+            "code": "undefinedField",
+            "typeName": "CartTransform",
+            "fieldName": field_name
+        }
+    })
+}
+
+fn cart_transform_field_token_location(query: &str, field_name: &str) -> Option<SourceLocation> {
+    let bytes = query.as_bytes();
+    let mut from = 0;
+    while let Some(relative) = query[from..].find(field_name) {
+        let index = from + relative;
+        let after = index + field_name.len();
+        let before_ok = index == 0 || !is_cart_transform_name_byte(bytes[index - 1]);
+        let after_ok = after >= bytes.len() || !is_cart_transform_name_byte(bytes[after]);
+        if before_ok && after_ok {
+            let line = query[..index].bytes().filter(|byte| *byte == b'\n').count() + 1;
+            let line_start = query[..index].rfind('\n').map_or(0, |newline| newline + 1);
+            return Some(SourceLocation {
+                line,
+                column: index - line_start + 1,
+            });
+        }
+        from = after;
+    }
+    None
+}
+
+fn is_cart_transform_name_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_'
+}
+
 pub(in crate::proxy) fn resolved_enum_arg(
     field: &RootFieldSelection,
     name: &str,
