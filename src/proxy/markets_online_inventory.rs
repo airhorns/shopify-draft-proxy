@@ -29,11 +29,22 @@ pub(in crate::proxy) fn catalog_payload_error_with_root(
     })
 }
 
-pub(in crate::proxy) fn catalog_markets_connection(market_ids: &[String]) -> Value {
+pub(in crate::proxy) fn catalog_markets_connection(
+    market_ids: &[String],
+    market_names: &BTreeMap<String, String>,
+) -> Value {
+    // Shopify's MarketCatalog.markets connection lists markets in reverse
+    // attachment order (most recently associated first), which is the join
+    // table's default id-descending ordering. `market_ids` is stored in
+    // attachment order, so iterate it in reverse to match.
     json!({
         "nodes": market_ids
             .iter()
-            .map(|id| json!({"id": id}))
+            .rev()
+            .map(|id| match market_names.get(id) {
+                Some(name) => json!({"id": id, "name": name}),
+                None => json!({"id": id}),
+            })
             .collect::<Vec<_>>()
     })
 }
@@ -43,6 +54,7 @@ pub(in crate::proxy) fn catalog_record(
     title: &str,
     status: &str,
     market_ids: &[String],
+    market_names: &BTreeMap<String, String>,
 ) -> Value {
     json!({
         "__typename": "MarketCatalog",
@@ -50,7 +62,7 @@ pub(in crate::proxy) fn catalog_record(
         "title": title,
         "status": status,
         "marketIds": market_ids,
-        "markets": catalog_markets_connection(market_ids),
+        "markets": catalog_markets_connection(market_ids, market_names),
         "operations": [],
         "priceList": null,
         "publication": null
@@ -68,12 +80,16 @@ pub(in crate::proxy) fn catalog_market_ids(catalog: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-pub(in crate::proxy) fn set_catalog_market_ids(catalog: &mut Value, market_ids: &[String]) {
+pub(in crate::proxy) fn set_catalog_market_ids(
+    catalog: &mut Value,
+    market_ids: &[String],
+    market_names: &BTreeMap<String, String>,
+) {
     if let Some(object) = catalog.as_object_mut() {
         object.insert("marketIds".to_string(), json!(market_ids));
         object.insert(
             "markets".to_string(),
-            catalog_markets_connection(market_ids),
+            catalog_markets_connection(market_ids, market_names),
         );
     }
 }

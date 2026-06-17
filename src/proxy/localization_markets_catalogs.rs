@@ -718,10 +718,11 @@ impl DraftProxy {
                 .iter()
                 .any(|id| id == market_id)
         });
+        let market_names = self.staged_market_names();
         for catalog in self.store.staged.catalogs.values_mut() {
             let mut market_ids = catalog_market_ids(catalog);
             market_ids.retain(|id| id != market_id);
-            set_catalog_market_ids(catalog, &market_ids);
+            set_catalog_market_ids(catalog, &market_ids, &market_names);
         }
         self.store
             .staged
@@ -855,11 +856,12 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn add_market_to_catalog(&mut self, catalog_id: &str, market_id: &str) {
+        let market_names = self.staged_market_names();
         if let Some(catalog) = self.store.staged.catalogs.get_mut(catalog_id) {
             let mut market_ids = catalog_market_ids(catalog);
             if !market_ids.iter().any(|id| id == market_id) {
                 market_ids.push(market_id.to_string());
-                set_catalog_market_ids(catalog, &market_ids);
+                set_catalog_market_ids(catalog, &market_ids, &market_names);
             }
         }
     }
@@ -869,10 +871,11 @@ impl DraftProxy {
         catalog_id: &str,
         market_id: &str,
     ) {
+        let market_names = self.staged_market_names();
         if let Some(catalog) = self.store.staged.catalogs.get_mut(catalog_id) {
             let mut market_ids = catalog_market_ids(catalog);
             market_ids.retain(|id| id != market_id);
-            set_catalog_market_ids(catalog, &market_ids);
+            set_catalog_market_ids(catalog, &market_ids, &market_names);
         }
     }
 
@@ -912,6 +915,24 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn market_exists(&self, market_id: &str) -> bool {
         self.store.staged.markets.contains_key(market_id)
+    }
+
+    /// Snapshot of every staged market's id -> name. Used to denormalize names
+    /// into a catalog's `markets` connection nodes, which are projected directly
+    /// from the stored catalog by `selected_json`. Resolving from the live market
+    /// registry (rather than fabricating) keeps the connection faithful to the
+    /// markets the backend actually has.
+    pub(in crate::proxy) fn staged_market_names(&self) -> BTreeMap<String, String> {
+        self.store
+            .staged
+            .markets
+            .iter()
+            .filter_map(|(id, market)| {
+                market["name"]
+                    .as_str()
+                    .map(|name| (id.clone(), name.to_string()))
+            })
+            .collect()
     }
 
     /// Whether the given country code is covered by an active, non-legacy
@@ -1128,7 +1149,8 @@ impl DraftProxy {
 
         let id = self.next_catalog_id();
         let title = resolved_string_field(&input, "title").unwrap_or_default();
-        let mut catalog = catalog_record(&id, &title, &status, &market_ids);
+        let market_names = self.staged_market_names();
+        let mut catalog = catalog_record(&id, &title, &status, &market_ids, &market_names);
         set_catalog_price_list_relation(&mut catalog, price_list_id.as_deref());
         set_catalog_publication_relation(&mut catalog, publication_id.as_deref());
         self.store
@@ -1313,12 +1335,13 @@ impl DraftProxy {
                 }
             }
         }
+        let market_names = self.staged_market_names();
         let mut updated_catalog = existing_catalog;
         if let Some(object) = updated_catalog.as_object_mut() {
             object.insert("marketIds".to_string(), json!(market_ids.clone()));
             object.insert(
                 "markets".to_string(),
-                catalog_markets_connection(&market_ids),
+                catalog_markets_connection(&market_ids, &market_names),
             );
         }
         self.store
