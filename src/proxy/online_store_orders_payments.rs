@@ -26,6 +26,13 @@ const FULFILLMENT_EVENT_STATUS_VALUES: &[&str] = &[
     "CARRIER_PICKED_UP",
 ];
 const ORDERS_FULFILLMENT_ORDER_HYDRATE_QUERY: &str = "query OrdersFulfillmentOrderHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}";
+// Order hydration for `orderMarkAsPaid` operating on an order that was not
+// created locally in this scenario. The proxy forwards this exact query (it is
+// byte-identical to the `OrdersOrderHydrate` recording so the strict cassette
+// matcher accepts it) to fetch the order's money-bag/transaction state from the
+// backend, observes it into staged state, then applies the mutation locally.
+const ORDER_MARK_AS_PAID_HYDRATE_QUERY: &str =
+    "#graphql\n  fragment OrderMarkAsPaidMoneyBagFields on Order {\n    id\n    name\n    createdAt\n    updatedAt\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    presentmentCurrencyCode\n    displayFinancialStatus\n    displayFulfillmentStatus\n    paymentGatewayNames\n    totalOutstandingSet {\n      shopMoney { amount currencyCode }\n      presentmentMoney { amount currencyCode }\n    }\n    currentTotalPriceSet {\n      shopMoney { amount currencyCode }\n      presentmentMoney { amount currencyCode }\n    }\n    totalPriceSet {\n      shopMoney { amount currencyCode }\n      presentmentMoney { amount currencyCode }\n    }\n    transactions {\n      id\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n    }\n  }\n\n  query OrdersOrderHydrate($id: ID!) {\n    order(id: $id) {\n      ...OrderMarkAsPaidMoneyBagFields\n    }\n  }";
 const ORDERS_FULFILLMENT_HYDRATE_QUERY: &str = r#"#graphql
   query ShippingFulfillmentEventCreateFulfillmentHydrate($id: ID!) {
     fulfillment(id: $id) {
@@ -3050,6 +3057,34 @@ impl DraftProxy {
         self.stage_hydrated_order(order)
     }
 
+    fn hydrate_order_for_mark_as_paid(
+        &mut self,
+        order_id: &str,
+        request: &Request,
+    ) -> Option<String> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": ORDER_MARK_AS_PAID_HYDRATE_QUERY,
+                "variables": { "id": order_id }
+            })
+            .to_string(),
+        });
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        let order = response.body["data"]["order"].clone();
+        if !order.is_object() {
+            return None;
+        }
+        self.stage_hydrated_order(order)
+    }
+
     fn hydrate_order_for_fulfillment(
         &mut self,
         fulfillment_id: &str,
@@ -4436,6 +4471,11 @@ impl DraftProxy {
                 let field = field?;
                 let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
                 let order_id = resolved_string_field(&input, "id").unwrap_or_default();
+                // Orders not created locally in this scenario are hydrated from the
+                // backend so the mutation operates on real money-bag state.
+                if !order_id.is_empty() && !self.store.staged.orders.contains_key(&order_id) {
+                    self.hydrate_order_for_mark_as_paid(&order_id, request);
+                }
                 let (order, user_errors, staged_ids) = self.stage_order_mark_as_paid(&order_id);
                 if !staged_ids.is_empty() {
                     self.record_mutation_log_entry(

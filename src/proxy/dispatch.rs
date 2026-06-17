@@ -1112,6 +1112,10 @@ impl DraftProxy {
                     self.money_bag_presentment_local_data(request, &query, &variables)
                 {
                     ok_json(data)
+                } else if let Some(data) =
+                    self.order_payment_transaction_local_data(request, root_field, &query, &variables)
+                {
+                    ok_json(data)
                 } else if let Some(data) = self.remaining_order_local_data(request, root_field, &query, &variables)
                 {
                     ok_json(data)
