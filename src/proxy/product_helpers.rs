@@ -304,7 +304,7 @@ impl DraftProxy {
         self.observe_nodes_response(&response);
     }
 
-    fn collection_membership_value(&self, field: &RootFieldSelection) -> Value {
+    pub(in crate::proxy) fn collection_membership_value(&self, field: &RootFieldSelection) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         self.store
             .staged

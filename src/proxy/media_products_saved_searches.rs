@@ -2435,6 +2435,9 @@ impl DraftProxy {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
                     self.product_inventory_item_by_id_value(&id, &field.selection)
                 }
+                // Mixed reads pairing `product` with sibling `collection(id:)` lookups
+                // (e.g. collectionsToJoin downstream parity) resolve membership locally.
+                "collection" => Some(self.collection_membership_value(field)),
                 _ => None,
             };
             if let Some(value) = value {
@@ -2898,10 +2901,26 @@ impl DraftProxy {
         staged_ids.push(variant.id.clone());
         self.store.stage_product_variant(variant);
 
+        // `collectionsToJoin` adds the new product to existing collections. Add the minimal
+        // collection refs to the product surface before staging so the mutation response
+        // renders them.
+        let collections_to_join = resolved_string_list_field_unsorted(&input, "collectionsToJoin");
+        for collection_id in &collections_to_join {
+            if let Some(collection) = self.store.collection_by_id(collection_id).cloned() {
+                upsert_minimal_collection(&mut product.collections, &collection);
+            }
+        }
+
         // Stage any `metafields` supplied on create so downstream metafield reads resolve them.
         self.stage_owner_metafields_from_input(&id, &input);
 
         self.store.stage_product(product.clone());
+
+        // Register collection membership so downstream `collection` reads expose hasProduct,
+        // productsCount, and the product in their member list.
+        for collection_id in &collections_to_join {
+            self.add_product_to_collection_membership(collection_id, &product);
+        }
 
         let product_selection = nested_root_field_selection(query, "product").unwrap_or_default();
         let payload_selection = root_field_selection(query).unwrap_or_default();
@@ -3024,6 +3043,26 @@ impl DraftProxy {
             media_ids: Vec::new(),
             extra_fields: BTreeMap::from([("position".to_string(), json!(1))]),
         }
+    }
+
+    /// Add a single product to a collection's membership, preserving any existing members,
+    /// so downstream `collection` reads expose hasProduct/productsCount/products for it.
+    fn add_product_to_collection_membership(&mut self, collection_id: &str, product: &ProductRecord) {
+        let Some(collection) = self.store.collection_by_id(collection_id).cloned() else {
+            return;
+        };
+        let mut members: Vec<ProductRecord> = collection
+            .get("products")
+            .and_then(|connection| connection.get("nodes"))
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(product_state_from_json)
+            .collect();
+        if !members.iter().any(|member| member.id == product.id) {
+            members.push(product.clone());
+        }
+        self.store.stage_collection_membership(collection, members);
     }
 
     /// Stage product metafields supplied through a `metafields` create/update input so that
