@@ -1,0 +1,84 @@
+{
+  "scenarioId": "saved-search-blank-name-update",
+  "operationNames": ["savedSearchCreate", "savedSearchUpdate", "productSavedSearches", "savedSearchDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-state-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-blank-name-update.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/products_saved_searches.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-blank-name-update-create.graphql",
+    "variablesCapturePath": "$.savedSearchCreateSeed.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live evidence that savedSearchUpdate with an explicitly supplied blank name returns field/message userErrors and leaves the saved-search name unchanged for downstream productSavedSearches reads. The setup create is disposable and is replayed through the same public GraphQL mutation surface.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-product-saved-search-create",
+        "capturePath": "$.savedSearchCreateSeed.payload.data.savedSearchCreate",
+        "proxyPath": "$.data.savedSearchCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy creates a deterministic local SavedSearch id while Shopify returned a live store id."
+          }
+        ]
+      },
+      {
+        "name": "blank-name-update-user-error",
+        "capturePath": "$.savedSearchUpdateBlankName.payload.data.savedSearchUpdate",
+        "proxyPath": "$.data.savedSearchUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-blank-name-update.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.savedSearchCreate.savedSearch.id"
+              },
+              "name": ""
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The validation payload returns the deterministic local SavedSearch id instead of Shopify's live id."
+          }
+        ]
+      },
+      {
+        "name": "read-after-blank-name-reject-preserves-name",
+        "capturePath": "$.productSavedSearchesAfterRejectedUpdate.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-blank-name-update-read.graphql",
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.productSavedSearches.nodes[0].id",
+          "$.productSavedSearches.nodes[0].name",
+          "$.productSavedSearches.nodes[0].query",
+          "$.productSavedSearches.nodes[0].resourceType"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.productSavedSearches.nodes[0].id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The downstream read returns the deterministic local SavedSearch id instead of Shopify's live id."
+          }
+        ]
+      }
+    ]
+  }
+}
