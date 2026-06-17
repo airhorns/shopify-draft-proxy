@@ -296,6 +296,63 @@ fn marketing_engagement_sparse_required_fields_fail_coercion_before_staging() {
 }
 
 #[test]
+fn marketing_activity_queries_filter_staged_records_without_sentinel_strings() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMarketingFilterSeeds {
+          alpha: marketingActivityCreateExternal(input: { title: "Alpha Campaign", remoteId: "alpha-remote", status: ACTIVE, remoteUrl: "https://example.com/alpha", tactic: NEWSLETTER, marketingChannelType: EMAIL, utm: { campaign: "alpha", source: "email", medium: "newsletter" } }) {
+            marketingActivity { id marketingEvent { id } }
+            userErrors { field message code }
+          }
+          beta: marketingActivityCreateExternal(input: { title: "Beta Campaign", remoteId: "beta-remote", status: ACTIVE, remoteUrl: "https://example.com/beta", previewUrl: "https://example.com/beta-preview", tactic: NEWSLETTER, marketingChannelType: EMAIL, utm: { campaign: "beta", source: "email", medium: "newsletter" } }) {
+            marketingActivity { id marketingEvent { id description } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.body["data"]["alpha"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["beta"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingFilterRead {
+          titleMatch: marketingActivities(first: 10, query: "title:'Alpha Campaign'") { nodes { title remoteId } }
+          titleMiss: marketingActivities(first: 10, query: "title:'Missing Campaign'") { nodes { title } pageInfo { hasNextPage hasPreviousPage } }
+          remoteMatch: marketingActivities(first: 10, query: "remote_id:beta-remote") { nodes { title remoteId } }
+          eventDescriptionMiss: marketingEvents(first: 10, query: "description:missing-description") { nodes { id description } }
+          eventRemoteMatch: marketingEvents(first: 10, query: "remote_id:beta-remote") { nodes { remoteId previewUrl } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["titleMatch"]["nodes"],
+        json!([{ "title": "Alpha Campaign", "remoteId": "alpha-remote" }])
+    );
+    assert_eq!(read.body["data"]["titleMiss"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["titleMiss"]["pageInfo"],
+        json!({ "hasNextPage": false, "hasPreviousPage": false })
+    );
+    assert_eq!(
+        read.body["data"]["remoteMatch"]["nodes"],
+        json!([{ "title": "Beta Campaign", "remoteId": "beta-remote" }])
+    );
+    assert_eq!(
+        read.body["data"]["eventDescriptionMiss"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        read.body["data"]["eventRemoteMatch"]["nodes"],
+        json!([{ "remoteId": "beta-remote", "previewUrl": "https://example.com/beta-preview" }])
+    );
+}
+
+#[test]
 fn marketing_external_activity_stages_spend_schedule_and_referring_domain() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
