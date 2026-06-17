@@ -139,7 +139,7 @@ impl DraftProxy {
                 "deletedOrderIds": self.store.staged.deleted_order_ids.iter().cloned().collect::<Vec<_>>(),
                 "returns": self.store.staged.returns.clone(),
                 "returnsByOrder": self.store.staged.returns_by_order.clone(),
-               "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
+                "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
                 "reverseFulfillmentOrders": self.store.staged.reverse_fulfillment_orders.clone(),
                 "observedShippingLocations": self.store.staged.observed_shipping_locations.clone(),
                 "observedShippingLocationOrder": self.store.staged.observed_shipping_location_order.clone(),
@@ -163,6 +163,18 @@ impl DraftProxy {
                 }).collect::<Vec<_>>()
             }
         });
+        snapshot["stagedState"]["storeCreditAccounts"] =
+            json!(self.store.staged.store_credit_accounts);
+        snapshot["stagedState"]["storeCreditAccountOrder"] =
+            json!(self.store.staged.store_credit_account_order);
+        snapshot["stagedState"]["storeCreditTransactions"] =
+            json!(self.store.staged.store_credit_transactions);
+        snapshot["stagedState"]["storeCreditTransactionOrder"] =
+            json!(self.store.staged.store_credit_transaction_order);
+        snapshot["stagedState"]["nextStoreCreditAccountId"] =
+            json!(self.store.staged.next_store_credit_account_id);
+        snapshot["stagedState"]["nextStoreCreditTransactionId"] =
+            json!(self.store.staged.next_store_credit_transaction_id);
         snapshot["stagedState"]["b2bCompanies"] = json!(self.store.staged.b2b_companies.clone());
         snapshot["stagedState"]["b2bLocations"] = json!(self.store.staged.b2b_locations.clone());
         snapshot["stagedState"]["b2bContacts"] = json!(self.store.staged.b2b_contacts.clone());
@@ -477,6 +489,58 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.store_credit_accounts = state["stagedState"]
+            .get("storeCreditAccounts")
+            .and_then(Value::as_object)
+            .map(|accounts| {
+                accounts
+                    .iter()
+                    .map(|(id, account)| (id.clone(), account.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.store_credit_account_order = state["stagedState"]
+            .get("storeCreditAccountOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .store_credit_accounts
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
+        self.store.staged.store_credit_transactions = state["stagedState"]
+            .get("storeCreditTransactions")
+            .and_then(Value::as_object)
+            .map(|transactions| {
+                transactions
+                    .iter()
+                    .map(|(id, transaction)| (id.clone(), transaction.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.store_credit_transaction_order = state["stagedState"]
+            .get("storeCreditTransactionOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .store_credit_transactions
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
+        self.store.staged.next_store_credit_account_id = state["stagedState"]
+            .get("nextStoreCreditAccountId")
+            .and_then(Value::as_u64)
+            .filter(|id| *id > 0)
+            .unwrap_or(1);
+        self.store.staged.next_store_credit_transaction_id = state["stagedState"]
+            .get("nextStoreCreditTransactionId")
+            .and_then(Value::as_u64)
+            .filter(|id| *id > 0)
+            .unwrap_or(1);
         self.store.staged.taggable_resources = state["stagedState"]["taggableResources"]
             .as_object()
             .map(|resources| {

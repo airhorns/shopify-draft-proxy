@@ -1191,6 +1191,9 @@ pub(in crate::proxy) fn is_local_customer_create_document(
     {
         return true;
     }
+    if is_modeled_customer_create_request(query, variables) {
+        return true;
+    }
     if !query.contains("CustomerInputInlineConsentCreate") {
         return false;
     }
@@ -1198,6 +1201,119 @@ pub(in crate::proxy) fn is_local_customer_create_document(
         return false;
     };
     !input.contains_key("emailMarketingConsent") && !input.contains_key("smsMarketingConsent")
+}
+
+fn is_modeled_customer_create_request(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    let arguments = root_field_arguments(query, variables).unwrap_or_default();
+    let Some(input) = resolved_object_field(&arguments, "input")
+        .or_else(|| resolved_object_field(variables, "input"))
+    else {
+        return false;
+    };
+    if input.keys().any(|key| {
+        !matches!(
+            key.as_str(),
+            "email" | "firstName" | "lastName" | "locale" | "note" | "phone" | "tags" | "taxExempt"
+        )
+    }) {
+        return false;
+    }
+    root_field_selection(query).is_some_and(|selection| {
+        selection
+            .iter()
+            .all(modeled_customer_create_payload_selection)
+    })
+}
+
+fn modeled_customer_create_payload_selection(selection: &SelectedField) -> bool {
+    match selection.name.as_str() {
+        "customer" => selection.selection.iter().all(modeled_customer_selection),
+        "userErrors" | "customerUserErrors" => selection
+            .selection
+            .iter()
+            .all(|field| matches!(field.name.as_str(), "field" | "message" | "code")),
+        _ => false,
+    }
+}
+
+fn modeled_customer_selection(selection: &SelectedField) -> bool {
+    match selection.name.as_str() {
+        "id" | "firstName" | "lastName" | "displayName" | "email" | "phone" | "locale" | "note"
+        | "verifiedEmail" | "taxExempt" | "taxExemptions" | "tags" | "state" | "canDelete"
+        | "createdAt" | "updatedAt" => selection.selection.is_empty(),
+        "metafield" => selection.selection.iter().all(|field| {
+            matches!(
+                field.name.as_str(),
+                "id" | "namespace" | "key" | "type" | "value"
+            )
+        }),
+        "metafields" => modeled_connection_selection(&selection.selection, modeled_metafield_node),
+        "defaultEmailAddress" => selection
+            .selection
+            .iter()
+            .all(|field| field.name == "emailAddress"),
+        "defaultPhoneNumber" => selection
+            .selection
+            .iter()
+            .all(|field| field.name == "phoneNumber"),
+        "defaultAddress" => selection.selection.iter().all(|field| {
+            matches!(
+                field.name.as_str(),
+                "address1" | "city" | "province" | "country" | "zip" | "formattedArea"
+            )
+        }),
+        "storeCreditAccounts" => {
+            modeled_connection_selection(&selection.selection, modeled_store_credit_account_node)
+        }
+        _ => false,
+    }
+}
+
+fn modeled_connection_selection(
+    selections: &[SelectedField],
+    node_selection_supported: fn(&SelectedField) -> bool,
+) -> bool {
+    selections
+        .iter()
+        .all(|selection| match selection.name.as_str() {
+            "nodes" => selection.selection.iter().all(node_selection_supported),
+            "edges" => selection
+                .selection
+                .iter()
+                .all(|field| match field.name.as_str() {
+                    "cursor" => field.selection.is_empty(),
+                    "node" => field.selection.iter().all(node_selection_supported),
+                    _ => false,
+                }),
+            "pageInfo" => selection.selection.iter().all(|field| {
+                matches!(
+                    field.name.as_str(),
+                    "hasNextPage" | "hasPreviousPage" | "startCursor" | "endCursor"
+                )
+            }),
+            _ => false,
+        })
+}
+
+fn modeled_metafield_node(selection: &SelectedField) -> bool {
+    matches!(
+        selection.name.as_str(),
+        "id" | "namespace" | "key" | "type" | "value"
+    ) && selection.selection.is_empty()
+}
+
+fn modeled_store_credit_account_node(selection: &SelectedField) -> bool {
+    match selection.name.as_str() {
+        "id" => selection.selection.is_empty(),
+        "balance" => selection
+            .selection
+            .iter()
+            .all(|field| matches!(field.name.as_str(), "amount" | "currencyCode")),
+        _ => false,
+    }
 }
 
 pub(in crate::proxy) fn is_local_customer_delete_document(query: &str) -> bool {

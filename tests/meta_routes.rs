@@ -866,6 +866,12 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
     let staged_state = expected["stagedState"]
         .as_object_mut()
         .expect("expected stagedState object");
+    staged_state.insert("storeCreditAccounts".to_string(), json!({}));
+    staged_state.insert("storeCreditAccountOrder".to_string(), json!([]));
+    staged_state.insert("storeCreditTransactions".to_string(), json!({}));
+    staged_state.insert("storeCreditTransactionOrder".to_string(), json!([]));
+    staged_state.insert("nextStoreCreditAccountId".to_string(), json!(1));
+    staged_state.insert("nextStoreCreditTransactionId".to_string(), json!(1));
     staged_state.insert("b2bCompanies".to_string(), json!({}));
     staged_state.insert("b2bLocations".to_string(), json!({}));
     staged_state.insert("b2bContacts".to_string(), json!({}));

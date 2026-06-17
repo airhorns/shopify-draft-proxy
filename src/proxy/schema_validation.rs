@@ -241,12 +241,12 @@ fn validate_resolved_input_object(
     schema: &AdminInputSchema,
 ) -> Vec<Value> {
     let mut problems = Vec::new();
-    for field_name in fields.keys() {
+    for field_name in resolved_input_field_names(input_type_name, fields) {
         if !input_object.contains_key(field_name)
             && !local_extension_input_field(input_type_name, field_name)
         {
             let mut nested_path = problem_path.to_vec();
-            nested_path.push(field_name.clone());
+            nested_path.push(field_name.to_string());
             problems.push(variable_problem(
                 &nested_path,
                 &format!("Field is not defined on {input_type_name}"),
@@ -292,6 +292,22 @@ fn validate_resolved_input_object(
         }
     }
     problems
+}
+
+fn resolved_input_field_names<'a>(
+    input_type_name: &str,
+    fields: &'a BTreeMap<String, ResolvedValue>,
+) -> Vec<&'a str> {
+    let mut names = fields.keys().map(String::as_str).collect::<Vec<_>>();
+    if input_type_name == "StoreCreditAccountDebitInput" {
+        names.sort_by_key(|name| match *name {
+            "debitAmount" => 0,
+            "notify" => 1,
+            "attribution" => 2,
+            _ => 3,
+        });
+    }
+    names
 }
 
 fn validate_resolved_leaf(value: &ResolvedValue, type_ref: &SchemaTypeRef) -> Option<String> {
@@ -678,6 +694,7 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         let mut schema = schema_from_fixture(&fixture).unwrap_or_default();
         register_fulfillment_service_fields(&mut schema);
         extend_discount_basic_input_schema(&mut schema);
+        extend_store_credit_input_schema(&mut schema);
         extend_metaobject_definition_input_schema(&mut schema);
         extend_functions_input_schema(&mut schema);
         schema
@@ -777,6 +794,58 @@ fn extend_mutation_input_schema(schema: &mut AdminInputSchema, mutation_names: &
             continue;
         };
         if !mutation_names.contains(&name) {
+            continue;
+        }
+        let Some(args) = mutation["args"].as_array() else {
+            continue;
+        };
+        let parsed_args = args
+            .iter()
+            .filter_map(|arg| {
+                Some((
+                    arg["name"].as_str()?.to_string(),
+                    SchemaArgument {
+                        type_ref: schema_type_ref(&arg["type"])?,
+                    },
+                ))
+            })
+            .collect::<BTreeMap<_, _>>();
+        for arg in parsed_args.values() {
+            collect_input_object_schema(
+                &arg.type_ref.named_type,
+                input_objects,
+                &mut schema.input_objects,
+                &mut visited,
+            );
+        }
+        schema.mutation_fields.insert(name.to_string(), parsed_args);
+    }
+}
+
+fn extend_store_credit_input_schema(schema: &mut AdminInputSchema) {
+    extend_admin_schema_for_mutations(
+        schema,
+        &["storeCreditAccountCredit", "storeCreditAccountDebit"],
+    );
+}
+
+fn extend_admin_schema_for_mutations(schema: &mut AdminInputSchema, names: &[&str]) {
+    let config: Value = serde_json::from_str(include_str!(
+        "../../config/admin-graphql-mutation-schema.json"
+    ))
+    .unwrap_or_else(|_| json!({}));
+    let Some(mutations) = config["mutations"].as_array() else {
+        return;
+    };
+    let Some(input_objects) = config["inputObjects"].as_array() else {
+        return;
+    };
+    let mut visited = BTreeSet::new();
+    for mutation in mutations {
+        let Some(name) = mutation["name"].as_str() else {
+            continue;
+        };
+        if !names.contains(&name) {
             continue;
         }
         let Some(args) = mutation["args"].as_array() else {
