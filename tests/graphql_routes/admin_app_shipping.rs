@@ -5754,7 +5754,7 @@ fn store_credit_schema_rejects_non_public_variable_fields() {
 fn create_store_credit_customer(proxy: &mut DraftProxy) -> String {
     let create = proxy.process_request(json_graphql_request(
         r#"
-        mutation CustomerCreateParityPlan($input: CustomerInput!) {
+        mutation StoreCreditSetupCustomer($input: CustomerInput!) {
           customerCreate(input: $input) {
             customer { id email displayName }
             userErrors { field message }
