@@ -1,14 +1,21 @@
 {
   "scenarioId": "inventory-adjust-then-has-out-of-stock-variants-parity",
-  "operationNames": ["productSet", "inventoryAdjustQuantities"],
+  "operationNames": [
+    "productSet",
+    "inventoryAdjustQuantities"
+  ],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/inventory-adjust-then-has-out-of-stock-variants-parity.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/inventoryAdjust-then-hasOutOfStockVariants-setup.graphql",
-    "variablesCapturePath": "$.setup.variables"
+    "variablesCapturePath": "$.setup.variables",
+    "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "HAR-592 executable parity for product stock aggregates after an inventory quantity mutation. The scenario creates one tracked variant with available stock, adjusts it down to zero, and verifies the parent product's hasOutOfStockVariants and totalInventory fields through an immediate downstream read.",
@@ -117,7 +124,8 @@
                 }
               ]
             }
-          }
+          },
+          "apiVersion": "2025-01"
         }
       },
       {
@@ -140,7 +148,8 @@
             "id": {
               "fromPrimaryProxyPath": "$.data.productSet.product.id"
             }
-          }
+          },
+          "apiVersion": "2025-01"
         }
       },
       {
@@ -153,7 +162,8 @@
             "id": {
               "fromPrimaryProxyPath": "$.data.productSet.product.id"
             }
-          }
+          },
+          "apiVersion": "2025-01"
         }
       }
     ]

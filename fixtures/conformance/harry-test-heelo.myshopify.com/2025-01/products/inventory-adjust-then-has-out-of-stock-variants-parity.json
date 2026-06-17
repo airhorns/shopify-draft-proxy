@@ -219,7 +219,9 @@
   "upstreamCalls": [
     {
       "operationName": "InventoryAdjustDerivedFieldsDownstream",
-      "variables": {},
+      "variables": {
+        "id": "gid://shopify/Product/10177003159858"
+      },
       "query": "query InventoryAdjustDerivedFieldsDownstream($id: ID!) {\n  product(id: $id) {\n    id\n    totalVariants\n    hasOnlyDefaultVariant\n    hasOutOfStockVariants\n    tracksInventory\n    totalInventory\n    variants(first: 5) {\n      nodes {\n        inventoryQuantity\n        inventoryItem {\n          tracked\n          inventoryLevels(first: 5) {\n            nodes {\n              location {\n                id\n                name\n              }\n              quantities(names: [\"available\", \"on_hand\"]) {\n                name\n                quantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
