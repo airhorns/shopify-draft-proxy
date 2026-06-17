@@ -3427,6 +3427,37 @@ pub(in crate::proxy) fn product_create_input(
     product_input(query, variables)
 }
 
+/// Extract the taxonomy category GID from a product mutation input. Shopify accepts
+/// the category as a scalar `category` GID, or nested under the legacy
+/// `productCategory`/`standardProductType`/`standardizedProductType` objects keyed by
+/// `productTaxonomyNodeId`.
+pub(in crate::proxy) fn product_category_input_id(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Option<String> {
+    resolved_string_field(input, "category")
+        .or_else(|| resolved_object_string_field(input, "productCategory", "productTaxonomyNodeId"))
+        .or_else(|| {
+            resolved_object_string_field(input, "standardProductType", "productTaxonomyNodeId")
+        })
+        .or_else(|| {
+            resolved_object_string_field(input, "standardizedProductType", "productTaxonomyNodeId")
+        })
+}
+
+/// Resolve a taxonomy category GID to its `{id, fullName}` shape. Shopify materializes
+/// `category.fullName` from its global product taxonomy; we mirror the well-known nodes
+/// the taxonomy exposes (falling back to the bare id for nodes we don't model).
+pub(in crate::proxy) fn product_category_value(id: &str) -> Value {
+    let full_name = match id {
+        "gid://shopify/TaxonomyCategory/aa-1-1" => {
+            "Apparel & Accessories > Clothing > Activewear"
+        }
+        "gid://shopify/TaxonomyCategory/na" => "Uncategorized",
+        other => other,
+    };
+    json!({ "id": id, "fullName": full_name })
+}
+
 pub(in crate::proxy) fn is_saved_search_root(root: &str) -> bool {
     matches!(
         root,

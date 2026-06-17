@@ -91,6 +91,20 @@ impl DraftProxy {
             return MutationOutcome::response(response);
         }
 
+        // Reject input variants whose option-value combination duplicates an earlier
+        // input variant. Shopify anchors one userError per later collision (the first
+        // occurrence is accepted) and titles it with the variant's option values.
+        let duplicate_variant_errors = product_set_duplicate_variant_errors(&input);
+        if !duplicate_variant_errors.is_empty() {
+            return MutationOutcome::response(self.product_set_user_error_response(
+                &response_key,
+                &payload_selection,
+                &product_selection,
+                None,
+                duplicate_variant_errors,
+            ));
+        }
+
         let existing_id = resolved_string_field(&input, "id")
             .or_else(|| resolved_string_field(&input, "productId"))
             .or_else(|| {
@@ -349,6 +363,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn product_duplicate(
         &mut self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
@@ -364,6 +379,15 @@ impl DraftProxy {
         let product_id = resolved_string_field(&arguments, "productId").unwrap_or_default();
         let new_title = resolved_string_field(&arguments, "newTitle").unwrap_or_default();
         let synchronous = resolved_bool_field(&arguments, "synchronous").unwrap_or(true);
+        // The source product usually lives upstream during parity replay; hydrate it via
+        // the shared `nodes(ids:)` observation path so the duplicate is built from real
+        // source data rather than failing with "Product does not exist".
+        if !product_id.is_empty() && self.store.product_staged_or_base(&product_id).is_none() {
+            self.hydrate_product_nodes_for_observation_with_request(
+                request,
+                vec![product_id.clone()],
+            );
+        }
         let source = self.store.product_staged_or_base(&product_id);
 
         if source.is_none() && !synchronous {
@@ -746,6 +770,9 @@ impl DraftProxy {
         duplicate.created_at = timestamp.clone();
         duplicate.updated_at = timestamp;
         duplicate.variants = Vec::new();
+        // Shopify copies media asynchronously: the duplicate's immediate payload (and the
+        // downstream read right after) expose an empty media connection.
+        duplicate.media = Vec::new();
         duplicate
     }
 
@@ -966,7 +993,7 @@ impl DraftProxy {
         })
     }
 
-    fn product_operation_json(
+    pub(in crate::proxy) fn product_operation_json(
         &self,
         operation: &ProductOperationRecord,
         selections: &[SelectedField],
@@ -1055,17 +1082,20 @@ fn product_set_shape_error_response(
         return Some(ok_json(json!({
             "errors": [{
                 "message": format!("The input array size of {} is greater than the maximum allowed of 2048.", variants.len()),
+                "path": [response_key, "input", "variants"],
                 "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
             }]
         })));
     }
-    if variants
+    if let Some(quantities_len) = variants
         .iter()
-        .any(|variant| resolved_object_list_field(variant, "inventoryQuantities").len() > 250)
+        .map(|variant| resolved_object_list_field(variant, "inventoryQuantities").len())
+        .find(|len| *len > 250)
     {
         return Some(ok_json(json!({
             "errors": [{
-                "message": "The input array size is greater than the maximum allowed of 250.",
+                "message": format!("The input array size of {} is greater than the maximum allowed of 250.", quantities_len),
+                "path": [response_key, "input", "variants", "inventoryQuantities"],
                 "extensions": {"code": "MAX_INPUT_SIZE_EXCEEDED"}
             }]
         })));
@@ -1236,6 +1266,45 @@ fn product_set_variant_option_signature(input: &BTreeMap<String, ResolvedValue>)
         .map(|(name, value)| format!("{name}\u{1}{value}"))
         .collect::<Vec<_>>()
         .join("\u{2}")
+}
+
+/// The human-readable variant title Shopify uses in duplicate-variant errors: the input
+/// option values joined by `" / "` in input order (matching the title derivation in
+/// [`apply_product_set_option_values_to_variant`]).
+fn product_set_variant_option_title(input: &BTreeMap<String, ResolvedValue>) -> String {
+    resolved_object_list_field(input, "optionValues")
+        .into_iter()
+        .filter_map(|option_value| {
+            resolved_string_field(&option_value, "name")
+                .or_else(|| resolved_string_field(&option_value, "value"))
+        })
+        .collect::<Vec<_>>()
+        .join(" / ")
+}
+
+/// Detect `productSet` input variants whose option-value combination repeats an earlier
+/// input variant. Returns one userError per later collision (the first occurrence is
+/// accepted), anchored at `["input", "variants", "<index>"]`.
+fn product_set_duplicate_variant_errors(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+    let variants = resolved_object_list_field(input, "variants");
+    let mut seen = BTreeSet::new();
+    let mut errors = Vec::new();
+    for (index, variant) in variants.iter().enumerate() {
+        let signature = product_set_variant_option_signature(variant);
+        if signature.is_empty() {
+            continue;
+        }
+        if !seen.insert(signature) {
+            let title = product_set_variant_option_title(variant);
+            errors.push(json!({
+                "field": ["input", "variants", index.to_string()],
+                "message": format!(
+                    "The variant '{title}' already exists. Please change at least one option value."
+                )
+            }));
+        }
+    }
+    errors
 }
 
 fn apply_product_set_option_values_to_variant(

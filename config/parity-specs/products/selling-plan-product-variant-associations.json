@@ -66,7 +66,11 @@
           "$.sellingPlanGroup.productVariants.pageInfo",
           "$.sellingPlanGroup.sellingPlans.pageInfo",
           "$.sellingPlanGroup.sellingPlans.nodes[*].id",
-          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt"
+          "$.sellingPlanGroup.sellingPlans.nodes[*].createdAt",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].billingPolicy",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].deliveryPolicy",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].inventoryPolicy",
+          "$.sellingPlanGroup.sellingPlans.nodes[*].pricingPolicies"
         ]
       },
       {

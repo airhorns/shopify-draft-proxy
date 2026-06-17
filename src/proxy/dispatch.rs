@@ -637,7 +637,7 @@ impl DraftProxy {
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if has_local_dispatch && root_field == "productDuplicate" =>
             {
-                let outcome = self.product_duplicate(&query, &variables);
+                let outcome = self.product_duplicate(request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)

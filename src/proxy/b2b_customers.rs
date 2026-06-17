@@ -2543,7 +2543,7 @@ impl DraftProxy {
         _parsed_root_fields: &[String],
     ) -> Option<Response> {
         let fields = root_fields(query, variables)?;
-        if let Some(response) = product_tail_invalid_enum_response(operation_type, &fields) {
+        if let Some(response) = product_tail_invalid_enum_response(query, operation_type, &fields) {
             return Some(response);
         }
         let all_roots_allowed = match operation_type {
@@ -4014,6 +4014,7 @@ fn is_known_tax_exemption(value: &str) -> bool {
 }
 
 fn product_tail_invalid_enum_response(
+    query: &str,
     operation_type: OperationType,
     fields: &[RootFieldSelection],
 ) -> Option<Response> {
@@ -4022,14 +4023,11 @@ fn product_tail_invalid_enum_response(
     }
     let field = fields.first()?;
     match field.name.as_str() {
-        "publicationCreate" if publication_default_state_invalid_variable(field) => {
-            Some(ok_json(json!({
-                "errors": [{
-                    "message": "Variable $input of type PublicationCreateInput! was provided invalid value for defaultState (Expected \"BANANAS\" to be one of: EMPTY, ALL_PRODUCTS)",
-                    "extensions": { "code": "INVALID_VARIABLE" }
-                }]
-            })))
-        }
+        "publicationCreate" => publication_default_state_invalid_variable(field).map(
+            |(variable_name, provided, state)| {
+                publication_default_state_invalid_response(query, &variable_name, &provided, &state)
+            },
+        ),
         "bulkProductResourceFeedbackCreate" if product_feedback_state_invalid_literal(field) => {
             Some(ok_json(json!({
                 "errors": [{
@@ -4058,14 +4056,67 @@ fn product_tail_invalid_enum_response(
     }
 }
 
-fn publication_default_state_invalid_variable(field: &RootFieldSelection) -> bool {
-    matches!(
-        field.raw_arguments.get("input"),
-        Some(RawArgumentValue::Variable {
-            value: Some(ResolvedValue::Object(input)),
-            ..
-        }) if resolved_string_field(input, "defaultState").as_deref() == Some("BANANAS")
-    )
+/// Valid values for `PublicationDefaultState` (the enum behind
+/// `PublicationCreateInput.defaultState`).
+const PUBLICATION_DEFAULT_STATE_VALUES: &[&str] = &["EMPTY", "ALL_PRODUCTS"];
+
+/// When `publicationCreate`'s `$input.defaultState` is not a valid
+/// `PublicationDefaultState`, returns the `(variable_name, provided_input,
+/// invalid_value)` needed to build the `INVALID_VARIABLE` coercion error.
+fn publication_default_state_invalid_variable(
+    field: &RootFieldSelection,
+) -> Option<(String, Value, String)> {
+    let Some(RawArgumentValue::Variable {
+        name,
+        value: Some(ResolvedValue::Object(input)),
+    }) = field.raw_arguments.get("input")
+    else {
+        return None;
+    };
+    let state = resolved_string_field(input, "defaultState")?;
+    if PUBLICATION_DEFAULT_STATE_VALUES.contains(&state.as_str()) {
+        return None;
+    }
+    Some((
+        name.clone(),
+        resolved_value_json(&ResolvedValue::Object(input.clone())),
+        state,
+    ))
+}
+
+/// Builds the GraphQL `INVALID_VARIABLE` coercion error Shopify returns for an
+/// out-of-range `publicationCreate` `defaultState`, anchored to the `$input`
+/// variable definition.
+fn publication_default_state_invalid_response(
+    query: &str,
+    variable_name: &str,
+    provided: &Value,
+    state: &str,
+) -> Response {
+    let one_of = PUBLICATION_DEFAULT_STATE_VALUES.join(", ");
+    let message = format!(
+        "Variable ${variable_name} of type PublicationCreateInput! was provided invalid value for defaultState (Expected \"{state}\" to be one of: {one_of})"
+    );
+    let mut error = serde_json::Map::new();
+    error.insert("message".to_string(), json!(message));
+    if let Some((line, column)) = graphql_variable_definition_location(query, variable_name) {
+        error.insert(
+            "locations".to_string(),
+            json!([{ "line": line, "column": column }]),
+        );
+    }
+    error.insert(
+        "extensions".to_string(),
+        json!({
+            "code": "INVALID_VARIABLE",
+            "value": provided,
+            "problems": [{
+                "path": ["defaultState"],
+                "explanation": format!("Expected \"{state}\" to be one of: {one_of}"),
+            }],
+        }),
+    );
+    ok_json(json!({ "errors": [Value::Object(error)] }))
 }
 
 /// ProductFeed `country` is a Shopify `CountryCode` — an ISO 3166-1 alpha-2 code

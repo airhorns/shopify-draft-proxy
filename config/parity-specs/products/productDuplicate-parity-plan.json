@@ -14,7 +14,6 @@
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/productDuplicate-parity-plan.graphql",
-    "variablesPath": "config/parity-requests/products/productDuplicate-parity-plan.variables.json",
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",

@@ -2452,7 +2452,18 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Value {
         let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        // `productDelete` async operations live in their own map; Set/Duplicate/Bundle
+        // operations are staged in `product_operations`. Try the delete map first, then
+        // fall back to the general operation store so async productSet/productDuplicate/
+        // productBundleCreate reads resolve their staged operation (and its product).
         self.product_delete_operation_value_by_id(&id, &field.selection)
+            .or_else(|| {
+                self.store
+                    .staged
+                    .product_operations
+                    .get(&id)
+                    .map(|operation| self.product_operation_json(operation, &field.selection))
+            })
             .unwrap_or(Value::Null)
     }
 
@@ -2884,6 +2895,14 @@ impl DraftProxy {
             product
                 .extra_fields
                 .insert("giftCardTemplateSuffix".to_string(), json!(suffix));
+        }
+        // Shopify resolves the input `category` taxonomy GID into a `{id, fullName}`
+        // object on the created product, surfaced through both the mutation payload and
+        // downstream reads.
+        if let Some(category_id) = product_category_input_id(&input) {
+            product
+                .extra_fields
+                .insert("category".to_string(), product_category_value(&category_id));
         }
 
         // `productCreate` always materializes at least one variant. With `productOptions`,
