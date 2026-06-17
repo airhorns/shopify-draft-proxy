@@ -1457,6 +1457,17 @@ impl DraftProxy {
                 &field.selection,
             );
         }
+        if name.chars().count() > 255 {
+            return selected_json(
+                &price_list_payload_error(
+                    "priceList",
+                    vec!["input", "name"],
+                    "Name is too long (maximum is 255 characters)",
+                    "TOO_LONG",
+                ),
+                &field.selection,
+            );
+        }
         if self
             .store
             .staged
@@ -1582,6 +1593,17 @@ impl DraftProxy {
                         vec!["input", "name"],
                         "Name can't be blank",
                         "BLANK",
+                    ),
+                    &field.selection,
+                );
+            }
+            if name.chars().count() > 255 {
+                return selected_json(
+                    &price_list_payload_error(
+                        "priceList",
+                        vec!["input", "name"],
+                        "Name is too long (maximum is 255 characters)",
+                        "TOO_LONG",
                     ),
                     &field.selection,
                 );
