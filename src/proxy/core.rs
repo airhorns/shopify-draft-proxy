@@ -125,6 +125,9 @@ impl DraftProxy {
                 "productVariants": product_variant_state_map_json(&self.store.staged.product_variants.records),
                 "productVariantOrder": self.store.staged.product_variants.order,
                 "deletedProductVariantIds": self.store.staged.product_variants.tombstones.iter().cloned().collect::<Vec<_>>(),
+                "collections": self.store.staged.collections.clone(),
+                "deletedCollectionIds": self.store.staged.deleted_collection_ids.iter().cloned().collect::<Vec<_>>(),
+                "collectionJobs": self.store.staged.collection_jobs.clone(),
                 "savedSearches": saved_search_state_map_json(&self.store.staged.saved_searches.records),
                 "savedSearchOrder": self.store.staged.saved_searches.order,
                 "deletedSavedSearchIds": self.store.staged.saved_searches.tombstones.iter().cloned().collect::<Vec<_>>(),
@@ -370,6 +373,31 @@ impl DraftProxy {
                 .into_iter()
                 .collect(),
         );
+        self.store.staged.collections = state["stagedState"]
+            .get("collections")
+            .and_then(Value::as_object)
+            .map(|collections| {
+                collections
+                    .iter()
+                    .map(|(id, collection)| (id.clone(), collection.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.deleted_collection_ids = state["stagedState"]
+            .get("deletedCollectionIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        self.store.staged.collection_jobs = state["stagedState"]
+            .get("collectionJobs")
+            .and_then(Value::as_object)
+            .map(|jobs| {
+                jobs.iter()
+                    .map(|(id, job)| (id.clone(), job.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
         self.store.replace_base_saved_searches_map_with_order(
             saved_search_state_map_from_json(&state["baseState"]["savedSearches"]),
             string_array_from_json(&state["baseState"]["savedSearchOrder"]),

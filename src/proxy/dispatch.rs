@@ -2121,8 +2121,8 @@ impl DraftProxy {
             if operation
                 .root_fields
                 .iter()
-                .all(|field| matches!(field.as_str(), "collection" | "product"))
-                && self.has_product_overlay_state()
+                .all(|field| matches!(field.as_str(), "collection" | "product" | "job"))
+                && (self.has_product_overlay_state() || self.has_collection_overlay_state())
             {
                 if let Some(fields) = root_fields(&query, &variables) {
                     return ok_json(json!({
@@ -2290,6 +2290,22 @@ impl DraftProxy {
                 if has_local_dispatch && root_field == "productChangeStatus" =>
             {
                 let outcome = self.product_change_status(request, &query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "collectionCreate"
+                            | "collectionUpdate"
+                            | "collectionDelete"
+                            | "collectionAddProducts"
+                            | "collectionAddProductsV2"
+                            | "collectionRemoveProducts"
+                            | "collectionReorderProducts"
+                    ) =>
+            {
+                let outcome = self.collection_mutation(root_field, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
