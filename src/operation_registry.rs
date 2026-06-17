@@ -431,6 +431,10 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("companyContactsDelete", CapabilityDomain::B2b),
     local_mutation("companyContactUpdate", CapabilityDomain::B2b),
     local_mutation("companyRevokeMainContact", CapabilityDomain::B2b),
+    local_query("customerMergeJobStatus", CapabilityDomain::Customers),
+    local_mutation("customerMerge", CapabilityDomain::Customers),
+    local_mutation("customerRequestDataErasure", CapabilityDomain::Customers),
+    local_mutation("customerCancelDataErasure", CapabilityDomain::Customers),
 ];
 
 const fn local_query(name: &'static str, domain: CapabilityDomain) -> LocalDispatchRoot {
