@@ -71,6 +71,10 @@ branches. Successful translations are staged in local translation state so
 subsequent `translatableResource.translations(...)` reads observe the staged or
 removed rows. `translationsRemove` removes every requested
 translation-key/locale/market combination that exists in staged state.
+For `translationsRegister` rows that violate multiple rules, captured Shopify
+behavior validates locale and market gates before translation-record value and
+digest validation, so the local first `userErrors` entry follows that
+precedence.
 
 Collection translation lifecycle and market-scoped translation read support
 remain fixture-backed. Product and product-metafield translation behavior has

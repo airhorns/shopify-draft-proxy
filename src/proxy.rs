@@ -21,7 +21,6 @@ pub const DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES: u64 = 1
 const RUST_STATE_DUMP_SCHEMA: &str = "shopify-draft-proxy-rust-state/v1";
 const LOCAL_APP_SUBSCRIPTION_ACTIVATION_ID: &str = "gid://shopify/AppSubscription/expected";
 const LOCAL_APP_PURCHASE_ONE_TIME_ID: &str = "gid://shopify/AppPurchaseOneTime/expected";
-const LOCALIZATION_BASELINE_PRODUCT_ID: &str = "gid://shopify/Product/9801098789170";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReadMode {
@@ -174,7 +173,6 @@ struct BaseState {
     publication_count: Option<usize>,
     available_locales: BTreeMap<String, String>,
     shop_locales: BTreeMap<String, Value>,
-    localization_product_ids: BTreeSet<String>,
 }
 
 #[derive(Clone)]
@@ -201,6 +199,8 @@ struct StagedState {
     fulfillment_service_locations: BTreeMap<String, Value>,
     deleted_fulfillment_service_ids: BTreeSet<String>,
     deleted_fulfillment_service_location_ids: BTreeSet<String>,
+    observed_shipping_locations: BTreeMap<String, Value>,
+    observed_shipping_location_order: Vec<String>,
     locations: BTreeMap<String, Value>,
     location_order: Vec<String>,
     location_limit_reached: bool,
@@ -212,6 +212,7 @@ struct StagedState {
     discounts: BTreeMap<String, Value>,
     discount_code_index: BTreeMap<String, String>,
     deleted_discount_ids: BTreeSet<String>,
+    discount_bulk_operations: BTreeMap<String, Value>,
     discount_redeem_code_bulk_creations: BTreeMap<String, Value>,
     timestamp_discounts: BTreeMap<String, Value>,
     gift_cards: BTreeMap<String, Value>,
@@ -229,15 +230,26 @@ struct StagedState {
     webhook_subscriptions: BTreeMap<String, Value>,
     b2b_companies: BTreeMap<String, Value>,
     b2b_locations: BTreeMap<String, Value>,
+    b2b_contacts: BTreeMap<String, Value>,
+    deleted_b2b_contact_ids: BTreeSet<String>,
+    b2b_contact_roles: BTreeMap<String, Value>,
+    b2b_contact_role_assignments: BTreeMap<String, Value>,
+    deleted_b2b_contact_role_assignment_ids: BTreeSet<String>,
     next_b2b_company_id: u64,
+    next_b2b_contact_id: u64,
+    next_b2b_contact_role_assignment_id: u64,
     inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
     inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
     next_inventory_quantity_timestamp: u64,
     inventory_transfers: BTreeMap<String, InventoryTransferRecord>,
+    inventory_shipments: BTreeMap<String, InventoryShipmentRecord>,
     metaobject_definitions: BTreeMap<String, Value>,
     deleted_metaobject_definition_ids: BTreeSet<String>,
     metaobjects: BTreeMap<String, Value>,
     deleted_metaobject_ids: BTreeSet<String>,
+    url_redirects: BTreeMap<String, Value>,
+    url_redirect_order: Vec<String>,
+    product_option_linked_metaobject_definition_ids: BTreeSet<String>,
     app_metafields: BTreeMap<(String, String, String), Value>,
     owner_metafields: BTreeMap<String, Vec<Value>>,
     deleted_owner_metafields: BTreeSet<(String, String, String)>,
@@ -246,7 +258,6 @@ struct StagedState {
     deleted_media_file_ids: BTreeSet<String>,
     online_store_integrations: BTreeMap<String, Value>,
     product_set_updated: bool,
-    product_option_fixture: Option<String>,
     product_delete_operations: BTreeMap<String, String>,
     selling_plan_group_downstream_step: usize,
     mandate_payment_keys: BTreeSet<String>,
@@ -259,6 +270,7 @@ struct StagedState {
     next_customer_payment_method_id: u64,
     abandonments: BTreeMap<String, Value>,
     orders: BTreeMap<String, Value>,
+    deleted_order_ids: BTreeSet<String>,
     draft_orders: BTreeMap<String, Value>,
     returns: BTreeMap<String, Value>,
     returns_by_order: BTreeMap<String, Vec<String>>,
@@ -318,6 +330,35 @@ struct InventoryTransferLineItemRecord {
     id: String,
     inventory_item_id: String,
     quantity: i64,
+}
+
+#[derive(Clone)]
+struct InventoryShipmentRecord {
+    id: String,
+    name: String,
+    status: String,
+    transfer_id: Option<String>,
+    movement_id: Option<String>,
+    tracking: Option<InventoryShipmentTrackingRecord>,
+    line_items: Vec<InventoryShipmentLineItemRecord>,
+}
+
+#[derive(Clone, Default)]
+struct InventoryShipmentTrackingRecord {
+    tracking_number: Option<String>,
+    company: Option<String>,
+    tracking_url: Option<String>,
+    arrives_at: Option<String>,
+}
+
+#[derive(Clone)]
+struct InventoryShipmentLineItemRecord {
+    id: String,
+    inventory_item_id: String,
+    transfer_line_item_id: Option<String>,
+    quantity: i64,
+    accepted_quantity: i64,
+    rejected_quantity: i64,
 }
 
 #[derive(Clone)]
@@ -449,6 +490,8 @@ impl Default for StagedState {
             fulfillment_service_locations: BTreeMap::new(),
             deleted_fulfillment_service_ids: BTreeSet::new(),
             deleted_fulfillment_service_location_ids: BTreeSet::new(),
+            observed_shipping_locations: BTreeMap::new(),
+            observed_shipping_location_order: Vec::new(),
             locations: BTreeMap::new(),
             location_order: Vec::new(),
             location_limit_reached: false,
@@ -460,6 +503,7 @@ impl Default for StagedState {
             discounts: BTreeMap::new(),
             discount_code_index: BTreeMap::new(),
             deleted_discount_ids: BTreeSet::new(),
+            discount_bulk_operations: BTreeMap::new(),
             discount_redeem_code_bulk_creations: BTreeMap::new(),
             timestamp_discounts: BTreeMap::new(),
             gift_cards: BTreeMap::new(),
@@ -477,15 +521,26 @@ impl Default for StagedState {
             webhook_subscriptions: BTreeMap::new(),
             b2b_companies: BTreeMap::new(),
             b2b_locations: BTreeMap::new(),
+            b2b_contacts: BTreeMap::new(),
+            deleted_b2b_contact_ids: BTreeSet::new(),
+            b2b_contact_roles: BTreeMap::new(),
+            b2b_contact_role_assignments: BTreeMap::new(),
+            deleted_b2b_contact_role_assignment_ids: BTreeSet::new(),
             next_b2b_company_id: 1,
+            next_b2b_contact_id: 1,
+            next_b2b_contact_role_assignment_id: 1,
             inventory_levels: BTreeMap::new(),
             inventory_quantity_updated_at: BTreeMap::new(),
             next_inventory_quantity_timestamp: 0,
             inventory_transfers: BTreeMap::new(),
+            inventory_shipments: BTreeMap::new(),
             metaobject_definitions: BTreeMap::new(),
             deleted_metaobject_definition_ids: BTreeSet::new(),
             metaobjects: BTreeMap::new(),
             deleted_metaobject_ids: BTreeSet::new(),
+            url_redirects: BTreeMap::new(),
+            url_redirect_order: Vec::new(),
+            product_option_linked_metaobject_definition_ids: BTreeSet::new(),
             app_metafields: BTreeMap::new(),
             owner_metafields: BTreeMap::new(),
             deleted_owner_metafields: BTreeSet::new(),
@@ -494,7 +549,6 @@ impl Default for StagedState {
             deleted_media_file_ids: BTreeSet::new(),
             online_store_integrations: BTreeMap::new(),
             product_set_updated: false,
-            product_option_fixture: None,
             product_delete_operations: BTreeMap::new(),
             selling_plan_group_downstream_step: 0,
             mandate_payment_keys: BTreeSet::new(),
@@ -507,6 +561,7 @@ impl Default for StagedState {
             next_customer_payment_method_id: 1,
             abandonments: BTreeMap::new(),
             orders: BTreeMap::new(),
+            deleted_order_ids: BTreeSet::new(),
             draft_orders: BTreeMap::new(),
             returns: BTreeMap::new(),
             returns_by_order: BTreeMap::new(),
@@ -648,10 +703,6 @@ impl Store {
                 }]
             }),
         );
-        store
-            .base
-            .localization_product_ids
-            .insert(LOCALIZATION_BASELINE_PRODUCT_ID.to_string());
         store
     }
 
@@ -802,11 +853,6 @@ impl Store {
 
     fn has_product(&self, id: &str) -> bool {
         self.product_by_id(id).is_some()
-    }
-
-    fn has_localization_product(&self, id: &str) -> bool {
-        !self.staged.products.is_tombstoned(id)
-            && (self.has_product(id) || self.base.localization_product_ids.contains(id))
     }
 
     fn stage_product(&mut self, product: ProductRecord) {
@@ -1130,6 +1176,7 @@ mod metafields_orders_payments;
 mod metaobjects;
 mod online_store_orders_payments;
 mod product_helpers;
+mod product_options;
 mod resolved_values;
 mod resource_ids;
 mod routing;
@@ -1170,6 +1217,8 @@ pub(in crate::proxy) use self::metaobjects::*;
 pub(in crate::proxy) use self::online_store_orders_payments::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::product_helpers::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::product_options::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::resolved_values::*;
 #[allow(unused_imports)]
