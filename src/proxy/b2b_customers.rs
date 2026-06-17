@@ -2784,8 +2784,74 @@ impl DraftProxy {
         let country = resolved_string_field(&input, "country").unwrap_or_else(|| "US".to_string());
         let language =
             resolved_string_field(&input, "language").unwrap_or_else(|| "EN".to_string());
+        // ProductFeed.country is a CountryCode and .language a LanguageCode; Shopify rejects
+        // values outside those enums at the resolver with a field-scoped INVALID userError.
+        if !is_valid_product_feed_country(&country) {
+            self.record_products_tail_log(
+                request,
+                query,
+                variables,
+                "productFeedCreate",
+                Vec::new(),
+                "failed",
+            );
+            return selected_json(
+                &json!({
+                    "productFeed": null,
+                    "userErrors": [{ "field": ["country"], "message": "Country is invalid", "code": "INVALID" }]
+                }),
+                &field.selection,
+            );
+        }
+        if !is_valid_product_feed_language(&language) {
+            self.record_products_tail_log(
+                request,
+                query,
+                variables,
+                "productFeedCreate",
+                Vec::new(),
+                "failed",
+            );
+            return selected_json(
+                &json!({
+                    "productFeed": null,
+                    "userErrors": [{ "field": ["language"], "message": "Language is invalid", "code": "INVALID" }]
+                }),
+                &field.selection,
+            );
+        }
         let id = format!("gid://shopify/ProductFeed/{country}-{language}");
-        let payload = json!({ "productFeed": { "id": id }, "userErrors": [] });
+        // A feed is unique per country/language pair; re-creating an existing one is rejected.
+        if self.has_products_tail_staged_resource_id(&id) {
+            self.record_products_tail_log(
+                request,
+                query,
+                variables,
+                "productFeedCreate",
+                Vec::new(),
+                "failed",
+            );
+            return selected_json(
+                &json!({
+                    "productFeed": null,
+                    "userErrors": [{
+                        "field": ["country"],
+                        "message": "Product feed already exists for this country/language pair",
+                        "code": "TAKEN"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
+        let payload = json!({
+            "productFeed": {
+                "id": id,
+                "country": country,
+                "language": language,
+                "status": "ACTIVE"
+            },
+            "userErrors": []
+        });
         self.record_products_tail_log(
             request,
             query,
@@ -4000,6 +4066,26 @@ fn publication_default_state_invalid_variable(field: &RootFieldSelection) -> boo
             ..
         }) if resolved_string_field(input, "defaultState").as_deref() == Some("BANANAS")
     )
+}
+
+/// ProductFeed `country` is a Shopify `CountryCode` — an ISO 3166-1 alpha-2 code
+/// (two uppercase letters). Anything else is rejected at the resolver.
+fn is_valid_product_feed_country(code: &str) -> bool {
+    code.len() == 2 && code.bytes().all(|byte| byte.is_ascii_uppercase())
+}
+
+/// ProductFeed `language` is a Shopify `LanguageCode` — an ISO 639-1 alpha-2 code,
+/// optionally with an alpha-2 region suffix (e.g. `EN`, `ZH_CN`).
+fn is_valid_product_feed_language(code: &str) -> bool {
+    let mut parts = code.split('_');
+    let valid_segment = |segment: &str| {
+        segment.len() == 2 && segment.bytes().all(|byte| byte.is_ascii_uppercase())
+    };
+    match (parts.next(), parts.next(), parts.next()) {
+        (Some(language), None, None) => valid_segment(language),
+        (Some(language), Some(region), None) => valid_segment(language) && valid_segment(region),
+        _ => false,
+    }
 }
 
 fn product_feedback_state_invalid_literal(field: &RootFieldSelection) -> bool {
