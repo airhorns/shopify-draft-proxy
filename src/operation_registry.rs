@@ -404,6 +404,8 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
         "inventoryTransferMarkAsReadyToShip",
         CapabilityDomain::Products,
     ),
+    local_mutation("inventoryTransferEdit", CapabilityDomain::Products),
+    local_mutation("inventoryTransferDuplicate", CapabilityDomain::Products),
     local_mutation("inventoryTransferCancel", CapabilityDomain::Products),
     local_mutation("inventoryTransferDelete", CapabilityDomain::Products),
     local_mutation("publicationCreate", CapabilityDomain::Products),

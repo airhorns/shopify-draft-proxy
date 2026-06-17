@@ -56,6 +56,49 @@ const INVENTORY_VALID_COUNTRY_CODES: &[&str] = &[
     "UA", "UG", "UM", "US", "UY", "UZ", "VA", "VC", "VE", "VG", "VN", "VU", "WF", "WS", "XK", "YE",
     "YT", "ZA", "ZM", "ZW",
 ];
+const INVENTORY_TRANSFER_HYDRATE_NODES_QUERY: &str = r#"#graphql
+  query ProductsHydrateNodes($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      __typename
+      id
+      ... on InventoryItem {
+        tracked
+        requiresShipping
+        measurement { weight { unit value } }
+        variant {
+          id
+          title
+          inventoryQuantity
+          selectedOptions { name value }
+          product {
+            id
+            title
+            handle
+            status
+            totalInventory
+            tracksInventory
+          }
+        }
+        inventoryLevels(first: 50) {
+          nodes {
+            id
+            location { id name }
+            quantities(names: ["available", "on_hand", "committed", "incoming", "reserved", "damaged", "quality_control", "safety_stock"]) {
+              name
+              quantity
+              updatedAt
+            }
+          }
+        }
+      }
+      ... on Location {
+        id
+        name
+        isActive
+      }
+    }
+  }
+"#;
 
 impl DraftProxy {
     fn inventory_level_view_state(&self) -> InventoryLevelViewState<'_> {
@@ -1770,8 +1813,10 @@ impl DraftProxy {
                     self.inventory_transfer_create(field, true)
                 }
                 "inventoryTransferMarkAsReadyToShip" => self.inventory_transfer_mark_ready(field),
+                "inventoryTransferEdit" => self.inventory_transfer_edit(field),
                 "inventoryTransferSetItems" => self.inventory_transfer_set_items(field),
                 "inventoryTransferRemoveItems" => self.inventory_transfer_remove_items(field),
+                "inventoryTransferDuplicate" => self.inventory_transfer_duplicate(field),
                 "inventoryTransferCancel" => self.inventory_transfer_cancel(field),
                 "inventoryTransferDelete" => self.inventory_transfer_delete(field),
                 _ => MutationFieldOutcome::unlogged(Value::Null),
@@ -1799,22 +1844,30 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         selections: &[SelectedField],
     ) -> Value {
-        let inventory_quantity = self.inventory_total(inventory_item_id, "available");
         let item_levels = self.inventory_levels_for_item(inventory_item_id);
         let variant = self
             .store
             .product_variant_by_inventory_item_id(inventory_item_id);
+        let inventory_quantity = if item_levels.is_empty() {
+            variant
+                .map(|variant| variant.inventory_quantity)
+                .unwrap_or_default()
+        } else {
+            self.inventory_total(inventory_item_id, "available")
+        };
         let variant_for_payload = variant.cloned().map(|mut variant| {
             variant.inventory_quantity = inventory_quantity;
             variant
         });
         let product_id = resolved_string_field(variables, "productId").unwrap_or_default();
-        let variant_id = resolved_string_field(variables, "variantId").unwrap_or_else(|| {
-            format!(
-                "gid://shopify/ProductVariant/{}",
-                resource_id_tail(inventory_item_id)
-            )
-        });
+        let variant_id = resolved_string_field(variables, "variantId")
+            .or_else(|| variant.map(|variant| variant.id.clone()))
+            .unwrap_or_else(|| {
+                format!(
+                    "gid://shopify/ProductVariant/{}",
+                    resource_id_tail(inventory_item_id)
+                )
+            });
         let mut fields = serde_json::Map::new();
         for selection in selections {
             let value = match selection.name.as_str() {
@@ -3379,6 +3432,24 @@ impl DraftProxy {
             resolved_string_field(&input, "originLocationId").unwrap_or_default();
         let destination_location_id =
             resolved_string_field(&input, "destinationLocationId").unwrap_or_default();
+        let line_item_inputs = resolved_object_list_field(&input, "lineItems");
+        self.hydrate_inventory_transfer_references(
+            [&origin_location_id, &destination_location_id],
+            &line_item_inputs,
+        );
+        let user_errors = self.inventory_transfer_validate(
+            &origin_location_id,
+            &destination_location_id,
+            &line_item_inputs,
+        );
+        if !user_errors.is_empty() {
+            return MutationFieldOutcome::unlogged(self.inventory_transfer_user_error_payload(
+                &field.selection,
+                "inventoryTransfer",
+                &[],
+                user_errors,
+            ));
+        }
         let id = self.next_proxy_synthetic_gid("InventoryTransfer");
         let name = format!(
             "#T{:04}",
@@ -3389,7 +3460,7 @@ impl DraftProxy {
                 .saturating_add(1)
         );
         let mut line_items = Vec::new();
-        for item_input in resolved_object_list_field(&input, "lineItems") {
+        for item_input in line_item_inputs {
             line_items.push(InventoryTransferLineItemRecord {
                 id: self.next_proxy_synthetic_gid("InventoryTransferLineItem"),
                 inventory_item_id: resolved_string_field(&item_input, "inventoryItemId")
@@ -3464,8 +3535,26 @@ impl DraftProxy {
             );
         };
         let mut record = existing;
+        let line_item_inputs = resolved_object_list_field(&input, "lineItems");
+        self.hydrate_inventory_transfer_references(
+            [&record.origin_location_id, &record.destination_location_id],
+            &line_item_inputs,
+        );
+        let user_errors = self.inventory_transfer_validate(
+            &record.origin_location_id,
+            &record.destination_location_id,
+            &line_item_inputs,
+        );
+        if !user_errors.is_empty() {
+            return MutationFieldOutcome::unlogged(self.inventory_transfer_user_error_payload(
+                &field.selection,
+                "inventoryTransfer",
+                &["updatedLineItems"],
+                user_errors,
+            ));
+        }
         let mut updated = Vec::new();
-        for item_input in resolved_object_list_field(&input, "lineItems") {
+        for item_input in line_item_inputs {
             let item_id = resolved_string_field(&item_input, "inventoryItemId").unwrap_or_default();
             let new_quantity = resolved_int_field(&item_input, "quantity").unwrap_or(0);
             let mut old_quantity = 0;
@@ -3508,6 +3597,153 @@ impl DraftProxy {
         MutationFieldOutcome::staged(
             payload,
             LogDraft::staged("inventoryTransferSetItems", "products", vec![id]),
+        )
+    }
+
+    pub(in crate::proxy) fn inventory_transfer_edit(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> MutationFieldOutcome {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
+            return MutationFieldOutcome::unlogged(
+                self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
+            );
+        };
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let origin_location_id = resolved_string_field(&input, "originId")
+            .unwrap_or_else(|| existing.origin_location_id.clone());
+        let destination_location_id = resolved_string_field(&input, "destinationId")
+            .unwrap_or_else(|| existing.destination_location_id.clone());
+        let line_item_inputs = existing
+            .line_items
+            .iter()
+            .map(|line_item| {
+                BTreeMap::from([
+                    (
+                        "inventoryItemId".to_string(),
+                        ResolvedValue::String(line_item.inventory_item_id.clone()),
+                    ),
+                    (
+                        "quantity".to_string(),
+                        ResolvedValue::Int(line_item.quantity),
+                    ),
+                ])
+            })
+            .collect::<Vec<_>>();
+        let user_errors = self.inventory_transfer_validate(
+            &origin_location_id,
+            &destination_location_id,
+            &line_item_inputs,
+        );
+        if !user_errors.is_empty() {
+            return MutationFieldOutcome::unlogged(self.inventory_transfer_user_error_payload(
+                &field.selection,
+                "inventoryTransfer",
+                &[],
+                user_errors,
+            ));
+        }
+
+        let was_ready = existing.status == "READY_TO_SHIP";
+        if was_ready {
+            self.apply_transfer_reservations(&existing, -1);
+        }
+        let mut record = existing;
+        record.origin_location_id = origin_location_id;
+        record.destination_location_id = destination_location_id;
+        self.ensure_transfer_inventory_levels(&record);
+        if was_ready {
+            self.apply_transfer_reservations(&record, 1);
+        }
+
+        let payload =
+            self.inventory_transfer_payload_json(&record, &field.selection, "inventoryTransfer");
+        self.store
+            .staged
+            .inventory_transfers
+            .insert(id.clone(), record);
+        MutationFieldOutcome::staged(
+            payload,
+            LogDraft::staged("inventoryTransferEdit", "products", vec![id]),
+        )
+    }
+
+    pub(in crate::proxy) fn inventory_transfer_duplicate(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> MutationFieldOutcome {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(existing) = self.store.staged.inventory_transfers.get(&id).cloned() else {
+            return MutationFieldOutcome::unlogged(
+                self.inventory_transfer_missing_payload(&field.selection, "inventoryTransfer"),
+            );
+        };
+        let line_item_inputs = existing
+            .line_items
+            .iter()
+            .map(|line_item| {
+                BTreeMap::from([
+                    (
+                        "inventoryItemId".to_string(),
+                        ResolvedValue::String(line_item.inventory_item_id.clone()),
+                    ),
+                    (
+                        "quantity".to_string(),
+                        ResolvedValue::Int(line_item.quantity),
+                    ),
+                ])
+            })
+            .collect::<Vec<_>>();
+        let user_errors = self.inventory_transfer_validate(
+            &existing.origin_location_id,
+            &existing.destination_location_id,
+            &line_item_inputs,
+        );
+        if !user_errors.is_empty() {
+            return MutationFieldOutcome::unlogged(self.inventory_transfer_user_error_payload(
+                &field.selection,
+                "inventoryTransfer",
+                &[],
+                user_errors,
+            ));
+        }
+
+        let new_id = self.next_proxy_synthetic_gid("InventoryTransfer");
+        let name = format!(
+            "#T{:04}",
+            self.store
+                .staged
+                .inventory_transfers
+                .len()
+                .saturating_add(1)
+        );
+        let record = InventoryTransferRecord {
+            id: new_id.clone(),
+            name,
+            status: "DRAFT".to_string(),
+            origin_location_id: existing.origin_location_id,
+            destination_location_id: existing.destination_location_id,
+            line_items: existing
+                .line_items
+                .into_iter()
+                .map(|line_item| InventoryTransferLineItemRecord {
+                    id: self.next_proxy_synthetic_gid("InventoryTransferLineItem"),
+                    inventory_item_id: line_item.inventory_item_id,
+                    quantity: line_item.quantity,
+                })
+                .collect(),
+        };
+        self.ensure_transfer_inventory_levels(&record);
+        let payload =
+            self.inventory_transfer_payload_json(&record, &field.selection, "inventoryTransfer");
+        self.store
+            .staged
+            .inventory_transfers
+            .insert(new_id.clone(), record);
+        MutationFieldOutcome::staged(
+            payload,
+            LogDraft::staged("inventoryTransferDuplicate", "products", vec![new_id]),
         )
     }
 
@@ -3641,6 +3877,22 @@ impl DraftProxy {
         )
     }
 
+    fn inventory_transfer_user_error_payload(
+        &self,
+        selection: &[SelectedField],
+        transfer_field: &str,
+        extra_null_fields: &[&str],
+        user_errors: Vec<Value>,
+    ) -> Value {
+        let mut payload = serde_json::Map::new();
+        payload.insert(transfer_field.to_string(), Value::Null);
+        for field in extra_null_fields {
+            payload.insert((*field).to_string(), Value::Null);
+        }
+        payload.insert("userErrors".to_string(), Value::Array(user_errors));
+        selected_json(&Value::Object(payload), selection)
+    }
+
     fn inventory_transfer_missing_payload(
         &self,
         selection: &[SelectedField],
@@ -3765,6 +4017,326 @@ impl DraftProxy {
                     record.destination_location_id.clone(),
                 ))
                 .or_insert_with(empty_inventory_quantities);
+        }
+    }
+
+    fn inventory_transfer_validate(
+        &self,
+        origin_location_id: &str,
+        destination_location_id: &str,
+        line_item_inputs: &[BTreeMap<String, ResolvedValue>],
+    ) -> Vec<Value> {
+        let mut user_errors = Vec::new();
+        let origin_is_active = self.inventory_transfer_location_is_active(origin_location_id);
+        let destination_is_active =
+            self.inventory_transfer_location_is_active(destination_location_id);
+        if !origin_is_active {
+            user_errors.push(json!({
+                "field": ["input", "originLocationId"],
+                "message": "The location selected can't be found.",
+                "code": "LOCATION_NOT_FOUND"
+            }));
+        }
+        if !destination_is_active {
+            user_errors.push(json!({
+                "field": ["input", "destinationLocationId"],
+                "message": "The location selected can't be found.",
+                "code": "LOCATION_NOT_FOUND"
+            }));
+        }
+        if !origin_location_id.is_empty()
+            && origin_location_id == destination_location_id
+            && origin_is_active
+        {
+            user_errors.push(json!({
+                "field": ["input", "destinationLocationId"],
+                "message": "The origin location cannot be the same as the destination location.",
+                "code": "TRANSFER_ORIGIN_CANNOT_BE_THE_SAME_AS_DESTINATION"
+            }));
+        }
+
+        let mut item_counts: BTreeMap<String, usize> = BTreeMap::new();
+        for item_input in line_item_inputs {
+            let item_id = resolved_string_field(item_input, "inventoryItemId").unwrap_or_default();
+            if !item_id.is_empty() {
+                *item_counts.entry(item_id).or_insert(0) += 1;
+            }
+        }
+
+        for (index, item_input) in line_item_inputs.iter().enumerate() {
+            let item_id = resolved_string_field(item_input, "inventoryItemId").unwrap_or_default();
+            let quantity = resolved_int_field(item_input, "quantity").unwrap_or(0);
+            if item_counts.get(&item_id).copied().unwrap_or(0) > 1 {
+                user_errors.push(json!({
+                    "field": ["input", "lineItems", index.to_string(), "inventoryItemId"],
+                    "message": "The inventory item is already present in the list. Each item must be unique.",
+                    "code": "DUPLICATE_ITEM"
+                }));
+            }
+            if origin_is_active
+                && !self.inventory_transfer_item_is_stocked_at_origin(&item_id, origin_location_id)
+            {
+                user_errors.push(json!({
+                    "field": ["input", "lineItems", index.to_string(), "inventoryItemId"],
+                    "message": "The inventory item could not be found.",
+                    "code": "ITEM_NOT_FOUND"
+                }));
+            }
+            if quantity < 0 {
+                user_errors.push(json!({
+                    "field": ["input", "lineItems", index.to_string(), "quantity"],
+                    "message": "The quantity can't be negative.",
+                    "code": "INVALID_QUANTITY"
+                }));
+            }
+        }
+        user_errors
+    }
+
+    fn inventory_transfer_location_is_active(&self, location_id: &str) -> bool {
+        if location_id.is_empty() {
+            return false;
+        }
+        if matches!(
+            location_id,
+            "gid://shopify/Location/1"
+                | "gid://shopify/Location/2"
+                | DEFAULT_INVENTORY_LOCATION_ID
+                | "gid://shopify/Location/106318463282"
+        ) {
+            return true;
+        }
+        self.store
+            .staged
+            .locations
+            .get(location_id)
+            .and_then(|location| location.get("isActive"))
+            .and_then(Value::as_bool)
+            == Some(true)
+    }
+
+    fn inventory_transfer_item_is_stocked_at_origin(
+        &self,
+        inventory_item_id: &str,
+        origin_location_id: &str,
+    ) -> bool {
+        if inventory_item_id.is_empty() || origin_location_id.is_empty() {
+            return false;
+        }
+        if self
+            .store
+            .product_variant_by_inventory_item_id(inventory_item_id)
+            .map(|variant| variant.inventory_item.tracked)
+            == Some(false)
+        {
+            return false;
+        }
+        if self.store.staged.inventory_levels.contains_key(&(
+            inventory_item_id.to_string(),
+            origin_location_id.to_string(),
+        )) {
+            return true;
+        }
+        inventory_item_id == "gid://shopify/InventoryItem/transfer-item"
+            && origin_location_id == "gid://shopify/Location/1"
+    }
+
+    fn hydrate_inventory_transfer_references<'a>(
+        &mut self,
+        location_ids: impl IntoIterator<Item = &'a String>,
+        line_item_inputs: &[BTreeMap<String, ResolvedValue>],
+    ) {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return;
+        }
+        let mut ids = Vec::new();
+        for location_id in location_ids {
+            if !location_id.is_empty() && !ids.iter().any(|id| id == location_id) {
+                ids.push(location_id.clone());
+            }
+        }
+        for item_input in line_item_inputs {
+            let item_id = resolved_string_field(item_input, "inventoryItemId").unwrap_or_default();
+            if !item_id.is_empty() && !ids.iter().any(|id| id == &item_id) {
+                ids.push(item_id);
+            }
+        }
+        if ids.is_empty() {
+            return;
+        }
+        let request = Request {
+            method: "POST".to_string(),
+            path: "/admin/api/2025-01/graphql.json".to_string(),
+            headers: BTreeMap::new(),
+            body: json!({
+                "query": INVENTORY_TRANSFER_HYDRATE_NODES_QUERY,
+                "variables": { "ids": ids }
+            })
+            .to_string(),
+        };
+        let response = (self.upstream_transport)(request);
+        if response.status >= 400 {
+            return;
+        }
+        self.observe_inventory_transfer_hydration_response(&response.body);
+    }
+
+    fn observe_inventory_transfer_hydration_response(&mut self, body: &Value) {
+        let nodes = body
+            .pointer("/data/nodes")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .cloned()
+            .collect::<Vec<_>>();
+        for node in nodes {
+            let node_type = node
+                .get("__typename")
+                .and_then(Value::as_str)
+                .or_else(|| {
+                    node.get("id")
+                        .and_then(Value::as_str)
+                        .and_then(shopify_gid_resource_type)
+                })
+                .or_else(|| {
+                    node.get("inventoryLevels")
+                        .is_some()
+                        .then_some("InventoryItem")
+                });
+            match node_type {
+                Some("Location") => self.stage_inventory_transfer_location(node),
+                Some("InventoryItem") => self.stage_inventory_transfer_inventory_item(node),
+                _ => {}
+            }
+        }
+    }
+
+    fn stage_inventory_transfer_location(&mut self, location: Value) {
+        let Some(id) = location
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            return;
+        };
+        if !self
+            .store
+            .staged
+            .location_order
+            .iter()
+            .any(|entry| entry == &id)
+        {
+            self.store.staged.location_order.push(id.clone());
+        }
+        let mut merged = self
+            .store
+            .staged
+            .locations
+            .get(&id)
+            .cloned()
+            .unwrap_or_else(|| json!({}));
+        if let (Some(existing), Some(incoming)) = (merged.as_object_mut(), location.as_object()) {
+            for (key, value) in incoming {
+                existing.insert(key.clone(), value.clone());
+            }
+        } else {
+            merged = location;
+        }
+        self.store.staged.locations.insert(id, merged);
+    }
+
+    fn stage_inventory_transfer_inventory_item(&mut self, item: Value) {
+        let Some(item_id) = item.get("id").and_then(Value::as_str).map(str::to_string) else {
+            return;
+        };
+        let Some(variant) = item.get("variant") else {
+            return;
+        };
+        let product = variant.get("product").cloned().unwrap_or_else(|| {
+            json!({
+                "id": format!("gid://shopify/Product/{}", resource_id_tail(&item_id)),
+                "title": "",
+                "handle": "",
+                "status": "ACTIVE",
+                "totalInventory": 0,
+                "tracksInventory": item.get("tracked").and_then(Value::as_bool).unwrap_or(true)
+            })
+        });
+        if let Some(product) = product_state_from_json(&product) {
+            self.store.stage_observed_product(product);
+        }
+        let variant_id = variant
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(|| {
+                format!(
+                    "gid://shopify/ProductVariant/{}",
+                    resource_id_tail(&item_id)
+                )
+            });
+        let product_id = variant
+            .get("product")
+            .and_then(|product| product.get("id"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("gid://shopify/Product/{}", resource_id_tail(&item_id)));
+        let mut variant_value = variant.clone();
+        if let Some(fields) = variant_value.as_object_mut() {
+            fields.insert("id".to_string(), json!(variant_id));
+            fields.insert("productId".to_string(), json!(product_id));
+            fields.insert(
+                "inventoryItem".to_string(),
+                json!({
+                    "id": item_id,
+                    "tracked": item.get("tracked").and_then(Value::as_bool).unwrap_or(true),
+                    "requiresShipping": item.get("requiresShipping").and_then(Value::as_bool).unwrap_or(true)
+                }),
+            );
+        }
+        if let Some(variant) = product_variant_state_from_json(&variant_value) {
+            self.store.stage_product_variant(variant);
+        }
+        for level in item
+            .get("inventoryLevels")
+            .and_then(|connection| connection.get("nodes"))
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            let Some(location_id) = level
+                .get("location")
+                .and_then(|location| location.get("id"))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+            else {
+                continue;
+            };
+            let mut quantities = BTreeMap::new();
+            for quantity in level
+                .get("quantities")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                let Some(name) = quantity.get("name").and_then(Value::as_str) else {
+                    continue;
+                };
+                quantities.insert(
+                    name.to_string(),
+                    quantity
+                        .get("quantity")
+                        .and_then(Value::as_i64)
+                        .unwrap_or_default(),
+                );
+            }
+            self.store
+                .staged
+                .inventory_levels
+                .insert((item_id.clone(), location_id.clone()), quantities);
+            if let Some(location) = level.get("location").cloned() {
+                self.stage_inventory_transfer_location(location);
+            }
         }
     }
 
