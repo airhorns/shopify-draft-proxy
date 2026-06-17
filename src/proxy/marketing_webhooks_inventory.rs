@@ -1909,11 +1909,10 @@ impl DraftProxy {
                         })
                     });
                     Some(level.map_or(Value::Null, |(location_id, quantities)| {
-                        inventory_level_selected_json(
+                        self.inventory_level_json_with_item(
                             inventory_item_id,
                             location_id,
                             quantities,
-                            &self.inventory_level_view_state(),
                             &selection.selection,
                         )
                     }))
@@ -2195,13 +2194,7 @@ impl DraftProxy {
         else {
             return Value::Null;
         };
-        inventory_level_selected_json(
-            &inventory_item_id,
-            &location_id,
-            quantities,
-            &self.inventory_level_view_state(),
-            selections,
-        )
+        self.inventory_level_json_with_item(&inventory_item_id, &location_id, quantities, selections)
     }
 
     fn inventory_levels_for_item(
@@ -3243,6 +3236,25 @@ impl DraftProxy {
             .staged
             .inventory_levels
             .get(&(inventory_item_id.to_string(), location_id.to_string()))?;
+        Some(self.inventory_level_json_with_item(
+            inventory_item_id,
+            location_id,
+            quantities,
+            selections,
+        ))
+    }
+
+    /// Render an inventory level, overriding the `item` sub-selection with the
+    /// store-backed item payload (so `tracked`/`variant` resolve correctly).
+    /// The free `inventory_level_selected_json` only knows the item id; reads of
+    /// `inventoryLevel { item { tracked } }` need this `&self` override.
+    fn inventory_level_json_with_item(
+        &self,
+        inventory_item_id: &str,
+        location_id: &str,
+        quantities: &BTreeMap<String, i64>,
+        selections: &[SelectedField],
+    ) -> Value {
         let mut value = inventory_level_selected_json(
             inventory_item_id,
             location_id,
@@ -3258,7 +3270,7 @@ impl DraftProxy {
                 );
             }
         }
-        Some(value)
+        value
     }
 
     fn inventory_level_item_payload(

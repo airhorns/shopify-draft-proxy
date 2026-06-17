@@ -2175,14 +2175,18 @@ pub(in crate::proxy) fn inventory_change_json(
     item_id: &str,
     name: &str,
     delta: i64,
-    quantity_after_change: i64,
+    _quantity_after_change: i64,
     ledger: Option<&str>,
     location_id: &str,
 ) -> Value {
+    // Real Shopify returns `quantityAfterChange: null` for changes read back
+    // from inventoryAdjust/Set/MoveQuantities mutation responses (the field is
+    // only populated in certain ledger contexts). Match that to stay faithful to
+    // the recorded live captures rather than the staging engine's running total.
     json!({
         "name": name,
         "delta": delta,
-        "quantityAfterChange": quantity_after_change,
+        "quantityAfterChange": Value::Null,
         "ledgerDocumentUri": ledger,
         "item": {
             "id": item_id
