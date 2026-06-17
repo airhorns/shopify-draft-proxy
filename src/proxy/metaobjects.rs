@@ -1317,46 +1317,7 @@ impl DraftProxy {
             path: request.path.clone(),
             headers: request.headers.clone(),
             body: json!({
-                "query": r#"
-                    query MetaobjectHydrateById($id: ID!) {
-                      node(id: $id) { __typename }
-                      metaobject(id: $id) {
-                        id
-                        handle
-                        type
-                        displayName
-                        updatedAt
-                        capabilities {
-                          publishable { status }
-                          onlineStore { templateSuffix }
-                        }
-                        fields {
-                          key
-                          type
-                          value
-                          jsonValue
-                          definition {
-                            key
-                            name
-                            required
-                            type { name category }
-                          }
-                        }
-                        titleField: field(key: "title") {
-                          key
-                          type
-                          value
-                          jsonValue
-                          definition {
-                            key
-                            name
-                            required
-                            type { name category }
-                          }
-                        }
-                      }
-                    }
-                "#,
+                "query": "query MetaobjectHydrateById($id: ID!) { node(id: $id) { __typename } metaobject(id: $id) { id handle type displayName updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: \"title\") { key type value jsonValue definition { key name required type { name category } } } } }",
                 "variables": {"id": id}
             })
             .to_string(),

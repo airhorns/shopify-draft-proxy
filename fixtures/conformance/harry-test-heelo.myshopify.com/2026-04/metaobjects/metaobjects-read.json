@@ -2018,7 +2018,7 @@
       "variables": {
         "id": "gid://shopify/Metaobject/185593102642"
       },
-      "query": "sha:hand-synthesized-from-capture",
+      "query": "query MetaobjectHydrateById($id: ID!) { node(id: $id) { __typename } metaobject(id: $id) { id handle type displayName updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } titleField: field(key: \"title\") { key type value jsonValue definition { key name required type { name category } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -2144,7 +2144,7 @@
       "variables": {
         "type": "codex_har_240_1777156845370"
       },
-      "query": "sha:hand-synthesized-from-capture",
+      "query": "query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } capabilities { adminFilterable { enabled } } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }",
       "response": {
         "status": 200,
         "body": {
