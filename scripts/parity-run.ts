@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFile, readdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, appendFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -313,6 +313,13 @@ async function startCassetteServer(): Promise<CassetteServer> {
     request.setEncoding('utf8');
     request.on('data', (chunk) => (body += chunk));
     request.on('end', () => {
+      if (process.env['PARITY_LOG_UPSTREAM']) {
+        try {
+          appendFileSync(process.env['PARITY_LOG_UPSTREAM'], `${body}\n@@@PARITY_UPSTREAM_SEP@@@\n`);
+        } catch {
+          /* diagnostic only */
+        }
+      }
       const matchedIndex = calls.findIndex(
         (call, callIndex) => !consumedCalls.has(callIndex) && recordedCallMatchesBody(call, body),
       );

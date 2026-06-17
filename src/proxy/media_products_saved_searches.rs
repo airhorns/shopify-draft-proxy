@@ -4425,6 +4425,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn product_delete(
         &mut self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
@@ -4437,6 +4438,9 @@ impl DraftProxy {
         let Some(id) = resolved_string_field(&input, "id") else {
             return MutationOutcome::response(product_delete_missing_product(query));
         };
+        if !self.store.has_product(&id) && self.config.read_mode == ReadMode::LiveHybrid {
+            self.hydrate_product_nodes_for_observation_with_request(request, vec![id.clone()]);
+        }
         if !self.store.has_product(&id) {
             return MutationOutcome::response(product_delete_missing_product(query));
         }
