@@ -610,11 +610,25 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
   const record = capture as Record<string, unknown>;
   const customers = Array.isArray(record['seedCustomers']) ? record['seedCustomers'] : [];
   const segments = Array.isArray(record['seedSegments']) ? record['seedSegments'] : [];
-  if (customers.length === 0 && segments.length === 0) return;
+  const products = Array.isArray(record['seedProducts']) ? record['seedProducts'] : [];
+  const productVariants = Array.isArray(record['seedProductVariants'])
+    ? record['seedProductVariants']
+    : [];
+  const collections = Array.isArray(record['seedCollections']) ? record['seedCollections'] : [];
+  const discounts = Array.isArray(record['seedDiscounts']) ? record['seedDiscounts'] : [];
+  if (
+    customers.length === 0 &&
+    segments.length === 0 &&
+    products.length === 0 &&
+    productVariants.length === 0 &&
+    collections.length === 0 &&
+    discounts.length === 0
+  )
+    return;
   await proxy.processRequest({
     method: 'POST',
     path: '/__meta/seed',
-    body: { customers, segments },
+    body: { customers, segments, products, productVariants, collections, discounts },
   });
 }
 

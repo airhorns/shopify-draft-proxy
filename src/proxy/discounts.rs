@@ -294,6 +294,9 @@ impl DraftProxy {
         {
             user_errors.push(error);
         }
+        if let Some(input_map) = input.as_ref() {
+            user_errors.extend(self.discount_reference_user_errors(input_map, input_arg));
+        }
         if !user_errors.is_empty() {
             return MutationFieldOutcome::unlogged(discount_payload_for_root(
                 &field.name,
@@ -373,6 +376,146 @@ impl DraftProxy {
                     segment["name"] = name;
                 }
             }
+        }
+    }
+
+    /// Referential-integrity validation that depends on the proxy's current store
+    /// contents: a duplicate redeem code (TAKEN) and item-entitlement references to
+    /// products / variants / collections that do not exist. Shopify resolves these
+    /// against its catalog; the proxy mirrors that for an arbitrary backend by
+    /// checking the entities a scenario has seeded or staged. To avoid fabricating
+    /// rejections for entities the proxy was simply never told about, existence is
+    /// enforced only once the store is authoritative for that entity type (something
+    /// of that kind has been seeded/staged) — except the universally-invalid `/0`
+    /// sentinel id, which never resolves on any Shopify store.
+    fn discount_reference_user_errors(
+        &self,
+        input: &BTreeMap<String, ResolvedValue>,
+        input_arg: &str,
+    ) -> Vec<Value> {
+        let mut errors = Vec::new();
+        if let Some(code) = resolved_string_path(input, &["code"]) {
+            if !code.trim().is_empty()
+                && self
+                    .store
+                    .staged
+                    .discount_code_index
+                    .contains_key(&code.to_ascii_uppercase())
+            {
+                errors.push(discount_user_error(
+                    vec![input_arg, "code"],
+                    "Code must be unique. Please try a different code.",
+                    "TAKEN",
+                ));
+            }
+        }
+        for selection in ["customerBuys", "customerGets"] {
+            errors.extend(self.discount_items_reference_errors(input, input_arg, selection));
+        }
+        errors
+    }
+
+    /// Existence / conflict validation for one entitlement selection (`customerBuys`
+    /// or `customerGets`). Order within a block mirrors Shopify: collections (a
+    /// conflict when products are also present, otherwise an existence check), then
+    /// products, then variants.
+    fn discount_items_reference_errors(
+        &self,
+        input: &BTreeMap<String, ResolvedValue>,
+        input_arg: &str,
+        selection: &str,
+    ) -> Vec<Value> {
+        let mut errors = Vec::new();
+        let products =
+            resolved_string_list_path(input, &[selection, "items", "products", "productsToAdd"]);
+        let variants = resolved_string_list_path(
+            input,
+            &[selection, "items", "products", "productVariantsToAdd"],
+        );
+        let collections =
+            resolved_string_list_path(input, &[selection, "items", "collections", "add"]);
+        let has_product_refs = !products.is_empty() || !variants.is_empty();
+        if !collections.is_empty() {
+            if has_product_refs {
+                errors.push(discount_user_error(
+                    vec![input_arg, selection, "items", "collections", "add"],
+                    "Cannot entitle collections in combination with product variants or products",
+                    "CONFLICT",
+                ));
+            } else {
+                for collection_id in &collections {
+                    if !self.discount_reference_collection_exists(collection_id) {
+                        errors.push(discount_user_error(
+                            vec![input_arg, selection, "items", "collections", "add"],
+                            &format!(
+                                "Collection with id: {} is invalid",
+                                discount_reference_numeric_id(collection_id)
+                            ),
+                            "INVALID",
+                        ));
+                    }
+                }
+            }
+        }
+        for product_id in &products {
+            if !self.discount_reference_product_exists(product_id) {
+                errors.push(discount_user_error(
+                    vec![input_arg, selection, "items", "products", "productsToAdd"],
+                    &format!(
+                        "Product with id: {} is invalid",
+                        discount_reference_numeric_id(product_id)
+                    ),
+                    "INVALID",
+                ));
+            }
+        }
+        for variant_id in &variants {
+            if !self.discount_reference_product_variant_exists(variant_id) {
+                errors.push(discount_user_error(
+                    vec![input_arg, selection, "items", "products", "productVariantsToAdd"],
+                    &format!(
+                        "Product variant with id: {} is invalid",
+                        discount_reference_numeric_id(variant_id)
+                    ),
+                    "INVALID",
+                ));
+            }
+        }
+        errors
+    }
+
+    fn discount_reference_product_exists(&self, gid: &str) -> bool {
+        if discount_reference_numeric_id(gid) == "0" {
+            return false;
+        }
+        if self.store.has_product_state() {
+            self.store.has_product(gid)
+        } else {
+            true
+        }
+    }
+
+    fn discount_reference_product_variant_exists(&self, gid: &str) -> bool {
+        if discount_reference_numeric_id(gid) == "0" {
+            return false;
+        }
+        let authoritative = !self.store.staged.product_variants.records.is_empty()
+            || !self.store.base.product_variants.records.is_empty();
+        if authoritative {
+            self.store.product_variant_by_id(gid).is_some()
+        } else {
+            true
+        }
+    }
+
+    fn discount_reference_collection_exists(&self, gid: &str) -> bool {
+        if discount_reference_numeric_id(gid) == "0" {
+            return false;
+        }
+        if self.store.has_collection_state() {
+            self.store.collection_by_id(gid).is_some()
+        } else {
+            true
         }
     }
 
@@ -1305,13 +1448,47 @@ fn discount_input_user_errors(
         ));
         return errors;
     };
+    // Free-shipping (SHIPPING-class) discounts validate the combinesWith/discount-class
+    // constraint ahead of the title, and an automatic free-shipping discount does not
+    // require a title at all (Shopify derives one). Surface that ordering up front; the
+    // generic combinesWith resolver below intentionally no longer re-emits this error.
+    let is_free_shipping = typename.contains("FreeShipping");
+    let is_automatic = !typename.starts_with("DiscountCode");
+    let combines_invalid = is_free_shipping
+        && resolved_bool_path(input, &["combinesWith", "shippingDiscounts"]) == Some(true);
+    if combines_invalid {
+        errors.push(discount_user_error(
+            vec![input_arg, "combinesWith"],
+            "The combinesWith settings are not valid for the discount class.",
+            "INVALID_COMBINES_WITH_FOR_DISCOUNT_CLASS",
+        ));
+    }
+    // (bxgy) `customerGets` cannot entitle "all" items; Shopify reports this ahead of
+    // the title-blank check.
+    if typename.contains("Bxgy")
+        && resolved_bool_path(input, &["customerGets", "items", "all"]) == Some(true)
+    {
+        errors.push(discount_user_error(
+            vec![input_arg, "customerGets"],
+            "Items in 'customer get' cannot be set to all",
+            "INVALID",
+        ));
+    }
+    // When an automatic free-shipping discount also has an invalid combinesWith
+    // (shippingDiscounts=true), Shopify reports only the combinesWith error and
+    // suppresses the title-blank error. A code free-shipping discount reports both,
+    // and an automatic free-shipping discount with a *valid* combinesWith still
+    // rejects a blank title — so the suppression is gated on combines_invalid.
+    let skip_title_blank = is_automatic && combines_invalid;
     if let Some(title) = resolved_string_path(input, &["title"]) {
         if title.trim().is_empty() {
-            errors.push(discount_user_error(
-                vec![input_arg, "title"],
-                "Title can't be blank",
-                "BLANK",
-            ));
+            if !skip_title_blank {
+                errors.push(discount_user_error(
+                    vec![input_arg, "title"],
+                    "Title can't be blank",
+                    "BLANK",
+                ));
+            }
         } else if title.chars().count() > 255 {
             errors.push(discount_user_error(
                 vec![input_arg, "title"],
@@ -1319,7 +1496,7 @@ fn discount_input_user_errors(
                 "TOO_LONG",
             ));
         }
-    } else {
+    } else if !skip_title_blank {
         errors.push(discount_user_error(
             vec![input_arg, "title"],
             "Title can't be blank",
@@ -1519,6 +1696,22 @@ fn discount_bxgy_customer_gets_user_errors(
             "INVALID",
         ));
     }
+    // A bxgy create must entitle concrete `customerBuys` items; an "all" items block
+    // (or an omitted one) is rejected as undefined. Validated on create only — an
+    // update that leaves `customerBuys` untouched must not be forced to redefine it.
+    if create {
+        let buys_items_present =
+            resolved_object_path(Some(&input_value), &["customerBuys", "items"]).is_some();
+        let buys_all =
+            resolved_bool_path(input, &["customerBuys", "items", "all"]) == Some(true);
+        if !buys_items_present || buys_all {
+            errors.push(discount_user_error(
+                vec![input_arg, "customerBuys", "items"],
+                "Items in 'customer buys' must be defined",
+                "BLANK",
+            ));
+        }
+    }
     errors
 }
 
@@ -1536,7 +1729,7 @@ fn discount_bxgy_customer_gets_user_errors(
 fn discount_combines_with_user_errors(
     input: &BTreeMap<String, ResolvedValue>,
     input_arg: &str,
-    typename: &str,
+    _typename: &str,
 ) -> Vec<Value> {
     let mut errors = Vec::new();
     let input_value = ResolvedValue::Object(input.clone());
@@ -1557,15 +1750,9 @@ fn discount_combines_with_user_errors(
             "INVALID_PRODUCT_DISCOUNTS_WITH_TAGS_ON_SAME_CART_LINE_FOR_DISCOUNT_CLASS",
         ));
     }
-    if typename.contains("FreeShipping")
-        && resolved_bool_path(input, &["combinesWith", "shippingDiscounts"]) == Some(true)
-    {
-        errors.push(discount_user_error(
-            vec![input_arg, "combinesWith"],
-            "The combinesWith settings are not valid for the discount class.",
-            "INVALID_COMBINES_WITH_FOR_DISCOUNT_CLASS",
-        ));
-    }
+    // NOTE: the free-shipping self-combine (INVALID_COMBINES_WITH_FOR_DISCOUNT_CLASS)
+    // error is emitted ahead of the title check in `discount_input_user_errors` to
+    // match Shopify's validation order, so it is intentionally not re-emitted here.
     errors
 }
 
@@ -2355,6 +2542,14 @@ fn discount_unknown_id_user_error(root: &str) -> Value {
 
 fn discount_id(record: &Value) -> &str {
     record["id"].as_str().unwrap_or_default()
+}
+
+/// The trailing numeric segment of a Shopify gid (`gid://shopify/Product/123` → `123`),
+/// stripping any `?shopify-draft-proxy=...` synthetic-id query. Used to render the
+/// `… with id: N is invalid` item-reference messages exactly as Shopify does.
+fn discount_reference_numeric_id(gid: &str) -> &str {
+    let tail = gid.rsplit('/').next().unwrap_or(gid);
+    tail.split('?').next().unwrap_or(tail)
 }
 
 fn discount_kind(record: &Value) -> &str {

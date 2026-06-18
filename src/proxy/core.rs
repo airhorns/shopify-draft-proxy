@@ -400,18 +400,27 @@ impl DraftProxy {
             || !self.store.staged.b2b_staff_assignments.is_empty()
     }
 
-    /// Seed pre-existing customer and segment records that a scenario's captured
-    /// setup created before the requests under test. The parity harness replays a
-    /// fixture's `seedCustomers` / `seedSegments` declarations here so local replay
-    /// can hydrate buyer-context display names / segment names the same way live
-    /// Shopify resolves them from already-existing entities. Each record is upserted
-    /// by its captured (live) id so later inputs that reference those ids match.
+    /// Seed pre-existing entity records that a scenario's captured setup created
+    /// before the requests under test. The parity harness replays a fixture's
+    /// `seedCustomers` / `seedSegments` / `seedProducts` / `seedProductVariants` /
+    /// `seedCollections` / `seedDiscounts` declarations here so local replay can
+    /// resolve references the live store already held (buyer-context display names,
+    /// segment names, and item-entitlement / duplicate-code referential integrity)
+    /// the same way live Shopify resolves them from already-existing entities. Each
+    /// record is upserted by its captured (live) id so later inputs that reference
+    /// those ids match. Seeding products/variants/collections also makes the proxy
+    /// *authoritative* for those entity types, which is what lets discount item-ref
+    /// validation reject ids the store has never seen.
     pub(in crate::proxy) fn seed_state(&mut self, request: &Request) -> Response {
         let Ok(body) = serde_json::from_str::<Value>(&request.body) else {
             return json_error(400, "Invalid seed payload JSON");
         };
         let mut seeded_customers = 0_usize;
         let mut seeded_segments = 0_usize;
+        let mut seeded_products = 0_usize;
+        let mut seeded_variants = 0_usize;
+        let mut seeded_collections = 0_usize;
+        let mut seeded_discounts = 0_usize;
         if let Some(customers) = body.get("customers").and_then(Value::as_array) {
             for customer in customers {
                 if let Some(id) = customer.get("id").and_then(Value::as_str) {
@@ -434,11 +443,117 @@ impl DraftProxy {
                 }
             }
         }
+        if let Some(products) = body.get("products").and_then(Value::as_array) {
+            for product in products {
+                if product.get("id").and_then(Value::as_str).is_some() {
+                    self.store.stage_observed_product_json(product);
+                    seeded_products += 1;
+                }
+            }
+        }
+        if let Some(variants) = body.get("productVariants").and_then(Value::as_array) {
+            for variant in variants {
+                // A variant state record requires an `inventoryItem` with an id; a
+                // seed declaration only needs to assert existence, so synthesize a
+                // deterministic inventory-item id from the variant id when absent.
+                let mut variant = variant.clone();
+                if variant.get("inventoryItem").is_none() {
+                    if let Some(id) = variant.get("id").and_then(Value::as_str) {
+                        let numeric = id.rsplit('/').next().unwrap_or(id);
+                        variant["inventoryItem"] = json!({
+                            "id": format!("gid://shopify/InventoryItem/{numeric}")
+                        });
+                    }
+                }
+                if let Some(record) = product_variant_state_from_json(&variant) {
+                    self.store.stage_product_variant(record);
+                    seeded_variants += 1;
+                }
+            }
+        }
+        if let Some(collections) = body.get("collections").and_then(Value::as_array) {
+            for collection in collections {
+                if collection.get("id").and_then(Value::as_str).is_some() {
+                    self.store.stage_collection(collection.clone());
+                    seeded_collections += 1;
+                }
+            }
+        }
+        if let Some(discounts) = body.get("discounts").and_then(Value::as_array) {
+            for discount in discounts {
+                if self.seed_discount_record(discount) {
+                    seeded_discounts += 1;
+                }
+            }
+        }
         ok_json(json!({
             "ok": true,
             "seededCustomers": seeded_customers,
-            "seededSegments": seeded_segments
+            "seededSegments": seeded_segments,
+            "seededProducts": seeded_products,
+            "seededProductVariants": seeded_variants,
+            "seededCollections": seeded_collections,
+            "seededDiscounts": seeded_discounts
         }))
+    }
+
+    /// Stage a pre-existing discount from a node-shaped seed declaration. Only the
+    /// id and redeem codes are needed for referential checks (duplicate-code TAKEN),
+    /// so this normalizes the captured node — whether codes live under
+    /// `discount.codes.nodes[]`, a flat `codes[]`, or a single `code` — into the
+    /// proxy's internal `{ id, codes: [{ code }] }` record shape and registers each
+    /// code in the uppercase code index. Returns false when the seed lacks an id.
+    fn seed_discount_record(&mut self, seed: &Value) -> bool {
+        let Some(id) = seed.get("id").and_then(Value::as_str) else {
+            return false;
+        };
+        let mut codes: Vec<Value> = Vec::new();
+        let mut push_code = |code: &str, redeem_id: Option<&str>| {
+            let mut entry = serde_json::Map::new();
+            entry.insert("code".to_string(), json!(code));
+            if let Some(redeem_id) = redeem_id {
+                entry.insert("id".to_string(), json!(redeem_id));
+            }
+            codes.push(Value::Object(entry));
+        };
+        if let Some(nodes) = seed
+            .pointer("/discount/codes/nodes")
+            .and_then(Value::as_array)
+        {
+            for node in nodes {
+                if let Some(code) = node.get("code").and_then(Value::as_str) {
+                    push_code(code, node.get("id").and_then(Value::as_str));
+                }
+            }
+        } else if let Some(nodes) = seed.pointer("/codes/nodes").and_then(Value::as_array) {
+            for node in nodes {
+                if let Some(code) = node.get("code").and_then(Value::as_str) {
+                    push_code(code, node.get("id").and_then(Value::as_str));
+                }
+            }
+        } else if let Some(list) = seed.get("codes").and_then(Value::as_array) {
+            for node in list {
+                if let Some(code) = node.get("code").and_then(Value::as_str) {
+                    push_code(code, node.get("id").and_then(Value::as_str));
+                }
+            }
+        } else if let Some(code) = seed.get("code").and_then(Value::as_str) {
+            push_code(code, None);
+        }
+        for entry in &codes {
+            if let Some(code) = entry.get("code").and_then(Value::as_str) {
+                self.store
+                    .staged
+                    .discount_code_index
+                    .insert(code.to_ascii_uppercase(), id.to_string());
+            }
+        }
+        self.store.staged.deleted_discount_ids.remove(id);
+        self.store
+            .staged
+            .discounts
+            .insert(id.to_string(), json!({ "id": id, "codes": codes }));
+        true
     }
 
     pub(in crate::proxy) fn dump_state(&self, request: &Request) -> Response {
