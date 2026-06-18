@@ -86,7 +86,7 @@ impl DraftProxy {
                 errors,
             ));
         }
-        self.record_product_option_linked_metaobject_definitions(&input_options);
+        self.record_product_option_linked_metaobjects(&input_options);
 
         let default_only = graph.is_default_only();
         if default_only {
@@ -532,7 +532,7 @@ impl DraftProxy {
         )
     }
 
-    fn record_product_option_linked_metaobject_definitions(
+    fn record_product_option_linked_metaobjects(
         &mut self,
         options: &[BTreeMap<String, ResolvedValue>],
     ) {
@@ -543,34 +543,43 @@ impl DraftProxy {
             let namespace =
                 resolved_string_field(&linked_metafield, "namespace").unwrap_or_default();
             let key = resolved_string_field(&linked_metafield, "key").unwrap_or_default();
-            let Some(definition) = self
+            if let Some(definition_id) = self
                 .store
                 .staged
                 .metafield_definitions
                 .get(&(namespace, key))
-            else {
-                continue;
-            };
-            let definition_id = definition["validations"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .find_map(|validation| {
-                    (validation.get("name").and_then(Value::as_str)
-                        == Some("metaobject_definition_id"))
-                    .then(|| {
-                        validation
-                            .get("value")
-                            .and_then(Value::as_str)
-                            .map(str::to_string)
-                    })
-                    .flatten()
-                });
-            if let Some(definition_id) = definition_id {
+                .and_then(|definition| {
+                    definition["validations"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .find_map(|validation| {
+                            (validation.get("name").and_then(Value::as_str)
+                                == Some("metaobject_definition_id"))
+                            .then(|| {
+                                validation
+                                    .get("value")
+                                    .and_then(Value::as_str)
+                                    .map(str::to_string)
+                            })
+                            .flatten()
+                        })
+                })
+            {
                 self.store
                     .staged
                     .product_option_linked_metaobject_definition_ids
                     .insert(definition_id);
+            }
+            let ids = resolved_string_list_field(&linked_metafield, "values")
+                .into_iter()
+                .filter(|id| shopify_gid_resource_type(id) == Some("Metaobject"))
+                .collect::<BTreeSet<_>>();
+            if ids.len() > 1 {
+                self.store
+                    .staged
+                    .linked_product_option_metaobject_sets
+                    .push(ids);
             }
         }
     }

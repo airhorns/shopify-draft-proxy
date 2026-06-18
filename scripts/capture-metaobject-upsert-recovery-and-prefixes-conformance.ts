@@ -92,12 +92,6 @@ const definitionDeleteMutation = `#graphql
   }
 `;
 
-const definitionHydrateQuery =
-  'query MetaobjectDefinitionHydrateByType($type: String!) { metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }';
-
-const metaobjectHydrateByHandleQuery =
-  'query MetaobjectHydrateByHandle($type: String!, $handle: String!) { metaobjectByHandle(handle: { type: $type, handle: $handle }) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } definition { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } } }';
-
 function readObject(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
@@ -276,12 +270,6 @@ try {
     metaobject: { fields: [] },
   });
 
-  const createHydrate = await client.runGraphqlRequest(metaobjectHydrateByHandleQuery, {
-    type,
-    handle: createHandle,
-  });
-  assertGraphqlOk(createHydrate, 'create hydrate');
-
   const proxyCreate = await runCapture(
     'create-proxy-branch',
     upsertVariables(createHandle, [{ key: 'title', value: `Create ${runId}` }]),
@@ -291,31 +279,13 @@ try {
     extractString(proxyCreate.response, ['data', 'metaobjectUpsert', 'metaobject', 'id'], 'create-proxy-branch'),
   );
 
-  const definitionHydrate = await client.runGraphqlRequest(definitionHydrateQuery, { type });
-  assertGraphqlOk(definitionHydrate, 'definition hydrate');
-  const primaryHydrate = await client.runGraphqlRequest(metaobjectHydrateByHandleQuery, {
-    type,
-    handle: primaryHandle,
-  });
-  assertGraphqlOk(primaryHydrate, 'primary hydrate');
-  const conflictHydrate = await client.runGraphqlRequest(metaobjectHydrateByHandleQuery, {
-    type,
-    handle: conflictHandle,
-  });
-  assertGraphqlOk(conflictHydrate, 'conflict hydrate');
-  const missingHydrate = await client.runGraphqlRequest(metaobjectHydrateByHandleQuery, {
-    type,
-    handle: `har-678-missing-${runId}`,
-  });
-  assertGraphqlOk(missingHydrate, 'missing hydrate');
-
   const fixture = {
     apiVersion,
     storeDomain,
     capturedAt: new Date().toISOString(),
     scenarioId: 'metaobject-upsert-recovery-and-prefixes',
     notes:
-      'Fresh HAR-678 capture for metaobjectUpsert exact-match no-op, handle/value userError prefix partitioning, and cold LiveHybrid hydration.',
+      'Fresh HAR-678 capture for metaobjectUpsert exact-match no-op and handle/value userError prefix partitioning. Parity replay uses the captured public definition/upsert setup mutations instead of synthesized hydration cassettes.',
     definitionCreate: captureFromResult(
       'definition-create',
       definitionCreateMutation,
@@ -334,38 +304,6 @@ try {
       conflictingHandle: withUserErrorField(conflictingHandle, ['handle', 'handle']),
       missingRequired: withUserErrorField(missingRequired, []),
     },
-    upstreamCalls: [
-      {
-        operationName: 'MetaobjectDefinitionHydrateByType',
-        variables: { type },
-        query: 'sha:captured-by-script',
-        response: { status: definitionHydrate.status, body: definitionHydrate.payload },
-      },
-      {
-        operationName: 'MetaobjectHydrateByHandle',
-        variables: { type, handle: primaryHandle },
-        query: 'sha:captured-by-script',
-        response: { status: primaryHydrate.status, body: primaryHydrate.payload },
-      },
-      {
-        operationName: 'MetaobjectHydrateByHandle',
-        variables: { type, handle: conflictHandle },
-        query: 'sha:captured-by-script',
-        response: { status: conflictHydrate.status, body: conflictHydrate.payload },
-      },
-      {
-        operationName: 'MetaobjectHydrateByHandle',
-        variables: { type, handle: `har-678-missing-${runId}` },
-        query: 'sha:captured-by-script',
-        response: { status: missingHydrate.status, body: missingHydrate.payload },
-      },
-      {
-        operationName: 'MetaobjectHydrateByHandle',
-        variables: { type, handle: createHandle },
-        query: 'sha:captured-by-script',
-        response: { status: createHydrate.status, body: createHydrate.payload },
-      },
-    ],
   };
 
   await mkdir(outputDir, { recursive: true });

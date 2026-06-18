@@ -1,6 +1,13 @@
 {
   "scenarioId": "metaobject-bulk-delete-type-lifecycle",
-  "operationNames": ["metaobjectBulkDelete", "metaobject", "metaobjects", "metaobjectDefinitionByType"],
+  "operationNames": [
+    "metaobjectDefinitionCreate",
+    "metaobjectCreate",
+    "metaobjectBulkDelete",
+    "metaobject",
+    "metaobjects",
+    "metaobjectDefinitionByType"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "runtime-staging"],
   "liveCaptureFiles": [
@@ -8,8 +15,8 @@
   ],
   "runtimeTestFiles": ["tests/integration/metaobject-draft-flow.test.ts"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-type-delete.graphql",
-    "variablesCapturePath": "$.bulkDelete[0].request.variables"
+    "documentCapturePath": "$.setup[0].request.query",
+    "variablesCapturePath": "$.setup[0].request.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
@@ -17,10 +24,71 @@
     "expectedDifferences": [],
     "targets": [
       {
+        "name": "setup-definition-create",
+        "capturePath": "$.setup[0].response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returns the captured live-store ID."
+          }
+        ]
+      },
+      {
+        "name": "setup-first-entry-create",
+        "capturePath": "$.setup[1].response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentCapturePath": "$.setup[1].request.query",
+          "variablesCapturePath": "$.setup[1].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy stages a synthetic metaobject ID while Shopify returns the captured live-store ID."
+          },
+          {
+            "path": "$.metaobject.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time while Shopify returned the captured write timestamp."
+          }
+        ]
+      },
+      {
+        "name": "setup-second-entry-create",
+        "capturePath": "$.setup[2].response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentCapturePath": "$.setup[2].request.query",
+          "variablesCapturePath": "$.setup[2].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobject.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The local proxy stages a synthetic metaobject ID while Shopify returns the captured live-store ID."
+          },
+          {
+            "path": "$.metaobject.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time while Shopify returned the captured write timestamp."
+          }
+        ]
+      },
+      {
         "name": "bulk-delete-type-payload",
         "capturePath": "$.bulkDelete[0].response.data.metaobjectBulkDelete",
         "proxyPath": "$.data.metaobjectBulkDelete",
         "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-type-delete.graphql",
+          "variablesCapturePath": "$.bulkDelete[0].request.variables"
+        },
         "expectedDifferences": [
           {
             "path": "$.job.id",
@@ -42,10 +110,35 @@
         "upstreamCapturePath": null,
         "proxyRequest": {
           "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-type-read.graphql",
-          "variablesCapturePath": "$.downstreamReads[0].request.variables"
-        }
+          "variables": {
+            "type": {
+              "fromCapturePath": "$.downstreamReads[0].request.variables.type"
+            },
+            "firstId": {
+              "fromProxyResponse": "setup-first-entry-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "secondId": {
+              "fromProxyResponse": "setup-second-entry-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.definition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy reads back the synthetic staged definition ID while Shopify returns the captured live-store definition ID."
+          },
+          {
+            "path": "$.definition.metaobjectsCount",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Fresh Shopify captures show type-scoped metaobjectBulkDelete hides selected rows before the definition aggregate count catches up; the proxy applies staged deletes synchronously and reports the effective local count."
+          }
+        ]
       }
     ]
   },
-  "notes": "HAR-450 captured live 2026-04 evidence for `metaobjectBulkDelete(where: { type })` selecting all rows for a disposable definition. Shopify returned an async job with `done=false`, but immediate downstream reads already hid both selected rows and reported `metaobjectsCount: 0`. The parity runner seeds the proxy from the captured pre-delete read, replays the type-scoped bulk delete locally, and strictly compares the mutation userErrors plus downstream ID, catalog, and definition-count reads while accepting only job id/timing volatility."
+  "notes": "HAR-450 captured live 2026-04 evidence for `metaobjectBulkDelete(where: { type })` selecting all rows for a disposable definition. The parity runner replays the captured public setup mutations, replays the type-scoped bulk delete locally, and strictly compares mutation userErrors plus downstream ID and catalog reads. Shopify returns an async job with `done=false`, and fresh 2026-04 captures show row reads/catalog visibility can settle before `metaobjectDefinitionByType.metaobjectsCount` catches up, so the aggregate count is the only accepted downstream volatility."
 }

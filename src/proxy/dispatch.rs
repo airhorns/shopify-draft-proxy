@@ -381,7 +381,10 @@ impl DraftProxy {
                 matches!(
                     field.as_str(),
                     "metaobjectCreate"
+                        | "metaobjectUpdate"
+                        | "metaobjectUpsert"
                         | "metaobjectDelete"
+                        | "metaobjectBulkDelete"
                         | "metaobjectDefinitionCreate"
                         | "metaobjectDefinitionUpdate"
                         | "metaobjectDefinitionDelete"
@@ -391,22 +394,6 @@ impl DraftProxy {
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return self.metaobject_mutation(&fields, request, &query, &variables);
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && operation
-                .root_fields
-                .iter()
-                .all(|field| field == "metaobjectDefinitionUpdate")
-        {
-            if let Some(fields) = root_fields(&query, &variables) {
-                if fields
-                    .iter()
-                    .all(|field| self.metaobject_definition_update_targets_local_definition(field))
-                {
-                    return self.metaobject_mutation(&fields, request, &query, &variables);
-                }
             }
         }
 

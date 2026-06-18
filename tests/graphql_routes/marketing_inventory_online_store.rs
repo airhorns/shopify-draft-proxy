@@ -4813,6 +4813,430 @@ fn metaobject_entry_lifecycle_dispatches_by_root_field_and_definition_state() {
 }
 
 #[test]
+fn metaobject_update_upsert_and_bulk_delete_stage_locally_and_update_reads() {
+    let mut proxy = snapshot_proxy();
+
+    let definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateEntryMutationDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id type metaobjectsCount fieldDefinitions { key required type { name category } } capabilities { publishable { enabled } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "entry_mutation_type",
+            "name": "Entry Mutation Type",
+            "displayNameKey": "title",
+            "capabilities": {"publishable": {"enabled": true}},
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true},
+                {"key": "body", "name": "Body", "type": "multi_line_text_field", "required": false}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateEntryMutationRow($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle displayName fields { key value } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"metaobject": {
+            "type": "entry_mutation_type",
+            "handle": "entry-one",
+            "fields": [
+                {"key": "title", "value": "Entry One"},
+                {"key": "body", "value": "Initial body"}
+            ]
+        }}),
+    ));
+    let first_id = created.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AnyUpdateName($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          patched: metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { id handle displayName capabilities { publishable { status } } fields { key value } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"id": first_id, "metaobject": {
+            "handle": "entry-one-renamed",
+            "capabilities": {"publishable": {"status": "ACTIVE"}},
+            "fields": [{"key": "body", "value": "Updated body"}]
+        }}),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(update.body["data"]["patched"]["userErrors"], json!([]));
+    assert_eq!(
+        update.body["data"]["patched"]["metaobject"]["id"],
+        json!(first_id)
+    );
+    assert_eq!(
+        update.body["data"]["patched"]["metaobject"]["handle"],
+        json!("entry-one-renamed")
+    );
+    assert_eq!(
+        update.body["data"]["patched"]["metaobject"]["displayName"],
+        json!("Entry One")
+    );
+    assert_eq!(
+        update.body["data"]["patched"]["metaobject"]["capabilities"]["publishable"]["status"],
+        json!("ACTIVE")
+    );
+    assert_eq!(
+        update.body["data"]["patched"]["metaobject"]["fields"][1]["value"],
+        json!("Updated body")
+    );
+
+    let read_after_update = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAfterUpdate($id: ID!, $old: MetaobjectHandleInput!, $new: MetaobjectHandleInput!, $type: String!) {
+          detail: metaobject(id: $id) { id handle displayName }
+          oldHandle: metaobjectByHandle(handle: $old) { id }
+          newHandle: metaobjectByHandle(handle: $new) { id handle }
+          catalog: metaobjects(type: $type, first: 10) { nodes { id handle } }
+        }
+        "#,
+        json!({
+            "id": first_id,
+            "old": {"type": "entry_mutation_type", "handle": "entry-one"},
+            "new": {"type": "entry_mutation_type", "handle": "entry-one-renamed"},
+            "type": "entry_mutation_type"
+        }),
+    ));
+    assert_eq!(
+        read_after_update.body["data"]["detail"]["handle"],
+        json!("entry-one-renamed")
+    );
+    assert_eq!(read_after_update.body["data"]["oldHandle"], Value::Null);
+    assert_eq!(
+        read_after_update.body["data"]["newHandle"]["id"],
+        json!(first_id)
+    );
+    assert_eq!(
+        read_after_update.body["data"]["catalog"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let missing_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) { metaobject { id } userErrors { field message code } }
+        }
+        "#,
+        json!({"id": "gid://shopify/Metaobject/missing", "metaobject": {"fields": [{"key": "title", "value": "Missing"}]}}),
+    ));
+    assert_eq!(
+        missing_update.body["data"]["metaobjectUpdate"]["userErrors"][0]["code"],
+        json!("RECORD_NOT_FOUND")
+    );
+
+    let upsert_existing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation AnyUpsertName($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+            metaobject { id handle displayName fields { key value } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({
+            "handle": {"type": "entry_mutation_type", "handle": "entry-one-renamed"},
+            "metaobject": {
+                "handle": "entry-one-upserted",
+                "fields": [{"key": "title", "value": "Entry One Upserted"}]
+            }
+        }),
+    ));
+    assert_eq!(
+        upsert_existing.body["data"]["metaobjectUpsert"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        upsert_existing.body["data"]["metaobjectUpsert"]["metaobject"]["id"],
+        json!(first_id)
+    );
+    assert_eq!(
+        upsert_existing.body["data"]["metaobjectUpsert"]["metaobject"]["handle"],
+        json!("entry-one-upserted")
+    );
+    assert_eq!(
+        upsert_existing.body["data"]["metaobjectUpsert"]["metaobject"]["displayName"],
+        json!("Entry One Upserted")
+    );
+
+    let upsert_created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpsertCreateBranch($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+            metaobject { id handle displayName }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "handle": {"type": "entry_mutation_type", "handle": "entry-two"},
+            "metaobject": {"fields": [{"key": "title", "value": "Entry Two"}]}
+        }),
+    ));
+    assert_eq!(
+        upsert_created.body["data"]["metaobjectUpsert"]["userErrors"],
+        json!([])
+    );
+    let second_id = upsert_created.body["data"]["metaobjectUpsert"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_ne!(second_id, first_id);
+    assert_eq!(
+        upsert_created.body["data"]["metaobjectUpsert"]["metaobject"]["handle"],
+        json!("entry-two")
+    );
+
+    let missing_definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation MissingUpsertType($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) { metaobject { id } userErrors { field message code } }
+        }
+        "#,
+        json!({
+            "handle": {"type": "missing_entry_mutation_type", "handle": "missing"},
+            "metaobject": {"fields": [{"key": "title", "value": "Missing"}]}
+        }),
+    ));
+    assert_eq!(
+        missing_definition.body["data"]["metaobjectUpsert"]["userErrors"][0]["code"],
+        json!("UNDEFINED_OBJECT_TYPE")
+    );
+
+    let product = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLinkedOptionProduct($product: ProductCreateInput!) {
+          productCreate(product: $product) {
+            product { id title }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"product": {"title": "Linked Option Product", "status": "DRAFT"}}),
+    ));
+    let product_id = product.body["data"]["productCreate"]["product"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let options = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateLinkedOption(
+          $productId: ID!
+          $options: [OptionCreateInput!]!
+          $variantStrategy: ProductOptionCreateVariantStrategy
+        ) {
+          productOptionsCreate(productId: $productId, options: $options, variantStrategy: $variantStrategy) {
+            product { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "productId": product_id,
+            "variantStrategy": "LEAVE_AS_IS",
+            "options": [{
+                "name": "Entry Choice",
+                "linkedMetafield": {
+                    "namespace": "linked_entry",
+                    "key": "choice",
+                    "values": [first_id.clone(), second_id.clone()]
+                }
+            }]
+        }),
+    ));
+    assert_eq!(
+        options.body["data"]["productOptionsCreate"]["userErrors"],
+        json!([])
+    );
+
+    let display_name_conflict = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateDisplayNameConflict($id: ID!, $metaobject: MetaobjectUpdateInput!) {
+          metaobjectUpdate(id: $id, metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({
+            "id": second_id.clone(),
+            "metaobject": {"fields": [{"key": "title", "value": "Entry One Upserted"}]}
+        }),
+    ));
+    assert_eq!(
+        display_name_conflict.body["data"]["metaobjectUpdate"]["metaobject"],
+        Value::Null
+    );
+    assert_eq!(
+        display_name_conflict.body["data"]["metaobjectUpdate"]["userErrors"][0],
+        json!({
+            "field": ["metaobject", "fields", "0"],
+            "message": "The display name you have chosen is already in use as an option value. Choose a different name to avoid conflicts.",
+            "code": "DISPLAY_NAME_CONFLICT",
+            "elementKey": null,
+            "elementIndex": null
+        })
+    );
+
+    let upsert_display_name_conflict = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpsertDisplayNameConflict($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+          metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+            metaobject { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({
+            "handle": {"type": "entry_mutation_type", "handle": "entry-two"},
+            "metaobject": {"fields": [{"key": "title", "value": "Entry One Upserted"}]}
+        }),
+    ));
+    assert_eq!(
+        upsert_display_name_conflict.body["data"]["metaobjectUpsert"]["metaobject"],
+        Value::Null
+    );
+    assert_eq!(
+        upsert_display_name_conflict.body["data"]["metaobjectUpsert"]["userErrors"][0]["code"],
+        json!("DISPLAY_NAME_CONFLICT")
+    );
+
+    let bulk_by_ids = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkDeleteIds($where: MetaobjectBulkDeleteWhereCondition!) {
+          metaobjectBulkDelete(where: $where) {
+            job { id done }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"where": {"ids": [first_id, "gid://shopify/Metaobject/missing-bulk"]}}),
+    ));
+    assert!(
+        bulk_by_ids.body["data"]["metaobjectBulkDelete"]["job"]["id"]
+            .as_str()
+            .unwrap()
+            .starts_with("gid://shopify/Job/")
+    );
+    assert_eq!(
+        bulk_by_ids.body["data"]["metaobjectBulkDelete"]["userErrors"][0],
+        json!({
+            "field": ["where", "ids", "1"],
+            "message": "Record not found",
+            "code": "RECORD_NOT_FOUND",
+            "elementKey": "gid://shopify/Metaobject/missing-bulk",
+            "elementIndex": 1
+        })
+    );
+
+    let after_id_bulk_delete = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAfterIdBulkDelete($first: ID!, $second: ID!, $type: String!) {
+          first: metaobject(id: $first) { id }
+          second: metaobject(id: $second) { id handle }
+          definition: metaobjectDefinitionByType(type: $type) { metaobjectsCount }
+        }
+        "#,
+        json!({"first": first_id, "second": second_id, "type": "entry_mutation_type"}),
+    ));
+    assert_eq!(after_id_bulk_delete.body["data"]["first"], Value::Null);
+    assert_eq!(
+        after_id_bulk_delete.body["data"]["second"]["handle"],
+        json!("entry-two")
+    );
+    assert_eq!(
+        after_id_bulk_delete.body["data"]["definition"]["metaobjectsCount"],
+        json!(1)
+    );
+
+    let bulk_by_type = proxy.process_request(json_graphql_request(
+        r#"
+        mutation BulkDeleteType($where: MetaobjectBulkDeleteWhereCondition!) {
+          metaobjectBulkDelete(where: $where) { job { id done } userErrors { field message code } }
+        }
+        "#,
+        json!({"where": {"type": "entry_mutation_type"}}),
+    ));
+    assert_eq!(
+        bulk_by_type.body["data"]["metaobjectBulkDelete"]["userErrors"],
+        json!([])
+    );
+
+    let final_read = proxy.process_request(json_graphql_request(
+        r#"
+        query FinalRead($second: ID!, $handle: MetaobjectHandleInput!, $type: String!) {
+          second: metaobject(id: $second) { id }
+          byHandle: metaobjectByHandle(handle: $handle) { id }
+          catalog: metaobjects(type: $type, first: 10) { nodes { id } }
+          definition: metaobjectDefinitionByType(type: $type) { metaobjectsCount }
+        }
+        "#,
+        json!({
+            "second": second_id,
+            "handle": {"type": "entry_mutation_type", "handle": "entry-two"},
+            "type": "entry_mutation_type"
+        }),
+    ));
+    assert_eq!(final_read.body["data"]["second"], Value::Null);
+    assert_eq!(final_read.body["data"]["byHandle"], Value::Null);
+    assert_eq!(final_read.body["data"]["catalog"]["nodes"], json!([]));
+    assert_eq!(
+        final_read.body["data"]["definition"]["metaobjectsCount"],
+        json!(0)
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        ..Default::default()
+    });
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 9);
+    assert_eq!(
+        log.body["entries"][2]["interpreted"]["primaryRootField"],
+        json!("metaobjectUpdate")
+    );
+    assert_eq!(
+        log.body["entries"][3]["interpreted"]["primaryRootField"],
+        json!("metaobjectUpsert")
+    );
+    assert_eq!(
+        log.body["entries"][7]["interpreted"]["primaryRootField"],
+        json!("metaobjectBulkDelete")
+    );
+    assert_eq!(
+        log.body["entries"][8]["interpreted"]["primaryRootField"],
+        json!("metaobjectBulkDelete")
+    );
+    assert!(log.body["entries"][2]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("metaobjectUpdate"));
+}
+
+#[test]
 fn metaobject_definition_update_stages_schema_changes_and_reprojects_rows() {
     let mut proxy = snapshot_proxy();
 
