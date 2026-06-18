@@ -264,6 +264,23 @@ impl DraftProxy {
                 user_errors,
             );
         }
+        let staged_upload_file_size = self.bulk_operation_staged_upload_size(&staged_upload_path);
+        let max_file_size = self
+            .config
+            .bulk_operation_run_mutation_max_input_file_size_bytes
+            .unwrap_or(DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES);
+        if staged_upload_file_size
+            .flatten()
+            .is_some_and(|file_size| file_size > max_file_size)
+        {
+            return bulk_operation_run_mutation_error_response(
+                &response_key,
+                &payload_selection,
+                vec![bulk_operation_run_mutation_file_size_too_large_user_error(
+                    max_file_size,
+                )],
+            );
+        }
         if let Some(operation_id) = self.in_progress_mutation_bulk_operation_id() {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
@@ -275,26 +292,11 @@ impl DraftProxy {
                 })],
             );
         }
-        let Some(file_size) = self.bulk_operation_staged_upload_size(&staged_upload_path) else {
+        if staged_upload_file_size.is_none() {
             return bulk_operation_run_mutation_error_response(
                 &response_key,
                 &payload_selection,
                 vec![bulk_operation_run_mutation_no_such_file_user_error()],
-            );
-        };
-        let max_file_size = self
-            .config
-            .bulk_operation_run_mutation_max_input_file_size_bytes
-            .unwrap_or(DEFAULT_BULK_OPERATION_RUN_MUTATION_MAX_INPUT_FILE_SIZE_BYTES);
-        if file_size.unwrap_or(0) > max_file_size {
-            return bulk_operation_run_mutation_error_response(
-                &response_key,
-                &payload_selection,
-                vec![json!({
-                    "field": ["stagedUploadPath"],
-                    "message": "The JSONL file exceeds the maximum allowed size of 100 MB.",
-                    "code": "INVALID_MUTATION"
-                })],
             );
         }
 
@@ -595,12 +597,11 @@ impl DraftProxy {
             .into_iter()
             .enumerate()
             .map(|(index, input)| {
-                let content_type = resolved_string_field(&input, "contentType")
-                    .unwrap_or_else(|| "IMAGE".to_string());
-                let resource_type = media_file_gid_type(&content_type);
-                let id = self.next_proxy_synthetic_gid(resource_type);
                 let original_source =
                     resolved_string_field(&input, "originalSource").unwrap_or_default();
+                let content_type = media_file_create_content_type(&input, &original_source);
+                let resource_type = media_file_gid_type(&content_type);
+                let id = self.next_proxy_synthetic_gid(resource_type);
                 let filename = resolved_string_field(&input, "filename")
                     .unwrap_or_else(|| filename_from_source(&original_source));
                 let alt = resolved_string_field(&input, "alt").unwrap_or_default();
@@ -1047,12 +1048,13 @@ impl DraftProxy {
                 .filter(|(id, _)| !self.store.staged.deleted_media_file_ids.contains(*id))
                 .map(|(_, file)| file.clone())
                 .collect::<Vec<_>>();
-            files.sort_by_key(|file| {
-                file.get("id")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string()
-            });
+            files.sort_by_key(media_file_sort_id);
+            if matches!(
+                field.arguments.get("reverse"),
+                Some(ResolvedValue::Bool(true))
+            ) {
+                files.reverse();
+            }
             data.insert(
                 field.response_key,
                 selected_connection_json_with_args(
@@ -1064,6 +1066,51 @@ impl DraftProxy {
             );
         }
         ok_json(json!({"data": Value::Object(data)}))
+    }
+
+    pub(in crate::proxy) fn media_file_node_read_data(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Option<Value> {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "node" => {
+                    let id = resolved_string_arg(&field.arguments, "id")?;
+                    self.media_file_node_value(&id, &field.selection)?
+                }
+                "nodes" => {
+                    let ids = match field.arguments.get("ids")? {
+                        ResolvedValue::List(ids) => ids,
+                        _ => return None,
+                    };
+                    Value::Array(
+                        ids.iter()
+                            .map(|id| match id {
+                                ResolvedValue::String(id) => {
+                                    self.media_file_node_value(id, &field.selection)
+                                }
+                                _ => None,
+                            })
+                            .collect::<Option<Vec<_>>>()?,
+                    )
+                }
+                _ => return None,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Some(Value::Object(data))
+    }
+
+    fn media_file_node_value(&self, id: &str, selection: &[SelectedField]) -> Option<Value> {
+        if self.store.staged.deleted_media_file_ids.contains(id) {
+            return Some(Value::Null);
+        }
+        self.store
+            .staged
+            .media_files
+            .get(id)
+            .map(|file| selected_json(file, selection))
     }
 
     pub(in crate::proxy) fn media_product_read(
@@ -2422,67 +2469,6 @@ impl DraftProxy {
         } else {
             fixture["downstreamRead"]["data"].clone()
         }
-    }
-
-    pub(in crate::proxy) fn product_options_fixture_backed_mutation_data(
-        &mut self,
-        query: &str,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Option<Value> {
-        let product_id = resolved_string_field(variables, "productId")?;
-        let fixture_name = if query.contains("ProductOptionsCreateParityPlan")
-            && product_id == "gid://shopify/Product/10172064891186"
-        {
-            "product-options-create-parity.json"
-        } else if query.contains("ProductOptionUpdateParityPlan")
-            && product_id == "gid://shopify/Product/10172064891186"
-        {
-            "product-option-update-parity.json"
-        } else if query.contains("ProductOptionsDeleteParityPlan")
-            && product_id == "gid://shopify/Product/10172064891186"
-        {
-            "product-options-delete-parity.json"
-        } else if query.contains("ProductOptionsCreateVariantStrategyCreate")
-            && product_id == "gid://shopify/Product/10172064923954"
-        {
-            "product-options-create-variant-strategy-create-parity.json"
-        } else if query.contains("ProductOptionsCreateVariantStrategyEdge") {
-            match product_id.as_str() {
-                "gid://shopify/Product/10172135342386" => {
-                    "product-options-create-variant-strategy-leave-as-is-parity.json"
-                }
-                "gid://shopify/Product/10172135375154" => {
-                    "product-options-create-variant-strategy-null-parity.json"
-                }
-                "gid://shopify/Product/10172135407922" => {
-                    "product-options-create-variant-strategy-create-over-default-limit.json"
-                }
-                _ => return None,
-            }
-        } else {
-            return None;
-        };
-        self.store.staged.product_option_fixture = Some(fixture_name.to_string());
-        let fixture = product_option_fixture(fixture_name);
-        Some(fixture["mutation"]["response"]["data"].clone())
-    }
-
-    pub(in crate::proxy) fn product_option_lifecycle_downstream_data(
-        &self,
-        variables: &BTreeMap<String, ResolvedValue>,
-    ) -> Value {
-        let id = resolved_string_field(variables, "id").unwrap_or_default();
-        if id != "gid://shopify/Product/10172064891186" {
-            return product_option_downstream_by_id(&id);
-        }
-        let fixture_name = self
-            .store
-            .staged
-            .product_option_fixture
-            .as_deref()
-            .unwrap_or("product-options-create-parity.json");
-        let fixture = product_option_fixture(fixture_name);
-        fixture["downstreamRead"]["data"].clone()
     }
 
     pub(in crate::proxy) fn product_create(
@@ -4594,6 +4580,13 @@ impl DraftProxy {
     }
 }
 
+fn media_file_sort_id(file: &Value) -> u64 {
+    file.get("id")
+        .and_then(Value::as_str)
+        .and_then(|id| resource_id_tail(id).parse::<u64>().ok())
+        .unwrap_or_default()
+}
+
 fn taggable_record_tags(record: &Value) -> Vec<String> {
     record
         .get("tags")
@@ -4816,6 +4809,15 @@ fn bulk_operation_run_mutation_no_such_file_user_error() -> Value {
         "field": null,
         "message": "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
         "code": "NO_SUCH_FILE"
+    })
+}
+
+fn bulk_operation_run_mutation_file_size_too_large_user_error(max_file_size_bytes: u64) -> Value {
+    let max_size_mb = max_file_size_bytes / (1024 * 1024);
+    json!({
+        "field": null,
+        "message": format!("The input file size exceeds the maximum allowed size of {max_size_mb} MB."),
+        "code": "INVALID_STAGED_UPLOAD_FILE"
     })
 }
 
@@ -5164,8 +5166,9 @@ fn media_quota_errors(request: &Request, inputs: &[BTreeMap<String, ResolvedValu
         .iter()
         .enumerate()
         .filter_map(|(index, input)| {
-            let content_type =
-                resolved_string_field(input, "contentType").unwrap_or_else(|| "IMAGE".to_string());
+            let original_source =
+                resolved_string_field(input, "originalSource").unwrap_or_default();
+            let content_type = media_file_create_content_type(input, &original_source);
             let code = if content_type == "VIDEO" && requested.contains("VIDEO_THROTTLE_EXCEEDED") {
                 Some("VIDEO_THROTTLE_EXCEEDED")
             } else if content_type == "MODEL_3D" && requested.contains("MODEL3D_THROTTLE_EXCEEDED")
@@ -5532,6 +5535,7 @@ fn media_file_record(
 ) -> Value {
     let typename = media_file_gid_type(content_type);
     let mime_type = mime_type_for_filename(filename, content_type);
+    let media_content_type = media_file_media_content_type(content_type);
     let mut file = json!({
         "__typename": typename,
         "id": id,
@@ -5545,7 +5549,9 @@ fn media_file_record(
         "displayName": filename,
         "fileErrors": [],
         "fileWarnings": [],
-        "mimeType": mime_type
+        "mimeType": mime_type,
+        "mediaContentType": media_content_type,
+        "status": file_status
     });
     match typename {
         "MediaImage" => {
@@ -5619,6 +5625,33 @@ fn media_file_gid_type(content_type: &str) -> &'static str {
     }
 }
 
+fn media_file_media_content_type(content_type: &str) -> &'static str {
+    match content_type {
+        "IMAGE" => "IMAGE",
+        "VIDEO" => "VIDEO",
+        "EXTERNAL_VIDEO" => "EXTERNAL_VIDEO",
+        "MODEL_3D" => "MODEL_3D",
+        "FILE" => "GENERIC_FILE",
+        _ => "IMAGE",
+    }
+}
+
+fn media_file_create_content_type(
+    input: &BTreeMap<String, ResolvedValue>,
+    original_source: &str,
+) -> String {
+    resolved_string_field(input, "contentType")
+        .unwrap_or_else(|| inferred_media_file_create_content_type(original_source).to_string())
+}
+
+fn inferred_media_file_create_content_type(source: &str) -> &'static str {
+    match file_extension(source).as_str() {
+        "gif" | "heic" | "heif" | "jpeg" | "jpg" | "png" | "webp" => "IMAGE",
+        "m4v" | "mov" | "mp4" | "mpeg" | "mpg" | "ogv" | "webm" => "VIDEO",
+        _ => "FILE",
+    }
+}
+
 fn duplicate_mode_allowed(mode: &str, content_type: Option<&str>) -> bool {
     matches!(
         (mode, content_type),
@@ -5647,13 +5680,17 @@ fn filename_from_source(source: &str) -> String {
 }
 
 fn file_extension(value: &str) -> String {
-    value
-        .split('?')
+    let path_tail = value
+        .split(['?', '#'])
         .next()
         .unwrap_or(value)
+        .rsplit('/')
+        .next()
+        .unwrap_or(value);
+    path_tail
         .rsplit('.')
         .next()
-        .filter(|extension| *extension != value)
+        .filter(|extension| *extension != path_tail)
         .unwrap_or_default()
         .to_ascii_lowercase()
 }
@@ -5662,12 +5699,24 @@ fn mime_type_for_filename(filename: &str, content_type: &str) -> &'static str {
     match (content_type, file_extension(filename).as_str()) {
         ("IMAGE", "png") => "image/png",
         ("IMAGE", "gif") => "image/gif",
+        ("IMAGE", "heic") => "image/heic",
+        ("IMAGE", "heif") => "image/heif",
         ("IMAGE", "webp") => "image/webp",
         ("IMAGE", _) => "image/jpeg",
+        ("VIDEO", "m4v") => "video/x-m4v",
         ("VIDEO", "mov") => "video/quicktime",
+        ("VIDEO", "mpeg") | ("VIDEO", "mpg") => "video/mpeg",
+        ("VIDEO", "ogv") => "video/ogg",
+        ("VIDEO", "webm") => "video/webm",
         ("VIDEO", _) => "video/mp4",
         ("MODEL_3D", "glb") => "model/gltf-binary",
         ("MODEL_3D", "usdz") => "model/vnd.usdz+zip",
+        ("FILE", "csv") => "text/csv",
+        ("FILE", "json") => "application/json",
+        ("FILE", "jsonl") => "application/jsonl",
+        ("FILE", "pdf") => "application/pdf",
+        ("FILE", "txt") => "text/plain",
+        ("FILE", "zip") => "application/zip",
         _ => "application/octet-stream",
     }
 }

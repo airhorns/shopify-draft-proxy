@@ -1,0 +1,160 @@
+{
+  "scenarioId": "orderOpen-snapshot-staging",
+  "operationNames": ["orderCreate", "orderClose", "orderOpen", "order"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "payload-shape", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderOpen-parity.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderOpen-snapshot-staging-setup.graphql",
+    "variables": {
+      "order": {
+        "currency": "USD",
+        "email": "order-open-snapshot-staging@example.com",
+        "lineItems": [
+          {
+            "title": "Snapshot open staging item",
+            "quantity": 1,
+            "priceSet": {
+              "shopMoney": {
+                "amount": "13.00",
+                "currencyCode": "USD"
+              }
+            },
+            "requiresShipping": false,
+            "taxable": false
+          }
+        ]
+      }
+    },
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-open-order-baseline",
+        "capturePath": "$.mutation.response.data.orderOpen.order",
+        "proxyPath": "$.data.orderCreate.order",
+        "selectedPaths": [
+          "$.id",
+          "$.closed",
+          "$.closedAt",
+          "$.cancelledAt",
+          "$.cancelReason",
+          "$.currentTotalPriceSet",
+          "$.customer"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "exact-string:gid://shopify/Order/1",
+            "reason": "The local snapshot replay must use the proxy's first synthetic order id, proving setup staged locally instead of falling back to captured Shopify data."
+          }
+        ]
+      },
+      {
+        "name": "setup-close-order",
+        "capturePath": "$.upstreamCalls[0].response.body.data.order",
+        "proxyPath": "$.data.orderClose.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderClose-parity.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.id",
+          "$.closed",
+          "$.closedAt",
+          "$.cancelledAt",
+          "$.cancelReason",
+          "$.currentTotalPriceSet",
+          "$.customer"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "exact-string:gid://shopify/Order/1",
+            "reason": "The local setup close must keep the proxy's staged synthetic order id."
+          },
+          {
+            "path": "$.closedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Local setup close uses a runtime-generated lifecycle timestamp."
+          }
+        ]
+      },
+      {
+        "name": "mutation-opens-local-order",
+        "capturePath": "$.mutation.response.data.orderOpen",
+        "proxyPath": "$.data.orderOpen",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderOpen-parity.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              }
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.order.id",
+          "$.order.closed",
+          "$.order.closedAt",
+          "$.order.cancelledAt",
+          "$.order.cancelReason",
+          "$.order.currentTotalPriceSet",
+          "$.order.customer",
+          "$.userErrors"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.order.id",
+            "matcher": "exact-string:gid://shopify/Order/1",
+            "reason": "The local snapshot replay must keep the proxy's staged synthetic order id through orderOpen."
+          }
+        ]
+      },
+      {
+        "name": "downstream-read-after-open",
+        "capturePath": "$.downstreamRead.response.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/order-management-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.id",
+          "$.closed",
+          "$.closedAt",
+          "$.cancelledAt",
+          "$.cancelReason",
+          "$.currentTotalPriceSet",
+          "$.customer"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "exact-string:gid://shopify/Order/1",
+            "reason": "The downstream local read must use the proxy's staged synthetic order id."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Snapshot-staging parity for the orderOpen Rust local lifecycle path. The expected open result and closed baseline come from the captured 2026-04 Shopify orderOpen fixture, while proxy replay creates, closes, opens, and reads a local staged order entirely through public GraphQL requests without sending supported mutations upstream."
+}

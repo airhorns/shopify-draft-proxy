@@ -1,0 +1,27 @@
+mutation OrderOpenSnapshotStagingSetup($order: OrderCreateOrderInput!) {
+  orderCreate(order: $order) {
+    order {
+      id
+      closed
+      closedAt
+      cancelledAt
+      cancelReason
+      currentTotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+      customer {
+        id
+        email
+        displayName
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

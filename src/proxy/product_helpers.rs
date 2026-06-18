@@ -278,6 +278,15 @@ impl DraftProxy {
         }
     }
 
+    pub(in crate::proxy) fn observe_product_passthrough_response(&mut self, response: &Response) {
+        if response.status >= 400 {
+            return;
+        }
+        if let Some(data) = response.body.get("data") {
+            self.stage_observed_products_from_value(data);
+        }
+    }
+
     pub(in crate::proxy) fn hydrate_product_nodes_for_observation(&mut self, ids: Vec<String>) {
         let path = self
             .log_entries
@@ -356,26 +365,7 @@ impl DraftProxy {
             let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
             if id.starts_with("gid://shopify/Product/") {
                 self.store.stage_observed_product_json(&node);
-                if let Some(product_id) = node.get("id").and_then(Value::as_str) {
-                    for variant in node
-                        .get("variants")
-                        .and_then(|connection| connection.get("nodes"))
-                        .and_then(Value::as_array)
-                        .into_iter()
-                        .flatten()
-                    {
-                        let mut variant_value = variant.clone();
-                        if let Some(object) = variant_value.as_object_mut() {
-                            object.insert("productId".to_string(), json!(product_id));
-                        }
-                        if let Some(mut variant) =
-                            product_variant_state_from_observed_json(&variant_value)
-                        {
-                            variant.product_id = product_id.to_string();
-                            self.store.stage_product_variant(variant);
-                        }
-                    }
-                }
+                self.stage_observed_product_variant_nodes(id, &node);
             } else if id.starts_with("gid://shopify/Collection/") {
                 self.stage_collection_from_observed_json(&node);
             } else if id.starts_with("gid://shopify/ProductVariant/") {
@@ -705,12 +695,13 @@ impl DraftProxy {
     fn stage_observed_products_from_value(&mut self, value: &Value) {
         match value {
             Value::Object(object) => {
-                if object
+                if let Some(product_id) = object
                     .get("id")
                     .and_then(Value::as_str)
-                    .is_some_and(|id| id.starts_with("gid://shopify/Product/"))
+                    .filter(|id| id.starts_with("gid://shopify/Product/"))
                 {
                     self.store.stage_observed_product_json(value);
+                    self.stage_observed_product_variant_nodes(product_id, value);
                 }
                 for child in object.values() {
                     self.stage_observed_products_from_value(child);
@@ -722,6 +713,25 @@ impl DraftProxy {
                 }
             }
             _ => {}
+        }
+    }
+
+    fn stage_observed_product_variant_nodes(&mut self, product_id: &str, product: &Value) {
+        let Some(variant_nodes) = product
+            .get("variants")
+            .and_then(|connection| connection.get("nodes"))
+            .and_then(Value::as_array)
+        else {
+            return;
+        };
+        for variant_node in variant_nodes {
+            let mut variant_value = variant_node.clone();
+            if let Some(object) = variant_value.as_object_mut() {
+                object.insert("productId".to_string(), json!(product_id));
+            }
+            if let Some(variant) = product_variant_state_from_observed_json(&variant_value) {
+                self.store.stage_product_variant(variant);
+            }
         }
     }
 }
@@ -947,82 +957,6 @@ pub(in crate::proxy) fn product_duplicate_operation_read_data(
         "async-success"
     };
     product_duplicate_fixture(fixture_name)["operationRead"]["response"]["data"].clone()
-}
-
-pub(in crate::proxy) fn product_option_fixture(name: &str) -> Value {
-    let source = match name {
-        "product-options-create-parity.json" => include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-parity.json"
-        ),
-        "product-option-update-parity.json" => include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-option-update-parity.json"
-        ),
-        "product-options-delete-parity.json" => include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-delete-parity.json"
-        ),
-        "product-options-create-variant-strategy-create-parity.json" => include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-create-parity.json"
-        ),
-        "product-options-create-variant-strategy-leave-as-is-parity.json" => include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-leave-as-is-parity.json"
-        ),
-        "product-options-create-variant-strategy-null-parity.json" => include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-null-parity.json"
-        ),
-        "product-options-create-variant-strategy-create-over-default-limit.json" => include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-variant-strategy-create-over-default-limit.json"
-        ),
-        _ => unreachable!("unknown product option fixture"),
-    };
-    serde_json::from_str(source).expect("product option fixture must parse")
-}
-
-pub(in crate::proxy) fn product_option_downstream_by_id(id: &str) -> Value {
-    let fixture_name = match id {
-        "gid://shopify/Product/10172064891186" => "product-options-create-parity.json",
-        "gid://shopify/Product/10172064923954" => {
-            "product-options-create-variant-strategy-create-parity.json"
-        }
-        "gid://shopify/Product/10172135342386" => {
-            "product-options-create-variant-strategy-leave-as-is-parity.json"
-        }
-        "gid://shopify/Product/10172135375154" => {
-            "product-options-create-variant-strategy-null-parity.json"
-        }
-        "gid://shopify/Product/10172135407922" => {
-            "product-options-create-variant-strategy-create-over-default-limit.json"
-        }
-        _ => return json!({ "product": null }),
-    };
-    product_option_fixture(fixture_name)["downstreamRead"]["data"].clone()
-}
-
-pub(in crate::proxy) fn product_bulk_create_strategy_downstream_data(
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> Value {
-    let id = resolved_string_field(variables, "id").unwrap_or_default();
-    let fixture_source = match id.as_str() {
-        "gid://shopify/Product/10172064923954"
-        | "gid://shopify/Product/10172135342386"
-        | "gid://shopify/Product/10172135375154"
-        | "gid://shopify/Product/10172135407922" => return product_option_downstream_by_id(&id),
-        "gid://shopify/Product/10172135506226" => include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-default-custom-standalone.json"
-        ),
-        "gid://shopify/Product/10172135440690" => include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-default-default-standalone.json"
-        ),
-        "gid://shopify/Product/10172135538994" => include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-remove-custom-standalone.json"
-        ),
-        "gid://shopify/Product/10172135473458" => include_str!(
-            "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-strategy-remove-default-standalone.json"
-        ),
-        _ => return json!({ "product": null }),
-    };
-    let fixture: Value = serde_json::from_str(fixture_source)
-        .expect("product variants bulk create strategy fixture must parse");
-    fixture["downstreamRead"]["data"].clone()
 }
 
 pub(in crate::proxy) fn product_variant_node_read_data(
@@ -1525,7 +1459,13 @@ pub(in crate::proxy) fn product_variant_json(
         "__typename" => Some(json!("ProductVariant")),
         "id" => Some(json!(variant.id)),
         "title" => Some(json!(variant.title)),
-        "sku" => Some(json!(variant.sku)),
+        "sku" => Some(
+            variant
+                .extra_fields
+                .get("sku")
+                .cloned()
+                .unwrap_or_else(|| json!(variant.sku)),
+        ),
         "barcode" => Some(match &variant.barcode {
             Some(value) => json!(value),
             None => Value::Null,
@@ -1692,6 +1632,28 @@ pub(in crate::proxy) fn product_variant_state_from_observed_json(
         .to_string();
     let id = value.get("id")?.as_str()?.to_string();
     let inventory_item = value.get("inventoryItem");
+    let mut extra_fields = product_variant_state_extra_fields(
+        value,
+        &[
+            "id",
+            "productId",
+            "product",
+            "title",
+            "sku",
+            "barcode",
+            "price",
+            "compareAtPrice",
+            "taxable",
+            "inventoryPolicy",
+            "inventoryQuantity",
+            "selectedOptions",
+            "inventoryItem",
+        ],
+    );
+    if value.get("sku").is_some_and(Value::is_null) {
+        extra_fields.insert("sku".to_string(), Value::Null);
+    }
+
     Some(ProductVariantRecord {
         id: id.clone(),
         product_id,
@@ -1702,7 +1664,7 @@ pub(in crate::proxy) fn product_variant_state_from_observed_json(
             .to_string(),
         sku: value
             .get("sku")
-            .and_then(Value::as_str)
+            .map(|sku| sku.as_str().unwrap_or_default())
             .unwrap_or_default()
             .to_string(),
         barcode: value
@@ -1768,24 +1730,7 @@ pub(in crate::proxy) fn product_variant_state_from_observed_json(
                 })
                 .unwrap_or_default(),
         },
-        extra_fields: product_variant_state_extra_fields(
-            value,
-            &[
-                "id",
-                "productId",
-                "product",
-                "title",
-                "sku",
-                "barcode",
-                "price",
-                "compareAtPrice",
-                "taxable",
-                "inventoryPolicy",
-                "inventoryQuantity",
-                "selectedOptions",
-                "inventoryItem",
-            ],
-        ),
+        extra_fields,
     })
 }
 
@@ -1843,6 +1788,7 @@ pub(in crate::proxy) fn product_state_from_json(value: &Value) -> Option<Product
         .unwrap_or_else(|| created_at.clone());
     let mut extra_fields = product_extra_fields_from_json(value);
     if let Some(state_extra_fields) = value.get("extraFields").and_then(Value::as_object) {
+        extra_fields.remove("extraFields");
         for (key, observed) in state_extra_fields {
             extra_fields.insert(key.clone(), observed.clone());
         }
@@ -2017,6 +1963,33 @@ pub(in crate::proxy) fn product_variant_state_from_json(
     value: &Value,
 ) -> Option<ProductVariantRecord> {
     let inventory_item = value.get("inventoryItem")?;
+    let mut extra_fields = product_variant_state_extra_fields(
+        value,
+        &[
+            "id",
+            "productId",
+            "title",
+            "sku",
+            "barcode",
+            "price",
+            "compareAtPrice",
+            "taxable",
+            "inventoryPolicy",
+            "inventoryQuantity",
+            "selectedOptions",
+            "inventoryItem",
+        ],
+    );
+    if value.get("sku").is_some_and(Value::is_null) {
+        extra_fields.insert("sku".to_string(), Value::Null);
+    }
+    if let Some(restored_extra_fields) = value.get("extraFields").and_then(Value::as_object) {
+        extra_fields.remove("extraFields");
+        for (key, restored) in restored_extra_fields {
+            extra_fields.insert(key.clone(), restored.clone());
+        }
+    }
+
     Some(ProductVariantRecord {
         id: value.get("id")?.as_str()?.to_string(),
         product_id: value.get("productId")?.as_str()?.to_string(),
@@ -2083,23 +2056,7 @@ pub(in crate::proxy) fn product_variant_state_from_json(
                 &["id", "tracked", "requiresShipping"],
             ),
         },
-        extra_fields: product_variant_state_extra_fields(
-            value,
-            &[
-                "id",
-                "productId",
-                "title",
-                "sku",
-                "barcode",
-                "price",
-                "compareAtPrice",
-                "taxable",
-                "inventoryPolicy",
-                "inventoryQuantity",
-                "selectedOptions",
-                "inventoryItem",
-            ],
-        ),
+        extra_fields,
     })
 }
 
