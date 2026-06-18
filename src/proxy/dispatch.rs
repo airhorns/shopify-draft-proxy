@@ -2082,6 +2082,19 @@ impl DraftProxy {
             {
                 self.customer_mutation_response(request, &query, &variables)
             }
+            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "customerAddressCreate"
+                            | "customerAddressUpdate"
+                            | "customerAddressDelete"
+                            | "customerUpdateDefaultAddress"
+                    ) =>
+            {
+                self.customer_address_mutation(request, &query, &variables)
+            }
             (CapabilityDomain::B2b, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
             {
