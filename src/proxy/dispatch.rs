@@ -148,6 +148,11 @@ impl DraftProxy {
         if let Some(data) = self.order_create_local_data(request, root_field, query, variables) {
             return ok_json(data);
         }
+        if let Some(response) =
+            self.draft_order_lifecycle_local_response(request, query, variables)
+        {
+            return response;
+        }
         if let Some(data) = self.draft_order_complete_local_data(root_field, query, variables) {
             return ok_json(data);
         }
@@ -1189,7 +1194,36 @@ impl DraftProxy {
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && has_local_dispatch
-                    && matches!(root_field, "draftOrderCreate" | "draftOrderInvoiceSend") =>
+                    && matches!(root_field, "orderClose" | "orderOpen") =>
+            {
+                if let Some(data) =
+                    self.order_create_local_data(request, root_field, &query, &variables)
+                {
+                    ok_json(data)
+                } else {
+                    json_error(
+                        501,
+                        &format!(
+                            "No Rust orders dispatcher implemented for root field: {root_field}"
+                        ),
+                    )
+                }
+            }
+            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "draftOrderCreate"
+                            | "draftOrderInvoiceSend"
+                            | "draftOrderUpdate"
+                            | "draftOrderCalculate"
+                            | "draftOrderDuplicate"
+                            | "draftOrderDelete"
+                            | "draftOrderBulkDelete"
+                            | "draftOrderCreateFromOrder"
+                            | "draftOrderInvoicePreview"
+                    ) =>
             {
                 if let Some(response) =
                     self.draft_order_invoice_send_local_response(request, &query, &variables)
@@ -1199,6 +1233,10 @@ impl DraftProxy {
                     self.draft_order_complete_local_data(root_field, &query, &variables)
                 {
                     ok_json(data)
+                } else if let Some(response) =
+                    self.draft_order_lifecycle_local_response(request, &query, &variables)
+                {
+                    response
                 } else if let Some(data) = self.draft_order_bulk_tag_local_data(&query, &variables)
                 {
                     ok_json(data)

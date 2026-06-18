@@ -179,6 +179,8 @@ impl DraftProxy {
                 "taggableResources": self.store.staged.taggable_resources.clone(),
                 "orders": self.store.staged.orders.clone(),
                 "deletedOrderIds": self.store.staged.deleted_order_ids.iter().cloned().collect::<Vec<_>>(),
+                "nextDraftOrderId": self.store.staged.next_draft_order_id,
+                "draftOrderTags": self.store.staged.draft_order_tags.clone(),
                 "returns": self.store.staged.returns.clone(),
                 "returnsByOrder": self.store.staged.returns_by_order.clone(),
                "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
@@ -519,6 +521,58 @@ impl DraftProxy {
                 }
             }
         }
+        // Seed precondition orders captured by a scenario's setup so lifecycle
+        // mutations (e.g. draftOrderCreateFromOrder) and order reads can resolve
+        // entities the recorded setup created before the request under test.
+        let mut seeded_orders = 0_usize;
+        if let Some(orders) = body.get("orders").and_then(Value::as_array) {
+            for order in orders {
+                if let Some(id) = order.get("id").and_then(Value::as_str) {
+                    self.store
+                        .staged
+                        .orders
+                        .insert(id.to_string(), order.clone());
+                    seeded_orders += 1;
+                }
+            }
+        }
+        // Seed precondition draft orders (full recorded projections). The draft
+        // record carries its own GraphQL line-item connection; mirror it into the
+        // internal `__draftProxyLineItems` shadow the create/update path maintains
+        // so totals recalculation and subsequent mutations operate on a complete
+        // record, exactly as a locally-created draft would.
+        let mut seeded_draft_orders = 0_usize;
+        if let Some(draft_orders) = body.get("draftOrders").and_then(Value::as_array) {
+            for draft in draft_orders {
+                let Some(id) = draft.get("id").and_then(Value::as_str).map(str::to_string) else {
+                    continue;
+                };
+                let mut record = draft.clone();
+                if record.get("__draftProxyLineItems").is_none() {
+                    if let Some(nodes) = record["lineItems"]["nodes"].as_array() {
+                        record["__draftProxyLineItems"] = Value::Array(nodes.clone());
+                    }
+                }
+                self.store
+                    .staged
+                    .draft_orders
+                    .insert(id.clone(), record);
+                self.sync_draft_order_tags(&id);
+                // Advance the synthetic draft sequence past any seeded numeric id so a
+                // later create in the same scenario cannot collide with a precondition.
+                if let Some(numeric) = id
+                    .rsplit('/')
+                    .next()
+                    .and_then(|tail| tail.split('?').next())
+                    .and_then(|tail| tail.parse::<u64>().ok())
+                {
+                    if numeric >= self.store.staged.next_draft_order_id {
+                        self.store.staged.next_draft_order_id = numeric + 1;
+                    }
+                }
+                seeded_draft_orders += 1;
+            }
+        }
         ok_json(json!({
             "ok": true,
             "seededCustomers": seeded_customers,
@@ -526,7 +580,9 @@ impl DraftProxy {
             "seededProducts": seeded_products,
             "seededProductVariants": seeded_variants,
             "seededCollections": seeded_collections,
-            "seededDiscounts": seeded_discounts
+            "seededDiscounts": seeded_discounts,
+            "seededOrders": seeded_orders,
+            "seededDraftOrders": seeded_draft_orders
         }))
     }
 
@@ -933,6 +989,46 @@ impl DraftProxy {
             .flatten()
             .filter_map(|value| value.as_str().map(str::to_string))
             .collect();
+        // Draft orders are dumped in the cursor-wrapped overlay format
+        // ({ "id", "cursor", "data" }); unwrap `data` back to the staged record.
+        // These MUST round-trip because the parity runner restores mainState
+        // before every downstream target, so read-after-write across targets
+        // (draftOrder reads, duplicate/delete chains) would otherwise lose state.
+        self.store.staged.draft_orders = state["stagedState"]["draftOrders"]
+            .as_object()
+            .map(|drafts| {
+                drafts
+                    .iter()
+                    .map(|(id, wrapper)| {
+                        let record = wrapper
+                            .get("data")
+                            .cloned()
+                            .unwrap_or_else(|| wrapper.clone());
+                        (id.clone(), record)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.next_draft_order_id = state["stagedState"]["nextDraftOrderId"]
+            .as_u64()
+            .unwrap_or(1);
+        self.store.staged.draft_order_tags = state["stagedState"]["draftOrderTags"]
+            .as_object()
+            .map(|tags| {
+                tags.iter()
+                    .map(|(id, list)| {
+                        (
+                            id.clone(),
+                            list.as_array()
+                                .into_iter()
+                                .flatten()
+                                .filter_map(|value| value.as_str().map(str::to_string))
+                                .collect::<Vec<_>>(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         self.store.staged.returns = state["stagedState"]["returns"]
             .as_object()
             .map(|returns| {

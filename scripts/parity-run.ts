@@ -606,6 +606,110 @@ function diffValues(capture: unknown, proxy: unknown, rules: ExpectedDifference[
 // names). `seedCustomers` / `seedSegments` mirror the captured setup responses;
 // the proxy upserts them by their captured ids. No-op when the capture declares
 // no seeds, so this is inert for every spec that does not need it.
+// Collect the richest projection of every draft order / order referenced by a
+// capture's recorded precondition steps, keyed by gid. Precondition steps live
+// under `setup` blocks — most scenarios carry a single top-level `setup`, but
+// some nest several disposable ones (e.g. one `setup` per invoice-send branch
+// under `recipient`/`lifecycle`). We gather every `setup` block anywhere in the
+// capture and seed only from those, which keeps assertion payloads (the
+// top-level mutation/downstreamRead the scenario compares against) out of the
+// seed set — seeding only re-establishes pre-existing entities, never the
+// behaviour under test. A draft created and then deleted within its setup
+// (deletedId on a draftOrderDelete step) is dropped from the seed set, so
+// not-found assertions stay faithful.
+function collectSetupEntitySeeds(capture: unknown): {
+  draftOrders: Record<string, unknown>[];
+  orders: Record<string, unknown>[];
+} {
+  const draftOrders = new Map<string, Record<string, unknown>>();
+  const orders = new Map<string, Record<string, unknown>>();
+  const deletedIds = new Set<string>();
+  const richer = (
+    next: Record<string, unknown>,
+    prev: Record<string, unknown> | undefined,
+  ): boolean => prev === undefined || Object.keys(next).length > Object.keys(prev).length;
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const entry of node) visit(entry);
+      return;
+    }
+    if (node === null || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    const id = obj['id'];
+    if (typeof id === 'string') {
+      if (id.startsWith('gid://shopify/DraftOrder/') && richer(obj, draftOrders.get(id))) {
+        draftOrders.set(id, obj);
+      } else if (id.startsWith('gid://shopify/Order/') && richer(obj, orders.get(id))) {
+        orders.set(id, obj);
+      }
+    }
+    const deletedId = obj['deletedId'];
+    if (typeof deletedId === 'string') deletedIds.add(deletedId);
+    for (const value of Object.values(obj)) visit(value);
+  };
+  // A setup step's recorded *response* often omits fields the create/update
+  // *input* set (e.g. a draftOrderCreate that never re-queries `note`). Those
+  // fields are genuinely part of the entity's state, so overlay the step's
+  // input back onto the matching seed. Only a curated set of fields whose input
+  // and entity representations coincide are overlaid, and only where the
+  // response left the field absent or null — so an asserted response value is
+  // never overridden. This keeps seeds faithful to the entity the setup created.
+  const OVERLAY_FIELDS = ['note', 'tags', 'email', 'taxExempt', 'phone', 'customAttributes', 'poNumber'];
+  const overlayInputs = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const entry of node) overlayInputs(entry);
+      return;
+    }
+    if (node === null || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    const input = (obj['variables'] as Record<string, unknown> | undefined)?.['input'] as
+      | Record<string, unknown>
+      | undefined;
+    const data = (
+      (obj['mutation'] as Record<string, unknown> | undefined)?.['response'] as
+        | Record<string, unknown>
+        | undefined
+    )?.['data'] as Record<string, unknown> | undefined;
+    if (input && typeof input === 'object' && data && typeof data === 'object') {
+      for (const op of Object.values(data)) {
+        if (op === null || typeof op !== 'object') continue;
+        const entity = (op as Record<string, unknown>)['draftOrder'] ?? (op as Record<string, unknown>)['order'];
+        const id = (entity as Record<string, unknown> | undefined)?.['id'];
+        if (typeof id !== 'string') continue;
+        const seed = draftOrders.get(id) ?? orders.get(id);
+        if (!seed) continue;
+        for (const fieldName of OVERLAY_FIELDS) {
+          if (!(fieldName in input)) continue;
+          if (seed[fieldName] === undefined || seed[fieldName] === null) {
+            seed[fieldName] = input[fieldName];
+          }
+        }
+      }
+    }
+    for (const value of Object.values(obj)) overlayInputs(value);
+  };
+  // Gather every `setup` block in the capture (top-level and nested).
+  const setupBlocks: unknown[] = [];
+  const findSetups = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const entry of node) findSetups(entry);
+      return;
+    }
+    if (node === null || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    if ('setup' in obj) setupBlocks.push(obj['setup']);
+    for (const value of Object.values(obj)) findSetups(value);
+  };
+  findSetups(capture);
+  for (const block of setupBlocks) visit(block);
+  for (const block of setupBlocks) overlayInputs(block);
+  for (const id of deletedIds) {
+    draftOrders.delete(id);
+    orders.delete(id);
+  }
+  return { draftOrders: [...draftOrders.values()], orders: [...orders.values()] };
+}
+
 async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown): Promise<void> {
   const record = capture as Record<string, unknown>;
   const customers = Array.isArray(record['seedCustomers']) ? record['seedCustomers'] : [];
@@ -616,6 +720,17 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
     : [];
   const collections = Array.isArray(record['seedCollections']) ? record['seedCollections'] : [];
   const discounts = Array.isArray(record['seedDiscounts']) ? record['seedDiscounts'] : [];
+  // Draft orders / orders are derived from the recorded `setup` precondition steps
+  // (and may be augmented by explicit `seedDraftOrders` / `seedOrders` arrays).
+  const setupSeeds = collectSetupEntitySeeds(record);
+  const draftOrders = [
+    ...(Array.isArray(record['seedDraftOrders']) ? record['seedDraftOrders'] : []),
+    ...setupSeeds.draftOrders,
+  ];
+  const orders = [
+    ...(Array.isArray(record['seedOrders']) ? record['seedOrders'] : []),
+    ...setupSeeds.orders,
+  ];
   // `seedSegmentCatalog` mirrors the captured segment-catalog read roots (filters,
   // filter/value suggestions, migrations, the segments connection, and the live
   // total count) so local replay can serve their recorded cursors/pageInfo that
@@ -631,6 +746,8 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
     productVariants.length === 0 &&
     collections.length === 0 &&
     discounts.length === 0 &&
+    draftOrders.length === 0 &&
+    orders.length === 0 &&
     segmentCatalog === null
   )
     return;
@@ -644,6 +761,8 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
       productVariants,
       collections,
       discounts,
+      draftOrders,
+      orders,
       ...(segmentCatalog ? { segmentCatalog } : {}),
     },
   });

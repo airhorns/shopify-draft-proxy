@@ -1383,6 +1383,13 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
         ]),
     );
     schema.mutation_fields.insert(
+        "draftOrderUpdate".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            ("input".to_string(), mutation_arg(non_null("DraftOrderInput"))),
+        ]),
+    );
+    schema.mutation_fields.insert(
         "orderCreate".to_string(),
         BTreeMap::from([
             (
