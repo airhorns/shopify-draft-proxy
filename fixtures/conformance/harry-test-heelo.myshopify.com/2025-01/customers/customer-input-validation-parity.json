@@ -127,6 +127,120 @@
       }
     }
   },
+  "seedCustomers": [
+    {
+      "id": "gid://shopify/Customer/10806772007218",
+      "firstName": "Hermes",
+      "lastName": "merge-source",
+      "displayName": "Hermes merge-source",
+      "email": "hermes-input-validation-merge-source-1781561719980@example.com",
+      "locale": "en",
+      "note": null,
+      "verifiedEmail": true,
+      "taxExempt": false,
+      "tags": [
+        "input-validation",
+        "merge-source"
+      ],
+      "state": "DISABLED",
+      "canDelete": true,
+      "defaultEmailAddress": {
+        "emailAddress": "hermes-input-validation-merge-source-1781561719980@example.com"
+      },
+      "defaultPhoneNumber": {
+        "phoneNumber": "+14155551017"
+      },
+      "createdAt": "2026-06-15T22:15:26Z",
+      "updatedAt": "2026-06-15T22:15:26Z",
+      "numberOfOrders": "0",
+      "defaultAddress": null,
+      "addressesV2": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "metafields": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "orders": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "lastOrder": null,
+      "phone": "+14155551017"
+    },
+    {
+      "id": "gid://shopify/Customer/10806772039986",
+      "firstName": "Hermes",
+      "lastName": "merge-target",
+      "displayName": "Hermes merge-target",
+      "email": "hermes-input-validation-merge-target-1781561719980@example.com",
+      "locale": "en",
+      "note": null,
+      "verifiedEmail": true,
+      "taxExempt": false,
+      "tags": [
+        "input-validation",
+        "merge-target"
+      ],
+      "state": "DISABLED",
+      "canDelete": true,
+      "defaultEmailAddress": {
+        "emailAddress": "hermes-input-validation-merge-target-1781561719980@example.com"
+      },
+      "defaultPhoneNumber": {
+        "phoneNumber": "+14155551018"
+      },
+      "createdAt": "2026-06-15T22:15:26Z",
+      "updatedAt": "2026-06-15T22:15:26Z",
+      "numberOfOrders": "0",
+      "defaultAddress": null,
+      "addressesV2": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "metafields": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "orders": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "lastOrder": null,
+      "phone": "+14155551018"
+    }
+  ],
   "createScenarios": {
     "invalidEmail": {
       "variables": {

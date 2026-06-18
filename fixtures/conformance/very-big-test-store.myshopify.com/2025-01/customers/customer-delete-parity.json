@@ -28,6 +28,7 @@
       }
     }
   },
+  "seedCustomersCount": 178,
   "downstreamRead": {
     "data": {
       "customer": null,

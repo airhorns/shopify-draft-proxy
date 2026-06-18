@@ -849,6 +849,22 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
     record['seedSegmentCatalog'] && typeof record['seedSegmentCatalog'] === 'object'
       ? (record['seedSegmentCatalog'] as Record<string, unknown>)
       : null;
+  // `seedCustomersCount` mirrors the live shop's total customer count so the
+  // `customersCount` read root can report the store-specific baseline (which is
+  // not reconstructable from the staged customers) and track deletions/merges as
+  // `base - deletions`.
+  const customersCount =
+    typeof record['seedCustomersCount'] === 'number'
+      ? (record['seedCustomersCount'] as number)
+      : null;
+  // `seedCustomerOrders` maps a customer id to the recorded order nodes attached to
+  // it (each optionally carrying an opaque `__cursor`). Customer reads and merges
+  // that reparent orders resolve these from store state; the live connection cursors
+  // can't be reconstructed locally, so re-seeding preserves them for downstream reads.
+  const customerOrders =
+    record['seedCustomerOrders'] && typeof record['seedCustomerOrders'] === 'object'
+      ? (record['seedCustomerOrders'] as Record<string, unknown>)
+      : null;
   if (
     customers.length === 0 &&
     segments.length === 0 &&
@@ -860,7 +876,9 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
     orders.length === 0 &&
     orderEditVariants.length === 0 &&
     orderEditAuthor === null &&
-    segmentCatalog === null
+    segmentCatalog === null &&
+    customersCount === null &&
+    customerOrders === null
   )
     return;
   await proxy.processRequest({
@@ -878,6 +896,8 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
       orderEditVariants,
       ...(orderEditAuthor ? { orderEditAuthor } : {}),
       ...(segmentCatalog ? { segmentCatalog } : {}),
+      ...(customersCount !== null ? { customersCount } : {}),
+      ...(customerOrders !== null ? { customerOrders } : {}),
     },
   });
 }

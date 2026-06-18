@@ -240,7 +240,11 @@
           "firstName": "Merge",
           "lastName": "One",
           "note": "merge-one-note",
-          "tags": ["har-291-merge", "merge-one", "merge-1777304272206"],
+          "tags": [
+            "har-291-merge",
+            "merge-one",
+            "merge-1777304272206"
+          ],
           "metafields": [
             {
               "namespace": "custom",
@@ -267,7 +271,11 @@
               "displayName": "Merge One",
               "email": "hermes-merge-one-1777304272206@example.com",
               "note": "merge-one-note",
-              "tags": ["har-291-merge", "merge-1777304272206", "merge-one"],
+              "tags": [
+                "har-291-merge",
+                "merge-1777304272206",
+                "merge-one"
+              ],
               "numberOfOrders": "0",
               "defaultEmailAddress": {
                 "emailAddress": "hermes-merge-one-1777304272206@example.com"
@@ -346,7 +354,11 @@
           "firstName": "Merge",
           "lastName": "Two",
           "note": "merge-two-note",
-          "tags": ["har-291-merge", "merge-two", "merge-1777304272206"],
+          "tags": [
+            "har-291-merge",
+            "merge-two",
+            "merge-1777304272206"
+          ],
           "metafields": [
             {
               "namespace": "custom",
@@ -373,7 +385,11 @@
               "displayName": "Merge Two",
               "email": "hermes-merge-two-1777304272206@example.com",
               "note": "merge-two-note",
-              "tags": ["har-291-merge", "merge-1777304272206", "merge-two"],
+              "tags": [
+                "har-291-merge",
+                "merge-1777304272206",
+                "merge-two"
+              ],
               "numberOfOrders": "0",
               "defaultEmailAddress": {
                 "emailAddress": "hermes-merge-two-1777304272206@example.com"
@@ -532,7 +548,10 @@
           "customerId": "gid://shopify/Customer/10546995560754",
           "email": "hermes-merge-one-1777304272206@example.com",
           "note": "HAR-291 customer merge source order",
-          "tags": ["har-291-merge", "merge-1777304272206"],
+          "tags": [
+            "har-291-merge",
+            "merge-1777304272206"
+          ],
           "test": true,
           "currency": "CAD",
           "lineItems": [
@@ -592,7 +611,10 @@
           },
           "email": "hermes-merge-one-1777304272206@example.com",
           "note": "HAR-291 customer merge source draft order",
-          "tags": ["har-291-merge", "merge-1777304272206"],
+          "tags": [
+            "har-291-merge",
+            "merge-1777304272206"
+          ],
           "lineItems": [
             {
               "title": "HAR-291 merge source draft item",
@@ -650,7 +672,11 @@
             "displayName": "Merge One",
             "email": "hermes-merge-one-1777304272206@example.com",
             "note": "merge-one-note",
-            "tags": ["har-291-merge", "merge-1777304272206", "merge-one"],
+            "tags": [
+              "har-291-merge",
+              "merge-1777304272206",
+              "merge-one"
+            ],
             "numberOfOrders": "0",
             "defaultEmailAddress": {
               "emailAddress": "hermes-merge-one-1777304272206@example.com"
@@ -735,7 +761,11 @@
             "displayName": "Merge Two",
             "email": "hermes-merge-two-1777304272206@example.com",
             "note": "merge-two-note",
-            "tags": ["har-291-merge", "merge-1777304272206", "merge-two"],
+            "tags": [
+              "har-291-merge",
+              "merge-1777304272206",
+              "merge-two"
+            ],
             "numberOfOrders": "0",
             "defaultEmailAddress": {
               "emailAddress": "hermes-merge-two-1777304272206@example.com"
@@ -907,7 +937,9 @@
           },
           "search": [
             {
-              "path": ["customersCount"],
+              "path": [
+                "customersCount"
+              ],
               "query": "tag:har-291-merge",
               "parsed": {
                 "field": "tag",
@@ -926,6 +958,189 @@
       }
     }
   },
+  "seedCustomers": [
+    {
+      "id": "gid://shopify/Customer/10546995560754",
+      "firstName": "Merge",
+      "lastName": "One",
+      "displayName": "Merge One",
+      "email": "hermes-merge-one-1777304272206@example.com",
+      "phone": "+16475552206",
+      "note": "merge-one-note",
+      "tags": [
+        "har-291-merge",
+        "merge-1777304272206",
+        "merge-one"
+      ],
+      "numberOfOrders": "0",
+      "defaultEmailAddress": {
+        "emailAddress": "hermes-merge-one-1777304272206@example.com"
+      },
+      "defaultPhoneNumber": {
+        "phoneNumber": "+16475552206"
+      },
+      "defaultAddress": {
+        "id": "gid://shopify/MailingAddress/12037698519346?model_name=CustomerAddress",
+        "address1": "1 Source Merge St",
+        "city": "Ottawa",
+        "provinceCode": "ON",
+        "countryCodeV2": "CA",
+        "zip": "K1A 0B1"
+      },
+      "addressesV2": {
+        "nodes": [
+          {
+            "id": "gid://shopify/MailingAddress/12037698519346?model_name=CustomerAddress",
+            "address1": "1 Source Merge St",
+            "city": "Ottawa",
+            "provinceCode": "ON",
+            "countryCodeV2": "CA",
+            "zip": "K1A 0B1"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": "gid://shopify/MailingAddress/12037698519346?model_name=CustomerAddress",
+          "endCursor": "gid://shopify/MailingAddress/12037698519346?model_name=CustomerAddress"
+        }
+      },
+      "metafields": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Metafield/42971567980850",
+            "namespace": "custom",
+            "key": "source_only",
+            "type": "single_line_text_field",
+            "value": "source-1777304272206"
+          },
+          {
+            "id": "gid://shopify/Metafield/42971568013618",
+            "namespace": "custom",
+            "key": "conflict",
+            "type": "single_line_text_field",
+            "value": "source-conflict-1777304272206"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": "gid://shopify/Metafield/42971567980850",
+          "endCursor": "gid://shopify/Metafield/42971568013618"
+        }
+      },
+      "orders": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "lastOrder": null,
+      "createdAt": "2026-04-27T15:37:52Z",
+      "updatedAt": "2026-04-27T15:37:52Z"
+    },
+    {
+      "id": "gid://shopify/Customer/10546995626290",
+      "firstName": "Merge",
+      "lastName": "Two",
+      "displayName": "Merge Two",
+      "email": "hermes-merge-two-1777304272206@example.com",
+      "phone": "+16476662206",
+      "note": "merge-two-note",
+      "tags": [
+        "har-291-merge",
+        "merge-1777304272206",
+        "merge-two"
+      ],
+      "numberOfOrders": "0",
+      "defaultEmailAddress": {
+        "emailAddress": "hermes-merge-two-1777304272206@example.com"
+      },
+      "defaultPhoneNumber": {
+        "phoneNumber": "+16476662206"
+      },
+      "defaultAddress": {
+        "id": "gid://shopify/MailingAddress/12037698552114?model_name=CustomerAddress",
+        "address1": "2 Result Merge Ave",
+        "city": "Toronto",
+        "provinceCode": "ON",
+        "countryCodeV2": "CA",
+        "zip": "M5H 2N2"
+      },
+      "addressesV2": {
+        "nodes": [
+          {
+            "id": "gid://shopify/MailingAddress/12037698552114?model_name=CustomerAddress",
+            "address1": "2 Result Merge Ave",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCodeV2": "CA",
+            "zip": "M5H 2N2"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": "gid://shopify/MailingAddress/12037698552114?model_name=CustomerAddress",
+          "endCursor": "gid://shopify/MailingAddress/12037698552114?model_name=CustomerAddress"
+        }
+      },
+      "metafields": {
+        "nodes": [
+          {
+            "id": "gid://shopify/Metafield/42971568046386",
+            "namespace": "custom",
+            "key": "result_only",
+            "type": "single_line_text_field",
+            "value": "result-1777304272206"
+          },
+          {
+            "id": "gid://shopify/Metafield/42971568079154",
+            "namespace": "custom",
+            "key": "conflict",
+            "type": "single_line_text_field",
+            "value": "result-conflict-1777304272206"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": "gid://shopify/Metafield/42971568046386",
+          "endCursor": "gid://shopify/Metafield/42971568079154"
+        }
+      },
+      "orders": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": null,
+          "endCursor": null
+        }
+      },
+      "lastOrder": null,
+      "createdAt": "2026-04-27T15:37:52Z",
+      "updatedAt": "2026-04-27T15:37:52Z"
+    }
+  ],
+  "seedCustomerOrders": {
+    "gid://shopify/Customer/10546995560754": [
+      {
+        "id": "gid://shopify/Order/8713628221746",
+        "name": "#1033",
+        "email": "hermes-merge-one-1777304272206@example.com",
+        "createdAt": "2026-04-27T15:37:53Z",
+        "customer": {
+          "id": "gid://shopify/Customer/10546995560754"
+        },
+        "__cursor": "eyJsYXN0X2lkIjo4NzEzNjI4MjIxNzQ2LCJsYXN0X3ZhbHVlIjoiMjAyNi0wNC0yNyAxNTozNzo1My4xNDYwNDEifQ=="
+      }
+    ]
+  },
+  "seedCustomersCount": 43,
   "preview": {
     "variables": {
       "one": "gid://shopify/Customer/10546995560754",
@@ -936,7 +1151,11 @@
         "customerIdOfFirstNameToKeep": "gid://shopify/Customer/10546995560754",
         "customerIdOfLastNameToKeep": "gid://shopify/Customer/10546995626290",
         "note": "merged note",
-        "tags": ["har-291-merge", "merged", "merge-1777304272206"]
+        "tags": [
+          "har-291-merge",
+          "merged",
+          "merge-1777304272206"
+        ]
       }
     },
     "response": {
@@ -954,7 +1173,12 @@
               "phoneNumber": "+16475552206"
             },
             "note": "merge-two-note merge-one-note",
-            "tags": ["har-291-merge", "merge-1777304272206", "merge-two", "merge-one"]
+            "tags": [
+              "har-291-merge",
+              "merge-1777304272206",
+              "merge-two",
+              "merge-one"
+            ]
           },
           "alternateFields": {
             "firstName": "Merge",
@@ -993,7 +1217,11 @@
         "customerIdOfFirstNameToKeep": "gid://shopify/Customer/10546995560754",
         "customerIdOfLastNameToKeep": "gid://shopify/Customer/10546995626290",
         "note": "merged note",
-        "tags": ["har-291-merge", "merged", "merge-1777304272206"]
+        "tags": [
+          "har-291-merge",
+          "merged",
+          "merge-1777304272206"
+        ]
       }
     },
     "response": {
@@ -1129,7 +1357,11 @@
           "displayName": "Merge Two",
           "email": "hermes-merge-two-1777304272206@example.com",
           "note": "merged note",
-          "tags": ["har-291-merge", "merge-1777304272206", "merged"],
+          "tags": [
+            "har-291-merge",
+            "merge-1777304272206",
+            "merged"
+          ],
           "numberOfOrders": "0",
           "defaultEmailAddress": {
             "emailAddress": "hermes-merge-two-1777304272206@example.com"
@@ -1271,7 +1503,11 @@
           "displayName": "Merge Two",
           "email": "hermes-merge-two-1777304272206@example.com",
           "note": "merged note",
-          "tags": ["har-291-merge", "merge-1777304272206", "merged"],
+          "tags": [
+            "har-291-merge",
+            "merge-1777304272206",
+            "merged"
+          ],
           "numberOfOrders": "0",
           "defaultEmailAddress": {
             "emailAddress": "hermes-merge-two-1777304272206@example.com"
@@ -1424,7 +1660,11 @@
             {
               "id": "gid://shopify/Customer/10546995626290",
               "email": "hermes-merge-two-1777304272206@example.com",
-              "tags": ["har-291-merge", "merge-1777304272206", "merged"],
+              "tags": [
+                "har-291-merge",
+                "merge-1777304272206",
+                "merged"
+              ],
               "numberOfOrders": "0",
               "defaultAddress": {
                 "id": "gid://shopify/MailingAddress/12037698552114?model_name=CustomerAddress",
@@ -1493,7 +1733,9 @@
         },
         "search": [
           {
-            "path": ["customersCount"],
+            "path": [
+              "customersCount"
+            ],
             "query": "tag:har-291-merge",
             "parsed": {
               "field": "tag",
@@ -1526,7 +1768,10 @@
                 "column": 5
               }
             ],
-            "path": ["mutation CustomerMergeMissingArgument", "customerMerge"],
+            "path": [
+              "mutation CustomerMergeMissingArgument",
+              "customerMerge"
+            ],
             "extensions": {
               "code": "missingRequiredArguments",
               "className": "Field",
@@ -1555,7 +1800,9 @@
             "extensions": {
               "code": "BAD_REQUEST"
             },
-            "path": ["customerMergePreview"]
+            "path": [
+              "customerMergePreview"
+            ]
           }
         ],
         "data": null,
@@ -1616,7 +1863,9 @@
             "job": null,
             "userErrors": [
               {
-                "field": ["customerTwoId"],
+                "field": [
+                  "customerTwoId"
+                ],
                 "message": "Customer does not exist with ID 999999999999999",
                 "code": "INVALID_CUSTOMER_ID"
               }
@@ -1707,7 +1956,11 @@
               "displayName": "Merge One",
               "email": "hermes-merge-one-1777304272206@example.com",
               "note": "merge-one-note",
-              "tags": ["har-291-merge", "merge-1777304272206", "merge-one"],
+              "tags": [
+                "har-291-merge",
+                "merge-1777304272206",
+                "merge-one"
+              ],
               "numberOfOrders": "0",
               "defaultEmailAddress": {
                 "emailAddress": "hermes-merge-one-1777304272206@example.com"
@@ -1806,7 +2059,11 @@
               "displayName": "Merge Two",
               "email": "hermes-merge-two-1777304272206@example.com",
               "note": "merge-two-note",
-              "tags": ["har-291-merge", "merge-1777304272206", "merge-two"],
+              "tags": [
+                "har-291-merge",
+                "merge-1777304272206",
+                "merge-two"
+              ],
               "numberOfOrders": "0",
               "defaultEmailAddress": {
                 "emailAddress": "hermes-merge-two-1777304272206@example.com"

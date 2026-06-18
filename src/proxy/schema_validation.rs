@@ -1162,8 +1162,58 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         extend_markets_input_schema(&mut schema);
         extend_payments_input_schema(&mut schema);
         extend_shipping_input_schema(&mut schema);
+        extend_store_credit_input_schema(&mut schema);
         schema
     })
+}
+
+fn extend_store_credit_input_schema(schema: &mut AdminInputSchema) {
+    // `storeCreditAccountCredit` / `storeCreditAccountDebit` on Admin API 2026-04
+    // are staged locally, but their input objects are registered here so an
+    // unsupported field (e.g. `attribution`, or `notify` on a *debit* input where
+    // it is not defined) surfaces a top-level `INVALID_VARIABLE` coercion error
+    // before the resolver runs — exactly as the live schema rejects fields it does
+    // not define. `MoneyInput` is intentionally left unregistered so the resolver
+    // owns money-field validation and the nested `amount`/`currencyCode` fields are
+    // never flagged as unknown.
+    schema.input_objects.insert(
+        "StoreCreditAccountCreditInput".to_string(),
+        BTreeMap::from([
+            (
+                "creditAmount".to_string(),
+                input_field(non_null("MoneyInput")),
+            ),
+            ("expiresAt".to_string(), input_field(named("DateTime"))),
+            ("notify".to_string(), input_field(named("Boolean"))),
+        ]),
+    );
+    schema.input_objects.insert(
+        "StoreCreditAccountDebitInput".to_string(),
+        BTreeMap::from([(
+            "debitAmount".to_string(),
+            input_field(non_null("MoneyInput")),
+        )]),
+    );
+    schema.mutation_fields.insert(
+        "storeCreditAccountCredit".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "creditInput".to_string(),
+                mutation_arg(non_null("StoreCreditAccountCreditInput")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "storeCreditAccountDebit".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "debitInput".to_string(),
+                mutation_arg(non_null("StoreCreditAccountDebitInput")),
+            ),
+        ]),
+    );
 }
 
 fn extend_shipping_input_schema(schema: &mut AdminInputSchema) {
@@ -1447,12 +1497,34 @@ fn extend_online_store_input_schema(schema: &mut AdminInputSchema) {
 fn extend_customer_merge_input_schema(schema: &mut AdminInputSchema) {
     // customerMerge requires both customerOneId and customerTwoId as non-null IDs
     // overrideFields is optional
+    // Mirror the live Admin schema's CustomerMergeOverrideFields so a valid call
+    // that picks which customer's scalar fields / addresses survive the merge is
+    // not flagged as `argumentNotAccepted` before the resolver runs.
     schema.input_objects.insert(
         "CustomerMergeOverrideFields".to_string(),
         BTreeMap::from([
+            (
+                "customerIdOfFirstNameToKeep".to_string(),
+                input_field(named("ID")),
+            ),
+            (
+                "customerIdOfLastNameToKeep".to_string(),
+                input_field(named("ID")),
+            ),
+            (
+                "customerIdOfEmailToKeep".to_string(),
+                input_field(named("ID")),
+            ),
+            (
+                "customerIdOfPhoneNumberToKeep".to_string(),
+                input_field(named("ID")),
+            ),
+            (
+                "customerIdOfDefaultAddressToKeep".to_string(),
+                input_field(named("ID")),
+            ),
             ("note".to_string(), input_field(named("String"))),
-            ("tags".to_string(), input_field(named("String"))),
-            ("taxExemptions".to_string(), input_field(named("String"))),
+            ("tags".to_string(), input_field(list_of_non_null("String"))),
         ]),
     );
     schema.mutation_fields.insert(

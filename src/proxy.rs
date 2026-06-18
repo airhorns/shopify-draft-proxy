@@ -257,6 +257,13 @@ struct StagedState {
     merged_customer_ids: BTreeMap<String, String>,
     customer_merge_requests: BTreeMap<String, Value>,
     customer_data_erasure_requests: BTreeMap<String, Value>,
+    // Store-wide total customer count baseline reported by `customersCount`.
+    // The live shop's total is store-specific and cannot be reconstructed from
+    // the handful of customers a scenario stages, so a scenario seeds the
+    // recorded baseline and the read resolver reports `base - deletions` so the
+    // count tracks merges/deletes generically. `None` falls back to the legacy
+    // default for scenarios that never seed a baseline.
+    customers_count_base: Option<u64>,
     store_credit_accounts: BTreeMap<String, Value>,
     store_credit_account_order: Vec<String>,
     store_credit_transactions: BTreeMap<String, Value>,
@@ -580,6 +587,7 @@ impl Default for StagedState {
             merged_customer_ids: BTreeMap::new(),
             customer_merge_requests: BTreeMap::new(),
             customer_data_erasure_requests: BTreeMap::new(),
+            customers_count_base: None,
             store_credit_accounts: BTreeMap::new(),
             store_credit_account_order: Vec::new(),
             store_credit_transactions: BTreeMap::new(),

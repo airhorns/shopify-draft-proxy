@@ -176,6 +176,17 @@ impl DraftProxy {
                 "customerAddressOrder": self.store.staged.customer_address_order.clone(),
                 "customerAddressOwners": self.store.staged.customer_address_owners.clone(),
                 "customerOrders": self.store.staged.customer_orders.clone(),
+                "mergedCustomerIds": self.store.staged.merged_customer_ids.clone(),
+                "customerMergeRequests": self.store.staged.customer_merge_requests.clone(),
+                "customerDataErasureRequests": self.store.staged.customer_data_erasure_requests.clone(),
+                "customersCountBase": self.store.staged.customers_count_base,
+                "storeCreditAccounts": self.store.staged.store_credit_accounts.clone(),
+                "storeCreditAccountOrder": self.store.staged.store_credit_account_order.clone(),
+                "storeCreditTransactions": self.store.staged.store_credit_transactions.clone(),
+                "storeCreditTransactionOrder": self.store.staged.store_credit_transaction_order.clone(),
+                "nextStoreCreditAccountId": self.store.staged.next_store_credit_account_id,
+                "nextStoreCreditTransactionId": self.store.staged.next_store_credit_transaction_id,
+                "giftCards": self.store.staged.gift_cards.clone(),
                 "taggableResources": self.store.staged.taggable_resources.clone(),
                 "orders": self.store.staged.orders.clone(),
                 "deletedOrderIds": self.store.staged.deleted_order_ids.iter().cloned().collect::<Vec<_>>(),
@@ -466,6 +477,13 @@ impl DraftProxy {
                 }
             }
         }
+        // A scenario can seed the live shop's total customer count so the
+        // `customersCount` read root reports the store-specific baseline (which
+        // can't be reconstructed from the staged customers) and tracks deletions
+        // generically as `base - deletions`.
+        if let Some(count) = body.get("customersCount").and_then(Value::as_u64) {
+            self.store.staged.customers_count_base = Some(count);
+        }
         if let Some(segments) = body.get("segments").and_then(Value::as_array) {
             for segment in segments {
                 if let Some(id) = segment.get("id").and_then(Value::as_str) {
@@ -546,6 +564,23 @@ impl DraftProxy {
                         .orders
                         .insert(id.to_string(), order.clone());
                     seeded_orders += 1;
+                }
+            }
+        }
+        // A scenario can seed per-customer order connections (customer id -> recorded
+        // order nodes, each optionally carrying an opaque `__cursor`) so customer
+        // reads and order-transferring merges resolve a customer's orders from store
+        // state. The recorded cursors cannot be reconstructed locally, so seeding
+        // them lets downstream reads observe the live connection cursors verbatim.
+        if let Some(customer_orders) = body.get("customerOrders").and_then(Value::as_object) {
+            for (customer_id, orders) in customer_orders {
+                if let Some(orders) = orders.as_array() {
+                    self.store
+                        .staged
+                        .customer_orders
+                        .entry(customer_id.clone())
+                        .or_default()
+                        .extend(orders.iter().cloned());
                 }
             }
         }
@@ -999,6 +1034,99 @@ impl DraftProxy {
                     .map(|(id, orders)| {
                         (id.clone(), orders.as_array().cloned().unwrap_or_default())
                     })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.merged_customer_ids = state["stagedState"]["mergedCustomerIds"]
+            .as_object()
+            .map(|merged| {
+                merged
+                    .iter()
+                    .filter_map(|(source_id, result_id)| {
+                        result_id
+                            .as_str()
+                            .map(|result_id| (source_id.clone(), result_id.to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.customer_merge_requests = state["stagedState"]["customerMergeRequests"]
+            .as_object()
+            .map(|requests| {
+                requests
+                    .iter()
+                    .map(|(id, request)| (id.clone(), request.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.customer_data_erasure_requests = state["stagedState"]
+            ["customerDataErasureRequests"]
+            .as_object()
+            .map(|requests| {
+                requests
+                    .iter()
+                    .map(|(id, request)| (id.clone(), request.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.customers_count_base =
+            state["stagedState"]["customersCountBase"].as_u64();
+        self.store.staged.store_credit_accounts = state["stagedState"]["storeCreditAccounts"]
+            .as_object()
+            .map(|accounts| {
+                accounts
+                    .iter()
+                    .map(|(id, account)| (id.clone(), account.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.store_credit_account_order = state["stagedState"]
+            .get("storeCreditAccountOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .store_credit_accounts
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
+        self.store.staged.store_credit_transactions = state["stagedState"]["storeCreditTransactions"]
+            .as_object()
+            .map(|transactions| {
+                transactions
+                    .iter()
+                    .map(|(id, transaction)| (id.clone(), transaction.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.store_credit_transaction_order = state["stagedState"]
+            .get("storeCreditTransactionOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .store_credit_transactions
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
+        self.store.staged.next_store_credit_account_id = state["stagedState"]
+            .get("nextStoreCreditAccountId")
+            .and_then(Value::as_u64)
+            .filter(|id| *id > 0)
+            .unwrap_or(1);
+        self.store.staged.next_store_credit_transaction_id = state["stagedState"]
+            .get("nextStoreCreditTransactionId")
+            .and_then(Value::as_u64)
+            .filter(|id| *id > 0)
+            .unwrap_or(1);
+        self.store.staged.gift_cards = state["stagedState"]["giftCards"]
+            .as_object()
+            .map(|cards| {
+                cards
+                    .iter()
+                    .map(|(id, card)| (id.clone(), card.clone()))
                     .collect()
             })
             .unwrap_or_default();

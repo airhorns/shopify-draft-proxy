@@ -9982,10 +9982,30 @@ impl DraftProxy {
                 .orders
                 .insert(order_id.clone(), order.clone());
         }
+        // Maintain the per-customer order index so the b2b `customer.orders`
+        // connection reflects the association immediately (read-after-write):
+        // detach the order from any prior owner, then attach the full (now
+        // customer-bearing) order node to the new customer.
+        self.detach_order_from_customer_orders(&order_id);
+        self.store
+            .staged
+            .customer_orders
+            .entry(customer_id.clone())
+            .or_default()
+            .push(order.clone());
         selected_json(
             &json!({ "order": order, "userErrors": [] }),
             &field.selection,
         )
+    }
+
+    /// Remove an order from every per-customer order index entry. Used when an
+    /// order's customer association changes (set to a new owner / removed) so a
+    /// later `customer.orders` read does not surface a stale link.
+    fn detach_order_from_customer_orders(&mut self, order_id: &str) {
+        for orders in self.store.staged.customer_orders.values_mut() {
+            orders.retain(|order| order.get("id").and_then(Value::as_str) != Some(order_id));
+        }
     }
 
     pub(in crate::proxy) fn order_customer_remove_error_paths(
@@ -10044,6 +10064,10 @@ impl DraftProxy {
                 .orders
                 .insert(order_id.clone(), order.clone());
         }
+        // The order is no longer attached to any customer: drop it from every
+        // per-customer order index entry so `customer.orders` reads reflect the
+        // removal.
+        self.detach_order_from_customer_orders(&order_id);
         selected_json(
             &json!({ "order": order, "userErrors": [] }),
             &field.selection,

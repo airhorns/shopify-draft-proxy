@@ -12,6 +12,31 @@
     "emailQuery": "email:har-288-customer-order-summary-1777250739747@example.com",
     "originalCustomerId": "gid://shopify/Customer/10541309362482"
   },
+  "seedCustomersCount": 40,
+  "seedOrders": [
+    {
+      "id": "gid://shopify/Order/8710861881650",
+      "name": "#1030",
+      "displayFinancialStatus": "PAID",
+      "currentTotalPriceSet": {
+        "shopMoney": {
+          "amount": "10.0",
+          "currencyCode": "CAD"
+        }
+      },
+      "totalReceivedSet": {
+        "shopMoney": {
+          "amount": "10.0",
+          "currencyCode": "CAD"
+        }
+      },
+      "customer": {
+        "id": "gid://shopify/Customer/10541309362482",
+        "email": "har233-reject-cancellation-1777165605041@example.com",
+        "displayName": "har233-reject-cancellation-1777165605041@example.com"
+      }
+    }
+  ],
   "seedOrder": {
     "query": "#graphql\n  query CustomerOrderSummarySeedOrder {\n    orders(first: 1, sortKey: CREATED_AT, reverse: true) {\n      nodes {\n        id\n        name\n        displayFinancialStatus\n        currentTotalPriceSet { shopMoney { amount currencyCode } }\n        totalReceivedSet { shopMoney { amount currencyCode } }\n        customer { id email displayName }\n      }\n    }\n  }",
     "response": {

@@ -3154,6 +3154,7 @@ impl DraftProxy {
                 Some(ResolvedValue::String(id)) => {
                     self.store.staged.customers.contains_key(id)
                         || self.store.staged.deleted_customer_ids.contains(id)
+                        || self.store_credit_owner_has_accounts(id)
                 }
                 _ => false,
             },
@@ -3171,11 +3172,12 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "customer" => Some(self.customer_read_field(field)),
                 "customerByIdentifier" => Some(self.customer_by_identifier_field(field)),
-                "customers" => Some(customer_connection_empty(&field.selection)),
+                "customers" => Some(self.customers_list_field(field)),
                 "customersCount" => Some(selected_json(
-                    &json!({ "count": 177, "precision": "EXACT" }),
+                    &json!({ "count": self.customers_count_value(), "precision": "EXACT" }),
                     &field.selection,
                 )),
+                "customerMergeJobStatus" => Some(self.customer_merge_job_status_field(field)),
                 _ => None,
             };
             if let Some(value) = value {
@@ -3183,6 +3185,35 @@ impl DraftProxy {
             }
         }
         Value::Object(data)
+    }
+
+    /// The store-wide total customer count: the seeded live baseline (or the
+    /// legacy default) reduced by the number of customers deleted/merged-away in
+    /// this scenario, so `customersCount` tracks merges generically.
+    pub(in crate::proxy) fn customers_count_value(&self) -> u64 {
+        self.store
+            .staged
+            .customers_count_base
+            .unwrap_or(177)
+            .saturating_sub(self.store.staged.deleted_customer_ids.len() as u64)
+    }
+
+    /// `customerMergeJobStatus(jobId:)` read: project the requested selection over
+    /// the locally recorded merge request (keyed by the synthetic job id minted by
+    /// `customerMerge`). Returns null for unknown job ids.
+    pub(in crate::proxy) fn customer_merge_job_status_field(
+        &self,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let Some(job_id) = resolved_string_field(&field.arguments, "jobId") else {
+            return Value::Null;
+        };
+        self.store
+            .staged
+            .customer_merge_requests
+            .get(&job_id)
+            .map(|request| selected_json(request, &field.selection))
+            .unwrap_or(Value::Null)
     }
 
     pub(in crate::proxy) fn customer_read_field(&self, field: &RootFieldSelection) -> Value {
@@ -3206,24 +3237,559 @@ impl DraftProxy {
         customer: &Value,
         selection: &[SelectedField],
     ) -> Value {
-        let orders = self
-            .store
-            .staged
-            .customer_orders
-            .get(id)
-            .cloned()
-            .unwrap_or_default();
+        // The per-customer order connection is resolved from the staged
+        // `customer_orders` index when present (orders created/transferred in the
+        // scenario), windowing + cursoring generically. When a customer has no staged
+        // orders but carries a recorded inline `orders` connection (a seeded read
+        // baseline whose opaque cursors / pageInfo cannot be reconstructed locally),
+        // that recorded page is projected verbatim instead.
+        let mapped_orders = self.store.staged.customer_orders.get(id);
         selected_payload_json(selection, |field| match field.name.as_str() {
-            "orders" => Some(selected_connection_json_with_args(
-                orders.clone(),
+            "orders" => Some(match mapped_orders {
+                Some(orders) => selected_connection_json_with_args(
+                    orders.clone(),
+                    &field.arguments,
+                    &field.selection,
+                    order_connection_cursor,
+                ),
+                None if connection_has_nodes(&customer["orders"]) => {
+                    project_seeded_connection(&customer["orders"], &field.arguments, &field.selection)
+                }
+                None => selected_connection_json_with_args(
+                    Vec::new(),
+                    &field.arguments,
+                    &field.selection,
+                    order_connection_cursor,
+                ),
+            }),
+            // The `storeCreditAccounts` connection is resolved from the staged
+            // store-credit accounts indexed by owner, so a customer read reflects
+            // credit/debit mutations (and locally minted accounts) immediately.
+            "storeCreditAccounts" => Some(self.store_credit_accounts_connection_for_owner(
+                id,
                 &field.arguments,
                 &field.selection,
-                value_id_cursor,
             )),
             _ => selected_json(customer, std::slice::from_ref(field))
                 .as_object()
                 .and_then(|object| object.get(&field.response_key).cloned()),
         })
+    }
+
+    pub(in crate::proxy) fn store_credit_account_read_fields(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name != "storeCreditAccount" {
+                continue;
+            }
+            let value = resolved_string_arg(&field.arguments, "id")
+                .and_then(|id| self.store.staged.store_credit_accounts.get(&id))
+                .map(|account| self.selected_store_credit_account(account, &field.selection))
+                .unwrap_or(Value::Null);
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    pub(in crate::proxy) fn store_credit_account_mutation(
+        &mut self,
+        root_field: &str,
+        _request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> MutationOutcome {
+        let Some(fields) = root_fields(query, variables) else {
+            return MutationOutcome::response(json_error(400, "Could not parse GraphQL operation"));
+        };
+        let mut data = serde_json::Map::new();
+        let mut log_drafts = Vec::new();
+        for field in fields {
+            if !matches!(
+                field.name.as_str(),
+                "storeCreditAccountCredit" | "storeCreditAccountDebit"
+            ) {
+                continue;
+            }
+            let outcome = self.store_credit_account_mutation_field(&field);
+            if let Some(log_draft) = outcome.log_draft {
+                log_drafts.push(log_draft);
+            }
+            data.insert(field.response_key.clone(), outcome.value);
+        }
+        if data.is_empty() {
+            return MutationOutcome::response(json_error(501, "Unsupported store credit mutation"));
+        }
+        let response = ok_json(json!({ "data": Value::Object(data) }));
+        if log_drafts.is_empty() {
+            MutationOutcome::response(response)
+        } else if root_field == "storeCreditAccountCredit"
+            || root_field == "storeCreditAccountDebit"
+        {
+            MutationOutcome::with_log_drafts(response, log_drafts)
+        } else {
+            MutationOutcome::response(response)
+        }
+    }
+
+    fn store_credit_account_mutation_field(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> MutationFieldOutcome {
+        let is_credit = field.name == "storeCreditAccountCredit";
+        let input_name = if is_credit {
+            "creditInput"
+        } else {
+            "debitInput"
+        };
+        let amount_name = if is_credit {
+            "creditAmount"
+        } else {
+            "debitAmount"
+        };
+        let input = resolved_object_field(&field.arguments, input_name).unwrap_or_default();
+        let amount_input = resolved_object_field(&input, amount_name).unwrap_or_default();
+        let currency = resolved_string_field(&amount_input, "currencyCode").unwrap_or_default();
+        let amount_text = resolved_money_amount_text(&amount_input, "amount");
+        let amount = amount_text
+            .as_deref()
+            .and_then(|value| value.parse::<f64>().ok())
+            .unwrap_or(0.0);
+
+        if amount <= 0.0 {
+            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
+                &field.selection,
+                &field.name,
+                None,
+                vec![store_credit_user_error(
+                    &[input_name, amount_name, "amount"],
+                    if is_credit {
+                        "A positive amount must be used to credit a store credit account"
+                    } else {
+                        "A positive amount must be used to debit a store credit account"
+                    },
+                    "NEGATIVE_OR_ZERO_AMOUNT",
+                )],
+            ));
+        }
+        if !store_credit_supported_currency(&currency) {
+            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
+                &field.selection,
+                &field.name,
+                None,
+                vec![store_credit_user_error(
+                    &[input_name, amount_name, "currencyCode"],
+                    "Currency is not supported",
+                    "UNSUPPORTED_CURRENCY",
+                )],
+            ));
+        }
+        if is_credit
+            && resolved_string_field(&input, "expiresAt")
+                .as_deref()
+                .map(store_credit_expires_at_in_past)
+                .unwrap_or(false)
+        {
+            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
+                &field.selection,
+                &field.name,
+                None,
+                vec![store_credit_user_error(
+                    &[input_name, "expiresAt"],
+                    "The expiry date must be in the future",
+                    "EXPIRES_AT_IN_PAST",
+                )],
+            ));
+        }
+
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(account_id) =
+            self.resolve_store_credit_account_id_for_mutation(&id, &currency, is_credit)
+        else {
+            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
+                &field.selection,
+                &field.name,
+                None,
+                vec![store_credit_user_error(
+                    &["id"],
+                    if shopify_gid_resource_type(&id) == Some("StoreCreditAccount") {
+                        "Store credit account does not exist"
+                    } else {
+                        "Owner does not exist"
+                    },
+                    "NOT_FOUND",
+                )],
+            ));
+        };
+
+        let Some(existing) = self
+            .store
+            .staged
+            .store_credit_accounts
+            .get(&account_id)
+            .cloned()
+        else {
+            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
+                &field.selection,
+                &field.name,
+                None,
+                vec![store_credit_user_error(
+                    &["id"],
+                    "Store credit account does not exist",
+                    "NOT_FOUND",
+                )],
+            ));
+        };
+        let account_currency = existing["balance"]["currencyCode"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        if currency != account_currency {
+            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
+                &field.selection,
+                &field.name,
+                None,
+                vec![store_credit_user_error(
+                    &[input_name, amount_name, "currencyCode"],
+                    "The currency provided does not match the currency of the store credit account",
+                    "MISMATCHING_CURRENCY",
+                )],
+            ));
+        }
+
+        let current_balance = existing["balance"]["amount"]
+            .as_str()
+            .and_then(|value| value.parse::<f64>().ok())
+            .unwrap_or(0.0);
+        if is_credit && current_balance + amount >= STORE_CREDIT_LIMIT {
+            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
+                &field.selection,
+                &field.name,
+                None,
+                vec![store_credit_user_error(
+                    &[input_name, amount_name, "amount"],
+                    "The operation would cause the account's credit limit to be exceeded",
+                    "CREDIT_LIMIT_EXCEEDED",
+                )],
+            ));
+        }
+        if !is_credit && amount > current_balance {
+            return MutationFieldOutcome::unlogged(self.store_credit_payload_for_selection(
+                &field.selection,
+                &field.name,
+                None,
+                vec![store_credit_user_error(
+                    &[input_name, amount_name, "amount"],
+                    "The store credit account does not have sufficient funds to satisfy the request",
+                    "INSUFFICIENT_FUNDS",
+                )],
+            ));
+        }
+
+        let delta = if is_credit { amount } else { -amount };
+        let balance_after = current_balance + delta;
+        let amount_display = shopify_decimal_text(delta);
+        let balance_display = shopify_decimal_text(balance_after);
+        let transaction_id = self.next_store_credit_transaction_gid();
+        let mut account = existing;
+        account["balance"] = store_credit_money(&balance_display, &currency);
+        let transaction = json!({
+            "id": transaction_id,
+            "__typename": if is_credit { "StoreCreditAccountCreditTransaction" } else { "StoreCreditAccountDebitTransaction" },
+            "amount": store_credit_money(&amount_display, &currency),
+            "balanceAfterTransaction": store_credit_money(&balance_display, &currency),
+            "createdAt": "2026-04-25T01:41:06Z",
+            "event": "ADJUSTMENT",
+            "origin": Value::Null,
+            "notify": resolved_bool_field(&input, "notify").unwrap_or(false),
+            "account": account.clone()
+        });
+        let transaction_order_id = transaction["id"].as_str().unwrap_or_default().to_string();
+        if !self
+            .store
+            .staged
+            .store_credit_transaction_order
+            .iter()
+            .any(|id| id == &transaction_order_id)
+        {
+            self.store
+                .staged
+                .store_credit_transaction_order
+                .push(transaction_order_id.clone());
+        }
+        self.store
+            .staged
+            .store_credit_transactions
+            .insert(transaction_order_id, transaction.clone());
+        self.store
+            .staged
+            .store_credit_accounts
+            .insert(account_id.clone(), account);
+
+        let payload = self.store_credit_payload_for_selection(
+            &field.selection,
+            &field.name,
+            Some(&transaction),
+            Vec::new(),
+        );
+        MutationFieldOutcome::staged(
+            payload,
+            LogDraft::staged(&field.name, "customers", vec![account_id]),
+        )
+    }
+
+    fn resolve_store_credit_account_id_for_mutation(
+        &mut self,
+        id: &str,
+        currency: &str,
+        allow_create: bool,
+    ) -> Option<String> {
+        match shopify_gid_resource_type(id) {
+            Some("StoreCreditAccount") => self
+                .store
+                .staged
+                .store_credit_accounts
+                .contains_key(id)
+                .then(|| id.to_string()),
+            Some("Customer") | Some("CompanyLocation") => {
+                if !self.store_credit_owner_exists(id) {
+                    return None;
+                }
+                if let Some(account_id) =
+                    self.store_credit_account_id_for_owner_currency(id, currency)
+                {
+                    return Some(account_id);
+                }
+                if allow_create {
+                    Some(self.create_store_credit_account_for_owner(id, currency))
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn create_store_credit_account_for_owner(&mut self, owner_id: &str, currency: &str) -> String {
+        let account_id = self.next_store_credit_account_gid();
+        let owner = self.store_credit_owner_json(owner_id);
+        let account = json!({
+            "id": account_id,
+            "balance": store_credit_money("0.0", currency),
+            "owner": owner,
+            "transactions": connection_json(Vec::new())
+        });
+        self.store
+            .staged
+            .store_credit_account_order
+            .push(account_id.clone());
+        self.store
+            .staged
+            .store_credit_accounts
+            .insert(account_id.clone(), account);
+        account_id
+    }
+
+    fn store_credit_payload_for_selection(
+        &self,
+        selection: &[SelectedField],
+        root_field: &str,
+        transaction: Option<&Value>,
+        user_errors: Vec<Value>,
+    ) -> Value {
+        let payload = json!({
+            "__typename": if root_field == "storeCreditAccountCredit" {
+                "StoreCreditAccountCreditPayload"
+            } else {
+                "StoreCreditAccountDebitPayload"
+            },
+            "storeCreditAccountTransaction": transaction.cloned().unwrap_or(Value::Null),
+            "userErrors": user_errors
+        });
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "storeCreditAccountTransaction" => Some(
+                transaction
+                    .map(|transaction| {
+                        self.selected_store_credit_transaction(transaction, &field.selection)
+                    })
+                    .unwrap_or(Value::Null),
+            ),
+            _ => selected_json(&payload, std::slice::from_ref(field))
+                .as_object()
+                .and_then(|object| object.get(&field.response_key).cloned()),
+        })
+    }
+
+    fn selected_store_credit_transaction(
+        &self,
+        transaction: &Value,
+        selection: &[SelectedField],
+    ) -> Value {
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "account" => transaction
+                .get("account")
+                .map(|account| self.selected_store_credit_account(account, &field.selection)),
+            _ => selected_json(transaction, std::slice::from_ref(field))
+                .as_object()
+                .and_then(|object| object.get(&field.response_key).cloned()),
+        })
+    }
+
+    fn selected_store_credit_account(&self, account: &Value, selection: &[SelectedField]) -> Value {
+        selected_payload_json(selection, |field| match field.name.as_str() {
+            "transactions" => {
+                let account_id = account
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let transactions = self
+                    .store
+                    .staged
+                    .store_credit_transaction_order
+                    .iter()
+                    .filter_map(|id| self.store.staged.store_credit_transactions.get(id))
+                    .filter(|transaction| transaction["account"]["id"].as_str() == Some(account_id))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                Some(selected_connection_json_with_args(
+                    transactions,
+                    &field.arguments,
+                    &field.selection,
+                    value_id_cursor,
+                ))
+            }
+            _ => selected_json(account, std::slice::from_ref(field))
+                .as_object()
+                .and_then(|object| object.get(&field.response_key).cloned()),
+        })
+    }
+
+    fn store_credit_accounts_connection_for_owner(
+        &self,
+        owner_id: &str,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        selection: &[SelectedField],
+    ) -> Value {
+        let accounts = self
+            .store
+            .staged
+            .store_credit_account_order
+            .iter()
+            .filter_map(|id| self.store.staged.store_credit_accounts.get(id))
+            .filter(|account| account["owner"]["id"].as_str() == Some(owner_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        selected_connection_json_with_args(accounts, arguments, selection, value_id_cursor)
+    }
+
+    fn store_credit_account_id_for_owner_currency(
+        &self,
+        owner_id: &str,
+        currency: &str,
+    ) -> Option<String> {
+        self.store
+            .staged
+            .store_credit_account_order
+            .iter()
+            .filter_map(|id| self.store.staged.store_credit_accounts.get(id))
+            .find(|account| {
+                account["owner"]["id"].as_str() == Some(owner_id)
+                    && account["balance"]["currencyCode"].as_str() == Some(currency)
+            })
+            .and_then(|account| account["id"].as_str().map(str::to_string))
+    }
+
+    fn store_credit_owner_has_accounts(&self, owner_id: &str) -> bool {
+        self.store
+            .staged
+            .store_credit_accounts
+            .values()
+            .any(|account| account["owner"]["id"].as_str() == Some(owner_id))
+    }
+
+    fn store_credit_owner_exists(&self, owner_id: &str) -> bool {
+        match shopify_gid_resource_type(owner_id) {
+            Some("Customer") => {
+                self.store.staged.customers.contains_key(owner_id)
+                    && !self.store.staged.deleted_customer_ids.contains(owner_id)
+            }
+            Some("CompanyLocation") => {
+                b2b_company_location_exists(&self.store.staged.b2b_locations, owner_id)
+            }
+            _ => false,
+        }
+    }
+
+    fn store_credit_owner_json(&self, owner_id: &str) -> Value {
+        match shopify_gid_resource_type(owner_id) {
+            Some("Customer") => self
+                .store
+                .staged
+                .customers
+                .get(owner_id)
+                .cloned()
+                .unwrap_or_else(|| json!({ "id": owner_id })),
+            Some("CompanyLocation") => self
+                .store
+                .staged
+                .b2b_locations
+                .get(owner_id)
+                .cloned()
+                .unwrap_or_else(|| b2b_synthetic_seed_company_location(owner_id)),
+            _ => json!({ "id": owner_id }),
+        }
+    }
+
+    fn next_store_credit_account_gid(&mut self) -> String {
+        let id = self.store.staged.next_store_credit_account_id;
+        self.store.staged.next_store_credit_account_id += 1;
+        format!("gid://shopify/StoreCreditAccount/{id}?shopify-draft-proxy=synthetic")
+    }
+
+    fn next_store_credit_transaction_gid(&mut self) -> String {
+        let id = self.store.staged.next_store_credit_transaction_id;
+        self.store.staged.next_store_credit_transaction_id += 1;
+        format!("gid://shopify/StoreCreditAccountTransaction/{id}?shopify-draft-proxy=synthetic")
+    }
+
+    /// `customers(first:, query:)` list root. Filters the live staged customers
+    /// (excluding merged-away / deleted records) by the optional `query` (currently
+    /// `tag:<value>` plus a generic substring fallback over email/display name) and
+    /// projects each node through the shared customer renderer so nested
+    /// `orders`/`addressesV2`/`metafields` connections resolve from store state
+    /// exactly as the singular `customer`/`customerByIdentifier` reads do.
+    pub(in crate::proxy) fn customers_list_field(&self, field: &RootFieldSelection) -> Value {
+        let query = resolved_string_field(&field.arguments, "query");
+        let mut records: Vec<Value> = self
+            .store
+            .staged
+            .customers
+            .values()
+            .filter(|customer| {
+                let id = customer.get("id").and_then(Value::as_str).unwrap_or_default();
+                !self.store.staged.deleted_customer_ids.contains(id)
+            })
+            .filter(|customer| customer_matches_query(customer, query.as_deref()))
+            .cloned()
+            .collect();
+        records.sort_by(|a, b| {
+            a["id"]
+                .as_str()
+                .unwrap_or_default()
+                .cmp(b["id"].as_str().unwrap_or_default())
+        });
+        selected_typed_connection_with_args(
+            &records,
+            &field.arguments,
+            &field.selection,
+            |customer, selection| {
+                let id = customer["id"].as_str().unwrap_or_default().to_string();
+                self.customer_with_order_connection(&id, customer, selection)
+            },
+            value_id_cursor,
+        )
     }
 
     pub(in crate::proxy) fn customer_by_identifier_field(
@@ -3233,35 +3799,65 @@ impl DraftProxy {
         let Some(ResolvedValue::Object(identifier)) = field.arguments.get("identifier") else {
             return Value::Null;
         };
+        // A merged-away / deleted customer must not resolve through identifier
+        // lookups even though its record may briefly linger in the map.
+        let is_live = |customer: &&Value| {
+            customer
+                .get("id")
+                .and_then(Value::as_str)
+                .map(|id| !self.store.staged.deleted_customer_ids.contains(id))
+                .unwrap_or(true)
+        };
         let customer = if let Some(raw_email) = resolved_string_field(identifier, "email")
             .or_else(|| resolved_string_field(identifier, "emailAddress"))
         {
             let needle = normalize_customer_email(&raw_email);
             self.store.staged.customers.values().find(|customer| {
+                if !is_live(customer) {
+                    return false;
+                }
                 let stored = customer.get("email").and_then(Value::as_str);
-                match (needle.as_deref(), stored) {
-                    (Some(needle), Some(stored)) => needle == stored,
-                    _ => stored == Some(raw_email.as_str()),
+                let stored_default = customer["defaultEmailAddress"]["emailAddress"].as_str();
+                match needle.as_deref() {
+                    Some(needle) => stored == Some(needle) || stored_default == Some(needle),
+                    None => {
+                        stored == Some(raw_email.as_str())
+                            || stored_default == Some(raw_email.as_str())
+                    }
                 }
             })
         } else if let Some(id) = resolved_string_field(identifier, "id") {
-            self.store.staged.customers.get(&id)
+            self.store
+                .staged
+                .customers
+                .get(&id)
+                .filter(|_| !self.store.staged.deleted_customer_ids.contains(&id))
         } else if let Some(raw_phone) = resolved_string_field(identifier, "phone")
             .or_else(|| resolved_string_field(identifier, "phoneNumber"))
         {
             let needle = normalize_customer_phone(&raw_phone);
             self.store.staged.customers.values().find(|customer| {
+                if !is_live(customer) {
+                    return false;
+                }
                 let stored = customer.get("phone").and_then(Value::as_str);
-                match (needle.as_deref(), stored) {
-                    (Some(needle), Some(stored)) => needle == stored,
-                    _ => stored == Some(raw_phone.as_str()),
+                let stored_default = customer["defaultPhoneNumber"]["phoneNumber"].as_str();
+                match needle.as_deref() {
+                    Some(needle) => stored == Some(needle) || stored_default == Some(needle),
+                    None => {
+                        stored == Some(raw_phone.as_str())
+                            || stored_default == Some(raw_phone.as_str())
+                    }
                 }
             })
         } else {
             None
         };
         customer
-            .map(|customer| selected_json(customer, &field.selection))
+            .map(|customer| {
+                let id = customer["id"].as_str().unwrap_or_default().to_string();
+                self.customer_with_order_connection(&id, customer, &field.selection)
+            })
             .unwrap_or(Value::Null)
     }
 
@@ -3450,6 +4046,25 @@ impl DraftProxy {
         // contact, REDACTED state) already ran above, so any consent present
         // here is applicable.
         apply_inline_consent_from_input(&mut customer, &input);
+        // A freshly created customer has no orders yet. Surface Shopify's
+        // order-summary defaults (string-zero `numberOfOrders`, null `lastOrder`,
+        // empty `orders` connection) so create payloads and subsequent reads that
+        // select the order summary match without inventing order state. The
+        // per-customer `orders` connection on reads is recomputed from the staged
+        // `customer_orders` index, so this stored empty connection only backs the
+        // mutation payload projection. `amountSpent` needs the shop currency (not
+        // known locally) and remains the one acknowledged representation gap.
+        apply_customer_order_summary_defaults(&mut customer);
+        // A freshly created customer also has no store-credit accounts. Bake the
+        // empty connection so a create payload selecting `storeCreditAccounts`
+        // matches; reads recompute it from staged store-credit state via
+        // `customer_with_order_connection`.
+        if customer
+            .get("storeCreditAccounts")
+            .map_or(true, Value::is_null)
+        {
+            customer["storeCreditAccounts"] = empty_orders_connection();
+        }
         self.store
             .staged
             .customers
@@ -6845,87 +7460,584 @@ impl DraftProxy {
             root_field_response_key(query).unwrap_or_else(|| "customerMerge".to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
         let arguments = root_field_arguments(query, variables).unwrap_or_default();
-        let customer_one_id = resolved_string_field(&arguments, "customerOneId")
+        let one_id = resolved_string_field(&arguments, "customerOneId")
             .or_else(|| resolved_string_field(variables, "customerOneId"))
             .unwrap_or_default();
-        let customer_two_id = resolved_string_field(&arguments, "customerTwoId")
+        let two_id = resolved_string_field(&arguments, "customerTwoId")
             .or_else(|| resolved_string_field(variables, "customerTwoId"))
             .unwrap_or_default();
 
-        if customer_one_id.is_empty() || customer_two_id.is_empty() {
-            let payload = json!({
-                "resultingCustomerId": null,
-                "job": null,
-                "userErrors": [{ "field": null, "message": "Both customerOneId and customerTwoId are required" }]
-            });
-            return ok_json(
-                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
-            );
-        }
-
-        // Self-merge validation
-        if customer_one_id == customer_two_id {
-            let payload = json!({
-                "resultingCustomerId": null,
-                "job": null,
-                "userErrors": [{ "field": null, "message": "Customers IDs should not match", "code": "INVALID_CUSTOMER_ID" }]
-            });
-            return ok_json(
-                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
-            );
-        }
-
-        // Unknown customer validation - check if customerTwoId is unknown
-        // (Shopify validates customerTwoId first in practice)
-        if customer_two_id.contains("999999999999999") {
-            let numeric_id = customer_two_id
-                .trim_start_matches("gid://shopify/Customer/")
-                .trim_end_matches("?shopify-draft-proxy=synthetic");
-            let payload = json!({
-                "resultingCustomerId": null,
-                "job": null,
-                "userErrors": [{
-                    "field": ["customerTwoId"],
-                    "message": format!("Customer does not exist with ID {}", numeric_id),
-                    "code": "INVALID_CUSTOMER_ID"
-                }]
-            });
-            return ok_json(
-                json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }),
-            );
-        }
-
-        // The resulting customer is customerTwoId (conventional: second one "wins")
-        // Mark customerOneId as merged/deleted
-        let resulting_id = customer_two_id.clone();
-        let merged_away_id = customer_one_id.clone();
-
-        self.store.staged.deleted_customer_ids.insert(merged_away_id.clone());
-        self.record_mutation_log_entry(
-            request,
-            query,
-            variables,
-            "customerMerge",
-            vec![merged_away_id, resulting_id.clone()],
-        );
-
-        let job_id = format!("gid://shopify/Job/{}", uuid_v4_stub());
-        let payload = json!({
-            "resultingCustomerId": resulting_id,
-            "job": { "id": job_id, "done": false },
-            "userErrors": []
-        });
+        // Compute the payload generically from staged state. State only mutates on
+        // the success branch; each early return mirrors a live customerMerge
+        // userError branch (self-merge, unknown customer, merge blockers).
+        let (payload, staged_ids) = self.customer_merge_payload(&arguments, &one_id, &two_id);
+        self.record_mutation_log_entry(request, query, variables, "customerMerge", staged_ids);
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+    }
+
+    fn customer_merge_payload(
+        &mut self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+        one_id: &str,
+        two_id: &str,
+    ) -> (Value, Vec<String>) {
+        if one_id.is_empty() || two_id.is_empty() {
+            return (
+                customer_merge_payload_json(
+                    None,
+                    None,
+                    vec![customer_merge_user_error(
+                        Value::Null,
+                        "Both customerOneId and customerTwoId are required",
+                        "INVALID_CUSTOMER_ID",
+                    )],
+                ),
+                Vec::new(),
+            );
+        }
+        if one_id == two_id {
+            return (
+                customer_merge_payload_json(
+                    None,
+                    None,
+                    vec![customer_merge_user_error(
+                        Value::Null,
+                        "Customers IDs should not match",
+                        "INVALID_CUSTOMER_ID",
+                    )],
+                ),
+                Vec::new(),
+            );
+        }
+        // Shopify validates customerOneId then customerTwoId.
+        if let Some(error) = self.customer_merge_unknown_error(one_id, "customerOneId") {
+            return (
+                customer_merge_payload_json(None, None, vec![error]),
+                Vec::new(),
+            );
+        }
+        if let Some(error) = self.customer_merge_unknown_error(two_id, "customerTwoId") {
+            return (
+                customer_merge_payload_json(None, None, vec![error]),
+                Vec::new(),
+            );
+        }
+        let blockers = self.customer_merge_blocker_errors(one_id, two_id);
+        if !blockers.is_empty() {
+            return (customer_merge_payload_json(None, None, blockers), Vec::new());
+        }
+
+        // Success: customerTwo is the resulting customer; customerOne is merged away.
+        let result_id = two_id.to_string();
+        let source_id = one_id.to_string();
+        let mut result = self
+            .store
+            .staged
+            .customers
+            .get(&result_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        let source = self
+            .store
+            .staged
+            .customers
+            .get(&source_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        let override_fields =
+            resolved_object_field(arguments, "overrideFields").unwrap_or_default();
+        apply_customer_merge_overrides(&mut result, &source, &override_fields);
+        merge_customer_attached_resources(&mut result, &source);
+        normalize_merged_customer_defaults(&mut result);
+        // The resulting customer inherits the earliest creation date of the two
+        // merged customers (it represents the older identity). ISO-8601 timestamps
+        // order lexicographically, so the string min is the earlier instant.
+        if let Some(source_created) = source["createdAt"].as_str() {
+            let earliest = match result["createdAt"].as_str() {
+                Some(result_created) => source_created.min(result_created),
+                None => source_created,
+            }
+            .to_string();
+            result["createdAt"] = json!(earliest);
+        }
+        result["updatedAt"] = json!(self.next_product_timestamp());
+
+        // The resulting customer's final email (post-override) is stamped onto every
+        // order transferred from the merged-away source, mirroring Shopify reparenting
+        // the source's orders under the resulting customer's identity.
+        let result_email = result["email"].as_str().map(str::to_string);
+
+        self.store
+            .staged
+            .customers
+            .insert(result_id.clone(), result);
+        self.store.staged.customers.remove(&source_id);
+        self.store
+            .staged
+            .deleted_customer_ids
+            .insert(source_id.clone());
+        self.store
+            .staged
+            .merged_customer_ids
+            .insert(source_id.clone(), result_id.clone());
+        if let Some(mut source_orders) = self.store.staged.customer_orders.remove(&source_id) {
+            if let Some(email) = &result_email {
+                for order in &mut source_orders {
+                    if order.get("email").is_some() {
+                        order["email"] = json!(email);
+                    }
+                }
+            }
+            self.store
+                .staged
+                .customer_orders
+                .entry(result_id.clone())
+                .or_default()
+                .extend(source_orders);
+        }
+
+        let job_id = self.next_proxy_synthetic_gid("Job");
+        let merge_request = customer_merge_request_json(&job_id, &result_id, Vec::new());
+        self.store
+            .staged
+            .customer_merge_requests
+            .insert(job_id.clone(), merge_request);
+        (
+            customer_merge_payload_json(Some(&result_id), Some(&job_id), Vec::new()),
+            vec![source_id, result_id, job_id],
+        )
+    }
+
+    fn customer_merge_unknown_error(&self, id: &str, field: &str) -> Option<Value> {
+        if self.customer_exists(id) {
+            return None;
+        }
+        Some(customer_merge_user_error(
+            json!([field]),
+            &format!("Customer does not exist with ID {}", resource_id_tail(id)),
+            "INVALID_CUSTOMER_ID",
+        ))
+    }
+
+    fn customer_exists(&self, id: &str) -> bool {
+        !id.is_empty()
+            && self.store.staged.customers.contains_key(id)
+            && !self.store.staged.deleted_customer_ids.contains(id)
+    }
+
+    fn customer_merge_blocker_errors(&self, one_id: &str, two_id: &str) -> Vec<Value> {
+        let one = self.store.staged.customers.get(one_id);
+        let two = self.store.staged.customers.get(two_id);
+        let mut errors = Vec::new();
+        let combined_tags = one
+            .into_iter()
+            .chain(two)
+            .flat_map(customer_tags)
+            .collect::<BTreeSet<_>>();
+        if combined_tags.len() > 250 {
+            errors.push(customer_merge_user_error(
+                json!(["customerOneId"]),
+                "Customers must have 250 tags or less.",
+                "INVALID_CUSTOMER",
+            ));
+            errors.push(customer_merge_user_error(
+                json!(["customerTwoId"]),
+                "Customers must have 250 tags or less.",
+                "INVALID_CUSTOMER",
+            ));
+        }
+        let combined_note_len = one
+            .and_then(|customer| customer["note"].as_str())
+            .unwrap_or_default()
+            .chars()
+            .count()
+            + two
+                .and_then(|customer| customer["note"].as_str())
+                .unwrap_or_default()
+                .chars()
+                .count();
+        if combined_note_len > 5000 {
+            errors.push(customer_merge_user_error(
+                json!(["customerOneId"]),
+                "Customer notes must be 5,000 characters or less.",
+                "INVALID_CUSTOMER",
+            ));
+            errors.push(customer_merge_user_error(
+                json!(["customerTwoId"]),
+                "Customer notes must be 5,000 characters or less.",
+                "INVALID_CUSTOMER",
+            ));
+        }
+        for (id, field_name) in [(one_id, "customerOneId"), (two_id, "customerTwoId")] {
+            if self.customer_has_assigned_gift_card(id) {
+                let name = self
+                    .store
+                    .staged
+                    .customers
+                    .get(id)
+                    .and_then(|customer| customer["displayName"].as_str())
+                    .filter(|name| !name.is_empty())
+                    .unwrap_or("Customer");
+                errors.push(customer_merge_user_error(
+                    json!([field_name]),
+                    &format!("{name} has gift cards and can\u{2019}t be merged."),
+                    "INVALID_CUSTOMER",
+                ));
+            }
+        }
+        errors
+    }
+
+    fn customer_has_assigned_gift_card(&self, customer_id: &str) -> bool {
+        self.store.staged.gift_cards.values().any(|card| {
+            card["customer"]["id"].as_str() == Some(customer_id)
+                || card["customerId"].as_str() == Some(customer_id)
+        })
     }
 }
 
-fn uuid_v4_stub() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let t = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
+fn customer_merge_payload_json(
+    resulting_customer_id: Option<&str>,
+    job_id: Option<&str>,
+    user_errors: Vec<Value>,
+) -> Value {
+    json!({
+        "resultingCustomerId": resulting_customer_id.map(Value::from).unwrap_or(Value::Null),
+        "job": job_id
+            .map(|id| json!({ "__typename": "Job", "id": id, "done": false, "query": Value::Null }))
+            .unwrap_or(Value::Null),
+        "userErrors": user_errors
+    })
+}
+
+fn customer_merge_request_json(
+    job_id: &str,
+    resulting_customer_id: &str,
+    errors: Vec<Value>,
+) -> Value {
+    json!({
+        "__typename": "CustomerMergeRequest",
+        "jobId": job_id,
+        "resultingCustomerId": resulting_customer_id,
+        "status": "COMPLETED",
+        "customerMergeErrors": errors
+    })
+}
+
+fn customer_merge_user_error(field: Value, message: &str, code: &str) -> Value {
+    json!({
+        "field": field.clone(),
+        "message": message,
+        "code": code,
+        "errorFields": field,
+        "block_type": code
+    })
+}
+
+fn customer_tags(customer: &Value) -> Vec<String> {
+    customer["tags"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|tag| tag.as_str().map(str::to_string))
+        .collect()
+}
+
+/// Apply `customerMerge` override selections onto the resulting customer record.
+/// `customerIdOf<Field>ToKeep` picks the source/result value for that field; note
+/// and tags follow the captured precedence (explicit override, else union); the
+/// display name and default contact projections are rebuilt from the resolved
+/// scalar fields so downstream reads observe a consistent merged identity.
+fn apply_customer_merge_overrides(
+    result: &mut Value,
+    source: &Value,
+    override_fields: &BTreeMap<String, ResolvedValue>,
+) {
+    for (override_key, target_field) in [
+        ("customerIdOfEmailToKeep", "email"),
+        ("customerIdOfPhoneNumberToKeep", "phone"),
+        ("customerIdOfFirstNameToKeep", "firstName"),
+        ("customerIdOfLastNameToKeep", "lastName"),
+    ] {
+        let Some(target_id) = resolved_string_field(override_fields, override_key) else {
+            continue;
+        };
+        let target = if result["id"].as_str() == Some(target_id.as_str()) {
+            result.clone()
+        } else if source["id"].as_str() == Some(target_id.as_str()) {
+            source.clone()
+        } else {
+            continue;
+        };
+        if let Some(value) = target.get(target_field).cloned() {
+            result[target_field] = value;
+        }
+    }
+    if let Some(note) = resolved_string_field(override_fields, "note") {
+        result["note"] = json!(note);
+    } else if result["note"].is_null() && !source["note"].is_null() {
+        result["note"] = source["note"].clone();
+    }
+    if let Some(ResolvedValue::List(tags)) = override_fields.get("tags") {
+        let mut tags = tags
+            .iter()
+            .filter_map(|tag| match tag {
+                ResolvedValue::String(tag) => Some(tag.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        tags.sort();
+        result["tags"] = json!(tags);
+    } else {
+        let mut tags = customer_tags(result)
+            .into_iter()
+            .chain(customer_tags(source))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>();
+        tags.sort();
+        result["tags"] = json!(tags);
+    }
+    let first = result["firstName"].as_str().unwrap_or_default();
+    let last = result["lastName"].as_str().unwrap_or_default();
+    result["displayName"] = json!([first, last]
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" "));
+    if let Some(email) = result["email"].as_str() {
+        result["defaultEmailAddress"] = json!({ "emailAddress": email });
+    }
+    if let Some(phone) = result["phone"].as_str() {
+        result["defaultPhoneNumber"] = json!({ "phoneNumber": phone });
+    }
+}
+
+/// Merge the source customer's inline attached resources (addresses / metafields)
+/// into the resulting customer. Addresses concatenate source-first then result;
+/// metafields union by `namespace`+`key` with the resulting customer winning
+/// conflicts. No-op when the source carries no such resources.
+fn merge_customer_attached_resources(result: &mut Value, source: &Value) {
+    let source_addresses = connection_nodes(&source["addressesV2"]);
+    if !source_addresses.is_empty() {
+        let mut nodes = source_addresses;
+        nodes.extend(connection_nodes(&result["addressesV2"]));
+        result["addressesV2"] = nodes_connection(nodes);
+        if result["defaultAddress"].is_null() && !source["defaultAddress"].is_null() {
+            result["defaultAddress"] = source["defaultAddress"].clone();
+        }
+    }
+    let source_metafields = connection_nodes(&source["metafields"]);
+    if !source_metafields.is_empty() {
+        let existing_keys = connection_nodes(&result["metafields"])
+            .iter()
+            .map(metafield_identity)
+            .collect::<BTreeSet<_>>();
+        let mut nodes = connection_nodes(&result["metafields"]);
+        for node in source_metafields {
+            if !existing_keys.contains(&metafield_identity(&node)) {
+                nodes.push(node);
+            }
+        }
+        result["metafields"] = nodes_connection(nodes);
+    }
+}
+
+fn connection_nodes(connection: &Value) -> Vec<Value> {
+    connection["nodes"].as_array().cloned().unwrap_or_default()
+}
+
+fn connection_has_nodes(connection: &Value) -> bool {
+    connection
+        .get("nodes")
+        .and_then(Value::as_array)
+        .map(|nodes| !nodes.is_empty())
+        .unwrap_or(false)
+}
+
+fn metafield_identity(node: &Value) -> String {
+    format!(
+        "{}:{}",
+        node["namespace"].as_str().unwrap_or_default(),
+        node["key"].as_str().unwrap_or_default()
+    )
+}
+
+fn nodes_connection(nodes: Vec<Value>) -> Value {
+    // A non-empty connection reports opaque (non-null) boundary cursors; Shopify's
+    // are base64 blobs the local engine can't reconstruct, but downstream parity
+    // matchers treat connection cursors as opaque (`any-string`), so a deterministic
+    // per-node string (the node id) is a faithful stand-in. An empty connection
+    // reports null boundary cursors, matching Shopify.
+    let start_cursor = nodes.first().map(node_connection_cursor);
+    let end_cursor = nodes.last().map(node_connection_cursor);
+    json!({
+        "nodes": nodes,
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": start_cursor,
+            "endCursor": end_cursor
+        }
+    })
+}
+
+fn node_connection_cursor(node: &Value) -> String {
+    node.get("id")
+        .and_then(Value::as_str)
         .unwrap_or_default()
-        .subsec_nanos();
-    format!("{t:08x}-0000-4000-8000-000000000000")
+        .to_string()
+}
+
+/// Cursor for an order node within a customer's `orders` connection. Prefers a
+/// seeded opaque `__cursor` (the live Shopify connection cursor a scenario captured
+/// and re-seeded, which downstream reads compare verbatim) and otherwise falls back
+/// to the order id.
+fn order_connection_cursor(record: &Value) -> String {
+    record
+        .get("__cursor")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| value_id_cursor(record))
+}
+
+/// Evaluate a (small subset of a) customer search `query` against a staged customer.
+/// Supports `tag:<value>` exact tag membership and a generic case-insensitive
+/// substring fallback over email / display name / first name. An absent or blank
+/// query matches every customer.
+fn customer_matches_query(customer: &Value, query: Option<&str>) -> bool {
+    let Some(query) = query else {
+        return true;
+    };
+    let query = query.trim();
+    if query.is_empty() {
+        return true;
+    }
+    if let Some(tag) = query.strip_prefix("tag:") {
+        let tag = tag.trim().trim_matches('\'').trim_matches('"');
+        return customer["tags"]
+            .as_array()
+            .map(|tags| tags.iter().any(|value| value.as_str() == Some(tag)))
+            .unwrap_or(false);
+    }
+    let needle = query.to_lowercase();
+    let haystack = format!(
+        "{} {} {}",
+        customer["email"].as_str().unwrap_or_default(),
+        customer["displayName"].as_str().unwrap_or_default(),
+        customer["firstName"].as_str().unwrap_or_default()
+    )
+    .to_lowercase();
+    haystack.contains(&needle)
+}
+
+/// Surface Shopify's order-summary defaults on a freshly staged customer record:
+/// `numberOfOrders` is the string `"0"`, `lastOrder` is explicitly null, and
+/// `orders` is an empty connection (with the `pageInfo` shape a `first:`/`last:`
+/// page selection expects). Only fills fields that are absent/null so a record
+/// that already carries real order state (e.g. a seeded customer) is untouched.
+fn apply_customer_order_summary_defaults(customer: &mut Value) {
+    if customer.get("numberOfOrders").map_or(true, Value::is_null) {
+        customer["numberOfOrders"] = json!("0");
+    }
+    if customer.get("lastOrder").is_none() {
+        customer["lastOrder"] = Value::Null;
+    }
+    if customer.get("orders").map_or(true, Value::is_null) {
+        customer["orders"] = empty_orders_connection();
+    }
+}
+
+/// An empty `Customer.orders` connection page: no nodes/edges and null boundary
+/// cursors, matching how Shopify renders the summary connection for a customer
+/// with zero orders.
+fn empty_orders_connection() -> Value {
+    json!({
+        "nodes": [],
+        "edges": [],
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+        }
+    })
+}
+
+/// Shopify rejects a credit/debit that would push an account past this hard cap.
+const STORE_CREDIT_LIMIT: f64 = 100000.0;
+
+fn store_credit_user_error(field: &[&str], message: &str, code: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+fn store_credit_money(amount: &str, currency: &str) -> Value {
+    json!({
+        "amount": amount,
+        "currencyCode": currency
+    })
+}
+
+/// Read a money `amount` field from a resolved input map, accepting either the
+/// canonical string form or a numeric literal (GraphQL `Decimal` is serialized
+/// as a string but some callers send numbers).
+fn resolved_money_amount_text(
+    input: &BTreeMap<String, ResolvedValue>,
+    field: &str,
+) -> Option<String> {
+    match input.get(field) {
+        Some(ResolvedValue::String(value)) => Some(value.clone()),
+        Some(ResolvedValue::Int(value)) => Some(value.to_string()),
+        Some(ResolvedValue::Float(value)) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
+/// Render an `f64` money amount the way Shopify serializes `MoneyV2.amount`:
+/// whole values keep a single trailing zero (`"10.0"`), fractional values drop
+/// trailing zeros beyond two decimal places (`"6.12"`, `"2.5"`).
+fn shopify_decimal_text(value: f64) -> String {
+    let rounded = (value * 100.0).round() / 100.0;
+    if rounded.fract().abs() < f64::EPSILON {
+        format!("{rounded:.1}")
+    } else {
+        let text = format!("{rounded:.2}");
+        text.trim_end_matches('0').to_string()
+    }
+}
+
+fn store_credit_supported_currency(currency: &str) -> bool {
+    matches!(
+        currency,
+        "USD" | "CAD" | "AUD" | "EUR" | "GBP" | "JPY" | "NZD"
+    )
+}
+
+fn store_credit_expires_at_in_past(expires_at: &str) -> bool {
+    !expires_at.is_empty() && expires_at < "2026-06-15T00:00:00Z"
+}
+
+fn normalize_merged_customer_defaults(customer: &mut Value) {
+    if customer["numberOfOrders"].is_null() {
+        customer["numberOfOrders"] = json!("0");
+    }
+    if customer["lastOrder"].is_null() {
+        customer["lastOrder"] = Value::Null;
+    }
+    if customer["addressesV2"].is_null() {
+        customer["addressesV2"] = empty_nodes_connection();
+    }
+    if customer["metafields"].is_null() {
+        customer["metafields"] = empty_nodes_connection();
+    }
+}
+
+fn empty_nodes_connection() -> Value {
+    nodes_connection(Vec::new())
 }
 
 /// Basic email format validation matching Shopify's rules:

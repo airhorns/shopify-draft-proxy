@@ -2038,8 +2038,31 @@ impl DraftProxy {
                     return self.owner_metafields_read(request, &query, &variables);
                 }
                 if let Some(fields) = root_fields(&query, &variables) {
-                    if self.should_handle_customer_overlay_read(&fields) {
-                        ok_json(json!({ "data": self.customer_overlay_read_fields(&fields) }))
+                    // A query may combine `customer*` reads with a standalone
+                    // `storeCreditAccount(id:)` read (or carry only the latter).
+                    // Each is served from its own staged overlay and the two field
+                    // maps are merged into one `data` object.
+                    let handle_customers = self.should_handle_customer_overlay_read(&fields);
+                    let handle_store_credit = fields
+                        .iter()
+                        .any(|field| field.name == "storeCreditAccount");
+                    if handle_customers || handle_store_credit {
+                        let mut data = serde_json::Map::new();
+                        if handle_customers {
+                            if let Value::Object(object) =
+                                self.customer_overlay_read_fields(&fields)
+                            {
+                                data.extend(object);
+                            }
+                        }
+                        if handle_store_credit {
+                            if let Value::Object(object) =
+                                self.store_credit_account_read_fields(&fields)
+                            {
+                                data.extend(object);
+                            }
+                        }
+                        ok_json(json!({ "data": Value::Object(data) }))
                     } else {
                         (self.upstream_transport)(request.clone())
                     }
@@ -2094,6 +2117,18 @@ impl DraftProxy {
                     ) =>
             {
                 self.customer_address_mutation(request, &query, &variables)
+            }
+            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "storeCreditAccountCredit" | "storeCreditAccountDebit"
+                    ) =>
+            {
+                let outcome =
+                    self.store_credit_account_mutation(root_field, request, &query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::B2b, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
