@@ -104,6 +104,244 @@ impl DraftProxy {
     }
 
     pub(in crate::proxy) fn state_snapshot(&self) -> Value {
+        let mut staged_state = serde_json::Map::new();
+        staged_state.insert(
+            "products".to_string(),
+            json!(product_state_map_json(&self.store.staged.products.records)),
+        );
+        staged_state.insert(
+            "productOrder".to_string(),
+            json!(self.store.staged.products.order),
+        );
+        staged_state.insert(
+            "deletedProductIds".to_string(),
+            json!(self
+                .store
+                .staged
+                .products
+                .tombstones
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()),
+        );
+        staged_state.insert(
+            "productVariants".to_string(),
+            json!(product_variant_state_map_json(
+                &self.store.staged.product_variants.records
+            )),
+        );
+        staged_state.insert(
+            "productVariantOrder".to_string(),
+            json!(self.store.staged.product_variants.order),
+        );
+        staged_state.insert(
+            "deletedProductVariantIds".to_string(),
+            json!(self
+                .store
+                .staged
+                .product_variants
+                .tombstones
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()),
+        );
+        staged_state.insert(
+            "savedSearches".to_string(),
+            json!(saved_search_state_map_json(
+                &self.store.staged.saved_searches.records
+            )),
+        );
+        staged_state.insert(
+            "savedSearchOrder".to_string(),
+            json!(self.store.staged.saved_searches.order),
+        );
+        staged_state.insert(
+            "deletedSavedSearchIds".to_string(),
+            json!(self
+                .store
+                .staged
+                .saved_searches
+                .tombstones
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()),
+        );
+        staged_state.insert(
+            "shippingPackages".to_string(),
+            json!(self.store.staged.shipping_packages.clone()),
+        );
+        staged_state.insert(
+            "deletedShippingPackageIds".to_string(),
+            json!(self
+                .store
+                .staged
+                .deleted_shipping_package_ids
+                .iter()
+                .map(|id| (id.clone(), json!(true)))
+                .collect::<serde_json::Map<_, _>>()),
+        );
+        staged_state.insert(
+            "delegatedAccessTokens".to_string(),
+            json!(self.store.staged.delegate_access_tokens.clone()),
+        );
+        staged_state.insert(
+            "customers".to_string(),
+            json!(self.store.staged.customers.clone()),
+        );
+        staged_state.insert(
+            "deletedCustomerIds".to_string(),
+            json!(self
+                .store
+                .staged
+                .deleted_customer_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()),
+        );
+        staged_state.insert(
+            "customerOrders".to_string(),
+            json!(self.store.staged.customer_orders.clone()),
+        );
+        staged_state.insert(
+            "taggableResources".to_string(),
+            json!(self.store.staged.taggable_resources.clone()),
+        );
+        staged_state.insert(
+            "orders".to_string(),
+            json!(self.store.staged.orders.clone()),
+        );
+        staged_state.insert(
+            "deletedOrderIds".to_string(),
+            json!(self
+                .store
+                .staged
+                .deleted_order_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()),
+        );
+        staged_state.insert(
+            "returns".to_string(),
+            json!(self.store.staged.returns.clone()),
+        );
+        staged_state.insert(
+            "returnsByOrder".to_string(),
+            json!(self.store.staged.returns_by_order.clone()),
+        );
+        staged_state.insert(
+            "reverseDeliveries".to_string(),
+            json!(self.store.staged.reverse_deliveries.clone()),
+        );
+        staged_state.insert(
+            "reverseFulfillmentOrders".to_string(),
+            json!(self.store.staged.reverse_fulfillment_orders.clone()),
+        );
+        staged_state.insert(
+            "deliveryProfiles".to_string(),
+            json!(self.store.staged.delivery_profiles.clone()),
+        );
+        staged_state.insert(
+            "deliveryProfileOrder".to_string(),
+            json!(self.store.staged.delivery_profile_order.clone()),
+        );
+        staged_state.insert(
+            "deletedDeliveryProfileIds".to_string(),
+            json!(self
+                .store
+                .staged
+                .deleted_delivery_profile_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()),
+        );
+        staged_state.insert(
+            "observedShippingLocations".to_string(),
+            json!(self.store.staged.observed_shipping_locations.clone()),
+        );
+        staged_state.insert(
+            "observedShippingLocationOrder".to_string(),
+            json!(self.store.staged.observed_shipping_location_order.clone()),
+        );
+        staged_state.insert(
+            "locations".to_string(),
+            json!(self.store.staged.locations.clone()),
+        );
+        staged_state.insert(
+            "locationOrder".to_string(),
+            json!(self.store.staged.location_order.clone()),
+        );
+        staged_state.insert(
+            "publicationIds".to_string(),
+            json!(self
+                .store
+                .staged
+                .publication_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()),
+        );
+        staged_state.insert(
+            "createdPublicationIds".to_string(),
+            json!(self
+                .store
+                .staged
+                .created_publication_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()),
+        );
+        staged_state.insert(
+            "locationLimitReached".to_string(),
+            json!(self.store.staged.location_limit_reached),
+        );
+        staged_state.insert(
+            "discounts".to_string(),
+            json!(self.store.staged.discounts.clone()),
+        );
+        staged_state.insert(
+            "discountCodeIndex".to_string(),
+            json!(self.store.staged.discount_code_index.clone()),
+        );
+        staged_state.insert(
+            "deletedDiscountIds".to_string(),
+            json!(self
+                .store
+                .staged
+                .deleted_discount_ids
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()),
+        );
+        staged_state.insert(
+            "discountBulkOperations".to_string(),
+            json!(self.store.staged.discount_bulk_operations.clone()),
+        );
+        staged_state.insert(
+            "discountRedeemCodeBulkCreations".to_string(),
+            json!(self
+                .store
+                .staged
+                .discount_redeem_code_bulk_creations
+                .clone()),
+        );
+        staged_state.insert(
+            "ownerMetafields".to_string(),
+            json!(self.store.staged.owner_metafields.clone()),
+        );
+        staged_state.insert(
+            "deletedOwnerMetafields".to_string(),
+            json!(self
+                .store
+                .staged
+                .deleted_owner_metafields
+                .iter()
+                .map(|(owner_id, namespace, key)| json!({
+                    "ownerId": owner_id,
+                    "namespace": namespace,
+                    "key": key
+                }))
+                .collect::<Vec<_>>()),
+        );
         let mut snapshot = json!({
             "baseState": {
                 "products": product_state_map_json(&self.store.base.products.records),
@@ -118,50 +356,7 @@ impl DraftProxy {
                 "availableLocales": self.store.base.available_locales.iter().map(|(locale, name)| (locale.clone(), json!(name))).collect::<serde_json::Map<_, _>>(),
                 "shopLocales": self.store.base.shop_locales.clone()
             },
-            "stagedState": {
-                "products": product_state_map_json(&self.store.staged.products.records),
-                "productOrder": self.store.staged.products.order,
-                "deletedProductIds": self.store.staged.products.tombstones.iter().cloned().collect::<Vec<_>>(),
-                "productVariants": product_variant_state_map_json(&self.store.staged.product_variants.records),
-                "productVariantOrder": self.store.staged.product_variants.order,
-                "deletedProductVariantIds": self.store.staged.product_variants.tombstones.iter().cloned().collect::<Vec<_>>(),
-                "savedSearches": saved_search_state_map_json(&self.store.staged.saved_searches.records),
-                "savedSearchOrder": self.store.staged.saved_searches.order,
-                "deletedSavedSearchIds": self.store.staged.saved_searches.tombstones.iter().cloned().collect::<Vec<_>>(),
-                "shippingPackages": self.store.staged.shipping_packages.clone(),
-                "deletedShippingPackageIds": self.store.staged.deleted_shipping_package_ids.iter().map(|id| (id.clone(), json!(true))).collect::<serde_json::Map<_, _>>(),
-                "delegatedAccessTokens": self.store.staged.delegate_access_tokens.clone(),
-                "customers": self.store.staged.customers.clone(),
-                "deletedCustomerIds": self.store.staged.deleted_customer_ids.iter().cloned().collect::<Vec<_>>(),
-                "customerOrders": self.store.staged.customer_orders.clone(),
-                "taggableResources": self.store.staged.taggable_resources.clone(),
-                "orders": self.store.staged.orders.clone(),
-                "deletedOrderIds": self.store.staged.deleted_order_ids.iter().cloned().collect::<Vec<_>>(),
-                "returns": self.store.staged.returns.clone(),
-                "returnsByOrder": self.store.staged.returns_by_order.clone(),
-               "reverseDeliveries": self.store.staged.reverse_deliveries.clone(),
-                "reverseFulfillmentOrders": self.store.staged.reverse_fulfillment_orders.clone(),
-                "observedShippingLocations": self.store.staged.observed_shipping_locations.clone(),
-                "observedShippingLocationOrder": self.store.staged.observed_shipping_location_order.clone(),
-                "locations": self.store.staged.locations.clone(),
-                "locationOrder": self.store.staged.location_order.clone(),
-                "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
-                "createdPublicationIds": self.store.staged.created_publication_ids.iter().cloned().collect::<Vec<_>>(),
-                "locationLimitReached": self.store.staged.location_limit_reached,
-                "discounts": self.store.staged.discounts.clone(),
-                "discountCodeIndex": self.store.staged.discount_code_index.clone(),
-                "deletedDiscountIds": self.store.staged.deleted_discount_ids.iter().cloned().collect::<Vec<_>>(),
-                "discountBulkOperations": self.store.staged.discount_bulk_operations.clone(),
-                "discountRedeemCodeBulkCreations": self.store.staged.discount_redeem_code_bulk_creations.clone(),
-                "ownerMetafields": self.store.staged.owner_metafields.clone(),
-                "deletedOwnerMetafields": self.store.staged.deleted_owner_metafields.iter().map(|(owner_id, namespace, key)| {
-                    let mut tombstone = serde_json::Map::new();
-                    tombstone.insert("ownerId".to_string(), Value::String(owner_id.clone()));
-                    tombstone.insert("namespace".to_string(), Value::String(namespace.clone()));
-                    tombstone.insert("key".to_string(), Value::String(key.clone()));
-                    Value::Object(tombstone)
-                }).collect::<Vec<_>>()
-            }
+            "stagedState": Value::Object(staged_state)
         });
         snapshot["stagedState"]["b2bCompanies"] = json!(self.store.staged.b2b_companies.clone());
         snapshot["stagedState"]["b2bLocations"] = json!(self.store.staged.b2b_locations.clone());
@@ -548,6 +743,33 @@ impl DraftProxy {
                     .collect()
             })
             .unwrap_or_default();
+        self.store.staged.delivery_profiles = state["stagedState"]
+            .get("deliveryProfiles")
+            .and_then(Value::as_object)
+            .map(|profiles| {
+                profiles
+                    .iter()
+                    .map(|(id, profile)| (id.clone(), profile.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.delivery_profile_order = state["stagedState"]
+            .get("deliveryProfileOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .delivery_profiles
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
+        self.store.staged.deleted_delivery_profile_ids = state["stagedState"]
+            .get("deletedDeliveryProfileIds")
+            .map(string_array_from_json)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
         self.store.staged.observed_shipping_locations = state["stagedState"]
             .get("observedShippingLocations")
             .and_then(Value::as_object)

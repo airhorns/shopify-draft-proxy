@@ -777,6 +777,18 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "deliveryProfile" | "deliveryProfiles"))
+            && (self.config.read_mode == ReadMode::Snapshot || self.has_delivery_profile_state())
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.delivery_profile_read_data(&fields) }));
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
             && is_finance_risk_no_data_read_document(&query)
             && operation.root_fields.iter().all(|field| {
                 matches!(
@@ -1534,6 +1546,15 @@ impl DraftProxy {
             && is_web_presence_local_document(&query, &variables)
         {
             return web_presence_create_response(&query, &variables);
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && matches!(
+                root_field,
+                "deliveryProfileCreate" | "deliveryProfileUpdate" | "deliveryProfileRemove"
+            )
+        {
+            return self.delivery_profile_mutation(root_field, &query, &variables, request);
         }
 
         if operation.operation_type == OperationType::Mutation
@@ -2462,6 +2483,27 @@ impl DraftProxy {
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
                 }
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query
+                    && has_local_dispatch
+                    && matches!(root_field, "deliveryProfile" | "deliveryProfiles") =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    ok_json(json!({ "data": self.delivery_profile_read_data(&fields) }))
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "deliveryProfileCreate" | "deliveryProfileUpdate" | "deliveryProfileRemove"
+                    ) =>
+            {
+                self.delivery_profile_mutation(root_field, &query, &variables, request)
             }
             (CapabilityDomain::B2b, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
