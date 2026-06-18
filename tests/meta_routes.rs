@@ -992,6 +992,88 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
 }
 
 #[test]
+fn meta_dump_and_restore_round_trip_active_order_edit_session() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-happy-path.json"
+    ))
+    .unwrap();
+    let begin_query =
+        include_str!("../config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql");
+    let add_query = include_str!(
+        "../config/parity-requests/orders/orderEditExistingWorkflow-addVariant.graphql"
+    );
+
+    let mut proxy = snapshot_proxy();
+    let begin = proxy.process_request(graphql_request(
+        &json!({
+            "query": begin_query,
+            "variables": fixture["variables"].clone()
+        })
+        .to_string(),
+    ));
+    assert_eq!(begin.status, 200);
+    let calculated_id = begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+
+    let dump = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/dump",
+        &json!({ "createdAt": "2026-06-15T00:00:00.000Z" }).to_string(),
+    ));
+    assert_eq!(dump.status, 200);
+    assert_eq!(
+        dump.body["state"]["stagedState"]["orderEditExistingSessionOrderId"],
+        fixture["variables"]["id"]
+    );
+    assert_eq!(
+        dump.body["state"]["stagedState"]["orderEditExistingCalculatedOrderId"],
+        calculated_id
+    );
+
+    let mut restored = snapshot_proxy();
+    let restore = restored.process_request(request_with_body(
+        "POST",
+        "/__meta/restore",
+        &dump.body.to_string(),
+    ));
+    assert_eq!(restore.status, 200);
+
+    let duplicate_begin = restored.process_request(graphql_request(
+        &json!({
+            "query": begin_query,
+            "variables": fixture["variables"].clone()
+        })
+        .to_string(),
+    ));
+    assert_eq!(
+        duplicate_begin.body["data"]["orderEditBegin"]["calculatedOrder"],
+        Value::Null
+    );
+    assert_eq!(
+        duplicate_begin.body["data"]["orderEditBegin"]["userErrors"][0]["field"],
+        json!(["base"])
+    );
+
+    let add = restored.process_request(graphql_request(
+        &json!({
+            "query": add_query,
+            "variables": {
+                "id": calculated_id,
+                "variantId": fixture["addVariant"]["variables"]["variantId"].clone(),
+                "quantity": fixture["addVariant"]["variables"]["quantity"].clone(),
+                "locationId": fixture["addVariant"]["variables"]["locationId"].clone(),
+                "allowDuplicates": fixture["addVariant"]["variables"]["allowDuplicates"].clone()
+            }
+        })
+        .to_string(),
+    ));
+    assert_eq!(add.status, 200);
+    assert_eq!(
+        add.body["data"]["orderEditAddVariant"]["calculatedLineItem"],
+        fixture["addVariant"]["response"]["data"]["orderEditAddVariant"]["calculatedLineItem"]
+    );
+}
+
+#[test]
 fn ported_gleam_restore_state_rejects_malformed_rust_dumps() {
     let mut proxy = snapshot_proxy();
     let dump = proxy.process_request(request_with_body(
