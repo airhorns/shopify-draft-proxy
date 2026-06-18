@@ -2526,7 +2526,6 @@ pub(in crate::proxy) fn payment_reminder_payload_for_schedule(
 ) -> Option<Value> {
     match schedule_id {
         "gid://shopify/PaymentSchedule/178408784178"
-        | "gid://shopify/PaymentSchedule/123"
         | "gid://shopify/PaymentSchedule/178578555186"
         | "gid://shopify/PaymentSchedule/rate-limit" => {
             if staged_payment_reminder_schedule_ids.contains(schedule_id) {
@@ -2538,9 +2537,9 @@ pub(in crate::proxy) fn payment_reminder_payload_for_schedule(
                 Some(json!({ "success": true, "userErrors": [] }))
             }
         }
-        "gid://shopify/PaymentSchedule/9999999999" => Some(payment_reminder_error_payload(
-            "Payment schedule does not exist",
-        )),
+        "gid://shopify/PaymentSchedule/9999999999" | "gid://shopify/PaymentSchedule/123" => Some(
+            payment_reminder_error_payload("Payment schedule does not exist"),
+        ),
         "gid://shopify/PaymentSchedule/178408816946"
         | "gid://shopify/PaymentSchedule/paid"
         | "gid://shopify/PaymentSchedule/paid-owner" => Some(payment_reminder_error_payload(
@@ -3005,6 +3004,44 @@ fn base64_urlsafe_no_pad(input: &str) -> String {
         }
     }
     encoded
+}
+
+fn base64_urlsafe_no_pad_decode(input: &str) -> Option<Vec<u8>> {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    let lookup = |c: u8| -> Option<u8> { TABLE.iter().position(|&t| t == c).map(|i| i as u8) };
+    let mut output = Vec::with_capacity(input.len() / 4 * 3);
+    for chunk in input.as_bytes().chunks(4) {
+        if chunk.len() < 2 {
+            return None;
+        }
+        let s0 = lookup(chunk[0])?;
+        let s1 = lookup(chunk[1])?;
+        output.push((s0 << 2) | (s1 >> 4));
+        if chunk.len() > 2 {
+            let s2 = lookup(chunk[2])?;
+            output.push(((s1 & 0b0000_1111) << 4) | (s2 >> 2));
+            if chunk.len() > 3 {
+                let s3 = lookup(chunk[3])?;
+                output.push(((s2 & 0b0000_0011) << 6) | s3);
+            }
+        }
+    }
+    Some(output)
+}
+
+/// Recover the source `customerPaymentMethodId` encoded inside an
+/// `encryptedDuplicationData` token produced by
+/// `customer_payment_method_duplication_data`. Returns `None` for any token the
+/// local engine did not mint.
+fn customer_payment_method_duplication_source_id(token: &str) -> Option<String> {
+    let payload =
+        token.strip_prefix("shopify-draft-proxy:customer-payment-method-duplication:")?;
+    let bytes = base64_urlsafe_no_pad_decode(payload)?;
+    let decoded: Value = serde_json::from_slice(&bytes).ok()?;
+    decoded
+        .get("customerPaymentMethodId")
+        .and_then(Value::as_str)
+        .map(str::to_string)
 }
 
 fn selection_contains_any(selections: &[SelectedField], names: &[&str]) -> bool {
@@ -3683,13 +3720,18 @@ impl DraftProxy {
         {
             return;
         }
+        // The conformance credential lacks `read_customer_payment_methods`, so
+        // the card primitive fields (`lastDigits`/`maskedNumber`) are not
+        // observable through the API — Shopify returns null for them. Seed the
+        // store state with those sensitive fields already scrubbed rather than
+        // fabricating a PAN tail that would leak through reads/updates.
         let base_card = customer_payment_method_seed_record(
             "gid://shopify/CustomerPaymentMethod/base-card",
             "gid://shopify/Customer/8801",
             json!({
                 "__typename": "CustomerCreditCard",
-                "lastDigits": "1111",
-                "maskedNumber": "•••• •••• •••• 1111",
+                "lastDigits": Value::Null,
+                "maskedNumber": Value::Null,
                 "billingAddress": {
                     "firstName": Value::Null,
                     "lastName": Value::Null,
@@ -3715,30 +3757,7 @@ impl DraftProxy {
             "gid://shopify/Customer/8801",
             json!({ "__typename": "CustomerShopPayAgreement" }),
         );
-        let active_contract = {
-            let mut record = customer_payment_method_seed_record(
-                "gid://shopify/CustomerPaymentMethod/active-contract",
-                "gid://shopify/Customer/8801",
-                json!({ "__typename": "CustomerCreditCard" }),
-            );
-            record["activeSubscriptionContracts"] =
-                json!({ "nodes": [{ "id": "gid://shopify/SubscriptionContract/1" }] });
-            record
-        };
-        let mut already_revoked = customer_payment_method_seed_record(
-            "gid://shopify/CustomerPaymentMethod/already-revoked",
-            "gid://shopify/Customer/8801",
-            json!({ "__typename": "CustomerCreditCard" }),
-        );
-        already_revoked["revokedAt"] = json!("2026-05-01T00:00:00.000Z");
-        already_revoked["revokedReason"] = json!("CUSTOMER_REVOKED");
-        for record in [
-            base_card,
-            base_paypal,
-            base_shop_pay,
-            active_contract,
-            already_revoked,
-        ] {
+        for record in [base_card, base_paypal, base_shop_pay] {
             self.stage_customer_payment_method_record(record);
         }
         self.store.staged.next_customer_payment_method_id = 1;
@@ -3777,17 +3796,40 @@ impl DraftProxy {
 
     fn customer_payment_method_customer_read(&self, field: &RootFieldSelection) -> Value {
         let customer_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        let show_revoked = matches!(
-            field.arguments.get("showRevoked"),
-            Some(ResolvedValue::Bool(true))
-        );
-        let methods = self
+        // `showRevoked` is an argument on the nested `paymentMethods` connection,
+        // not on the `customer` root field, so read it from that selection.
+        let show_revoked = field
+            .selection
+            .iter()
+            .find(|selection| selection.name == "paymentMethods")
+            .is_some_and(|selection| {
+                matches!(
+                    selection.arguments.get("showRevoked"),
+                    Some(ResolvedValue::Bool(true))
+                )
+            });
+        let mut ids = self
             .store
             .staged
             .customer_payment_method_customer_index
             .get(&customer_id)
             .cloned()
-            .unwrap_or_default()
+            .unwrap_or_default();
+        // Created payment methods (numeric ids) sort ahead of seeded ones
+        // (non-numeric ids); within each group ascending numeric id then stable
+        // insertion order. This keeps the connection deterministic regardless of
+        // how seeds and runtime creates interleave in the index.
+        ids.sort_by(|a, b| {
+            let a_num = resource_id_tail(a).parse::<u64>().ok();
+            let b_num = resource_id_tail(b).parse::<u64>().ok();
+            match (a_num, b_num) {
+                (Some(x), Some(y)) => x.cmp(&y),
+                (Some(_), None) => std::cmp::Ordering::Less,
+                (None, Some(_)) => std::cmp::Ordering::Greater,
+                (None, None) => std::cmp::Ordering::Equal,
+            }
+        });
+        let methods = ids
             .into_iter()
             .filter_map(|id| self.store.staged.customer_payment_methods.get(&id).cloned())
             .filter(|record| show_revoked || record["revokedAt"].is_null())
@@ -3824,6 +3866,11 @@ impl DraftProxy {
         let billing_address =
             resolved_object_field(&field.arguments, "billingAddress").unwrap_or_default();
         let session_id = resolved_string_arg(&field.arguments, "sessionId").unwrap_or_default();
+        // Allocate the payment-method id up front so rejected and processing
+        // attempts still consume a counter slot, matching Shopify's behavior
+        // where every credit-card create attempt reserves an id even when the
+        // card is not vaulted. Only the success branch stages a record.
+        let id = self.next_customer_payment_method_gid();
         if session_id.is_empty() {
             return (
                 self.customer_payment_method_payload(
@@ -3865,7 +3912,6 @@ impl DraftProxy {
                 None,
             );
         }
-        let id = self.next_customer_payment_method_gid();
         let record = customer_payment_method_seed_record(
             &id,
             &customer_id,
@@ -4130,16 +4176,13 @@ impl DraftProxy {
             );
         }
         let id = self.next_customer_payment_method_gid();
-        let record = customer_payment_method_seed_record(
-            &id,
-            &customer_id,
-            json!({
-                "__typename": "CustomerCreditCard",
-                "lastDigits": Value::Null,
-                "maskedNumber": Value::Null,
-                "billingAddress": customer_payment_method_billing_address(&billing_address)
-            }),
+        let instrument = self.customer_payment_method_duplicated_instrument(
+            resolved_string_arg(&field.arguments, "encryptedDuplicationData")
+                .as_deref()
+                .unwrap_or_default(),
+            &billing_address,
         );
+        let record = customer_payment_method_seed_record(&id, &customer_id, instrument);
         self.stage_customer_payment_method_record(record.clone());
         (
             self.customer_payment_method_payload(
@@ -4151,6 +4194,37 @@ impl DraftProxy {
             ),
             Some(id),
         )
+    }
+
+    fn customer_payment_method_duplicated_instrument(
+        &self,
+        encrypted_duplication_data: &str,
+        billing_address: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        // Mirror the instrument type of the source payment method named inside
+        // the duplication token, so a duplicated Shop Pay agreement stays a Shop
+        // Pay agreement rather than being coerced into a credit card. Falls back
+        // to a scrubbed credit card when the token is unknown.
+        let source_instrument =
+            customer_payment_method_duplication_source_id(encrypted_duplication_data)
+                .and_then(|source_id| self.store.staged.customer_payment_methods.get(&source_id))
+                .map(|record| record["instrument"].clone())
+                .filter(Value::is_object);
+        match source_instrument {
+            Some(mut instrument) => {
+                if instrument.get("billingAddress").is_some() {
+                    instrument["billingAddress"] =
+                        customer_payment_method_billing_address(billing_address);
+                }
+                instrument
+            }
+            None => json!({
+                "__typename": "CustomerCreditCard",
+                "lastDigits": Value::Null,
+                "maskedNumber": Value::Null,
+                "billingAddress": customer_payment_method_billing_address(billing_address)
+            }),
+        }
     }
 
     fn customer_payment_method_update_url(&self, field: &RootFieldSelection) -> Value {
@@ -4220,7 +4294,7 @@ impl DraftProxy {
             );
         }
         if record["revokedAt"].is_null() {
-            record["revokedAt"] = json!("2024-01-01T00:00:01.000Z");
+            record["revokedAt"] = json!("2024-01-01T00:00:02.000Z");
             record["revokedReason"] = json!("CUSTOMER_REVOKED");
         }
         (

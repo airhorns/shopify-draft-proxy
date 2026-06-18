@@ -1160,8 +1160,30 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         extend_functions_input_schema(&mut schema);
         extend_online_store_input_schema(&mut schema);
         extend_markets_input_schema(&mut schema);
+        extend_payments_input_schema(&mut schema);
         schema
     })
+}
+
+fn extend_payments_input_schema(schema: &mut AdminInputSchema) {
+    // customerPaymentMethodCreditCardCreate on Admin API 2026-04 takes three
+    // required (non-null) field arguments: `customerId`, `billingAddress`, and
+    // `sessionId`. Omitting any of them must surface a top-level
+    // `missingRequiredArguments` error before the local payment-method handler
+    // runs (the field-vault handler only owns billing-address blank checks once
+    // the arguments are structurally present). `MailingAddressInput` is left
+    // unregistered so the resolver continues to own per-field blank validation.
+    schema.mutation_fields.insert(
+        "customerPaymentMethodCreditCardCreate".to_string(),
+        BTreeMap::from([
+            ("customerId".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "billingAddress".to_string(),
+                mutation_arg(non_null("MailingAddressInput")),
+            ),
+            ("sessionId".to_string(), mutation_arg(non_null("String"))),
+        ]),
+    );
 }
 
 fn input_field(type_ref: SchemaTypeRef) -> SchemaInputField {
