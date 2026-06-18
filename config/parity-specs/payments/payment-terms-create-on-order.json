@@ -23,6 +23,28 @@
         "name": "create-payment-terms-on-order",
         "capturePath": "$.paymentTermsCreateOnOrder.expected.create",
         "proxyPath": "$",
+        "expectedDifferences": [
+          {
+            "path": "$.data.paymentTermsCreate.paymentTerms.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy generate independent payment terms IDs."
+          },
+          {
+            "path": "$.data.paymentTermsCreate.paymentTerms.paymentSchedules.nodes[0].id",
+            "matcher": "shopify-gid:PaymentSchedule",
+            "reason": "Shopify and the local proxy generate independent payment schedule IDs."
+          },
+          {
+            "path": "$.data.paymentTermsCreate.paymentTerms.paymentSchedules.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
+          },
+          {
+            "path": "$.data.paymentTermsCreate.paymentTerms.paymentSchedules.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify connection cursors are opaque while the local proxy uses stable synthetic cursors."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-create.graphql",
           "variables": {

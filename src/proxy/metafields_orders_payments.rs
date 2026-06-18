@@ -2013,6 +2013,22 @@ pub(in crate::proxy) fn payment_customization_function_key(value: &str) -> Strin
         .to_string()
 }
 
+/// Exact GraphQL document the proxy issues to hydrate an **Order** owner before
+/// payment-terms staging. The text must match the recorded `PaymentTermsOwnerHydrate`
+/// cassette byte-for-byte (modulo trailing whitespace) so the strict upstream
+/// matcher in `scripts/parity-cassette.ts` replays the real recorded reply.
+pub(in crate::proxy) const PAYMENT_TERMS_OWNER_HYDRATE_QUERY: &str = "query PaymentTermsOwnerHydrate($id: ID!) {\n    order(id: $id) {\n      id\n      displayFinancialStatus\n      closed\n      closedAt\n      cancelledAt\n      paymentTerms {\n        id\n      }\n      totalOutstandingSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      currentTotalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n    }\n  }";
+
+/// Exact GraphQL document for hydrating a **DraftOrder** owner. Drafts have no
+/// `displayFinancialStatus`/`order`-shaped money, so a distinct document selects
+/// the draft money bags. Matches the synthetic delete-owner-cascade cassette.
+pub(in crate::proxy) const PAYMENT_TERMS_DRAFT_HYDRATE_QUERY: &str = "query PaymentTermsDraftHydrate($id: ID!) {\n    draftOrder(id: $id) {\n      id\n      name\n      paymentTerms {\n        id\n      }\n      subtotalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalPriceSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n    }\n  }";
+
+/// Exact GraphQL document the proxy issues to hydrate a **PaymentTerms node** by
+/// id for the cold update-eligibility path (no local owner link). Must match the
+/// recorded `PaymentTermsHydrate` cassette byte-for-byte.
+pub(in crate::proxy) const PAYMENT_TERMS_NODE_HYDRATE_QUERY: &str = "query PaymentTermsHydrate($id: ID!) {\n    paymentTerms: node(id: $id) {\n      ... on PaymentTerms {\n        id\n        due\n        overdue\n        dueInDays\n        paymentTermsName\n        paymentTermsType\n        translatedName\n        order {\n          id\n          email\n          closed\n          closedAt\n          cancelledAt\n          displayFinancialStatus\n          totalOutstandingSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          currentTotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          lineItems(first: 1) {\n            nodes {\n              sellingPlan {\n                name\n              }\n            }\n          }\n        }\n        draftOrder {\n          id\n          status\n          completedAt\n          subtotalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n          totalPriceSet {\n            shopMoney { amount currencyCode }\n            presentmentMoney { amount currencyCode }\n          }\n        }\n        paymentSchedules(first: 10) {\n          nodes {\n            id\n            dueAt\n            issuedAt\n            completedAt\n            due\n            amount { amount currencyCode }\n            balanceDue { amount currencyCode }\n            totalBalance { amount currencyCode }\n          }\n        }\n      }\n    }\n  }";
+
 pub(in crate::proxy) fn payment_terms_user_error(field: Value, message: &str, code: &str) -> Value {
     json!({
         "field": field,
@@ -2045,6 +2061,26 @@ pub(in crate::proxy) fn payment_terms_success_record(
     due_in_days: Option<i64>,
     schedules: Value,
 ) -> Value {
+    // Shopify connection cursors are opaque, stable-per-node strings. We anchor
+    // them to the first/last schedule node id so they round-trip and are always
+    // non-empty for a populated connection (null for an empty schedule set).
+    let (start_cursor, end_cursor) = schedules
+        .as_array()
+        .filter(|nodes| !nodes.is_empty())
+        .map(|nodes| {
+            let first = nodes
+                .first()
+                .and_then(|node| node.get("id"))
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let last = nodes
+                .last()
+                .and_then(|node| node.get("id"))
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            (json!(format!("cursor:{first}")), json!(format!("cursor:{last}")))
+        })
+        .unwrap_or((Value::Null, Value::Null));
     json!({
         "id": id,
         "due": false,
@@ -2058,8 +2094,8 @@ pub(in crate::proxy) fn payment_terms_success_record(
             "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": Value::Null,
-                "endCursor": Value::Null
+                "startCursor": start_cursor,
+                "endCursor": end_cursor
             }
         }
     })
@@ -2090,29 +2126,139 @@ pub(in crate::proxy) fn payment_terms_template_projection(
     }
 }
 
-/// The materialized payment-schedule node Shopify projects for fixed/net terms.
-/// Due-on-receipt and due-on-fulfillment terms project no schedule node.
-fn payment_terms_default_schedule_nodes(id: &str) -> Value {
-    json!([{
-        "id": format!("gid://shopify/PaymentSchedule/{}", resource_id_tail(id)),
-        "amount": { "amount": "57.00", "currencyCode": "CAD" },
-        "balanceDue": { "amount": "57.00", "currencyCode": "CAD" },
-        "totalBalance": { "amount": "57.00", "currencyCode": "CAD" },
-        "issuedAt": "2026-05-05T00:00:00Z",
-        "dueAt": "2026-06-04T00:00:00Z",
-        "completedAt": Value::Null,
-        "due": false
-    }])
+/// Normalizes a Shopify MoneyV2 amount string to Shopify's minimal-decimal
+/// representation: strip trailing zeros after the decimal point but keep at
+/// least one fractional digit ("57.00" -> "57.0", "18.50" -> "18.5",
+/// "38.25" -> "38.25", "57" -> "57.0").
+pub(in crate::proxy) fn normalize_money_amount(amount: &str) -> String {
+    let trimmed = amount.trim();
+    if trimmed.is_empty() {
+        return "0.0".to_string();
+    }
+    if trimmed.contains('.') {
+        let stripped = trimmed.trim_end_matches('0');
+        let stripped = stripped.strip_suffix('.').unwrap_or(stripped);
+        if stripped.contains('.') {
+            stripped.to_string()
+        } else {
+            format!("{stripped}.0")
+        }
+    } else {
+        format!("{trimmed}.0")
+    }
 }
 
-pub(in crate::proxy) fn payment_terms_net_record(id: &str) -> Value {
-    payment_terms_success_record(
-        id,
-        "Net 30",
-        "NET",
-        Some(30),
-        payment_terms_default_schedule_nodes(id),
-    )
+// Proleptic-Gregorian day arithmetic (Howard Hinnant's civil/days algorithms)
+// so we can compute a NET term's `dueAt` as `issuedAt` + the template's due-day
+// count without pulling in a date library.
+fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = (if y >= 0 { y } else { y - 399 }) / 400;
+    let yoe = y - era * 400;
+    let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146097 + doe - 719468
+}
+
+fn civil_from_days(z: i64) -> (i64, i64, i64) {
+    let z = z + 719468;
+    let era = (if z >= 0 { z } else { z - 146096 }) / 146097;
+    let doe = z - era * 146097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    (if m <= 2 { y + 1 } else { y }, m, d)
+}
+
+/// Adds `days` to the date portion of an ISO-8601 timestamp, preserving the
+/// time-of-day and zone suffix verbatim ("2026-04-27T12:00:00Z" + 30 ->
+/// "2026-05-27T12:00:00Z").
+fn add_days_to_iso(iso: &str, days: i64) -> String {
+    let (date_part, rest) = match iso.split_once('T') {
+        Some((date, rest)) => (date, Some(rest)),
+        None => (iso, None),
+    };
+    let parts: Vec<&str> = date_part.split('-').collect();
+    if parts.len() != 3 {
+        return iso.to_string();
+    }
+    let (Ok(year), Ok(month), Ok(day)) = (
+        parts[0].parse::<i64>(),
+        parts[1].parse::<i64>(),
+        parts[2].parse::<i64>(),
+    ) else {
+        return iso.to_string();
+    };
+    let (ny, nm, nd) = civil_from_days(days_from_civil(year, month, day) + days);
+    let new_date = format!("{ny:04}-{nm:02}-{nd:02}");
+    match rest {
+        Some(rest) => format!("{new_date}T{rest}"),
+        None => new_date,
+    }
+}
+
+/// Builds a materialized PaymentSchedule node from the owner money and the
+/// requested schedule. NET terms compute `dueAt` from `issuedAt` plus the
+/// template's due-day count when the input omits an explicit `dueAt`; FIXED
+/// terms carry the explicit `dueAt` with a null `issuedAt`.
+fn payment_schedule_node(
+    schedule_id: &str,
+    input_schedule: Option<&BTreeMap<String, ResolvedValue>>,
+    due_in_days: Option<i64>,
+    amount: &str,
+    currency: &str,
+) -> Value {
+    let issued_at = input_schedule.and_then(|schedule| resolved_string_field(schedule, "issuedAt"));
+    let input_due_at = input_schedule.and_then(|schedule| resolved_string_field(schedule, "dueAt"));
+    let due_at = match input_due_at {
+        Some(due) => Some(due),
+        None => match (issued_at.as_deref(), due_in_days) {
+            (Some(issued), Some(days)) => Some(add_days_to_iso(issued, days)),
+            _ => None,
+        },
+    };
+    let money = json!({ "amount": normalize_money_amount(amount), "currencyCode": currency });
+    json!({
+        "id": schedule_id,
+        "issuedAt": issued_at.map(Value::String).unwrap_or(Value::Null),
+        "dueAt": due_at.map(Value::String).unwrap_or(Value::Null),
+        "completedAt": Value::Null,
+        "due": false,
+        "amount": money.clone(),
+        "balanceDue": money.clone(),
+        "totalBalance": money
+    })
+}
+
+/// Pulls the owner's outstanding money for the payment schedule. Orders carry a
+/// presentment money bag (the schedule is denominated in presentment currency);
+/// seeded/hydrated drafts expose shop money on `totalPriceSet`/`subtotalPriceSet`.
+fn payment_terms_extract_owner_money(owner: &Value) -> Option<(String, String)> {
+    for set_key in [
+        "totalOutstandingSet",
+        "currentTotalPriceSet",
+        "totalPriceSet",
+        "subtotalPriceSet",
+    ] {
+        let Some(set) = owner.get(set_key) else {
+            continue;
+        };
+        for money_key in ["presentmentMoney", "shopMoney"] {
+            let Some(money) = set.get(money_key) else {
+                continue;
+            };
+            if let (Some(amount), Some(currency)) = (
+                money.get("amount").and_then(Value::as_str),
+                money.get("currencyCode").and_then(Value::as_str),
+            ) {
+                return Some((normalize_money_amount(amount), currency.to_string()));
+            }
+        }
+    }
+    None
 }
 
 pub(in crate::proxy) fn payment_terms_validation_error(
@@ -2206,22 +2352,34 @@ pub(in crate::proxy) fn payment_terms_attrs_from_update_field(
 pub(in crate::proxy) fn payment_terms_record_from_attrs(
     id: &str,
     attrs: &BTreeMap<String, ResolvedValue>,
+    amount: &str,
+    currency: &str,
 ) -> Value {
     let template_id = resolved_string_field(attrs, "paymentTermsTemplateId").unwrap_or_default();
     let (name, terms_type, due_in_days) = payment_terms_template_projection(&template_id);
     // Due-on-receipt and due-on-fulfillment terms have no materialized schedule;
-    // fixed and net terms project a single schedule node.
+    // fixed and net terms project a single schedule node whose money mirrors the
+    // owning order/draft and whose dates derive from the requested schedule.
     let schedules = if matches!(terms_type, "RECEIPT" | "FULFILLMENT") {
         json!([])
     } else {
-        payment_terms_default_schedule_nodes(id)
+        let schedule_id = format!("gid://shopify/PaymentSchedule/{}", resource_id_tail(id));
+        let input_schedules = resolved_object_list_field(attrs, "paymentSchedules");
+        let node = payment_schedule_node(
+            &schedule_id,
+            input_schedules.first(),
+            due_in_days,
+            amount,
+            currency,
+        );
+        json!([node])
     };
     payment_terms_success_record(id, name, terms_type, due_in_days, schedules)
 }
 
 pub(in crate::proxy) fn payment_terms_create_value(
     field: &RootFieldSelection,
-) -> Result<(String, String, Value), Value> {
+) -> Result<(String, String, BTreeMap<String, ResolvedValue>), Value> {
     let reference_id = resolved_string_arg(&field.arguments, "referenceId").unwrap_or_default();
     let attrs = payment_terms_attrs_from_create_field(field);
     if reference_id == "gid://shopify/Order/paid" {
@@ -2282,17 +2440,16 @@ pub(in crate::proxy) fn payment_terms_create_value(
         reference_tail
     };
     let terms_id = format!("gid://shopify/PaymentTerms/{id_suffix}");
-    let record = payment_terms_record_from_attrs(&terms_id, &attrs);
-    Ok((reference_id, terms_id, record))
+    Ok((reference_id, terms_id, attrs))
 }
 
 pub(in crate::proxy) fn payment_terms_update_value(
     field: &RootFieldSelection,
-) -> Result<(String, Value), Value> {
+) -> Result<(String, BTreeMap<String, ResolvedValue>), Value> {
     let (payment_terms_id, attrs) = payment_terms_attrs_from_update_field(field);
     let error = match payment_terms_id.as_str() {
         "gid://shopify/PaymentTerms/999999" => Some(payment_terms_user_error(
-            Value::Null,
+            json!(["input", "paymentTermsId"]),
             "Payment terms do not exist",
             "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
         )),
@@ -2316,8 +2473,7 @@ pub(in crate::proxy) fn payment_terms_update_value(
             &field.selection,
         ));
     }
-    let record = payment_terms_record_from_attrs(&payment_terms_id, &attrs);
-    Ok((payment_terms_id, record))
+    Ok((payment_terms_id, attrs))
 }
 
 pub(in crate::proxy) fn payment_reminder_local_data(
@@ -4159,46 +4315,105 @@ impl DraftProxy {
                         )
                     }
                     "paymentTermsCreate" => match payment_terms_create_value(&field) {
-                        Ok((owner_id, terms_id, record)) => {
-                            self.store
-                                .staged
-                                .payment_terms
-                                .insert(terms_id.clone(), record.clone());
-                            self.store
-                                .staged
-                                .payment_terms_owner_index
-                                .insert(owner_id.clone(), terms_id.clone());
-                            self.attach_payment_terms_to_owner(&owner_id, Some(record.clone()));
-                            staged_ids.push(terms_id);
-                            logged = true;
-                            payment_terms_payload_value(
-                                "paymentTermsCreate",
-                                record,
-                                Vec::new(),
-                                &field.selection,
-                            )["paymentTermsCreate"]
-                                .clone()
+                        Ok((owner_id, terms_id, attrs)) => {
+                            // Hydrate (and stage) the owner so we can read its
+                            // money and financial status. A paid Order is rejected
+                            // before any payment-terms staging happens.
+                            let (amount, currency) =
+                                self.payment_terms_owner_money(request, &owner_id);
+                            if self.payment_terms_owner_is_paid(&owner_id) {
+                                payment_terms_payload_value(
+                                    "paymentTermsCreate",
+                                    Value::Null,
+                                    vec![payment_terms_user_error(
+                                        Value::Null,
+                                        "Cannot create payment terms on an Order that has already been paid in full.",
+                                        "PAYMENT_TERMS_CREATION_UNSUCCESSFUL",
+                                    )],
+                                    &field.selection,
+                                )["paymentTermsCreate"]
+                                    .clone()
+                            } else {
+                                let record = payment_terms_record_from_attrs(
+                                    &terms_id, &attrs, &amount, &currency,
+                                );
+                                self.store
+                                    .staged
+                                    .payment_terms
+                                    .insert(terms_id.clone(), record.clone());
+                                self.store
+                                    .staged
+                                    .payment_terms_owner_index
+                                    .insert(owner_id.clone(), terms_id.clone());
+                                self.attach_payment_terms_to_owner(
+                                    &owner_id,
+                                    Some(record.clone()),
+                                );
+                                staged_ids.push(terms_id);
+                                logged = true;
+                                payment_terms_payload_value(
+                                    "paymentTermsCreate",
+                                    record,
+                                    Vec::new(),
+                                    &field.selection,
+                                )["paymentTermsCreate"]
+                                    .clone()
+                            }
                         }
                         Err(payload) => payload["paymentTermsCreate"].clone(),
                     },
                     "paymentTermsUpdate" => match payment_terms_update_value(&field) {
-                        Ok((terms_id, record)) => {
-                            self.store
-                                .staged
-                                .payment_terms
-                                .insert(terms_id.clone(), record.clone());
-                            if let Some(owner_id) = self.payment_terms_owner_id(&terms_id) {
-                                self.attach_payment_terms_to_owner(&owner_id, Some(record.clone()));
+                        Ok((terms_id, attrs)) => {
+                            let owner_id = self.payment_terms_owner_id(&terms_id);
+                            // Cold update (no local owner link): hydrate the
+                            // PaymentTerms node and reject if its owning Order has
+                            // already been paid in full, without staging anything.
+                            if owner_id.is_none()
+                                && self.payment_terms_node_owner_paid(request, &terms_id)
+                            {
+                                payment_terms_payload_value(
+                                    "paymentTermsUpdate",
+                                    Value::Null,
+                                    vec![payment_terms_user_error(
+                                        Value::Null,
+                                        "Cannot create payment terms on an Order that has already been paid in full.",
+                                        "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL",
+                                    )],
+                                    &field.selection,
+                                )["paymentTermsUpdate"]
+                                    .clone()
+                            } else {
+                                let (amount, currency) = match owner_id.as_deref() {
+                                    Some(owner) => self.payment_terms_owner_money(request, owner),
+                                    None => self
+                                        .payment_terms_record_money(&terms_id)
+                                        .unwrap_or_else(|| {
+                                            ("0.0".to_string(), "CAD".to_string())
+                                        }),
+                                };
+                                let record = payment_terms_record_from_attrs(
+                                    &terms_id, &attrs, &amount, &currency,
+                                );
+                                self.store
+                                    .staged
+                                    .payment_terms
+                                    .insert(terms_id.clone(), record.clone());
+                                if let Some(owner_id) = owner_id {
+                                    self.attach_payment_terms_to_owner(
+                                        &owner_id,
+                                        Some(record.clone()),
+                                    );
+                                }
+                                staged_ids.push(terms_id);
+                                logged = true;
+                                payment_terms_payload_value(
+                                    "paymentTermsUpdate",
+                                    record,
+                                    Vec::new(),
+                                    &field.selection,
+                                )["paymentTermsUpdate"]
+                                    .clone()
                             }
-                            staged_ids.push(terms_id);
-                            logged = true;
-                            payment_terms_payload_value(
-                                "paymentTermsUpdate",
-                                record,
-                                Vec::new(),
-                                &field.selection,
-                            )["paymentTermsUpdate"]
-                                .clone()
                         }
                         Err(payload) => payload["paymentTermsUpdate"].clone(),
                     },
@@ -4231,9 +4446,9 @@ impl DraftProxy {
                             payment_terms_delete_payload_value(
                                 Value::Null,
                                 vec![payment_terms_user_error(
-                                    Value::Null,
+                                    json!(["input", "paymentTermsId"]),
                                     "Payment terms do not exist",
-                                    "PAYMENT_TERMS_DELETE_UNSUCCESSFUL",
+                                    "payment_terms_deletion_unsuccessful",
                                 )],
                                 &field.selection,
                             )["paymentTermsDelete"]
@@ -4270,6 +4485,153 @@ impl DraftProxy {
         self.store.staged.payment_terms_owner_index.iter().find_map(
             |(owner_id, staged_terms_id)| (staged_terms_id == terms_id).then(|| owner_id.clone()),
         )
+    }
+
+    /// Resolves the owning order/draft money used to denominate a payment
+    /// schedule. Orders carry presentment money (the schedule is presentment-
+    /// denominated); drafts expose shop money. Prefers already-staged owners; in
+    /// live-hybrid replay it hydrates the owner from the cassette and stages it so
+    /// subsequent local reads (and the post-delete cleanup) observe the same
+    /// graph. Falls back to `0.0 CAD` when no owner money is available.
+    fn payment_terms_owner_money(&mut self, request: &Request, owner_id: &str) -> (String, String) {
+        if let Some(money) = self
+            .store
+            .staged
+            .orders
+            .get(owner_id)
+            .or_else(|| self.store.staged.draft_orders.get(owner_id))
+            .and_then(payment_terms_extract_owner_money)
+        {
+            return money;
+        }
+        if let Some(owner) = self.hydrate_payment_terms_owner(request, owner_id) {
+            let money = payment_terms_extract_owner_money(&owner);
+            let target = if owner_id.starts_with("gid://shopify/DraftOrder/") {
+                &mut self.store.staged.draft_orders
+            } else {
+                &mut self.store.staged.orders
+            };
+            target.entry(owner_id.to_string()).or_insert(owner);
+            if let Some(money) = money {
+                return money;
+            }
+        }
+        ("0.0".to_string(), "CAD".to_string())
+    }
+
+    /// Cassette-backed owner hydration: in live-hybrid replay, issue the exact
+    /// recorded `PaymentTermsOwnerHydrate` (Order) or `PaymentTermsDraftHydrate`
+    /// (DraftOrder) document so the strict upstream matcher replays the real
+    /// owner reply. Gated on LiveHybrid so other read modes are untouched;
+    /// returns the `order`/`draftOrder` node from the recorded reply.
+    fn hydrate_payment_terms_owner(&self, request: &Request, owner_id: &str) -> Option<Value> {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return None;
+        }
+        let (query, operation_name) = if owner_id.starts_with("gid://shopify/DraftOrder/") {
+            (PAYMENT_TERMS_DRAFT_HYDRATE_QUERY, "PaymentTermsDraftHydrate")
+        } else {
+            (PAYMENT_TERMS_OWNER_HYDRATE_QUERY, "PaymentTermsOwnerHydrate")
+        };
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": query,
+                "operationName": operation_name,
+                "variables": { "id": owner_id }
+            })
+            .to_string(),
+        });
+        if response.status >= 400 {
+            return None;
+        }
+        let data = response.body.get("data")?;
+        data.get("draftOrder")
+            .or_else(|| data.get("order"))
+            .filter(|owner| !owner.is_null())
+            .cloned()
+    }
+
+    /// True when a staged Order owner has been paid in full. Drafts (and orders
+    /// without a recorded financial status) are never "paid" by this check, so it
+    /// is safe to call for any owner type.
+    fn payment_terms_owner_is_paid(&self, owner_id: &str) -> bool {
+        self.store
+            .staged
+            .orders
+            .get(owner_id)
+            .and_then(|owner| owner.get("displayFinancialStatus"))
+            .and_then(Value::as_str)
+            == Some("PAID")
+    }
+
+    /// Cold-path eligibility probe for `paymentTermsUpdate`: hydrate the
+    /// PaymentTerms node by id and report whether its owning Order is paid in
+    /// full. Returns false when hydration is unavailable (non-LiveHybrid, missing
+    /// cassette, or a draft-owned node).
+    fn payment_terms_node_owner_paid(&self, request: &Request, terms_id: &str) -> bool {
+        self.hydrate_payment_terms_node(request, terms_id)
+            .and_then(|node| node.get("order").cloned())
+            .filter(|order| !order.is_null())
+            .and_then(|order| {
+                order
+                    .get("displayFinancialStatus")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            })
+            .as_deref()
+            == Some("PAID")
+    }
+
+    /// Cassette-backed PaymentTerms-node hydration for the cold update path:
+    /// issues the exact recorded `PaymentTermsHydrate` document and returns the
+    /// resolved `paymentTerms` node. Gated on LiveHybrid.
+    fn hydrate_payment_terms_node(&self, request: &Request, terms_id: &str) -> Option<Value> {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return None;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": PAYMENT_TERMS_NODE_HYDRATE_QUERY,
+                "operationName": "PaymentTermsHydrate",
+                "variables": { "id": terms_id }
+            })
+            .to_string(),
+        });
+        if response.status >= 400 {
+            return None;
+        }
+        response
+            .body
+            .get("data")?
+            .get("paymentTerms")
+            .filter(|node| !node.is_null())
+            .cloned()
+    }
+
+    /// Reads the money already materialized on a staged payment-terms record's
+    /// first schedule node, so an update whose owner link is unavailable reuses
+    /// the money established at create time.
+    fn payment_terms_record_money(&self, terms_id: &str) -> Option<(String, String)> {
+        let node = self
+            .store
+            .staged
+            .payment_terms
+            .get(terms_id)?
+            .get("paymentSchedules")?
+            .get("nodes")?
+            .as_array()?
+            .first()?;
+        let money = node.get("amount")?;
+        Some((
+            money.get("amount")?.as_str()?.to_string(),
+            money.get("currencyCode")?.as_str()?.to_string(),
+        ))
     }
 
     fn remove_payment_terms_owner_link(&mut self, terms_id: &str) -> Option<String> {
