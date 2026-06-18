@@ -286,6 +286,16 @@ struct StagedState {
     deleted_location_ids: BTreeSet<String>,
     location_limit_reached: bool,
     segments: BTreeMap<String, Value>,
+    // Recorded segment-catalog read baselines, keyed by root field name
+    // (`segments` / `segmentsCount` / `segmentFilters` / `segmentFilterSuggestions`
+    // / `segmentValueSuggestions` / `segmentMigrations`). These roots expose
+    // Shopify-internal catalog/derived data whose opaque pagination cursors encode
+    // backend-private values (microsecond timestamps, customer ids) that cannot be
+    // reconstructed from arbitrary store state, so a scenario seeds the recorded
+    // connection values and the read resolver projects the requested selection over
+    // them. Empty for every scenario that does not seed a catalog, leaving the
+    // generic staged-segment read path untouched.
+    segment_catalog: BTreeMap<String, Value>,
     collections: BTreeMap<String, Value>,
     deleted_collection_ids: BTreeSet<String>,
     collection_jobs: BTreeMap<String, Value>,
@@ -596,6 +606,7 @@ impl Default for StagedState {
             deleted_location_ids: BTreeSet::new(),
             location_limit_reached: false,
             segments: BTreeMap::new(),
+            segment_catalog: BTreeMap::new(),
             collections: BTreeMap::new(),
             deleted_collection_ids: BTreeSet::new(),
             collection_jobs: BTreeMap::new(),

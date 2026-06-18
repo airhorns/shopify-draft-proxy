@@ -616,19 +616,36 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
     : [];
   const collections = Array.isArray(record['seedCollections']) ? record['seedCollections'] : [];
   const discounts = Array.isArray(record['seedDiscounts']) ? record['seedDiscounts'] : [];
+  // `seedSegmentCatalog` mirrors the captured segment-catalog read roots (filters,
+  // filter/value suggestions, migrations, the segments connection, and the live
+  // total count) so local replay can serve their recorded cursors/pageInfo that
+  // cannot be reconstructed from arbitrary store state.
+  const segmentCatalog =
+    record['seedSegmentCatalog'] && typeof record['seedSegmentCatalog'] === 'object'
+      ? (record['seedSegmentCatalog'] as Record<string, unknown>)
+      : null;
   if (
     customers.length === 0 &&
     segments.length === 0 &&
     products.length === 0 &&
     productVariants.length === 0 &&
     collections.length === 0 &&
-    discounts.length === 0
+    discounts.length === 0 &&
+    segmentCatalog === null
   )
     return;
   await proxy.processRequest({
     method: 'POST',
     path: '/__meta/seed',
-    body: { customers, segments, products, productVariants, collections, discounts },
+    body: {
+      customers,
+      segments,
+      products,
+      productVariants,
+      collections,
+      discounts,
+      ...(segmentCatalog ? { segmentCatalog } : {}),
+    },
   });
 }
 

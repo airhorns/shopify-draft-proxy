@@ -443,6 +443,20 @@ impl DraftProxy {
                 }
             }
         }
+        // A scenario can seed recorded segment-catalog connection baselines keyed by
+        // root field name (`segments` / `segmentsCount` / `segmentFilters` /
+        // `segmentFilterSuggestions` / `segmentValueSuggestions` /
+        // `segmentMigrations`). The read resolver projects the requested selection
+        // over them; this preserves the live cursors/pageInfo that the catalog roots
+        // can't synthesize from arbitrary store state.
+        if let Some(catalog) = body.get("segmentCatalog").and_then(Value::as_object) {
+            for (key, value) in catalog {
+                self.store
+                    .staged
+                    .segment_catalog
+                    .insert(key.clone(), value.clone());
+            }
+        }
         if let Some(products) = body.get("products").and_then(Value::as_array) {
             for product in products {
                 if product.get("id").and_then(Value::as_str).is_some() {

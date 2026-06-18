@@ -1812,7 +1812,12 @@ impl DraftProxy {
                             "data": self.customer_segment_members_query_read_data(&fields)
                         }))
                     } else {
-                        ok_json(json!({ "data": self.segment_read_data(&fields) }))
+                        let (data, errors) = self.segment_read_data(&fields);
+                        if errors.is_empty() {
+                            ok_json(json!({ "data": data }))
+                        } else {
+                            ok_json(json!({ "data": data, "errors": errors }))
+                        }
                     }
                 } else {
                     json_error(400, "Could not parse GraphQL operation")

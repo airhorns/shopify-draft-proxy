@@ -2756,42 +2756,79 @@ impl DraftProxy {
         })
     }
 
-    pub(in crate::proxy) fn segment_read_data(&self, fields: &[RootFieldSelection]) -> Value {
+    /// Resolve a segment-catalog read operation, returning `(data, errors)`. A
+    /// non-existent `segment(id:)` yields a `null` field plus a top-level NOT_FOUND
+    /// error anchored at the field's source location (matching live Shopify, which
+    /// surfaces a missing-segment lookup as a query error rather than a user error).
+    /// Catalog roots (`segments` / `segmentsCount` / `segmentFilters` /
+    /// `segmentFilterSuggestions` / `segmentValueSuggestions` / `segmentMigrations`)
+    /// are served from a seeded recorded baseline when present, falling back to the
+    /// generic staged-segment connection otherwise.
+    pub(in crate::proxy) fn segment_read_data(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> (Value, Vec<Value>) {
         let mut data = serde_json::Map::new();
+        let mut errors = Vec::new();
         for field in fields {
             let value = match field.name.as_str() {
                 "segment" => {
                     let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-                    self.store
-                        .staged
-                        .segments
-                        .get(&id)
-                        .map(|segment| selected_json(segment, &field.selection))
-                        .unwrap_or(Value::Null)
+                    match self.store.staged.segments.get(&id) {
+                        Some(segment) => selected_json(segment, &field.selection),
+                        None => {
+                            errors.push(json!({
+                                "message": "Segment does not exist",
+                                "locations": [{
+                                    "line": field.location.line,
+                                    "column": field.location.column
+                                }],
+                                "extensions": { "code": "NOT_FOUND" },
+                                "path": [field.response_key.clone()]
+                            }));
+                            Value::Null
+                        }
+                    }
                 }
                 "segments" => {
-                    let records = self
-                        .store
-                        .staged
-                        .segments
-                        .values()
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    selected_connection_json_with_args(
-                        records,
-                        &field.arguments,
-                        &field.selection,
-                        value_id_cursor,
-                    )
+                    if let Some(connection) = self.store.staged.segment_catalog.get("segments") {
+                        project_seeded_connection(connection, &field.arguments, &field.selection)
+                    } else {
+                        let records = self
+                            .store
+                            .staged
+                            .segments
+                            .values()
+                            .cloned()
+                            .collect::<Vec<_>>();
+                        selected_connection_json_with_args(
+                            records,
+                            &field.arguments,
+                            &field.selection,
+                            value_id_cursor,
+                        )
+                    }
                 }
-                "segmentsCount" => {
-                    segment_count_json(self.store.staged.segments.len(), &field.selection)
+                "segmentsCount" => match self.store.staged.segment_catalog.get("segmentsCount") {
+                    Some(count) => selected_json(count, &field.selection),
+                    None => segment_count_json(self.store.staged.segments.len(), &field.selection),
+                },
+                "segmentFilters" | "segmentFilterSuggestions" | "segmentValueSuggestions"
+                | "segmentMigrations" => {
+                    match self.store.staged.segment_catalog.get(&field.name) {
+                        Some(connection) => project_seeded_connection(
+                            connection,
+                            &field.arguments,
+                            &field.selection,
+                        ),
+                        None => continue,
+                    }
                 }
                 _ => continue,
             };
             data.insert(field.response_key.clone(), value);
         }
-        Value::Object(data)
+        (Value::Object(data), errors)
     }
 
     pub(in crate::proxy) fn segment_mutation(
@@ -3108,18 +3145,30 @@ impl DraftProxy {
         let input = resolved_object_field(&arguments, "input").unwrap_or_default();
         let query_input = resolved_string_field(&input, "query");
         let segment_id_input = resolved_string_field(&input, "segmentId");
-        let user_errors = match (query_input.is_some(), segment_id_input.is_some()) {
-            (true, true) => vec![json!({
-                "field": ["input"],
-                "code": "INVALID",
-                "message": "Providing both segment_id and query is not supported."
-            })],
-            (false, false) => vec![json!({
-                "field": ["input"],
-                "code": "INVALID",
-                "message": "You must provide one of segment_id or query."
-            })],
-            _ => Vec::new(),
+        let user_errors = match (query_input.as_deref(), segment_id_input.as_deref()) {
+            (Some(_), Some(_)) => vec![member_query_user_error(
+                json!(["input"]),
+                "Providing both segment_id and query is not supported.",
+            )],
+            (None, None) => vec![member_query_user_error(
+                json!(["input"]),
+                "You must provide one of segment_id or query.",
+            )],
+            // A direct query goes through the Customer Data Platform grammar; a
+            // malformed query returns a CDP-shaped error (field null) while broad
+            // valid grammar stages an async job.
+            (Some(direct_query), None) => {
+                member_query_direct_query_error(direct_query).into_iter().collect()
+            }
+            // A segment_id reuses a stored segment's query without revalidating it,
+            // but the segment must exist in the shop.
+            (None, Some(segment_id)) => {
+                if self.store.staged.segments.contains_key(segment_id) {
+                    Vec::new()
+                } else {
+                    vec![member_query_user_error(Value::Null, "Invalid segment ID.")]
+                }
+            }
         };
         if !user_errors.is_empty() {
             return ok_json(json!({
@@ -6656,6 +6705,84 @@ fn segment_query_user_errors(query: &str) -> Vec<Value> {
         )];
     }
     segment_query_grammar_user_errors(query)
+}
+
+/// A `CustomerSegmentMembersQueryUserError` (the CDP member-query surface),
+/// which always carries a `code` and `__typename` unlike the default segment
+/// mutation `UserError`.
+fn member_query_user_error(field: Value, message: &str) -> Value {
+    json!({
+        "__typename": "CustomerSegmentMembersQueryUserError",
+        "field": field,
+        "code": "INVALID",
+        "message": message
+    })
+}
+
+/// Validate a `customerSegmentMembersQueryCreate(input: { query })` direct query
+/// through the segment grammar. Returns `None` when the query parses (the job is
+/// staged); otherwise a CDP-shaped error pointing at the first unexpected token.
+fn member_query_direct_query_error(query: &str) -> Option<Value> {
+    let trimmed = query.trim();
+    if !trimmed.is_empty() && segment_query_grammar_accepts(trimmed) {
+        return None;
+    }
+    let message = segment_query_unexpected_token_message(query)
+        .unwrap_or_else(|| "Query is invalid.".to_string());
+    Some(member_query_user_error(Value::Null, &message))
+}
+
+/// Locate the first token that cannot continue a `[NOT] <filter> <operator>`
+/// prefix and render Shopify's `Line 1 Column N: 'TOKEN' is unexpected.` lexer
+/// message. The reported column is the position just past the previous token
+/// (where the parser expected an operator / continuation).
+fn segment_query_unexpected_token_message(query: &str) -> Option<String> {
+    // Tokenize on whitespace, tracking 1-indexed start / end columns.
+    let chars: Vec<char> = query.chars().collect();
+    let mut tokens: Vec<(String, usize, usize)> = Vec::new();
+    let mut start: Option<usize> = None;
+    for (index, ch) in chars.iter().enumerate() {
+        if ch.is_whitespace() {
+            if let Some(begin) = start.take() {
+                tokens.push((chars[begin..index].iter().collect(), begin + 1, index));
+            }
+        } else if start.is_none() {
+            start = Some(index);
+        }
+    }
+    if let Some(begin) = start.take() {
+        tokens.push((chars[begin..].iter().collect(), begin + 1, chars.len()));
+    }
+    if tokens.is_empty() {
+        return None;
+    }
+    let mut index = 0;
+    // An optional leading boolean NOT prefix is consumed before the filter name.
+    if tokens[index].0.eq_ignore_ascii_case("not") {
+        index += 1;
+    }
+    if index >= tokens.len() {
+        return None;
+    }
+    // Consume the filter identifier; an operator must follow.
+    index += 1;
+    if index < tokens.len() {
+        let (token, _, _) = &tokens[index];
+        if !segment_query_token_is_operator(token) {
+            let column = tokens[index - 1].2 + 1;
+            return Some(format!("Line 1 Column {column}: '{token}' is unexpected."));
+        }
+    }
+    None
+}
+
+/// Whether a token can begin the operator / continuation that follows a segment
+/// filter name (comparison, set membership, null test, or boolean join).
+fn segment_query_token_is_operator(token: &str) -> bool {
+    matches!(
+        token.to_ascii_uppercase().as_str(),
+        "=" | "!=" | ">" | "<" | ">=" | "<=" | "CONTAINS" | "IS" | "NOT" | "STARTS" | "AND" | "OR"
+    )
 }
 
 fn segment_query_grammar_user_errors(query: &str) -> Vec<Value> {
