@@ -4832,7 +4832,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::Orders,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &["orderDelete", "OrderDelete"],
             &[],
         ),

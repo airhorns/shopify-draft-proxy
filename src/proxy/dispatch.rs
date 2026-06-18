@@ -1124,6 +1124,24 @@ impl DraftProxy {
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && has_local_dispatch
+                    && root_field == "orderDelete" =>
+            {
+                if let Some(data) =
+                    self.remaining_order_local_data(request, root_field, &query, &variables)
+                {
+                    ok_json(data)
+                } else {
+                    json_error(
+                        501,
+                        &format!(
+                            "No Rust orders dispatcher implemented for root field: {root_field}"
+                        ),
+                    )
+                }
+            }
+            (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
                     && matches!(
                         root_field,
                         "orderMarkAsPaid" | "refundCreate" | "orderEditBegin" | "orderEditCommit"
