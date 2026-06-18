@@ -3461,10 +3461,13 @@ fn payment_order_record(
 
 fn normalized_order_payment_amount(value: Option<String>) -> String {
     let value = value.unwrap_or_else(|| "25.00".to_string());
-    if let Some(prefix) = value.strip_suffix(".00") {
-        format!("{prefix}.0")
-    } else {
-        value
+    // Shopify renders money amounts with trailing zeros trimmed to a single
+    // decimal place (e.g. "31.90" -> "31.9", "25.00" -> "25.0"). Reformat any
+    // parseable amount through the canonical money formatter; leave non-numeric
+    // values (e.g. already-symbolic) untouched.
+    match value.parse::<f64>() {
+        Ok(amount) => format_order_amount(amount),
+        Err(_) => value,
     }
 }
 
@@ -6010,8 +6013,11 @@ impl DraftProxy {
             "shippingAddress": order_create_address(resolved_object_field(order_input, "shippingAddress")),
             "subtotalPriceSet": order_create_money_set(subtotal, &currency_code),
             "currentSubtotalPriceSet": order_create_money_set(subtotal, &currency_code),
+            "totalShippingPriceSet": order_create_money_bag(shipping_total, &currency_code, &presentment_currency_code),
             "totalTaxSet": order_create_money_set(tax_total, &currency_code),
+            "currentTotalTaxSet": order_create_money_set(tax_total, &currency_code),
             "totalDiscountsSet": order_create_money_set(discount_total, &currency_code),
+            "currentTotalDiscountsSet": order_create_money_set(discount_total, &currency_code),
             "currentTotalPriceSet": order_create_money_set(total, &currency_code),
             "totalPriceSet": order_create_money_set(total, &currency_code),
             "discountCodes": discount_codes,
@@ -8715,6 +8721,11 @@ impl DraftProxy {
         let order_input = resolved_object_field(&field.arguments, "order").unwrap_or_default();
         let currency =
             resolved_string_field(&order_input, "currency").unwrap_or_else(|| "CAD".to_string());
+        // Base projection: full order math (line items + taxLines, shipping lines +
+        // totalShippingPriceSet, subtotals, taxes, discounts). The payment view is
+        // layered on top so a payment-field selection still receives the complete
+        // order shape rather than the totals-only subset.
+        let mut order = self.build_order_create_record(&id, &order_input);
         let transaction_inputs = resolved_object_list_field(&order_input, "transactions");
         let first_transaction = transaction_inputs.first().cloned().unwrap_or_default();
         let amount_set = payment_money_set_from_input(&first_transaction)
@@ -8746,7 +8757,7 @@ impl DraftProxy {
             } else {
                 ("PENDING", "0.0", amount.as_str(), "0.0")
             };
-        let order = payment_order_record(
+        let payment_view = payment_order_record(
             &id,
             display_status,
             capturable_amount,
@@ -8758,7 +8769,22 @@ impl DraftProxy {
                 .unwrap_or(&currency),
             vec![transaction],
         );
-        let mut order = order;
+        // Override the payment-derived projection onto the full order base.
+        for key in [
+            "displayFinancialStatus",
+            "capturable",
+            "totalCapturable",
+            "totalCapturableSet",
+            "totalOutstandingSet",
+            "totalReceivedSet",
+            "netPaymentSet",
+            "paymentGatewayNames",
+            "transactions",
+        ] {
+            if let Some(value) = payment_view.get(key) {
+                order[key] = value.clone();
+            }
+        }
         if amount_set.get("presentmentMoney").is_some() {
             let captured_amount = if capturable_amount == "0.0" {
                 amount.as_str()
