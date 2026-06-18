@@ -408,6 +408,19 @@ impl DraftProxy {
         if let Some(mode) = &self.store.staged.order_edit_existing_mode {
             snapshot["stagedState"]["orderEditExistingMode"] = json!(mode);
         }
+        if self
+            .store
+            .staged
+            .order_edit_variant_catalog
+            .as_object()
+            .is_some_and(|catalog| !catalog.is_empty())
+        {
+            snapshot["stagedState"]["orderEditVariantCatalog"] =
+                self.store.staged.order_edit_variant_catalog.clone();
+        }
+        if let Some(author) = &self.store.staged.order_edit_author {
+            snapshot["stagedState"]["orderEditAuthor"] = json!(author);
+        }
         snapshot
     }
 
@@ -573,6 +586,29 @@ impl DraftProxy {
                 seeded_draft_orders += 1;
             }
         }
+        // Order-edit variant catalog: the store-state product variants an
+        // `orderEditAddVariant` resolves against. Stored as a map keyed by
+        // variant id so the edit engine can build an added calculated line item
+        // (title / sku / unit price) from store state rather than echoing the
+        // recorded response.
+        let mut seeded_order_edit_variants = 0_usize;
+        if let Some(variants) = body.get("orderEditVariants").and_then(Value::as_array) {
+            let catalog = self
+                .store
+                .staged
+                .order_edit_variant_catalog
+                .as_object_mut()
+                .expect("order_edit_variant_catalog is always an object");
+            for variant in variants {
+                if let Some(id) = variant.get("id").and_then(Value::as_str) {
+                    catalog.insert(id.to_string(), variant.clone());
+                    seeded_order_edit_variants += 1;
+                }
+            }
+        }
+        if let Some(author) = body.get("orderEditAuthor").and_then(Value::as_str) {
+            self.store.staged.order_edit_author = Some(author.to_string());
+        }
         ok_json(json!({
             "ok": true,
             "seededCustomers": seeded_customers,
@@ -582,7 +618,8 @@ impl DraftProxy {
             "seededCollections": seeded_collections,
             "seededDiscounts": seeded_discounts,
             "seededOrders": seeded_orders,
-            "seededDraftOrders": seeded_draft_orders
+            "seededDraftOrders": seeded_draft_orders,
+            "seededOrderEditVariants": seeded_order_edit_variants
         }))
     }
 
@@ -1148,6 +1185,15 @@ impl DraftProxy {
             .map(str::to_string);
         self.store.staged.order_edit_existing_mode = state["stagedState"]
             .get("orderEditExistingMode")
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        self.store.staged.order_edit_variant_catalog = state["stagedState"]
+            .get("orderEditVariantCatalog")
+            .filter(|catalog| catalog.is_object())
+            .cloned()
+            .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
+        self.store.staged.order_edit_author = state["stagedState"]
+            .get("orderEditAuthor")
             .and_then(Value::as_str)
             .map(str::to_string);
         self.store.staged.b2b_companies = state["stagedState"]

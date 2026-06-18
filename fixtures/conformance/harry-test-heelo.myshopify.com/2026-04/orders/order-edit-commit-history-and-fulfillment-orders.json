@@ -4,6 +4,7 @@
   "storeDomain": "harry-test-heelo.myshopify.com",
   "source": "live-shopify-admin-graphql",
   "notes": "Live order edit commit capture covering a disposable order with one existing shippable line item decremented from 3 to 1, one variant line item added at quantity 2, the edited order event, current totals/tax lines, and fulfillment-order remaining quantities.",
+  "seedOrderEditAuthor": "example.com",
   "setupReferences": {
     "selectedLocationId": "gid://shopify/Location/112829759794",
     "selectedVariant": {

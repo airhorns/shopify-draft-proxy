@@ -736,14 +736,72 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
   // Draft orders / orders are derived from the recorded `setup` precondition steps
   // (and may be augmented by explicit `seedDraftOrders` / `seedOrders` arrays).
   const setupSeeds = collectSetupEntitySeeds(record);
+  // Some captures carry a single pre-existing entity as `seedOrder` /
+  // `seedDraftOrder` (the realistic order an order-edit / return workflow runs
+  // against) rather than an array. Treat the singular form as a one-element seed
+  // alongside the array form and the setup-derived projections.
+  const singletonSeed = (key: string): Record<string, unknown>[] =>
+    record[key] && typeof record[key] === 'object' && !Array.isArray(record[key])
+      ? [record[key] as Record<string, unknown>]
+      : [];
   const draftOrders = [
     ...(Array.isArray(record['seedDraftOrders']) ? record['seedDraftOrders'] : []),
+    ...singletonSeed('seedDraftOrder'),
     ...setupSeeds.draftOrders,
   ];
   const orders = [
     ...(Array.isArray(record['seedOrders']) ? record['seedOrders'] : []),
+    ...singletonSeed('seedOrder'),
     ...setupSeeds.orders,
   ];
+  // `seedOrderEditVariants` mirrors the store catalog entries an order-edit
+  // `orderEditAddVariant` resolves against (variant id → product title / sku /
+  // unit price). Re-establishing the catalog lets the local edit engine build
+  // the added calculated line item from store state instead of echoing the
+  // recorded response.
+  let orderEditVariants = Array.isArray(record['seedOrderEditVariants'])
+    ? record['seedOrderEditVariants']
+    : [];
+  // When a capture does not carry an explicit `seedOrderEditVariants` array, derive
+  // the order-edit variant catalog from the recorded `productVariant` hydration
+  // calls. Those hydrate responses are real store state (variant id, product title,
+  // sku, unit price) that `orderEditAddVariant` resolves the added calculated line
+  // item against — re-establishing the catalog lets the local edit engine compute
+  // the added line from store state instead of relying on a passthrough echo of the
+  // recorded mutation response.
+  if (orderEditVariants.length === 0 && Array.isArray(record['upstreamCalls'])) {
+    const derived: Record<string, unknown>[] = [];
+    for (const rawCall of record['upstreamCalls'] as unknown[]) {
+      const call = rawCall as Record<string, unknown> | null;
+      const response = call?.['response'] as Record<string, unknown> | undefined;
+      const body = (response?.['body'] ?? response) as Record<string, unknown> | undefined;
+      const data = body?.['data'] as Record<string, unknown> | undefined;
+      const variant = data?.['productVariant'] as Record<string, unknown> | undefined;
+      const id = variant?.['id'];
+      if (variant && typeof id === 'string' && !derived.some((entry) => entry['id'] === id)) {
+        const product = variant['product'] as Record<string, unknown> | undefined;
+        derived.push({
+          id,
+          // The calculated line-item title mirrors the product title (the variant
+          // title is carried separately), so prefer it when the hydrate nested it.
+          title: (product?.['title'] as string | undefined) ?? variant['title'] ?? null,
+          sku: variant['sku'] ?? null,
+          price: variant['price'] ?? null,
+        });
+      }
+    }
+    orderEditVariants = derived;
+  }
+  // `seedOrderEditAuthor` is the identity of the actor (app / staff) that performs
+  // the order edit. Shopify records the committed "<author> edited this order."
+  // history event against whoever held the editing session; that identity is
+  // session/store state, not anything derivable from the rest of the capture.
+  // Re-establishing it lets the local commit engine compute the edited-order event
+  // message generically from the seeded author instead of echoing the recorded text.
+  const orderEditAuthor =
+    typeof record['seedOrderEditAuthor'] === 'string'
+      ? (record['seedOrderEditAuthor'] as string)
+      : null;
   // `seedSegmentCatalog` mirrors the captured segment-catalog read roots (filters,
   // filter/value suggestions, migrations, the segments connection, and the live
   // total count) so local replay can serve their recorded cursors/pageInfo that
@@ -761,6 +819,8 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
     discounts.length === 0 &&
     draftOrders.length === 0 &&
     orders.length === 0 &&
+    orderEditVariants.length === 0 &&
+    orderEditAuthor === null &&
     segmentCatalog === null
   )
     return;
@@ -776,6 +836,8 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
       discounts,
       draftOrders,
       orders,
+      orderEditVariants,
+      ...(orderEditAuthor ? { orderEditAuthor } : {}),
       ...(segmentCatalog ? { segmentCatalog } : {}),
     },
   });

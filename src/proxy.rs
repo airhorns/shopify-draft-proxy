@@ -408,6 +408,15 @@ struct StagedState {
     order_payment_parent_transaction_id: Option<String>,
     order_payment_next_transaction_id: u64,
     order_edit_existing_mode: Option<String>,
+    /// Catalog of product variants an order-edit `orderEditAddVariant` can
+    /// resolve against (variant id -> {title, sku, price, currencyCode}). Seeded
+    /// from a scenario's `seedOrderEditVariants` recording input so the edit
+    /// engine builds added calculated line items from store state instead of
+    /// echoing the recorded response. Round-tripped through dump/restore.
+    order_edit_variant_catalog: Value,
+    /// Identity attributed to an order-edit commit event (the "<who> edited this
+    /// order." message author). Seeded per scenario; defaults empty.
+    order_edit_author: Option<String>,
     function_validation: Option<Value>,
     function_cart_transform: Option<Value>,
     function_validations: BTreeMap<String, Value>,
@@ -711,6 +720,8 @@ impl Default for StagedState {
             order_payment_parent_transaction_id: None,
             order_payment_next_transaction_id: 3,
             order_edit_existing_mode: None,
+            order_edit_variant_catalog: Value::Object(serde_json::Map::new()),
+            order_edit_author: None,
             function_validation: None,
             function_cart_transform: None,
             function_validations: BTreeMap::new(),

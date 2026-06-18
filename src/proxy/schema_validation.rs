@@ -493,6 +493,15 @@ fn validate_raw_input_object(
         if let RawArgumentValue::Object(nested_fields) = field_value {
             let mut nested_path = path.to_vec();
             nested_path.push(field_name.clone());
+            // Anchor errors inside the nested object at that object literal's value
+            // (the `{` after `field_name:`), so a missing required attribute reports
+            // its own column rather than falling back to the enclosing field.
+            let nested_location = inline_input_field_value_location(
+                context.query,
+                context.field_location,
+                target_depth,
+                field_name,
+            );
             errors.extend(validate_raw_input_object(
                 &field_schema.type_ref.named_type,
                 nested_input_object,
@@ -500,7 +509,7 @@ fn validate_raw_input_object(
                 &nested_path,
                 schema,
                 context,
-                None,
+                nested_location,
             ));
         }
     }
@@ -983,6 +992,27 @@ fn inline_argument_value_location(
     source_location_for_byte_offset(query, value_offset)
 }
 
+/// Locates the *value* of an input-object field nested at `target_depth` (the column of the
+/// first non-whitespace character after its `name:`). Used to anchor a `missingRequiredInput
+/// ObjectAttribute` error inside a nested input object at that object literal's opening token
+/// — e.g. a `MoneyInput` supplied as `discount: { fixedValue: { amount: "5.00" } }` reports the
+/// missing `currencyCode` at the `{` of the `fixedValue` value, not at the enclosing field.
+fn inline_input_field_value_location(
+    query: &str,
+    field_location: SourceLocation,
+    target_depth: i32,
+    name: &str,
+) -> Option<SourceLocation> {
+    let name_location = inline_input_field_name_location(query, field_location, target_depth, name)?;
+    let start = byte_offset_for_location(query, name_location)?;
+    let after_name = start + name.len();
+    let after_colon = query[after_name..].find(':')? + after_name + 1;
+    let value_offset = query[after_colon..]
+        .char_indices()
+        .find_map(|(offset, ch)| (!ch.is_whitespace()).then_some(after_colon + offset))?;
+    source_location_for_byte_offset(query, value_offset)
+}
+
 fn find_argument_name_with_colon(haystack: &str, argument_name: &str) -> Option<usize> {
     let mut search_start = 0;
     while search_start < haystack.len() {
@@ -1454,6 +1484,123 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
             ("id".to_string(), mutation_arg(non_null("ID"))),
             ("notifyCustomer".to_string(), mutation_arg(named("Boolean"))),
             ("staffNote".to_string(), mutation_arg(named("String"))),
+        ]),
+    );
+
+    // Order-edit calculated-session mutations. Each is registered with its full
+    // accepted argument set (so valid edits are not flagged "argument not
+    // accepted") plus the required arguments / input-object attributes Shopify
+    // enforces during variable coercion. Routing these locally means the proxy
+    // owns the top-level coercion / missing-argument / missing-input-attribute
+    // envelopes that previously only surfaced when the call passed through to a
+    // recorded response — the local edit engine never sees a malformed input.
+    //
+    // `MoneyInput` requires both `amount` (Decimal!) and `currencyCode`
+    // (CurrencyCode!); the order-edit money arguments (custom-item price, applied
+    // discount fixedValue, shipping-line price) descend into it so an inline
+    // money object missing `currencyCode` raises `missingRequiredInputObjectAttribute`.
+    schema.input_objects.insert(
+        "MoneyInput".to_string(),
+        BTreeMap::from([
+            ("amount".to_string(), input_field(non_null("Decimal"))),
+            (
+                "currencyCode".to_string(),
+                input_field(non_null("CurrencyCode")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "orderEditAddVariant".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            ("variantId".to_string(), mutation_arg(non_null("ID"))),
+            ("quantity".to_string(), mutation_arg(non_null("Int"))),
+            ("locationId".to_string(), mutation_arg(named("ID"))),
+            ("allowDuplicates".to_string(), mutation_arg(named("Boolean"))),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "orderEditSetQuantity".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            ("lineItemId".to_string(), mutation_arg(non_null("ID"))),
+            ("quantity".to_string(), mutation_arg(non_null("Int"))),
+            ("restock".to_string(), mutation_arg(named("Boolean"))),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "orderEditAddCustomItem".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            ("title".to_string(), mutation_arg(non_null("String"))),
+            ("quantity".to_string(), mutation_arg(non_null("Int"))),
+            ("price".to_string(), mutation_arg(non_null("MoneyInput"))),
+            ("requiresShipping".to_string(), mutation_arg(named("Boolean"))),
+            ("taxable".to_string(), mutation_arg(named("Boolean"))),
+        ]),
+    );
+    schema.input_objects.insert(
+        "OrderEditAppliedDiscountInput".to_string(),
+        BTreeMap::from([
+            ("description".to_string(), input_field(named("String"))),
+            ("fixedValue".to_string(), input_field(named("MoneyInput"))),
+            ("percentage".to_string(), input_field(named("Float"))),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "orderEditAddLineItemDiscount".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            ("lineItemId".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "discount".to_string(),
+                mutation_arg(non_null("OrderEditAppliedDiscountInput")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "orderEditRemoveDiscount".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "discountApplicationId".to_string(),
+                mutation_arg(non_null("ID")),
+            ),
+        ]),
+    );
+    schema.input_objects.insert(
+        "OrderEditAddShippingLineInput".to_string(),
+        BTreeMap::from([
+            ("title".to_string(), input_field(named("String"))),
+            ("price".to_string(), input_field(non_null("MoneyInput"))),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "orderEditAddShippingLine".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "shippingLine".to_string(),
+                mutation_arg(non_null("OrderEditAddShippingLineInput")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "orderEditUpdateShippingLine".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            ("shippingLineId".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "shippingLine".to_string(),
+                mutation_arg(non_null("OrderEditUpdateShippingLineInput")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "orderEditRemoveShippingLine".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            ("shippingLineId".to_string(), mutation_arg(non_null("ID"))),
         ]),
     );
 

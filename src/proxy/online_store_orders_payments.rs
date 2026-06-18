@@ -1782,58 +1782,392 @@ fn order_create_validation_error(order: &BTreeMap<String, ResolvedValue>) -> Opt
     None
 }
 
-fn order_edit_existing_base_order() -> Value {
+// ===== Order-edit calculated engine =====
+//
+// The order-edit mutations (`orderEditBegin` → add/setQuantity/discount/shipping
+// → `orderEditCommit` → downstream read) are modelled as a small data-driven
+// engine over the seeded store order. `begin` snapshots the order's line items
+// into an edit *session* (stored, round-tripped, in
+// `order_edit_existing_calculated_order`); each subsequent mutation transforms
+// that session; `commit` projects the session back onto the staged order. All
+// money totals are recomputed from the session, so the responses are computed
+// from store state rather than echoed from the recording. Opaque allocated ids
+// (CalculatedOrder / CalculatedLineItem / CalculatedShippingLine / discount
+// application) are excluded from parity comparison and only need to be
+// internally consistent so a later step can thread one back as an argument.
+
+/// Parse a Money `amount` string (e.g. "29.0", "949.95") into integer cents.
+fn oe_amount_to_cents(amount: &str) -> i64 {
+    let parsed: f64 = amount.trim().parse().unwrap_or(0.0);
+    (parsed * 100.0).round() as i64
+}
+
+/// Render integer cents the way the Admin API renders a Money `amount`: a
+/// decimal with the minimum number of fractional digits but always at least one
+/// (1000 -> "10.0", 250 -> "2.5", 94995 -> "949.95").
+fn oe_format_cents(cents: i64) -> String {
+    let negative = cents < 0;
+    let magnitude = cents.abs();
+    let dollars = magnitude / 100;
+    let remainder = magnitude % 100;
+    let body = if remainder == 0 {
+        format!("{dollars}.0")
+    } else if remainder % 10 == 0 {
+        format!("{dollars}.{}", remainder / 10)
+    } else {
+        format!("{dollars}.{remainder:02}")
+    };
+    if negative {
+        format!("-{body}")
+    } else {
+        body
+    }
+}
+
+fn oe_shop_money(cents: i64, currency: &str) -> Value {
+    json!({ "shopMoney": { "amount": oe_format_cents(cents), "currencyCode": currency } })
+}
+
+fn oe_shop_presentment_money(cents: i64, currency: &str) -> Value {
+    let amount = oe_format_cents(cents);
     json!({
-        "id": "gid://shopify/Order/6834565087465",
-        "name": "#1331",
-        "updatedAt": "2024-01-01T00:00:03.000Z",
-        "note": "merchant realistic draft order create parity probe",
+        "shopMoney": { "amount": amount, "currencyCode": currency },
+        "presentmentMoney": { "amount": amount, "currencyCode": currency }
+    })
+}
+
+fn oe_int(value: &Value, key: &str) -> i64 {
+    value.get(key).and_then(Value::as_i64).unwrap_or(0)
+}
+
+/// Total per-unit discount staged against a session line.
+fn oe_line_discount_per_unit(line: &Value) -> i64 {
+    line.get("discounts")
+        .and_then(Value::as_array)
+        .map(|discounts| {
+            discounts
+                .iter()
+                .map(|discount| discount.get("perUnitCents").and_then(Value::as_i64).unwrap_or(0))
+                .sum()
+        })
+        .unwrap_or(0)
+}
+
+/// Render a session line as a CalculatedLineItem (the requested selection
+/// narrows this down, so it always emits the full shape).
+fn oe_line_view(line: &Value, currency: &str) -> Value {
+    let unit = oe_int(line, "unitCents");
+    let current_quantity = oe_int(line, "curQty");
+    let per_unit_discount = oe_line_discount_per_unit(line);
+    let empty = Vec::new();
+    let discounts = line.get("discounts").and_then(Value::as_array).unwrap_or(&empty);
+    let allocations: Vec<Value> = discounts
+        .iter()
+        .map(|discount| {
+            let per_unit = discount.get("perUnitCents").and_then(Value::as_i64).unwrap_or(0);
+            json!({
+                "allocatedAmountSet": oe_shop_money(per_unit * current_quantity, currency),
+                "discountApplication": {
+                    "id": discount.get("appId").cloned().unwrap_or(Value::Null),
+                    "description": discount.get("description").cloned().unwrap_or(Value::Null)
+                }
+            })
+        })
+        .collect();
+    json!({
+        "id": line.get("calcId").cloned().unwrap_or(Value::Null),
+        "title": line.get("title").cloned().unwrap_or(Value::Null),
+        "quantity": current_quantity,
+        "currentQuantity": current_quantity,
+        "sku": line.get("sku").cloned().unwrap_or(Value::Null),
+        "variant": line.get("variant").cloned().unwrap_or(Value::Null),
+        "originalUnitPriceSet": oe_shop_presentment_money(unit, currency),
+        "discountedUnitPriceSet": oe_shop_presentment_money(unit - per_unit_discount, currency),
+        "hasStagedLineItemDiscount": !discounts.is_empty(),
+        "calculatedDiscountAllocations": allocations
+    })
+}
+
+fn oe_shipping_view(shipping: &Value, currency: &str) -> Value {
+    json!({
+        "id": shipping.get("id").cloned().unwrap_or(Value::Null),
+        "title": shipping.get("title").cloned().unwrap_or(Value::Null),
+        "stagedStatus": shipping.get("stagedStatus").cloned().unwrap_or(Value::Null),
+        "price": oe_shop_money(oe_int(shipping, "priceCents"), currency)
+    })
+}
+
+/// (subtotal cents, total cents, total current quantity) over a session.
+fn oe_session_totals(session: &Value) -> (i64, i64, i64) {
+    let empty = Vec::new();
+    let lines = session.get("lines").and_then(Value::as_array).unwrap_or(&empty);
+    let mut subtotal = 0_i64;
+    let mut discount = 0_i64;
+    let mut quantity = 0_i64;
+    for line in lines {
+        let current_quantity = oe_int(line, "curQty");
+        subtotal += oe_int(line, "unitCents") * current_quantity;
+        discount += oe_line_discount_per_unit(line) * current_quantity;
+        quantity += current_quantity;
+    }
+    let shipping: i64 = session
+        .get("shippingLines")
+        .and_then(Value::as_array)
+        .map(|lines| lines.iter().map(|line| oe_int(line, "priceCents")).sum())
+        .unwrap_or(0);
+    (subtotal, subtotal - discount + shipping, quantity)
+}
+
+fn oe_calc_order_view(session: &Value) -> Value {
+    let currency = session.get("currency").and_then(Value::as_str).unwrap_or("CAD");
+    let empty = Vec::new();
+    let lines = session.get("lines").and_then(Value::as_array).unwrap_or(&empty);
+    let mut existing = Vec::new();
+    let mut added = Vec::new();
+    for line in lines {
+        let view = oe_line_view(line, currency);
+        if line.get("kind").and_then(Value::as_str) == Some("existing") {
+            existing.push(view);
+        } else {
+            added.push(view);
+        }
+    }
+    let shipping: Vec<Value> = session
+        .get("shippingLines")
+        .and_then(Value::as_array)
+        .unwrap_or(&empty)
+        .iter()
+        .map(|line| oe_shipping_view(line, currency))
+        .collect();
+    let (subtotal, total, quantity) = oe_session_totals(session);
+    json!({
+        "id": session.get("id").cloned().unwrap_or(Value::Null),
+        "originalOrder": {
+            "id": session.get("originalOrderId").cloned().unwrap_or(Value::Null),
+            "name": session.get("originalOrderName").cloned().unwrap_or(Value::Null)
+        },
+        "lineItems": { "nodes": existing },
+        "addedLineItems": { "nodes": added },
+        "shippingLines": shipping,
+        "subtotalLineItemsQuantity": quantity,
+        "subtotalPriceSet": oe_shop_money(subtotal, currency),
+        "totalPriceSet": oe_shop_money(total, currency)
+    })
+}
+
+/// Allocate the next opaque-id sequence number for a session.
+fn oe_next_seq(session: &mut Value) -> i64 {
+    let next = session.get("seq").and_then(Value::as_i64).unwrap_or(0) + 1;
+    session["seq"] = json!(next);
+    next
+}
+
+/// The order's working currency, derived from its line items / totals.
+fn oe_order_currency(order: &Value) -> String {
+    if let Some(nodes) = order["lineItems"]["nodes"].as_array() {
+        for node in nodes {
+            if let Some(currency) = node["originalUnitPriceSet"]["shopMoney"]["currencyCode"].as_str()
+            {
+                return currency.to_string();
+            }
+        }
+    }
+    for key in [
+        "currentTotalPriceSet",
+        "totalPriceSet",
+        "currentSubtotalPriceSet",
+    ] {
+        if let Some(currency) = order[key]["shopMoney"]["currencyCode"].as_str() {
+            return currency.to_string();
+        }
+    }
+    "CAD".to_string()
+}
+
+/// Snapshot an order's line items into a fresh edit session.
+fn oe_build_session(order: &Value, calculated_id: &str, session_id: &str) -> Value {
+    let currency = oe_order_currency(order);
+    let mut lines = Vec::new();
+    if let Some(nodes) = order["lineItems"]["nodes"].as_array() {
+        for node in nodes {
+            let order_line_id = node["id"].as_str().unwrap_or_default();
+            let tail = resource_id_tail(order_line_id);
+            let unit = oe_amount_to_cents(
+                node["originalUnitPriceSet"]["shopMoney"]["amount"]
+                    .as_str()
+                    .unwrap_or("0"),
+            );
+            let historical = node["quantity"].as_i64().unwrap_or(0);
+            let current = node["currentQuantity"].as_i64().unwrap_or(historical);
+            lines.push(json!({
+                "calcId": format!("gid://shopify/CalculatedLineItem/{tail}"),
+                "orderLineId": node["id"].clone(),
+                "kind": "existing",
+                "title": node["title"].clone(),
+                "sku": node.get("sku").cloned().unwrap_or(Value::Null),
+                "variant": node.get("variant").cloned().unwrap_or(Value::Null),
+                "unitCents": unit,
+                "histQty": historical,
+                "curQty": current,
+                "discounts": []
+            }));
+        }
+    }
+    json!({
+        "id": calculated_id,
+        "sessionId": session_id,
+        "originalOrderId": order["id"].clone(),
+        "originalOrderName": order["name"].clone(),
+        "currency": currency,
+        "seq": 0,
+        "lines": lines,
+        "shippingLines": []
+    })
+}
+
+/// Read a MoneyInput object's `amount` as integer cents (accepts string or
+/// numeric scalar).
+fn oe_money_obj_cents(input: &BTreeMap<String, ResolvedValue>) -> Option<i64> {
+    resolved_money_amount(input).map(|amount| (amount * 100.0).round() as i64)
+}
+
+/// A single order-edit `userError`, optionally carrying a `code`.
+fn oe_user_error(field: &[&str], message: &str, code: Option<&str>) -> Value {
+    let mut error = json!({ "field": field, "message": message });
+    if let Some(code) = code {
+        error["code"] = json!(code);
+    }
+    error
+}
+
+/// A failed order-edit mutation payload: every resource field is null and the
+/// given userErrors are attached. The kitchen-sink shape is narrowed by the
+/// caller's field selection, so each mutation emits only the fields it asked
+/// for.
+fn oe_error_payload(errors: Vec<Value>, selection: &[SelectedField]) -> Value {
+    let payload = json!({
+        "calculatedOrder": Value::Null,
+        "calculatedLineItem": Value::Null,
+        "calculatedShippingLine": Value::Null,
+        "addedDiscountStagedChange": Value::Null,
+        "orderEditSession": Value::Null,
+        "order": Value::Null,
+        "successMessages": [],
+        "userErrors": errors
+    });
+    selected_json(&payload, selection)
+}
+
+/// Find a session line index by its allocated CalculatedLineItem id.
+fn oe_line_index(session: &Value, calc_id: &str) -> Option<usize> {
+    session
+        .get("lines")
+        .and_then(Value::as_array)
+        .and_then(|lines| {
+            lines
+                .iter()
+                .position(|line| line.get("calcId").and_then(Value::as_str) == Some(calc_id))
+        })
+}
+
+/// Find a session shipping-line index by its allocated CalculatedShippingLine
+/// id.
+fn oe_shipping_index(session: &Value, shipping_id: &str) -> Option<usize> {
+    session
+        .get("shippingLines")
+        .and_then(Value::as_array)
+        .and_then(|lines| {
+            lines
+                .iter()
+                .position(|line| line.get("id").and_then(Value::as_str) == Some(shipping_id))
+        })
+}
+
+/// Project an edit session back onto a committed order: existing lines keep
+/// their historical `quantity` but adopt the edited `currentQuantity`; added
+/// lines are materialised as new line items. Current totals, the edit history
+/// event, and per-line fulfillment orders are recomputed from the session.
+fn oe_commit_order(base: &Value, session: &Value, author: Option<&str>) -> Value {
+    let currency = session.get("currency").and_then(Value::as_str).unwrap_or("CAD");
+    let empty = Vec::new();
+    let lines = session.get("lines").and_then(Value::as_array).unwrap_or(&empty);
+    let mut line_nodes = Vec::new();
+    let mut fulfillment_orders = Vec::new();
+    let mut subtotal = 0_i64;
+    let mut quantity = 0_i64;
+    for (index, line) in lines.iter().enumerate() {
+        let unit = oe_int(line, "unitCents");
+        let historical = oe_int(line, "histQty");
+        let current = oe_int(line, "curQty");
+        subtotal += unit * current;
+        quantity += current;
+        let line_id = match line.get("orderLineId").and_then(Value::as_str) {
+            Some(id) => id.to_string(),
+            None => format!("gid://shopify/LineItem/oe-{index}"),
+        };
+        line_nodes.push(json!({
+            "id": line_id,
+            "title": line.get("title").cloned().unwrap_or(Value::Null),
+            "quantity": historical,
+            "currentQuantity": current,
+            "sku": line.get("sku").cloned().unwrap_or(Value::Null),
+            "variant": line.get("variant").cloned().unwrap_or(Value::Null),
+            "originalUnitPriceSet": oe_shop_money(unit, currency)
+        }));
+        if current > 0 {
+            fulfillment_orders.push(json!({
+                "id": format!("gid://shopify/FulfillmentOrder/oe-{index}"),
+                "status": "OPEN",
+                "lineItems": {
+                    "nodes": [{
+                        "id": format!("gid://shopify/FulfillmentOrderLineItem/oe-{index}"),
+                        "totalQuantity": current,
+                        "remainingQuantity": current,
+                        "lineItem": {
+                            "id": line_id,
+                            "title": line.get("title").cloned().unwrap_or(Value::Null),
+                            "quantity": historical,
+                            "currentQuantity": current,
+                            "fulfillableQuantity": current
+                        }
+                    }]
+                }
+            }));
+        }
+    }
+    let discount: i64 = lines
+        .iter()
+        .map(|line| oe_line_discount_per_unit(line) * oe_int(line, "curQty"))
+        .sum();
+    let shipping: i64 = session
+        .get("shippingLines")
+        .and_then(Value::as_array)
+        .map(|lines| lines.iter().map(|line| oe_int(line, "priceCents")).sum())
+        .unwrap_or(0);
+    let total = subtotal - discount + shipping;
+    let message = author.map(|author| format!("{author} edited this order."));
+    json!({
+        "id": base.get("id").cloned().unwrap_or(Value::Null),
+        "name": base.get("name").cloned().unwrap_or(Value::Null),
+        "note": base.get("note").cloned().unwrap_or(Value::Null),
+        "updatedAt": base.get("updatedAt").cloned().unwrap_or(json!("2026-01-01T00:00:00Z")),
         "merchantEditable": true,
         "merchantEditableErrors": [],
-        "currentSubtotalLineItemsQuantity": 3,
-        "lineItems": {
-            "nodes": [
-                {
-                    "id": "gid://shopify/LineItem/1",
-                    "title": "Custom installation service",
-                    "quantity": 2,
-                    "currentQuantity": 2,
-                    "sku": "hermes-custom-service-1777076856718",
-                    "variant": Value::Null,
-                    "originalUnitPriceSet": order_money_set("10.0", "CAD")
-                },
-                {
-                    "id": "gid://shopify/LineItem/2",
-                    "title": "Test Product - 6635",
-                    "quantity": 1,
-                    "currentQuantity": 1,
-                    "sku": Value::Null,
-                    "variant": { "id": "gid://shopify/ProductVariant/48540157378793" },
-                    "originalUnitPriceSet": order_money_set("0.0", "CAD")
-                }
-            ]
-        }
+        "currentSubtotalLineItemsQuantity": quantity,
+        "currentSubtotalPriceSet": oe_shop_money(subtotal, currency),
+        "currentTotalPriceSet": oe_shop_money(total, currency),
+        "currentTaxLines": [],
+        "lineItems": { "nodes": line_nodes },
+        "events": {
+            "nodes": [{
+                "id": "gid://shopify/BasicEvent/oe-edited",
+                "action": "edited",
+                "message": message.map(Value::String).unwrap_or(Value::Null),
+                "createdAt": "2026-01-01T00:00:00Z"
+            }]
+        },
+        "fulfillmentOrders": { "nodes": fulfillment_orders }
     })
-}
-
-fn order_edit_existing_variant_line(quantity: i64, current_quantity: i64) -> Value {
-    json!({
-        "id": "gid://shopify/LineItem/3",
-        "title": "VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE",
-        "quantity": quantity,
-        "currentQuantity": current_quantity,
-        "sku": "VN-01-burgandy-4",
-        "variant": { "id": "gid://shopify/ProductVariant/46789254021353" },
-        "originalUnitPriceSet": order_money_set("29.0", "CAD")
-    })
-}
-
-fn order_edit_existing_calculated_line(quantity: i64, current_quantity: i64) -> Value {
-    let mut line = order_edit_existing_variant_line(quantity, current_quantity);
-    if let Some(object) = line.as_object_mut() {
-        object.remove("id");
-    }
-    line
 }
 
 pub(in crate::proxy) fn order_edit_order_is_not_editable(order: &Value) -> bool {
@@ -1847,28 +2181,6 @@ pub(in crate::proxy) fn order_edit_order_is_not_editable(order: &Value) -> bool 
         order["displayFinancialStatus"].as_str(),
         Some("REFUNDED" | "VOIDED")
     )
-}
-
-fn order_edit_calculated_order_has_line(calculated: Option<&Value>, line_item_id: &str) -> bool {
-    calculated
-        .and_then(|calculated| calculated["lineItems"]["nodes"].as_array())
-        .is_some_and(|nodes| {
-            nodes
-                .iter()
-                .any(|line| line["id"].as_str() == Some(line_item_id))
-        })
-}
-
-fn order_edit_existing_calculated_order_id_for_order(order_id: &str) -> String {
-    match order_id {
-        "gid://shopify/Order/6834565087465" => {
-            "gid://shopify/CalculatedOrder/221172236521".to_string()
-        }
-        _ => format!(
-            "gid://shopify/CalculatedOrder/{}",
-            resource_id_tail(order_id)
-        ),
-    }
 }
 
 fn order_edit_payload_user_error(
@@ -7165,83 +7477,48 @@ impl DraftProxy {
         if root_field == "orderEditBegin" {
             let field = field?;
             let order_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-            if order_id != "gid://shopify/Order/6834565087465"
-                && !self.store.staged.orders.contains_key(&order_id)
-            {
-                return Some(data_response(
-                    &field.response_key,
-                    order_edit_payload_user_error(
-                        "calculatedOrder",
-                        &["id"],
-                        "The order does not exist.",
-                        &field.selection,
-                    ),
-                ));
-            }
-            if self
-                .store
-                .staged
-                .order_edit_existing_session_order_id
-                .as_deref()
-                == Some(order_id.as_str())
-            {
-                return Some(data_response(
-                    &field.response_key,
-                    order_edit_payload_user_error(
-                        "calculatedOrder",
-                        &["base"],
-                        "There is already an active edit session for this order.",
-                        &field.selection,
-                    ),
-                ));
-            }
-
-            let calculated_id = order_edit_existing_calculated_order_id_for_order(&order_id);
-            let session_id = calculated_id.replace("CalculatedOrder", "OrderEditSession");
-            let order = self
-                .store
-                .staged
-                .orders
-                .get(&order_id)
-                .cloned()
-                .unwrap_or_else(order_edit_existing_base_order);
+            let order = match self.store.staged.orders.get(&order_id) {
+                Some(order) => order.clone(),
+                None => {
+                    return Some(data_response(
+                        &field.response_key,
+                        oe_error_payload(
+                            vec![oe_user_error(&["id"], "The order does not exist.", None)],
+                            &field.selection,
+                        ),
+                    ));
+                }
+            };
             if order_edit_order_is_not_editable(&order) {
                 return Some(data_response(
                     &field.response_key,
-                    order_edit_payload_user_error(
-                        "calculatedOrder",
-                        &["base"],
-                        "not_editable",
+                    oe_error_payload(
+                        vec![oe_user_error(&["base"], "not_editable", None)],
                         &field.selection,
                     ),
                 ));
             }
-            let calculated = json!({
-                "id": calculated_id,
-                "originalOrder": {
-                    "id": order["id"].clone(),
-                    "name": order["name"].clone()
-                },
-                "lineItems": order["lineItems"].clone(),
-                "addedLineItems": { "nodes": [] }
-            });
+            let calculated_id =
+                format!("gid://shopify/CalculatedOrder/{}", resource_id_tail(&order_id));
+            let session_id = calculated_id.replace("CalculatedOrder", "OrderEditSession");
+            let session = oe_build_session(&order, &calculated_id, &session_id);
+            let view = oe_calc_order_view(&session);
             self.store.staged.order_edit_existing_order = Some(order);
-            self.store.staged.order_edit_existing_calculated_order = Some(calculated.clone());
-            self.store.staged.order_edit_existing_calculated_order_id =
-                calculated["id"].as_str().map(str::to_string);
+            self.store.staged.order_edit_existing_calculated_order = Some(session);
+            self.store.staged.order_edit_existing_calculated_order_id = Some(calculated_id.clone());
             self.store.staged.order_edit_existing_session_order_id = Some(order_id);
             self.record_mutation_log_entry(
                 request,
                 query,
                 variables,
                 "orderEditBegin",
-                vec![calculated["id"].as_str().unwrap_or_default().to_string()],
+                vec![calculated_id],
             );
             return Some(data_response(
                 &field.response_key,
                 selected_json(
                     &json!({
-                        "calculatedOrder": calculated,
+                        "calculatedOrder": view,
                         "orderEditSession": { "id": session_id },
                         "userErrors": []
                     }),
@@ -7252,43 +7529,88 @@ impl DraftProxy {
         if root_field == "orderEditAddVariant" {
             let field = field?;
             let calculated_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-            let staged_calculated_id = self
+            if self
                 .store
                 .staged
                 .order_edit_existing_calculated_order_id
-                .clone();
-            if staged_calculated_id.as_deref() != Some(calculated_id.as_str()) {
+                .as_deref()
+                != Some(calculated_id.as_str())
+            {
                 return Some(data_response(
                     &field.response_key,
-                    order_edit_payload_user_error(
-                        "calculatedLineItem",
-                        &["id"],
-                        "The calculated order does not exist.",
+                    oe_error_payload(
+                        vec![oe_user_error(&["id"], "The calculated order does not exist.", None)],
                         &field.selection,
                     ),
                 ));
             }
-            let variant_id = resolved_string_arg(&field.arguments, "variantId")?;
-            match variant_id.as_str() {
-                "gid://shopify/ProductVariant/0" => {
-                    return Some(data_response(
-                        &field.response_key,
-                        selected_json(
-                            &json!({
-                                "calculatedOrder": Value::Null,
-                                "calculatedLineItem": Value::Null,
-                                "orderEditSession": Value::Null,
-                                "userErrors": [{
-                                    "field": ["variantId"],
-                                    "message": "can't convert Integer[0] to a positive Integer to use as an untrusted id"
-                                }]
-                            }),
-                            &field.selection,
-                        ),
-                    ));
-                }
-                "gid://shopify/ProductVariant/48540157378793" => {
-                    self.store.staged.order_edit_existing_mode = Some("duplicate".to_string());
+            let variant_id = resolved_string_arg(&field.arguments, "variantId").unwrap_or_default();
+            if resource_id_tail(&variant_id) == "0" {
+                return Some(data_response(
+                    &field.response_key,
+                    oe_error_payload(
+                        vec![oe_user_error(
+                            &["variantId"],
+                            "can't convert Integer[0] to a positive Integer to use as an untrusted id",
+                            None,
+                        )],
+                        &field.selection,
+                    ),
+                ));
+            }
+            let quantity = resolved_int_field(&field.arguments, "quantity").unwrap_or(0);
+            if quantity == 0 {
+                return Some(data_response(
+                    &field.response_key,
+                    oe_error_payload(
+                        vec![oe_user_error(&["quantity"], "must be greater than 0", None)],
+                        &field.selection,
+                    ),
+                ));
+            }
+            if quantity < 0 {
+                return Some(data_response(
+                    &field.response_key,
+                    oe_error_payload(
+                        vec![
+                            oe_user_error(&["quantity"], "must be greater than 0", None),
+                            oe_user_error(
+                                &["quantity"],
+                                "must be greater than or equal to 0",
+                                None,
+                            ),
+                        ],
+                        &field.selection,
+                    ),
+                ));
+            }
+            let allow_duplicates =
+                resolved_bool_field(&field.arguments, "allowDuplicates").unwrap_or(false);
+            let mut session = self
+                .store
+                .staged
+                .order_edit_existing_calculated_order
+                .clone()
+                .unwrap_or_else(|| json!({}));
+            let currency = session
+                .get("currency")
+                .and_then(Value::as_str)
+                .unwrap_or("CAD")
+                .to_string();
+            let session_id = calculated_id.replace("CalculatedOrder", "OrderEditSession");
+            // When the variant is already on the order and the caller did not opt
+            // into duplicates, Shopify returns that line's calculated view
+            // unchanged rather than adding a second line.
+            if !allow_duplicates {
+                let existing = session.get("lines").and_then(Value::as_array).and_then(|lines| {
+                    lines
+                        .iter()
+                        .find(|line| line["variant"]["id"].as_str() == Some(variant_id.as_str()))
+                        .cloned()
+                });
+                if let Some(line) = existing {
+                    let view = oe_line_view(&line, &currency);
+                    let order_view = oe_calc_order_view(&session);
                     self.record_mutation_log_entry(
                         request,
                         query,
@@ -7300,50 +7622,60 @@ impl DraftProxy {
                         &field.response_key,
                         selected_json(
                             &json!({
-                                "calculatedLineItem": {
-                                    "title": "Test Product - 6635",
-                                    "quantity": 1,
-                                    "currentQuantity": 1,
-                                    "sku": Value::Null,
-                                    "variant": { "id": "gid://shopify/ProductVariant/48540157378793" },
-                                    "originalUnitPriceSet": order_money_set("0.0", "CAD")
-                                },
+                                "calculatedOrder": order_view,
+                                "calculatedLineItem": view,
+                                "orderEditSession": { "id": session_id },
                                 "userErrors": []
                             }),
                             &field.selection,
                         ),
                     ));
                 }
-                _ => {}
             }
-            if variant_id != "gid://shopify/ProductVariant/46789254021353" {
-                return Some(data_response(
-                    &field.response_key,
-                    order_edit_payload_user_error(
-                        "calculatedLineItem",
-                        &["variantId"],
-                        "The variant does not exist.",
-                        &field.selection,
-                    ),
-                ));
-            }
-            self.store.staged.order_edit_existing_mode = Some("add".to_string());
-            let mut order = self
+            let catalog_entry = self
                 .store
                 .staged
-                .order_edit_existing_order
-                .clone()
-                .unwrap_or_else(order_edit_existing_base_order);
-            if let Some(nodes) = order["lineItems"]["nodes"].as_array_mut() {
-                nodes.push(order_edit_existing_variant_line(1, 1));
+                .order_edit_variant_catalog
+                .get(variant_id.as_str())
+                .cloned();
+            let catalog_entry = match catalog_entry {
+                Some(entry) => entry,
+                None => {
+                    return Some(data_response(
+                        &field.response_key,
+                        oe_error_payload(
+                            vec![oe_user_error(
+                                &["variantId"],
+                                "The variant does not exist.",
+                                None,
+                            )],
+                            &field.selection,
+                        ),
+                    ));
+                }
+            };
+            let seq = oe_next_seq(&mut session);
+            let unit = oe_amount_to_cents(
+                catalog_entry.get("price").and_then(Value::as_str).unwrap_or("0"),
+            );
+            let line = json!({
+                "calcId": format!("gid://shopify/CalculatedLineItem/oe-{seq}"),
+                "orderLineId": Value::Null,
+                "kind": "added",
+                "title": catalog_entry.get("title").cloned().unwrap_or(Value::Null),
+                "sku": catalog_entry.get("sku").cloned().unwrap_or(Value::Null),
+                "variant": { "id": variant_id },
+                "unitCents": unit,
+                "histQty": quantity,
+                "curQty": quantity,
+                "discounts": []
+            });
+            if let Some(lines) = session.get_mut("lines").and_then(Value::as_array_mut) {
+                lines.push(line.clone());
             }
-            self.store.staged.order_edit_existing_order = Some(order.clone());
-            let calculated_line = order_edit_existing_calculated_line(1, 1);
-            self.store.staged.order_edit_existing_calculated_order = Some(json!({
-                "id": calculated_id,
-                "lineItems": { "nodes": [] },
-                "addedLineItems": { "nodes": [calculated_line.clone()] }
-            }));
+            let view = oe_line_view(&line, &currency);
+            let order_view = oe_calc_order_view(&session);
+            self.store.staged.order_edit_existing_calculated_order = Some(session);
             self.record_mutation_log_entry(
                 request,
                 query,
@@ -7355,8 +7687,9 @@ impl DraftProxy {
                 &field.response_key,
                 selected_json(
                     &json!({
-                        "calculatedLineItem": calculated_line,
-                        "orderEditSession": { "id": calculated_id.replace("CalculatedOrder", "OrderEditSession") },
+                        "calculatedOrder": order_view,
+                        "calculatedLineItem": view,
+                        "orderEditSession": { "id": session_id },
                         "userErrors": []
                     }),
                     &field.selection,
@@ -7366,59 +7699,70 @@ impl DraftProxy {
         if root_field == "orderEditSetQuantity" {
             let field = field?;
             let calculated_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-            let staged_calculated_id = self
+            if self
                 .store
                 .staged
                 .order_edit_existing_calculated_order_id
-                .clone();
-            if staged_calculated_id.as_deref() != Some(calculated_id.as_str()) {
+                .as_deref()
+                != Some(calculated_id.as_str())
+            {
                 return Some(data_response(
                     &field.response_key,
-                    order_edit_payload_user_error(
-                        "calculatedLineItem",
-                        &["id"],
-                        "The calculated order does not exist.",
+                    oe_error_payload(
+                        vec![oe_user_error(&["id"], "The calculated order does not exist.", None)],
+                        &field.selection,
+                    ),
+                ));
+            }
+            let quantity = resolved_int_field(&field.arguments, "quantity").unwrap_or(0);
+            if quantity < 0 {
+                return Some(data_response(
+                    &field.response_key,
+                    oe_error_payload(
+                        vec![oe_user_error(
+                            &["quantity"],
+                            "must be greater than or equal to 0",
+                            None,
+                        )],
                         &field.selection,
                     ),
                 ));
             }
             let line_item_id =
                 resolved_string_arg(&field.arguments, "lineItemId").unwrap_or_default();
-            if !order_edit_calculated_order_has_line(
-                self.store
-                    .staged
-                    .order_edit_existing_calculated_order
-                    .as_ref(),
-                &line_item_id,
-            ) {
-                return Some(data_response(
-                    &field.response_key,
-                    order_edit_payload_user_error(
-                        "calculatedLineItem",
-                        &["lineItemId"],
-                        "The line item does not exist.",
-                        &field.selection,
-                    ),
-                ));
-            }
-            self.store.staged.order_edit_existing_mode = Some("zero".to_string());
-            let mut order = self
+            let mut session = self
                 .store
                 .staged
-                .order_edit_existing_order
+                .order_edit_existing_calculated_order
                 .clone()
-                .unwrap_or_else(order_edit_existing_base_order);
-            if let Some(nodes) = order["lineItems"]["nodes"].as_array_mut() {
-                nodes.push(order_edit_existing_variant_line(1, 0));
-            }
-            order["currentSubtotalLineItemsQuantity"] = json!(2);
-            self.store.staged.order_edit_existing_order = Some(order);
-            let calculated_line = order_edit_existing_calculated_line(0, 0);
-            self.store.staged.order_edit_existing_calculated_order = Some(json!({
-                "id": calculated_id,
-                "lineItems": { "nodes": [calculated_line.clone()] },
-                "addedLineItems": { "nodes": [] }
-            }));
+                .unwrap_or_else(|| json!({}));
+            let currency = session
+                .get("currency")
+                .and_then(Value::as_str)
+                .unwrap_or("CAD")
+                .to_string();
+            let index = match oe_line_index(&session, &line_item_id) {
+                Some(index) => index,
+                None => {
+                    return Some(data_response(
+                        &field.response_key,
+                        oe_error_payload(
+                            vec![oe_user_error(
+                                &["lineItemId"],
+                                "The line item does not exist.",
+                                None,
+                            )],
+                            &field.selection,
+                        ),
+                    ));
+                }
+            };
+            session["lines"][index]["curQty"] = json!(quantity);
+            let line = session["lines"][index].clone();
+            let view = oe_line_view(&line, &currency);
+            let order_view = oe_calc_order_view(&session);
+            let session_id = calculated_id.replace("CalculatedOrder", "OrderEditSession");
+            self.store.staged.order_edit_existing_calculated_order = Some(session);
             self.record_mutation_log_entry(
                 request,
                 query,
@@ -7430,9 +7774,532 @@ impl DraftProxy {
                 &field.response_key,
                 selected_json(
                     &json!({
-                        "calculatedLineItem": calculated_line,
+                        "calculatedOrder": order_view,
+                        "calculatedLineItem": view,
+                        "orderEditSession": { "id": session_id },
                         "userErrors": []
                     }),
+                    &field.selection,
+                ),
+            ));
+        }
+        if root_field == "orderEditAddCustomItem" {
+            let field = field?;
+            let calculated_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+            if self
+                .store
+                .staged
+                .order_edit_existing_calculated_order_id
+                .as_deref()
+                != Some(calculated_id.as_str())
+            {
+                return Some(data_response(
+                    &field.response_key,
+                    oe_error_payload(
+                        vec![oe_user_error(&["id"], "The calculated order does not exist.", None)],
+                        &field.selection,
+                    ),
+                ));
+            }
+            let mut session = self
+                .store
+                .staged
+                .order_edit_existing_calculated_order
+                .clone()
+                .unwrap_or_else(|| json!({}));
+            let currency = session
+                .get("currency")
+                .and_then(Value::as_str)
+                .unwrap_or("CAD")
+                .to_string();
+            let title = resolved_string_arg(&field.arguments, "title").unwrap_or_default();
+            if title.trim().is_empty() {
+                return Some(data_response(
+                    &field.response_key,
+                    oe_error_payload(
+                        vec![oe_user_error(&["title"], "can't be blank", None)],
+                        &field.selection,
+                    ),
+                ));
+            }
+            if title.chars().count() > 255 {
+                return Some(data_response(
+                    &field.response_key,
+                    oe_error_payload(
+                        vec![oe_user_error(
+                            &["title"],
+                            "is too long (maximum is 255 characters)",
+                            None,
+                        )],
+                        &field.selection,
+                    ),
+                ));
+            }
+            let quantity = resolved_int_field(&field.arguments, "quantity").unwrap_or(0);
+            if quantity <= 0 {
+                return Some(data_response(
+                    &field.response_key,
+                    oe_error_payload(
+                        vec![oe_user_error(&["quantity"], "must be greater than 0", None)],
+                        &field.selection,
+                    ),
+                ));
+            }
+            let price = resolved_object_field(&field.arguments, "price").unwrap_or_default();
+            if resolved_money_currency(&price).as_deref() != Some(currency.as_str()) {
+                return Some(data_response(
+                    &field.response_key,
+                    oe_error_payload(
+                        vec![oe_user_error(
+                            &["price", "amount"],
+                            &format!("Currency must be {currency}."),
+                            None,
+                        )],
+                        &field.selection,
+                    ),
+                ));
+            }
+            let price_cents = oe_money_obj_cents(&price).unwrap_or(0);
+            if price_cents < 0 {
+                return Some(data_response(
+                    &field.response_key,
+                    oe_error_payload(
+                        vec![oe_user_error(
+                            &["price", "amount"],
+                            "must be greater than or equal to 0",
+                            None,
+                        )],
+                        &field.selection,
+                    ),
+                ));
+            }
+            let seq = oe_next_seq(&mut session);
+            let line = json!({
+                "calcId": format!("gid://shopify/CalculatedLineItem/oe-{seq}"),
+                "orderLineId": Value::Null,
+                "kind": "custom",
+                "title": title,
+                "sku": Value::Null,
+                "variant": Value::Null,
+                "unitCents": price_cents,
+                "histQty": quantity,
+                "curQty": quantity,
+                "discounts": []
+            });
+            if let Some(lines) = session.get_mut("lines").and_then(Value::as_array_mut) {
+                lines.push(line.clone());
+            }
+            let view = oe_line_view(&line, &currency);
+            let order_view = oe_calc_order_view(&session);
+            let session_id = calculated_id.replace("CalculatedOrder", "OrderEditSession");
+            self.store.staged.order_edit_existing_calculated_order = Some(session);
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "orderEditAddCustomItem",
+                vec![calculated_id.clone()],
+            );
+            return Some(data_response(
+                &field.response_key,
+                selected_json(
+                    &json!({
+                        "calculatedOrder": order_view,
+                        "calculatedLineItem": view,
+                        "orderEditSession": { "id": session_id },
+                        "userErrors": []
+                    }),
+                    &field.selection,
+                ),
+            ));
+        }
+        if root_field == "orderEditAddLineItemDiscount" {
+            let field = field?;
+            let calculated_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+            if self
+                .store
+                .staged
+                .order_edit_existing_calculated_order_id
+                .as_deref()
+                != Some(calculated_id.as_str())
+            {
+                return Some(data_response(
+                    &field.response_key,
+                    oe_error_payload(
+                        vec![oe_user_error(&["id"], "The calculated order does not exist.", None)],
+                        &field.selection,
+                    ),
+                ));
+            }
+            let mut session = self
+                .store
+                .staged
+                .order_edit_existing_calculated_order
+                .clone()
+                .unwrap_or_else(|| json!({}));
+            let currency = session
+                .get("currency")
+                .and_then(Value::as_str)
+                .unwrap_or("CAD")
+                .to_string();
+            let line_item_id =
+                resolved_string_arg(&field.arguments, "lineItemId").unwrap_or_default();
+            let index = match oe_line_index(&session, &line_item_id) {
+                Some(index) => index,
+                None => {
+                    return Some(data_response(
+                        &field.response_key,
+                        oe_error_payload(
+                            vec![oe_user_error(
+                                &["lineItemId"],
+                                "The line item does not exist.",
+                                None,
+                            )],
+                            &field.selection,
+                        ),
+                    ));
+                }
+            };
+            let discount = resolved_object_field(&field.arguments, "discount").unwrap_or_default();
+            let description = resolved_string_field(&discount, "description");
+            let per_unit = resolved_object_field(&discount, "fixedValue")
+                .as_ref()
+                .and_then(oe_money_obj_cents)
+                .unwrap_or(0);
+            let seq = oe_next_seq(&mut session);
+            let app_id =
+                format!("gid://shopify/CalculatedManualDiscountApplication/oe-disc-{seq}");
+            let staged_change_id =
+                format!("gid://shopify/OrderStagedChangeAddLineItemDiscount/oe-disc-{seq}");
+            let discount_entry = json!({
+                "perUnitCents": per_unit,
+                "description": description.clone(),
+                "appId": app_id
+            });
+            if let Some(discounts) = session
+                .get_mut("lines")
+                .and_then(Value::as_array_mut)
+                .and_then(|lines| lines.get_mut(index))
+                .and_then(|line| line.get_mut("discounts"))
+                .and_then(Value::as_array_mut)
+            {
+                discounts.push(discount_entry);
+            }
+            let line = session["lines"][index].clone();
+            let view = oe_line_view(&line, &currency);
+            let order_view = oe_calc_order_view(&session);
+            self.store.staged.order_edit_existing_calculated_order = Some(session);
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "orderEditAddLineItemDiscount",
+                vec![calculated_id.clone()],
+            );
+            return Some(data_response(
+                &field.response_key,
+                selected_json(
+                    &json!({
+                        "addedDiscountStagedChange": {
+                            "id": staged_change_id,
+                            "description": description
+                        },
+                        "calculatedOrder": order_view,
+                        "calculatedLineItem": view,
+                        "userErrors": []
+                    }),
+                    &field.selection,
+                ),
+            ));
+        }
+        if root_field == "orderEditRemoveDiscount" {
+            let field = field?;
+            let calculated_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+            if self
+                .store
+                .staged
+                .order_edit_existing_calculated_order_id
+                .as_deref()
+                != Some(calculated_id.as_str())
+            {
+                return Some(data_response(
+                    &field.response_key,
+                    oe_error_payload(
+                        vec![oe_user_error(&["id"], "The calculated order does not exist.", None)],
+                        &field.selection,
+                    ),
+                ));
+            }
+            let mut session = self
+                .store
+                .staged
+                .order_edit_existing_calculated_order
+                .clone()
+                .unwrap_or_else(|| json!({}));
+            let discount_application_id =
+                resolved_string_arg(&field.arguments, "discountApplicationId").unwrap_or_default();
+            if let Some(lines) = session.get_mut("lines").and_then(Value::as_array_mut) {
+                for line in lines.iter_mut() {
+                    if let Some(discounts) =
+                        line.get_mut("discounts").and_then(Value::as_array_mut)
+                    {
+                        discounts.retain(|discount| {
+                            discount.get("appId").and_then(Value::as_str)
+                                != Some(discount_application_id.as_str())
+                        });
+                    }
+                }
+            }
+            let order_view = oe_calc_order_view(&session);
+            self.store.staged.order_edit_existing_calculated_order = Some(session);
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "orderEditRemoveDiscount",
+                vec![calculated_id.clone()],
+            );
+            return Some(data_response(
+                &field.response_key,
+                selected_json(
+                    &json!({ "calculatedOrder": order_view, "userErrors": [] }),
+                    &field.selection,
+                ),
+            ));
+        }
+        if root_field == "orderEditAddShippingLine" {
+            let field = field?;
+            let calculated_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+            if self
+                .store
+                .staged
+                .order_edit_existing_calculated_order_id
+                .as_deref()
+                != Some(calculated_id.as_str())
+            {
+                return Some(data_response(
+                    &field.response_key,
+                    oe_error_payload(
+                        vec![oe_user_error(&["id"], "The calculated order does not exist.", None)],
+                        &field.selection,
+                    ),
+                ));
+            }
+            let mut session = self
+                .store
+                .staged
+                .order_edit_existing_calculated_order
+                .clone()
+                .unwrap_or_else(|| json!({}));
+            let currency = session
+                .get("currency")
+                .and_then(Value::as_str)
+                .unwrap_or("CAD")
+                .to_string();
+            let shipping_line =
+                resolved_object_field(&field.arguments, "shippingLine").unwrap_or_default();
+            let title = resolved_string_field(&shipping_line, "title");
+            let price = resolved_object_field(&shipping_line, "price").unwrap_or_default();
+            if resolved_money_currency(&price).as_deref() != Some(currency.as_str()) {
+                return Some(data_response(
+                    &field.response_key,
+                    oe_error_payload(
+                        vec![oe_user_error(
+                            &["shippingLine", "price"],
+                            &format!("The price must be in {currency}."),
+                            Some("INVALID"),
+                        )],
+                        &field.selection,
+                    ),
+                ));
+            }
+            let price_cents = oe_money_obj_cents(&price).unwrap_or(0);
+            let seq = oe_next_seq(&mut session);
+            let shipping = json!({
+                "id": format!("gid://shopify/CalculatedShippingLine/oe-ship-{seq}"),
+                "title": title,
+                "stagedStatus": "ADDED",
+                "priceCents": price_cents
+            });
+            if let Some(lines) = session.get_mut("shippingLines").and_then(Value::as_array_mut) {
+                lines.push(shipping.clone());
+            }
+            let view = oe_shipping_view(&shipping, &currency);
+            let order_view = oe_calc_order_view(&session);
+            self.store.staged.order_edit_existing_calculated_order = Some(session);
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "orderEditAddShippingLine",
+                vec![calculated_id.clone()],
+            );
+            return Some(data_response(
+                &field.response_key,
+                selected_json(
+                    &json!({
+                        "calculatedOrder": order_view,
+                        "calculatedShippingLine": view,
+                        "userErrors": []
+                    }),
+                    &field.selection,
+                ),
+            ));
+        }
+        if root_field == "orderEditUpdateShippingLine" {
+            let field = field?;
+            let calculated_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+            if self
+                .store
+                .staged
+                .order_edit_existing_calculated_order_id
+                .as_deref()
+                != Some(calculated_id.as_str())
+            {
+                return Some(data_response(
+                    &field.response_key,
+                    oe_error_payload(
+                        vec![oe_user_error(&["id"], "The calculated order does not exist.", None)],
+                        &field.selection,
+                    ),
+                ));
+            }
+            let mut session = self
+                .store
+                .staged
+                .order_edit_existing_calculated_order
+                .clone()
+                .unwrap_or_else(|| json!({}));
+            let currency = session
+                .get("currency")
+                .and_then(Value::as_str)
+                .unwrap_or("CAD")
+                .to_string();
+            let shipping_line_id =
+                resolved_string_arg(&field.arguments, "shippingLineId").unwrap_or_default();
+            let index = match oe_shipping_index(&session, &shipping_line_id) {
+                Some(index) => index,
+                None => {
+                    return Some(data_response(
+                        &field.response_key,
+                        oe_error_payload(
+                            vec![oe_user_error(
+                                &["shippingLineId"],
+                                "The shipping line can't be updated because it doesn't exist or wasn't added during this edit.",
+                                Some("INVALID"),
+                            )],
+                            &field.selection,
+                        ),
+                    ));
+                }
+            };
+            let shipping_line =
+                resolved_object_field(&field.arguments, "shippingLine").unwrap_or_default();
+            let price = resolved_object_field(&shipping_line, "price");
+            if let Some(price) = price.as_ref() {
+                if resolved_money_currency(price).as_deref() != Some(currency.as_str()) {
+                    return Some(data_response(
+                        &field.response_key,
+                        oe_error_payload(
+                            vec![oe_user_error(
+                                &["shippingLine", "price"],
+                                &format!("The price must be in {currency}."),
+                                Some("INVALID"),
+                            )],
+                            &field.selection,
+                        ),
+                    ));
+                }
+            }
+            let new_title = resolved_string_field(&shipping_line, "title");
+            let new_price = price.as_ref().and_then(oe_money_obj_cents);
+            if let Some(node) = session
+                .get_mut("shippingLines")
+                .and_then(Value::as_array_mut)
+                .and_then(|lines| lines.get_mut(index))
+            {
+                if let Some(title) = new_title {
+                    node["title"] = json!(title);
+                }
+                if let Some(cents) = new_price {
+                    node["priceCents"] = json!(cents);
+                }
+            }
+            let order_view = oe_calc_order_view(&session);
+            self.store.staged.order_edit_existing_calculated_order = Some(session);
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "orderEditUpdateShippingLine",
+                vec![calculated_id.clone()],
+            );
+            return Some(data_response(
+                &field.response_key,
+                selected_json(
+                    &json!({ "calculatedOrder": order_view, "userErrors": [] }),
+                    &field.selection,
+                ),
+            ));
+        }
+        if root_field == "orderEditRemoveShippingLine" {
+            let field = field?;
+            let calculated_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+            if self
+                .store
+                .staged
+                .order_edit_existing_calculated_order_id
+                .as_deref()
+                != Some(calculated_id.as_str())
+            {
+                return Some(data_response(
+                    &field.response_key,
+                    oe_error_payload(
+                        vec![oe_user_error(&["id"], "The calculated order does not exist.", None)],
+                        &field.selection,
+                    ),
+                ));
+            }
+            let mut session = self
+                .store
+                .staged
+                .order_edit_existing_calculated_order
+                .clone()
+                .unwrap_or_else(|| json!({}));
+            let shipping_line_id =
+                resolved_string_arg(&field.arguments, "shippingLineId").unwrap_or_default();
+            let index = match oe_shipping_index(&session, &shipping_line_id) {
+                Some(index) => index,
+                None => {
+                    return Some(data_response(
+                        &field.response_key,
+                        oe_error_payload(
+                            vec![oe_user_error(
+                                &["shippingLineId"],
+                                "The shipping line can't be removed because it doesn't exist or has already been removed.",
+                                Some("INVALID"),
+                            )],
+                            &field.selection,
+                        ),
+                    ));
+                }
+            };
+            if let Some(lines) = session.get_mut("shippingLines").and_then(Value::as_array_mut) {
+                lines.remove(index);
+            }
+            let order_view = oe_calc_order_view(&session);
+            self.store.staged.order_edit_existing_calculated_order = Some(session);
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "orderEditRemoveShippingLine",
+                vec![calculated_id.clone()],
+            );
+            return Some(data_response(
+                &field.response_key,
+                selected_json(
+                    &json!({ "calculatedOrder": order_view, "userErrors": [] }),
                     &field.selection,
                 ),
             ));
@@ -7440,64 +8307,61 @@ impl DraftProxy {
         if root_field == "orderEditCommit" {
             let field = field?;
             let calculated_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-            let staged_calculated_id = self
+            if self
                 .store
                 .staged
                 .order_edit_existing_calculated_order_id
-                .clone();
-            if staged_calculated_id.as_deref() != Some(calculated_id.as_str()) {
+                .as_deref()
+                != Some(calculated_id.as_str())
+            {
                 return Some(data_response(
                     &field.response_key,
-                    order_edit_payload_user_error(
-                        "order",
-                        &["id"],
-                        "The calculated order does not exist.",
+                    oe_error_payload(
+                        vec![oe_user_error(&["id"], "The calculated order does not exist.", None)],
                         &field.selection,
                     ),
                 ));
             }
-            let order = self.store.staged.order_edit_existing_order.clone();
-            let payload = if let Some(order) = order {
-                if let Some(order_id) = order["id"].as_str() {
-                    self.store
-                        .staged
-                        .orders
-                        .insert(order_id.to_string(), order.clone());
-                }
-                json!({
-                    "order": order,
-                    "successMessages": ["Order updated"],
-                    "userErrors": []
-                })
-            } else {
-                json!({
-                    "order": Value::Null,
-                    "successMessages": ["Order updated"],
-                    "userErrors": []
-                })
-            };
-            let staged_ids = self
+            let session = self
+                .store
+                .staged
+                .order_edit_existing_calculated_order
+                .clone()
+                .unwrap_or_else(|| json!({}));
+            let base = self
                 .store
                 .staged
                 .order_edit_existing_order
-                .as_ref()
-                .and_then(|order| order["id"].as_str())
+                .clone()
+                .unwrap_or_else(|| json!({}));
+            let author = self.store.staged.order_edit_author.clone();
+            let committed = oe_commit_order(&base, &session, author.as_deref());
+            if let Some(order_id) = committed["id"].as_str() {
+                self.store
+                    .staged
+                    .orders
+                    .insert(order_id.to_string(), committed.clone());
+            }
+            let staged_ids = committed["id"]
+                .as_str()
                 .map(str::to_string)
                 .into_iter()
                 .collect();
-            self.record_mutation_log_entry(
-                request,
-                query,
-                variables,
-                "orderEditCommit",
-                staged_ids,
-            );
+            self.record_mutation_log_entry(request, query, variables, "orderEditCommit", staged_ids);
+            self.store.staged.order_edit_existing_order = Some(committed.clone());
             self.store.staged.order_edit_existing_calculated_order = None;
             self.store.staged.order_edit_existing_calculated_order_id = None;
             self.store.staged.order_edit_existing_session_order_id = None;
             return Some(data_response(
                 &field.response_key,
-                selected_json(&payload, &field.selection),
+                selected_json(
+                    &json!({
+                        "order": committed,
+                        "successMessages": ["Order updated"],
+                        "userErrors": []
+                    }),
+                    &field.selection,
+                ),
             ));
         }
         if root_field == "order"

@@ -1296,6 +1296,12 @@ impl DraftProxy {
                             | "fulfillmentTrackingInfoUpdate"
                             | "orderEditAddVariant"
                             | "orderEditSetQuantity"
+                            | "orderEditAddCustomItem"
+                            | "orderEditAddLineItemDiscount"
+                            | "orderEditRemoveDiscount"
+                            | "orderEditAddShippingLine"
+                            | "orderEditUpdateShippingLine"
+                            | "orderEditRemoveShippingLine"
                     ) =>
             {
                 if let Some(data) = self.remaining_order_local_data(request, root_field, &query, &variables)

@@ -2952,6 +2952,60 @@ impl DraftProxy {
         if !order_create_is_money_bag_only {
             return None;
         }
+        // The money-bag shim's orderEditBegin/Commit stubs only echo a
+        // calculated order's totalPriceSet / committed order currentTotalPriceSet
+        // money bag. A real order-edit begin/commit selects the calculated
+        // line-item structure (lineItems, addedLineItems, originalOrder.name,
+        // subtotals, shippingLines) and needs the full local edit engine. Claim
+        // orderEditBegin/Commit ONLY when every selection stays within the
+        // money-bag money fields; decline anything richer so the order-edit
+        // engine owns it.
+        let order_edit_begin_is_money_bag_only = fields.iter().all(|field| {
+            field.name != "orderEditBegin"
+                || selection_contains_only_any(
+                    &field.selection,
+                    &["presentmentMoney", "totalRefundedSet"],
+                    &[
+                        "calculatedOrder",
+                        "originalOrder",
+                        "id",
+                        "totalPriceSet",
+                        "shopMoney",
+                        "presentmentMoney",
+                        "amount",
+                        "currencyCode",
+                        "userErrors",
+                        "field",
+                        "message",
+                    ],
+                )
+        });
+        if !order_edit_begin_is_money_bag_only {
+            return None;
+        }
+        let order_edit_commit_is_money_bag_only = fields.iter().all(|field| {
+            field.name != "orderEditCommit"
+                || selection_contains_only_any(
+                    &field.selection,
+                    &["presentmentMoney", "totalRefundedSet"],
+                    &[
+                        "order",
+                        "currentTotalPriceSet",
+                        "totalPriceSet",
+                        "shopMoney",
+                        "presentmentMoney",
+                        "amount",
+                        "currencyCode",
+                        "successMessages",
+                        "userErrors",
+                        "field",
+                        "message",
+                    ],
+                )
+        });
+        if !order_edit_commit_is_money_bag_only {
+            return None;
+        }
 
         let mut data = serde_json::Map::new();
         let mut staged_ids = Vec::new();
