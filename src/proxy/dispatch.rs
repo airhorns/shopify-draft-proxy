@@ -262,6 +262,12 @@ impl DraftProxy {
             }
         }
 
+        if let Some(response) =
+            self.draft_order_lifecycle_local_response(request, &query, &variables)
+        {
+            return response;
+        }
+
         if let Some(data) = self.draft_order_complete_local_data(root_field, &query, &variables) {
             return ok_json(data);
         }

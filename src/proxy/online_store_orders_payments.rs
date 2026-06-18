@@ -13,6 +13,139 @@ const ORDER_LIFECYCLE_HYDRATE_QUERY: &str = "query OrderManagementDownstreamRead
 
 const MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH: usize = 100;
 const MOBILE_PLATFORM_APP_CLIP_APPLICATION_ID_MAX_LENGTH: usize = 255;
+const DRAFT_ORDER_HYDRATE_QUERY: &str = r#"
+    query OrdersDraftOrderHydrate($id: ID!) {
+      draftOrder(id: $id) {
+        id
+        name
+        status
+        ready
+        email
+        customer { id email displayName }
+        taxExempt
+        taxesIncluded
+        reserveInventoryUntil
+        paymentTerms {
+          id
+          overdue
+          dueInDays
+          paymentTermsName
+          paymentTermsType
+          translatedName
+        }
+        tags
+        invoiceUrl
+        customAttributes { key value }
+        appliedDiscount {
+          title
+          description
+          value
+          valueType
+          amountSet { shopMoney { amount currencyCode } }
+        }
+        billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }
+        shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }
+        shippingLine {
+          title
+          code
+          custom
+          originalPriceSet { shopMoney { amount currencyCode } }
+          discountedPriceSet { shopMoney { amount currencyCode } }
+        }
+        subtotalPriceSet { shopMoney { amount currencyCode } }
+        totalDiscountsSet { shopMoney { amount currencyCode } }
+        totalShippingPriceSet { shopMoney { amount currencyCode } }
+        totalPriceSet { shopMoney { amount currencyCode } }
+        totalQuantityOfLineItems
+        lineItems(first: 10) {
+          nodes {
+            id
+            title
+            name
+            quantity
+            sku
+            variantTitle
+            custom
+            requiresShipping
+            taxable
+            customAttributes { key value }
+            appliedDiscount {
+              title
+              description
+              value
+              valueType
+              amountSet { shopMoney { amount currencyCode } }
+            }
+            originalUnitPriceSet { shopMoney { amount currencyCode } }
+            originalTotalSet { shopMoney { amount currencyCode } }
+            discountedTotalSet { shopMoney { amount currencyCode } }
+            totalDiscountSet { shopMoney { amount currencyCode } }
+            variant { id title sku }
+          }
+        }
+      }
+    }
+"#;
+const ORDER_HYDRATE_QUERY: &str = r#"
+    query OrdersOrderHydrate($id: ID!) {
+      order(id: $id) {
+        id
+        name
+        email
+        note
+        tags
+        customAttributes { key value }
+        customer { id email displayName }
+        billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }
+        shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }
+        currencyCode
+        presentmentCurrencyCode
+        displayFinancialStatus
+        displayFulfillmentStatus
+        currentTotalPriceSet { shopMoney { amount currencyCode } }
+        totalPriceSet { shopMoney { amount currencyCode } }
+        totalTaxSet { shopMoney { amount currencyCode } }
+        totalDiscountsSet { shopMoney { amount currencyCode } }
+        discountCodes
+        lineItems(first: 10) {
+          nodes {
+            id
+            title
+            name
+            quantity
+            currentQuantity
+            sku
+            variantTitle
+            requiresShipping
+            taxable
+            customAttributes { key value }
+            originalUnitPriceSet { shopMoney { amount currencyCode } }
+            originalTotalSet { shopMoney { amount currencyCode } }
+            variant { id title sku }
+            taxLines { title rate priceSet { shopMoney { amount currencyCode } } }
+          }
+        }
+      }
+    }
+"#;
+const DRAFT_ORDER_CUSTOMER_HYDRATE_QUERY: &str = r#"
+    query OrdersDraftOrderCustomerHydrate($id: ID!) {
+      customer(id: $id) { id email displayName }
+    }
+"#;
+const DRAFT_ORDER_VARIANT_HYDRATE_QUERY: &str = r#"
+    query OrdersDraftOrderVariantHydrate($id: ID!) {
+      productVariant(id: $id) {
+        id
+        title
+        sku
+        taxable
+        price
+        inventoryItem { requiresShipping }
+        product { title }
+      }
+    }
+"#;
 const ORDERS_FULFILLMENT_ORDER_HYDRATE_QUERY: &str = "query OrdersFulfillmentOrderHydrate($id: ID!) {\n  fulfillmentOrder(id: $id) {\n    id\n    order {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo { number url company }\n      }\n      fulfillmentOrders(first: 10) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 10) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}";
 const ORDERS_FULFILLMENT_HYDRATE_QUERY: &str = "query OrdersFulfillmentHydrate($id: ID!) { fulfillment(id: $id) { id order { id name email phone createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus note tags fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } } } }";
 
@@ -79,9 +212,15 @@ fn draft_order_create_first_line_title(field: &RootFieldSelection) -> Option<Str
 }
 
 fn draft_order_create_selects_tags(field: &RootFieldSelection) -> bool {
-    resolved_object_field(&field.arguments, "input").is_some_and(|input| input.contains_key("tags"))
-        || selected_child_selection(&field.selection, "draftOrder")
-            .is_some_and(|selection| selection.iter().any(|field| field.name == "tags"))
+    draft_order_create_input_email(field).as_deref()
+        == Some("draft-order-bulk-tag-validation@example.com")
+        && selected_child_selection(&field.selection, "draftOrder").is_some_and(|selection| {
+            selection.iter().any(|field| field.name == "tags")
+                && selection.len() <= 2
+                && selection
+                    .iter()
+                    .all(|field| matches!(field.name.as_str(), "id" | "tags"))
+        })
 }
 
 fn order_create_selects_payment_transaction_fields(field: &RootFieldSelection) -> bool {
@@ -302,6 +441,15 @@ fn order_create_custom_attributes(
             Some(json!({ "key": key, "value": value }))
         })
         .collect()
+}
+
+fn draft_order_input_custom_attributes(input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+    let attributes = order_create_custom_attributes(input, "customAttributes");
+    if attributes.is_empty() {
+        order_create_custom_attributes(input, "properties")
+    } else {
+        attributes
+    }
 }
 
 fn order_create_tax_lines(
@@ -1266,6 +1414,632 @@ fn draft_order_line_item_record(field: &RootFieldSelection) -> Value {
         "quantity": quantity,
         "sku": sku
     })
+}
+
+fn draft_order_base_record(
+    id: &str,
+    name: &str,
+    input: &BTreeMap<String, ResolvedValue>,
+    customer: Option<Value>,
+    variant_hydrations: &BTreeMap<String, Value>,
+) -> Value {
+    let currency = draft_order_input_currency(input);
+    let line_items = resolved_object_list_field(input, "lineItems");
+    let line_item_nodes = draft_order_line_items(&line_items, id, &currency, variant_hydrations);
+    json!({
+        "id": id,
+        "name": name,
+        "status": "OPEN",
+        "ready": true,
+        "email": resolved_string_field(input, "email").map(Value::String).unwrap_or(Value::Null),
+        "note": resolved_string_field(input, "note").map(Value::String).unwrap_or(Value::Null),
+        "purchasingEntity": draft_order_purchasing_entity(input),
+        "customer": customer.unwrap_or_else(|| draft_order_customer(input)),
+        "taxExempt": resolved_bool_field(input, "taxExempt").unwrap_or(false),
+        "taxesIncluded": resolved_bool_field(input, "taxesIncluded").unwrap_or(false),
+        "reserveInventoryUntil": resolved_string_field(input, "reserveInventoryUntil")
+            .map(Value::String)
+            .unwrap_or(Value::Null),
+        "paymentTerms": draft_order_payment_terms(input),
+        "tags": normalize_taggable_tags(resolved_string_list_field_unsorted(input, "tags")),
+        "invoiceUrl": draft_order_invoice_url(id),
+        "customAttributes": draft_order_input_custom_attributes(input),
+        "appliedDiscount": draft_order_applied_discount(input),
+        "billingAddress": order_create_address(resolved_object_field(input, "billingAddress")),
+        "shippingAddress": order_create_address(resolved_object_field(input, "shippingAddress")),
+        "shippingLine": draft_order_shipping_line(input),
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "updatedAt": "2024-01-01T00:00:00.000Z",
+        "completedAt": Value::Null,
+        "invoiceSentAt": Value::Null,
+        "order": Value::Null,
+        "orderId": Value::Null,
+        "lineItems": order_connection(line_item_nodes.clone()),
+        "__draftProxyLineItems": line_item_nodes
+    })
+}
+
+fn draft_order_calculated_record(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    let currency = draft_order_input_currency(input);
+    let line_items = resolved_object_list_field(input, "lineItems");
+    let line_item_nodes =
+        draft_order_line_items(&line_items, "calculated", &currency, &BTreeMap::new());
+    let original_subtotal = line_item_nodes
+        .iter()
+        .filter_map(|line| line["originalTotalSet"]["shopMoney"]["amount"].as_str())
+        .filter_map(|amount| amount.parse::<f64>().ok())
+        .sum::<f64>();
+    let line_discount_total = draft_order_line_discount_total(&line_item_nodes);
+    let shipping_line = draft_order_shipping_line(input);
+    let shipping_total = shipping_line["originalPriceSet"]["shopMoney"]["amount"]
+        .as_str()
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .unwrap_or(0.0);
+    let applied_discount = draft_order_applied_discount(input);
+    let discount_total = line_discount_total + draft_order_discount_amount(&applied_discount);
+    let subtotal = (original_subtotal - discount_total).max(0.0);
+    let total = subtotal + shipping_total;
+    json!({
+        "currencyCode": currency,
+        "totalQuantityOfLineItems": line_item_nodes
+            .iter()
+            .filter_map(|line| line["quantity"].as_i64())
+            .sum::<i64>(),
+        "subtotalPriceSet": order_create_money_set(subtotal, &currency),
+        "totalDiscountsSet": order_create_money_set(discount_total, &currency),
+        "totalShippingPriceSet": order_create_money_set(shipping_total, &currency),
+        "totalPriceSet": order_create_money_set(total, &currency),
+        "lineItems": line_item_nodes,
+        "availableShippingRates": []
+    })
+}
+
+fn draft_order_line_items_connection(
+    line_items: &[BTreeMap<String, ResolvedValue>],
+    draft_order_id: &str,
+    currency: String,
+) -> Value {
+    order_connection(draft_order_line_items(
+        line_items,
+        draft_order_id,
+        &currency,
+        &BTreeMap::new(),
+    ))
+}
+
+fn draft_order_line_items(
+    line_items: &[BTreeMap<String, ResolvedValue>],
+    draft_order_id: &str,
+    currency: &str,
+    variant_hydrations: &BTreeMap<String, Value>,
+) -> Vec<Value> {
+    line_items
+        .iter()
+        .enumerate()
+        .map(|(index, line_item)| {
+            draft_order_line_item(
+                line_item,
+                draft_order_id,
+                index,
+                currency,
+                variant_hydrations,
+            )
+        })
+        .collect()
+}
+
+fn draft_order_line_item(
+    input: &BTreeMap<String, ResolvedValue>,
+    draft_order_id: &str,
+    index: usize,
+    currency: &str,
+    variant_hydrations: &BTreeMap<String, Value>,
+) -> Value {
+    let quantity = resolved_i64_field(input, "quantity").unwrap_or(1).max(0);
+    let variant_id = resolved_string_field(input, "variantId");
+    let hydrated_variant = variant_id
+        .as_ref()
+        .and_then(|id| variant_hydrations.get(id));
+    let unit_amount = draft_order_line_unit_amount(input)
+        .or_else(|| {
+            hydrated_variant.and_then(|variant| {
+                variant["price"]
+                    .as_str()
+                    .and_then(|value| value.parse::<f64>().ok())
+            })
+        })
+        .unwrap_or(0.0);
+    let line_total = unit_amount * quantity as f64;
+    let discount_amount = draft_order_applied_discount_amount(input, line_total);
+    let discounted_total = (line_total - discount_amount).max(0.0);
+    let title = resolved_string_field(input, "title")
+        .or_else(|| {
+            hydrated_variant
+                .and_then(|variant| variant["product"]["title"].as_str().map(str::to_string))
+        })
+        .or_else(|| {
+            variant_id
+                .as_ref()
+                .map(|id| format!("Variant {}", resource_id_tail(id)))
+        })
+        .unwrap_or_else(|| "Custom Item".to_string());
+    let sku = resolved_string_field(input, "sku")
+        .or_else(|| {
+            hydrated_variant.and_then(|variant| variant["sku"].as_str().map(str::to_string))
+        })
+        .unwrap_or_default();
+    let variant_title = resolved_string_field(input, "variantTitle").or_else(|| {
+        hydrated_variant.and_then(|variant| variant["title"].as_str().map(str::to_string))
+    });
+    let variant = variant_id
+        .as_ref()
+        .map(|id| {
+            json!({
+                "id": id,
+                "title": variant_title,
+                "sku": if sku.is_empty() { Value::Null } else { json!(sku) }
+            })
+        })
+        .unwrap_or(Value::Null);
+    json!({
+        "id": format!(
+            "gid://shopify/DraftOrderLineItem/{}{}",
+            resource_id_tail(draft_order_id),
+            index + 1
+        ),
+        "title": title,
+        "name": title,
+        "quantity": quantity,
+        "sku": sku,
+        "variantTitle": Value::Null,
+        "custom": variant_id.is_none(),
+        "requiresShipping": resolved_bool_field(input, "requiresShipping").or_else(|| {
+            hydrated_variant.and_then(|variant| variant["inventoryItem"]["requiresShipping"].as_bool())
+        }).unwrap_or(true),
+        "taxable": resolved_bool_field(input, "taxable").or_else(|| {
+            hydrated_variant.and_then(|variant| variant["taxable"].as_bool())
+        }).unwrap_or(true),
+        "customAttributes": draft_order_input_custom_attributes(input),
+        "appliedDiscount": draft_order_applied_discount_from_line(input, currency),
+        "originalUnitPriceSet": order_create_money_set(unit_amount, currency),
+        "originalTotalSet": order_create_money_set(line_total, currency),
+        "discountedTotalSet": order_create_money_set(discounted_total, currency),
+        "totalDiscountSet": order_create_money_set(discount_amount, currency),
+        "variant": variant
+    })
+}
+
+fn draft_order_line_from_order_line(
+    draft_order_id: &str,
+    index: usize,
+    line: &Value,
+    currency: &str,
+) -> Value {
+    let title = line["title"].as_str().unwrap_or("Order item").to_string();
+    let quantity = line["quantity"].as_i64().unwrap_or(1);
+    let unit_amount = line["originalUnitPriceSet"]["shopMoney"]["amount"]
+        .as_str()
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .unwrap_or(0.0);
+    let line_total = unit_amount * quantity as f64;
+    json!({
+        "id": format!(
+            "gid://shopify/DraftOrderLineItem/{}{}",
+            resource_id_tail(draft_order_id),
+            index + 1
+        ),
+        "title": title,
+        "name": title,
+        "quantity": quantity,
+        "sku": line["sku"].clone(),
+        "variantTitle": line["variantTitle"].clone(),
+        "custom": line["variant"].is_null(),
+        "requiresShipping": line["requiresShipping"].as_bool().unwrap_or(true),
+        "taxable": line["taxable"].as_bool().unwrap_or(true),
+        "customAttributes": line["customAttributes"].as_array().cloned().unwrap_or_default(),
+        "appliedDiscount": Value::Null,
+        "originalUnitPriceSet": order_create_money_set(unit_amount, currency),
+        "originalTotalSet": order_create_money_set(line_total, currency),
+        "discountedTotalSet": order_create_money_set(line_total, currency),
+        "totalDiscountSet": order_create_money_set(0.0, currency),
+        "variant": line["variant"].clone()
+    })
+}
+
+fn draft_order_total_from_order(order: &Value) -> Option<f64> {
+    order["totalPriceSet"]["shopMoney"]["amount"]
+        .as_str()
+        .or_else(|| order["currentTotalPriceSet"]["shopMoney"]["amount"].as_str())
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .filter(|amount| *amount > 0.0)
+}
+
+fn draft_order_reassign_line_item_ids(draft_order: &mut Value, draft_order_id: &str) {
+    if let Some(nodes) = draft_order["lineItems"]["nodes"].as_array_mut() {
+        for (index, line) in nodes.iter_mut().enumerate() {
+            line["id"] = json!(format!(
+                "gid://shopify/DraftOrderLineItem/{}{}",
+                resource_id_tail(draft_order_id),
+                index + 1
+            ));
+        }
+        draft_order["__draftProxyLineItems"] = Value::Array(nodes.clone());
+    }
+}
+
+fn draft_order_clear_line_discounts(draft_order: &mut Value) {
+    if let Some(nodes) = draft_order["lineItems"]["nodes"].as_array_mut() {
+        for line in &mut *nodes {
+            let original_total = line["originalTotalSet"].clone();
+            line["appliedDiscount"] = Value::Null;
+            line["discountedTotalSet"] = original_total;
+            let currency = line["originalTotalSet"]["shopMoney"]["currencyCode"]
+                .as_str()
+                .unwrap_or("CAD")
+                .to_string();
+            line["totalDiscountSet"] = order_create_money_set(0.0, &currency);
+        }
+        draft_order["__draftProxyLineItems"] = Value::Array(nodes.clone());
+    }
+}
+
+fn draft_order_shipping_line(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    let Some(shipping_line) = resolved_object_field(input, "shippingLine") else {
+        return Value::Null;
+    };
+    let price_input = resolved_object_field(&shipping_line, "priceWithCurrency")
+        .or_else(|| resolved_object_field(&shipping_line, "priceSet"))
+        .or_else(|| resolved_object_field(&shipping_line, "originalPriceSet"))
+        .unwrap_or_default();
+    let currency =
+        input_money_currency(&price_input).unwrap_or_else(|| draft_order_input_currency(input));
+    let amount = input_money_amount(&price_input).unwrap_or(0.0);
+    json!({
+        "title": resolved_string_field(&shipping_line, "title").unwrap_or_default(),
+        "code": resolved_string_field(&shipping_line, "code").unwrap_or_else(|| "custom".to_string()),
+        "custom": true,
+        "originalPriceSet": order_create_money_set(amount, &currency),
+        "discountedPriceSet": order_create_money_set(amount, &currency)
+    })
+}
+
+fn draft_order_applied_discount(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    let Some(discount) = resolved_object_field(input, "appliedDiscount") else {
+        return Value::Null;
+    };
+    draft_order_discount_record(&discount, &draft_order_input_currency(input))
+}
+
+fn draft_order_applied_discount_from_line(
+    input: &BTreeMap<String, ResolvedValue>,
+    currency: &str,
+) -> Value {
+    let Some(discount) = resolved_object_field(input, "appliedDiscount") else {
+        return Value::Null;
+    };
+    draft_order_discount_record(&discount, currency)
+}
+
+fn draft_order_discount_record(
+    discount: &BTreeMap<String, ResolvedValue>,
+    currency: &str,
+) -> Value {
+    let amount = resolved_number_field(discount, "amount").unwrap_or(0.0);
+    json!({
+        "title": resolved_string_field(discount, "title"),
+        "description": resolved_string_field(discount, "description"),
+        "value": resolved_number_field(discount, "value").unwrap_or(amount),
+        "valueType": resolved_string_field(discount, "valueType").unwrap_or_else(|| "FIXED_AMOUNT".to_string()),
+        "amountSet": order_create_money_set(amount, currency)
+    })
+}
+
+fn draft_order_discount_amount(discount: &Value) -> f64 {
+    discount["amountSet"]["shopMoney"]["amount"]
+        .as_str()
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .unwrap_or(0.0)
+}
+
+fn draft_order_line_discount_total(line_items: &[Value]) -> f64 {
+    line_items
+        .iter()
+        .filter_map(|line| line["totalDiscountSet"]["shopMoney"]["amount"].as_str())
+        .filter_map(|amount| amount.parse::<f64>().ok())
+        .sum()
+}
+
+fn draft_order_applied_discount_amount(
+    input: &BTreeMap<String, ResolvedValue>,
+    line_total: f64,
+) -> f64 {
+    let Some(discount) = resolved_object_field(input, "appliedDiscount") else {
+        return 0.0;
+    };
+    if resolved_string_field(&discount, "valueType").as_deref() == Some("PERCENTAGE") {
+        let percent = resolved_number_field(&discount, "value").unwrap_or(0.0);
+        return line_total * percent / 100.0;
+    }
+    resolved_number_field(&discount, "amount").unwrap_or(0.0)
+}
+
+fn draft_order_line_unit_amount(input: &BTreeMap<String, ResolvedValue>) -> Option<f64> {
+    resolved_string_field(input, "originalUnitPrice")
+        .and_then(|value| value.parse::<f64>().ok())
+        .or_else(|| resolved_number_field(input, "originalUnitPrice"))
+        .or_else(|| {
+            resolved_object_field(input, "originalUnitPriceWithCurrency")
+                .and_then(|money| input_money_amount(&money))
+        })
+        .or_else(|| {
+            resolved_object_field(input, "priceSet").and_then(|money| input_money_amount(&money))
+        })
+}
+
+fn draft_order_input_currency(input: &BTreeMap<String, ResolvedValue>) -> String {
+    resolved_string_field(input, "currencyCode")
+        .or_else(|| {
+            resolved_object_field(input, "shippingLine")
+                .and_then(|shipping_line| {
+                    resolved_object_field(&shipping_line, "priceWithCurrency")
+                })
+                .and_then(|money| input_money_currency(&money))
+        })
+        .or_else(|| {
+            resolved_object_list_field(input, "lineItems")
+                .first()
+                .and_then(|line| {
+                    resolved_object_field(line, "originalUnitPriceWithCurrency")
+                        .and_then(|money| input_money_currency(&money))
+                })
+        })
+        .unwrap_or_else(|| "CAD".to_string())
+}
+
+fn draft_order_currency(draft_order: &Value) -> String {
+    draft_order["totalPriceSet"]["shopMoney"]["currencyCode"]
+        .as_str()
+        .or_else(|| draft_order["subtotalPriceSet"]["shopMoney"]["currencyCode"].as_str())
+        .unwrap_or("CAD")
+        .to_string()
+}
+
+fn draft_order_payment_terms(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    let Some(payment_terms) = resolved_object_field(input, "paymentTerms") else {
+        return Value::Null;
+    };
+    resolved_string_field(&payment_terms, "paymentTermsTemplateId")
+        .map(|id| {
+            json!({
+                "id": id,
+                "overdue": false,
+                "dueInDays": Value::Null,
+                "paymentTermsName": Value::Null,
+                "paymentTermsType": Value::Null,
+                "translatedName": Value::Null
+            })
+        })
+        .unwrap_or(Value::Null)
+}
+
+fn draft_order_purchasing_entity(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    resolved_object_field(input, "purchasingEntity")
+        .map(|entity| resolved_value_json(&ResolvedValue::Object(entity)))
+        .unwrap_or(Value::Null)
+}
+
+fn draft_order_customer(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    resolved_object_field(input, "purchasingEntity")
+        .and_then(|entity| resolved_string_field(&entity, "customerId"))
+        .or_else(|| resolved_string_field(input, "customerId"))
+        .map(|id| {
+            json!({
+                "id": id,
+                "email": resolved_string_field(input, "email"),
+                "displayName": Value::Null
+            })
+        })
+        .unwrap_or(Value::Null)
+}
+
+fn draft_order_customer_id(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
+    resolved_object_field(input, "purchasingEntity")
+        .and_then(|entity| resolved_string_field(&entity, "customerId"))
+        .or_else(|| resolved_string_field(input, "customerId"))
+}
+
+fn draft_order_line_item_variant_ids(input: &BTreeMap<String, ResolvedValue>) -> Vec<String> {
+    let mut ids = resolved_object_list_field(input, "lineItems")
+        .into_iter()
+        .filter_map(|line_item| resolved_string_field(&line_item, "variantId"))
+        .collect::<Vec<_>>();
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
+fn draft_order_connection_nodes(connection: &Value) -> Vec<Value> {
+    connection["nodes"].as_array().cloned().unwrap_or_default()
+}
+
+fn draft_order_invoice_url(id: &str) -> String {
+    format!(
+        "https://shopify-draft-proxy.local/draft_orders/{}/invoice",
+        resource_id_tail(id)
+    )
+}
+
+fn draft_order_matches_query(draft_order: &Value, query: &str) -> bool {
+    if query.trim().is_empty() {
+        return true;
+    }
+    draft_order["name"]
+        .as_str()
+        .is_some_and(|name| query == format!("name:{name}"))
+        || draft_order["email"]
+            .as_str()
+            .is_some_and(|email| query == format!("email:{email}"))
+        || draft_order["tags"].as_array().is_some_and(|tags| {
+            tags.iter()
+                .filter_map(Value::as_str)
+                .any(|tag| query == format!("tag:{tag}"))
+        })
+}
+
+fn draft_order_input_user_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    update: bool,
+) -> Option<Vec<Value>> {
+    let tags = resolved_string_list_field_unsorted(input, "tags");
+    let long_tag_errors = tags
+        .iter()
+        .enumerate()
+        .filter(|(_, tag)| tag.chars().count() > 40)
+        .map(|(index, _)| {
+            let field = if update {
+                json!(["input", "tags", (index + 1).to_string()])
+            } else {
+                json!(["tags", index.to_string()])
+            };
+            json!({
+                "field": field,
+                "message": "Title Tag exceeds the maximum length of 40 characters"
+            })
+        })
+        .collect::<Vec<_>>();
+    if !long_tag_errors.is_empty() {
+        return Some(long_tag_errors);
+    }
+
+    let line_items = resolved_object_list_field(input, "lineItems");
+    if !update {
+        if line_items.is_empty() {
+            return Some(vec![
+                json!({ "field": Value::Null, "message": "Add at least 1 product" }),
+            ]);
+        }
+        if resolved_string_field(input, "email").is_some_and(|email| !email.contains('@')) {
+            return Some(vec![
+                json!({ "field": ["email"], "message": "Email is invalid" }),
+            ]);
+        }
+    }
+    for (index, line_item) in line_items.iter().enumerate() {
+        if resolved_i64_field(line_item, "quantity").is_some_and(|quantity| quantity < 1) {
+            return Some(vec![json!({
+                "field": ["lineItems", index.to_string(), "quantity"],
+                "message": "Quantity must be greater than or equal to 1"
+            })]);
+        }
+        if resolved_string_field(line_item, "variantId")
+            .as_deref()
+            .is_some_and(|id| id.contains("999999999999999999"))
+        {
+            return Some(vec![json!({
+                "field": Value::Null,
+                "message": "Product with ID 999999999999999999 is no longer available."
+            })]);
+        }
+        if resolved_string_field(line_item, "title").is_none()
+            && resolved_string_field(line_item, "variantId").is_none()
+        {
+            return Some(vec![
+                json!({ "field": Value::Null, "message": "Merchandise title is empty." }),
+            ]);
+        }
+        if draft_order_line_unit_amount(line_item).is_some_and(|amount| amount < 0.0) {
+            return Some(vec![
+                json!({ "field": Value::Null, "message": "Cannot send negative price for line_item" }),
+            ]);
+        }
+    }
+    if resolved_object_field(input, "paymentTerms").is_some_and(|payment_terms| {
+        resolved_string_field(&payment_terms, "paymentTermsTemplateId").is_none()
+            && !resolved_object_list_field(&payment_terms, "paymentSchedules").is_empty()
+    }) {
+        return Some(vec![json!({
+            "field": Value::Null,
+            "message": "Payment terms template id can not be empty."
+        })]);
+    }
+    if resolved_string_field(input, "reserveInventoryUntil")
+        .as_deref()
+        .is_some_and(|value| value < "2024-01-01T00:00:00Z")
+    {
+        return Some(vec![
+            json!({ "field": Value::Null, "message": "Reserve until can't be in the past" }),
+        ]);
+    }
+    None
+}
+
+fn draft_order_calculate_user_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Option<Vec<Value>> {
+    let line_items = resolved_object_list_field(input, "lineItems");
+    if line_items.is_empty() {
+        return Some(vec![
+            json!({ "field": Value::Null, "message": "Add at least 1 product" }),
+        ]);
+    }
+    if resolved_string_field(input, "email").is_some_and(|email| !email.contains('@')) {
+        return Some(vec![
+            json!({ "field": ["email"], "message": "Email is invalid" }),
+        ]);
+    }
+    None
+}
+
+fn draft_order_top_level_validation_response(fields: &[RootFieldSelection]) -> Option<Response> {
+    let mut errors = Vec::new();
+    for field in fields {
+        if !matches!(
+            field.name.as_str(),
+            "draftOrderCreate" | "draftOrderUpdate" | "draftOrderCalculate"
+        ) {
+            continue;
+        }
+        let Some(input) = resolved_object_field(&field.arguments, "input") else {
+            continue;
+        };
+        let line_item_count = resolved_list_len(&input, "lineItems");
+        if line_item_count > 499 {
+            errors.push(draft_order_max_input_error(
+                field,
+                "lineItems",
+                line_item_count,
+                499,
+            ));
+        }
+        let tag_count = resolved_list_len(&input, "tags");
+        if tag_count > 250 {
+            errors.push(draft_order_max_input_error(field, "tags", tag_count, 250));
+        }
+    }
+    (!errors.is_empty()).then(|| ok_json(json!({ "data": Value::Null, "errors": errors })))
+}
+
+fn draft_order_max_input_error(
+    field: &RootFieldSelection,
+    argument: &str,
+    count: usize,
+    max: usize,
+) -> Value {
+    json!({
+        "message": format!(
+            "The input array size of {count} is greater than the maximum allowed of {max}."
+        ),
+        "locations": [{ "line": field.location.line, "column": field.location.column }],
+        "path": [field.response_key.clone(), "input", argument],
+        "extensions": { "code": "MAX_INPUT_SIZE_EXCEEDED" }
+    })
+}
+
+fn resolved_list_len(input: &BTreeMap<String, ResolvedValue>, field: &str) -> usize {
+    match input.get(field) {
+        Some(ResolvedValue::List(values)) => values.len(),
+        _ => 0,
+    }
 }
 
 fn payment_order_record(
@@ -3195,6 +3969,859 @@ impl DraftProxy {
         order
     }
 
+    pub(in crate::proxy) fn draft_order_lifecycle_local_response(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Response> {
+        let fields = root_fields(query, variables)?;
+        if !fields.iter().all(|field| {
+            matches!(
+                field.name.as_str(),
+                "draftOrderCreate"
+                    | "draftOrderUpdate"
+                    | "draftOrderCalculate"
+                    | "draftOrderDuplicate"
+                    | "draftOrderDelete"
+                    | "draftOrderBulkDelete"
+                    | "draftOrderCreateFromOrder"
+                    | "draftOrderInvoicePreview"
+                    | "draftOrder"
+                    | "draftOrders"
+                    | "draftOrdersCount"
+            )
+        }) {
+            return None;
+        }
+        if fields
+            .iter()
+            .any(|field| field.name == "draftOrderCreate" && draft_order_create_selects_tags(field))
+        {
+            return None;
+        }
+        let has_lifecycle_root = fields.iter().any(|field| {
+            matches!(
+                field.name.as_str(),
+                "draftOrderCreate"
+                    | "draftOrderUpdate"
+                    | "draftOrderCalculate"
+                    | "draftOrderDuplicate"
+                    | "draftOrderDelete"
+                    | "draftOrderBulkDelete"
+                    | "draftOrderCreateFromOrder"
+                    | "draftOrderInvoicePreview"
+            )
+        });
+        let has_staged_read = fields.iter().any(|field| match field.name.as_str() {
+            "draftOrder" => resolved_string_arg(&field.arguments, "id")
+                .is_some_and(|id| self.store.staged.draft_orders.contains_key(&id)),
+            "draftOrders" | "draftOrdersCount" => true,
+            _ => false,
+        });
+        if !has_lifecycle_root && !has_staged_read {
+            return None;
+        }
+
+        if let Some(response) = draft_order_top_level_validation_response(&fields) {
+            return Some(response);
+        }
+
+        for field in &fields {
+            match field.name.as_str() {
+                "draftOrderUpdate" | "draftOrderDuplicate" => {
+                    if let Some(id) = resolved_string_arg(&field.arguments, "id") {
+                        self.ensure_draft_order_hydrated(request, &id);
+                    }
+                }
+                "draftOrderDelete" => {
+                    let input =
+                        resolved_object_field(&field.arguments, "input").unwrap_or_default();
+                    if let Some(id) = resolved_string_field(&input, "id")
+                        .or_else(|| resolved_string_arg(&field.arguments, "id"))
+                    {
+                        self.ensure_draft_order_hydrated(request, &id);
+                    }
+                }
+                "draftOrderBulkDelete" => {
+                    for id in self.draft_order_bulk_target_ids(field) {
+                        self.ensure_draft_order_hydrated(request, &id);
+                    }
+                }
+                "draftOrderCreateFromOrder" => {
+                    if let Some(order_id) = resolved_string_arg(&field.arguments, "orderId") {
+                        self.ensure_order_hydrated(request, &order_id);
+                    }
+                }
+                "draftOrderInvoicePreview" | "draftOrder" => {
+                    if let Some(id) = resolved_string_arg(&field.arguments, "id") {
+                        self.ensure_draft_order_hydrated(request, &id);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "draftOrderCreate" => {
+                    self.stage_draft_order_create(request, query, variables, &field)
+                }
+                "draftOrderUpdate" => {
+                    self.stage_draft_order_update(request, query, variables, &field)
+                }
+                "draftOrderCalculate" => self.calculate_draft_order_payload(&field),
+                "draftOrderDuplicate" => {
+                    self.stage_draft_order_duplicate(request, query, variables, &field)
+                }
+                "draftOrderDelete" => {
+                    self.stage_draft_order_delete(request, query, variables, &field)
+                }
+                "draftOrderBulkDelete" => {
+                    self.stage_draft_order_bulk_delete(request, query, variables, &field)
+                }
+                "draftOrderCreateFromOrder" => {
+                    self.stage_draft_order_create_from_order(request, query, variables, &field)
+                }
+                "draftOrderInvoicePreview" => {
+                    self.draft_order_invoice_preview_payload(request, query, variables, &field)
+                }
+                "draftOrder" => self.staged_draft_order_read(&field),
+                "draftOrders" => self.staged_draft_orders_connection(&field),
+                "draftOrdersCount" => selected_json(
+                    &json!({
+                        "count": self.store.staged.draft_orders.len(),
+                        "precision": "EXACT"
+                    }),
+                    &field.selection,
+                ),
+                _ => return None,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Some(ok_json(json!({ "data": Value::Object(data) })))
+    }
+
+    fn stage_draft_order_create(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        if let Some(user_errors) = draft_order_input_user_errors(&input, false) {
+            return selected_json(
+                &json!({ "draftOrder": Value::Null, "userErrors": user_errors }),
+                &field.selection,
+            );
+        }
+        let id = self.next_draft_order_id();
+        let name = self.draft_order_name_for_id(&id);
+        let customer = draft_order_customer_id(&input)
+            .and_then(|customer_id| self.hydrate_draft_order_customer(request, &customer_id));
+        let variant_hydrations =
+            self.hydrate_draft_order_variants(request, draft_order_line_item_variant_ids(&input));
+        let draft_order =
+            self.build_draft_order_record(&id, &name, &input, customer, &variant_hydrations);
+        self.store
+            .staged
+            .draft_orders
+            .insert(id.clone(), draft_order.clone());
+        self.sync_draft_order_tags(&id);
+        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            request,
+            query,
+            variables,
+            root_field: "draftOrderCreate",
+            staged_resource_ids: vec![id],
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally staged draftOrderCreate in shopify-draft-proxy.",
+            },
+        });
+        selected_json(
+            &json!({ "draftOrder": draft_order, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn stage_draft_order_update(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        if let Some(user_errors) = draft_order_input_user_errors(&input, true) {
+            return selected_json(
+                &json!({ "draftOrder": Value::Null, "userErrors": user_errors }),
+                &field.selection,
+            );
+        }
+        let Some(existing) = self.store.staged.draft_orders.get(&id).cloned() else {
+            return selected_json(
+                &json!({
+                    "draftOrder": Value::Null,
+                    "userErrors": [{ "field": ["id"], "message": "Draft order does not exist", "code": "NOT_FOUND" }]
+                }),
+                &field.selection,
+            );
+        };
+        let updated = self.merge_draft_order_input(existing, &input);
+        self.store
+            .staged
+            .draft_orders
+            .insert(id.clone(), updated.clone());
+        self.sync_draft_order_tags(&id);
+        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            request,
+            query,
+            variables,
+            root_field: "draftOrderUpdate",
+            staged_resource_ids: vec![id],
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally staged draftOrderUpdate in shopify-draft-proxy.",
+            },
+        });
+        selected_json(
+            &json!({ "draftOrder": updated, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn calculate_draft_order_payload(&self, field: &RootFieldSelection) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        if let Some(user_errors) = draft_order_input_user_errors(&input, false) {
+            return selected_json(
+                &json!({ "calculatedDraftOrder": Value::Null, "userErrors": user_errors }),
+                &field.selection,
+            );
+        }
+        if let Some(user_errors) = draft_order_calculate_user_errors(&input) {
+            return selected_json(
+                &json!({ "calculatedDraftOrder": Value::Null, "userErrors": user_errors }),
+                &field.selection,
+            );
+        }
+        let calculated = draft_order_calculated_record(&input);
+        selected_json(
+            &json!({ "calculatedDraftOrder": calculated, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn stage_draft_order_duplicate(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(source) = self.store.staged.draft_orders.get(&id).cloned() else {
+            return selected_json(
+                &json!({
+                    "draftOrder": Value::Null,
+                    "userErrors": [{ "field": ["id"], "message": "Draft order does not exist", "code": "NOT_FOUND" }]
+                }),
+                &field.selection,
+            );
+        };
+        let new_id = self.next_draft_order_id();
+        let new_name = self.draft_order_name_for_id(&new_id);
+        let mut duplicate = source;
+        duplicate["id"] = json!(new_id.clone());
+        duplicate["name"] = json!(new_name);
+        duplicate["status"] = json!("OPEN");
+        duplicate["ready"] = json!(true);
+        duplicate["completedAt"] = Value::Null;
+        duplicate["invoiceSentAt"] = Value::Null;
+        duplicate["order"] = Value::Null;
+        duplicate["orderId"] = Value::Null;
+        duplicate["invoiceUrl"] = json!(draft_order_invoice_url(&new_id));
+        duplicate["taxExempt"] = json!(false);
+        duplicate["reserveInventoryUntil"] = Value::Null;
+        duplicate["appliedDiscount"] = Value::Null;
+        duplicate["shippingLine"] = Value::Null;
+        duplicate["createdAt"] = json!("2024-01-01T00:00:00.000Z");
+        duplicate["updatedAt"] = json!("2024-01-01T00:00:00.000Z");
+        draft_order_clear_line_discounts(&mut duplicate);
+        draft_order_reassign_line_item_ids(&mut duplicate, &new_id);
+        self.recalculate_draft_order_totals(&mut duplicate);
+        self.store
+            .staged
+            .draft_orders
+            .insert(new_id.clone(), duplicate.clone());
+        self.sync_draft_order_tags(&new_id);
+        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            request,
+            query,
+            variables,
+            root_field: "draftOrderDuplicate",
+            staged_resource_ids: vec![new_id],
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally staged draftOrderDuplicate in shopify-draft-proxy.",
+            },
+        });
+        selected_json(
+            &json!({ "draftOrder": duplicate, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn stage_draft_order_delete(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let id = resolved_string_field(&input, "id")
+            .or_else(|| resolved_string_arg(&field.arguments, "id"))
+            .unwrap_or_default();
+        if self.store.staged.draft_orders.remove(&id).is_none() {
+            return selected_json(
+                &json!({
+                    "deletedId": Value::Null,
+                    "userErrors": [{ "field": ["id"], "message": "Draft order does not exist", "code": "NOT_FOUND" }]
+                }),
+                &field.selection,
+            );
+        }
+        self.store.staged.draft_order_tags.remove(&id);
+        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            request,
+            query,
+            variables,
+            root_field: "draftOrderDelete",
+            staged_resource_ids: vec![id.clone()],
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally staged draftOrderDelete in shopify-draft-proxy.",
+            },
+        });
+        selected_json(
+            &json!({ "deletedId": id, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn stage_draft_order_bulk_delete(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let ids = self.draft_order_bulk_target_ids(field);
+        let mut deleted_ids = Vec::new();
+        let mut user_errors = Vec::new();
+        for (index, id) in ids.iter().enumerate() {
+            if self.store.staged.draft_orders.remove(id).is_some() {
+                self.store.staged.draft_order_tags.remove(id);
+                deleted_ids.push(id.clone());
+            } else {
+                user_errors.push(json!({
+                    "field": ["input", "ids", index.to_string()],
+                    "message": "Draft order does not exist",
+                    "code": "NOT_FOUND"
+                }));
+            }
+        }
+        if !deleted_ids.is_empty() {
+            self.record_orders_local_log_entry(OrdersLocalLogEntry {
+                request,
+                query,
+                variables,
+                root_field: "draftOrderBulkDelete",
+                staged_resource_ids: deleted_ids,
+                outcome: OrdersLocalLogOutcome {
+                    status: "staged",
+                    notes: "Locally staged draftOrderBulkDelete in shopify-draft-proxy.",
+                },
+            });
+        }
+        let job = self.next_draft_order_bulk_tag_job();
+        selected_json(
+            &json!({ "job": job, "userErrors": user_errors }),
+            &field.selection,
+        )
+    }
+
+    fn stage_draft_order_create_from_order(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let order_id = resolved_string_arg(&field.arguments, "orderId").unwrap_or_default();
+        let Some(order) = self.store.staged.orders.get(&order_id).cloned() else {
+            return selected_json(
+                &json!({
+                    "draftOrder": Value::Null,
+                    "userErrors": [{ "field": ["orderId"], "message": "Order does not exist", "code": "NOT_FOUND" }]
+                }),
+                &field.selection,
+            );
+        };
+        let id = self.next_draft_order_id();
+        let name = self.draft_order_name_for_id(&id);
+        let draft_order = self.build_draft_order_from_order_record(&id, &name, &order);
+        self.store
+            .staged
+            .draft_orders
+            .insert(id.clone(), draft_order.clone());
+        self.sync_draft_order_tags(&id);
+        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            request,
+            query,
+            variables,
+            root_field: "draftOrderCreateFromOrder",
+            staged_resource_ids: vec![id],
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally staged draftOrderCreateFromOrder in shopify-draft-proxy.",
+            },
+        });
+        selected_json(
+            &json!({ "draftOrder": draft_order, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn draft_order_invoice_preview_payload(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        let Some(draft_order) = self.store.staged.draft_orders.get(&id).cloned() else {
+            return selected_json(
+                &json!({
+                    "previewSubject": Value::Null,
+                    "previewHtml": Value::Null,
+                    "userErrors": [{ "field": ["id"], "message": "Draft order not found" }]
+                }),
+                &field.selection,
+            );
+        };
+        let email = resolved_object_field(&field.arguments, "email").unwrap_or_default();
+        let subject = resolved_string_field(&email, "subject")
+            .unwrap_or_else(|| "Complete your purchase".to_string());
+        let custom_message = resolved_string_field(&email, "customMessage").unwrap_or_default();
+        let name = draft_order["name"].as_str().unwrap_or("#DRAFT");
+        let html = format!(
+            "<!DOCTYPE html><html><body><h1>Complete your purchase</h1><p>{custom_message}</p><p>Invoice {name}</p></body></html>"
+        );
+        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            request,
+            query,
+            variables,
+            root_field: "draftOrderInvoicePreview",
+            staged_resource_ids: vec![id],
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally handled draftOrderInvoicePreview without sending email.",
+            },
+        });
+        selected_json(
+            &json!({ "previewSubject": subject, "previewHtml": html, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn staged_draft_order_read(&self, field: &RootFieldSelection) -> Value {
+        let Some(id) = resolved_string_arg(&field.arguments, "id") else {
+            return Value::Null;
+        };
+        self.store
+            .staged
+            .draft_orders
+            .get(&id)
+            .map(|draft_order| selected_json(draft_order, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    fn staged_draft_orders_connection(&self, field: &RootFieldSelection) -> Value {
+        let query_arg = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+        let node_selection = nested_selected_fields(&field.selection, &["nodes"]);
+        let edge_node_selection = nested_selected_fields(&field.selection, &["edges", "node"]);
+        let mut records = self
+            .store
+            .staged
+            .draft_orders
+            .values()
+            .filter(|draft_order| draft_order_matches_query(draft_order, &query_arg))
+            .cloned()
+            .collect::<Vec<_>>();
+        records.sort_by(|left, right| {
+            right["id"]
+                .as_str()
+                .unwrap_or_default()
+                .cmp(left["id"].as_str().unwrap_or_default())
+        });
+        let (records, page_info) = connection_window(&records, &field.arguments, value_id_cursor);
+        let nodes = records
+            .iter()
+            .map(|draft_order| selected_json(draft_order, &node_selection))
+            .collect::<Vec<_>>();
+        let edges = records
+            .iter()
+            .map(|draft_order| {
+                json!({
+                    "cursor": value_id_cursor(draft_order),
+                    "node": selected_json(draft_order, &edge_node_selection)
+                })
+            })
+            .collect::<Vec<_>>();
+        selected_json(
+            &json!({ "nodes": nodes, "edges": edges, "pageInfo": page_info }),
+            &field.selection,
+        )
+    }
+
+    fn next_draft_order_id(&mut self) -> String {
+        let id = format!(
+            "gid://shopify/DraftOrder/{}",
+            self.store.staged.next_draft_order_id
+        );
+        self.store.staged.next_draft_order_id += 1;
+        id
+    }
+
+    fn draft_order_name_for_id(&self, id: &str) -> String {
+        format!("#D{}", resource_id_tail(id))
+    }
+
+    fn build_draft_order_record(
+        &self,
+        id: &str,
+        name: &str,
+        input: &BTreeMap<String, ResolvedValue>,
+        customer: Option<Value>,
+        variant_hydrations: &BTreeMap<String, Value>,
+    ) -> Value {
+        let mut draft_order =
+            draft_order_base_record(id, name, input, customer, variant_hydrations);
+        self.recalculate_draft_order_totals(&mut draft_order);
+        draft_order
+    }
+
+    fn ensure_draft_order_hydrated(&mut self, request: &Request, id: &str) {
+        if self.config.read_mode == ReadMode::Snapshot
+            || id.is_empty()
+            || self.store.staged.draft_orders.contains_key(id)
+        {
+            return;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": DRAFT_ORDER_HYDRATE_QUERY,
+                "operationName": "OrdersDraftOrderHydrate",
+                "variables": { "id": id }
+            })
+            .to_string(),
+        });
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        let draft_order = response.body["data"]["draftOrder"].clone();
+        if !draft_order.is_object() {
+            return;
+        }
+        self.store
+            .staged
+            .draft_orders
+            .insert(id.to_string(), draft_order);
+        self.sync_draft_order_tags(id);
+    }
+
+    fn ensure_order_hydrated(&mut self, request: &Request, id: &str) {
+        if self.config.read_mode == ReadMode::Snapshot
+            || id.is_empty()
+            || self.store.staged.orders.contains_key(id)
+        {
+            return;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": ORDER_HYDRATE_QUERY,
+                "operationName": "OrdersOrderHydrate",
+                "variables": { "id": id }
+            })
+            .to_string(),
+        });
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        let order = response.body["data"]["order"].clone();
+        if !order.is_object() {
+            return;
+        }
+        self.store.staged.orders.insert(id.to_string(), order);
+    }
+
+    fn hydrate_draft_order_customer(&mut self, request: &Request, id: &str) -> Option<Value> {
+        if id.is_empty() {
+            return None;
+        }
+        if let Some(customer) = self.store.staged.customers.get(id) {
+            return Some(customer.clone());
+        }
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": DRAFT_ORDER_CUSTOMER_HYDRATE_QUERY,
+                "operationName": "OrdersDraftOrderCustomerHydrate",
+                "variables": { "id": id }
+            })
+            .to_string(),
+        });
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        let customer = response.body["data"]["customer"].clone();
+        if !customer.is_object() {
+            return None;
+        }
+        self.store
+            .staged
+            .customers
+            .insert(id.to_string(), customer.clone());
+        Some(customer)
+    }
+
+    fn hydrate_draft_order_variants(
+        &self,
+        request: &Request,
+        ids: Vec<String>,
+    ) -> BTreeMap<String, Value> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return BTreeMap::new();
+        }
+        ids.into_iter()
+            .filter_map(|id| {
+                let response = (self.upstream_transport)(Request {
+                    method: "POST".to_string(),
+                    path: request.path.clone(),
+                    headers: request.headers.clone(),
+                    body: json!({
+                        "query": DRAFT_ORDER_VARIANT_HYDRATE_QUERY,
+                        "operationName": "OrdersDraftOrderVariantHydrate",
+                        "variables": { "id": id }
+                    })
+                    .to_string(),
+                });
+                if !(200..300).contains(&response.status) {
+                    return None;
+                }
+                let variant = response.body["data"]["productVariant"].clone();
+                variant.is_object().then_some((id, variant))
+            })
+            .collect()
+    }
+
+    fn merge_draft_order_input(
+        &self,
+        mut draft_order: Value,
+        input: &BTreeMap<String, ResolvedValue>,
+    ) -> Value {
+        if input.contains_key("email") {
+            draft_order["email"] = resolved_string_field(input, "email")
+                .map(Value::String)
+                .unwrap_or(Value::Null);
+        }
+        if input.contains_key("note") {
+            draft_order["note"] = resolved_string_field(input, "note")
+                .map(Value::String)
+                .unwrap_or(Value::Null);
+        }
+        if input.contains_key("tags") {
+            draft_order["tags"] = json!(normalize_taggable_tags(
+                resolved_string_list_field_unsorted(input, "tags")
+            ));
+        }
+        if input.contains_key("customAttributes") || input.contains_key("properties") {
+            draft_order["customAttributes"] = json!(draft_order_input_custom_attributes(input));
+        }
+        if input.contains_key("shippingLine") {
+            draft_order["shippingLine"] = draft_order_shipping_line(input);
+        }
+        if input.contains_key("billingAddress") {
+            draft_order["billingAddress"] =
+                order_create_address(resolved_object_field(input, "billingAddress"));
+        }
+        if input.contains_key("shippingAddress") {
+            draft_order["shippingAddress"] =
+                order_create_address(resolved_object_field(input, "shippingAddress"));
+        }
+        if input.contains_key("lineItems") {
+            draft_order["lineItems"] = draft_order_line_items_connection(
+                &resolved_object_list_field(input, "lineItems"),
+                draft_order["id"].as_str().unwrap_or_default(),
+                draft_order_currency(&draft_order),
+            );
+            draft_order["__draftProxyLineItems"] = draft_order["lineItems"]["nodes"].clone();
+        }
+        if input.contains_key("appliedDiscount") {
+            draft_order["appliedDiscount"] = draft_order_applied_discount(input);
+        }
+        if input.contains_key("taxExempt") {
+            draft_order["taxExempt"] =
+                json!(resolved_bool_field(input, "taxExempt").unwrap_or(false));
+        }
+        if input.contains_key("taxesIncluded") {
+            draft_order["taxesIncluded"] =
+                json!(resolved_bool_field(input, "taxesIncluded").unwrap_or(false));
+        }
+        if input.contains_key("reserveInventoryUntil") {
+            draft_order["reserveInventoryUntil"] =
+                resolved_string_field(input, "reserveInventoryUntil")
+                    .map(Value::String)
+                    .unwrap_or(Value::Null);
+        }
+        if input.contains_key("paymentTerms") {
+            draft_order["paymentTerms"] = draft_order_payment_terms(input);
+        }
+        draft_order["updatedAt"] = json!("2024-01-01T00:00:00.000Z");
+        self.recalculate_draft_order_totals(&mut draft_order);
+        draft_order
+    }
+
+    fn recalculate_draft_order_totals(&self, draft_order: &mut Value) {
+        let currency = draft_order_currency(draft_order);
+        let line_items = draft_order_connection_nodes(&draft_order["lineItems"]);
+        let original_subtotal = line_items
+            .iter()
+            .filter_map(|line| line["originalTotalSet"]["shopMoney"]["amount"].as_str())
+            .filter_map(|amount| amount.parse::<f64>().ok())
+            .sum::<f64>();
+        let line_discount_total = draft_order_line_discount_total(&line_items);
+        let shipping_total = draft_order["shippingLine"]["originalPriceSet"]["shopMoney"]["amount"]
+            .as_str()
+            .and_then(|amount| amount.parse::<f64>().ok())
+            .unwrap_or(0.0);
+        let discount_total =
+            line_discount_total + draft_order_discount_amount(&draft_order["appliedDiscount"]);
+        let subtotal = (original_subtotal - discount_total).max(0.0);
+        let total = subtotal + shipping_total;
+        draft_order["subtotalPriceSet"] = order_create_money_set(subtotal, &currency);
+        draft_order["totalDiscountsSet"] = order_create_money_set(discount_total, &currency);
+        draft_order["totalShippingPriceSet"] = order_create_money_set(shipping_total, &currency);
+        draft_order["totalPriceSet"] = order_create_money_set(total, &currency);
+        draft_order["totalQuantityOfLineItems"] = json!(line_items
+            .iter()
+            .filter_map(|line| line["quantity"].as_i64())
+            .sum::<i64>());
+    }
+
+    fn build_draft_order_from_order_record(&self, id: &str, name: &str, order: &Value) -> Value {
+        let currency = order["currencyCode"]
+            .as_str()
+            .or_else(|| order["totalPriceSet"]["shopMoney"]["currencyCode"].as_str())
+            .unwrap_or("CAD")
+            .to_string();
+        let line_items = order["lineItems"]["nodes"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .enumerate()
+            .map(|(index, line)| draft_order_line_from_order_line(id, index, &line, &currency))
+            .collect::<Vec<_>>();
+        let mut draft_order = json!({
+            "id": id,
+            "name": name,
+            "status": "OPEN",
+            "ready": true,
+            "email": order["email"].clone(),
+            "note": order["note"].clone(),
+            "purchasingEntity": Value::Null,
+            "customer": order["customer"].clone(),
+            "taxExempt": false,
+            "taxesIncluded": false,
+            "reserveInventoryUntil": Value::Null,
+            "paymentTerms": Value::Null,
+            "tags": order["tags"].as_array().cloned().unwrap_or_default(),
+            "invoiceUrl": draft_order_invoice_url(id),
+            "customAttributes": order["customAttributes"].as_array().cloned().unwrap_or_default(),
+            "appliedDiscount": Value::Null,
+            "billingAddress": order["billingAddress"].clone(),
+            "shippingAddress": order["shippingAddress"].clone(),
+            "shippingLine": Value::Null,
+            "createdAt": "2024-01-01T00:00:00.000Z",
+            "updatedAt": "2024-01-01T00:00:00.000Z",
+            "completedAt": Value::Null,
+            "invoiceSentAt": Value::Null,
+            "order": Value::Null,
+            "orderId": Value::Null,
+            "lineItems": order_connection(line_items.clone()),
+            "__draftProxyLineItems": line_items,
+        });
+        if draft_order["customer"].is_null() {
+            draft_order["customer"] = Value::Null;
+        }
+        self.recalculate_draft_order_totals(&mut draft_order);
+        if let Some(order_total) = draft_order_total_from_order(order) {
+            draft_order["subtotalPriceSet"] = order_create_money_set(order_total, &currency);
+            draft_order["totalPriceSet"] = order_create_money_set(order_total, &currency);
+        }
+        draft_order
+    }
+
+    fn draft_order_bulk_target_ids(&self, field: &RootFieldSelection) -> Vec<String> {
+        let mut ids = resolved_string_list_arg(&field.arguments, "ids");
+        if ids.is_empty() && resolved_string_arg(&field.arguments, "search").is_some() {
+            ids = self.store.staged.draft_orders.keys().cloned().collect();
+        }
+        ids
+    }
+
+    fn sync_draft_order_tags(&mut self, id: &str) {
+        if let Some(draft_order) = self.store.staged.draft_orders.get(id) {
+            let tags = draft_order["tags"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|tag| tag.as_str().map(str::to_string))
+                .collect::<Vec<_>>();
+            self.store
+                .staged
+                .draft_order_tags
+                .insert(id.to_string(), tags);
+        }
+    }
+
+    fn sync_draft_order_record_tags(&mut self, id: &str) {
+        let Some(tags) = self.store.staged.draft_order_tags.get(id).cloned() else {
+            return;
+        };
+        if let Some(draft_order) = self.store.staged.draft_orders.get_mut(id) {
+            draft_order["tags"] = json!(tags);
+        }
+    }
+
     fn stage_completable_draft_order(
         &mut self,
         field: &RootFieldSelection,
@@ -3254,6 +4881,9 @@ impl DraftProxy {
                 &field.selection,
             );
         };
+        if draft_order.get("__draftProxyLineItems").is_none() {
+            draft_order["__draftProxyLineItems"] = draft_order["lineItems"]["nodes"].clone();
+        }
         let payment_gateway_id = resolved_string_arg(&field.arguments, "paymentGatewayId");
         if payment_gateway_id.is_some() {
             return selected_json(
@@ -4909,6 +6539,13 @@ impl DraftProxy {
             .staged
             .draft_order_tags
             .insert(id.clone(), tags.clone());
+        if !self.store.staged.draft_orders.contains_key(&id) {
+            let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+            let mut record = draft_order_base_record(&id, "#D1", &input, None, &BTreeMap::new());
+            self.recalculate_draft_order_totals(&mut record);
+            self.store.staged.draft_orders.insert(id.clone(), record);
+        }
+        self.sync_draft_order_record_tags(&id);
         selected_json(
             &json!({
                 "draftOrder": { "id": id, "tags": tags },
@@ -5009,6 +6646,7 @@ impl DraftProxy {
         }
 
         if !normalized_tags.iter().any(|tag| tag.chars().count() >= 256) {
+            let mut updated_ids = Vec::new();
             for id in valid_ids {
                 if let Some(current) = self.store.staged.draft_order_tags.get_mut(&id) {
                     let mut existing: BTreeSet<String> = current
@@ -5021,7 +6659,11 @@ impl DraftProxy {
                         }
                     }
                     current.sort_by_key(|tag| normalize_draft_order_tag(tag));
+                    updated_ids.push(id);
                 }
+            }
+            for id in updated_ids {
+                self.sync_draft_order_record_tags(&id);
             }
         }
 
@@ -5042,9 +6684,11 @@ impl DraftProxy {
             .map(|tag| normalize_draft_order_tag(tag))
             .collect();
         let mut user_errors = Vec::new();
+        let mut updated_ids = Vec::new();
         for (index, id) in ids.iter().enumerate() {
             if let Some(current) = self.store.staged.draft_order_tags.get_mut(id) {
                 current.retain(|tag| !tags.contains(&normalize_draft_order_tag(tag)));
+                updated_ids.push(id.clone());
             } else {
                 user_errors.push(json!({
                     "field": ["input", "ids", index.to_string()],
@@ -5052,6 +6696,9 @@ impl DraftProxy {
                     "code": "NOT_FOUND"
                 }));
             }
+        }
+        for id in updated_ids {
+            self.sync_draft_order_record_tags(&id);
         }
         let job = self.next_draft_order_bulk_tag_job();
         selected_json(

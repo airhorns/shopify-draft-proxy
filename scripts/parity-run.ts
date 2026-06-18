@@ -307,9 +307,27 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
       call.query ===
         'recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration';
     const canMatchSynthesizedNodeQuery = isSyntheticNodeCassette && /\bnode(?:s)?\s*\(/u.test(query);
+    const hydrationMatcher = {
+      OrdersDraftOrderCustomerHydrate: { requestRoot: /\bcustomer\s*\(/u, responseRoot: 'customer' },
+      OrdersDraftOrderHydrate: { requestRoot: /\bdraftOrder\s*\(/u, responseRoot: 'draftOrder' },
+      OrdersDraftOrderVariantHydrate: { requestRoot: /\bproductVariant\s*\(/u, responseRoot: 'productVariant' },
+      OrdersOrderHydrate: { requestRoot: /\border\s*\(/u, responseRoot: 'order' },
+    }[operationName];
+    const canMatchCassetteBackedHydration =
+      call.operationName === operationName &&
+      hydrationMatcher !== undefined &&
+      hydrationMatcher.requestRoot.test(query) &&
+      isPlainObject(call.response?.body) &&
+      isPlainObject((call.response.body as Record<string, unknown>)['data']) &&
+      isPlainObject(
+        ((call.response.body as Record<string, unknown>)['data'] as Record<string, unknown>)[
+          hydrationMatcher.responseRoot
+        ],
+      );
     return (
       variablesMatch &&
-      (canMatchSynthesizedNodeQuery ||
+      (canMatchCassetteBackedHydration ||
+        canMatchSynthesizedNodeQuery ||
         parsed['query'] === call.query ||
         (call.query === undefined && call.operationName === operationName && operationName.length > 0))
     );
