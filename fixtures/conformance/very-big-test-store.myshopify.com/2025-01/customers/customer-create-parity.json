@@ -8,7 +8,10 @@
         "locale": "en",
         "note": "customer create parity probe",
         "phone": "+14155550123",
-        "tags": ["parity", "create-1777081266467"],
+        "tags": [
+          "parity",
+          "create-1777081266467"
+        ],
         "taxExempt": true
       }
     },
@@ -26,7 +29,10 @@
             "verifiedEmail": true,
             "taxExempt": true,
             "taxExemptions": [],
-            "tags": ["create-1777081266467", "parity"],
+            "tags": [
+              "create-1777081266467",
+              "parity"
+            ],
             "state": "DISABLED",
             "canDelete": true,
             "loyalty": null,
@@ -78,7 +84,10 @@
         "verifiedEmail": true,
         "taxExempt": true,
         "taxExemptions": [],
-        "tags": ["create-1777081266467", "parity"],
+        "tags": [
+          "create-1777081266467",
+          "parity"
+        ],
         "state": "DISABLED",
         "canDelete": true,
         "loyalty": null,
@@ -158,16 +167,34 @@
   },
   "upstreamCalls": [
     {
-      "operationName": "CustomerCountHydrate",
-      "variables": {},
-      "query": "hand-synthesized from checked-in customer parity capture",
+      "operationName": "CustomerDuplicateHydrate",
+      "variables": {
+        "query": "email:hermes-customer-create-1777081266467@example.com"
+      },
+      "query": "\nquery CustomerDuplicateHydrate($query: String!) {\n  customers(first: 1, query: $query) {\n    nodes { id }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "customersCount": {
-              "count": 177,
-              "precision": "EXACT"
+            "customers": {
+              "nodes": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "CustomerDuplicateHydrate",
+      "variables": {
+        "query": "phone:+14155550123"
+      },
+      "query": "\nquery CustomerDuplicateHydrate($query: String!) {\n  customers(first: 1, query: $query) {\n    nodes { id }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": []
             }
           }
         }
