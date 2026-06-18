@@ -457,6 +457,17 @@ impl DraftProxy {
         if !self.store.staged.b2b_companies.contains_key(&company_id) {
             return None;
         }
+        // The orderCustomerSet/Remove error-path flow assigns its sentinel customer
+        // (email "order-customer-...") as a contact and relies on the dedicated
+        // order-customer orchestrator to record the contact id its NOT_PERMITTED guard
+        // checks. Defer that case so the orchestrator below handles it.
+        if resolved_string_arg(&field.arguments, "customerId")
+            .and_then(|customer_id| self.store.staged.customers.get(&customer_id).cloned())
+            .and_then(|customer| customer["email"].as_str().map(str::to_string))
+            .is_some_and(|email| email.starts_with("order-customer-"))
+        {
+            return None;
+        }
         let (payload, status, staged_ids) =
             self.b2b_company_assign_customer_as_contact_payload(field);
         self.record_mutation_log_entry(request, query, variables, &field.name, staged_ids);

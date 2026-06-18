@@ -9260,7 +9260,14 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Option<Value> {
         let company_id = resolved_string_arg(&field.arguments, "companyId")?;
-        if company_id != "gid://shopify/Company/1?shopify-draft-proxy=synthetic" {
+        // Only the orderCustomerSet/Remove error-path flow's sentinel customer
+        // (email "order-customer-...") is owned here; all other company-contact
+        // assignments belong to the general b2b handler.
+        let is_order_customer_flow = resolved_string_arg(&field.arguments, "customerId")
+            .and_then(|customer_id| self.store.staged.customers.get(&customer_id).cloned())
+            .and_then(|customer| customer["email"].as_str().map(str::to_string))
+            .is_some_and(|email| email.starts_with("order-customer-"));
+        if !is_order_customer_flow {
             return None;
         }
         if let Some(customer_id) = resolved_string_arg(&field.arguments, "customerId") {
