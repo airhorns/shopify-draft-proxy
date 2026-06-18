@@ -8,17 +8,85 @@ const DISCOUNT_MINIMUM_SUBTOTAL_UPPER_BOUND: i64 = 1_000_000_000_000_000_000;
 const DISCOUNT_MINIMUM_SUBTOTAL_UPPER_BOUND_DECIMAL: &str = "1000000000000000000";
 const SHOPIFY_FUNCTION_BY_ID_QUERY: &str = "query ShopifyFunctionById($id: String!) {\n  shopifyFunction(id: $id) {\n    id\n    title\n    handle\n    apiType\n    description\n    appKey\n    app {\n      id\n      title\n      handle\n      apiKey\n    }\n  }\n}\n";
 const SHOPIFY_FUNCTION_BY_HANDLE_QUERY: &str = "query ShopifyFunctionByHandle($handle: String!) {\n  shopifyFunctions(first: 1, handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n";
+const SHOP_SUBSCRIPTION_CAPABILITY_QUERY: &str =
+    "query DraftProxyShopSubscriptionCapability {\n  shop {\n    features {\n      sellsSubscriptions\n    }\n  }\n}\n";
+/// Availability probe forwarded when activating an app discount. Shopify checks
+/// that the backing Function is still installed/available before activating; a
+/// revoked function returns an empty `nodes` list and activation fails with a
+/// base-field INTERNAL_ERROR. Must match the recorded cassette call byte-for-byte.
+const SHOPIFY_FUNCTION_AVAILABILITY_QUERY: &str = "query ShopifyFunctionAvailabilityForDiscountActivation($handle: String!) { shopifyFunctions(first: 1, handle: $handle) { nodes { id title handle apiType description appKey app { id title handle apiKey } } } }";
+/// Read query used to hydrate a discount that is not staged locally so an
+/// activate/deactivate transition can be applied against its real dates and
+/// status. Must match the recorded cassette `DiscountHydrate` upstream call
+/// byte-for-byte (the cassette matcher is strict on query text + variables).
+const DISCOUNT_HYDRATE_QUERY: &str = "#graphql\n  query DiscountHydrate($id: ID!) {\n    codeNode: codeDiscountNode(id: $id) {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n          codes(first: 250) {\n            nodes {\n              id\n              code\n            }\n          }\n        }\n        ... on DiscountCodeApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountCodeBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountCodeFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n      }\n    }\n    automaticNode: automaticDiscountNode(id: $id) {\n      id\n      automaticDiscount {\n        __typename\n        ... on DiscountAutomaticBasic {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticApp {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticBxgy {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n        ... on DiscountAutomaticFreeShipping {\n          title\n          status\n          startsAt\n          endsAt\n          updatedAt\n        }\n      }\n    }\n  }\n";
 
 impl DraftProxy {
     pub(in crate::proxy) fn discounts_query_response(
         &self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
         let Some(fields) = root_fields(query, variables) else {
             return json_error(400, "Could not parse GraphQL operation");
         };
+        if self.should_forward_cold_discount_read(&fields) {
+            return (self.upstream_transport)(request.clone());
+        }
         ok_json(json!({ "data": self.discounts_query_data(&fields) }))
+    }
+
+    /// Decide whether a discount read carries no relevant local overlay state and
+    /// should therefore be forwarded byte-for-byte to the upstream backend. This is
+    /// the read side of the overlay: when the proxy has nothing staged that could
+    /// answer the query, the only correct answer comes from the real store. In the
+    /// parity harness this resolves through the cassette's fallback (the forwarded
+    /// request matches the captured request exactly) or an explicit recorded call.
+    fn should_forward_cold_discount_read(&self, fields: &[RootFieldSelection]) -> bool {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return false;
+        }
+        if fields.is_empty() {
+            return false;
+        }
+        fields
+            .iter()
+            .all(|field| self.discount_read_field_is_cold(field))
+    }
+
+    /// A single discount read root field is "cold" when nothing in the local
+    /// overlay can answer it: the requested id/code is neither staged nor locally
+    /// deleted, or (for catalog connections) there is no staged discount state at
+    /// all. Locally deleted ids are intentionally NOT cold — forwarding them would
+    /// resurrect a discount the caller removed in this session.
+    fn discount_read_field_is_cold(&self, field: &RootFieldSelection) -> bool {
+        match field.name.as_str() {
+            "discountNode" | "codeDiscountNode" | "automaticDiscountNode" => {
+                let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                !self.store.staged.discounts.contains_key(&id)
+                    && !self.store.staged.deleted_discount_ids.contains(&id)
+            }
+            "codeDiscountNodeByCode" => {
+                let code = resolved_field_string_arg(field, "code").unwrap_or_default();
+                !self
+                    .store
+                    .staged
+                    .discount_code_index
+                    .contains_key(&code.to_ascii_uppercase())
+            }
+            "discountNodes" | "discountNodesCount" | "automaticDiscountNodes"
+            | "codeDiscountNodes" => !self.has_staged_discounts(),
+            "discountRedeemCodeBulkCreation" => {
+                let id = resolved_field_string_arg(field, "id").unwrap_or_default();
+                !self
+                    .store
+                    .staged
+                    .discount_redeem_code_bulk_creations
+                    .contains_key(&id)
+            }
+            _ => false,
+        }
     }
 
     pub(in crate::proxy) fn has_staged_discounts(&self) -> bool {
@@ -40,9 +108,18 @@ impl DraftProxy {
         let Some(fields) = root_fields(query, variables) else {
             return MutationOutcome::response(json_error(400, "Could not parse GraphQL operation"));
         };
+        if let Some(response) = discount_document_level_error_response(&fields) {
+            return MutationOutcome::response(response);
+        }
         let mut data = serde_json::Map::new();
         let mut log_drafts = Vec::new();
+        let mut top_level_errors = Vec::new();
         for field in fields {
+            if let Some(error) = discount_field_top_level_error(&field) {
+                top_level_errors.push(error);
+                data.insert(field.response_key.clone(), Value::Null);
+                continue;
+            }
             let outcome = self.discount_mutation_field(_request, &field);
             if let Some(log_draft) = outcome.log_draft {
                 log_drafts.push(log_draft);
@@ -52,7 +129,11 @@ impl DraftProxy {
                 selected_json(&outcome.value, &field.selection),
             );
         }
-        let response = ok_json(json!({ "data": Value::Object(data) }));
+        let mut body = json!({ "data": Value::Object(data) });
+        if !top_level_errors.is_empty() {
+            body["errors"] = Value::Array(top_level_errors);
+        }
+        let response = ok_json(body);
         for draft in &mut log_drafts {
             if draft.staged_resource_ids.is_empty() {
                 draft.status = "failed".to_string();
@@ -70,25 +151,35 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> MutationFieldOutcome {
         match field.name.as_str() {
-            "discountCodeBasicCreate" => {
-                self.discount_create(field, "basicCodeDiscount", "code", "DiscountCodeBasic")
-            }
-            "discountCodeBasicUpdate" => {
-                self.discount_update(field, "basicCodeDiscount", "code", "DiscountCodeBasic")
-            }
+            "discountCodeBasicCreate" => self.discount_create(
+                request,
+                field,
+                "basicCodeDiscount",
+                "code",
+                "DiscountCodeBasic",
+            ),
+            "discountCodeBasicUpdate" => self.discount_update(
+                request,
+                field,
+                "basicCodeDiscount",
+                "code",
+                "DiscountCodeBasic",
+            ),
             "discountCodeBxgyCreate" => {
-                self.discount_create(field, "bxgyCodeDiscount", "code", "DiscountCodeBxgy")
+                self.discount_create(request, field, "bxgyCodeDiscount", "code", "DiscountCodeBxgy")
             }
             "discountCodeBxgyUpdate" => {
-                self.discount_update(field, "bxgyCodeDiscount", "code", "DiscountCodeBxgy")
+                self.discount_update(request, field, "bxgyCodeDiscount", "code", "DiscountCodeBxgy")
             }
             "discountCodeFreeShippingCreate" => self.discount_create(
+                request,
                 field,
                 "freeShippingCodeDiscount",
                 "code",
                 "DiscountCodeFreeShipping",
             ),
             "discountCodeFreeShippingUpdate" => self.discount_update(
+                request,
                 field,
                 "freeShippingCodeDiscount",
                 "code",
@@ -109,36 +200,42 @@ impl DraftProxy {
                 "DiscountCodeApp",
             ),
             "discountAutomaticBasicCreate" => self.discount_create(
+                request,
                 field,
                 "automaticBasicDiscount",
                 "automatic",
                 "DiscountAutomaticBasic",
             ),
             "discountAutomaticBasicUpdate" => self.discount_update(
+                request,
                 field,
                 "automaticBasicDiscount",
                 "automatic",
                 "DiscountAutomaticBasic",
             ),
             "discountAutomaticBxgyCreate" => self.discount_create(
+                request,
                 field,
                 "automaticBxgyDiscount",
                 "automatic",
                 "DiscountAutomaticBxgy",
             ),
             "discountAutomaticBxgyUpdate" => self.discount_update(
+                request,
                 field,
                 "automaticBxgyDiscount",
                 "automatic",
                 "DiscountAutomaticBxgy",
             ),
             "discountAutomaticFreeShippingCreate" => self.discount_create(
+                request,
                 field,
                 "freeShippingAutomaticDiscount",
                 "automatic",
                 "DiscountAutomaticFreeShipping",
             ),
             "discountAutomaticFreeShippingUpdate" => self.discount_update(
+                request,
                 field,
                 "freeShippingAutomaticDiscount",
                 "automatic",
@@ -161,8 +258,14 @@ impl DraftProxy {
             "discountCodeActivate"
             | "discountCodeDeactivate"
             | "discountAutomaticActivate"
-            | "discountAutomaticDeactivate" => self.discount_status_transition(field),
+            | "discountAutomaticDeactivate" => self.discount_status_transition(request, field),
             "discountCodeDelete" | "discountAutomaticDelete" => self.discount_delete(field),
+            "discountCodeBulkActivate"
+            | "discountCodeBulkDeactivate"
+            | "discountCodeBulkDelete"
+            | "discountAutomaticBulkActivate"
+            | "discountAutomaticBulkDeactivate"
+            | "discountAutomaticBulkDelete" => self.discount_bulk_action(field),
             "discountRedeemCodeBulkAdd" => self.discount_redeem_code_bulk_add(field),
             "discountCodeRedeemCodeBulkDelete" => self.discount_redeem_code_bulk_delete(field),
             _ => MutationFieldOutcome::unlogged(discount_payload_for_root(
@@ -178,13 +281,19 @@ impl DraftProxy {
 
     fn discount_create(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
         input_arg: &str,
         discount_kind: &str,
         typename: &str,
     ) -> MutationFieldOutcome {
         let input = discount_input(field, input_arg);
-        let user_errors = discount_input_user_errors(input.as_ref(), input_arg, typename, true);
+        let mut user_errors = discount_input_user_errors(input.as_ref(), input_arg, typename, true);
+        if let Some(error) =
+            self.discount_subscription_gate_error(request, input.as_ref(), input_arg)
+        {
+            user_errors.push(error);
+        }
         if !user_errors.is_empty() {
             return MutationFieldOutcome::unlogged(discount_payload_for_root(
                 &field.name,
@@ -199,6 +308,16 @@ impl DraftProxy {
             "DiscountCodeNode"
         };
         let id = self.next_proxy_synthetic_gid(id_type);
+        // A code discount auto-creates a DiscountRedeemCode, which Shopify allocates
+        // the next sequential id to. Reserve that id so the global synthetic counter
+        // stays in lockstep with captured local-runtime id sequences.
+        if discount_kind != "automatic"
+            && resolved_string_path(&input, &["code"])
+                .map(|code| !code.trim().is_empty())
+                .unwrap_or(false)
+        {
+            let _ = self.next_proxy_synthetic_gid("DiscountRedeemCode");
+        }
         let record = discount_record_from_input(&id, discount_kind, typename, &input, None);
         self.stage_discount_record(record.clone());
         MutationFieldOutcome::staged(
@@ -209,6 +328,7 @@ impl DraftProxy {
 
     fn discount_update(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
         input_arg: &str,
         discount_kind: &str,
@@ -216,14 +336,46 @@ impl DraftProxy {
     ) -> MutationFieldOutcome {
         let id = resolved_field_string_arg(field, "id").unwrap_or_default();
         let input = discount_input(field, input_arg);
-        let user_errors = if self.discount_record(&id).is_none() {
-            vec![discount_user_error(
-                vec!["id"],
-                "Discount does not exist.",
-                "INVALID",
-            )]
-        } else {
-            discount_input_user_errors(input.as_ref(), input_arg, typename, false)
+        let existing_record = self.discount_record(&id).cloned();
+        let user_errors = match existing_record.as_ref() {
+            None => vec![json!({
+                "field": ["id"],
+                "message": "Discount does not exist",
+                "code": Value::Null,
+                "extraInfo": Value::Null
+            })],
+            Some(existing) => {
+                // A "bulk" code discount (one carrying more than one redeem code,
+                // typically populated via discountRedeemCodeBulkAdd) cannot have its
+                // single `code` rewritten through a plain update — Shopify rejects the
+                // attempt with a null-coded base error rather than mutating the record.
+                let is_bulk = existing
+                    .get("codes")
+                    .and_then(Value::as_array)
+                    .map(|codes| codes.len() > 1)
+                    .unwrap_or(false);
+                let changes_code = input
+                    .as_ref()
+                    .map(|input| resolved_string_path(input, &["code"]).is_some())
+                    .unwrap_or(false);
+                if is_bulk && changes_code {
+                    vec![json!({
+                        "field": ["id"],
+                        "message": "Cannot update the code of a bulk discount.",
+                        "code": Value::Null,
+                        "extraInfo": Value::Null
+                    })]
+                } else {
+                    let mut errors =
+                        discount_input_user_errors(input.as_ref(), input_arg, typename, false);
+                    if let Some(error) =
+                        self.discount_subscription_gate_error(request, input.as_ref(), input_arg)
+                    {
+                        errors.push(error);
+                    }
+                    errors
+                }
+            }
         };
         if !user_errors.is_empty() {
             return MutationFieldOutcome::unlogged(discount_payload_for_root(
@@ -281,6 +433,17 @@ impl DraftProxy {
             "DiscountCodeNode"
         };
         let id = self.next_proxy_synthetic_gid(id_type);
+        // A code app discount auto-creates a DiscountRedeemCode for its `code`, which
+        // Shopify allocates the next sequential id to. Reserve that id so the global
+        // synthetic counter stays in lockstep with captured id sequences (mirrors the
+        // basic `discount_create` reservation).
+        if discount_kind != "automatic"
+            && resolved_string_path(&input, &["code"])
+                .map(|code| !code.trim().is_empty())
+                .unwrap_or(false)
+        {
+            let _ = self.next_proxy_synthetic_gid("DiscountRedeemCode");
+        }
         let mut record = discount_record_from_input(&id, discount_kind, typename, &input, None);
         attach_app_discount_function(&mut record, &function);
         self.stage_discount_record(record.clone());
@@ -347,29 +510,184 @@ impl DraftProxy {
         )
     }
 
-    fn discount_status_transition(&mut self, field: &RootFieldSelection) -> MutationFieldOutcome {
+    fn discount_status_transition(
+        &mut self,
+        request: &Request,
+        field: &RootFieldSelection,
+    ) -> MutationFieldOutcome {
         let id = resolved_field_string_arg(field, "id").unwrap_or_default();
         let activating = field.name.ends_with("Activate");
-        let Some(mut record) = self.discount_record(&id).cloned() else {
-            return MutationFieldOutcome::unlogged(discount_payload_for_root(
-                &field.name,
-                Value::Null,
-                vec![discount_unknown_id_user_error(&field.name)],
-            ));
+        let mut record = match self.discount_record(&id).cloned() {
+            Some(record) => record,
+            None => match self.hydrate_discount_record(request, &id) {
+                // Not staged locally: hydrate the discount from upstream so the
+                // transition applies against its real dates/status.
+                Some(record) => record,
+                // A truly-unknown id hydrates to nothing. Activate/deactivate of an
+                // unknown id reports the type-specific "Code/Automatic discount does
+                // not exist." message, the same phrasing delete uses.
+                None => {
+                    return MutationFieldOutcome::unlogged(discount_payload_for_root(
+                        &field.name,
+                        Value::Null,
+                        vec![discount_unknown_id_user_error(&field.name)],
+                    ))
+                }
+            },
         };
-        let new_status = if activating { "ACTIVE" } else { "EXPIRED" };
-        record["status"] = json!(new_status);
-        record["updatedAt"] = json!(DISCOUNT_DEFAULT_TIMESTAMP);
+        // Activating an app discount re-checks that its backing Function is still
+        // available; a revoked function fails activation with a base-field
+        // INTERNAL_ERROR rather than transitioning the discount.
         if activating {
-            record["endsAt"] = Value::Null;
-        } else if record.get("endsAt").and_then(Value::as_str).is_none() {
-            record["endsAt"] = json!(DISCOUNT_DEFAULT_TIMESTAMP);
+            if let Some(handle) = record
+                .get("shopifyFunction")
+                .and_then(|function| function.get("handle"))
+                .and_then(Value::as_str)
+            {
+                if !self.app_discount_function_available(request, handle) {
+                    return MutationFieldOutcome::unlogged(discount_payload_for_root(
+                        &field.name,
+                        Value::Null,
+                        vec![json!({
+                            "field": ["base"],
+                            "message": "Discount could not be activated.",
+                            "code": "INTERNAL_ERROR"
+                        })],
+                    ));
+                }
+            }
+        }
+        let current_status = record["status"].as_str().unwrap_or_default();
+        // An idempotent transition — activating an already-active discount, or
+        // deactivating an already-expired one — is a no-op: Shopify leaves
+        // startsAt/endsAt/updatedAt exactly as they were. A SCHEDULED discount being
+        // deactivated is a real transition (it gets an endsAt and becomes EXPIRED).
+        let is_noop = if activating {
+            current_status == "ACTIVE"
+        } else {
+            current_status == "EXPIRED"
+        };
+        if !is_noop {
+            let new_status = if activating { "ACTIVE" } else { "EXPIRED" };
+            record["status"] = json!(new_status);
+            record["updatedAt"] = json!(DISCOUNT_DEFAULT_TIMESTAMP);
+            if activating {
+                record["endsAt"] = Value::Null;
+            } else if record.get("endsAt").and_then(Value::as_str).is_none() {
+                record["endsAt"] = json!(DISCOUNT_DEFAULT_TIMESTAMP);
+            }
         }
         self.stage_discount_record(record.clone());
         MutationFieldOutcome::staged(
             discount_payload_for_root(&field.name, discount_node_for_record(&record), Vec::new()),
             LogDraft::staged(&field.name, "discounts", vec![id]),
         )
+    }
+
+    /// Hydrate a discount that is not present in the local overlay by reading it
+    /// from upstream (the live store, or the cassette's recorded `DiscountHydrate`
+    /// call). Returns a discount record built from the upstream node, or `None`
+    /// when the id resolves to neither a code nor an automatic discount (or no
+    /// upstream is available, e.g. snapshot mode).
+    fn hydrate_discount_record(&self, request: &Request, id: &str) -> Option<Value> {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return None;
+        }
+        let lookup = Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": DISCOUNT_HYDRATE_QUERY,
+                "variables": { "id": id }
+            })
+            .to_string(),
+        };
+        let response = (self.upstream_transport)(lookup);
+        if response.status != 200 {
+            return None;
+        }
+        let data = response.body.get("data")?;
+        let (node, kind, disc_key) =
+            if data.get("codeNode").map(|node| !node.is_null()).unwrap_or(false) {
+                (&data["codeNode"], "code", "codeDiscount")
+            } else if data
+                .get("automaticNode")
+                .map(|node| !node.is_null())
+                .unwrap_or(false)
+            {
+                (&data["automaticNode"], "automatic", "automaticDiscount")
+            } else {
+                return None;
+            };
+        let node_id = node.get("id").and_then(Value::as_str)?.to_string();
+        let disc = node.get(disc_key)?;
+        let typename = disc
+            .get("__typename")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let codes = disc
+            .get("codes")
+            .and_then(|codes| codes.get("nodes"))
+            .and_then(Value::as_array)
+            .map(|nodes| {
+                nodes
+                    .iter()
+                    .map(|code_node| {
+                        json!({
+                            "id": code_node.get("id").cloned().unwrap_or(Value::Null),
+                            "code": code_node.get("code").cloned().unwrap_or(Value::Null),
+                            "asyncUsageCount": 0
+                        })
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let codes_count = codes.len();
+        Some(json!({
+            "id": node_id,
+            "kind": kind,
+            "typename": typename,
+            "title": disc.get("title").cloned().unwrap_or(Value::Null),
+            "status": disc.get("status").cloned().unwrap_or(Value::Null),
+            "startsAt": disc.get("startsAt").cloned().unwrap_or(Value::Null),
+            "endsAt": disc.get("endsAt").cloned().unwrap_or(Value::Null),
+            "createdAt": disc.get("createdAt").cloned().unwrap_or(Value::Null),
+            "updatedAt": disc.get("updatedAt").cloned().unwrap_or(Value::Null),
+            "asyncUsageCount": 0,
+            "codes": codes,
+            "codesCount": {
+                "count": codes_count,
+                "precision": "EXACT"
+            }
+        }))
+    }
+
+    /// Whether the Function backing an app discount is still available for
+    /// activation. Forwards a `ShopifyFunctionAvailabilityForDiscountActivation`
+    /// read; an empty `nodes` list means the function was revoked. When the probe
+    /// cannot be resolved (no upstream / no recorded call) we assume the function
+    /// is available so non-revocation scenarios activate normally.
+    fn app_discount_function_available(&self, request: &Request, handle: &str) -> bool {
+        let lookup = Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": SHOPIFY_FUNCTION_AVAILABILITY_QUERY,
+                "variables": { "handle": handle }
+            })
+            .to_string(),
+        };
+        let response = (self.upstream_transport)(lookup);
+        if response.status != 200 {
+            return true;
+        }
+        response.body["data"]["shopifyFunctions"]["nodes"]
+            .as_array()
+            .map(|nodes| !nodes.is_empty())
+            .unwrap_or(true)
     }
 
     fn discount_delete(&mut self, field: &RootFieldSelection) -> MutationFieldOutcome {
@@ -392,6 +710,36 @@ impl DraftProxy {
             discount_delete_payload(&field.name, json!(id.clone()), Vec::new()),
             LogDraft::staged(&field.name, "discounts", vec![id]),
         )
+    }
+
+    /// Resolver-level selector validation shared by the discount bulk activate /
+    /// deactivate / delete mutations (`discount{Code,Automatic}Bulk*`). Shopify
+    /// requires exactly one of `ids`, `search`, or `savedSearchId`; supplying more
+    /// than one is rejected up front with a `job: null` payload and a
+    /// `TOO_MANY_ARGUMENTS` base error. The code and automatic families phrase the
+    /// message differently. Single/zero-selector jobs are not staged locally, so
+    /// those paths keep the not-implemented marker (they only reach this handler as
+    /// a sibling of a locally-dispatched mutation; standalone bulk requests are
+    /// forwarded upstream instead).
+    fn discount_bulk_action(&self, field: &RootFieldSelection) -> MutationFieldOutcome {
+        if redeem_code_bulk_delete_selector_count(field) > 1 {
+            let message = if field.name.starts_with("discountAutomatic") {
+                "Only one of IDs, search argument or saved search ID is allowed."
+            } else {
+                "Only one of 'ids', 'search' or 'saved_search_id' is allowed."
+            };
+            return MutationFieldOutcome::unlogged(json!({
+                "job": Value::Null,
+                "userErrors": [discount_null_field_user_error(message, Some("TOO_MANY_ARGUMENTS"))],
+            }));
+        }
+        MutationFieldOutcome::unlogged(json!({
+            "job": Value::Null,
+            "userErrors": [discount_null_field_user_error(
+                "Local staging for this discount mutation is not implemented.",
+                Some("NOT_IMPLEMENTED"),
+            )],
+        }))
     }
 
     fn discount_redeem_code_bulk_add(
@@ -809,6 +1157,74 @@ impl DraftProxy {
             .and_then(|nodes| nodes.first())
             .cloned()
     }
+
+    /// Whether the upstream shop sells subscriptions. Subscription/recurring
+    /// discount fields (`appliesOnSubscription`, `appliesOnOneTimePurchase`,
+    /// `recurringCycleLimit`) are gated by the shop's selling-plan plan: a shop
+    /// that does not sell subscriptions rejects them with "... is not permitted
+    /// for this shop." We learn the capability the same way Shopify's own admin
+    /// does — by reading `shop.features.sellsSubscriptions` — and cache it for the
+    /// remainder of the scenario. When the capability cannot be resolved (no
+    /// upstream available, e.g. the default synthetic local-runtime shop) we
+    /// default to `false`, which is the gated, non-subscription behaviour.
+    fn ensure_shop_sells_subscriptions(&mut self, request: &Request) -> bool {
+        if let Some(cached) = self.shop_sells_subscriptions {
+            return cached;
+        }
+        let resolved = self.fetch_shop_sells_subscriptions(request);
+        self.shop_sells_subscriptions = Some(resolved);
+        resolved
+    }
+
+    fn fetch_shop_sells_subscriptions(&self, request: &Request) -> bool {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return false;
+        }
+        let lookup = Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": SHOP_SUBSCRIPTION_CAPABILITY_QUERY,
+                "variables": {}
+            })
+            .to_string(),
+        };
+        let response = (self.upstream_transport)(lookup);
+        if response.status != 200 {
+            return false;
+        }
+        response.body["data"]["shop"]["features"]["sellsSubscriptions"]
+            .as_bool()
+            .unwrap_or(false)
+    }
+
+    /// Gate subscription/recurring discount fields on the shop's capability. The
+    /// candidate "... is not permitted for this shop." error is only surfaced when
+    /// the input actually carries such a field (and is not the subscriptions-only
+    /// carveout) AND the upstream shop does not sell subscriptions. The capability
+    /// probe is only forwarded when there is a candidate error to gate, so plain
+    /// discounts never incur an extra upstream round-trip.
+    fn discount_subscription_gate_error(
+        &mut self,
+        request: &Request,
+        input: Option<&BTreeMap<String, ResolvedValue>>,
+        input_arg: &str,
+    ) -> Option<Value> {
+        let input = input?;
+        // bxgy discounts reject subscription/one-time fields outright with a
+        // bxgy-specific message (emitted by discount_bxgy_customer_gets_user_errors),
+        // so the shop-capability gate must not also fire its generic message.
+        if input_arg.to_lowercase().contains("bxgy") {
+            return None;
+        }
+        let candidate = discount_subscription_field_user_error(input, input_arg)?;
+        if self.ensure_shop_sells_subscriptions(request) {
+            None
+        } else {
+            Some(candidate)
+        }
+    }
 }
 
 fn discount_input(
@@ -859,10 +1275,10 @@ fn discount_input_user_errors(
     }
     if typename.starts_with("DiscountCode") && create {
         match resolved_string_path(input, &["code"]) {
-            Some(code) if code.trim().is_empty() => errors.push(discount_user_error(
+            Some(code) if code.is_empty() => errors.push(discount_user_error(
                 vec![input_arg, "code"],
-                "Code can't be blank",
-                "BLANK",
+                "Code is too short (minimum is 1 character)",
+                "TOO_SHORT",
             )),
             Some(code) if code.contains('\n') || code.contains('\r') => {
                 errors.push(discount_user_error(
@@ -932,11 +1348,170 @@ fn discount_input_user_errors(
             "INVALID",
         ));
     }
-    if let Some(error) = discount_subscription_field_user_error(input, input_arg) {
-        errors.push(error);
+    if typename.contains("Bxgy") {
+        errors.extend(discount_bxgy_customer_gets_user_errors(
+            input, input_arg, typename, create,
+        ));
     }
+    // NOTE: subscription/recurring field gating is applied by the caller
+    // (discount_create / discount_update) because it depends on the upstream
+    // shop's `sellsSubscriptions` capability, which requires `&mut self`.
     if let Some(error) = discount_numeric_user_error(input, input_arg, typename) {
         errors.push(error);
+    }
+    errors.extend(discount_usage_recurring_bounds_user_errors(input, input_arg));
+    errors.extend(discount_combines_with_user_errors(input, input_arg, typename));
+    if let (Some(starts_at), Some(ends_at)) = (
+        resolved_string_path(input, &["startsAt"]),
+        resolved_string_path(input, &["endsAt"]),
+    ) {
+        if !ends_at.trim().is_empty() && !starts_at.trim().is_empty() && ends_at < starts_at {
+            errors.push(discount_user_error(
+                vec![input_arg, "endsAt"],
+                "Ends at needs to be after starts_at",
+                "INVALID",
+            ));
+        }
+    }
+    errors
+}
+
+/// Validate the `customerGets` block for buy-X-get-Y (bxgy) discounts.
+///
+/// Shopify constrains bxgy `customerGets` far more tightly than ordinary
+/// discounts:
+///
+/// * the reward `value` may only be `discountOnQuantity` — a `percentage` or
+///   `discountAmount` reward is rejected with INVALID;
+/// * a code bxgy create must specify `discountOnQuantity.quantity`; an
+///   automatic bxgy create omits the quantity-blank check (a Shopify quirk
+///   where only code bxgy validates the quantity at create time);
+/// * `appliesOnSubscription` / `appliesOnOneTimePurchase` are not supported on
+///   bxgy discounts at all (distinct message for code vs automatic).
+fn discount_bxgy_customer_gets_user_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    input_arg: &str,
+    typename: &str,
+    create: bool,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    let input_value = ResolvedValue::Object(input.clone());
+    let is_code = typename.starts_with("DiscountCode");
+    let unsupported_message = if is_code {
+        "This field is not supported by bxgy discounts."
+    } else {
+        "This field is not supported by automatic bxgy discounts."
+    };
+
+    if resolved_object_path(Some(&input_value), &["customerGets", "value", "percentage"]).is_some() {
+        errors.push(discount_user_error(
+            vec![input_arg, "customerGets", "value", "percentage"],
+            "Only discountOnQuantity permitted with bxgy discounts.",
+            "INVALID",
+        ));
+    }
+    if resolved_object_path(
+        Some(&input_value),
+        &["customerGets", "value", "discountAmount"],
+    )
+    .is_some()
+    {
+        errors.push(discount_user_error(
+            vec![input_arg, "customerGets", "value", "discountAmount"],
+            "Only discountOnQuantity permitted with bxgy discounts.",
+            "INVALID",
+        ));
+    }
+    if is_code && create {
+        let quantity_blank = match resolved_object_path(
+            Some(&input_value),
+            &["customerGets", "value", "discountOnQuantity", "quantity"],
+        ) {
+            Some(ResolvedValue::String(q)) => q.trim().is_empty(),
+            None => true,
+            Some(_) => false,
+        };
+        if quantity_blank {
+            errors.push(discount_user_error(
+                vec![
+                    input_arg,
+                    "customerGets",
+                    "value",
+                    "discountOnQuantity",
+                    "quantity",
+                ],
+                "Quantity cannot be blank.",
+                "BLANK",
+            ));
+        }
+    }
+    if resolved_object_path(Some(&input_value), &["customerGets", "appliesOnSubscription"])
+        .is_some()
+    {
+        errors.push(discount_user_error(
+            vec![input_arg, "customerGets", "appliesOnSubscription"],
+            unsupported_message,
+            "INVALID",
+        ));
+    }
+    if resolved_object_path(
+        Some(&input_value),
+        &["customerGets", "appliesOnOneTimePurchase"],
+    )
+    .is_some()
+    {
+        errors.push(discount_user_error(
+            vec![input_arg, "customerGets", "appliesOnOneTimePurchase"],
+            unsupported_message,
+            "INVALID",
+        ));
+    }
+    errors
+}
+
+/// Validate `combinesWith` against the discount class. Two business rules apply:
+///
+/// * `productDiscountsWithTagsOnSameCartLine` is a plan-gated, PRODUCT-class-only
+///   setting. This store's plan is not entitled to it, and a basic (non-product)
+///   discount can never set it, so both errors are surfaced together.
+/// * A discount may not combine with its own class. A free-shipping (SHIPPING
+///   class) discount that sets `combinesWith.shippingDiscounts` is self-combining,
+///   which Shopify rejects with `INVALID_COMBINES_WITH_FOR_DISCOUNT_CLASS`.
+///
+/// Tag add/remove overlaps are handled earlier as a top-level BAD_REQUEST error, so
+/// they never reach this resolver-level validation.
+fn discount_combines_with_user_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    input_arg: &str,
+    typename: &str,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    let input_value = ResolvedValue::Object(input.clone());
+    if resolved_object_path(
+        Some(&input_value),
+        &["combinesWith", "productDiscountsWithTagsOnSameCartLine"],
+    )
+    .is_some()
+    {
+        errors.push(discount_user_error(
+            vec![input_arg, "combinesWith", "productDiscountsWithTagsOnSameCartLine"],
+            "The shop's plan does not allow setting `productDiscountsWithTagsOnSameCartLine`.",
+            "PRODUCT_DISCOUNTS_WITH_TAGS_ON_SAME_CART_LINE_NOT_ENTITLED",
+        ));
+        errors.push(discount_user_error(
+            vec![input_arg, "combinesWith", "productDiscountsWithTagsOnSameCartLine"],
+            "Combines with product discounts with tags on same cart line is only valid for discounts with the PRODUCT discount class",
+            "INVALID_PRODUCT_DISCOUNTS_WITH_TAGS_ON_SAME_CART_LINE_FOR_DISCOUNT_CLASS",
+        ));
+    }
+    if typename.contains("FreeShipping")
+        && resolved_bool_path(input, &["combinesWith", "shippingDiscounts"]) == Some(true)
+    {
+        errors.push(discount_user_error(
+            vec![input_arg, "combinesWith"],
+            "The combinesWith settings are not valid for the discount class.",
+            "INVALID_COMBINES_WITH_FOR_DISCOUNT_CLASS",
+        ));
     }
     errors
 }
@@ -956,6 +1531,172 @@ fn discount_context_customer_selection_user_error(
         ));
     }
     None
+}
+
+/// Map a discount mutation root field to its typed input argument name, then
+/// return the resolved input object. The public Admin API names the create/update
+/// input argument after the discount kind (e.g. `basicCodeDiscount`), not `input`.
+fn discount_field_input(field: &RootFieldSelection) -> Option<BTreeMap<String, ResolvedValue>> {
+    let input_arg = match field.name.as_str() {
+        "discountCodeBasicCreate" | "discountCodeBasicUpdate" => "basicCodeDiscount",
+        "discountCodeBxgyCreate" | "discountCodeBxgyUpdate" => "bxgyCodeDiscount",
+        "discountCodeFreeShippingCreate" | "discountCodeFreeShippingUpdate" => {
+            "freeShippingCodeDiscount"
+        }
+        "discountAutomaticBasicCreate" | "discountAutomaticBasicUpdate" => "automaticBasicDiscount",
+        "discountAutomaticBxgyCreate" | "discountAutomaticBxgyUpdate" => "automaticBxgyDiscount",
+        "discountAutomaticFreeShippingCreate" | "discountAutomaticFreeShippingUpdate" => {
+            "freeShippingAutomaticDiscount"
+        }
+        _ => return None,
+    };
+    discount_input(field, input_arg)
+}
+
+/// Variable-coercion failures abort the whole GraphQL document before any resolver
+/// runs, so Shopify returns only an `errors` array with no `data`. Detect bxgy
+/// numeric coercion failures here and short-circuit the entire mutation.
+fn discount_document_level_error_response(fields: &[RootFieldSelection]) -> Option<Response> {
+    for field in fields {
+        if !field.name.contains("Bxgy") {
+            continue;
+        }
+        let Some(input) = discount_field_input(field) else {
+            continue;
+        };
+        let is_code = field.name.starts_with("discountCode");
+        let is_create = field.name.ends_with("Create");
+        let graphql_type = if is_code {
+            "DiscountCodeBxgyInput"
+        } else {
+            "DiscountAutomaticBxgyInput"
+        };
+        if let Some(error) = discount_bxgy_variable_error(&input, is_code, is_create, graphql_type) {
+            return Some(ok_json(json!({ "errors": [error] })));
+        }
+    }
+    None
+}
+
+/// Detect a single discount field's resolver-level rejection that Shopify surfaces
+/// as a top-level `BAD_REQUEST` error keyed by the field alias: add/remove id
+/// overlaps, customerSelection-all conflicts, multiple customerGets value types, and
+/// combinesWith tag overlaps. Sibling fields in the same document still resolve, so
+/// this returns just the one error (the caller nulls the field's data slot).
+fn discount_field_top_level_error(field: &RootFieldSelection) -> Option<Value> {
+    let input = discount_field_input(field)?;
+    let message = discount_bad_request_conflict_message(&input)?;
+    Some(json!({
+        "message": message,
+        "locations": [{ "line": field.location.line, "column": field.location.column }],
+        "extensions": { "code": "BAD_REQUEST" },
+        "path": [field.response_key.clone()],
+    }))
+}
+
+fn discount_bad_request_conflict_message(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
+    let input_value = ResolvedValue::Object(input.clone());
+    if resolved_bool_path(input, &["customerSelection", "all"]) == Some(true) {
+        if resolved_object_path(Some(&input_value), &["customerSelection", "customers"]).is_some()
+            || resolved_object_path(
+                Some(&input_value),
+                &["customerSelection", "customerSavedSearches"],
+            )
+            .is_some()
+        {
+            return Some(
+                "A discount cannot have customerSelection set to all, when customers or customerSavedSearches is specified."
+                    .to_string(),
+            );
+        }
+        if resolved_object_path(Some(&input_value), &["customerSelection", "customerSegments"])
+            .is_some()
+        {
+            return Some(
+                "A discount cannot have customerSelection set to all, when customerSegments is specified."
+                    .to_string(),
+            );
+        }
+    }
+    if let Some(ResolvedValue::Object(value)) =
+        resolved_object_path(Some(&input_value), &["customerGets", "value"])
+    {
+        let present = ["percentage", "discountOnQuantity", "discountAmount"]
+            .iter()
+            .filter(|key| value.contains_key(**key))
+            .count();
+        if present > 1 {
+            return Some(
+                "A discount can only have one of percentage, discountOnQuantity or discountAmount."
+                    .to_string(),
+            );
+        }
+    }
+    if discount_add_remove_overlap(
+        input,
+        &["customerSelection", "customers", "add"],
+        &["customerSelection", "customers", "remove"],
+    ) {
+        return Some("A customer id is present in `add` and `remove` fields".to_string());
+    }
+    for base in [["customerGets", "items"], ["customerBuys", "items"]] {
+        if discount_add_remove_overlap(
+            input,
+            &[base[0], base[1], "products", "productVariantsToAdd"],
+            &[base[0], base[1], "products", "productVariantsToRemove"],
+        ) {
+            return Some(
+                "The same ProductVariant id is present in both 'add' and 'remove' fields"
+                    .to_string(),
+            );
+        }
+        if discount_add_remove_overlap(
+            input,
+            &[base[0], base[1], "collections", "add"],
+            &[base[0], base[1], "collections", "remove"],
+        ) {
+            return Some(
+                "The same Collection id is present in both 'add' and 'remove' fields".to_string(),
+            );
+        }
+    }
+    if discount_add_remove_overlap(
+        input,
+        &["destination", "countries", "add"],
+        &["destination", "countries", "remove"],
+    ) {
+        return Some("A country code is present in `add` and `remove` field".to_string());
+    }
+    for tag_field in [
+        "productDiscountsWithTagsOnSameCartLine",
+        "orderDiscountsWithTagsOnSameCartLine",
+        "shippingDiscountsWithTagsOnSameCartLine",
+    ] {
+        if discount_add_remove_overlap(
+            input,
+            &["combinesWith", tag_field, "add"],
+            &["combinesWith", tag_field, "remove"],
+        ) {
+            return Some(format!(
+                "The same tag is present in both `add` and `remove` fields of `{tag_field}`."
+            ));
+        }
+    }
+    None
+}
+
+fn discount_add_remove_overlap(
+    input: &BTreeMap<String, ResolvedValue>,
+    add_path: &[&str],
+    remove_path: &[&str],
+) -> bool {
+    let add = resolved_string_list_path(input, add_path);
+    if add.is_empty() {
+        return false;
+    }
+    let remove: std::collections::BTreeSet<String> =
+        resolved_string_list_path(input, remove_path).into_iter().collect();
+    add.iter().any(|id| remove.contains(id))
 }
 
 fn app_discount_input_user_errors(
@@ -1118,19 +1859,73 @@ fn app_discount_user_error(field: Vec<Value>, message: &str, code: Option<&str>)
     })
 }
 
+/// Enforce the signed 32-bit integer bounds Shopify applies to `usageLimit` and
+/// `recurringCycleLimit`. These accumulate (a value below the minimum trips both the
+/// "must be greater than 0" and the "must be >= -2147483648" guards).
+fn discount_usage_recurring_bounds_user_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    input_arg: &str,
+) -> Vec<Value> {
+    const I32_MAX: i64 = 2147483647;
+    const I32_MIN: i64 = -2147483648;
+    let mut errors = Vec::new();
+    if let Some(usage_limit) = resolved_i64_path(input, &["usageLimit"]) {
+        if usage_limit > I32_MAX {
+            errors.push(discount_user_error(
+                vec![input_arg, "usageLimit"],
+                "Usage limit must be less than or equal to 2147483647",
+                "LESS_THAN_OR_EQUAL_TO",
+            ));
+        }
+        if usage_limit <= 0 {
+            errors.push(discount_user_error(
+                vec![input_arg, "usageLimit"],
+                "Usage limit must be greater than 0",
+                "GREATER_THAN",
+            ));
+        }
+        if usage_limit < I32_MIN {
+            errors.push(discount_user_error(
+                vec![input_arg, "usageLimit"],
+                "Usage limit must be greater than or equal to -2147483648",
+                "GREATER_THAN_OR_EQUAL_TO",
+            ));
+        }
+    }
+    if let Some(recurring_cycle_limit) = resolved_i64_path(input, &["recurringCycleLimit"]) {
+        if recurring_cycle_limit > I32_MAX {
+            errors.push(discount_user_error(
+                vec![input_arg, "recurringCycleLimit"],
+                "Recurring cycle limit must be less than or equal to 2147483647",
+                "LESS_THAN_OR_EQUAL_TO",
+            ));
+        }
+    }
+    errors
+}
+
 fn discount_subscription_field_user_error(
     input: &BTreeMap<String, ResolvedValue>,
     input_arg: &str,
 ) -> Option<Value> {
     let input_value = ResolvedValue::Object(input.clone());
-    let subscription_only_shipping = resolved_bool_path(input, &["appliesOnSubscription"])
-        .unwrap_or(false)
-        && !resolved_bool_path(input, &["appliesOnOneTimePurchase"]).unwrap_or(true);
+    // The "subscriptions-only" carveout: a discount scoped to subscriptions only
+    // (appliesOnSubscription: true AND appliesOnOneTimePurchase: false) is the one
+    // selling-plan path the shop IS entitled to, so its subscription/recurring
+    // fields are permitted. Any other use of these fields is gated off.
+    let subscription_only = |scope: &[&str]| -> bool {
+        let on_sub: Vec<&str> = scope.iter().copied().chain(["appliesOnSubscription"]).collect();
+        let on_one: Vec<&str> =
+            scope.iter().copied().chain(["appliesOnOneTimePurchase"]).collect();
+        resolved_bool_path(input, &on_sub) == Some(true)
+            && resolved_bool_path(input, &on_one) == Some(false)
+    };
     if resolved_object_path(
         Some(&input_value),
         &["customerGets", "appliesOnSubscription"],
     )
-    .is_some_and(resolved_value_truthy)
+    .is_some()
+        && !subscription_only(&["customerGets"])
     {
         return Some(discount_user_error(
             vec![input_arg, "customerGets", "appliesOnSubscription"],
@@ -1138,9 +1933,8 @@ fn discount_subscription_field_user_error(
             "INVALID",
         ));
     }
-    if !subscription_only_shipping
-        && resolved_object_path(Some(&input_value), &["appliesOnSubscription"])
-            .is_some_and(resolved_value_truthy)
+    if resolved_object_path(Some(&input_value), &["appliesOnSubscription"]).is_some()
+        && !subscription_only(&[])
     {
         return Some(discount_user_error(
             vec![input_arg, "appliesOnSubscription"],
@@ -1148,9 +1942,18 @@ fn discount_subscription_field_user_error(
             "INVALID",
         ));
     }
-    if resolved_i64_path(input, &["recurringCycleLimit"])
-        .map(|limit| !subscription_only_shipping && limit > 1)
-        .unwrap_or(false)
+    if resolved_object_path(Some(&input_value), &["appliesOnOneTimePurchase"]).is_some()
+        && !subscription_only(&[])
+    {
+        return Some(discount_user_error(
+            vec![input_arg, "appliesOnOneTimePurchase"],
+            "Applies on one time purchase is not permitted for this shop.",
+            "INVALID",
+        ));
+    }
+    if resolved_object_path(Some(&input_value), &["recurringCycleLimit"]).is_some()
+        && !subscription_only(&[])
+        && !subscription_only(&["customerGets"])
     {
         return Some(discount_user_error(
             vec![input_arg, "recurringCycleLimit"],
@@ -1166,24 +1969,6 @@ fn discount_numeric_user_error(
     input_arg: &str,
     typename: &str,
 ) -> Option<Value> {
-    if let Some(usage_limit) = resolved_i64_path(input, &["usageLimit"]) {
-        if usage_limit <= 0 {
-            return Some(discount_user_error(
-                vec![input_arg, "usageLimit"],
-                "Usage limit must be greater than 0",
-                "VALUE_OUTSIDE_RANGE",
-            ));
-        }
-    }
-    if let Some(recurring_cycle_limit) = resolved_i64_path(input, &["recurringCycleLimit"]) {
-        if recurring_cycle_limit <= 0 {
-            return Some(discount_user_error(
-                vec![input_arg, "recurringCycleLimit"],
-                "Recurring cycle limit must be greater than 0",
-                "VALUE_OUTSIDE_RANGE",
-            ));
-        }
-    }
     if let Some(minimum_quantity) = resolved_i64_path(
         input,
         &[

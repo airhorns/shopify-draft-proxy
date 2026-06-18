@@ -1029,7 +1029,7 @@ impl DraftProxy {
             (CapabilityDomain::Discounts, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
             {
-                self.discounts_query_response(&query, &variables)
+                self.discounts_query_response(request, &query, &variables)
             }
             (CapabilityDomain::Discounts, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>

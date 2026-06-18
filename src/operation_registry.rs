@@ -692,6 +692,8 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_query("automaticDiscountNode", CapabilityDomain::Discounts),
     local_mutation("discountCodeBasicCreate", CapabilityDomain::Discounts),
     local_mutation("discountCodeBasicUpdate", CapabilityDomain::Discounts),
+    local_mutation("discountCodeAppCreate", CapabilityDomain::Discounts),
+    local_mutation("discountCodeAppUpdate", CapabilityDomain::Discounts),
     local_mutation("discountCodeBxgyCreate", CapabilityDomain::Discounts),
     local_mutation("discountCodeBxgyUpdate", CapabilityDomain::Discounts),
     local_mutation(
@@ -712,6 +714,8 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     ),
     local_mutation("discountAutomaticBasicCreate", CapabilityDomain::Discounts),
     local_mutation("discountAutomaticBasicUpdate", CapabilityDomain::Discounts),
+    local_mutation("discountAutomaticAppCreate", CapabilityDomain::Discounts),
+    local_mutation("discountAutomaticAppUpdate", CapabilityDomain::Discounts),
     local_mutation("discountAutomaticBxgyCreate", CapabilityDomain::Discounts),
     local_mutation("discountAutomaticBxgyUpdate", CapabilityDomain::Discounts),
     local_mutation(

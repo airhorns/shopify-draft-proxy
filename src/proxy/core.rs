@@ -8,6 +8,7 @@ impl DraftProxy {
             registry: default_registry(),
             store: Store::with_default_baseline(),
             next_synthetic_id: 1,
+            shop_sells_subscriptions: None,
             commit_transport: Arc::new(default_commit_transport),
             upstream_transport: Arc::new(default_upstream_transport),
         }
@@ -52,6 +53,7 @@ impl DraftProxy {
                 self.log_entries.clear();
                 self.store.clear_staged();
                 self.next_synthetic_id = 1;
+                self.shop_sells_subscriptions = None;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
             }
             Route::MetaDump => self.dump_state(&request),

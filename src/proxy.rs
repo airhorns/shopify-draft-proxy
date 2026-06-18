@@ -1532,6 +1532,13 @@ pub struct DraftProxy {
     registry: Vec<OperationRegistryEntry>,
     store: Store,
     next_synthetic_id: u64,
+    /// Per-scenario cache of the upstream shop's `shop.features.sellsSubscriptions`
+    /// capability. Populated lazily by forwarding a `DraftProxyShopSubscriptionCapability`
+    /// probe the first time a discount mutation touches subscription/recurring fields.
+    /// Intentionally NOT part of the dump/restore snapshot so it survives
+    /// `restoreState` between a scenario's targets; it is reset on `/__meta/reset`,
+    /// which the parity runner issues at the start of every scenario.
+    shop_sells_subscriptions: Option<bool>,
     commit_transport: CommitTransport,
     upstream_transport: UpstreamTransport,
 }
