@@ -293,6 +293,38 @@ fn validate_argument_value(
             }
         }
     }
+    // Non-null coercion violations apply to *any* non-null argument, regardless
+    // of whether its named type is a registered input object. A null literal or
+    // an unbound/null variable supplied for a non-null argument fails coercion
+    // before the resolver runs (e.g. `customerCreate(input: null)` or an unbound
+    // `$id: ID!`). These checks must run even when the named type is a scalar
+    // (ID) or an input object we intentionally leave unregistered.
+    match value {
+        RawArgumentValue::Null if type_ref.non_null => {
+            return vec![non_null_argument_literal_error(
+                field,
+                argument_name,
+                type_ref,
+                context,
+            )];
+        }
+        RawArgumentValue::Variable { name, value } if type_ref.non_null => {
+            if matches!(value.as_ref(), None | Some(ResolvedValue::Null)) {
+                let variable_type = document
+                    .variable_definitions
+                    .get(name)
+                    .map(|definition| definition.type_display.as_str())
+                    .unwrap_or(type_ref.display.as_str());
+                let location = document
+                    .variable_definitions
+                    .get(name)
+                    .map(|definition| definition.location)
+                    .unwrap_or(field.location);
+                return vec![non_null_variable_null_error(name, variable_type, location)];
+            }
+        }
+        _ => {}
+    }
     let Some(input_object) = schema.input_objects.get(&type_ref.named_type) else {
         return Vec::new();
     };
@@ -1050,6 +1082,8 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         extend_gift_card_input_schema(&mut schema);
         extend_discount_basic_input_schema(&mut schema);
         extend_customer_merge_input_schema(&mut schema);
+        extend_customer_input_schema(&mut schema);
+        extend_orders_input_schema(&mut schema);
         extend_marketing_engagement_input_schema(&mut schema);
         extend_functions_input_schema(&mut schema);
         extend_online_store_input_schema(&mut schema);
@@ -1309,6 +1343,68 @@ fn extend_customer_merge_input_schema(schema: &mut AdminInputSchema) {
                 "overrideFields".to_string(),
                 mutation_arg(named("CustomerMergeOverrideFields")),
             ),
+        ]),
+    );
+}
+
+fn extend_customer_input_schema(schema: &mut AdminInputSchema) {
+    // customerCreate(input: CustomerInput!) on Admin API 2025-01. Only the
+    // top-level `input` argument is required; the CustomerInput object itself is
+    // intentionally left unregistered so the local customerCreate handler keeps
+    // ownership of field-level validation (it emits payload userErrors, not
+    // top-level coercion errors). Registering the field alone is enough to
+    // surface the missing-argument / null-literal / unbound-variable envelopes
+    // (missingRequiredArguments, argumentLiteralsIncompatible, INVALID_VARIABLE)
+    // before the resolver runs.
+    schema.mutation_fields.insert(
+        "customerCreate".to_string(),
+        BTreeMap::from([("input".to_string(), mutation_arg(non_null("CustomerInput")))]),
+    );
+}
+
+fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
+    // The order/draft-order create + edit mutations require their primary
+    // argument (a non-null input object or id). Each is registered with its full
+    // set of accepted root arguments so that valid calls (which pass optional
+    // arguments like paymentGatewayId / notifyCustomer) are not flagged as
+    // "argument not accepted". The input objects themselves are left
+    // unregistered — field-level validation stays with the local resolvers.
+    schema.mutation_fields.insert(
+        "draftOrderCreate".to_string(),
+        BTreeMap::from([("input".to_string(), mutation_arg(non_null("DraftOrderInput")))]),
+    );
+    schema.mutation_fields.insert(
+        "draftOrderComplete".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            ("paymentGatewayId".to_string(), mutation_arg(named("ID"))),
+            ("paymentPending".to_string(), mutation_arg(named("Boolean"))),
+            ("sourceName".to_string(), mutation_arg(named("String"))),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "orderCreate".to_string(),
+        BTreeMap::from([
+            (
+                "order".to_string(),
+                mutation_arg(non_null("OrderCreateOrderInput")),
+            ),
+            (
+                "options".to_string(),
+                mutation_arg(named("OrderCreateOptionsInput")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "orderEditBegin".to_string(),
+        BTreeMap::from([("id".to_string(), mutation_arg(non_null("ID")))]),
+    );
+    schema.mutation_fields.insert(
+        "orderEditCommit".to_string(),
+        BTreeMap::from([
+            ("id".to_string(), mutation_arg(non_null("ID"))),
+            ("notifyCustomer".to_string(), mutation_arg(named("Boolean"))),
+            ("staffNote".to_string(), mutation_arg(named("String"))),
         ]),
     );
 }

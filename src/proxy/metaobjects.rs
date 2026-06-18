@@ -2464,10 +2464,23 @@ impl DraftProxy {
             })
             .cloned()
             .collect();
+        // Shopify's default `metaobjects(type:)` ordering is ascending by
+        // creation, which corresponds to ascending numeric id. A lexicographic
+        // sort on the full gid is wrong once ids cross a digit boundary
+        // (".../10" sorts before ".../8" as strings), so compare the trailing
+        // numeric id, falling back to the full string when it is not numeric.
+        fn metaobject_id_sort_key(record: &Value) -> (u64, String) {
+            let id = record.get("id").and_then(Value::as_str).unwrap_or_default();
+            let numeric = id
+                .rsplit('/')
+                .next()
+                .and_then(|tail| tail.split('?').next())
+                .and_then(|tail| tail.parse::<u64>().ok())
+                .unwrap_or(u64::MAX);
+            (numeric, id.to_string())
+        }
         records.sort_by(|left, right| {
-            left.get("id")
-                .and_then(Value::as_str)
-                .cmp(&right.get("id").and_then(Value::as_str))
+            metaobject_id_sort_key(left).cmp(&metaobject_id_sort_key(right))
         });
         selected_typed_connection_with_args(
             &records,
