@@ -1,0 +1,396 @@
+{
+  "scenarioId": "orderDelete-snapshot-staging",
+  "capturedAt": "2026-06-16T01:46:20.029Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "operations": {
+    "deletableCreate": {
+      "query": "mutation OrderDeleteSnapshotStagingCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        email\n        displayFinancialStatus\n        displayFulfillmentStatus\n        fulfillmentOrders(first: 5) {\n          nodes {\n            id\n            status\n            requestStatus\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "order-delete-deletable-1781574376766@example.com",
+          "note": "orderDelete snapshot staging deletable live capture 1781574376766",
+          "tags": ["order-delete-snapshot-staging", "conformance", "deletable"],
+          "test": true,
+          "currency": "USD",
+          "lineItems": [
+            {
+              "title": "Order delete deletable",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "order-delete-deletable-1781574376766"
+            }
+          ],
+          "financialStatus": "PENDING"
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8824225071410",
+                "email": "order-delete-deletable-1781574376766@example.com",
+                "displayFinancialStatus": "PENDING",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9759000854834",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "successDelete": {
+      "query": "mutation OrderDeleteSnapshotStagingDelete($orderId: ID!) {\n    orderDelete(orderId: $orderId) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8824225071410"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderDelete": {
+              "deletedId": "gid://shopify/Order/8824225071410",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "downstreamAfterDelete": {
+      "query": "query OrderDeleteSnapshotStagingRead($id: ID!, $query: String!) {\n    order(id: $id) {\n      id\n      email\n      displayFinancialStatus\n      displayFulfillmentStatus\n    }\n    orders(first: 5, query: $query) {\n      nodes {\n        id\n        email\n        displayFinancialStatus\n        displayFulfillmentStatus\n      }\n    }\n    ordersCount(query: $query) {\n      count\n      precision\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Order/8824225071410",
+        "query": "email:order-delete-deletable-1781574376766@example.com"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "order": null,
+            "orders": {
+              "nodes": []
+            },
+            "ordersCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "repeatDelete": {
+      "query": "mutation OrderDeleteSnapshotStagingDelete($orderId: ID!) {\n    orderDelete(orderId: $orderId) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8824225071410"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "field": ["orderId"],
+                  "message": "Order does not exist",
+                  "code": "NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fulfilledSetupCreate": {
+      "query": "mutation OrderDeleteSnapshotStagingCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        email\n        displayFinancialStatus\n        displayFulfillmentStatus\n        fulfillmentOrders(first: 5) {\n          nodes {\n            id\n            status\n            requestStatus\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "order-delete-fulfilled-invalid-1781574376766@example.com",
+          "note": "orderDelete snapshot staging fulfilled-invalid live capture 1781574376766",
+          "tags": ["order-delete-snapshot-staging", "conformance", "fulfilled-invalid"],
+          "test": true,
+          "currency": "USD",
+          "lineItems": [
+            {
+              "title": "Order delete fulfilled-invalid",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "12.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": false,
+              "sku": "order-delete-fulfilled-invalid-1781574376766"
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "12.00",
+                  "currencyCode": "USD"
+                }
+              }
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8824225104178",
+                "email": "order-delete-fulfilled-invalid-1781574376766@example.com",
+                "displayFinancialStatus": "PAID",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9759000953138",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fulfillmentCreate": {
+      "query": "mutation OrderDeleteSnapshotStagingFulfillmentCreate($fulfillment: FulfillmentInput!, $message: String) {\n    fulfillmentCreate(fulfillment: $fulfillment, message: $message) {\n      fulfillment {\n        id\n        status\n        displayStatus\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "ORDER-DELETE-FULFILLED-1781574376766",
+            "url": "https://example.com/track/ORDER-DELETE-FULFILLED-1781574376766",
+            "company": "Hermes"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9759000953138"
+            }
+          ]
+        },
+        "message": "orderDelete snapshot staging fulfilled setup"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentCreate": {
+              "fulfillment": {
+                "id": "gid://shopify/Fulfillment/7972626628914",
+                "status": "SUCCESS",
+                "displayStatus": "FULFILLED"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fulfilledDelete": {
+      "query": "mutation OrderDeleteSnapshotStagingDelete($orderId: ID!) {\n    orderDelete(orderId: $orderId) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8824225104178"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderDelete": {
+              "deletedId": "gid://shopify/Order/8824225104178",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fulfilledReadAfterDelete": {
+      "query": "query OrderDeleteSnapshotStagingRead($id: ID!, $query: String!) {\n    order(id: $id) {\n      id\n      email\n      displayFinancialStatus\n      displayFulfillmentStatus\n    }\n    orders(first: 5, query: $query) {\n      nodes {\n        id\n        email\n        displayFinancialStatus\n        displayFulfillmentStatus\n      }\n    }\n    ordersCount(query: $query) {\n      count\n      precision\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Order/8824225104178",
+        "query": "email:order-delete-fulfilled-invalid-1781574376766@example.com"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "order": null,
+            "orders": {
+              "nodes": []
+            },
+            "ordersCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unknownDelete": {
+      "query": "mutation OrderDeleteSnapshotStagingDelete($orderId: ID!) {\n    orderDelete(orderId: $orderId) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/999999999999999999"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "field": ["orderId"],
+                  "message": "Order does not exist",
+                  "code": "NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {},
+  "upstreamCalls": []
+}

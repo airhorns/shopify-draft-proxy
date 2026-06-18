@@ -887,7 +887,7 @@ HAR-237 live probes against Admin GraphQL 2026-04 on `harry-test-heelo.myshopify
 - an empty store returns an empty `carrierServices` connection with empty `nodes`/`edges`, false page booleans, and null cursors
 - `carrierServiceCreate` accepted an inactive app service with `callbackUrl: "https://mock.shop/..."`, returned `formattedName: "<name> (Rates provided by app)"`, and did not need any associated `Location` modeling
 - `carrierServiceUpdate` can change `name`, `callbackUrl`, `active`, and `supportsServiceDiscovery`; immediate downstream detail reads and `carrierServices(query: "active:true")` / `carrierServices(query: "id:<numeric id>")` reflected the update
-- blank create name returned `userErrors[{ field: null, message: "Shipping rate provider name can't be blank", code: "CARRIER_SERVICE_CREATE_FAILED" }]`
+- blank create name returned `userErrors[{ field: null, message: "Shipping rate provider name can't be blank", code: "CARRIER_SERVICE_CREATE_FAILED" }]`; a present blank update name similarly returns `field: null`, message `"Shipping rate provider name can't be blank"`, and code `CARRIER_SERVICE_UPDATE_FAILED` while leaving the existing name unchanged
 - `http://` callback URLs returned `message: "Shipping rate provider callback url must use HTTPS"`, while banned hosts such as `https://shopify.com/...` returned `message: "Shipping rate provider callback url invalid host"`; create/update use the corresponding `CARRIER_SERVICE_CREATE_FAILED` / `CARRIER_SERVICE_UPDATE_FAILED` code
 - unknown update returned `userErrors[{ field: null, message: "The carrier or app could not be found.", code: "CARRIER_SERVICE_UPDATE_FAILED" }]`, while unknown delete returned the same message with `field: ["id"]` and `code: "CARRIER_SERVICE_DELETE_FAILED"`
 - `carrierServiceDelete` is present in the 2026-04 schema and returned `deletedId` as the full `DeliveryCarrierService` GID; downstream detail and id-filtered catalog reads were empty after cleanup
@@ -2958,6 +2958,7 @@ Capture prerequisites and safety constraints:
 - HAR-416 refreshed the repo-local conformance app release on 2026-04-28 (`HAR-416-rework-functions`) before live Function capture. `shopifyFunctions(first:)` then exposed raw Function string IDs for validation/cart-transform Functions, lowercase `apiType` values (`cart_checkout_validation`, `cart_transform`), and app ownership through `appKey` plus selected `app` fields. With the refreshed grant, validation/cart-transform mutations reached resolver userErrors for wrong Function API type, unknown/unowned handles, invalid metafields, and duplicate cart-transform registration. Shopify allowed multiple `validationCreate` calls for the same validation Function in this shop, so no duplicate-validation userError was observed; the capture script deletes all HAR-416 validation/cart-transform probe resources afterward. `taxAppConfigure` still returned top-level `ACCESS_DENIED` because the caller must be a tax calculations app.
 - HAR-221 captured `paymentTermsTemplates` against `harry-test-heelo.myshopify.com` on 2026-04-27. The standard catalog order is receipt, fulfillment, net 7/15/30/45/60/90, then fixed; `paymentTermsType: NET` filters to only the six net templates while preserving ids, names, descriptions, due-day values, and translated names.
 - HAR-222 locally stages `paymentTermsCreate`, `paymentTermsUpdate`, and `paymentTermsDelete` against the order/draft-order graph using the captured template catalog and Shopify-documented standalone mutation input shapes. The 2026-04 disposable-draft live lifecycle capture confirms NET templates compute `dueAt` from `issuedAt` plus template due days, FIXED updates replace the `PaymentSchedule` id, `PaymentSchedule.completed` is not selectable on this API surface, and downstream `draftOrder(id:)` returns `paymentTerms: null` after delete. Rejected local guardrails cover unknown targets, missing/unknown template ids, NET schedules without `issuedAt`, FIXED schedules without `dueAt`, missing update ids, and duplicate deletes without appending staged-write log entries.
+- A 2026-04 disposable-order capture for successful `paymentTermsCreate` template reprojection confirmed FIXED returns `Fixed`/`FIXED`/`dueInDays: null`, Net 7 returns `Net 7`/`NET`/`dueInDays: 7`, and Due on fulfillment returns `Due on fulfillment`/`FULFILLMENT`/`dueInDays: null` with no schedule nodes. The Net 7 success path required `paymentSchedules.issuedAt`; sending only `dueAt` for that NET template returned user errors for missing issue date and inconsistent due date.
 - A 2026-04 live capture for `paymentTermsCreate` unknown owners showed public Admin GraphQL serializes the internal base reference-not-found error as `field: null`, not `["base"]`: unknown `Order` returns `Cannot find the specific Order with id <numeric id>.`, and unknown `DraftOrder` returns `Cannot find the specific Draft order with id <numeric id>.`
 - customer payment method live captures remain blocked on `read_customer_payment_methods` / `write_customer_payment_methods` even though `read_customers`, `write_customers`, and `write_orders` are present on the 2026-04-28 probe. Root introspection confirms the HAR-365 mutations exist on the configured 2025-01 API, but live success paths still need isolated test payment methods and no-recipient/customer-safe email coverage before real captures can be checked in.
 - HAR-365 local runtime support stages customer payment-method writes without runtime Shopify calls: credit-card and PayPal roots store scrubbed instrument shells, remote create stores an incomplete `instrument: null` method, duplication uses a non-secret proxy token, update-url returns a non-deliverable `shopify-draft-proxy.local` URL, revoke blocks methods with local subscription-contract links, marks contract-free active methods with `CUSTOMER_REVOKED`, treats already-revoked methods idempotently, and payment reminders record a local intent only.
@@ -3605,3 +3606,29 @@ Practical rule:
   keep ticket-required local guardrails for `profileLocationGroups` unknown
   locations and overlapping zone countries covered by runtime tests unless newer
   public evidence shows a different update-side rejection shape
+
+## 85. `orderDelete` is permissive for disposable Admin-created orders
+
+Admin GraphQL 2026-04 live probes against `harry-test-heelo.myshopify.com`
+tested `orderDelete` with disposable direct `orderCreate` and
+`draftOrderComplete` orders.
+
+Observed behavior:
+
+- pending direct orders deleted successfully and immediate `order(id:)`,
+  `orders(query:)`, and `ordersCount(query:)` reads no longer exposed the order
+- repeated deletes and unknown order IDs returned `OrderDeleteUserError` on
+  `["orderId"]` with code `NOT_FOUND`
+- paid direct orders, open fulfillment-order orders, fulfilled orders,
+  requested-return orders, refunded orders, cancelled orders, non-test direct
+  orders, and draft-completed paid/pending orders all deleted successfully in
+  the disposable probes
+- no checked-in live fixture currently proves an `orderDelete` `INVALID` branch
+  for financial, fulfillment, return, or fulfillment-order state
+
+Practical rule:
+
+- do not reject locally staged `orderDelete` solely because an order is paid,
+  fulfilled, has open fulfillment-order state, has requested returns, is
+  refunded, or is cancelled unless a future live capture records a concrete
+  public `INVALID` payload for that state

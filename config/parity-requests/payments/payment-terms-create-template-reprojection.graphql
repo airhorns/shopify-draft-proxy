@@ -1,0 +1,21 @@
+mutation PaymentTermsCreateTemplateReprojection($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {
+  paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {
+    paymentTerms {
+      id
+      paymentTermsName
+      paymentTermsType
+      dueInDays
+      translatedName
+      paymentSchedules(first: 2) {
+        nodes {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
