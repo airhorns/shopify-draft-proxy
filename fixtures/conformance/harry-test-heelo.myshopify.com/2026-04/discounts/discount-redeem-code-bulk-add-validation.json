@@ -1,4 +1,10 @@
 {
+  "seedDiscounts": [
+    {
+      "id": "gid://shopify/DiscountCodeNode/1640746254642",
+      "code": "HAR784CROSS1778166762181"
+    }
+  ],
   "variables": {
     "discountId": "gid://shopify/DiscountCodeNode/1640746221874",
     "crossDiscountId": "gid://shopify/DiscountCodeNode/1640746254642",

@@ -1099,29 +1099,56 @@ impl DraftProxy {
                 }]
             }));
         }
+        // Codes already assigned to any discount in the shop (uppercased). Code
+        // uniqueness is shop-wide, so a code that exists on another discount is
+        // rejected here. Captured before this batch mutates the index.
+        let existing_codes: BTreeSet<String> = self
+            .store
+            .staged
+            .discount_code_index
+            .keys()
+            .cloned()
+            .collect();
         let creation_id = self.next_proxy_synthetic_gid("DiscountRedeemCodeBulkCreation");
-        let mut creation = discount_redeem_code_bulk_creation(&codes, true);
-        creation["id"] = json!(creation_id.clone());
+        // A later `discountRedeemCodeBulkCreation(id:)` read always observes the
+        // completed job, so we store the validated result (per-code errors + final
+        // counts) keyed by the creation id.
+        let mut completed = discount_redeem_code_bulk_creation(&codes, &existing_codes, false);
+        completed["id"] = json!(creation_id.clone());
         self.store
             .staged
             .discount_redeem_code_bulk_creations
-            .insert(creation_id.clone(), creation.clone());
+            .insert(creation_id.clone(), completed.clone());
+        // Schema-shaped `[DiscountRedeemCodeInput!]` submissions mirror Shopify's
+        // async API: the mutation returns the still-running snapshot (done=false,
+        // zeroed counts, no per-code results) and the completed creation is only
+        // observed on a later read. Legacy `[String!]` (local-runtime) submissions
+        // complete synchronously, so the mutation returns the finished creation.
+        let response_creation = if redeem_codes_are_string_inputs(field) {
+            completed
+        } else {
+            let mut pending = discount_redeem_code_bulk_creation(&codes, &existing_codes, true);
+            pending["id"] = json!(creation_id.clone());
+            pending
+        };
         if let Some(record) = self.store.staged.discounts.get_mut(&discount_id) {
-            let existing = record["codes"].as_array().cloned().unwrap_or_else(Vec::new);
-            let mut next = existing;
-            for code in codes {
-                next.push(json!({
-                    "id": format!("gid://shopify/DiscountRedeemCode/{}?shopify-draft-proxy=synthetic", stable_redeem_code_suffix(&code)),
-                    "code": code,
-                    "asyncUsageCount": 0
-                }));
+            let mut next = record["codes"].as_array().cloned().unwrap_or_else(Vec::new);
+            for (index, code) in codes.iter().enumerate() {
+                // Only codes that pass validation are actually assigned.
+                if redeem_code_accepted(code, &codes, index, &existing_codes) {
+                    next.push(json!({
+                        "id": format!("gid://shopify/DiscountRedeemCode/{}?shopify-draft-proxy=synthetic", stable_redeem_code_suffix(code)),
+                        "code": code,
+                        "asyncUsageCount": 0
+                    }));
+                }
             }
             record["codesCount"] = json!({ "count": next.len(), "precision": "EXACT" });
             record["codes"] = Value::Array(next);
         }
         self.rebuild_discount_code_index();
         MutationFieldOutcome::staged(
-            json!({ "bulkCreation": creation, "userErrors": [] }),
+            json!({ "bulkCreation": response_creation, "userErrors": [] }),
             LogDraft::staged(&field.name, "discounts", vec![discount_id, creation_id]),
         )
     }
@@ -1948,6 +1975,23 @@ fn discount_document_level_error_response(fields: &[RootFieldSelection]) -> Opti
 /// combinesWith tag overlaps. Sibling fields in the same document still resolve, so
 /// this returns just the one error (the caller nulls the field's data slot).
 fn discount_field_top_level_error(field: &RootFieldSelection) -> Option<Value> {
+    if field.name == "discountRedeemCodeBulkAdd" {
+        let codes = resolved_redeem_codes(field);
+        if codes.len() > 250 {
+            // Shopify enforces the 250-entry list ceiling at the GraphQL layer
+            // before the resolver runs, so it surfaces as a top-level error
+            // (not a userError).
+            return Some(json!({
+                "message": format!(
+                    "The input array size of {} is greater than the maximum allowed of 250.",
+                    codes.len()
+                ),
+                "locations": [{ "line": field.location.line, "column": field.location.column }],
+                "path": [field.response_key.clone(), "codes".to_string()],
+                "extensions": { "code": "MAX_INPUT_SIZE_EXCEEDED" },
+            }));
+        }
+    }
     let input = discount_field_input(field)?;
     let message = discount_bad_request_conflict_message(&input)?;
     Some(json!({
@@ -2746,6 +2790,14 @@ fn discount_matches_query(record: &Value, query: &str) -> bool {
     }
     if normalized.contains("type:automatic") {
         return discount_kind(record) == "automatic";
+    }
+    // `type:app` narrows to app-managed (Function-backed) discounts, whose
+    // concrete type is DiscountCodeApp / DiscountAutomaticApp.
+    if normalized.contains("type:app") {
+        return record["typename"]
+            .as_str()
+            .map(|typename| typename.contains("App"))
+            .unwrap_or(false);
     }
     // `discount_class:<class>` narrows by the discount's discountClasses set
     // (PRODUCT / ORDER / SHIPPING). Multiple class tokens AND together.
@@ -5762,123 +5814,9 @@ pub(in crate::proxy) fn discount_null_field_user_error(message: &str, code: Opti
     })
 }
 
-pub(in crate::proxy) const DISCOUNT_REDEEM_CODE_BULK_VALIDATION_DISCOUNT_ID: &str =
-    "gid://shopify/DiscountCodeNode/1640746221874";
-pub(in crate::proxy) const DISCOUNT_REDEEM_CODE_BULK_VALIDATION_CROSS_DISCOUNT_ID: &str =
-    "gid://shopify/DiscountCodeNode/1640746254642";
-pub(in crate::proxy) const DISCOUNT_REDEEM_CODE_BULK_VALIDATION_INVALID_CREATION_ID: &str =
-    "gid://shopify/DiscountRedeemCodeBulkCreation/1?shopify-draft-proxy=synthetic";
-pub(in crate::proxy) const DISCOUNT_REDEEM_CODE_BULK_VALIDATION_CONFLICT_CREATION_ID: &str =
-    "gid://shopify/DiscountRedeemCodeBulkCreation/2?shopify-draft-proxy=synthetic";
-
-pub(in crate::proxy) fn discount_redeem_code_bulk_validation_mutation_response(
-    fields: &[RootFieldSelection],
-) -> Response {
-    let mut data = serde_json::Map::new();
-    for field in fields {
-        match field.name.as_str() {
-            "discountCodeBasicCreate" => {
-                let value = json!({
-                    "codeDiscountNode": { "id": DISCOUNT_REDEEM_CODE_BULK_VALIDATION_DISCOUNT_ID },
-                    "userErrors": []
-                });
-                data.insert(
-                    field.response_key.clone(),
-                    selected_json(&value, &field.selection),
-                );
-            }
-            "discountRedeemCodeBulkAdd" => {
-                let codes = resolved_redeem_codes(field);
-                if codes.len() > 250 {
-                    return ok_json(json!({
-                        "errors": [{
-                            "message": format!("The input array size of {} is greater than the maximum allowed of 250.", codes.len()),
-                            "path": ["discountRedeemCodeBulkAdd", "codes"],
-                            "extensions": { "code": "MAX_INPUT_SIZE_EXCEEDED" }
-                        }]
-                    }));
-                }
-                let value = discount_redeem_code_bulk_validation_add_value(field, &codes);
-                data.insert(
-                    field.response_key.clone(),
-                    selected_json(&value, &field.selection),
-                );
-            }
-            _ => {}
-        }
-    }
-    ok_json(json!({ "data": Value::Object(data) }))
-}
-
-pub(in crate::proxy) fn discount_redeem_code_bulk_validation_add_value(
-    field: &RootFieldSelection,
-    codes: &[String],
-) -> Value {
-    let discount_id = resolved_field_string_arg(field, "discountId");
-    if discount_id.as_deref() != Some(DISCOUNT_REDEEM_CODE_BULK_VALIDATION_DISCOUNT_ID) {
-        return json!({
-            "bulkCreation": Value::Null,
-            "userErrors": [{
-                "field": ["discountId"],
-                "message": "Code discount does not exist.",
-                "code": "INVALID",
-                "extraInfo": Value::Null
-            }]
-        });
-    }
-    if codes.is_empty() {
-        return json!({
-            "bulkCreation": Value::Null,
-            "userErrors": [{
-                "field": ["codes"],
-                "message": "Codes can't be blank",
-                "code": "BLANK",
-                "extraInfo": Value::Null
-            }]
-        });
-    }
-    let creation = discount_redeem_code_bulk_creation(codes, true);
-    json!({ "bulkCreation": creation, "userErrors": [] })
-}
-
-pub(in crate::proxy) fn discount_redeem_code_bulk_validation_read_data(
-    fields: &[RootFieldSelection],
-) -> Value {
-    let mut data = serde_json::Map::new();
-    let post_conflict_read = fields.iter().any(|field| field.response_key == "fresh");
-    for field in fields {
-        let value = match field.name.as_str() {
-            "discountRedeemCodeBulkCreation" => {
-                let id = resolved_field_string_arg(field, "id").unwrap_or_default();
-                Some(discount_redeem_code_bulk_creation_by_id(&id))
-            }
-            "codeDiscountNode" => Some(discount_redeem_code_bulk_discount_node(
-                field,
-                post_conflict_read,
-            )),
-            "codeDiscountNodeByCode" => discount_redeem_code_bulk_node_by_code(field),
-            _ => None,
-        };
-        if let Some(value) = value {
-            data.insert(
-                field.response_key.clone(),
-                selected_json(&value, &field.selection),
-            );
-        }
-    }
-    Value::Object(data)
-}
-
-pub(in crate::proxy) fn discount_redeem_code_bulk_creation_by_id(id: &str) -> Value {
-    if id == DISCOUNT_REDEEM_CODE_BULK_VALIDATION_CONFLICT_CREATION_ID {
-        discount_redeem_code_bulk_creation(&discount_redeem_code_conflict_codes(), false)
-    } else {
-        discount_redeem_code_bulk_creation(&discount_redeem_code_invalid_codes(), false)
-    }
-}
-
 pub(in crate::proxy) fn discount_redeem_code_bulk_creation(
     codes: &[String],
+    existing: &BTreeSet<String>,
     pending: bool,
 ) -> Value {
     let failed_count = if pending {
@@ -5887,7 +5825,7 @@ pub(in crate::proxy) fn discount_redeem_code_bulk_creation(
         codes
             .iter()
             .enumerate()
-            .filter(|(index, code)| !redeem_code_accepted(code, codes, *index))
+            .filter(|(index, code)| !redeem_code_accepted(code, codes, *index, existing))
             .count()
     };
     let imported_count = if pending {
@@ -5895,19 +5833,15 @@ pub(in crate::proxy) fn discount_redeem_code_bulk_creation(
     } else {
         codes.len() - failed_count
     };
-    let id = if codes.iter().any(|code| code == "HAR784FRESH1778166762181") {
-        DISCOUNT_REDEEM_CODE_BULK_VALIDATION_CONFLICT_CREATION_ID
-    } else {
-        DISCOUNT_REDEEM_CODE_BULK_VALIDATION_INVALID_CREATION_ID
-    };
+    // The caller assigns the synthetic creation id; this id is always overwritten.
     json!({
-        "id": id,
+        "id": Value::Null,
         "done": !pending,
         "codesCount": codes.len(),
         "importedCount": imported_count,
         "failedCount": failed_count,
         "codes": {
-            "nodes": codes.iter().enumerate().map(|(index, code)| discount_redeem_code_bulk_creation_node(code, codes, index, pending)).collect::<Vec<_>>(),
+            "nodes": codes.iter().enumerate().map(|(index, code)| discount_redeem_code_bulk_creation_node(code, codes, index, existing, pending)).collect::<Vec<_>>(),
             "edges": [],
             "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": Value::Null, "endCursor": Value::Null }
         }
@@ -5918,12 +5852,13 @@ pub(in crate::proxy) fn discount_redeem_code_bulk_creation_node(
     code: &str,
     codes: &[String],
     index: usize,
+    existing: &BTreeSet<String>,
     pending: bool,
 ) -> Value {
     let errors = if pending {
         Vec::new()
     } else {
-        redeem_code_errors(code, codes, index)
+        redeem_code_errors(code, codes, index, existing)
     };
     let accepted = errors.is_empty();
     json!({
@@ -5936,46 +5871,17 @@ pub(in crate::proxy) fn discount_redeem_code_bulk_creation_node(
     })
 }
 
-pub(in crate::proxy) fn discount_redeem_code_bulk_discount_node(
-    field: &RootFieldSelection,
-    post_conflict_read: bool,
-) -> Value {
-    let codes = match resolved_field_string_arg(field, "id").as_deref() {
-        Some(DISCOUNT_REDEEM_CODE_BULK_VALIDATION_DISCOUNT_ID) => {
-            if post_conflict_read {
-                discount_redeem_code_post_conflict_codes()
-            } else {
-                discount_redeem_code_post_invalid_codes()
-            }
+/// Whether a `discountRedeemCodeBulkAdd` `codes` argument was supplied as a bare
+/// `[String!]` list (the legacy local-runtime shape) rather than the schema
+/// `[DiscountRedeemCodeInput!]` object list. String submissions complete
+/// synchronously; object submissions follow Shopify's async creation shape.
+pub(in crate::proxy) fn redeem_codes_are_string_inputs(field: &RootFieldSelection) -> bool {
+    match field.arguments.get("codes") {
+        Some(ResolvedValue::List(items)) => {
+            !items.is_empty() && items.iter().all(|item| matches!(item, ResolvedValue::String(_)))
         }
-        _ => Vec::new(),
-    };
-    discount_redeem_code_bulk_discount_node_value(codes)
-}
-
-pub(in crate::proxy) fn discount_redeem_code_bulk_discount_node_value(codes: Vec<String>) -> Value {
-    json!({
-        "id": DISCOUNT_REDEEM_CODE_BULK_VALIDATION_DISCOUNT_ID,
-        "codeDiscount": {
-            "codes": { "nodes": codes.iter().map(|code| json!({ "code": code })).collect::<Vec<_>>() },
-            "codesCount": { "count": codes.len(), "precision": "EXACT" }
-        }
-    })
-}
-
-pub(in crate::proxy) fn discount_redeem_code_bulk_node_by_code(
-    field: &RootFieldSelection,
-) -> Option<Value> {
-    let code = resolved_field_string_arg(field, "code")?;
-    let id = match code.as_str() {
-        "HAR784CROSS1778166762181" => DISCOUNT_REDEEM_CODE_BULK_VALIDATION_CROSS_DISCOUNT_ID,
-        "HAR784BASE1778166762181"
-        | "HAR784DUP1778166762181"
-        | "HAR784OK1778166762181"
-        | "HAR784FRESH1778166762181" => DISCOUNT_REDEEM_CODE_BULK_VALIDATION_DISCOUNT_ID,
-        _ => return Some(Value::Null),
-    };
-    Some(json!({ "id": id }))
+        _ => false,
+    }
 }
 
 pub(in crate::proxy) fn resolved_redeem_codes(field: &RootFieldSelection) -> Vec<String> {
@@ -6005,14 +5911,24 @@ pub(in crate::proxy) fn resolved_field_string_arg(
     }
 }
 
-pub(in crate::proxy) fn redeem_code_accepted(code: &str, codes: &[String], index: usize) -> bool {
-    redeem_code_errors(code, codes, index).is_empty()
+pub(in crate::proxy) fn redeem_code_accepted(
+    code: &str,
+    codes: &[String],
+    index: usize,
+    existing: &BTreeSet<String>,
+) -> bool {
+    redeem_code_errors(code, codes, index, existing).is_empty()
 }
 
+/// Per-code validation for a `discountRedeemCodeBulkAdd` submission. `existing`
+/// is the set of codes (uppercased) already assigned to any discount in the
+/// shop before this batch; `codes`/`index` locate the code within the batch so
+/// duplicates within the same submission can be detected.
 pub(in crate::proxy) fn redeem_code_errors(
     code: &str,
     codes: &[String],
     index: usize,
+    existing: &BTreeSet<String>,
 ) -> Vec<Value> {
     if code.is_empty() {
         return vec![redeem_code_error("is too short (minimum is 1 character)")];
@@ -6023,15 +5939,21 @@ pub(in crate::proxy) fn redeem_code_errors(
     if code.chars().count() > 255 {
         return vec![redeem_code_error("is too long (maximum is 255 characters)")];
     }
-    if code == "HAR784BASE1778166762181" || code == "HAR784CROSS1778166762181" {
-        return vec![redeem_code_error(
-            "must be unique. Please try a different code.",
-        )];
-    }
-    let first_index = codes.iter().position(|candidate| candidate == code);
-    if first_index != Some(index) && code == "HAR784DUP1778166762181" {
+    let normalized = code.to_ascii_uppercase();
+    // A second (or later) occurrence of the same code within this submission.
+    if codes
+        .iter()
+        .take(index)
+        .any(|candidate| candidate.to_ascii_uppercase() == normalized)
+    {
         return vec![redeem_code_error(
             "Codes must be unique within BulkDiscountCodeCreation",
+        )];
+    }
+    // The code is already assigned to some discount in the shop.
+    if existing.contains(&normalized) {
+        return vec![redeem_code_error(
+            "must be unique. Please try a different code.",
         )];
     }
     Vec::new()
@@ -6039,43 +5961,6 @@ pub(in crate::proxy) fn redeem_code_errors(
 
 pub(in crate::proxy) fn redeem_code_error(message: &str) -> Value {
     json!({ "field": ["code"], "message": message, "code": Value::Null, "extraInfo": Value::Null })
-}
-
-pub(in crate::proxy) fn discount_redeem_code_invalid_codes() -> Vec<String> {
-    vec![
-        "".to_string(),
-        "HAR784NL1778166762181\nBAD".to_string(),
-        "HAR784CR1778166762181\rBAD".to_string(),
-        "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX".to_string(),
-        "HAR784DUP1778166762181".to_string(),
-        "HAR784DUP1778166762181".to_string(),
-        "HAR784OK1778166762181".to_string(),
-    ]
-}
-
-pub(in crate::proxy) fn discount_redeem_code_conflict_codes() -> Vec<String> {
-    vec![
-        "HAR784BASE1778166762181".to_string(),
-        "HAR784CROSS1778166762181".to_string(),
-        "HAR784FRESH1778166762181".to_string(),
-    ]
-}
-
-pub(in crate::proxy) fn discount_redeem_code_post_invalid_codes() -> Vec<String> {
-    vec![
-        "HAR784BASE1778166762181".to_string(),
-        "HAR784DUP1778166762181".to_string(),
-        "HAR784OK1778166762181".to_string(),
-    ]
-}
-
-pub(in crate::proxy) fn discount_redeem_code_post_conflict_codes() -> Vec<String> {
-    vec![
-        "HAR784BASE1778166762181".to_string(),
-        "HAR784DUP1778166762181".to_string(),
-        "HAR784OK1778166762181".to_string(),
-        "HAR784FRESH1778166762181".to_string(),
-    ]
 }
 
 pub(in crate::proxy) fn stable_redeem_code_suffix(code: &str) -> u64 {

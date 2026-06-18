@@ -113,6 +113,18 @@
         "name": "redeem-code-bulk-payloads",
         "capturePath": "$.redeemCodeBulk.response.data",
         "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.addCodes.bulkCreation.id",
+            "matcher": "shopify-gid:DiscountRedeemCodeBulkCreation",
+            "reason": "The proxy mints synthetic IDs for locally staged bulk creations; the recorded id is the proxy counter value at capture time."
+          },
+          {
+            "path": "$.deleteCodes.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The proxy mints synthetic IDs for locally staged async jobs; the recorded id is the proxy counter value at capture time."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-local-runtime.graphql",
           "variablesCapturePath": "$.redeemCodeBulk.variables"

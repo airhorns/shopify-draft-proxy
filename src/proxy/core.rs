@@ -549,10 +549,44 @@ impl DraftProxy {
             }
         }
         self.store.staged.deleted_discount_ids.remove(id);
+        // Carry a curated set of discount fields through from the seed when present
+        // so seeded discounts read back and filter by status / kind exactly like
+        // discounts staged through mutations. Absent those, a bare id+codes record
+        // is preserved (the historical seed shape).
+        let mut record = serde_json::Map::new();
+        for key in [
+            "kind",
+            "typename",
+            "status",
+            "title",
+            "summary",
+            "startsAt",
+            "endsAt",
+            "createdAt",
+            "updatedAt",
+            "asyncUsageCount",
+            "usageLimit",
+            "combinesWith",
+            "appDiscountType",
+            "recurringCycleLimit",
+            "codesCount",
+        ] {
+            if let Some(value) = seed.get(key) {
+                record.insert(key.to_string(), value.clone());
+            }
+        }
+        record.insert("id".to_string(), json!(id));
+        record.insert("codes".to_string(), Value::Array(codes.clone()));
+        if !record.contains_key("codesCount") {
+            record.insert(
+                "codesCount".to_string(),
+                json!({ "count": codes.len(), "precision": "EXACT" }),
+            );
+        }
         self.store
             .staged
             .discounts
-            .insert(id.to_string(), json!({ "id": id, "codes": codes }));
+            .insert(id.to_string(), Value::Object(record));
         true
     }
 

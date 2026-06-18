@@ -123,7 +123,12 @@
         ],
         "expectedDifferences": [
           {
-            "path": "$.id",
+            "path": "$.duplicate.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The proxy uses synthetic IDs for locally staged discounts."
+          },
+          {
+            "path": "$.valid.id",
             "matcher": "shopify-gid:DiscountCodeNode",
             "reason": "The proxy uses synthetic IDs for locally staged discounts."
           }
@@ -201,7 +206,12 @@
         ],
         "expectedDifferences": [
           {
-            "path": "$.id",
+            "path": "$.sameDiscount.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The proxy uses synthetic IDs for locally staged discounts."
+          },
+          {
+            "path": "$.fresh.id",
             "matcher": "shopify-gid:DiscountCodeNode",
             "reason": "The proxy uses synthetic IDs for locally staged discounts."
           }

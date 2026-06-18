@@ -13,6 +13,24 @@
       "appKey": "app-key-366"
     }
   ],
+  "seedDiscounts": [
+    {
+      "id": "gid://shopify/DiscountCodeNode/366001",
+      "kind": "code",
+      "typename": "DiscountCodeBasic",
+      "status": "ACTIVE",
+      "title": "HAR-366 bulk lifecycle code discount",
+      "codes": { "nodes": [{ "id": "gid://shopify/DiscountRedeemCode/366001", "code": "HAR366BULK" }] }
+    },
+    {
+      "id": "gid://shopify/DiscountCodeNode/366004",
+      "kind": "code",
+      "typename": "DiscountCodeBasic",
+      "status": "ACTIVE",
+      "title": "HAR-366 redeem-code discount",
+      "codes": { "nodes": [{ "id": "gid://shopify/DiscountRedeemCode/366004", "code": "HAR366REDEEM" }] }
+    }
+  ],
   "create": {
     "variables": {
       "codeInput": {
