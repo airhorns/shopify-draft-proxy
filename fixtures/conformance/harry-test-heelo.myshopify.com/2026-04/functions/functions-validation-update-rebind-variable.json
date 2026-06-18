@@ -1,0 +1,86 @@
+{
+  "scenarioId": "functions-validation-update-rebind-variable",
+  "capturedAt": "2026-06-15T15:53:04.796Z",
+  "source": "live-shopify",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "Live validationUpdate variable-input evidence that functionId/functionHandle rebind keys are rejected by GraphQL variable coercion before resolver execution.",
+  "functionId": {
+    "request": {
+      "query": "mutation ValidationUpdateRebindVariable($id: ID!, $validation: ValidationUpdateInput!) {\n  validationUpdate(id: $id, validation: $validation) {\n    validation {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/999999999999",
+        "validation": {
+          "functionId": "gid://shopify/ShopifyFunction/validation-beta"
+        }
+      }
+    },
+    "response": {
+      "errors": [
+        {
+          "message": "Variable $validation of type ValidationUpdateInput! was provided invalid value for functionId (Field is not defined on ValidationUpdateInput)",
+          "locations": [
+            {
+              "line": 1,
+              "column": 51
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "functionId": "gid://shopify/ShopifyFunction/validation-beta"
+            },
+            "problems": [
+              {
+                "path": ["functionId"],
+                "explanation": "Field is not defined on ValidationUpdateInput"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "status": 200
+  },
+  "functionHandle": {
+    "request": {
+      "query": "mutation ValidationUpdateRebindVariable($id: ID!, $validation: ValidationUpdateInput!) {\n  validationUpdate(id: $id, validation: $validation) {\n    validation {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Validation/999999999999",
+        "validation": {
+          "functionHandle": "validation-beta"
+        }
+      }
+    },
+    "response": {
+      "errors": [
+        {
+          "message": "Variable $validation of type ValidationUpdateInput! was provided invalid value for functionHandle (Field is not defined on ValidationUpdateInput)",
+          "locations": [
+            {
+              "line": 1,
+              "column": 51
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "functionHandle": "validation-beta"
+            },
+            "problems": [
+              {
+                "path": ["functionHandle"],
+                "explanation": "Field is not defined on ValidationUpdateInput"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "status": 200
+  },
+  "upstreamCalls": [],
+  "notes": {
+    "lifecycle": "The request uses an arbitrary missing validation id because Shopify rejects the unknown ValidationUpdateInput fields during variable coercion before resolving id or executing validationUpdate."
+  }
+}

@@ -1694,20 +1694,113 @@ pub(in crate::proxy) fn payment_terms_payload_value(
     json!({ payload_key: selected_json(&payload, selections) })
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(in crate::proxy) struct PaymentTermsTemplate {
+    id: &'static str,
+    name: &'static str,
+    description: &'static str,
+    terms_type: &'static str,
+    due_in_days: Option<i64>,
+}
+
+pub(in crate::proxy) const PAYMENT_TERMS_TEMPLATES: &[PaymentTermsTemplate] = &[
+    PaymentTermsTemplate {
+        id: "gid://shopify/PaymentTermsTemplate/1",
+        name: "Due on receipt",
+        description: "Due on receipt",
+        terms_type: "RECEIPT",
+        due_in_days: None,
+    },
+    PaymentTermsTemplate {
+        id: "gid://shopify/PaymentTermsTemplate/9",
+        name: "Due on fulfillment",
+        description: "Due on fulfillment",
+        terms_type: "FULFILLMENT",
+        due_in_days: None,
+    },
+    PaymentTermsTemplate {
+        id: "gid://shopify/PaymentTermsTemplate/2",
+        name: "Net 7",
+        description: "Within 7 days",
+        terms_type: "NET",
+        due_in_days: Some(7),
+    },
+    PaymentTermsTemplate {
+        id: "gid://shopify/PaymentTermsTemplate/3",
+        name: "Net 15",
+        description: "Within 15 days",
+        terms_type: "NET",
+        due_in_days: Some(15),
+    },
+    PaymentTermsTemplate {
+        id: "gid://shopify/PaymentTermsTemplate/4",
+        name: "Net 30",
+        description: "Within 30 days",
+        terms_type: "NET",
+        due_in_days: Some(30),
+    },
+    PaymentTermsTemplate {
+        id: "gid://shopify/PaymentTermsTemplate/8",
+        name: "Net 45",
+        description: "Within 45 days",
+        terms_type: "NET",
+        due_in_days: Some(45),
+    },
+    PaymentTermsTemplate {
+        id: "gid://shopify/PaymentTermsTemplate/5",
+        name: "Net 60",
+        description: "Within 60 days",
+        terms_type: "NET",
+        due_in_days: Some(60),
+    },
+    PaymentTermsTemplate {
+        id: "gid://shopify/PaymentTermsTemplate/6",
+        name: "Net 90",
+        description: "Within 90 days",
+        terms_type: "NET",
+        due_in_days: Some(90),
+    },
+    PaymentTermsTemplate {
+        id: "gid://shopify/PaymentTermsTemplate/7",
+        name: "Fixed",
+        description: "Fixed date",
+        terms_type: "FIXED",
+        due_in_days: None,
+    },
+];
+
+pub(in crate::proxy) fn payment_terms_template_by_id(id: &str) -> Option<PaymentTermsTemplate> {
+    PAYMENT_TERMS_TEMPLATES
+        .iter()
+        .copied()
+        .find(|template| template.id == id)
+}
+
+pub(in crate::proxy) fn payment_terms_template_record(template: PaymentTermsTemplate) -> Value {
+    json!({
+        "id": template.id,
+        "name": template.name,
+        "description": template.description,
+        "dueInDays": template.due_in_days.map(Value::from).unwrap_or(Value::Null),
+        "paymentTermsType": template.terms_type,
+        "translatedName": template.name,
+        "__typename": "PaymentTermsTemplate"
+    })
+}
+
 pub(in crate::proxy) fn payment_terms_success_record(
     id: &str,
-    name: &str,
-    terms_type: &str,
+    template: PaymentTermsTemplate,
     schedules: Value,
 ) -> Value {
     json!({
         "id": id,
         "due": false,
         "overdue": false,
-        "dueInDays": if terms_type == "RECEIPT" { Value::Null } else { json!(30) },
-        "paymentTermsName": name,
-        "paymentTermsType": terms_type,
-        "translatedName": name,
+        "dueInDays": template.due_in_days.map(Value::from).unwrap_or(Value::Null),
+        "paymentTermsName": template.name,
+        "paymentTermsType": template.terms_type,
+        "translatedName": template.name,
         "paymentSchedules": {
             "nodes": schedules,
             "pageInfo": {
@@ -1720,22 +1813,26 @@ pub(in crate::proxy) fn payment_terms_success_record(
     })
 }
 
-pub(in crate::proxy) fn payment_terms_net_record(id: &str) -> Value {
-    payment_terms_success_record(
-        id,
-        "Net 30",
-        "NET",
-        json!([{
-            "id": format!("gid://shopify/PaymentSchedule/{}", resource_id_tail(id)),
-            "amount": { "amount": "57.00", "currencyCode": "CAD" },
-            "balanceDue": { "amount": "57.00", "currencyCode": "CAD" },
-            "totalBalance": { "amount": "57.00", "currencyCode": "CAD" },
-            "issuedAt": "2026-05-05T00:00:00Z",
-            "dueAt": "2026-06-04T00:00:00Z",
-            "completedAt": Value::Null,
-            "due": false
-        }]),
-    )
+pub(in crate::proxy) fn payment_terms_schedule_from_attrs(
+    id: &str,
+    attrs: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let schedule = resolved_object_list_field(attrs, "paymentSchedules")
+        .first()
+        .cloned()
+        .unwrap_or_default();
+    json!([{
+        "id": format!("gid://shopify/PaymentSchedule/{}", resource_id_tail(id)),
+        "amount": { "amount": "57.00", "currencyCode": "CAD" },
+        "balanceDue": { "amount": "57.00", "currencyCode": "CAD" },
+        "totalBalance": { "amount": "57.00", "currencyCode": "CAD" },
+        "issuedAt": resolved_string_field(&schedule, "issuedAt")
+            .unwrap_or_else(|| "2026-05-05T00:00:00Z".to_string()),
+        "dueAt": resolved_string_field(&schedule, "dueAt")
+            .unwrap_or_else(|| "2026-06-04T00:00:00Z".to_string()),
+        "completedAt": Value::Null,
+        "due": false
+    }])
 }
 
 pub(in crate::proxy) fn payment_terms_validation_error(
@@ -1760,13 +1857,17 @@ pub(in crate::proxy) fn payment_terms_validation_error(
         ));
     }
 
-    match template_id.as_deref() {
-        Some("gid://shopify/PaymentTermsTemplate/9999") => Some(payment_terms_user_error(
+    let template_id = template_id.as_deref()?;
+    let Some(template) = payment_terms_template_by_id(template_id) else {
+        return Some(payment_terms_user_error(
             Value::Null,
             "Could not find payment terms template.",
             unsuccessful_code,
-        )),
-        Some("gid://shopify/PaymentTermsTemplate/7") => {
+        ));
+    };
+
+    match template.terms_type {
+        "FIXED" => {
             let due_at = schedules
                 .first()
                 .and_then(|schedule| resolved_string_field(schedule, "dueAt"));
@@ -1780,7 +1881,7 @@ pub(in crate::proxy) fn payment_terms_validation_error(
                 None
             }
         }
-        Some("gid://shopify/PaymentTermsTemplate/1") => {
+        "RECEIPT" | "FULFILLMENT" => {
             let has_due_at = schedules
                 .iter()
                 .any(|schedule| resolved_string_field(schedule, "dueAt").is_some());
@@ -1831,11 +1932,44 @@ pub(in crate::proxy) fn payment_terms_record_from_attrs(
     attrs: &BTreeMap<String, ResolvedValue>,
 ) -> Value {
     let template_id = resolved_string_field(attrs, "paymentTermsTemplateId").unwrap_or_default();
-    if template_id == "gid://shopify/PaymentTermsTemplate/1" {
-        payment_terms_success_record(id, "Due on receipt", "RECEIPT", json!([]))
+    let template = payment_terms_template_by_id(&template_id).unwrap_or(PAYMENT_TERMS_TEMPLATES[4]);
+    let schedules = if matches!(template.terms_type, "RECEIPT" | "FULFILLMENT")
+        || (template.terms_type == "FIXED"
+            && resolved_object_list_field(attrs, "paymentSchedules")
+                .first()
+                .and_then(|schedule| resolved_string_field(schedule, "dueAt"))
+                .is_none())
+    {
+        json!([])
     } else {
-        payment_terms_net_record(id)
+        payment_terms_schedule_from_attrs(id, attrs)
+    };
+    payment_terms_success_record(id, template, schedules)
+}
+
+pub(in crate::proxy) fn payment_terms_templates_query_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        if field.name != "paymentTermsTemplates" {
+            continue;
+        }
+        let type_filter = resolved_string_arg(&field.arguments, "paymentTermsType")
+            .or_else(|| resolved_string_arg(&field.arguments, "type"));
+        let templates: Vec<Value> = PAYMENT_TERMS_TEMPLATES
+            .iter()
+            .copied()
+            .filter(|template| {
+                type_filter
+                    .as_deref()
+                    .is_none_or(|filter| template.terms_type == filter)
+            })
+            .map(|template| {
+                selected_json(&payment_terms_template_record(template), &field.selection)
+            })
+            .collect();
+        data.insert(field.response_key.clone(), Value::Array(templates));
     }
+    Value::Object(data)
 }
 
 pub(in crate::proxy) fn payment_terms_create_value(

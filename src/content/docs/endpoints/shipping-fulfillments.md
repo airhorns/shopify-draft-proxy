@@ -10,12 +10,30 @@ order-editing shipping-line roots.
 
 ## Current support and limitations
 
-### Supported roots
+### Implemented roots
 
-The current Rust operation registry does not mark any shipping/fulfillments root
-as fully implemented. Registry presence is a local-model commitment only; it is
-not a claim that the whole shipping/fulfillments domain is supported for
+The current Rust operation registry marks only bounded shipping/fulfillments
+slices as implemented. Registry presence is a local-model commitment only; it
+is not a claim that the whole shipping/fulfillments domain is supported for
 arbitrary documents.
+
+The implemented read roots are:
+
+- `locationsAvailableForDeliveryProfilesConnection`
+
+The implemented mutation roots are:
+
+- `carrierServiceCreate`
+- `carrierServiceDelete`
+- `carrierServiceUpdate`
+- `fulfillmentServiceCreate`
+- `fulfillmentServiceDelete`
+- `fulfillmentServiceUpdate`
+- `locationLocalPickupDisable`
+- `locationLocalPickupEnable`
+- `shippingPackageDelete`
+- `shippingPackageMakeDefault`
+- `shippingPackageUpdate`
 
 The registry-only read roots are:
 
@@ -38,7 +56,6 @@ The registry-only read roots are:
 - `deliverySettings`
 - `deliveryProfile`
 - `deliveryProfiles`
-- `locationsAvailableForDeliveryProfilesConnection`
 - `fulfillmentConstraintRules`
 
 The registry-only mutation roots are:
@@ -66,17 +83,6 @@ The registry-only mutation roots are:
 - `fulfillmentOrderSplit`
 - `fulfillmentOrderSubmitCancellationRequest`
 - `fulfillmentOrderSubmitFulfillmentRequest`
-- `fulfillmentServiceCreate`
-- `fulfillmentServiceDelete`
-- `fulfillmentServiceUpdate`
-- `carrierServiceCreate`
-- `carrierServiceDelete`
-- `carrierServiceUpdate`
-- `locationLocalPickupDisable`
-- `locationLocalPickupEnable`
-- `shippingPackageDelete`
-- `shippingPackageMakeDefault`
-- `shippingPackageUpdate`
 - `fulfillmentConstraintRuleCreate`
 - `fulfillmentConstraintRuleDelete`
 - `fulfillmentConstraintRuleUpdate`
@@ -139,10 +145,17 @@ empty/no-feature branch. Delivery profiles have fixture-backed read and bounded
 custom-profile write slices for create/update/remove, validation, variant
 dissociation, async removal payloads, and downstream null reads after removal.
 
-Local pickup and shipping package slices stage settings on known local
-locations or package records. Pickup changes are visible through the captured
-`Location`, `locationsAvailableForDeliveryProfilesConnection`, and
-`availableCarrierServices.locations` surfaces. Shipping packages have no direct
+Local pickup mutations stage settings on active local locations and retain the
+original raw GraphQL request for commit replay. `locationLocalPickupEnable`
+accepts captured standard pickup times, rejects non-standard values with
+`CUSTOM_PICKUP_TIME_NOT_ALLOWED`, and rejects unknown or inactive locations with
+`ACTIVE_LOCATION_NOT_FOUND`. `locationLocalPickupDisable` clears the staged
+settings. Pickup changes are visible through `Location.localPickupSettingsV2`
+and `locationsAvailableForDeliveryProfilesConnection` in snapshot mode and
+after LiveHybrid reads hydrate the existing shipping locations.
+
+Shipping package slices stage changes on known package records and retain the
+original raw GraphQL request for commit replay. Shipping packages have no direct
 Admin GraphQL package read root in the captured schema, so successful staging is
 verified through local state/log behavior and targeted validation.
 
@@ -157,10 +170,11 @@ when covered by their parity specs.
 
 ### Boundaries
 
+- Implemented local slices should not be described as broad
+  shipping/fulfillments root support beyond their covered request families.
 - Most shipping/fulfillment roots remain `implemented: false` in the current
-  operation registry. Scenario-backed Rust helpers should not be described as
-  broad root support unless local lifecycle behavior and downstream reads are
-  modeled.
+  operation registry. Reverse-logistics roots are implemented only for their
+  covered local lifecycle and read-after-write slices.
 - Delivery customization and delivery promise mutations are Shopify
   Function-backed or provider-backed and remain unsupported until function
   ownership, activation eligibility, metafields, provider state, validation,
