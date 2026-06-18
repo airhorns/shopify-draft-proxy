@@ -1655,6 +1655,21 @@ pub(in crate::proxy) fn b2b_strip_html_tags(value: &str) -> String {
 }
 
 impl DraftProxy {
+    // Collect the `feedbackInput[].productId`s that reference no product in the
+    // store, so `bulkProductResourceFeedbackCreate` can emit a per-entry
+    // `Product does not exist` userError for arbitrary backends without
+    // hard-coding which ids exist.
+    pub(in crate::proxy) fn feedback_missing_product_ids(
+        &self,
+        field: &RootFieldSelection,
+    ) -> BTreeSet<String> {
+        resolved_object_list_field(&field.arguments, "feedbackInput")
+            .iter()
+            .filter_map(|input| resolved_string_field(input, "productId"))
+            .filter(|id| self.product_record_by_id(id).is_none())
+            .collect()
+    }
+
     pub(in crate::proxy) fn b2b_tax_settings_update_payload(
         &mut self,
         field: &RootFieldSelection,
@@ -1787,6 +1802,7 @@ pub(in crate::proxy) fn product_tail_full_sync_job() -> Value {
 
 pub(in crate::proxy) fn product_tail_resource_feedback_payload(
     field: &RootFieldSelection,
+    missing_product_ids: &BTreeSet<String>,
 ) -> Value {
     let inputs = resolved_object_list_field(&field.arguments, "feedbackInput");
     let payload = if inputs.len() > 50 {
@@ -1804,6 +1820,17 @@ pub(in crate::proxy) fn product_tail_resource_feedback_payload(
         for (index, input) in inputs.iter().enumerate() {
             if let Some(error) = resource_feedback_validation_error(input, Some(index)) {
                 user_errors.push(error);
+                continue;
+            }
+            // Per-entry product existence is validated only after the message /
+            // generated-at / length guards pass, mirroring Shopify's resolver order:
+            // a blank-message or future-date entry never also reports the product
+            // missing. The store is the existence oracle (seeded precondition
+            // catalog), so an unknown productId yields the recorded
+            // `Product does not exist` userError with a null code.
+            let product_id = resolved_string_field(input, "productId").unwrap_or_default();
+            if missing_product_ids.contains(&product_id) {
+                user_errors.push(resource_feedback_missing_product_error(Some(index)));
             } else {
                 feedback.push(product_resource_feedback_json(input));
             }
@@ -1903,6 +1930,17 @@ fn resource_feedback_user_error(field: Vec<String>, message: &str, code: &str) -
         "field": field,
         "message": message,
         "code": code
+    })
+}
+
+// Shopify reports a referenced-but-absent product on the feedback root with a
+// null `code` (distinct from the BLANK / INVALID / TOO_LONG resolver guards),
+// anchored at the entry's `productId` argument path.
+fn resource_feedback_missing_product_error(feedback_index: Option<usize>) -> Value {
+    json!({
+        "field": feedback_field_path(feedback_index, "productId", None),
+        "message": "Product does not exist",
+        "code": Value::Null
     })
 }
 

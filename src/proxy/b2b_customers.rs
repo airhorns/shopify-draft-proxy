@@ -2639,7 +2639,8 @@ impl DraftProxy {
                         Vec::new(),
                         "failed",
                     );
-                    product_tail_resource_feedback_payload(&field)
+                    let missing_product_ids = self.feedback_missing_product_ids(&field);
+                    product_tail_resource_feedback_payload(&field, &missing_product_ids)
                 }
                 "shopResourceFeedbackCreate" => {
                     self.record_products_tail_log(
