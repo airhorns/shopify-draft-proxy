@@ -129,17 +129,34 @@ fn remove_minimal_collection(collections: &mut Vec<Value>, collection_id: &str) 
 pub(in crate::proxy) fn collection_json(collection: &Value, selections: &[SelectedField]) -> Value {
     selected_payload_json(selections, |selection| match selection.name.as_str() {
         "products" => {
-            let connection_name = match selection.arguments.get("sortKey") {
-                Some(ResolvedValue::String(value)) if value == "COLLECTION_DEFAULT" => {
-                    "defaultProducts"
-                }
-                Some(ResolvedValue::String(value)) if value == "MANUAL" => "manualProducts",
+            let sort_key = match selection.arguments.get("sortKey") {
+                Some(ResolvedValue::String(value)) => Some(value.as_str()),
+                _ => None,
+            };
+            let connection_name = match sort_key {
+                Some("COLLECTION_DEFAULT") => "defaultProducts",
+                Some("MANUAL") => "manualProducts",
                 _ => "products",
             };
+            // A default/best-selling read (anything but an explicit MANUAL sortKey)
+            // honors the collection's configured `sortOrder`. With no sales data a
+            // BEST_SELLING collection surfaces its members by recency — newest product
+            // first — whereas a MANUAL collection keeps its stored position order.
+            let honors_collection_sort_order = !matches!(sort_key, Some("MANUAL"));
+            let sort_order = collection.get("sortOrder").and_then(Value::as_str);
             Some(
                 collection
                     .get(connection_name)
-                    .map(|connection| selected_json(connection, &selection.selection))
+                    .map(|connection| {
+                        let connection = if honors_collection_sort_order
+                            && collection_sort_order_is_recency(sort_order)
+                        {
+                            collection_products_by_recency(connection)
+                        } else {
+                            connection.clone()
+                        };
+                        selected_json(&connection, &selection.selection)
+                    })
                     .unwrap_or_else(|| selected_empty_connection_json(&selection.selection)),
             )
         }
@@ -1545,6 +1562,40 @@ fn collection_from_input(
     collection
 }
 
+/// Collection sort orders whose default product ordering is by recency (newest
+/// member first). Shopify's default `BEST_SELLING` falls back to this when there is
+/// no sales data, and `CREATED_DESC` is recency by definition.
+fn collection_sort_order_is_recency(sort_order: Option<&str>) -> bool {
+    matches!(sort_order, Some("BEST_SELLING") | Some("CREATED_DESC"))
+}
+
+/// Reorder a collection `products` connection by member recency (highest numeric
+/// gid tail first), keeping `nodes` and any `edges` consistent. The stored
+/// connection preserves membership (insertion) order; this is applied only at
+/// render time for recency-sorted collections.
+fn collection_products_by_recency(connection: &Value) -> Value {
+    fn recency(node: &Value) -> i64 {
+        node.get("id")
+            .and_then(Value::as_str)
+            .and_then(|id| id.rsplit('/').next())
+            .and_then(|tail| tail.split('?').next())
+            .and_then(|tail| tail.parse::<i64>().ok())
+            .unwrap_or(0)
+    }
+    let mut connection = connection.clone();
+    if let Some(nodes) = connection.get_mut("nodes").and_then(Value::as_array_mut) {
+        nodes.sort_by(|a, b| recency(b).cmp(&recency(a)));
+    }
+    if let Some(edges) = connection.get_mut("edges").and_then(Value::as_array_mut) {
+        edges.sort_by(|a, b| {
+            let a_node = a.get("node").unwrap_or(a);
+            let b_node = b.get("node").unwrap_or(b);
+            recency(b_node).cmp(&recency(a_node))
+        });
+    }
+    connection
+}
+
 fn apply_collection_products(collection: &mut Value, products: &[ProductRecord]) {
     let product_nodes = products
         .iter()
@@ -2214,11 +2265,44 @@ pub(in crate::proxy) fn product_variant_json(
                 .map(|value| product_variant_extra_field_json(value, &selection.selection))
                 .unwrap_or(Value::Null),
         }),
+        // A variant's `media` is the subset of the owning product's media library
+        // that has been attached to the variant (via productVariantAppendMedia),
+        // rendered in attachment order.
+        "media" => Some(selected_connection_json(
+            variant_attached_media_nodes(variant, product),
+            &selection.selection,
+        )),
         _ => variant
             .extra_fields
             .get(&selection.name)
             .map(|value| product_variant_extra_field_json(value, &selection.selection)),
     })
+}
+
+/// Resolve a variant's attached `media_ids` against its owning product's media
+/// library, preserving attachment order. Falls back to any media nodes stashed
+/// in `extra_fields` when the product (library) is not available in this render
+/// context.
+pub(in crate::proxy) fn variant_attached_media_nodes(
+    variant: &ProductVariantRecord,
+    product: Option<&ProductRecord>,
+) -> Vec<Value> {
+    match product {
+        Some(product) => variant
+            .media_ids
+            .iter()
+            .filter_map(|media_id| {
+                product
+                    .media
+                    .iter()
+                    .find(|node| {
+                        node.get("id").and_then(Value::as_str) == Some(media_id.as_str())
+                    })
+                    .cloned()
+            })
+            .collect(),
+        None => Vec::new(),
+    }
 }
 
 pub(in crate::proxy) fn product_variant_inventory_item_json(
@@ -2750,6 +2834,8 @@ pub(in crate::proxy) fn product_variant_state_from_json(
                 "inventoryQuantity",
                 "selectedOptions",
                 "inventoryItem",
+                "mediaIds",
+                "media",
             ],
         ),
         media_ids: variant_media_ids_from_json(value),
@@ -2792,6 +2878,12 @@ pub(in crate::proxy) fn product_variant_state_json(variant: &ProductVariantRecor
             for (key, field_value) in &variant.inventory_item.extra_fields {
                 inventory_item.insert(key.clone(), field_value.clone());
             }
+        }
+        // Round-trip the variant→media attachment so chained mutation targets
+        // (append-media → detach-media → downstream-read share an evolving
+        // dump/restore state) preserve which library media a variant carries.
+        if !variant.media_ids.is_empty() {
+            map.insert("mediaIds".to_string(), json!(variant.media_ids));
         }
     }
     value

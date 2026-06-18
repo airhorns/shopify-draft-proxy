@@ -557,6 +557,7 @@ impl DraftProxy {
         self.store
             .reorder_product_variants(&product.id, &ordered_variant_ids);
         mark_variant_backed_values(&mut reordered, &variants);
+        partition_variant_backed_values_first(&mut reordered);
         product = product_with_option_graph(product, &reordered);
         self.store.stage_product(product.clone());
 
@@ -1551,6 +1552,27 @@ fn mark_variant_backed_values(graph: &mut ProductOptionGraph, variants: &[Produc
                     .any(|selected| selected.name == option.name && selected.value == value.name)
             });
         }
+    }
+}
+
+/// Shopify keeps option values that back a variant (`hasVariants: true`) ahead of
+/// values that do not, regardless of any requested value reorder. A requested
+/// `values` order is honored only within each group, so this stable partition runs
+/// after `mark_variant_backed_values` to pin variant-backed values first while
+/// preserving their relative (input-requested) order.
+fn partition_variant_backed_values_first(graph: &mut ProductOptionGraph) {
+    for option in &mut graph.options {
+        let mut backed = Vec::new();
+        let mut unbacked = Vec::new();
+        for value in option.values.drain(..) {
+            if value.has_variants {
+                backed.push(value);
+            } else {
+                unbacked.push(value);
+            }
+        }
+        backed.append(&mut unbacked);
+        option.values = backed;
     }
 }
 
