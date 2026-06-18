@@ -936,6 +936,130 @@ impl DraftProxy {
         }))
     }
 
+    /// Apply the local-overlay consequences of a discount bulk activate /
+    /// deactivate / delete mutation that was forwarded upstream. The async job
+    /// itself runs server-side (the forwarded response carries the real `job`),
+    /// but the proxy's overlay must reflect the resulting state so later reads in
+    /// the same scenario observe the transition. We only act on staged discounts
+    /// matching the mutation's selector (`ids` or `search`) and its
+    /// code/automatic kind, and only when the upstream accepted the job (a
+    /// non-null `job` with no userErrors) — rejected validation cases leave the
+    /// overlay untouched. `savedSearchId` selectors are not resolved locally; the
+    /// forwarded response still stands for those.
+    pub(in crate::proxy) fn apply_discount_bulk_overlay_effects(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        response_body: &Value,
+    ) {
+        let Some(fields) = root_fields(query, variables) else {
+            return;
+        };
+        for field in &fields {
+            let Some((kind, action)) = discount_bulk_root_action(&field.name) else {
+                continue;
+            };
+            let payload = &response_body["data"][&field.response_key];
+            if payload.is_null() {
+                continue;
+            }
+            let job_accepted = payload
+                .get("job")
+                .map(|job| !job.is_null())
+                .unwrap_or(false);
+            let no_user_errors = payload
+                .get("userErrors")
+                .and_then(Value::as_array)
+                .map(|errors| errors.is_empty())
+                .unwrap_or(true);
+            if !job_accepted || !no_user_errors {
+                continue;
+            }
+            for id in self.discount_bulk_selector_ids(field, kind) {
+                self.apply_discount_bulk_transition(&id, action);
+            }
+        }
+    }
+
+    /// Resolve the staged discount ids a bulk mutation's selector targets,
+    /// restricted to the mutation's discount kind (`code` / `automatic`). An
+    /// `ids` selector keeps only the supplied ids that resolve to a staged
+    /// discount of the right kind; a `search` selector matches the staged
+    /// overlay with the same query semantics reads use.
+    fn discount_bulk_selector_ids(&self, field: &RootFieldSelection, kind: &str) -> Vec<String> {
+        if let Some(ResolvedValue::List(values)) = field.arguments.get("ids") {
+            return values
+                .iter()
+                .filter_map(|value| match value {
+                    ResolvedValue::String(id) => Some(id.clone()),
+                    _ => None,
+                })
+                .filter(|id| {
+                    self.discount_record(id)
+                        .map(|record| discount_kind(record) == kind)
+                        .unwrap_or(false)
+                })
+                .collect();
+        }
+        if let Some(ResolvedValue::String(search)) = field.arguments.get("search") {
+            return self
+                .store
+                .staged
+                .discounts
+                .values()
+                .filter(|record| {
+                    !self
+                        .store
+                        .staged
+                        .deleted_discount_ids
+                        .contains(discount_id(record))
+                })
+                .filter(|record| discount_kind(record) == kind)
+                .filter(|record| discount_matches_query(record, search))
+                .map(|record| discount_id(record).to_string())
+                .collect();
+        }
+        Vec::new()
+    }
+
+    /// Apply a single bulk transition to one staged discount. Activate/deactivate
+    /// mirror the single `discount{Code,Automatic}{Activate,Deactivate}` mutation
+    /// (idempotent no-op when already in the target status; deactivate stamps an
+    /// `endsAt`); delete tombstones the discount and drops its codes from the
+    /// code index.
+    fn apply_discount_bulk_transition(&mut self, id: &str, action: DiscountBulkAction) {
+        match action {
+            DiscountBulkAction::Delete => {
+                self.store.staged.deleted_discount_ids.insert(id.to_string());
+                self.store.staged.discounts.remove(id);
+                self.store
+                    .staged
+                    .discount_code_index
+                    .retain(|_, discount_id| discount_id != id);
+            }
+            DiscountBulkAction::Activate | DiscountBulkAction::Deactivate => {
+                let activating = matches!(action, DiscountBulkAction::Activate);
+                if let Some(record) = self.store.staged.discounts.get_mut(id) {
+                    let current_status = record["status"].as_str().unwrap_or_default();
+                    let is_noop = if activating {
+                        current_status == "ACTIVE"
+                    } else {
+                        current_status == "EXPIRED"
+                    };
+                    if !is_noop {
+                        record["status"] = json!(if activating { "ACTIVE" } else { "EXPIRED" });
+                        record["updatedAt"] = json!(DISCOUNT_DEFAULT_TIMESTAMP);
+                        if activating {
+                            record["endsAt"] = Value::Null;
+                        } else if record.get("endsAt").and_then(Value::as_str).is_none() {
+                            record["endsAt"] = json!(DISCOUNT_DEFAULT_TIMESTAMP);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     fn discount_redeem_code_bulk_add(
         &mut self,
         field: &RootFieldSelection,
@@ -2566,6 +2690,38 @@ fn discount_record_codes(record: &Value) -> Vec<String> {
         }
     }
     codes
+}
+
+/// The three discount bulk transitions. Code and automatic families share the
+/// same effects; the family only narrows which staged discounts are eligible.
+#[derive(Clone, Copy)]
+enum DiscountBulkAction {
+    Activate,
+    Deactivate,
+    Delete,
+}
+
+/// Classify a bulk mutation root field into its (discount kind, action). Returns
+/// `None` for anything that is not one of the six
+/// `discount{Code,Automatic}Bulk{Activate,Deactivate,Delete}` mutations (notably
+/// the redeem-code bulk add/delete mutations, which are handled separately).
+fn discount_bulk_root_action(name: &str) -> Option<(&'static str, DiscountBulkAction)> {
+    match name {
+        "discountCodeBulkActivate" => Some(("code", DiscountBulkAction::Activate)),
+        "discountCodeBulkDeactivate" => Some(("code", DiscountBulkAction::Deactivate)),
+        "discountCodeBulkDelete" => Some(("code", DiscountBulkAction::Delete)),
+        "discountAutomaticBulkActivate" => Some(("automatic", DiscountBulkAction::Activate)),
+        "discountAutomaticBulkDeactivate" => Some(("automatic", DiscountBulkAction::Deactivate)),
+        "discountAutomaticBulkDelete" => Some(("automatic", DiscountBulkAction::Delete)),
+        _ => None,
+    }
+}
+
+/// Whether a mutation root field is a discount bulk activate / deactivate /
+/// delete. These forward upstream for the async `job`, then apply their effect
+/// to the local overlay so later reads stay consistent.
+pub(in crate::proxy) fn is_discount_bulk_action_root(name: &str) -> bool {
+    discount_bulk_root_action(name).is_some()
 }
 
 fn discount_matches_query(record: &Value, query: &str) -> bool {
