@@ -307,9 +307,6 @@ fn validate_argument_value(
             inline_argument_value_location(context.query, field, argument_name),
         ),
         RawArgumentValue::Variable { name, value } => {
-            let Some(ResolvedValue::Object(fields)) = value.as_ref() else {
-                return Vec::new();
-            };
             let variable_type = document
                 .variable_definitions
                 .get(name)
@@ -320,6 +317,16 @@ fn validate_argument_value(
                 .get(name)
                 .map(|definition| definition.location)
                 .unwrap_or(field.location);
+            // A required (non-null) argument supplied a null or absent variable
+            // fails coercion at the variable definition. Shopify reports this as
+            // an INVALID_VARIABLE "Expected value to not be null" problem rather
+            // than a missing-argument error.
+            if type_ref.non_null && matches!(value.as_ref(), None | Some(ResolvedValue::Null)) {
+                return vec![non_null_variable_null_error(name, variable_type, location)];
+            }
+            let Some(ResolvedValue::Object(fields)) = value.as_ref() else {
+                return Vec::new();
+            };
             let variable_context = VariableValidationContext {
                 variable_name: name,
                 variable_type,
@@ -342,7 +349,7 @@ fn validate_argument_value(
                 )]
             }
         }
-        RawArgumentValue::Null if type_ref.non_null => vec![required_root_argument_error(
+        RawArgumentValue::Null if type_ref.non_null => vec![non_null_argument_literal_error(
             field,
             argument_name,
             type_ref,
@@ -396,6 +403,23 @@ fn validate_raw_input_object(
         let Some(field_schema) = input_object.get(field_name) else {
             continue;
         };
+        // Scalar coercion: an Int field given a float literal fails coercion.
+        // Shopify anchors the argumentLiteralsIncompatible error at the enclosing
+        // argument value (the input-object literal), with the full path to the
+        // offending field.
+        if let Some(invalid_value) =
+            int_literal_coercion_value(field_value, &field_schema.type_ref)
+        {
+            errors.push(argument_literal_incompatible_error(
+                input_type_name,
+                field_name,
+                &invalid_value,
+                &field_schema.type_ref.display,
+                path,
+                context,
+                location.unwrap_or(context.field_location),
+            ));
+        }
         let Some(nested_input_object) = schema.input_objects.get(&field_schema.type_ref.named_type)
         else {
             continue;
@@ -513,6 +537,19 @@ fn validate_resolved_scalar(
             raw.trim().is_empty().then(|| ScalarValidationProblem {
                 explanation: format!("Invalid global id '{raw}'"),
                 include_message: true,
+            })
+        }
+        "Int" => {
+            // Admin GraphQL coerces Int scalars from integer values only. A float
+            // (e.g. recurringCycleLimit: 1.5 provided through a variable) fails
+            // coercion with a "Could not coerce" problem anchored at the variable
+            // definition.
+            let ResolvedValue::Float(raw) = value else {
+                return None;
+            };
+            Some(ScalarValidationProblem {
+                explanation: format!("Could not coerce value {} to Int", format_float_literal(*raw)),
+                include_message: false,
             })
         }
         "Decimal" => {
@@ -634,6 +671,95 @@ fn blank_id_argument_literal_error(
             "typeName": "CoercionError"
         }
     })
+}
+
+fn non_null_argument_literal_error(
+    field: &RootFieldSelection,
+    argument_name: &str,
+    type_ref: &SchemaTypeRef,
+    context: ValidationContext<'_>,
+) -> Value {
+    // A `null` literal supplied for a non-null argument fails GraphQL coercion
+    // (it is not a "missing argument" — the argument is present, its value is
+    // invalid). Shopify anchors the argumentLiteralsIncompatible error at the
+    // field token.
+    json!({
+        "message": format!(
+            "Argument '{}' on Field '{}' has an invalid value (null). Expected type '{}'.",
+            argument_name, field.name, type_ref.display
+        ),
+        "locations": [{ "line": context.field_location.line, "column": context.field_location.column }],
+        "path": [context.operation_path, context.response_key, argument_name],
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "Field",
+            "argumentName": argument_name
+        }
+    })
+}
+
+fn non_null_variable_null_error(
+    variable_name: &str,
+    variable_type: &str,
+    location: SourceLocation,
+) -> Value {
+    json!({
+        "message": format!(
+            "Variable ${variable_name} of type {variable_type} was provided invalid value"
+        ),
+        "locations": [{ "line": location.line, "column": location.column }],
+        "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": Value::Null,
+            "problems": [{
+                "path": [],
+                "explanation": "Expected value to not be null"
+            }]
+        }
+    })
+}
+
+fn argument_literal_incompatible_error(
+    input_type_name: &str,
+    argument_name: &str,
+    invalid_value: &str,
+    expected_type: &str,
+    path: &[String],
+    context: ValidationContext<'_>,
+    location: SourceLocation,
+) -> Value {
+    json!({
+        "message": format!(
+            "Argument '{argument_name}' on InputObject '{input_type_name}' has an invalid value ({invalid_value}). Expected type '{expected_type}'."
+        ),
+        "locations": [{ "line": location.line, "column": location.column }],
+        "path": input_error_path(context, path, argument_name),
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "typeName": "InputObject",
+            "argumentName": argument_name
+        }
+    })
+}
+
+/// Detects an Int-typed field given a float literal, returning the rendered
+/// literal for the error message. Integer literals parse as `Int` and never
+/// reach here.
+fn int_literal_coercion_value(
+    value: &RawArgumentValue,
+    type_ref: &SchemaTypeRef,
+) -> Option<String> {
+    if type_ref.named_type != "Int" {
+        return None;
+    }
+    match value {
+        RawArgumentValue::Float(raw) => Some(format_float_literal(*raw)),
+        _ => None,
+    }
+}
+
+fn format_float_literal(value: f64) -> String {
+    format!("{value}")
 }
 
 fn input_object_argument_not_accepted_error(
