@@ -723,6 +723,44 @@ function collectSetupEntitySeeds(capture: unknown): {
   return { draftOrders: [...draftOrders.values()], orders: [...orders.values()] };
 }
 
+// `seedOrderCatalogFromCapture: true` declares that the scenario's local order
+// catalog should be re-established from the capture's own recorded order nodes
+// (the `orders` connection reads under `response` / `nextPage`). Collect every
+// `gid://shopify/Order/...` projection appearing in those assertion payloads and
+// merge them field-by-field by id, so the local orders/ordersCount engine has the
+// full catalog to filter, sort, paginate, and count against. A status-only node
+// (id/name/status) contributes those fields; a richer node (the seed/recent read)
+// contributes createdAt/tags/email. Only the recorded assertion payloads are
+// walked — never `upstreamCalls` or `setup` — so the seeded catalog stays
+// faithful to exactly the orders the scenario observes.
+function collectOrderCatalogSeeds(capture: unknown): Record<string, unknown>[] {
+  const record = capture as Record<string, unknown>;
+  if (record['seedOrderCatalogFromCapture'] !== true) return [];
+  const orders = new Map<string, Record<string, unknown>>();
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const entry of node) visit(entry);
+      return;
+    }
+    if (node === null || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    const id = obj['id'];
+    if (typeof id === 'string' && id.startsWith('gid://shopify/Order/')) {
+      const seed = orders.get(id) ?? {};
+      for (const [key, value] of Object.entries(obj)) {
+        // First non-null projection of a field wins; overlapping projections of
+        // the same order carry identical values, so this only ever fills gaps.
+        if (seed[key] === undefined || seed[key] === null) seed[key] = value;
+      }
+      orders.set(id, seed);
+    }
+    for (const value of Object.values(obj)) visit(value);
+  };
+  visit(record['response']);
+  visit(record['nextPage']);
+  return [...orders.values()];
+}
+
 async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown): Promise<void> {
   const record = capture as Record<string, unknown>;
   const customers = Array.isArray(record['seedCustomers']) ? record['seedCustomers'] : [];
@@ -753,6 +791,7 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
     ...(Array.isArray(record['seedOrders']) ? record['seedOrders'] : []),
     ...singletonSeed('seedOrder'),
     ...setupSeeds.orders,
+    ...collectOrderCatalogSeeds(record),
   ];
   // `seedOrderEditVariants` mirrors the store catalog entries an order-edit
   // `orderEditAddVariant` resolves against (variant id → product title / sku /

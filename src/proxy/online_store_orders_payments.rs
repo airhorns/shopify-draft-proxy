@@ -581,6 +581,112 @@ fn orders_empty_count_payload() -> Value {
     })
 }
 
+/// Normalize an order name for comparison (`#1331` and `1331` are equivalent in
+/// Shopify's `name:` search term), lower-cased so matching is case-insensitive.
+fn normalize_order_name(name: &str) -> String {
+    name.trim().trim_start_matches('#').to_ascii_lowercase()
+}
+
+/// Evaluate one `key:value` search term against an order projection. Returns
+/// `None` for terms we do not model so an unknown term never silently drops a
+/// row (callers treat `None` as "not a filter we enforce" → keep the order).
+fn order_matches_term(order: &Value, key: &str, value: &str) -> Option<bool> {
+    let value = value.trim();
+    match key {
+        "tag" => {
+            let want = value.to_ascii_lowercase();
+            Some(
+                order
+                    .get("tags")
+                    .and_then(Value::as_array)
+                    .is_some_and(|tags| {
+                        tags.iter()
+                            .filter_map(Value::as_str)
+                            .any(|tag| tag.to_ascii_lowercase() == want)
+                    }),
+            )
+        }
+        "name" => {
+            let want = normalize_order_name(value);
+            Some(
+                order
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .is_some_and(|name| normalize_order_name(name) == want),
+            )
+        }
+        "email" => {
+            let want = value.to_ascii_lowercase();
+            Some(
+                order
+                    .get("email")
+                    .and_then(Value::as_str)
+                    .is_some_and(|email| email.to_ascii_lowercase() == want),
+            )
+        }
+        "financial_status" => Some(
+            order
+                .get("displayFinancialStatus")
+                .and_then(Value::as_str)
+                .is_some_and(|status| status.eq_ignore_ascii_case(value)),
+        ),
+        "fulfillment_status" => Some(
+            order
+                .get("displayFulfillmentStatus")
+                .and_then(Value::as_str)
+                .is_some_and(|status| status.eq_ignore_ascii_case(value)),
+        ),
+        _ => None,
+    }
+}
+
+/// Match an order against a Shopify `query:` search string. Terms are
+/// whitespace-separated and ANDed together (Shopify's default). Quoted values
+/// are not modelled here; the catalog scenarios use bare values. An empty query
+/// matches everything.
+fn order_matches_query(order: &Value, query: &str) -> bool {
+    let query = query.trim();
+    if query.is_empty() {
+        return true;
+    }
+    query.split_whitespace().all(|term| {
+        match term.split_once(':') {
+            // Terms we model must match; terms we do not model are ignored so an
+            // unrecognized term never spuriously empties the result set.
+            Some((key, value)) => order_matches_term(order, key, value).unwrap_or(true),
+            None => true,
+        }
+    })
+}
+
+/// Sort key for the orders connection: `(timestamp, numeric id)`, both ascending.
+/// ISO-8601 timestamps order lexicographically, so string comparison matches
+/// chronological order; the numeric id is a stable tiebreak (and the sole key
+/// when a projection omits the timestamp, e.g. a status-only node). Callers
+/// reverse the sorted vector for `reverse: true`.
+fn order_sort_value(order: &Value, sort_key: &str) -> (String, i64) {
+    let date_field = match sort_key {
+        "UPDATED_AT" => "updatedAt",
+        "PROCESSED_AT" => "processedAt",
+        // CREATED_AT (and any sort key we do not specialize) falls back to
+        // creation order, which is the catalog scenarios' sort.
+        _ => "createdAt",
+    };
+    let date = order
+        .get(date_field)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let numeric_id = order
+        .get("id")
+        .and_then(Value::as_str)
+        .and_then(|id| id.rsplit('/').next())
+        .and_then(|tail| tail.split('?').next())
+        .and_then(|tail| tail.parse::<i64>().ok())
+        .unwrap_or(0);
+    (date, numeric_id)
+}
+
 fn orders_error(field: &[&str], message: &str, code: &str) -> Value {
     json!({
         "field": field,
@@ -4823,13 +4929,7 @@ impl DraftProxy {
                     nullable_selected_json(&order, &field.selection)
                 }
                 "orders" => self.staged_orders_connection(&field),
-                "ordersCount" => selected_json(
-                    &json!({
-                        "count": self.store.staged.orders.len(),
-                        "precision": "EXACT"
-                    }),
-                    &field.selection,
-                ),
+                "ordersCount" => self.staged_orders_count(&field),
                 _ => return None,
             };
             data.insert(field.response_key, value);
@@ -4837,28 +4937,67 @@ impl DraftProxy {
         Some(json!({ "data": Value::Object(data) }))
     }
 
-    fn staged_orders_connection(&self, field: &RootFieldSelection) -> Value {
-        let query_arg = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
-        let node_selection = nested_selected_fields(&field.selection, &["nodes"]);
-        let nodes = self
+    /// Full order projections from the seeded catalog that match a connection's
+    /// `query:` filter, ordered by `sortKey`/`reverse`. The returned values are
+    /// whole orders (not yet selection-projected) so the caller can window them
+    /// and then project both `nodes` and `pageInfo` through the field selection.
+    fn matching_orders_sorted(
+        &self,
+        arguments: &BTreeMap<String, ResolvedValue>,
+    ) -> Vec<Value> {
+        let query_arg = resolved_string_arg(arguments, "query").unwrap_or_default();
+        // Enum arguments resolve to their variant name as a string.
+        let sort_key = resolved_string_arg(arguments, "sortKey").unwrap_or_default();
+        let reverse = resolved_bool_field(arguments, "reverse").unwrap_or(false);
+        let mut matched = self
             .store
             .staged
             .orders
             .values()
-            .filter(|order| {
-                if query_arg.is_empty() {
-                    return true;
-                }
-                order["name"]
-                    .as_str()
-                    .is_some_and(|name| query_arg == format!("name:{name}"))
-                    || order["email"]
-                        .as_str()
-                        .is_some_and(|email| query_arg == format!("email:{email}"))
-            })
-            .map(|order| selected_json(order, &node_selection))
+            .filter(|order| order_matches_query(order, &query_arg))
+            .cloned()
             .collect::<Vec<_>>();
-        selected_json(&order_connection(nodes), &field.selection)
+        matched.sort_by(|a, b| order_sort_value(a, &sort_key).cmp(&order_sort_value(b, &sort_key)));
+        if reverse {
+            matched.reverse();
+        }
+        matched
+    }
+
+    fn staged_orders_connection(&self, field: &RootFieldSelection) -> Value {
+        let matched = self.matching_orders_sorted(&field.arguments);
+        // Window with the order id as the opaque cursor. The next-page request in
+        // the catalog scenario feeds this connection's own `endCursor` back as
+        // `after`, so the cursor only needs to round-trip with itself — it is not
+        // compared against Shopify's recorded opaque cursors.
+        selected_connection_json_with_args(
+            matched,
+            &field.arguments,
+            &field.selection,
+            value_id_cursor,
+        )
+    }
+
+    /// `ordersCount` over the seeded catalog: count matches, then apply Shopify's
+    /// `limit` precision semantics — capped at `limit` and reported `AT_LEAST`
+    /// when more matches exist than the limit, otherwise the exact total.
+    fn staged_orders_count(&self, field: &RootFieldSelection) -> Value {
+        let query_arg = resolved_string_arg(&field.arguments, "query").unwrap_or_default();
+        let matched = self
+            .store
+            .staged
+            .orders
+            .values()
+            .filter(|order| order_matches_query(order, &query_arg))
+            .count();
+        let (count, precision) = match resolved_int_field(&field.arguments, "limit") {
+            Some(limit) if limit >= 0 && matched as i64 > limit => (limit as usize, "AT_LEAST"),
+            _ => (matched, "EXACT"),
+        };
+        selected_json(
+            &json!({ "count": count, "precision": precision }),
+            &field.selection,
+        )
     }
 
     fn stage_order_update(
@@ -5197,6 +5336,14 @@ impl DraftProxy {
         if let Some(order) = self.hydrate_order_lifecycle_order(id, request, "") {
             self.store.staged.orders.insert(id.to_string(), order);
         }
+    }
+
+    /// Confirm an order exists on the backend without staging it. Used by the
+    /// refundMethod orderCancel path, which acknowledges the cancel but defers the
+    /// authoritative refunded/restocked order projection to the backend by leaving
+    /// the order unstaged (the downstream read then forwards upstream).
+    fn order_exists_upstream(&self, request: &Request, id: &str) -> bool {
+        !id.is_empty() && self.hydrate_order_lifecycle_order(id, request, "").is_some()
     }
 
     /// Hydrate the summary customer projection used by orderCustomerSet and
@@ -9428,12 +9575,24 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Option<Value> {
         let order_id = resolved_string_arg(&field.arguments, "orderId")?;
+        let refund_method_cancel = field.arguments.contains_key("refundMethod");
+        let order_locally_known = self.store.staged.orders.contains_key(&order_id)
+            || self.store.staged.order_customer_orders.contains_key(&order_id);
         // Earn the order from the backend when no precondition seed staged it.
         // Synthetic order-customer ids (seeded by orderCreate error-paths) live
         // in `order_customer_orders` and must not trigger an upstream read.
+        //
+        // A `refundMethod` (full original-payment-method refund) cancel is the one
+        // case we deliberately do NOT stage: that mutation's authoritative
+        // downstream order projection (the refund ledger and the restocked
+        // fulfillment orders) is computed by the backend, not modelled in the
+        // local overlay. We confirm the order exists upstream below, acknowledge
+        // the cancel, and leave it unstaged so the downstream `order` read forwards
+        // to the backend for the real refunded/restocked state instead of serving
+        // a stale locally-projected copy.
         if !order_id.contains("shopify-draft-proxy=synthetic")
-            && !self.store.staged.orders.contains_key(&order_id)
-            && !self.store.staged.order_customer_orders.contains_key(&order_id)
+            && !order_locally_known
+            && !refund_method_cancel
         {
             self.ensure_order_lifecycle_hydrated(request, &order_id);
         }
@@ -9468,6 +9627,43 @@ impl DraftProxy {
                     "Refund and refundMethod cannot both be present.",
                     "INVALID",
                 ),
+                &field.selection,
+            ));
+        }
+
+        // refundMethod cancel of an order not held in local overlay state: confirm
+        // it exists upstream, acknowledge the cancel, and leave it unstaged so the
+        // downstream order read forwards to the backend for the authoritative
+        // refunded/restocked projection (see the staging note above).
+        if refund_method_cancel && !order_locally_known {
+            if !self.order_exists_upstream(request, &order_id) {
+                return Some(selected_json(
+                    &error_payload("orderId", "Order does not exist", "NOT_FOUND"),
+                    &field.selection,
+                ));
+            }
+            let job_id = format!(
+                "gid://shopify/Job/{}?shopify-draft-proxy=synthetic",
+                self.log_entries.len() + 1
+            );
+            self.record_orders_local_log_entry(OrdersLocalLogEntry {
+                request,
+                query,
+                variables,
+                root_field: "orderCancel",
+                staged_resource_ids: Vec::new(),
+                outcome: OrdersLocalLogOutcome {
+                    status: "forwarded",
+                    notes: "Acknowledged refundMethod orderCancel; downstream order read forwards upstream for the refunded/restocked projection.",
+                },
+            });
+            return Some(selected_json(
+                &json!({
+                    "order": Value::Null,
+                    "job": { "id": job_id, "done": false },
+                    "orderCancelUserErrors": [],
+                    "userErrors": []
+                }),
                 &field.selection,
             ));
         }
