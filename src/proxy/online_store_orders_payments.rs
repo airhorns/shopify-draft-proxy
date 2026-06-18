@@ -11,6 +11,12 @@ struct OrdersLocalLogEntry<'a> {
 
 const ORDER_LIFECYCLE_HYDRATE_QUERY: &str = "query OrderManagementDownstreamRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    paymentGatewayNames\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    customer {\n      id\n      email\n      displayName\n    }\n    transactions {\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n}";
 
+// Canonical customer hydrate issued for order-customer mutations (orderCustomerSet).
+// The selection mirrors the order.customer projection these mutations expose, so a
+// live backend returns the same shape the proxy then stores and re-projects.
+const ORDER_CUSTOMER_SUMMARY_HYDRATE_QUERY: &str =
+    "query CustomerHydrate($id: ID!) { customer(id: $id) { id email displayName } }";
+
 const MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH: usize = 100;
 const MOBILE_PLATFORM_APP_CLIP_APPLICATION_ID_MAX_LENGTH: usize = 255;
 const FULFILLMENT_EVENT_CREATED_AT: &str = "2024-01-01T00:00:03.000Z";
@@ -4203,6 +4209,53 @@ impl DraftProxy {
         }
     }
 
+    /// Stage the live lifecycle/summary projection of `id` into `staged.orders`
+    /// if it is not already present. Used by order-customer mutations
+    /// (orderCancel / orderCustomerSet / orderCustomerRemove) so their happy
+    /// path earns the order from the backend rather than 404-ing when no
+    /// precondition seed exists.
+    fn ensure_order_lifecycle_hydrated(&mut self, request: &Request, id: &str) {
+        if id.is_empty() || self.store.staged.orders.contains_key(id) {
+            return;
+        }
+        if let Some(order) = self.hydrate_order_lifecycle_order(id, request, "") {
+            self.store.staged.orders.insert(id.to_string(), order);
+        }
+    }
+
+    /// Hydrate the summary customer projection used by orderCustomerSet and
+    /// stage it under `staged.customers`. Issues the canonical `CustomerHydrate`
+    /// query so a live backend returns the id/email/displayName the mutation
+    /// then re-projects.
+    fn ensure_order_customer_hydrated(&mut self, request: &Request, id: &str) {
+        if id.is_empty() || self.store.staged.customers.contains_key(id) {
+            return;
+        }
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": ORDER_CUSTOMER_SUMMARY_HYDRATE_QUERY,
+                "variables": { "id": id }
+            })
+            .to_string(),
+        });
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        let customer = response.body["data"]["customer"].clone();
+        if customer.is_object() {
+            self.store
+                .staged
+                .customers
+                .insert(id.to_string(), customer);
+        }
+    }
+
     fn staged_order_id_for_fulfillment_order(&self, fulfillment_order_id: &str) -> Option<String> {
         self.store
             .staged
@@ -7233,8 +7286,12 @@ impl DraftProxy {
                 "orderCancel" => {
                     self.order_customer_paths_cancel_order(request, query, variables, &field)
                 }
-                "orderCustomerSet" => Some(self.order_customer_set_error_paths(&field)),
-                "orderCustomerRemove" => Some(self.order_customer_remove_error_paths(&field)),
+                "orderCustomerSet" => {
+                    Some(self.order_customer_set_error_paths(request, &field))
+                }
+                "orderCustomerRemove" => {
+                    Some(self.order_customer_remove_error_paths(request, &field))
+                }
                 _ => None,
             }?;
             data.insert(field.response_key.clone(), value);
@@ -7368,6 +7425,15 @@ impl DraftProxy {
         field: &RootFieldSelection,
     ) -> Option<Value> {
         let order_id = resolved_string_arg(&field.arguments, "orderId")?;
+        // Earn the order from the backend when no precondition seed staged it.
+        // Synthetic order-customer ids (seeded by orderCreate error-paths) live
+        // in `order_customer_orders` and must not trigger an upstream read.
+        if !order_id.contains("shopify-draft-proxy=synthetic")
+            && !self.store.staged.orders.contains_key(&order_id)
+            && !self.store.staged.order_customer_orders.contains_key(&order_id)
+        {
+            self.ensure_order_lifecycle_hydrated(request, &order_id);
+        }
         let error_payload = |field_name: &str, message: &str, code: &str| {
             json!({
                 "order": Value::Null,
@@ -7539,17 +7605,32 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn order_customer_set_error_paths(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
     ) -> Value {
         let order_id = resolved_string_arg(&field.arguments, "orderId").unwrap_or_default();
         let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        // Earn order + customer from the backend on the happy path (no seed).
+        // Synthetic error-path ids stay local-only.
+        if !order_id.is_empty()
+            && !order_id.contains("shopify-draft-proxy=synthetic")
+            && !self.store.staged.order_customer_orders.contains_key(&order_id)
+            && !self.store.staged.orders.contains_key(&order_id)
+        {
+            self.ensure_order_lifecycle_hydrated(request, &order_id);
+        }
+        if !customer_id.is_empty() && !customer_id.contains("shopify-draft-proxy=synthetic") {
+            self.ensure_order_customer_hydrated(request, &customer_id);
+        }
         let customer = self.store.staged.customers.get(&customer_id).cloned();
+        let from_customer_map = self.store.staged.order_customer_orders.contains_key(&order_id);
         let Some(mut order) = self
             .store
             .staged
             .order_customer_orders
             .get(&order_id)
             .cloned()
+            .or_else(|| self.store.staged.orders.get(&order_id).cloned())
         else {
             return selected_json(
                 &json!({
@@ -7588,10 +7669,17 @@ impl DraftProxy {
             );
         }
         order["customer"] = customer;
-        self.store
-            .staged
-            .order_customer_orders
-            .insert(order_id.clone(), order.clone());
+        if from_customer_map {
+            self.store
+                .staged
+                .order_customer_orders
+                .insert(order_id.clone(), order.clone());
+        } else {
+            self.store
+                .staged
+                .orders
+                .insert(order_id.clone(), order.clone());
+        }
         selected_json(
             &json!({ "order": order, "userErrors": [] }),
             &field.selection,
@@ -7600,15 +7688,25 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn order_customer_remove_error_paths(
         &mut self,
+        request: &Request,
         field: &RootFieldSelection,
     ) -> Value {
         let order_id = resolved_string_arg(&field.arguments, "orderId").unwrap_or_default();
+        if !order_id.is_empty()
+            && !order_id.contains("shopify-draft-proxy=synthetic")
+            && !self.store.staged.order_customer_orders.contains_key(&order_id)
+            && !self.store.staged.orders.contains_key(&order_id)
+        {
+            self.ensure_order_lifecycle_hydrated(request, &order_id);
+        }
+        let from_customer_map = self.store.staged.order_customer_orders.contains_key(&order_id);
         let Some(mut order) = self
             .store
             .staged
             .order_customer_orders
             .get(&order_id)
             .cloned()
+            .or_else(|| self.store.staged.orders.get(&order_id).cloned())
         else {
             return selected_json(
                 &json!({
@@ -7633,10 +7731,17 @@ impl DraftProxy {
             );
         }
         order["customer"] = Value::Null;
-        self.store
-            .staged
-            .order_customer_orders
-            .insert(order_id.clone(), order.clone());
+        if from_customer_map {
+            self.store
+                .staged
+                .order_customer_orders
+                .insert(order_id.clone(), order.clone());
+        } else {
+            self.store
+                .staged
+                .orders
+                .insert(order_id.clone(), order.clone());
+        }
         selected_json(
             &json!({ "order": order, "userErrors": [] }),
             &field.selection,
