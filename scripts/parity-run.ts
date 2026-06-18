@@ -600,6 +600,24 @@ function diffValues(capture: unknown, proxy: unknown, rules: ExpectedDifference[
   return [`${basePath}: expected ${JSON.stringify(capture)} got ${JSON.stringify(proxy)}`];
 }
 
+// Replay a capture's pre-existing entity declarations into the proxy store so
+// local replay can resolve references the scenario's setup created before the
+// requests under test (e.g. buyer-context customer display names / segment
+// names). `seedCustomers` / `seedSegments` mirror the captured setup responses;
+// the proxy upserts them by their captured ids. No-op when the capture declares
+// no seeds, so this is inert for every spec that does not need it.
+async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown): Promise<void> {
+  const record = capture as Record<string, unknown>;
+  const customers = Array.isArray(record['seedCustomers']) ? record['seedCustomers'] : [];
+  const segments = Array.isArray(record['seedSegments']) ? record['seedSegments'] : [];
+  if (customers.length === 0 && segments.length === 0) return;
+  await proxy.processRequest({
+    method: 'POST',
+    path: '/__meta/seed',
+    body: { customers, segments },
+  });
+}
+
 async function runSpec(
   specPath: string,
   debug: boolean,
@@ -616,6 +634,7 @@ async function runSpec(
   cassette.setCalls(upstreamCalls);
   proxy.restoreState(cleanState);
   await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
+  await seedPreconditionsFromCapture(proxy, capture);
   const failures: string[] = [];
   let primaryResponse: ProxyResponse | null = null;
   let previousResponse: ProxyResponse | null = null;
@@ -647,6 +666,7 @@ async function runSpec(
       if (target.isolatedProxy) {
         cassette.setCalls(upstreamCalls);
         await proxy.processRequest({ method: 'POST', path: '/__meta/reset' });
+        await seedPreconditionsFromCapture(proxy, capture);
         primaryResponse = null;
         previousResponse = null;
         namedResponses.clear();

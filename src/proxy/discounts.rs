@@ -318,12 +318,62 @@ impl DraftProxy {
         {
             let _ = self.next_proxy_synthetic_gid("DiscountRedeemCode");
         }
-        let record = discount_record_from_input(&id, discount_kind, typename, &input, None);
+        let mut record = discount_record_from_input(&id, discount_kind, typename, &input, None);
+        self.resolve_discount_context_names(&mut record);
         self.stage_discount_record(record.clone());
         MutationFieldOutcome::staged(
             discount_payload_for_root(&field.name, discount_node_for_record(&record), Vec::new()),
             LogDraft::staged(&field.name, "discounts", vec![id]),
         )
+    }
+
+    /// Fill in buyer-context member display names / segment names from records the
+    /// store already holds (seeded preconditions or entities staged earlier in the
+    /// scenario). The discount record only carries member ids until this runs, so
+    /// baking the names here means every later read of `record["context"]` resolves
+    /// them without re-querying — mirroring how live Shopify materializes the
+    /// selection from the referenced customer/segment records.
+    fn resolve_discount_context_names(&self, record: &mut Value) {
+        let Some(context) = record.get_mut("context") else {
+            return;
+        };
+        if let Some(customers) = context.get_mut("customers").and_then(Value::as_array_mut) {
+            for customer in customers {
+                let Some(id) = customer.get("id").and_then(Value::as_str).map(str::to_string)
+                else {
+                    continue;
+                };
+                if let Some(display_name) = self
+                    .store
+                    .staged
+                    .customers
+                    .get(&id)
+                    .and_then(|record| record.get("displayName"))
+                    .filter(|value| !value.is_null())
+                    .cloned()
+                {
+                    customer["displayName"] = display_name;
+                }
+            }
+        }
+        if let Some(segments) = context.get_mut("segments").and_then(Value::as_array_mut) {
+            for segment in segments {
+                let Some(id) = segment.get("id").and_then(Value::as_str).map(str::to_string) else {
+                    continue;
+                };
+                if let Some(name) = self
+                    .store
+                    .staged
+                    .segments
+                    .get(&id)
+                    .and_then(|record| record.get("name"))
+                    .filter(|value| !value.is_null())
+                    .cloned()
+                {
+                    segment["name"] = name;
+                }
+            }
+        }
     }
 
     fn discount_update(
@@ -385,13 +435,14 @@ impl DraftProxy {
             ));
         }
         let existing = self.discount_record(&id).cloned();
-        let record = discount_record_from_input(
+        let mut record = discount_record_from_input(
             &id,
             discount_kind,
             typename,
             &input.unwrap_or_default(),
             existing.as_ref(),
         );
+        self.resolve_discount_context_names(&mut record);
         self.stage_discount_record(record.clone());
         MutationFieldOutcome::staged(
             discount_payload_for_root(&field.name, discount_node_for_record(&record), Vec::new()),
@@ -993,11 +1044,13 @@ impl DraftProxy {
         selection: &[SelectedField],
     ) -> Option<Value> {
         self.discount_record(id).map(|record| {
-            let value = if shopify_gid_resource_type(id) == Some("DiscountAutomaticNode") {
-                discount_node_for_record(record)
-            } else {
-                discount_admin_node_for_record(record)
-            };
+            // A `node(id:)` read resolves to the concrete DiscountCodeNode /
+            // DiscountAutomaticNode type, which expose `codeDiscount` /
+            // `automaticDiscount` respectively (not the DiscountNode interface's
+            // `discount`). `discount_node_for_record` emits the right accessor
+            // for both kinds; the `discount`-keyed admin node shape is only for
+            // the `discountNode(id:)` root field.
+            let value = discount_node_for_record(record);
             selected_json(&value, selection)
         })
     }
@@ -2343,6 +2396,24 @@ fn discount_matches_query(record: &Value, query: &str) -> bool {
     if normalized.contains("type:automatic") {
         return discount_kind(record) == "automatic";
     }
+    // `discount_class:<class>` narrows by the discount's discountClasses set
+    // (PRODUCT / ORDER / SHIPPING). Multiple class tokens AND together.
+    for token in normalized.split_whitespace() {
+        if let Some(class) = token.strip_prefix("discount_class:") {
+            let matches_class = record["discountClasses"]
+                .as_array()
+                .map(|classes| {
+                    classes
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .any(|existing| existing.eq_ignore_ascii_case(class))
+                })
+                .unwrap_or(false);
+            if !matches_class {
+                return false;
+            }
+        }
+    }
     true
 }
 
@@ -2445,13 +2516,21 @@ fn discount_classes_for_input(typename: &str, input: &BTreeMap<String, ResolvedV
 }
 
 fn discount_context_from_input(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    // The buyer-context selection echoes back the customer/segment members it was
+    // pointed at. We record the referenced ids here; display names / segment names
+    // are filled in by `resolve_discount_context_names` from entities the store
+    // already knows about (live Shopify resolves these from existing records too).
     if resolved_object_path(
         Some(&ResolvedValue::Object(input.clone())),
         &["context", "customers"],
     )
     .is_some()
     {
-        return json!({ "__typename": "DiscountCustomers", "customers": [] });
+        let customers = resolved_string_list_path(input, &["context", "customers", "add"])
+            .into_iter()
+            .map(|id| json!({ "__typename": "Customer", "id": id }))
+            .collect::<Vec<_>>();
+        return json!({ "__typename": "DiscountCustomers", "customers": customers });
     }
     if resolved_object_path(
         Some(&ResolvedValue::Object(input.clone())),
@@ -2459,7 +2538,11 @@ fn discount_context_from_input(input: &BTreeMap<String, ResolvedValue>) -> Value
     )
     .is_some()
     {
-        return json!({ "__typename": "DiscountCustomerSegments", "segments": [] });
+        let segments = resolved_string_list_path(input, &["context", "customerSegments", "add"])
+            .into_iter()
+            .map(|id| json!({ "__typename": "Segment", "id": id }))
+            .collect::<Vec<_>>();
+        return json!({ "__typename": "DiscountCustomerSegments", "segments": segments });
     }
     json!({ "__typename": "DiscountBuyerSelectionAll", "all": "ALL" })
 }

@@ -56,6 +56,7 @@ impl DraftProxy {
                 self.shop_sells_subscriptions = None;
                 ok_json(json!({ "ok": true, "message": "state reset" }))
             }
+            Route::MetaSeed => self.seed_state(&request),
             Route::MetaDump => self.dump_state(&request),
             Route::MetaRestore => self.restore_state(&request),
             Route::MetaCommit => self.commit_staged_mutations(&request),
@@ -397,6 +398,47 @@ impl DraftProxy {
             || !self.store.staged.b2b_contact_roles.is_empty()
             || !self.store.staged.b2b_role_assignments.is_empty()
             || !self.store.staged.b2b_staff_assignments.is_empty()
+    }
+
+    /// Seed pre-existing customer and segment records that a scenario's captured
+    /// setup created before the requests under test. The parity harness replays a
+    /// fixture's `seedCustomers` / `seedSegments` declarations here so local replay
+    /// can hydrate buyer-context display names / segment names the same way live
+    /// Shopify resolves them from already-existing entities. Each record is upserted
+    /// by its captured (live) id so later inputs that reference those ids match.
+    pub(in crate::proxy) fn seed_state(&mut self, request: &Request) -> Response {
+        let Ok(body) = serde_json::from_str::<Value>(&request.body) else {
+            return json_error(400, "Invalid seed payload JSON");
+        };
+        let mut seeded_customers = 0_usize;
+        let mut seeded_segments = 0_usize;
+        if let Some(customers) = body.get("customers").and_then(Value::as_array) {
+            for customer in customers {
+                if let Some(id) = customer.get("id").and_then(Value::as_str) {
+                    self.store
+                        .staged
+                        .customers
+                        .insert(id.to_string(), customer.clone());
+                    seeded_customers += 1;
+                }
+            }
+        }
+        if let Some(segments) = body.get("segments").and_then(Value::as_array) {
+            for segment in segments {
+                if let Some(id) = segment.get("id").and_then(Value::as_str) {
+                    self.store
+                        .staged
+                        .segments
+                        .insert(id.to_string(), segment.clone());
+                    seeded_segments += 1;
+                }
+            }
+        }
+        ok_json(json!({
+            "ok": true,
+            "seededCustomers": seeded_customers,
+            "seededSegments": seeded_segments
+        }))
     }
 
     pub(in crate::proxy) fn dump_state(&self, request: &Request) -> Response {
