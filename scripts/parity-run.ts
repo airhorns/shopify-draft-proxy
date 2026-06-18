@@ -865,6 +865,15 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
     record['seedCustomerOrders'] && typeof record['seedCustomerOrders'] === 'object'
       ? (record['seedCustomerOrders'] as Record<string, unknown>)
       : null;
+  // `seedCollectionCatalog` mirrors `seedSegmentCatalog`: recorded top-level
+  // `collections(query:, sortKey:)` connection snapshots keyed by GraphQL alias.
+  // Their opaque search-index cursors (title case folding, SQL-datetime sort keys)
+  // cannot be reconstructed from store state, so the catalog read projects the
+  // requested selection over these recorded connections for local replay.
+  const collectionCatalog =
+    record['seedCollectionCatalog'] && typeof record['seedCollectionCatalog'] === 'object'
+      ? (record['seedCollectionCatalog'] as Record<string, unknown>)
+      : null;
   if (
     customers.length === 0 &&
     segments.length === 0 &&
@@ -878,7 +887,8 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
     orderEditAuthor === null &&
     segmentCatalog === null &&
     customersCount === null &&
-    customerOrders === null
+    customerOrders === null &&
+    collectionCatalog === null
   )
     return;
   await proxy.processRequest({
@@ -898,6 +908,7 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
       ...(segmentCatalog ? { segmentCatalog } : {}),
       ...(customersCount !== null ? { customersCount } : {}),
       ...(customerOrders !== null ? { customerOrders } : {}),
+      ...(collectionCatalog ? { collectionCatalog } : {}),
     },
   });
 }

@@ -515,7 +515,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Query,
             CapabilityDomain::Products,
             CapabilityExecution::OverlayRead,
-            false,
+            true,
             &["collections", "Collections"],
             &[],
         ),

@@ -642,6 +642,22 @@ impl DraftProxy {
                     json_error(400, "Could not parse GraphQL operation")
                 }
             }
+            (CapabilityDomain::Products, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query
+                    && has_local_dispatch
+                    && root_field == "collections" =>
+            {
+                // Only a scenario that seeded the recorded collection-catalog
+                // connections is served locally; otherwise the top-level
+                // `collections` list forwards upstream as before.
+                if self.store.staged.collection_catalog.is_empty() {
+                    (self.upstream_transport)(request.clone())
+                } else if let Some(fields) = root_fields(&query, &variables) {
+                    ok_json(json!({ "data": self.collections_catalog_read_data(&fields) }))
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
+            }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && has_local_dispatch

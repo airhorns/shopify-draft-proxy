@@ -303,6 +303,15 @@ struct StagedState {
     // them. Empty for every scenario that does not seed a catalog, leaving the
     // generic staged-segment read path untouched.
     segment_catalog: BTreeMap<String, Value>,
+    // Recorded top-level `collections(query:, sortKey:)` connection snapshots keyed
+    // by GraphQL alias (response key). Like `segment_catalog`, the connection's
+    // opaque cursors encode Shopify-internal search-index values (title-search
+    // case folding, SQL-datetime sort keys) that cannot be reconstructed from
+    // arbitrary store state, so a scenario seeds the recorded connection and the
+    // catalog read resolver projects the requested selection over it. Empty for
+    // every scenario that does not seed a catalog, leaving the upstream-passthrough
+    // collections read path untouched.
+    collection_catalog: BTreeMap<String, Value>,
     collections: BTreeMap<String, Value>,
     deleted_collection_ids: BTreeSet<String>,
     collection_jobs: BTreeMap<String, Value>,
@@ -618,6 +627,7 @@ impl Default for StagedState {
             location_limit_reached: false,
             segments: BTreeMap::new(),
             segment_catalog: BTreeMap::new(),
+            collection_catalog: BTreeMap::new(),
             collections: BTreeMap::new(),
             deleted_collection_ids: BTreeSet::new(),
             collection_jobs: BTreeMap::new(),

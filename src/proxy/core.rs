@@ -509,6 +509,20 @@ impl DraftProxy {
                     .insert(key.clone(), value.clone());
             }
         }
+        // A scenario can seed recorded top-level `collections(query:, sortKey:)`
+        // connection baselines keyed by GraphQL alias (response key). The catalog
+        // read resolver projects the requested selection over them; this preserves
+        // the live search-index cursors/pageInfo (title case folding, SQL-datetime
+        // sort keys) that the collections list root cannot synthesize from store
+        // state. Mirrors `segmentCatalog`.
+        if let Some(catalog) = body.get("collectionCatalog").and_then(Value::as_object) {
+            for (key, value) in catalog {
+                self.store
+                    .staged
+                    .collection_catalog
+                    .insert(key.clone(), value.clone());
+            }
+        }
         if let Some(products) = body.get("products").and_then(Value::as_array) {
             for product in products {
                 if product.get("id").and_then(Value::as_str).is_some() {

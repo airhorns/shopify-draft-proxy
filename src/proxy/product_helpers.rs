@@ -286,6 +286,35 @@ impl DraftProxy {
         Value::Object(data)
     }
 
+    // Serve a top-level `collections(query:, sortKey:)` read entirely from the
+    // seeded `collection_catalog` snapshots. Every selection in this operation is
+    // a `collections` field distinguished only by its alias (response key) — the
+    // unaliased catalog root plus per-filter aliases (title wildcard, custom/smart
+    // type, updated sort, product membership, empty) — so the resolver keys each
+    // field by its response key, looks up the matching recorded connection, and
+    // projects the requested selection over it (truncating to `first`). This
+    // reproduces the recorded opaque cursors/pageInfo verbatim; an alias with no
+    // seeded snapshot degrades to an empty connection rather than fabricating one.
+    pub(in crate::proxy) fn collections_catalog_read_data(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name != "collections" {
+                continue;
+            }
+            let value = match self.store.staged.collection_catalog.get(&field.response_key) {
+                Some(connection) => {
+                    project_seeded_connection(connection, &field.arguments, &field.selection)
+                }
+                None => selected_empty_connection_json(&field.selection),
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
     pub(in crate::proxy) fn observe_collection_passthrough_response(
         &mut self,
         response: &Response,
