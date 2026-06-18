@@ -6351,11 +6351,21 @@ impl DraftProxy {
             "createdAt": "2024-01-01T00:00:00.000Z",
             "updatedAt": "2024-01-01T00:00:00.000Z",
             "customer": resolved_string_field(order_input, "customerId")
-                .map(|id| json!({
-                    "id": id,
-                    "email": resolved_string_field(order_input, "email"),
-                    "displayName": Value::Null
-                }))
+                .map(|id| {
+                    // A locally-staged customer carries the authoritative identity
+                    // (its own email/displayName, which differ from the order's
+                    // contact email). Mirror that record so reads of
+                    // order.customer reflect the customer, not the order email.
+                    if let Some(customer) = self.store.staged.customers.get(&id) {
+                        customer.clone()
+                    } else {
+                        json!({
+                            "id": id,
+                            "email": resolved_string_field(order_input, "email"),
+                            "displayName": Value::Null
+                        })
+                    }
+                })
                 .unwrap_or(Value::Null),
             "note": resolved_string_field(order_input, "note"),
             "tags": resolved_string_list_field(order_input, "tags"),
