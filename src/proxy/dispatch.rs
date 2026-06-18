@@ -253,7 +253,7 @@ impl DraftProxy {
 
         if matches!(
             root_field,
-            "orderCreate" | "order" | "orders" | "ordersCount"
+            "orderCreate" | "orderClose" | "orderOpen" | "order" | "orders" | "ordersCount"
         ) {
             if let Some(data) =
                 self.order_create_local_data(request, root_field, &query, &variables)
@@ -354,7 +354,12 @@ impl DraftProxy {
             && operation.root_fields.iter().all(|field| {
                 matches!(
                     field.as_str(),
-                    "metaobject" | "metaobjectByHandle" | "metaobjects"
+                    "metaobject"
+                        | "metaobjectByHandle"
+                        | "metaobjects"
+                        | "metaobjectDefinition"
+                        | "metaobjectDefinitionByType"
+                        | "metaobjectDefinitions"
                 )
             })
         {
@@ -367,7 +372,25 @@ impl DraftProxy {
                 return (self.upstream_transport)(request.clone());
             }
             if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({"data": self.metaobject_query_data(&fields)}));
+                return ok_json(json!({"data": self.metaobject_query_data(&fields, request)}));
+            }
+        }
+
+        if operation.operation_type == OperationType::Mutation
+            && operation.root_fields.iter().all(|field| {
+                matches!(
+                    field.as_str(),
+                    "metaobjectCreate"
+                        | "metaobjectDelete"
+                        | "metaobjectDefinitionCreate"
+                        | "metaobjectDefinitionUpdate"
+                        | "metaobjectDefinitionDelete"
+                        | "standardMetaobjectDefinitionEnable"
+                )
+            })
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return self.metaobject_mutation(&fields, request, &query, &variables);
             }
         }
 
@@ -375,10 +398,27 @@ impl DraftProxy {
             && operation
                 .root_fields
                 .iter()
-                .all(|field| matches!(field.as_str(), "metaobjectCreate" | "metaobjectDelete"))
+                .all(|field| field == "metaobjectDefinitionUpdate")
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                return self.metaobject_mutation(&fields, request, &query, &variables);
+                if fields
+                    .iter()
+                    .all(|field| self.metaobject_definition_update_targets_local_definition(field))
+                {
+                    return self.metaobject_mutation(&fields, request, &query, &variables);
+                }
+            }
+        }
+
+        if operation.operation_type == OperationType::Query
+            && operation
+                .root_fields
+                .iter()
+                .all(|field| matches!(field.as_str(), "urlRedirect" | "urlRedirects"))
+            && self.has_staged_url_redirects()
+        {
+            if let Some(fields) = root_fields(&query, &variables) {
+                return ok_json(json!({ "data": self.url_redirect_query_data(&fields) }));
             }
         }
 
@@ -443,7 +483,6 @@ impl DraftProxy {
                         | "marketingEvents"
                 )
             })
-            && is_ported_marketing_document(&query)
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 return ok_json(json!({ "data": self.marketing_query_data(&fields) }));
@@ -465,7 +504,6 @@ impl DraftProxy {
                         | "marketingActivityUpdate"
                 )
             })
-            && (is_ported_marketing_document(&query) || is_log_draft_enforcement_document(&query))
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 let response = self.marketing_mutation(&fields, request);
@@ -557,10 +595,9 @@ impl DraftProxy {
                         | "markets"
                 )
             })
-            && is_ported_localization_document(&query)
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.localization_query_data(&fields, &query) }));
+                return ok_json(json!({ "data": self.localization_query_data(&fields, request) }));
             }
         }
 
@@ -575,8 +612,6 @@ impl DraftProxy {
                         | "translationsRemove"
                 )
             })
-            && (is_ported_localization_document(&query)
-                || is_log_draft_enforcement_document(&query))
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 let data = self.localization_mutation_data(&fields);
@@ -697,7 +732,9 @@ impl DraftProxy {
             && is_ported_market_localization_document(&query)
         {
             if let Some(fields) = root_fields(&query, &variables) {
-                return ok_json(json!({ "data": self.market_localization_query_data(&fields) }));
+                return ok_json(
+                    json!({ "data": self.market_localization_query_data(&fields, request) }),
+                );
             }
         }
 
@@ -2373,7 +2410,7 @@ impl DraftProxy {
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
             {
                 if let Some(fields) = root_fields(&query, &variables) {
-                    ok_json(json!({ "data": self.metaobject_query_data(&fields) }))
+                    ok_json(json!({ "data": self.metaobject_query_data(&fields, request) }))
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
                 }

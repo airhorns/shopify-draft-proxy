@@ -136,6 +136,63 @@ fn marketing_external_activity_lifecycle_stages_updates_engagements_and_reads_ba
 }
 
 #[test]
+fn marketing_activity_queries_filter_staged_records_without_sentinel_strings() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMarketingFilterSeeds {
+          alpha: marketingActivityCreateExternal(input: { title: "Alpha Campaign", remoteId: "alpha-remote", status: ACTIVE, remoteUrl: "https://example.com/alpha", tactic: NEWSLETTER, marketingChannelType: EMAIL, utm: { campaign: "alpha", source: "email", medium: "newsletter" } }) {
+            marketingActivity { id marketingEvent { id } }
+            userErrors { field message code }
+          }
+          beta: marketingActivityCreateExternal(input: { title: "Beta Campaign", remoteId: "beta-remote", status: ACTIVE, remoteUrl: "https://example.com/beta", previewUrl: "https://example.com/beta-preview", tactic: NEWSLETTER, marketingChannelType: EMAIL, utm: { campaign: "beta", source: "email", medium: "newsletter" } }) {
+            marketingActivity { id marketingEvent { id description } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(create.body["data"]["alpha"]["userErrors"], json!([]));
+    assert_eq!(create.body["data"]["beta"]["userErrors"], json!([]));
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query MarketingFilterRead {
+          titleMatch: marketingActivities(first: 10, query: "title:'Alpha Campaign'") { nodes { title remoteId } }
+          titleMiss: marketingActivities(first: 10, query: "title:'Missing Campaign'") { nodes { title } pageInfo { hasNextPage hasPreviousPage } }
+          remoteMatch: marketingActivities(first: 10, query: "remote_id:beta-remote") { nodes { title remoteId } }
+          eventDescriptionMiss: marketingEvents(first: 10, query: "description:missing-description") { nodes { id description } }
+          eventRemoteMatch: marketingEvents(first: 10, query: "remote_id:beta-remote") { nodes { remoteId previewUrl } }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(
+        read.body["data"]["titleMatch"]["nodes"],
+        json!([{ "title": "Alpha Campaign", "remoteId": "alpha-remote" }])
+    );
+    assert_eq!(read.body["data"]["titleMiss"]["nodes"], json!([]));
+    assert_eq!(
+        read.body["data"]["titleMiss"]["pageInfo"],
+        json!({ "hasNextPage": false, "hasPreviousPage": false })
+    );
+    assert_eq!(
+        read.body["data"]["remoteMatch"]["nodes"],
+        json!([{ "title": "Beta Campaign", "remoteId": "beta-remote" }])
+    );
+    assert_eq!(
+        read.body["data"]["eventDescriptionMiss"]["nodes"],
+        json!([])
+    );
+    assert_eq!(
+        read.body["data"]["eventRemoteMatch"]["nodes"],
+        json!([{ "remoteId": "beta-remote", "previewUrl": "https://example.com/beta-preview" }])
+    );
+}
+
+#[test]
 fn marketing_external_activity_stages_spend_schedule_and_referring_domain() {
     let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
@@ -4040,6 +4097,494 @@ fn metaobjects_read_empty_and_lifecycle_state_locally_for_arbitrary_documents() 
     assert_eq!(after_delete.body["data"]["byHandle"], Value::Null);
 }
 
+fn metaobject_definition_create_query() -> &'static str {
+    r#"
+    mutation LocalMetaobjectDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {
+      metaobjectDefinitionCreate(definition: $definition) {
+        metaobjectDefinition {
+          id
+          type
+          name
+          description
+          displayNameKey
+          access { admin storefront customerAccount }
+          fieldDefinitions {
+            key
+            name
+            type { name category }
+            capabilities { adminFilterable { enabled } }
+          }
+        }
+        userErrors { field message code elementKey elementIndex }
+      }
+    }
+    "#
+}
+
+fn metaobject_definition_access_update_query() -> &'static str {
+    r#"
+    mutation LocalMetaobjectDefinitionAccessUpdate($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+      metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+        metaobjectDefinition {
+          id
+          type
+          access { admin storefront customerAccount }
+        }
+        userErrors { field message code elementKey elementIndex }
+      }
+    }
+    "#
+}
+
+fn valid_metaobject_definition_input(meta_type: &str) -> Value {
+    json!({
+        "type": meta_type,
+        "name": "Validation Definition",
+        "displayNameKey": "title",
+        "fieldDefinitions": [
+            {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true}
+        ]
+    })
+}
+
+fn metaobject_definition_create_payload(proxy: &mut DraftProxy, definition: Value) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        metaobject_definition_create_query(),
+        json!({"definition": definition}),
+    ));
+    assert_eq!(response.status, 200);
+    response.body["data"]["metaobjectDefinitionCreate"].clone()
+}
+
+fn metaobject_definition_access_update_payload(
+    proxy: &mut DraftProxy,
+    id: &str,
+    definition: Value,
+) -> Value {
+    let response = proxy.process_request(json_graphql_request(
+        metaobject_definition_access_update_query(),
+        json!({"id": id, "definition": definition}),
+    ));
+    assert_eq!(response.status, 200);
+    response.body["data"]["metaobjectDefinitionUpdate"].clone()
+}
+
+#[test]
+fn metaobject_definition_create_rejects_invalid_definition_scalars_before_staging() {
+    let mut proxy = snapshot_proxy();
+    let too_short =
+        metaobject_definition_create_payload(&mut proxy, valid_metaobject_definition_input("ab"));
+    assert_eq!(
+        too_short,
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition", "type"],
+                "message": "Type is too short (minimum is 3 characters)",
+                "code": "TOO_SHORT",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let mut invalid = valid_metaobject_definition_input("has space!");
+    invalid["name"] = json!("");
+    invalid["description"] = json!("x".repeat(256));
+    let invalid = metaobject_definition_create_payload(&mut proxy, invalid);
+    assert_eq!(
+        invalid["userErrors"],
+        json!([
+            {
+                "field": ["definition", "name"],
+                "message": "Name can't be blank",
+                "code": "BLANK",
+                "elementKey": null,
+                "elementIndex": null
+            },
+            {
+                "field": ["definition", "type"],
+                "message": "Type contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.",
+                "code": "INVALID",
+                "elementKey": null,
+                "elementIndex": null
+            },
+            {
+                "field": ["definition", "description"],
+                "message": "Description is too long (maximum is 255 characters)",
+                "code": "TOO_LONG",
+                "elementKey": null,
+                "elementIndex": null
+            }
+        ])
+    );
+    assert_eq!(invalid["metaobjectDefinition"], Value::Null);
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InvalidDefinitionDidNotStage($type: String!) {
+          metaobjectDefinitionByType(type: $type) { id }
+        }
+        "#,
+        json!({"type": "has space!"}),
+    ));
+    assert_eq!(read.body["data"]["metaobjectDefinitionByType"], Value::Null);
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        ..Default::default()
+    });
+    assert_eq!(log.body["entries"], json!([]));
+}
+
+#[test]
+fn metaobject_definition_create_rejects_field_validation_branches_before_staging() {
+    let mut proxy = snapshot_proxy();
+
+    let reserved = metaobject_definition_create_payload(
+        &mut proxy,
+        json!({
+            "type": "reserved_field_type",
+            "name": "Reserved Field",
+            "displayNameKey": "handle",
+            "fieldDefinitions": [
+                {"key": "handle", "name": "Handle", "type": "single_line_text_field"}
+            ]
+        }),
+    );
+    assert_eq!(
+        reserved["userErrors"],
+        json!([{
+            "field": ["definition", "fieldDefinitions", "0"],
+            "message": "The name \"handle\" is reserved for system use",
+            "code": "RESERVED_NAME",
+            "elementKey": "handle",
+            "elementIndex": null
+        }])
+    );
+
+    let duplicate = metaobject_definition_create_payload(
+        &mut proxy,
+        json!({
+            "type": "duplicate_field_type",
+            "name": "Duplicate Field",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field"},
+                {"key": "title", "name": "Title Again", "type": "single_line_text_field"}
+            ]
+        }),
+    );
+    assert_eq!(
+        duplicate["userErrors"],
+        json!([{
+            "field": ["definition", "fieldDefinitions", "1"],
+            "message": "Field \"title\" duplicates other inputs",
+            "code": "DUPLICATE_FIELD_INPUT",
+            "elementKey": "title",
+            "elementIndex": null
+        }])
+    );
+
+    let unknown_type = metaobject_definition_create_payload(
+        &mut proxy,
+        json!({
+            "type": "unknown_field_type",
+            "name": "Unknown Field Type",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "garbage_type"}
+            ]
+        }),
+    );
+    assert_eq!(unknown_type["userErrors"][0]["code"], json!("INCLUSION"));
+    assert_eq!(
+        unknown_type["userErrors"][0]["field"],
+        json!(["definition", "fieldDefinitions", "0"])
+    );
+    assert_eq!(unknown_type["userErrors"][0]["elementKey"], json!("title"));
+    assert!(unknown_type["userErrors"][0]["message"]
+        .as_str()
+        .unwrap()
+        .contains("Type name garbage_type is not a valid type."));
+
+    let missing_display = metaobject_definition_create_payload(
+        &mut proxy,
+        json!({
+            "type": "missing_display_type",
+            "name": "Missing Display",
+            "displayNameKey": "missing",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field"}
+            ]
+        }),
+    );
+    assert_eq!(
+        missing_display["userErrors"],
+        json!([{
+            "field": ["definition", "displayNameKey"],
+            "message": "Field definition \"missing\" does not exist",
+            "code": "UNDEFINED_OBJECT_FIELD",
+            "elementKey": null,
+            "elementIndex": null
+        }])
+    );
+    assert_eq!(missing_display["metaobjectDefinition"], Value::Null);
+}
+
+#[test]
+fn metaobject_definition_create_rejects_caps_reserved_types_and_access_admin() {
+    let mut proxy = snapshot_proxy();
+
+    let reserved = metaobject_definition_create_payload(
+        &mut proxy,
+        valid_metaobject_definition_input("shopify--qa-pair"),
+    );
+    assert_eq!(
+        reserved,
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{
+                "field": ["definition"],
+                "message": "Not authorized. This type is reserved for use by another application.",
+                "code": "NOT_AUTHORIZED",
+                "elementKey": null,
+                "elementIndex": null
+            }]
+        })
+    );
+
+    let fields = (1..=41)
+        .map(|index| json!({"key": format!("field_{index}"), "name": format!("Field {index}"), "type": "single_line_text_field"}))
+        .collect::<Vec<_>>();
+    let too_many = metaobject_definition_create_payload(
+        &mut proxy,
+        json!({
+            "type": "too_many_fields_type",
+            "name": "Too Many Fields",
+            "displayNameKey": "field_1",
+            "fieldDefinitions": fields
+        }),
+    );
+    assert_eq!(
+        too_many["userErrors"],
+        json!([{
+            "field": ["definition", "fieldDefinitions"],
+            "message": "Maximum 40 fields per metaobject definition",
+            "code": "INVALID",
+            "elementKey": null,
+            "elementIndex": null
+        }])
+    );
+
+    let admin_filterable_fields = (1..=41)
+        .map(|index| {
+            json!({
+                "key": format!("filter_{index}"),
+                "name": format!("Filter {index}"),
+                "type": "single_line_text_field",
+                "capabilities": {"adminFilterable": {"enabled": true}}
+            })
+        })
+        .collect::<Vec<_>>();
+    let too_many_filterable = metaobject_definition_create_payload(
+        &mut proxy,
+        json!({
+            "type": "too_many_filterable_type",
+            "name": "Too Many Filterable Fields",
+            "displayNameKey": "filter_1",
+            "fieldDefinitions": admin_filterable_fields
+        }),
+    );
+    let codes = too_many_filterable["userErrors"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|error| error["code"].as_str().unwrap())
+        .collect::<Vec<_>>();
+    assert!(codes.contains(&"INVALID"));
+
+    let access_admin = metaobject_definition_create_payload(
+        &mut proxy,
+        json!({
+            "type": "merchant_access_admin_type",
+            "name": "Merchant Access Admin",
+            "access": {"admin": "PUBLIC_READ"},
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field"}
+            ]
+        }),
+    );
+    assert_eq!(
+        access_admin["userErrors"],
+        json!([{
+            "field": ["definition", "access", "admin"],
+            "message": "Admin access can only be specified on metaobject definitions that have an app-reserved type.",
+            "code": "ADMIN_ACCESS_INPUT_NOT_ALLOWED",
+            "elementKey": null,
+            "elementIndex": null
+        }])
+    );
+}
+
+#[test]
+fn metaobject_definition_create_persists_customer_account_access_and_app_types() {
+    let mut proxy = snapshot_proxy();
+    let mut create_request = json_graphql_request(
+        metaobject_definition_create_query(),
+        json!({"definition": {
+            "type": "$app:settings",
+            "name": "App Settings",
+            "access": {"admin": "MERCHANT_READ_WRITE", "customerAccount": "READ"},
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "capabilities": {"adminFilterable": {"enabled": true}}}
+            ]
+        }}),
+    );
+    create_request.headers.insert(
+        "x-shopify-draft-proxy-api-client-id".to_string(),
+        "347082227713".to_string(),
+    );
+    let create = proxy.process_request(create_request);
+    assert_eq!(
+        create.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    let definition_id = create.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        create.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]["type"],
+        json!("app--347082227713--settings")
+    );
+    assert_eq!(
+        create.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]["access"],
+        json!({"admin": "MERCHANT_READ_WRITE", "storefront": "NONE", "customerAccount": "READ"})
+    );
+    assert_eq!(
+        create.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]
+            ["fieldDefinitions"][0]["capabilities"]["adminFilterable"]["enabled"],
+        json!(true)
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadCreatedAppDefinition($type: String!) {
+          metaobjectDefinitionByType(type: $type) {
+            id
+            type
+            access { admin storefront customerAccount }
+          }
+        }
+        "#,
+        json!({"type": "app--347082227713--settings"}),
+    ));
+    assert_eq!(
+        read.body["data"]["metaobjectDefinitionByType"]["access"]["customerAccount"],
+        json!("READ")
+    );
+
+    let update = metaobject_definition_access_update_payload(
+        &mut proxy,
+        &definition_id,
+        json!({"access": {"customerAccount": "NONE"}}),
+    );
+    assert_eq!(update["userErrors"], json!([]));
+    assert_eq!(
+        update["metaobjectDefinition"]["access"]["customerAccount"],
+        json!("NONE")
+    );
+
+    let read_after_update = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadUpdatedAppDefinition($type: String!) {
+          metaobjectDefinitionByType(type: $type) {
+            access { customerAccount }
+          }
+        }
+        "#,
+        json!({"type": "app--347082227713--settings"}),
+    ));
+    assert_eq!(
+        read_after_update.body["data"]["metaobjectDefinitionByType"]["access"]["customerAccount"],
+        json!("NONE")
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        ..Default::default()
+    });
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 2);
+    assert!(log.body["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("\"$app:settings\""));
+    assert!(log.body["entries"][1]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("metaobjectDefinitionUpdate"));
+}
+
+#[test]
+fn metaobject_definition_create_rejects_invalid_customer_account_access_literal() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidCustomerAccountAccess($type: String!) {
+          metaobjectDefinitionCreate(
+            definition: {
+              type: $type
+              name: "Invalid Customer Account Access"
+              displayNameKey: "title"
+              access: { customerAccount: BANANA }
+              fieldDefinitions: [{ key: "title", name: "Title", type: "single_line_text_field", required: true }]
+            }
+          ) {
+            metaobjectDefinition { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"type": "invalid_customer_account_access"}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["errors"],
+        json!([{
+            "message": "Argument 'customerAccount' on InputObject 'MetaobjectAccessInput' has an invalid value (BANANA). Expected type 'MetaobjectCustomerAccountAccess'.",
+            "locations": [{"line": 8, "column": 23}],
+            "path": [
+                "mutation InvalidCustomerAccountAccess",
+                "metaobjectDefinitionCreate",
+                "definition",
+                "access",
+                "customerAccount"
+            ],
+            "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "InputObject",
+                "argumentName": "customerAccount"
+            }
+        }])
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query InvalidCustomerAccountAccessDidNotStage($type: String!) {
+          metaobjectDefinitionByType(type: $type) { id }
+        }
+        "#,
+        json!({"type": "invalid_customer_account_access"}),
+    ));
+    assert_eq!(read.body["data"]["metaobjectDefinitionByType"], Value::Null);
+}
+
 #[test]
 fn metaobject_create_rejects_duplicate_field_keys() {
     let mut proxy = snapshot_proxy();
@@ -4264,6 +4809,547 @@ fn metaobject_entry_lifecycle_dispatches_by_root_field_and_definition_state() {
     assert_eq!(
         after_delete.body["data"]["definition"]["metaobjectsCount"],
         json!(1)
+    );
+}
+
+#[test]
+fn metaobject_definition_update_stages_schema_changes_and_reprojects_rows() {
+    let mut proxy = snapshot_proxy();
+
+    let definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id type displayNameKey fieldDefinitions { key } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "definition_update_test",
+            "name": "Definition Update Test",
+            "displayNameKey": "title",
+            "capabilities": {"publishable": {"enabled": true}},
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true},
+                {"key": "body", "name": "Body", "type": "multi_line_text_field", "required": false},
+                {"key": "rank", "name": "Rank", "type": "number_integer", "required": false}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    let definition_id = definition.body["data"]["metaobjectDefinitionCreate"]
+        ["metaobjectDefinition"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let created = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateMetaobject($metaobject: MetaobjectCreateInput!) {
+          metaobjectCreate(metaobject: $metaobject) {
+            metaobject { id handle displayName fields { key value } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"metaobject": {
+            "type": "definition_update_test",
+            "handle": "definition-row",
+            "values": {"title": "Original title", "body": "Projected body", "rank": "7"}
+        }}),
+    ));
+    assert_eq!(
+        created.body["data"]["metaobjectCreate"]["userErrors"],
+        json!([])
+    );
+    let metaobject_id = created.body["data"]["metaobjectCreate"]["metaobject"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition {
+              id
+              type
+              name
+              description
+              displayNameKey
+              access { admin storefront customerAccount }
+              capabilities {
+                publishable { enabled }
+                translatable { enabled }
+                renderable { enabled data { metaTitleKey } }
+              }
+              fieldDefinitions { key name description required type { name category } validations { name value } }
+              metaobjectsCount
+              standardTemplate { type name }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({
+            "id": definition_id,
+            "definition": {
+                "name": "Updated Definition",
+                "description": "Updated locally.",
+                "displayNameKey": "body",
+                "resetFieldOrder": true,
+                "access": {"storefront": "PUBLIC_READ", "customerAccount": "READ"},
+                "capabilities": {
+                    "publishable": {"enabled": false},
+                    "translatable": {"enabled": true},
+                    "renderable": {"enabled": true, "data": {"metaTitleKey": "body"}}
+                },
+                "fieldDefinitions": [
+                    {"update": {"key": "body", "name": "Body Copy", "description": "Updated body.", "required": true, "validations": [{"name": "max", "value": "250"}]}},
+                    {"create": {"key": "summary", "name": "Summary", "description": "Summary field.", "type": "single_line_text_field", "required": false}},
+                    {"delete": {"key": "title"}}
+                ]
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["metaobjectDefinitionUpdate"]["metaobjectDefinition"]
+            ["fieldDefinitions"],
+        json!([
+            {"key": "body", "name": "Body Copy", "description": "Updated body.", "required": true, "type": {"name": "multi_line_text_field", "category": "TEXT"}, "validations": [{"name": "max", "value": "250"}]},
+            {"key": "summary", "name": "Summary", "description": "Summary field.", "required": false, "type": {"name": "single_line_text_field", "category": "TEXT"}, "validations": []},
+            {"key": "rank", "name": "Rank", "description": null, "required": false, "type": {"name": "number_integer", "category": "NUMBER"}, "validations": []}
+        ])
+    );
+    assert_eq!(
+        update.body["data"]["metaobjectDefinitionUpdate"]["metaobjectDefinition"]["access"],
+        json!({"admin": "PUBLIC_READ_WRITE", "storefront": "PUBLIC_READ", "customerAccount": "READ"})
+    );
+    assert_eq!(
+        update.body["data"]["metaobjectDefinitionUpdate"]["metaobjectDefinition"]["capabilities"]
+            ["renderable"],
+        json!({"enabled": true, "data": {"metaTitleKey": "body"}})
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAfterDefinitionUpdate($id: ID!, $definitionId: ID!, $type: String!) {
+          row: metaobject(id: $id) {
+            id
+            displayName
+            titleField { key value jsonValue }
+            title: field(key: "title") { key value }
+            fields { key value jsonValue definition { key name required type { name category } } }
+            definition { id name displayNameKey fieldDefinitions { key } }
+          }
+          byId: metaobjectDefinition(id: $definitionId) { id name displayNameKey fieldDefinitions { key } }
+          byType: metaobjectDefinitionByType(type: $type) { id name displayNameKey fieldDefinitions { key } }
+          catalog: metaobjectDefinitions(first: 10) { nodes { id type name } }
+        }
+        "#,
+        json!({"id": metaobject_id, "definitionId": definition.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]["id"], "type": "definition_update_test"}),
+    ));
+    assert_eq!(
+        read.body["data"]["row"]["displayName"],
+        json!("Projected body")
+    );
+    assert_eq!(read.body["data"]["row"]["title"], Value::Null);
+    assert_eq!(
+        read.body["data"]["row"]["fields"],
+        json!([
+            {"key": "body", "value": "Projected body", "jsonValue": "Projected body", "definition": {"key": "body", "name": "Body Copy", "required": true, "type": {"name": "multi_line_text_field", "category": "TEXT"}}},
+            {"key": "summary", "value": null, "jsonValue": null, "definition": {"key": "summary", "name": "Summary", "required": false, "type": {"name": "single_line_text_field", "category": "TEXT"}}},
+            {"key": "rank", "value": "7", "jsonValue": 7, "definition": {"key": "rank", "name": "Rank", "required": false, "type": {"name": "number_integer", "category": "NUMBER"}}}
+        ])
+    );
+    assert_eq!(
+        read.body["data"]["byType"]["fieldDefinitions"],
+        json!([{"key": "body"}, {"key": "summary"}, {"key": "rank"}])
+    );
+    assert_eq!(
+        read.body["data"]["catalog"]["nodes"][0]["name"],
+        json!("Updated Definition")
+    );
+
+    let log = proxy.process_request(Request {
+        method: "GET".to_string(),
+        path: "/__meta/log".to_string(),
+        ..Default::default()
+    });
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 3);
+    assert_eq!(
+        log.body["entries"][2]["stagedResourceIds"],
+        json!([definition_id])
+    );
+    assert!(log.body["entries"][2]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("metaobjectDefinitionUpdate"));
+}
+
+#[test]
+fn metaobject_definition_update_returns_ordered_field_operation_errors_without_mutating() {
+    let mut proxy = snapshot_proxy();
+
+    let definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id fieldDefinitions { key } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "definition_update_errors",
+            "name": "Definition Update Errors",
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true},
+                {"key": "body", "name": "Body", "type": "multi_line_text_field", "required": false}
+            ]
+        }}),
+    ));
+    let definition_id = definition.body["data"]["metaobjectDefinitionCreate"]
+        ["metaobjectDefinition"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let rejected = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateDefinitionErrors($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition { id fieldDefinitions { key } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({
+            "id": definition_id,
+            "definition": {
+                "fieldDefinitions": [
+                    {"update": {"key": "missing_update", "name": "Missing"}},
+                    {"create": {"key": "title", "name": "Duplicate", "type": "single_line_text_field"}},
+                    {"delete": {"key": "missing_delete"}}
+                ]
+            }
+        }),
+    ));
+    assert_eq!(
+        rejected.body["data"]["metaobjectDefinitionUpdate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [
+                {"field": ["definition", "fieldDefinitions", "0", "update", "key"], "message": "Field definition \"missing_update\" does not exist", "code": "UNDEFINED_OBJECT_FIELD", "elementKey": "missing_update", "elementIndex": null},
+                {"field": ["definition", "fieldDefinitions", "1", "create", "key"], "message": "Field definition \"title\" is already taken", "code": "OBJECT_FIELD_TAKEN", "elementKey": "title", "elementIndex": null},
+                {"field": ["definition", "fieldDefinitions", "2", "delete", "key"], "message": "Field definition \"missing_delete\" does not exist", "code": "UNDEFINED_OBJECT_FIELD", "elementKey": "missing_delete", "elementIndex": null}
+            ]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadAfterRejectedDefinitionUpdate($id: ID!) {
+          metaobjectDefinition(id: $id) { fieldDefinitions { key } }
+        }
+        "#,
+        json!({"id": definition.body["data"]["metaobjectDefinitionCreate"]["metaobjectDefinition"]["id"]}),
+    ));
+    assert_eq!(
+        read.body["data"]["metaobjectDefinition"]["fieldDefinitions"],
+        json!([{"key": "title"}, {"key": "body"}])
+    );
+}
+
+#[test]
+fn standard_metaobject_definition_enable_uses_catalog_and_reads_back() {
+    let mut proxy = snapshot_proxy();
+
+    let enabled = proxy.process_request(json_graphql_request(
+        r#"
+        mutation EnableStandardDefinition($type: String!) {
+          standardMetaobjectDefinitionEnable(type: $type) {
+            metaobjectDefinition {
+              id
+              type
+              name
+              displayNameKey
+              capabilities { translatable { enabled } onlineStore { enabled } }
+              fieldDefinitions { key name required type { name category } }
+              standardTemplate { type name }
+            }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"type": "shopify--qa-pair"}),
+    ));
+    assert_eq!(
+        enabled.body["data"]["standardMetaobjectDefinitionEnable"]["userErrors"],
+        json!([])
+    );
+    let definition_id = enabled.body["data"]["standardMetaobjectDefinitionEnable"]
+        ["metaobjectDefinition"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(definition_id.starts_with("gid://shopify/MetaobjectDefinition/"));
+    assert_eq!(
+        enabled.body["data"]["standardMetaobjectDefinitionEnable"]["metaobjectDefinition"]
+            ["standardTemplate"],
+        json!({"type": "shopify--qa-pair", "name": "Question and Answer Pairs"})
+    );
+    assert_eq!(
+        enabled.body["data"]["standardMetaobjectDefinitionEnable"]["metaobjectDefinition"]
+            ["fieldDefinitions"][0]["key"],
+        json!("question")
+    );
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation EnableStandardDefinitionAgain($type: String!) {
+          standardMetaobjectDefinitionEnable(type: $type) {
+            metaobjectDefinition { id type standardTemplate { type name } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"type": "shopify--qa-pair"}),
+    ));
+    assert_eq!(
+        duplicate.body["data"]["standardMetaobjectDefinitionEnable"]["metaobjectDefinition"]["id"],
+        json!(definition_id)
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadStandardDefinition($id: ID!, $type: String!) {
+          byId: metaobjectDefinition(id: $id) { id type standardTemplate { type name } }
+          byType: metaobjectDefinitionByType(type: $type) { id type standardTemplate { type name } }
+        }
+        "#,
+        json!({"id": duplicate.body["data"]["standardMetaobjectDefinitionEnable"]["metaobjectDefinition"]["id"], "type": "shopify--qa-pair"}),
+    ));
+    assert_eq!(read.body["data"]["byId"]["id"], json!(definition_id));
+    assert_eq!(
+        read.body["data"]["byType"]["type"],
+        json!("shopify--qa-pair")
+    );
+
+    let unknown = proxy.process_request(json_graphql_request(
+        r#"
+        mutation EnableUnknownStandardDefinition($type: String!) {
+          standardMetaobjectDefinitionEnable(type: $type) {
+            metaobjectDefinition { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"type": "shopify--unknown-template"}),
+    ));
+    assert_eq!(
+        unknown.body["data"]["standardMetaobjectDefinitionEnable"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{"field": ["type"], "message": "Record not found", "code": "RECORD_NOT_FOUND", "elementKey": null, "elementIndex": null}]
+        })
+    );
+
+    let immutable = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateStandardDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition { id }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"id": definition_id, "definition": {"name": "Should Not Change"}}),
+    ));
+    assert_eq!(
+        immutable.body["data"]["metaobjectDefinitionUpdate"],
+        json!({
+            "metaobjectDefinition": null,
+            "userErrors": [{"field": ["definition"], "message": "Standard metaobject definitions can't be updated", "code": "IMMUTABLE", "elementKey": null, "elementIndex": null}]
+        })
+    );
+}
+
+#[test]
+fn metaobject_definition_mutation_public_argument_shape_is_schema_validated() {
+    let mut proxy = snapshot_proxy();
+
+    let reset = proxy.process_request(json_graphql_request(
+        r#"
+        mutation TopLevelResetRejected {
+          metaobjectDefinitionUpdate(id: "gid://shopify/MetaobjectDefinition/1", resetFieldOrder: true, definition: { name: "Arg Shape" }) {
+            metaobjectDefinition { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        reset.body["errors"][0]["extensions"]["code"],
+        json!("argumentNotAccepted")
+    );
+    assert_eq!(
+        reset.body["errors"][0]["extensions"]["argumentName"],
+        json!("resetFieldOrder")
+    );
+
+    let enabled_by_shopify = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PublicEnabledByShopifyRejected {
+          standardMetaobjectDefinitionEnable(type: "shopify--qa-pair", enabledByShopify: true) {
+            metaobjectDefinition { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        enabled_by_shopify.body["errors"][0]["extensions"]["code"],
+        json!("argumentNotAccepted")
+    );
+    assert_eq!(
+        enabled_by_shopify.body["errors"][0]["extensions"]["argumentName"],
+        json!("enabledByShopify")
+    );
+}
+
+#[test]
+fn metaobject_definition_update_stages_url_handle_redirect_reads_for_active_rows() {
+    let mut proxy = snapshot_proxy();
+
+    let definition = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateRedirectDefinition($definition: MetaobjectDefinitionCreateInput!) {
+          metaobjectDefinitionCreate(definition: $definition) {
+            metaobjectDefinition { id capabilities { onlineStore { enabled data { urlHandle canCreateRedirects } } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({"definition": {
+            "type": "definition_redirect_test",
+            "name": "Definition Redirect Test",
+            "displayNameKey": "title",
+            "access": {"storefront": "PUBLIC_READ"},
+            "capabilities": {
+                "publishable": {"enabled": true},
+                "renderable": {"enabled": true, "data": {"metaTitleKey": "title"}},
+                "onlineStore": {"enabled": true, "data": {"urlHandle": "old-definition"}}
+            },
+            "fieldDefinitions": [
+                {"key": "title", "name": "Title", "type": "single_line_text_field", "required": true}
+            ]
+        }}),
+    ));
+    assert_eq!(
+        definition.body["data"]["metaobjectDefinitionCreate"]["userErrors"],
+        json!([])
+    );
+    let definition_id = definition.body["data"]["metaobjectDefinitionCreate"]
+        ["metaobjectDefinition"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    for handle in ["first-row", "second-row"] {
+        let created = proxy.process_request(json_graphql_request(
+            r#"
+            mutation CreateRedirectRow($metaobject: MetaobjectCreateInput!) {
+              metaobjectCreate(metaobject: $metaobject) {
+                metaobject { id handle capabilities { publishable { status } } }
+                userErrors { field message code elementKey elementIndex }
+              }
+            }
+            "#,
+            json!({"metaobject": {
+                "type": "definition_redirect_test",
+                "handle": handle,
+                "capabilities": {"publishable": {"status": "ACTIVE"}, "onlineStore": {"templateSuffix": ""}},
+                "fields": [{"key": "title", "value": handle}]
+            }}),
+        ));
+        assert_eq!(
+            created.body["data"]["metaobjectCreate"]["userErrors"],
+            json!([])
+        );
+        assert_eq!(
+            created.body["data"]["metaobjectCreate"]["metaobject"]["capabilities"]["publishable"]
+                ["status"],
+            json!("ACTIVE")
+        );
+    }
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UpdateRedirectDefinition($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {
+          metaobjectDefinitionUpdate(id: $id, definition: $definition) {
+            metaobjectDefinition { id type capabilities { onlineStore { enabled data { urlHandle canCreateRedirects } } } }
+            userErrors { field message code elementKey elementIndex }
+          }
+        }
+        "#,
+        json!({"id": definition_id, "definition": {"capabilities": {"onlineStore": {"enabled": true, "data": {"urlHandle": "new-definition", "createRedirects": true}}}}}),
+    ));
+    assert_eq!(
+        update.body["data"]["metaobjectDefinitionUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["metaobjectDefinitionUpdate"]["metaobjectDefinition"]["capabilities"]
+            ["onlineStore"]["data"],
+        json!({"urlHandle": "new-definition", "canCreateRedirects": true})
+    );
+
+    let redirects = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadDefinitionRedirects($query: String!) {
+          urlRedirects(first: 10, query: $query) {
+            nodes { id path target }
+            pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+          }
+        }
+        "#,
+        json!({"query": "path:/pages/old-definition/first-row"}),
+    ));
+    assert_eq!(
+        redirects.body["data"]["urlRedirects"]["nodes"][0]["path"],
+        json!("/pages/old-definition/first-row")
+    );
+    assert_eq!(
+        redirects.body["data"]["urlRedirects"]["nodes"][0]["target"],
+        json!("/pages/new-definition/first-row")
+    );
+    let redirect_id = redirects.body["data"]["urlRedirects"]["nodes"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let singular = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadDefinitionRedirect($id: ID!) {
+          urlRedirect(id: $id) { id path target }
+        }
+        "#,
+        json!({"id": redirect_id}),
+    ));
+    assert_eq!(
+        singular.body["data"]["urlRedirect"]["target"],
+        json!("/pages/new-definition/first-row")
     );
 }
 
