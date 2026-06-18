@@ -307,19 +307,26 @@ function recordedCallMatchesBody(call: RecordedUpstreamCall, body: string): bool
       call.query ===
         'recorded by scripts/capture-product-variant-mutation-conformance.mts for cassette-backed parity hydration';
     const canMatchSynthesizedNodeQuery = isSyntheticNodeCassette && /\bnode(?:s)?\s*\(/u.test(query);
-    const draftOrderHydrationMatchers: Record<string, RegExp> = {
-      OrdersDraftOrderCustomerHydrate: /\bcustomer\s*\(/u,
-      OrdersDraftOrderHydrate: /\bdraftOrder\s*\(/u,
-      OrdersDraftOrderVariantHydrate: /\bproductVariant\s*\(/u,
-      OrdersOrderHydrate: /\border\s*\(/u,
-    };
-    const canMatchDraftOrderHydration =
-      (call.query?.startsWith('hand-synthesized from checked-in') ?? false) &&
+    const hydrationMatcher = {
+      OrdersDraftOrderCustomerHydrate: { requestRoot: /\bcustomer\s*\(/u, responseRoot: 'customer' },
+      OrdersDraftOrderHydrate: { requestRoot: /\bdraftOrder\s*\(/u, responseRoot: 'draftOrder' },
+      OrdersDraftOrderVariantHydrate: { requestRoot: /\bproductVariant\s*\(/u, responseRoot: 'productVariant' },
+      OrdersOrderHydrate: { requestRoot: /\border\s*\(/u, responseRoot: 'order' },
+    }[operationName];
+    const canMatchCassetteBackedHydration =
       call.operationName === operationName &&
-      (draftOrderHydrationMatchers[operationName]?.test(query) ?? false);
+      hydrationMatcher !== undefined &&
+      hydrationMatcher.requestRoot.test(query) &&
+      isPlainObject(call.response?.body) &&
+      isPlainObject((call.response.body as Record<string, unknown>)['data']) &&
+      isPlainObject(
+        ((call.response.body as Record<string, unknown>)['data'] as Record<string, unknown>)[
+          hydrationMatcher.responseRoot
+        ],
+      );
     return (
       variablesMatch &&
-      (canMatchDraftOrderHydration ||
+      (canMatchCassetteBackedHydration ||
         canMatchSynthesizedNodeQuery ||
         parsed['query'] === call.query ||
         (call.query === undefined && call.operationName === operationName && operationName.length > 0))
