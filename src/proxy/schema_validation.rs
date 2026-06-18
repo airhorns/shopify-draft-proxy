@@ -295,28 +295,28 @@ fn validate_resolved_input_object(
 }
 
 fn validate_resolved_leaf(value: &ResolvedValue, type_ref: &SchemaTypeRef) -> Option<String> {
-    if type_ref.named_type == "Decimal" {
-        let ResolvedValue::String(raw) = value else {
-            return None;
-        };
-        return raw
-            .parse::<f64>()
-            .err()
-            .map(|_| format!("invalid decimal '{raw}'"));
-    }
     let ResolvedValue::String(raw) = value else {
         return None;
     };
-    enum_literal_allowed(&type_ref.named_type, raw).and_then(|allowed| {
-        if allowed {
-            None
-        } else {
-            Some(format!(
-                "Expected value to be one of: {}",
-                enum_literal_valid_values(&type_ref.named_type)?.join(", ")
-            ))
+    if let Some(allowed_values) = enum_allowed_values(&type_ref.named_type) {
+        if allowed_values.iter().any(|allowed| allowed == raw) {
+            return None;
         }
-    })
+        return Some(format!(
+            "Expected \"{raw}\" to be one of: {}",
+            allowed_values.join(", ")
+        ));
+    }
+    match type_ref.named_type.as_str() {
+        "Decimal" => raw
+            .parse::<f64>()
+            .err()
+            .map(|_| format!("invalid decimal '{raw}'")),
+        "DateTime" => parse_rfc3339_epoch_seconds(raw)
+            .is_none()
+            .then(|| format!("invalid DateTime '{raw}'")),
+        _ => None,
+    }
 }
 
 fn raw_enum_literal_error(
@@ -330,27 +330,39 @@ fn raw_enum_literal_error(
     let RawArgumentValue::Enum(raw) = value else {
         return None;
     };
-    enum_literal_allowed(&type_ref.named_type, raw)
-        .filter(|allowed| !allowed)
-        .map(|_| {
-            argument_literals_incompatible_error(
-                input_type_name,
-                argument_name,
-                raw,
-                &type_ref.named_type,
-                path,
-                context,
-            )
-        })
+    let allowed_values = enum_allowed_values(&type_ref.named_type)?;
+    if allowed_values.iter().any(|allowed| allowed == raw) {
+        return None;
+    }
+    Some(argument_literals_incompatible_error(
+        input_type_name,
+        argument_name,
+        raw,
+        &type_ref.named_type,
+        path,
+        context,
+    ))
 }
 
-fn enum_literal_allowed(type_name: &str, raw: &str) -> Option<bool> {
-    enum_literal_valid_values(type_name).map(|values| values.contains(&raw))
-}
-
-fn enum_literal_valid_values(type_name: &str) -> Option<&'static [&'static str]> {
+fn enum_allowed_values(type_name: &str) -> Option<&'static [&'static str]> {
     match type_name {
         "MetaobjectCustomerAccountAccess" => Some(&["NONE", "READ"]),
+        "CustomerMarketingOptInLevel" => Some(&["SINGLE_OPT_IN", "CONFIRMED_OPT_IN", "UNKNOWN"]),
+        "CustomerEmailMarketingState" => Some(&[
+            "INVALID",
+            "NOT_SUBSCRIBED",
+            "PENDING",
+            "SUBSCRIBED",
+            "UNSUBSCRIBED",
+            "REDACTED",
+        ]),
+        "CustomerSmsMarketingState" => Some(&[
+            "NOT_SUBSCRIBED",
+            "PENDING",
+            "SUBSCRIBED",
+            "UNSUBSCRIBED",
+            "REDACTED",
+        ]),
         _ => None,
     }
 }
@@ -678,10 +690,21 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         let mut schema = schema_from_fixture(&fixture).unwrap_or_default();
         register_fulfillment_service_fields(&mut schema);
         extend_discount_basic_input_schema(&mut schema);
+        extend_customer_consent_input_schema(&mut schema);
         extend_metaobject_definition_input_schema(&mut schema);
         extend_functions_input_schema(&mut schema);
         schema
     })
+}
+
+fn extend_customer_consent_input_schema(schema: &mut AdminInputSchema) {
+    extend_mutation_input_schema(
+        schema,
+        &[
+            "customerEmailMarketingConsentUpdate",
+            "customerSmsMarketingConsentUpdate",
+        ],
+    );
 }
 
 fn register_fulfillment_service_fields(schema: &mut AdminInputSchema) {
