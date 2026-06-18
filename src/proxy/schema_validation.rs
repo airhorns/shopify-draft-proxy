@@ -32,6 +32,20 @@ struct ValidationContext<'a> {
     operation_path: &'a str,
     response_key: &'a str,
     field_location: SourceLocation,
+    // Raw request body text. serde_json parses JSON objects into sorted maps, so
+    // the author's variable field order is lost by the time variables reach this
+    // validator. Shopify reports INVALID_VARIABLE coercion problems in the order
+    // fields appear in the request, so we recover that order from the raw body
+    // text (which preserves it) when sorting unknown-field problems.
+    raw_body: &'a str,
+}
+
+/// First byte offset at which a JSON key (`"name"`) appears in `source`, used to
+/// recover author/document order for fields whose order serde_json discarded.
+/// Fields not found sort last (stable for unexpected shapes).
+fn key_order_index(source: &str, field_name: &str) -> usize {
+    let needle = format!("\"{field_name}\"");
+    source.find(&needle).unwrap_or(usize::MAX)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -44,6 +58,7 @@ struct VariableValidationContext<'a> {
 pub(in crate::proxy) fn public_admin_schema_input_errors(
     query: &str,
     variables: &BTreeMap<String, ResolvedValue>,
+    raw_body: &str,
 ) -> Vec<Value> {
     let Some(document) = parsed_document(query, variables) else {
         return Vec::new();
@@ -62,6 +77,7 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
             operation_path: &document.operation_path,
             response_key: &field.response_key,
             field_location: field.location,
+            raw_body,
         };
         for (argument_name, argument_value) in &field.raw_arguments {
             let Some(argument_schema) = arguments.get(argument_name) else {
@@ -370,6 +386,7 @@ fn validate_argument_value(
                 fields,
                 &[],
                 schema,
+                context.raw_body,
             );
             if problems.is_empty() {
                 Vec::new()
@@ -404,17 +421,34 @@ fn validate_raw_input_object(
     location: Option<SourceLocation>,
 ) -> Vec<Value> {
     let mut errors = Vec::new();
-    for field_name in fields.keys() {
-        if !input_object.contains_key(field_name)
-            && !local_extension_input_field(input_type_name, field_name)
-        {
-            errors.push(input_object_argument_not_accepted_error(
-                input_type_name,
-                field_name,
-                path,
-                context,
-            ));
-        }
+    // Unknown-field rejections are reported in the order the fields appear in the
+    // input-object *literal*, not the sorted map order serde/BTreeMap leaves us
+    // with. Recover document order from each field-name token's location.
+    let target_depth = 1 + path.len() as i32;
+    let mut unknown_fields: Vec<&String> = fields
+        .keys()
+        .filter(|field_name| {
+            !input_object.contains_key(*field_name)
+                && !local_extension_input_field(input_type_name, field_name)
+        })
+        .collect();
+    unknown_fields.sort_by_key(|field_name| {
+        inline_input_field_name_location(
+            context.query,
+            context.field_location,
+            target_depth,
+            field_name,
+        )
+        .map(|location| (location.line, location.column))
+        .unwrap_or((usize::MAX, usize::MAX))
+    });
+    for field_name in unknown_fields {
+        errors.push(input_object_argument_not_accepted_error(
+            input_type_name,
+            field_name,
+            path,
+            context,
+        ));
     }
     for (field_name, field_schema) in input_object {
         if field_schema.type_ref.non_null
@@ -479,19 +513,26 @@ fn validate_resolved_input_object(
     fields: &BTreeMap<String, ResolvedValue>,
     problem_path: &[String],
     schema: &AdminInputSchema,
+    order_source: &str,
 ) -> Vec<Value> {
     let mut problems = Vec::new();
-    for field_name in fields.keys() {
-        if !input_object.contains_key(field_name)
-            && !local_extension_input_field(input_type_name, field_name)
-        {
-            let mut nested_path = problem_path.to_vec();
-            nested_path.push(field_name.clone());
-            problems.push(variable_problem(
-                &nested_path,
-                &format!("Field is not defined on {input_type_name}"),
-            ));
-        }
+    // Report unknown-field coercion problems in the order the fields appear in
+    // the request body, not the sorted map order serde/BTreeMap leaves us with.
+    let mut unknown_fields: Vec<&String> = fields
+        .keys()
+        .filter(|field_name| {
+            !input_object.contains_key(*field_name)
+                && !local_extension_input_field(input_type_name, field_name)
+        })
+        .collect();
+    unknown_fields.sort_by_key(|field_name| key_order_index(order_source, field_name));
+    for field_name in unknown_fields {
+        let mut nested_path = problem_path.to_vec();
+        nested_path.push(field_name.clone());
+        problems.push(variable_problem(
+            &nested_path,
+            &format!("Field is not defined on {input_type_name}"),
+        ));
     }
     // Coerce each schema field in a single pass (BTreeMap key order). Shopify's
     // GraphQL coercion reports problems in the order it walks the input object's
@@ -540,6 +581,7 @@ fn validate_resolved_input_object(
                     nested_fields,
                     &nested_path,
                     schema,
+                    order_source,
                 ));
             }
         }
@@ -1413,6 +1455,51 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
             ("notifyCustomer".to_string(), mutation_arg(named("Boolean"))),
             ("staffNote".to_string(), mutation_arg(named("String"))),
         ]),
+    );
+
+    // RefundInput on Admin API 2026-04. Refund *attribution* fields
+    // (pointOfSaleDeviceId, locationId, userId, transactionGroupId) are not part
+    // of the public RefundInput — they belong to POS/internal refund flows —
+    // so supplying any of them must raise a schema error before the refundCreate
+    // resolver runs (argumentNotAccepted for inline literals, INVALID_VARIABLE
+    // for a coerced variable). The accepted fields below are registered so valid
+    // refunds (with refundLineItems / transactions / shipping / allowOverRefunding
+    // / note / notify / currency) pass through; their nested input objects are
+    // left unregistered so refund-line/transaction validation stays with the
+    // local refund engine.
+    schema.input_objects.insert(
+        "RefundInput".to_string(),
+        BTreeMap::from([
+            ("orderId".to_string(), input_field(non_null("ID"))),
+            ("currency".to_string(), input_field(named("CurrencyCode"))),
+            ("note".to_string(), input_field(named("String"))),
+            ("notify".to_string(), input_field(named("Boolean"))),
+            (
+                "allowOverRefunding".to_string(),
+                input_field(named("Boolean")),
+            ),
+            ("shipping".to_string(), input_field(named("ShippingRefundInput"))),
+            (
+                "refundLineItems".to_string(),
+                input_field(list_of_non_null("RefundLineItemInput")),
+            ),
+            (
+                "refundDuties".to_string(),
+                input_field(list_of_non_null("RefundDutyInput")),
+            ),
+            (
+                "transactions".to_string(),
+                input_field(list_of_non_null("OrderTransactionInput")),
+            ),
+            (
+                "discrepancyReason".to_string(),
+                input_field(named("OrderAdjustmentInputDiscrepancyReason")),
+            ),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "refundCreate".to_string(),
+        BTreeMap::from([("input".to_string(), mutation_arg(non_null("RefundInput")))]),
     );
 }
 

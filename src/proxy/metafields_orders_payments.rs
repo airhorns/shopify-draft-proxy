@@ -2892,6 +2892,37 @@ impl DraftProxy {
         if !handles_money_bag_selection {
             return None;
         }
+        // The money-bag presentment shim only knows how to echo a refund's
+        // totalRefundedSet money bag (shop + presentment currency). A general
+        // refundCreate selects far more than that — a refund `id`/`createdAt`,
+        // line items, transactions, duties, the order's displayFinancialStatus,
+        // etc. — and needs the full local refund engine with its over-refund and
+        // quantity validations. Claim refundCreate ONLY when every refundCreate
+        // selection stays within the money-bag money fields; decline anything
+        // richer so refund_create_local_data owns it.
+        let refund_is_money_bag_only = fields.iter().all(|field| {
+            field.name != "refundCreate"
+                || selection_contains_only_any(
+                    &field.selection,
+                    &["presentmentMoney", "totalRefundedSet"],
+                    &[
+                        "refund",
+                        "order",
+                        "userErrors",
+                        "totalRefundedSet",
+                        "shopMoney",
+                        "presentmentMoney",
+                        "amount",
+                        "currencyCode",
+                        "field",
+                        "message",
+                        "code",
+                    ],
+                )
+        });
+        if !refund_is_money_bag_only {
+            return None;
+        }
         let order_create_is_money_bag_only = fields.iter().all(|field| {
             field.name != "orderCreate"
                 || selection_contains_only_any(

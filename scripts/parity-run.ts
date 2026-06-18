@@ -624,10 +624,23 @@ function collectSetupEntitySeeds(capture: unknown): {
   const draftOrders = new Map<string, Record<string, unknown>>();
   const orders = new Map<string, Record<string, unknown>>();
   const deletedIds = new Set<string>();
-  const richer = (
+  // Setup blocks describe an entity across several steps, in chronological
+  // (document) order — e.g. an order is created (`displayFinancialStatus: PAID`,
+  // `totalRefundedSet: 0`), partially refunded, then re-read (`PARTIALLY_REFUNDED`,
+  // `totalRefundedSet: 10`). Picking the single projection with the most keys
+  // would seed the stale create-time snapshot; instead merge every projection of
+  // a given id field-by-field in visit order, so a later step's value wins per
+  // field and the seed reflects the entity's final pre-test state. Each projection
+  // is append-only in practice, so this only ever adds keys or overrides a value a
+  // later setup step deliberately changed.
+  const mergeProjection = (
+    map: Map<string, Record<string, unknown>>,
+    id: string,
     next: Record<string, unknown>,
-    prev: Record<string, unknown> | undefined,
-  ): boolean => prev === undefined || Object.keys(next).length > Object.keys(prev).length;
+  ): void => {
+    const prev = map.get(id);
+    map.set(id, prev ? { ...prev, ...next } : next);
+  };
   const visit = (node: unknown): void => {
     if (Array.isArray(node)) {
       for (const entry of node) visit(entry);
@@ -637,10 +650,10 @@ function collectSetupEntitySeeds(capture: unknown): {
     const obj = node as Record<string, unknown>;
     const id = obj['id'];
     if (typeof id === 'string') {
-      if (id.startsWith('gid://shopify/DraftOrder/') && richer(obj, draftOrders.get(id))) {
-        draftOrders.set(id, obj);
-      } else if (id.startsWith('gid://shopify/Order/') && richer(obj, orders.get(id))) {
-        orders.set(id, obj);
+      if (id.startsWith('gid://shopify/DraftOrder/')) {
+        mergeProjection(draftOrders, id, obj);
+      } else if (id.startsWith('gid://shopify/Order/')) {
+        mergeProjection(orders, id, obj);
       }
     }
     const deletedId = obj['deletedId'];
