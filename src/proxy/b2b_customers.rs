@@ -3331,14 +3331,22 @@ impl DraftProxy {
         for field in fields {
             let (payload, staged_ids, field_errors) =
                 self.customer_mutation_payload(request, &field);
+            // A top-level GraphQL error whose path points at this root field means
+            // the field itself resolves to `null` in `data` (GraphQL error
+            // propagation), not `{customer:null,userErrors:[]}`. This mirrors
+            // Shopify's REDACTED inline-consent rejection, which surfaces a
+            // top-level error AND `customerCreate: null`.
+            let has_top_error = !field_errors.is_empty();
             errors.extend(field_errors);
             if !staged_ids.is_empty() {
                 self.record_mutation_log_entry(request, query, variables, &field.name, staged_ids);
             }
-            data.insert(
-                field.response_key.clone(),
-                selected_json(&payload, &field.selection),
-            );
+            let rendered = if has_top_error {
+                Value::Null
+            } else {
+                selected_json(&payload, &field.selection)
+            };
+            data.insert(field.response_key.clone(), rendered);
         }
         let mut body = json!({ "data": Value::Object(data) });
         if !errors.is_empty() {
@@ -3433,8 +3441,15 @@ impl DraftProxy {
         let id = self.next_customer_gid(&normalized);
         let timestamp = self.next_product_timestamp();
         let verified_email_default = customer_create_verified_email_default(request, &normalized);
-        let customer =
+        let mut customer =
             customer_record_from_parts(&id, None, &normalized, &timestamp, verified_email_default);
+        // `customerCreate` accepts inline `emailMarketingConsent` /
+        // `smsMarketingConsent` and immediately reflects them on the staged
+        // record's compatibility consent fields and on
+        // `defaultEmailAddress` / `defaultPhoneNumber`. Validation (missing
+        // contact, REDACTED state) already ran above, so any consent present
+        // here is applicable.
+        apply_inline_consent_from_input(&mut customer, &input);
         self.store
             .staged
             .customers
@@ -4788,6 +4803,148 @@ struct CustomerRecordInput<'a> {
     updated_at: &'a str,
 }
 
+/// Default `Customer.defaultEmailAddress` shape. Real Shopify always returns a
+/// `CustomerEmailAddress` (with `NOT_SUBSCRIBED` marketing defaults) whenever an
+/// email is present, and `null` otherwise. Inline consent overwrites the
+/// marketing fields via [`apply_customer_marketing_consent`].
+fn default_email_address_value(email: Option<&str>) -> Value {
+    match email.filter(|value| !value.is_empty()) {
+        Some(email) => json!({
+            "emailAddress": email,
+            "marketingState": "NOT_SUBSCRIBED",
+            "marketingOptInLevel": "SINGLE_OPT_IN",
+            "marketingUpdatedAt": Value::Null
+        }),
+        None => Value::Null,
+    }
+}
+
+/// Default `Customer.defaultPhoneNumber` shape (see [`default_email_address_value`]).
+fn default_phone_number_value(phone: Option<&str>) -> Value {
+    match phone.filter(|value| !value.is_empty()) {
+        Some(phone) => json!({
+            "phoneNumber": phone,
+            "marketingState": "NOT_SUBSCRIBED",
+            "marketingOptInLevel": "SINGLE_OPT_IN",
+            "marketingUpdatedAt": Value::Null,
+            "marketingCollectedFrom": Value::Null
+        }),
+        None => Value::Null,
+    }
+}
+
+/// Default `Customer.emailMarketingConsent` compatibility object.
+fn email_marketing_consent_value(email: Option<&str>) -> Value {
+    match email.filter(|value| !value.is_empty()) {
+        Some(_) => json!({
+            "marketingState": "NOT_SUBSCRIBED",
+            "marketingOptInLevel": "SINGLE_OPT_IN",
+            "consentUpdatedAt": Value::Null
+        }),
+        None => Value::Null,
+    }
+}
+
+/// Default `Customer.smsMarketingConsent` compatibility object.
+fn sms_marketing_consent_value(phone: Option<&str>) -> Value {
+    match phone.filter(|value| !value.is_empty()) {
+        Some(_) => json!({
+            "marketingState": "NOT_SUBSCRIBED",
+            "marketingOptInLevel": "SINGLE_OPT_IN",
+            "consentUpdatedAt": Value::Null,
+            "consentCollectedFrom": Value::Null
+        }),
+        None => Value::Null,
+    }
+}
+
+/// Overwrite the marketing-consent fields of a staged customer record from a
+/// resolved consent state. `is_email` selects email vs SMS; the latter also
+/// carries `consentCollectedFrom` / `marketingCollectedFrom` defaulting to
+/// `"OTHER"` (the value Shopify reports for API-set consent).
+fn apply_customer_marketing_consent(
+    customer: &mut Value,
+    is_email: bool,
+    marketing_state: &str,
+    marketing_opt_in_level: &str,
+    updated_at: Option<&str>,
+) {
+    let Some(object) = customer.as_object_mut() else {
+        return;
+    };
+    if is_email {
+        if let Some(contact) = object
+            .get_mut("defaultEmailAddress")
+            .and_then(Value::as_object_mut)
+        {
+            contact.insert("marketingState".to_string(), json!(marketing_state));
+            contact.insert(
+                "marketingOptInLevel".to_string(),
+                json!(marketing_opt_in_level),
+            );
+            contact.insert("marketingUpdatedAt".to_string(), json!(updated_at));
+        }
+        object.insert(
+            "emailMarketingConsent".to_string(),
+            json!({
+                "marketingState": marketing_state,
+                "marketingOptInLevel": marketing_opt_in_level,
+                "consentUpdatedAt": updated_at
+            }),
+        );
+    } else {
+        if let Some(contact) = object
+            .get_mut("defaultPhoneNumber")
+            .and_then(Value::as_object_mut)
+        {
+            contact.insert("marketingState".to_string(), json!(marketing_state));
+            contact.insert(
+                "marketingOptInLevel".to_string(),
+                json!(marketing_opt_in_level),
+            );
+            contact.insert("marketingUpdatedAt".to_string(), json!(updated_at));
+            contact.insert("marketingCollectedFrom".to_string(), json!("OTHER"));
+        }
+        object.insert(
+            "smsMarketingConsent".to_string(),
+            json!({
+                "marketingState": marketing_state,
+                "marketingOptInLevel": marketing_opt_in_level,
+                "consentUpdatedAt": updated_at,
+                "consentCollectedFrom": "OTHER"
+            }),
+        );
+    }
+}
+
+/// Apply inline `emailMarketingConsent` / `smsMarketingConsent` from a
+/// `CustomerInput` onto a freshly built customer record. Callers must have
+/// already validated that the matching contact (email/phone) is present and
+/// that the marketing state is not `REDACTED`.
+fn apply_inline_consent_from_input(customer: &mut Value, input: &BTreeMap<String, ResolvedValue>) {
+    for (key, is_email) in [("emailMarketingConsent", true), ("smsMarketingConsent", false)] {
+        let Some(consent) = resolved_object_field(input, key) else {
+            continue;
+        };
+        let Some(marketing_state) = resolved_string_field(&consent, "marketingState") else {
+            continue;
+        };
+        if marketing_state.is_empty() {
+            continue;
+        }
+        let opt_in = resolved_string_field(&consent, "marketingOptInLevel")
+            .unwrap_or_else(|| "SINGLE_OPT_IN".to_string());
+        let updated_at = resolved_string_field(&consent, "consentUpdatedAt");
+        apply_customer_marketing_consent(
+            customer,
+            is_email,
+            &marketing_state,
+            &opt_in,
+            updated_at.as_deref(),
+        );
+    }
+}
+
 fn customer_record(input: CustomerRecordInput<'_>) -> Value {
     let first_value = input.first.filter(|value| !value.is_empty());
     let last_value = input.last.filter(|value| !value.is_empty());
@@ -4823,8 +4980,10 @@ fn customer_record(input: CustomerRecordInput<'_>) -> Value {
         "loyalty": input.loyalty.clone(),
         "metafield": input.loyalty,
         "metafields": metafields,
-        "defaultEmailAddress": input.email.map(|email| json!({ "emailAddress": email })).unwrap_or(Value::Null),
-        "defaultPhoneNumber": input.phone.map(|phone| json!({ "phoneNumber": phone })).unwrap_or(Value::Null),
+        "defaultEmailAddress": default_email_address_value(input.email),
+        "defaultPhoneNumber": default_phone_number_value(input.phone),
+        "emailMarketingConsent": email_marketing_consent_value(input.email),
+        "smsMarketingConsent": sms_marketing_consent_value(input.phone),
         "defaultAddress": default_address,
         "addressesV2": {
             "nodes": input.addresses,
