@@ -1310,7 +1310,8 @@ impl DraftProxy {
                     && has_local_dispatch
                     && matches!(
                         root_field,
-                        "fulfillmentCancel"
+                        "fulfillmentCreate"
+                            | "fulfillmentCancel"
                             | "fulfillmentTrackingInfoUpdate"
                             | "orderEditAddVariant"
                             | "orderEditSetQuantity"

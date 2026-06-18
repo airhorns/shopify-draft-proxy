@@ -213,6 +213,20 @@ const ORDERS_FULFILLMENT_HYDRATE_QUERY: &str = r#"#graphql
     }
   }
 "#;
+// Fulfillment-lifecycle hydration for `fulfillmentCancel` / `fulfillmentTrackingInfoUpdate`
+// operating on a fulfillment that was not created locally in this scenario. Byte-identical
+// to the recorded `OrdersFulfillmentHydrate` query so the strict cassette matcher accepts
+// it; resolves the fulfillment's owning order plus the sibling fulfillment states (status /
+// displayStatus / trackingInfo) the proxy needs to evaluate the state-machine preconditions
+// (already-cancelled, already-delivered) locally.
+const ORDERS_FULFILLMENT_LIFECYCLE_HYDRATE_QUERY: &str = "query OrdersFulfillmentHydrate($id: ID!) { fulfillment(id: $id) { id order { id name email phone createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus note tags fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } } } }";
+// Best-effort second-stage enrichment for the lifecycle hydrate. Byte-identical to the
+// recorded `OrderFulfillmentLifecycleRead` query so the strict cassette matcher accepts it;
+// fetches the order's full fulfillment view *including* `fulfillmentLineItems` so a downstream
+// order read observes line items the bare `OrdersFulfillmentHydrate` projection omits. When the
+// backend has no such recording the cassette miss is non-fatal and the proxy falls back to the
+// stage-one order.
+const ORDER_FULFILLMENT_LIFECYCLE_READ_QUERY: &str = "query OrderFulfillmentLifecycleRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    updatedAt\n    displayFulfillmentStatus\n    fulfillments(first: 5) {\n      id\n      status\n      displayStatus\n      createdAt\n      updatedAt\n      trackingInfo {\n        number\n        url\n        company\n      }\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        requestStatus\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n    }\n  }\n}";
 
 fn mobile_application_id_too_long_error<const N: usize>(field: [&str; N]) -> Value {
     mobile_app_error(
@@ -2698,6 +2712,40 @@ fn fulfillment_event_status_is_allowed(status: &str) -> bool {
 fn fulfillment_gid_has_numeric_tail(id: &str) -> bool {
     shopify_gid_resource_type(id) == Some("Fulfillment")
         && resource_id_tail(id).parse::<u64>().is_ok()
+}
+
+// Shopify rejects a `fulfillmentOrderId` whose numeric tail is not a positive
+// integer (e.g. `gid://shopify/FulfillmentOrder/0`) with a top-level `invalid id`
+// / RESOURCE_NOT_FOUND error rather than a payload userError. A non-numeric or
+// missing tail is likewise structurally invalid.
+fn fulfillment_order_id_is_invalid(id: &str) -> bool {
+    resource_id_tail(id)
+        .parse::<u64>()
+        .map(|tail| tail == 0)
+        .unwrap_or(true)
+}
+
+// Builds the top-level `invalid id` envelope Shopify returns when a
+// `fulfillmentCreate` references a structurally invalid fulfillment-order id.
+fn fulfillment_create_invalid_id_error(field: &RootFieldSelection) -> Option<Value> {
+    let fulfillment_input = resolved_object_field(&field.arguments, "fulfillment")?;
+    let groups = resolved_object_list_field(&fulfillment_input, "lineItemsByFulfillmentOrder");
+    if !groups.iter().any(|group| {
+        resolved_string_field(group, "fulfillmentOrderId")
+            .is_some_and(|id| fulfillment_order_id_is_invalid(&id))
+    }) {
+        return None;
+    }
+    let mut data = serde_json::Map::new();
+    data.insert(field.response_key.clone(), Value::Null);
+    Some(json!({
+        "data": Value::Object(data),
+        "errors": [{
+            "message": "invalid id",
+            "extensions": { "code": "RESOURCE_NOT_FOUND" },
+            "path": [field.response_key.clone()]
+        }]
+    }))
 }
 
 fn fulfillment_accepts_events(fulfillment: &Value) -> bool {
@@ -5322,6 +5370,74 @@ impl DraftProxy {
         self.stage_hydrated_order(order)
     }
 
+    fn hydrate_order_for_fulfillment_lifecycle(
+        &mut self,
+        fulfillment_id: &str,
+        request: &Request,
+    ) -> Option<String> {
+        if self.config.read_mode == ReadMode::Snapshot {
+            return None;
+        }
+        // Stage one: resolve the fulfillment's owning order and the sibling
+        // fulfillment states needed for the cancel/tracking preconditions.
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": ORDERS_FULFILLMENT_LIFECYCLE_HYDRATE_QUERY,
+                "variables": { "id": fulfillment_id }
+            })
+            .to_string(),
+        });
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        let fulfillment = response.body["data"]["fulfillment"].clone();
+        let mut order = fulfillment["order"].clone();
+        if !order.is_object() {
+            return None;
+        }
+        let order_id = order.get("id").and_then(Value::as_str)?.to_string();
+        // Stage two (best-effort): enrich with the full fulfillment line-item view so a
+        // downstream order read observes line items. A cassette miss here is non-fatal.
+        let enriched = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": ORDER_FULFILLMENT_LIFECYCLE_READ_QUERY,
+                "variables": { "id": order_id }
+            })
+            .to_string(),
+        });
+        if (200..300).contains(&enriched.status) {
+            let enriched_order = enriched.body["data"]["order"].clone();
+            if enriched_order.is_object() {
+                order = enriched_order;
+            }
+        }
+        // Guarantee the target fulfillment is present in the staged list even when only the
+        // stage-one projection was available.
+        if !order["fulfillments"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|record| record["id"].as_str() == Some(fulfillment_id))
+            && fulfillment.is_object()
+        {
+            let mut fulfillment_record = fulfillment.clone();
+            if let Some(object) = fulfillment_record.as_object_mut() {
+                object.remove("order");
+            }
+            normalize_hydrated_order(&mut order);
+            if let Some(fulfillments) = order_fulfillments_mut(&mut order) {
+                fulfillments.push(fulfillment_record);
+            }
+        }
+        self.stage_hydrated_order(order)
+    }
+
     pub(in crate::proxy) fn refund_create_local_data(
         &mut self,
         request: &Request,
@@ -5809,7 +5925,7 @@ impl DraftProxy {
         let fulfillment_id = resolved_string_arg(&field.arguments, "fulfillmentId")?;
         let order_id = self
             .staged_order_id_for_fulfillment(&fulfillment_id)
-            .or_else(|| self.hydrate_order_for_fulfillment(&fulfillment_id, request))?;
+            .or_else(|| self.hydrate_order_for_fulfillment_lifecycle(&fulfillment_id, request))?;
         let tracking_input = resolved_object_field(&field.arguments, "trackingInfoInput")
             .or_else(|| resolved_object_field(&field.arguments, "trackingInfo"))
             .unwrap_or_default();
@@ -5863,7 +5979,7 @@ impl DraftProxy {
         let fulfillment_id = resolved_string_arg(&field.arguments, "id")?;
         let order_id = self
             .staged_order_id_for_fulfillment(&fulfillment_id)
-            .or_else(|| self.hydrate_order_for_fulfillment(&fulfillment_id, request))?;
+            .or_else(|| self.hydrate_order_for_fulfillment_lifecycle(&fulfillment_id, request))?;
         let mut order = self.store.staged.orders.get(&order_id)?.clone();
         let fulfillment = order_fulfillments_mut(&mut order)?
             .iter_mut()
@@ -7389,6 +7505,9 @@ impl DraftProxy {
         }
         if root_field == "fulfillmentCreate" {
             let field = field?;
+            if let Some(error) = fulfillment_create_invalid_id_error(&field) {
+                return Some(error);
+            }
             return Some(data_response(
                 &field.response_key,
                 self.staged_fulfillment_payload(request, query, variables, &field),
@@ -7403,45 +7522,14 @@ impl DraftProxy {
         }
         if root_field == "fulfillmentCancel" {
             let field = field?;
-            if let Some(payload) =
-                self.cancel_staged_fulfillment_payload(request, query, variables, &field)
-            {
-                return Some(data_response(&field.response_key, payload));
-            }
-            let payload = match resolved_string_arg(&field.arguments, "id")?.as_str() {
-                "gid://shopify/Fulfillment/6189145325801" => json!({
-                    "fulfillment": Value::Null,
-                    "userErrors": [orders_error(&["id"], "fulfillment_cannot_be_cancelled", "INVALID")]
-                }),
-                "gid://shopify/Fulfillment/7770000000001" => json!({
-                    "fulfillment": Value::Null,
-                    "userErrors": [orders_error(&["id"], "fulfillment_already_delivered", "INVALID")]
-                }),
-                _ => return None,
-            };
-            return Some(data_response(
-                &field.response_key,
-                selected_json(&payload, &field.selection),
-            ));
+            let payload = self.cancel_staged_fulfillment_payload(request, query, variables, &field)?;
+            return Some(data_response(&field.response_key, payload));
         }
         if root_field == "fulfillmentTrackingInfoUpdate" {
             let field = field?;
-            if let Some(payload) =
-                self.update_staged_fulfillment_tracking_payload(request, query, variables, &field)
-            {
-                return Some(data_response(&field.response_key, payload));
-            }
-            let payload = match resolved_string_arg(&field.arguments, "fulfillmentId")?.as_str() {
-                "gid://shopify/Fulfillment/6189145325801" => json!({
-                    "fulfillment": Value::Null,
-                    "userErrors": [orders_error(&["fulfillmentId"], "fulfillment_is_cancelled", "INVALID")]
-                }),
-                _ => return None,
-            };
-            return Some(data_response(
-                &field.response_key,
-                selected_json(&payload, &field.selection),
-            ));
+            let payload =
+                self.update_staged_fulfillment_tracking_payload(request, query, variables, &field)?;
+            return Some(data_response(&field.response_key, payload));
         }
         if root_field == "ordersCount" {
             return Some(orders_empty_count_payload());

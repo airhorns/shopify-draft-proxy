@@ -1487,6 +1487,27 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
         ]),
     );
 
+    // Fulfillment lifecycle mutations. Routed locally now, so the proxy owns the
+    // top-level missing-argument / null-literal / unbound-variable envelopes for
+    // their required `id` / `fulfillmentId` arguments. The full accepted argument
+    // set is registered so valid calls (which pass optional notifyCustomer /
+    // trackingInfoInput) are not flagged "argument not accepted".
+    schema.mutation_fields.insert(
+        "fulfillmentCancel".to_string(),
+        BTreeMap::from([("id".to_string(), mutation_arg(non_null("ID")))]),
+    );
+    schema.mutation_fields.insert(
+        "fulfillmentTrackingInfoUpdate".to_string(),
+        BTreeMap::from([
+            ("fulfillmentId".to_string(), mutation_arg(non_null("ID"))),
+            (
+                "trackingInfoInput".to_string(),
+                mutation_arg(non_null("FulfillmentTrackingInput")),
+            ),
+            ("notifyCustomer".to_string(), mutation_arg(named("Boolean"))),
+        ]),
+    );
+
     // Order-edit calculated-session mutations. Each is registered with its full
     // accepted argument set (so valid edits are not flagged "argument not
     // accepted") plus the required arguments / input-object attributes Shopify
