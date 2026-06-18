@@ -1330,41 +1330,6 @@ impl DraftProxy {
         }
 
         if operation.operation_type == OperationType::Mutation
-            && root_field == "customerCreate"
-            && (is_local_customer_create_document(&query, &variables)
-                || self.has_b2b_contact_state())
-        {
-            return self.customer_create(&query, &variables, request);
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && root_field == "customerUpdate"
-            && is_local_customer_update_document(&query, &variables)
-        {
-            return self.customer_update(&query, &variables, request);
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && root_field == "customerDelete"
-            && is_local_customer_delete_document(&query)
-        {
-            return self.customer_delete(&query, &variables, request);
-        }
-
-        if operation.operation_type == OperationType::Mutation
-            && root_field == "orderCreate"
-            && query.contains("CustomerDeleteOrderPreconditionOrderCreate")
-        {
-            return self.customer_order_create(&query, &variables, request);
-        }
-
-        if operation.operation_type == OperationType::Mutation && root_field == "customerSet" {
-            if let Some(response) = self.customer_set_guard_response(&query, &variables) {
-                return response;
-            }
-        }
-
-        if operation.operation_type == OperationType::Mutation
             && root_field == "bulkOperationRunQuery"
         {
             return self.bulk_operation_run_query(request, &query, &variables);
@@ -2384,6 +2349,11 @@ impl DraftProxy {
             {
                 let outcome = self.saved_search_mutation_fields(&query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
+            {
+                self.customer_mutation_response(request, &query, &variables)
             }
             (CapabilityDomain::Metaobjects, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>

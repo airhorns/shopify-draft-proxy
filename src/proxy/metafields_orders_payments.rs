@@ -1182,75 +1182,6 @@ pub(in crate::proxy) fn resolved_number_field(
     }
 }
 
-pub(in crate::proxy) fn is_local_customer_create_document(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    if query.contains("CustomerCreateParityPlan")
-        || query.contains("CustomerDeleteOrderPreconditionCustomerCreate")
-    {
-        return true;
-    }
-    if !query.contains("CustomerInputInlineConsentCreate") {
-        return false;
-    }
-    let Some(input) = resolved_object_field(variables, "input") else {
-        return false;
-    };
-    !input.contains_key("emailMarketingConsent") && !input.contains_key("smsMarketingConsent")
-}
-
-pub(in crate::proxy) fn is_local_customer_delete_document(query: &str) -> bool {
-    query.contains("CustomerDeleteParityPlan")
-        || query.contains("CustomerDeleteOrderPreconditionDelete")
-}
-
-pub(in crate::proxy) fn is_customer_input_validation_update_success(
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    let Some(input) = resolved_object_field(variables, "input") else {
-        return false;
-    };
-    matches!(
-        resolved_string_field(&input, "id").as_deref(),
-        Some("gid://shopify/Customer/10541053706546")
-            | Some("gid://shopify/Customer/10541053772082")
-    )
-}
-
-pub(in crate::proxy) fn is_local_customer_update_document(
-    query: &str,
-    variables: &BTreeMap<String, ResolvedValue>,
-) -> bool {
-    if query.contains("CustomerUpdateParityPlan")
-        || is_customer_input_validation_update_success(variables)
-    {
-        return true;
-    }
-    let arguments = root_field_arguments(query, variables).unwrap_or_default();
-    let Some(input) = resolved_object_field(&arguments, "input") else {
-        return false;
-    };
-    input.contains_key("emailMarketingConsent")
-        || input.contains_key("smsMarketingConsent")
-        || [
-            "firstName",
-            "lastName",
-            "note",
-            "tags",
-            "taxExempt",
-            "taxExemptions",
-            "metafields",
-            "phone",
-        ]
-        .iter()
-        .any(|field| input.contains_key(*field))
-}
-
-pub(in crate::proxy) fn normalize_customer_tags(tags: Vec<String>) -> Vec<String> {
-    normalize_taggable_tags(tags)
-}
-
 pub(in crate::proxy) fn customer_connection_empty(selection: &[SelectedField]) -> Value {
     selected_empty_connection_json(selection)
 }
@@ -1270,56 +1201,6 @@ pub(in crate::proxy) fn customer_loyalty_metafield(
         "key": resolved_string_field(fields, "key").unwrap_or_else(|| "loyalty".to_string()),
         "type": resolved_string_field(fields, "type").unwrap_or_else(|| "single_line_text_field".to_string()),
         "value": resolved_string_field(fields, "value").unwrap_or_default()
-    })
-}
-
-pub(in crate::proxy) struct CustomerFixtureRecord<'a> {
-    pub(in crate::proxy) id: &'a str,
-    pub(in crate::proxy) first: &'a str,
-    pub(in crate::proxy) last: &'a str,
-    pub(in crate::proxy) email: &'a str,
-    pub(in crate::proxy) phone: &'a str,
-    pub(in crate::proxy) note: Option<&'a str>,
-    pub(in crate::proxy) tax_exempt: bool,
-    pub(in crate::proxy) tax_exemptions: Vec<String>,
-    pub(in crate::proxy) tags: Vec<String>,
-    pub(in crate::proxy) loyalty: Value,
-}
-
-pub(in crate::proxy) fn customer_fixture_record(record: CustomerFixtureRecord<'_>) -> Value {
-    let display_name = [record.first, record.last]
-        .into_iter()
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ");
-    let metafields = if record.loyalty.is_null() {
-        json!({ "nodes": [], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null } })
-    } else {
-        json!({ "nodes": [record.loyalty.clone()], "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": "cursor:customer-metafield:1", "endCursor": "cursor:customer-metafield:1" } })
-    };
-    json!({
-        "id": record.id,
-        "firstName": record.first,
-        "lastName": record.last,
-        "displayName": display_name,
-        "email": record.email,
-        "phone": record.phone,
-        "locale": "en",
-        "note": record.note,
-        "verifiedEmail": true,
-        "taxExempt": record.tax_exempt,
-        "taxExemptions": record.tax_exemptions,
-        "tags": record.tags,
-        "state": "DISABLED",
-        "canDelete": true,
-        "loyalty": record.loyalty.clone(),
-        "metafield": record.loyalty,
-        "metafields": metafields,
-        "defaultEmailAddress": { "emailAddress": record.email },
-        "defaultPhoneNumber": { "phoneNumber": record.phone },
-        "defaultAddress": null,
-        "createdAt": "2026-04-25T01:41:06Z",
-        "updatedAt": "2026-04-25T01:41:06Z"
     })
 }
 

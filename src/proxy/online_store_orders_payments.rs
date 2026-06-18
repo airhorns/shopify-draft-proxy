@@ -3141,6 +3141,22 @@ impl DraftProxy {
             })
             .collect::<Vec<_>>();
         let financial_status = order_create_financial_status(order_input, &transactions, total);
+        let customer = resolved_string_field(order_input, "customerId")
+            .map(|id| {
+                self.store
+                    .staged
+                    .customers
+                    .get(&id)
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        json!({
+                            "id": id,
+                            "email": resolved_string_field(order_input, "email"),
+                            "displayName": Value::Null
+                        })
+                    })
+            })
+            .unwrap_or(Value::Null);
         let mut order = json!({
             "id": order_id,
             "name": format!("#{}", self.store.staged.orders.len() + 1),
@@ -3151,13 +3167,7 @@ impl DraftProxy {
             "cancelReason": Value::Null,
             "createdAt": "2024-01-01T00:00:00.000Z",
             "updatedAt": "2024-01-01T00:00:00.000Z",
-            "customer": resolved_string_field(order_input, "customerId")
-                .map(|id| json!({
-                    "id": id,
-                    "email": resolved_string_field(order_input, "email"),
-                    "displayName": Value::Null
-                }))
-                .unwrap_or(Value::Null),
+            "customer": customer,
             "note": resolved_string_field(order_input, "note"),
             "tags": resolved_string_list_field(order_input, "tags"),
             "currencyCode": currency_code,
