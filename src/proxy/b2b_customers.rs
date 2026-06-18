@@ -3233,23 +3233,32 @@ impl DraftProxy {
         let Some(ResolvedValue::Object(identifier)) = field.arguments.get("identifier") else {
             return Value::Null;
         };
-        let customer = match identifier.get("email") {
-            Some(ResolvedValue::String(email)) => {
-                self.store.staged.customers.values().find(|customer| {
-                    customer.get("email").and_then(Value::as_str) == Some(email.as_str())
-                })
-            }
-            _ => match identifier.get("id") {
-                Some(ResolvedValue::String(id)) => self.store.staged.customers.get(id),
-                _ => match identifier.get("phone") {
-                    Some(ResolvedValue::String(phone)) => {
-                        self.store.staged.customers.values().find(|customer| {
-                            customer.get("phone").and_then(Value::as_str) == Some(phone.as_str())
-                        })
-                    }
-                    _ => None,
-                },
-            },
+        let customer = if let Some(raw_email) = resolved_string_field(identifier, "email")
+            .or_else(|| resolved_string_field(identifier, "emailAddress"))
+        {
+            let needle = normalize_customer_email(&raw_email);
+            self.store.staged.customers.values().find(|customer| {
+                let stored = customer.get("email").and_then(Value::as_str);
+                match (needle.as_deref(), stored) {
+                    (Some(needle), Some(stored)) => needle == stored,
+                    _ => stored == Some(raw_email.as_str()),
+                }
+            })
+        } else if let Some(id) = resolved_string_field(identifier, "id") {
+            self.store.staged.customers.get(&id)
+        } else if let Some(raw_phone) = resolved_string_field(identifier, "phone")
+            .or_else(|| resolved_string_field(identifier, "phoneNumber"))
+        {
+            let needle = normalize_customer_phone(&raw_phone);
+            self.store.staged.customers.values().find(|customer| {
+                let stored = customer.get("phone").and_then(Value::as_str);
+                match (needle.as_deref(), stored) {
+                    (Some(needle), Some(stored)) => needle == stored,
+                    _ => stored == Some(raw_phone.as_str()),
+                }
+            })
+        } else {
+            None
         };
         customer
             .map(|customer| selected_json(customer, &field.selection))
@@ -3388,6 +3397,13 @@ impl DraftProxy {
                         "Cannot specify ID on creation",
                     )],
                 ),
+                Vec::new(),
+                Vec::new(),
+            );
+        }
+        if let Some(error) = customer_create_nested_id_error(&input) {
+            return (
+                customer_payload(Value::Null, vec![error]),
                 Vec::new(),
                 Vec::new(),
             );
@@ -3783,6 +3799,12 @@ impl DraftProxy {
                 }
                 normalized.email = Some(Some(email));
             } else {
+                if raw_email.split_whitespace().collect::<String>().chars().count() > 255 {
+                    errors.push(customer_user_error(
+                        customer_field_path(customer_set, "email"),
+                        "Email is too long (maximum is 255 characters)",
+                    ));
+                }
                 errors.push(customer_user_error(
                     customer_field_path(customer_set, "email"),
                     "Email is invalid",
@@ -3807,6 +3829,12 @@ impl DraftProxy {
                 }
                 normalized.phone = Some(Some(phone));
             } else {
+                if raw_phone.trim().chars().count() > 255 {
+                    errors.push(customer_user_error(
+                        customer_field_path(customer_set, "phone"),
+                        "Phone is too long (maximum is 255 characters)",
+                    ));
+                }
                 errors.push(customer_user_error(
                     customer_field_path(customer_set, "phone"),
                     "Phone is invalid",
@@ -4313,6 +4341,28 @@ fn customer_record_from_parts(
         created_at,
         updated_at: timestamp,
     })
+}
+
+/// `customerCreate` rejects nested resource ids on creation: an `id` key inside
+/// any `addresses[]` or `metafields[]` input object yields a user error and a
+/// null customer. Addresses are checked before metafields so the surfaced error
+/// path matches Shopify's ordering when both are present.
+fn customer_create_nested_id_error(input: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
+    for (collection, label) in [("addresses", "address"), ("metafields", "metafield")] {
+        if let Some(ResolvedValue::List(entries)) = input.get(collection) {
+            for (index, entry) in entries.iter().enumerate() {
+                if let ResolvedValue::Object(object) = entry {
+                    if object.contains_key("id") {
+                        return Some(customer_user_error(
+                            json!([collection, index.to_string(), "id"]),
+                            &format!("Cannot specify {label} ID on creation"),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 fn customer_create_verified_email_default(
