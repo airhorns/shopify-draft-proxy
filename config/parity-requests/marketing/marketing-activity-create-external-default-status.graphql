@@ -1,0 +1,31 @@
+mutation MarketingActivityLifecycle(
+  $createNoStatusInput: MarketingActivityCreateExternalInput!
+  $createActiveInput: MarketingActivityCreateExternalInput!
+) {
+  createNoStatus: marketingActivityCreateExternal(input: $createNoStatusInput) {
+    marketingActivity {
+      id
+      title
+      status
+      statusLabel
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createActive: marketingActivityCreateExternal(input: $createActiveInput) {
+    marketingActivity {
+      id
+      title
+      status
+      statusLabel
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

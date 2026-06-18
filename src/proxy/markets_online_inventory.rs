@@ -1947,7 +1947,7 @@ pub(in crate::proxy) fn marketing_activity_from_input(
             .to_string()
     });
     let status = resolved_string_field(&input, "status")
-        .unwrap_or_else(|| old["status"].as_str().unwrap_or("ACTIVE").to_string());
+        .unwrap_or_else(|| old["status"].as_str().unwrap_or("UNDEFINED").to_string());
     let tactic = resolved_string_field(&input, "tactic")
         .unwrap_or_else(|| old["tactic"].as_str().unwrap_or("NEWSLETTER").to_string());
     let channel_type = resolved_string_field(&input, "marketingChannelType").unwrap_or_else(|| {
@@ -2244,6 +2244,7 @@ pub(in crate::proxy) fn marketing_status_label(
         ("INACTIVE", "NEWSLETTER") => "Sent",
         ("INACTIVE", _) => "Ended",
         ("DELETED_EXTERNALLY", _) => "Deleted",
+        ("UNDEFINED", _) => "Undefined",
         _ => status,
     }
     .to_string()

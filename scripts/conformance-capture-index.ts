@@ -4117,6 +4117,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'marketing',
+    captureId: 'marketing-activity-create-external-default-status',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-marketing-activity-create-external-default-status-conformance.mts',
+    purpose:
+      'External marketing activity create omitted-status default, explicit ACTIVE statusLabel control, and upsert omitted-status public schema rejection.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}marketing-activity-create-external-default-status.json`,
+      'config/parity-specs/marketing/marketing-activity-create-external-default-status.json',
+      'config/parity-requests/marketing/marketing-activity-create-external-default-status.graphql',
+      'config/parity-requests/marketing/marketing-activity-create-external-default-status-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable external marketing activities for omitted-status create and explicit ACTIVE create, records an omitted-status upsert-create schema rejection, reads created activities back, then deletes every disposable remote ID.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'marketing',
     captureId: 'marketing-activity-immutable-fields',
     scriptPath: 'scripts/capture-marketing-activity-immutable-fields-conformance.mts',
     purpose:
