@@ -331,6 +331,19 @@ struct StagedState {
     web_presences: BTreeMap<String, Value>,
     publication_ids: BTreeSet<String>,
     created_publication_ids: BTreeSet<String>,
+    // Full publication records staged this scenario, keyed by publication gid.
+    // Seeded from `seedPublications` (base/default publications) and extended by
+    // `publicationCreate`. Drives the local `publication`/`channel`/`channels`/
+    // `publicationsCount`/`publishedProductsCount` roots without upstream replay.
+    // Empty for every scenario that does not seed publications, leaving the
+    // existing passthrough behavior for those roots untouched.
+    publications: BTreeMap<String, Value>,
+    // Resource gid (Product/Collection) -> set of publication gids the resource
+    // is published on. Seeded from `seedProducts`/`seedCollections`
+    // `publicationIds` and mutated by `publishablePublish`/`publishableUnpublish`.
+    // Drives `publishedOnPublication`, `resourcePublicationsCount`,
+    // `publicationCount`, and per-publication membership counts.
+    resource_publications: BTreeMap<String, BTreeSet<String>>,
     shop_locales: BTreeMap<String, Value>,
     localization_translations: Vec<Value>,
     // Market-localizable resources observed from a cold upstream read or mutation
@@ -647,6 +660,8 @@ impl Default for StagedState {
             web_presences: BTreeMap::new(),
             publication_ids: BTreeSet::new(),
             created_publication_ids: BTreeSet::new(),
+            publications: BTreeMap::new(),
+            resource_publications: BTreeMap::new(),
             shop_locales: BTreeMap::new(),
             localization_translations: Vec::new(),
             localization_resources: BTreeMap::new(),

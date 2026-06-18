@@ -2663,6 +2663,21 @@ impl DraftProxy {
         Some(ok_json(json!({ "data": Value::Object(data) })))
     }
 
+    /// Next publication gid: one past the largest staged publication suffix, so
+    /// id allocation is derived from store state rather than a fixed literal.
+    fn next_publication_id(&self) -> String {
+        let max = self
+            .store
+            .staged
+            .publications
+            .keys()
+            .filter_map(|id| id.rsplit('/').next())
+            .filter_map(|suffix| suffix.parse::<u64>().ok())
+            .max()
+            .unwrap_or(0);
+        format!("gid://shopify/Publication/{}", max + 1)
+    }
+
     pub(in crate::proxy) fn product_tail_publication_create(
         &mut self,
         field: &RootFieldSelection,
@@ -2673,7 +2688,8 @@ impl DraftProxy {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let has_catalog = input.contains_key("catalogId");
         let has_channel = input.contains_key("channelId");
-        let has_name = resolved_string_field(&input, "name").is_some();
+        let name = resolved_string_field(&input, "name");
+        let auto_publish = resolved_bool_field(&input, "autoPublish").unwrap_or(false);
         let (payload, staged_ids, status) = if has_catalog && has_channel {
             (
                 json!({
@@ -2713,13 +2729,12 @@ impl DraftProxy {
                 Vec::new(),
                 "failed",
             )
-        } else if has_name {
+        } else if let Some(name) = name {
+            let id = self.next_publication_id();
+            let record = publication_record_json(&id, &name, auto_publish);
             (
-                json!({
-                    "publication": { "id": "gid://shopify/Publication/2" },
-                    "userErrors": []
-                }),
-                vec!["gid://shopify/Publication/2".to_string()],
+                json!({ "publication": record, "userErrors": [] }),
+                vec![id],
                 "staged",
             )
         } else {
@@ -2741,17 +2756,18 @@ impl DraftProxy {
             query,
             variables,
             "publicationCreate",
-            staged_ids,
+            staged_ids.clone(),
             status,
         );
         if status == "staged" {
-            if let Some(publication_id) = payload
-                .get("publication")
-                .and_then(|publication| publication.get("id"))
-                .and_then(Value::as_str)
-            {
-                self.store
-                    .stage_created_publication_id(publication_id.to_string());
+            if let Some(id) = staged_ids.first() {
+                self.store.stage_created_publication_id(id.clone());
+                if let Some(record) = payload.get("publication") {
+                    self.store
+                        .staged
+                        .publications
+                        .insert(id.clone(), record.clone());
+                }
             }
         }
         selected_json(&payload, &field.selection)
@@ -2765,34 +2781,78 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let payload = if input.contains_key("catalogId") && input.contains_key("channelId") {
-            json!({
-                "publication": null,
-                "userErrors": [{
-                    "field": ["input"],
-                    "message": "Only one of catalog or channel can be provided",
-                    "code": "INVALID"
-                }]
-            })
-        } else {
-            json!({
-                "publication": null,
-                "userErrors": [{
-                    "field": ["input", "catalogId"],
-                    "message": "Catalog not found",
-                    "code": "NOT_FOUND"
-                }]
-            })
+        if input.contains_key("catalogId") && input.contains_key("channelId") {
+            self.record_products_tail_log(
+                request,
+                query,
+                variables,
+                "publicationUpdate",
+                Vec::new(),
+                "failed",
+            );
+            return selected_json(
+                &json!({
+                    "publication": null,
+                    "userErrors": [{
+                        "field": ["input"],
+                        "message": "Only one of catalog or channel can be provided",
+                        "code": "INVALID"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
+        let id = resolved_string_field(&field.arguments, "id");
+        let record = id
+            .as_deref()
+            .and_then(|id| self.store.staged.publications.get(id).cloned());
+        let (Some(id), Some(mut record)) = (id, record) else {
+            self.record_products_tail_log(
+                request,
+                query,
+                variables,
+                "publicationUpdate",
+                Vec::new(),
+                "failed",
+            );
+            return selected_json(
+                &json!({
+                    "publication": null,
+                    "userErrors": [{
+                        "field": ["id"],
+                        "message": "Publication not found",
+                        "code": "NOT_FOUND"
+                    }]
+                }),
+                &field.selection,
+            );
         };
+        // Renaming a publication renames its backing channel (and the channel's
+        // back-reference) so subsequent channel/channels reads stay consistent.
+        if let Some(name) = resolved_string_field(&input, "name") {
+            record["name"] = json!(name);
+            record["channel"]["name"] = json!(name);
+            record["channel"]["publication"]["name"] = json!(name);
+        }
+        if let Some(auto_publish) = resolved_bool_field(&input, "autoPublish") {
+            record["autoPublish"] = json!(auto_publish);
+        }
+        self.store
+            .staged
+            .publications
+            .insert(id.clone(), record.clone());
         self.record_products_tail_log(
             request,
             query,
             variables,
             "publicationUpdate",
-            Vec::new(),
-            "failed",
+            vec![id],
+            "staged",
         );
-        selected_json(&payload, &field.selection)
+        selected_json(
+            &json!({ "publication": record, "userErrors": [] }),
+            &field.selection,
+        )
     }
 
     pub(in crate::proxy) fn product_tail_publication_delete(
@@ -2802,23 +2862,83 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
-        let payload = json!({
-            "deletedId": null,
-            "userErrors": [{
-                "field": ["id"],
-                "message": "Cannot delete the default publication",
-                "code": "CANNOT_DELETE_DEFAULT_PUBLICATION"
-            }]
+        let Some(id) = resolved_string_field(&field.arguments, "id") else {
+            self.record_products_tail_log(
+                request,
+                query,
+                variables,
+                "publicationDelete",
+                Vec::new(),
+                "failed",
+            );
+            return selected_json(
+                &json!({
+                    "deletedId": null,
+                    "userErrors": [{
+                        "field": ["id"],
+                        "message": "Publication not found",
+                        "code": "NOT_FOUND"
+                    }]
+                }),
+                &field.selection,
+            );
+        };
+        // Only publications staged this scenario can be deleted; the base/default
+        // publication (and any unknown id) cannot be removed.
+        if !self.store.staged.created_publication_ids.contains(&id) {
+            self.record_products_tail_log(
+                request,
+                query,
+                variables,
+                "publicationDelete",
+                Vec::new(),
+                "failed",
+            );
+            return selected_json(
+                &json!({
+                    "deletedId": null,
+                    "userErrors": [{
+                        "field": ["id"],
+                        "message": "Cannot delete the default publication",
+                        "code": "CANNOT_DELETE_DEFAULT_PUBLICATION"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
+        let record = self
+            .store
+            .staged
+            .publications
+            .remove(&id)
+            .unwrap_or(Value::Null);
+        self.store.staged.created_publication_ids.remove(&id);
+        self.store.staged.publication_ids.remove(&id);
+        // Cascade: a deleted publication is no longer a membership target, so any
+        // product/collection published on it is no longer published there.
+        for pubs in self.store.staged.resource_publications.values_mut() {
+            pubs.remove(&id);
+        }
+        let publication_summary = json!({
+            "id": id,
+            "name": record.get("name").cloned().unwrap_or(Value::Null),
         });
         self.record_products_tail_log(
             request,
             query,
             variables,
             "publicationDelete",
-            Vec::new(),
-            "failed",
+            vec![id.clone()],
+            "staged",
         );
-        selected_json(&payload, &field.selection)
+        selected_json(
+            &json!({
+                "deletedId": id,
+                "publication": publication_summary,
+                "userErrors": []
+            }),
+            &field.selection,
+        )
     }
 
     pub(in crate::proxy) fn product_tail_feed_create(

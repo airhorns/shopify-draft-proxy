@@ -770,6 +770,11 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
     ? record['seedProductVariants']
     : [];
   const collections = Array.isArray(record['seedCollections']) ? record['seedCollections'] : [];
+  // `seedPublications` declares the store's base/default publications (id + name);
+  // the proxy derives each backing channel and drives the local publication/channel
+  // roots from them. Per-resource membership rides on the `publicationIds` of the
+  // seeded products/collections.
+  const publications = Array.isArray(record['seedPublications']) ? record['seedPublications'] : [];
   const discounts = Array.isArray(record['seedDiscounts']) ? record['seedDiscounts'] : [];
   // Draft orders / orders are derived from the recorded `setup` precondition steps
   // (and may be augmented by explicit `seedDraftOrders` / `seedOrders` arrays).
@@ -880,6 +885,7 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
     products.length === 0 &&
     productVariants.length === 0 &&
     collections.length === 0 &&
+    publications.length === 0 &&
     discounts.length === 0 &&
     draftOrders.length === 0 &&
     orders.length === 0 &&
@@ -900,6 +906,7 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
       products,
       productVariants,
       collections,
+      publications,
       discounts,
       draftOrders,
       orders,

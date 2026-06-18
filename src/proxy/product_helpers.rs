@@ -248,6 +248,32 @@ fn collection_product_ids_from_response(response: &Response, path: &str) -> Vec<
         .collect()
 }
 
+/// A Shopify `Count` value with EXACT precision, used by the publication roots
+/// (`publicationsCount`, `publishedProductsCount`, `resourcePublicationsCount`,
+/// `publicationCount`, `channel.productsCount`, ...).
+pub(in crate::proxy) fn publication_count_json(count: usize) -> Value {
+    json!({ "count": count, "precision": "EXACT" })
+}
+
+/// The canonical `Publication` record the local publication engine stages and
+/// serves. A publication's backing `Channel` shares the publication's numeric
+/// id suffix and name, so both are derived rather than recorded per scenario.
+pub(in crate::proxy) fn publication_record_json(id: &str, name: &str, auto_publish: bool) -> Value {
+    let suffix = id.rsplit('/').next().unwrap_or(id);
+    let channel_id = format!("gid://shopify/Channel/{suffix}");
+    json!({
+        "id": id,
+        "name": name,
+        "autoPublish": auto_publish,
+        "supportsFuturePublishing": false,
+        "channel": {
+            "id": channel_id,
+            "name": name,
+            "publication": { "id": id, "name": name }
+        }
+    })
+}
+
 impl DraftProxy {
     /// In live-hybrid mode a `collection(id:)` read for a collection that was
     /// never staged locally must read through to upstream (the recorded
@@ -313,6 +339,307 @@ impl DraftProxy {
             data.insert(field.response_key.clone(), value);
         }
         Value::Object(data)
+    }
+
+    /// True once a scenario has seeded (or staged) publications, switching the
+    /// `publication`/`channel`/`channels`/`publicationsCount`/
+    /// `publishedProductsCount` roots from upstream passthrough to local replay.
+    pub(in crate::proxy) fn publication_engine_active(&self) -> bool {
+        !self.store.staged.publications.is_empty()
+    }
+
+    /// Render a multi-root publication read operation
+    /// (`publication`/`channel`/`channels`/`publicationsCount`/
+    /// `publishedProductsCount` plus any `product`/`collection` publication
+    /// fields) entirely from local publication state.
+    pub(in crate::proxy) fn publication_roots_read_data(
+        &self,
+        fields: &[RootFieldSelection],
+    ) -> Value {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let value = match field.name.as_str() {
+                "publication" => self.publication_root_value(field),
+                "channel" => self.channel_root_value(field),
+                "channels" => self.channels_root_value(field),
+                "publicationsCount" => {
+                    publication_count_json(self.store.staged.publications.len())
+                }
+                "publishedProductsCount" => {
+                    let publication_id = resolved_string_field(&field.arguments, "publicationId");
+                    publication_count_json(
+                        self.publication_resource_count(publication_id.as_deref(), "Product"),
+                    )
+                }
+                "product" | "collection" => self.publishable_resource_root_value(field),
+                _ => continue,
+            };
+            data.insert(field.response_key.clone(), value);
+        }
+        Value::Object(data)
+    }
+
+    /// The set of publication gids a resource (product/collection) is published on.
+    fn resource_publication_set(&self, resource_id: &str) -> BTreeSet<String> {
+        self.store
+            .staged
+            .resource_publications
+            .get(resource_id)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Count resources of the given gid type published on `publication_id` (or on
+    /// any publication when `publication_id` is `None`).
+    fn publication_resource_count(
+        &self,
+        publication_id: Option<&str>,
+        resource_type: &str,
+    ) -> usize {
+        self.publication_resource_ids(publication_id, resource_type)
+            .len()
+    }
+
+    /// The gids of resources of the given type published on `publication_id` (or
+    /// on any publication when `publication_id` is `None`), in stable id order.
+    fn publication_resource_ids(
+        &self,
+        publication_id: Option<&str>,
+        resource_type: &str,
+    ) -> Vec<String> {
+        let needle = format!("/{resource_type}/");
+        self.store
+            .staged
+            .resource_publications
+            .iter()
+            .filter(|(resource_id, pubs)| {
+                resource_id.contains(&needle)
+                    && match publication_id {
+                        Some(pid) => pubs.contains(pid),
+                        None => !pubs.is_empty(),
+                    }
+            })
+            .map(|(resource_id, _)| resource_id.clone())
+            .collect()
+    }
+
+    fn publication_by_channel_id(&self, channel_id: &str) -> Option<(String, Value)> {
+        self.store.staged.publications.iter().find_map(|(id, record)| {
+            let matches = record
+                .get("channel")
+                .and_then(|channel| channel.get("id"))
+                .and_then(Value::as_str)
+                == Some(channel_id);
+            matches.then(|| (id.clone(), record.clone()))
+        })
+    }
+
+    fn publication_root_value(&self, field: &RootFieldSelection) -> Value {
+        let Some(id) = resolved_string_field(&field.arguments, "id") else {
+            return Value::Null;
+        };
+        let Some(record) = self.store.staged.publications.get(&id) else {
+            return Value::Null;
+        };
+        let mut record = record.clone();
+        let product_count = self.publication_resource_count(Some(&id), "Product");
+        let collection_count = self.publication_resource_count(Some(&id), "Collection");
+        let product_nodes: Vec<Value> = self
+            .publication_resource_ids(Some(&id), "Product")
+            .into_iter()
+            .map(|resource_id| {
+                let title = self
+                    .product_record_by_id(&resource_id)
+                    .map(|product| product.title.clone())
+                    .unwrap_or_default();
+                json!({ "id": resource_id, "title": title })
+            })
+            .collect();
+        record["products"] = json!({ "nodes": product_nodes });
+        record["publishedProductsCount"] = publication_count_json(product_count);
+        record["collectionsCount"] = publication_count_json(collection_count);
+        if let Some(channel) = record.get_mut("channel") {
+            channel["productsCount"] = publication_count_json(product_count);
+        }
+        selected_json(&record, &field.selection)
+    }
+
+    fn channel_root_value(&self, field: &RootFieldSelection) -> Value {
+        let Some(channel_id) = resolved_string_field(&field.arguments, "id") else {
+            return Value::Null;
+        };
+        let Some((publication_id, record)) = self.publication_by_channel_id(&channel_id) else {
+            return Value::Null;
+        };
+        let mut channel = record.get("channel").cloned().unwrap_or(Value::Null);
+        if channel.is_object() {
+            let product_count = self.publication_resource_count(Some(&publication_id), "Product");
+            channel["productsCount"] = publication_count_json(product_count);
+        }
+        selected_json(&channel, &field.selection)
+    }
+
+    fn channels_root_value(&self, field: &RootFieldSelection) -> Value {
+        // Order channels by their publication's numeric id suffix so cursors and
+        // node order are deterministic regardless of map key string ordering.
+        let mut channels: Vec<Value> = self
+            .store
+            .staged
+            .publications
+            .values()
+            .filter_map(|record| record.get("channel").cloned())
+            .collect();
+        channels.sort_by_key(|channel| {
+            channel
+                .get("id")
+                .and_then(Value::as_str)
+                .and_then(|id| id.rsplit('/').next())
+                .and_then(|suffix| suffix.parse::<u64>().ok())
+                .unwrap_or(u64::MAX)
+        });
+        let cursors: Vec<String> = channels
+            .iter()
+            .filter_map(|channel| channel.get("id").and_then(Value::as_str))
+            .map(|id| format!("cursor:{id}"))
+            .collect();
+        let connection = json!({
+            "nodes": channels,
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": cursors.first().cloned(),
+                "endCursor": cursors.last().cloned(),
+            }
+        });
+        selected_json(&connection, &field.selection)
+    }
+
+    fn publishable_resource_root_value(&self, field: &RootFieldSelection) -> Value {
+        let Some(resource_id) = resolved_string_field(&field.arguments, "id") else {
+            return Value::Null;
+        };
+        // The resource is unknown to the publication engine (never seeded or
+        // published) -> null, mirroring Shopify's null for a missing node.
+        if !self
+            .store
+            .staged
+            .resource_publications
+            .contains_key(&resource_id)
+            && self.product_record_by_id(&resource_id).is_none()
+        {
+            return Value::Null;
+        }
+        self.publishable_resource_value(&resource_id, &field.selection)
+    }
+
+    /// Resolve the publication-membership fields requested on a publishable
+    /// resource (product/collection): `publishedOnPublication(publicationId:)`,
+    /// `resourcePublicationsCount`/`publicationCount`, `id`, `__typename`. Honors
+    /// per-field arguments and inline-fragment type conditions, so it serves both
+    /// the top-level `product`/`collection` reads and the `publishablePublish`
+    /// payload's `publishable` selection.
+    pub(in crate::proxy) fn publishable_resource_value(
+        &self,
+        resource_id: &str,
+        selection: &[SelectedField],
+    ) -> Value {
+        let resource_type = shopify_gid_resource_type(resource_id).unwrap_or("");
+        let pubs = self.resource_publication_set(resource_id);
+        let mut out = serde_json::Map::new();
+        for sel in selection {
+            if let Some(type_condition) = sel.type_condition.as_deref() {
+                if type_condition != resource_type && type_condition != "Node" {
+                    continue;
+                }
+            }
+            let value = match sel.name.as_str() {
+                "id" => json!(resource_id),
+                "__typename" => json!(resource_type),
+                "publishedOnPublication" => {
+                    let publication_id = resolved_string_field(&sel.arguments, "publicationId");
+                    json!(publication_id
+                        .map(|id| pubs.contains(&id))
+                        .unwrap_or(false))
+                }
+                "publishedOnCurrentPublication" => json!(false),
+                "resourcePublicationsCount" | "publicationCount"
+                | "availablePublicationsCount" => publication_count_json(pubs.len()),
+                _ => continue,
+            };
+            out.insert(sel.response_key.clone(), value);
+        }
+        Value::Object(out)
+    }
+
+    /// Stage a `publishablePublish`/`publishableUnpublish` against the local
+    /// publication engine: add (or remove) the target publications to the
+    /// resource's membership and render the payload from local state.
+    pub(in crate::proxy) fn publishable_publish_with_publications(
+        &mut self,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let Some(fields) = root_fields(query, variables) else {
+            return json_error(400, "Unable to parse publishable mutation");
+        };
+        let publish = matches!(
+            root_field,
+            "publishablePublish" | "publishablePublishToCurrentChannel"
+        );
+        let to_current = matches!(
+            root_field,
+            "publishablePublishToCurrentChannel" | "publishableUnpublishToCurrentChannel"
+        );
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            if field.name != root_field {
+                continue;
+            }
+            if let Some(response) = publishable_empty_string_publication_error(root_field, &field) {
+                return response;
+            }
+            let Some(resource_id) = resolved_string_field(&field.arguments, "id") else {
+                continue;
+            };
+            let user_errors =
+                publishable_publication_input_errors(field.arguments.get("input"), to_current);
+            if user_errors.is_empty() {
+                let publication_ids = publishable_input_publication_ids(&field.arguments);
+                let set = self
+                    .store
+                    .staged
+                    .resource_publications
+                    .entry(resource_id.clone())
+                    .or_default();
+                for publication_id in publication_ids {
+                    if publish {
+                        set.insert(publication_id);
+                    } else {
+                        set.remove(&publication_id);
+                    }
+                }
+                self.record_mutation_log_entry(request, query, variables, root_field, vec![]);
+            }
+            let publishable_selection =
+                selected_child_selection(&field.selection, "publishable").unwrap_or_default();
+            let publishable = self.publishable_resource_value(&resource_id, &publishable_selection);
+            let payload = selected_payload_json(&field.selection, |selection| {
+                match selection.name.as_str() {
+                    "publishable" => Some(publishable.clone()),
+                    "userErrors" => Some(Value::Array(
+                        user_errors
+                            .iter()
+                            .map(|error| selected_json(error, &selection.selection))
+                            .collect(),
+                    )),
+                    _ => None,
+                }
+            });
+            data.insert(field.response_key, payload);
+        }
+        ok_json(json!({ "data": Value::Object(data) }))
     }
 
     pub(in crate::proxy) fn observe_collection_passthrough_response(

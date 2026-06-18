@@ -2582,6 +2582,15 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
+        // When a scenario has seeded publications, the publish/unpublish target
+        // mutates that local publication-membership engine (so subsequent
+        // publication/product/collection reads reflect the change) instead of the
+        // standalone shop-publication-count path below.
+        if self.publication_engine_active() {
+            return self.publishable_publish_with_publications(
+                root_field, query, variables, request,
+            );
+        }
         let Some(fields) = root_fields(query, variables) else {
             return json_error(400, "Unable to parse publishable mutation");
         };
@@ -6209,7 +6218,26 @@ fn app_revoke_access_scopes_missing_source_app(request: &Request) -> bool {
         .is_some_and(|value| matches!(value, "1" | "true" | "TRUE" | "True"))
 }
 
-fn publishable_publication_input_errors(
+/// The publication gids named in a `publishablePublish`/`publishableUnpublish`
+/// `input: [{ publicationId }]` list, in order.
+pub(in crate::proxy) fn publishable_input_publication_ids(
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Vec<String> {
+    match arguments.get("input") {
+        Some(ResolvedValue::List(items)) => items
+            .iter()
+            .filter_map(|item| match item {
+                ResolvedValue::Object(publication) => {
+                    resolved_string_field(publication, "publicationId")
+                }
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+pub(in crate::proxy) fn publishable_publication_input_errors(
     input: Option<&ResolvedValue>,
     current_channel_root: bool,
 ) -> Vec<Value> {
@@ -6278,7 +6306,7 @@ fn publishable_publish_date_is_before_1970(value: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn publishable_empty_string_publication_error(
+pub(in crate::proxy) fn publishable_empty_string_publication_error(
     root_field: &str,
     field: &RootFieldSelection,
 ) -> Option<Response> {

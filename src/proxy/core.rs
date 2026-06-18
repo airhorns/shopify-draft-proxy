@@ -202,6 +202,10 @@ impl DraftProxy {
                 "locationOrder": self.store.staged.location_order.clone(),
                 "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "createdPublicationIds": self.store.staged.created_publication_ids.iter().cloned().collect::<Vec<_>>(),
+                "publications": self.store.staged.publications.clone(),
+                "resourcePublications": self.store.staged.resource_publications.iter().map(|(resource, pubs)| {
+                    (resource.clone(), pubs.iter().cloned().collect::<Vec<String>>())
+                }).collect::<std::collections::BTreeMap<String, Vec<String>>>(),
                 "locationLimitReached": self.store.staged.location_limit_reached,
                 "discounts": self.store.staged.discounts.clone(),
                 "discountCodeIndex": self.store.staged.discount_code_index.clone(),
@@ -563,6 +567,57 @@ impl DraftProxy {
             for discount in discounts {
                 if self.seed_discount_record(discount) {
                     seeded_discounts += 1;
+                }
+            }
+        }
+        // A scenario can seed the store's base/default publications (and any other
+        // pre-existing ones) as `seedPublications`, plus per-resource publication
+        // membership via `publicationIds` on the seeded products/collections. This
+        // drives the local publication/channel roots and the
+        // publishedOnPublication/count fields without replaying the upstream
+        // hydration. Empty for every scenario that does not seed publications,
+        // leaving the existing passthrough behavior for those roots untouched.
+        if let Some(publications) = body.get("publications").and_then(Value::as_array) {
+            for publication in publications {
+                let Some(id) = publication.get("id").and_then(Value::as_str) else {
+                    continue;
+                };
+                // Accept a full recorded record (carrying `channel`) verbatim, or
+                // synthesize the canonical record from id/name/autoPublish.
+                let record = if publication.get("channel").is_some() {
+                    publication.clone()
+                } else {
+                    let name = publication.get("name").and_then(Value::as_str).unwrap_or("");
+                    let auto_publish = publication
+                        .get("autoPublish")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false);
+                    publication_record_json(id, name, auto_publish)
+                };
+                self.store.staged.publications.insert(id.to_string(), record);
+            }
+        }
+        // Seed per-resource publication membership from the `publicationIds`
+        // declared on the seeded products/collections.
+        for key in ["products", "collections"] {
+            if let Some(resources) = body.get(key).and_then(Value::as_array) {
+                for resource in resources {
+                    let Some(resource_id) = resource.get("id").and_then(Value::as_str) else {
+                        continue;
+                    };
+                    if let Some(ids) = resource.get("publicationIds").and_then(Value::as_array) {
+                        let set = self
+                            .store
+                            .staged
+                            .resource_publications
+                            .entry(resource_id.to_string())
+                            .or_default();
+                        for id in ids {
+                            if let Some(id) = id.as_str() {
+                                set.insert(id.to_string());
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -953,6 +1008,24 @@ impl DraftProxy {
             string_array_from_json(&state["stagedState"]["createdPublicationIds"])
                 .into_iter()
                 .collect();
+        self.store.staged.publications = state["stagedState"]["publications"]
+            .as_object()
+            .map(|map| {
+                map.iter()
+                    .map(|(id, record)| (id.clone(), record.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.resource_publications = state["stagedState"]["resourcePublications"]
+            .as_object()
+            .map(|map| {
+                map.iter()
+                    .map(|(resource, pubs)| {
+                        (resource.clone(), string_array_from_json(pubs).into_iter().collect())
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         self.store.replace_staged_saved_searches_map_with_order(
             saved_search_state_map_from_json(&state["stagedState"]["savedSearches"]),
             string_array_from_json(&state["stagedState"]["savedSearchOrder"]),
