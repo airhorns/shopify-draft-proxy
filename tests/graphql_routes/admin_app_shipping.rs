@@ -1287,6 +1287,398 @@ fn customer_update_and_delete_stage_known_fixture_customer_reads() {
 }
 
 #[test]
+fn customer_tax_exemption_roots_stage_and_project_downstream_reads() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerCreateParityPlan($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id taxExempt taxExemptions }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "email": "tax-exemption-roots@example.test",
+                "firstName": "Tax",
+                "lastName": "Roots",
+                "taxExempt": false
+            }
+        }),
+    ));
+    let id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnrelatedAddName($id: ID!, $taxExemptions: [TaxExemption!]!) {
+          aliasedAdd: customerAddTaxExemptions(customerId: $id, taxExemptions: $taxExemptions) {
+            customer { id taxExempt taxExemptions }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": id,
+            "taxExemptions": [
+                "CA_BC_RESELLER_EXEMPTION",
+                "US_CA_RESELLER_EXEMPTION",
+                "CA_BC_RESELLER_EXEMPTION"
+            ]
+        }),
+    ));
+    assert_eq!(add.status, 200);
+    assert_eq!(
+        add.body["data"]["aliasedAdd"]["customer"]["taxExempt"],
+        json!(false)
+    );
+    assert_eq!(
+        add.body["data"]["aliasedAdd"]["customer"]["taxExemptions"],
+        json!(["CA_BC_RESELLER_EXEMPTION", "US_CA_RESELLER_EXEMPTION"])
+    );
+    assert_eq!(add.body["data"]["aliasedAdd"]["userErrors"], json!([]));
+
+    let remove = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnrelatedRemoveName($id: ID!, $taxExemptions: [TaxExemption!]!) {
+          customerRemoveTaxExemptions(customerId: $id, taxExemptions: $taxExemptions) {
+            customer { id taxExemptions }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": id,
+            "taxExemptions": ["CA_STATUS_CARD_EXEMPTION", "CA_BC_RESELLER_EXEMPTION"]
+        }),
+    ));
+    assert_eq!(
+        remove.body["data"]["customerRemoveTaxExemptions"]["customer"]["taxExemptions"],
+        json!(["US_CA_RESELLER_EXEMPTION"])
+    );
+
+    let replace = proxy.process_request(json_graphql_request(
+        r#"
+        mutation UnrelatedReplaceName($id: ID!, $taxExemptions: [TaxExemption!]!) {
+          customerReplaceTaxExemptions(customerId: $id, taxExemptions: $taxExemptions) {
+            customer { id taxExempt taxExemptions }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": id,
+            "taxExemptions": [
+                "US_CA_RESELLER_EXEMPTION",
+                "CA_STATUS_CARD_EXEMPTION",
+                "US_CA_RESELLER_EXEMPTION"
+            ]
+        }),
+    ));
+    assert_eq!(
+        replace.body["data"]["customerReplaceTaxExemptions"]["customer"]["taxExemptions"],
+        json!(["US_CA_RESELLER_EXEMPTION", "CA_STATUS_CARD_EXEMPTION"])
+    );
+    assert_eq!(
+        replace.body["data"]["customerReplaceTaxExemptions"]["customer"]["taxExempt"],
+        json!(false)
+    );
+
+    let downstream = proxy.process_request(json_graphql_request(
+        r#"
+        query TaxRootDownstream($id: ID!, $identifier: CustomerIdentifierInput!, $query: String!, $first: Int!) {
+          customer(id: $id) { id taxExempt taxExemptions }
+          customerByIdentifier(identifier: $identifier) { id taxExempt taxExemptions }
+          customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {
+            nodes { id taxExempt taxExemptions }
+            pageInfo { hasNextPage hasPreviousPage }
+          }
+          customersCount { count precision }
+        }
+        "#,
+        json!({
+            "id": id,
+            "identifier": { "id": id },
+            "query": "__customer_parity_no_match__",
+            "first": 5
+        }),
+    ));
+    let expected = json!({
+        "id": id,
+        "taxExempt": false,
+        "taxExemptions": ["US_CA_RESELLER_EXEMPTION", "CA_STATUS_CARD_EXEMPTION"]
+    });
+    assert_eq!(downstream.body["data"]["customer"], expected);
+    assert_eq!(downstream.body["data"]["customerByIdentifier"], expected);
+    assert_eq!(
+        downstream.body["data"]["customers"],
+        json!({
+            "nodes": [],
+            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
+        })
+    );
+    assert_eq!(
+        downstream.body["data"]["customersCount"],
+        json!({ "count": 177, "precision": "EXACT" })
+    );
+
+    let empty_replace = proxy.process_request(json_graphql_request(
+        r#"
+        mutation EmptyReplace($id: ID!, $taxExemptions: [TaxExemption!]!) {
+          customerReplaceTaxExemptions(customerId: $id, taxExemptions: $taxExemptions) {
+            customer { id taxExemptions }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": id, "taxExemptions": [] }),
+    ));
+    assert_eq!(
+        empty_replace.body["data"]["customerReplaceTaxExemptions"]["customer"]["taxExemptions"],
+        json!([])
+    );
+
+    let log = proxy.get_log_snapshot();
+    let entries = log["entries"].as_array().unwrap();
+    assert_eq!(entries.len(), 5);
+    assert_eq!(
+        entries[1]["interpreted"]["primaryRootField"],
+        json!("customerAddTaxExemptions")
+    );
+    assert_eq!(entries[1]["status"], json!("staged"));
+    assert!(entries[1]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("UnrelatedAddName"));
+    assert_eq!(
+        entries[4]["interpreted"]["primaryRootField"],
+        json!("customerReplaceTaxExemptions")
+    );
+}
+
+#[test]
+fn customer_tax_exemption_roots_return_unknown_customer_user_errors() {
+    let mut proxy = snapshot_proxy();
+    for root in [
+        "customerAddTaxExemptions",
+        "customerRemoveTaxExemptions",
+        "customerReplaceTaxExemptions",
+    ] {
+        let query = format!(
+            r#"
+            mutation UnknownTaxRoot($id: ID!, $taxExemptions: [TaxExemption!]!) {{
+              {root}(customerId: $id, taxExemptions: $taxExemptions) {{
+                customer {{ id taxExemptions }}
+                userErrors {{ field message }}
+              }}
+            }}
+            "#
+        );
+        let response = proxy.process_request(json_graphql_request(
+            &query,
+            json!({
+                "id": "gid://shopify/Customer/999999999999999",
+                "taxExemptions": ["CA_BC_RESELLER_EXEMPTION"]
+            }),
+        ));
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body["data"][root]["customer"], Value::Null);
+        assert_eq!(
+            response.body["data"][root]["userErrors"],
+            json!([{ "field": ["customerId"], "message": "Customer does not exist." }])
+        );
+    }
+    assert!(proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+}
+
+#[test]
+fn customer_tax_exemption_roots_reject_invalid_enum_variables_before_staging() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidTaxVariable($id: ID!, $taxExemptions: [TaxExemption!]!) {
+          customerAddTaxExemptions(customerId: $id, taxExemptions: $taxExemptions) {
+            customer { id taxExemptions }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": "gid://shopify/Customer/9102966915305",
+            "taxExemptions": ["NOT_A_REAL_EXEMPTION"]
+        }),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["code"],
+        json!("INVALID_VARIABLE")
+    );
+    assert!(response.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("NOT_A_REAL_EXEMPTION")
+            && message.contains("CA_STATUS_CARD_EXEMPTION")
+            && message.contains("CA_BC_RESELLER_EXEMPTION")
+            && message.contains("US_CA_RESELLER_EXEMPTION")));
+    assert!(proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+}
+
+#[test]
+fn customer_tax_exemption_roots_reject_invalid_enum_literals_before_staging() {
+    let mut proxy = snapshot_proxy();
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation InvalidTaxLiteral {
+          customerAddTaxExemptions(
+            customerId: "gid://shopify/Customer/9102966915305",
+            taxExemptions: [NOT_A_REAL_EXEMPTION]
+          ) {
+            customer { id taxExemptions }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["code"],
+        json!("argumentLiteralsIncompatible")
+    );
+    assert_eq!(
+        response.body["errors"][0]["extensions"]["argumentName"],
+        json!("taxExemptions")
+    );
+    assert!(response.body["errors"][0]["message"]
+        .as_str()
+        .is_some_and(|message| message.contains("NOT_A_REAL_EXEMPTION")
+            && message.contains("CA_STATUS_CARD_EXEMPTION")));
+    assert!(proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+}
+
+#[test]
+fn customer_tax_exemption_roots_hydrate_live_hybrid_customer_before_staging() {
+    let customer_id = "gid://shopify/Customer/10540996428082";
+    let upstream_queries = Arc::new(Mutex::new(Vec::<String>::new()));
+    let captured_queries = Arc::clone(&upstream_queries);
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream request body parses");
+            let query = body["query"]
+                .as_str()
+                .expect("upstream query is a string")
+                .to_string();
+            captured_queries.lock().unwrap().push(query.clone());
+            let response = if query.contains("CustomerHydrate") {
+                json!({
+                    "data": {
+                        "customer": {
+                            "id": customer_id,
+                            "firstName": "Hermes",
+                            "lastName": "Tax",
+                            "displayName": "Hermes Tax",
+                            "email": "hermes-tax@example.com",
+                            "taxExempt": false,
+                            "taxExemptions": [],
+                            "tags": ["parity"],
+                            "defaultEmailAddress": { "emailAddress": "hermes-tax@example.com" },
+                            "createdAt": "2026-04-25T22:56:29Z",
+                            "updatedAt": "2026-04-25T22:56:29Z"
+                        }
+                    }
+                })
+            } else if query.contains("CustomerCountHydrate") {
+                json!({
+                    "data": {
+                        "customersCount": { "count": 23, "precision": "EXACT" }
+                    }
+                })
+            } else {
+                json!({"errors": [{"message": format!("unexpected upstream query: {query}")}]})
+            };
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: response,
+            }
+        });
+
+    let add = proxy.process_request(json_graphql_request(
+        r#"
+        mutation HydrateTaxRoot($id: ID!, $taxExemptions: [TaxExemption!]!) {
+          customerAddTaxExemptions(customerId: $id, taxExemptions: $taxExemptions) {
+            customer { id email taxExempt taxExemptions }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "id": customer_id,
+            "taxExemptions": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
+        }),
+    ));
+    assert_eq!(add.status, 200);
+    assert_eq!(
+        add.body["data"]["customerAddTaxExemptions"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        add.body["data"]["customerAddTaxExemptions"]["customer"],
+        json!({
+            "id": customer_id,
+            "email": "hermes-tax@example.com",
+            "taxExempt": false,
+            "taxExemptions": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
+        })
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query HydratedTaxRead($id: ID!, $identifier: CustomerIdentifierInput!) {
+          customer(id: $id) { id taxExemptions }
+          customerByIdentifier(identifier: $identifier) { id taxExemptions }
+          customersCount { count precision }
+        }
+        "#,
+        json!({
+            "id": customer_id,
+            "identifier": { "id": customer_id }
+        }),
+    ));
+    assert_eq!(
+        read.body["data"]["customer"]["taxExemptions"],
+        json!(["EU_REVERSE_CHARGE_EXEMPTION_RULE"])
+    );
+    assert_eq!(
+        read.body["data"]["customerByIdentifier"]["taxExemptions"],
+        json!(["EU_REVERSE_CHARGE_EXEMPTION_RULE"])
+    );
+    assert_eq!(
+        read.body["data"]["customersCount"],
+        json!({ "count": 23, "precision": "EXACT" })
+    );
+
+    let queries = upstream_queries.lock().unwrap();
+    assert_eq!(queries.len(), 2);
+    assert!(queries[0].contains("CustomerHydrate"));
+    assert!(queries[1].contains("CustomerCountHydrate"));
+}
+
+#[test]
 fn customer_update_rejects_inline_marketing_consent_without_mutating_customer() {
     let mut proxy = snapshot_proxy();
     let id = "gid://shopify/Customer/9102966915305";

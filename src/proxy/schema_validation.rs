@@ -51,6 +51,10 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
     if document.operation_type != OperationType::Mutation {
         return Vec::new();
     }
+    let direct_errors = customer_tax_exemption_input_errors(&document);
+    if !direct_errors.is_empty() {
+        return direct_errors;
+    }
     let schema = public_admin_input_schema();
     let mut errors = Vec::new();
     for field in &document.root_fields {
@@ -95,6 +99,211 @@ pub(in crate::proxy) fn public_admin_schema_input_errors(
         }
     }
     errors
+}
+
+fn customer_tax_exemption_input_errors(document: &ParsedDocument) -> Vec<Value> {
+    let mut errors = Vec::new();
+    for field in document.root_fields.iter().filter(|field| {
+        matches!(
+            field.name.as_str(),
+            "customerAddTaxExemptions"
+                | "customerRemoveTaxExemptions"
+                | "customerReplaceTaxExemptions"
+        )
+    }) {
+        let Some(argument) = field.raw_arguments.get("taxExemptions") else {
+            continue;
+        };
+        match argument {
+            RawArgumentValue::Variable { name, value } => {
+                let invalid_values = value
+                    .as_ref()
+                    .map(invalid_tax_exemption_values)
+                    .unwrap_or_default();
+                if let Some((path, first)) = invalid_values.first() {
+                    let definition = document.variable_definitions.get(name);
+                    let variable_type = definition
+                        .map(|definition| definition.type_display.as_str())
+                        .unwrap_or("[TaxExemption!]!");
+                    let location = definition
+                        .map(|definition| definition.location)
+                        .unwrap_or(field.location);
+                    errors.push(invalid_tax_exemption_variable_error(
+                        name,
+                        variable_type,
+                        location,
+                        value.as_ref().unwrap_or(&ResolvedValue::Null),
+                        path.clone(),
+                        first,
+                    ));
+                }
+            }
+            _ => {
+                let invalid_values = invalid_raw_tax_exemption_values(argument);
+                if let Some(first) = invalid_values.first() {
+                    errors.push(invalid_tax_exemption_literal_error(field, first));
+                }
+            }
+        }
+    }
+    errors
+}
+
+fn invalid_tax_exemption_values(value: &ResolvedValue) -> Vec<(Value, String)> {
+    match value {
+        ResolvedValue::String(value) if !valid_tax_exemption(value) => {
+            vec![(json!(0), value.clone())]
+        }
+        ResolvedValue::List(values) => values
+            .iter()
+            .enumerate()
+            .filter_map(|(index, value)| match value {
+                ResolvedValue::String(value) if !valid_tax_exemption(value) => {
+                    Some((json!(index), value.clone()))
+                }
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn invalid_raw_tax_exemption_values(value: &RawArgumentValue) -> Vec<String> {
+    match value {
+        RawArgumentValue::String(value) | RawArgumentValue::Enum(value)
+            if !valid_tax_exemption(value) =>
+        {
+            vec![value.clone()]
+        }
+        RawArgumentValue::List(values) => values
+            .iter()
+            .flat_map(invalid_raw_tax_exemption_values)
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn valid_tax_exemption(value: &str) -> bool {
+    TAX_EXEMPTION_VALUES.contains(&value)
+}
+
+fn invalid_tax_exemption_variable_error(
+    variable_name: &str,
+    variable_type: &str,
+    location: SourceLocation,
+    value: &ResolvedValue,
+    problem_path: Value,
+    invalid_value: &str,
+) -> Value {
+    let expected = tax_exemption_values_display();
+    let explanation = format!("Expected \"{invalid_value}\" to be one of: {expected}");
+    json!({
+        "message": format!(
+            "Variable ${variable_name} of type {variable_type} was provided invalid value for 0 ({explanation})"
+        ),
+        "locations": [{ "line": location.line, "column": location.column }],
+        "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": resolved_value_json(value),
+            "problems": [{
+                "path": [problem_path],
+                "explanation": explanation
+            }]
+        }
+    })
+}
+
+fn invalid_tax_exemption_literal_error(field: &RootFieldSelection, invalid_value: &str) -> Value {
+    json!({
+        "message": format!(
+            "Argument 'taxExemptions' has an invalid value [{invalid_value}]. Expected type '[TaxExemption!]!'. Did you mean CA_STATUS_CARD_EXEMPTION?"
+        ),
+        "locations": [{ "line": field.location.line, "column": field.location.column }],
+        "path": [field.response_key.clone(), "taxExemptions"],
+        "extensions": {
+            "code": "argumentLiteralsIncompatible",
+            "argumentName": "taxExemptions"
+        }
+    })
+}
+
+const TAX_EXEMPTION_VALUES: &[&str] = &[
+    "CA_STATUS_CARD_EXEMPTION",
+    "CA_BC_RESELLER_EXEMPTION",
+    "CA_MB_RESELLER_EXEMPTION",
+    "CA_SK_RESELLER_EXEMPTION",
+    "CA_DIPLOMAT_EXEMPTION",
+    "CA_BC_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_MB_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_NS_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_PE_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_SK_COMMERCIAL_FISHERY_EXEMPTION",
+    "CA_BC_PRODUCTION_AND_MACHINERY_EXEMPTION",
+    "CA_SK_PRODUCTION_AND_MACHINERY_EXEMPTION",
+    "CA_BC_SUB_CONTRACTOR_EXEMPTION",
+    "CA_SK_SUB_CONTRACTOR_EXEMPTION",
+    "CA_BC_CONTRACTOR_EXEMPTION",
+    "CA_SK_CONTRACTOR_EXEMPTION",
+    "CA_ON_PURCHASE_EXEMPTION",
+    "CA_MB_FARMER_EXEMPTION",
+    "CA_NS_FARMER_EXEMPTION",
+    "CA_SK_FARMER_EXEMPTION",
+    "EU_REVERSE_CHARGE_EXEMPTION_RULE",
+    "US_AL_RESELLER_EXEMPTION",
+    "US_AK_RESELLER_EXEMPTION",
+    "US_AZ_RESELLER_EXEMPTION",
+    "US_AR_RESELLER_EXEMPTION",
+    "US_CA_RESELLER_EXEMPTION",
+    "US_CO_RESELLER_EXEMPTION",
+    "US_CT_RESELLER_EXEMPTION",
+    "US_DE_RESELLER_EXEMPTION",
+    "US_FL_RESELLER_EXEMPTION",
+    "US_GA_RESELLER_EXEMPTION",
+    "US_HI_RESELLER_EXEMPTION",
+    "US_ID_RESELLER_EXEMPTION",
+    "US_IL_RESELLER_EXEMPTION",
+    "US_IN_RESELLER_EXEMPTION",
+    "US_IA_RESELLER_EXEMPTION",
+    "US_KS_RESELLER_EXEMPTION",
+    "US_KY_RESELLER_EXEMPTION",
+    "US_LA_RESELLER_EXEMPTION",
+    "US_ME_RESELLER_EXEMPTION",
+    "US_MD_RESELLER_EXEMPTION",
+    "US_MA_RESELLER_EXEMPTION",
+    "US_MI_RESELLER_EXEMPTION",
+    "US_MN_RESELLER_EXEMPTION",
+    "US_MS_RESELLER_EXEMPTION",
+    "US_MO_RESELLER_EXEMPTION",
+    "US_MT_RESELLER_EXEMPTION",
+    "US_NE_RESELLER_EXEMPTION",
+    "US_NV_RESELLER_EXEMPTION",
+    "US_NH_RESELLER_EXEMPTION",
+    "US_NJ_RESELLER_EXEMPTION",
+    "US_NM_RESELLER_EXEMPTION",
+    "US_NY_RESELLER_EXEMPTION",
+    "US_NC_RESELLER_EXEMPTION",
+    "US_ND_RESELLER_EXEMPTION",
+    "US_OH_RESELLER_EXEMPTION",
+    "US_OK_RESELLER_EXEMPTION",
+    "US_OR_RESELLER_EXEMPTION",
+    "US_PA_RESELLER_EXEMPTION",
+    "US_RI_RESELLER_EXEMPTION",
+    "US_SC_RESELLER_EXEMPTION",
+    "US_SD_RESELLER_EXEMPTION",
+    "US_TN_RESELLER_EXEMPTION",
+    "US_TX_RESELLER_EXEMPTION",
+    "US_UT_RESELLER_EXEMPTION",
+    "US_VT_RESELLER_EXEMPTION",
+    "US_VA_RESELLER_EXEMPTION",
+    "US_WA_RESELLER_EXEMPTION",
+    "US_WV_RESELLER_EXEMPTION",
+    "US_WI_RESELLER_EXEMPTION",
+    "US_WY_RESELLER_EXEMPTION",
+    "US_DC_RESELLER_EXEMPTION",
+];
+
+fn tax_exemption_values_display() -> String {
+    TAX_EXEMPTION_VALUES.join(", ")
 }
 
 fn validate_argument_value(

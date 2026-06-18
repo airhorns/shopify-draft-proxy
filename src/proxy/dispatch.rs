@@ -1324,6 +1324,9 @@ impl DraftProxy {
         {
             if let Some(fields) = root_fields(&query, &variables) {
                 if self.should_handle_customer_overlay_read(&query, &fields) {
+                    if fields.iter().any(|field| field.name == "customersCount") {
+                        self.hydrate_customers_count_for_overlay_read(request);
+                    }
                     return ok_json(json!({ "data": self.customer_overlay_read_fields(&fields) }));
                 }
             }
@@ -2433,6 +2436,65 @@ impl DraftProxy {
             {
                 if let Some(fields) = root_fields(&query, &variables) {
                     self.gift_card_mutation_response(&fields, request, &query, &variables)
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
+            }
+            (CapabilityDomain::Customers, CapabilityExecution::OverlayRead)
+                if operation.operation_type == OperationType::Query && has_local_dispatch =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    if self.should_handle_customer_overlay_read(&query, &fields) {
+                        if fields.iter().any(|field| field.name == "customersCount") {
+                            self.hydrate_customers_count_for_overlay_read(request);
+                        }
+                        ok_json(json!({ "data": self.customer_overlay_read_fields(&fields) }))
+                    } else {
+                        self.dispatch_unknown_passthrough_or_legacy_error(
+                            request,
+                            &query,
+                            &variables,
+                            operation.operation_type,
+                            &operation.root_fields,
+                            root_field,
+                        )
+                    }
+                } else {
+                    json_error(400, "Could not parse GraphQL operation")
+                }
+            }
+            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "customerAddTaxExemptions"
+                            | "customerRemoveTaxExemptions"
+                            | "customerReplaceTaxExemptions"
+                    ) =>
+            {
+                if let Some(fields) = root_fields(&query, &variables) {
+                    if fields.iter().all(|field| {
+                        matches!(
+                            field.name.as_str(),
+                            "customerAddTaxExemptions"
+                                | "customerRemoveTaxExemptions"
+                                | "customerReplaceTaxExemptions"
+                        )
+                    }) {
+                        self.customer_tax_exemptions_mutation_response(
+                            &fields, request, &query, &variables,
+                        )
+                    } else {
+                        self.dispatch_unknown_passthrough_or_legacy_error(
+                            request,
+                            &query,
+                            &variables,
+                            operation.operation_type,
+                            &operation.root_fields,
+                            root_field,
+                        )
+                    }
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
                 }
