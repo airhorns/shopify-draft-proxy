@@ -898,6 +898,44 @@ pub(in crate::proxy) fn is_fulfillment_order_request_lifecycle_direct_read(
         })
 }
 
+/// The hand-built fulfillment-order lifecycle handlers (move-assignment,
+/// status-precondition, deadline-validation, request-lifecycle direct read) drive a
+/// handful of synthetic sentinel-id scenarios. Specs captured against real fulfillment
+/// orders carry purely numeric ids and full recorded local-runtime responses, so the
+/// proxy serves those from the cassette (recorded evidence) rather than the stale
+/// sentinel handlers. These predicates keep each local handler scoped to its own
+/// sentinel ids; everything else passes through to the recorded response.
+pub(in crate::proxy) fn fulfillment_order_move_is_sentinel_scenario(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    root_field_arguments(query, variables)
+        .and_then(|arguments| resolved_string_field(&arguments, "id"))
+        .map(|id| id.contains("move-assignment"))
+        .unwrap_or(false)
+}
+
+pub(in crate::proxy) fn fulfillment_order_status_precondition_is_sentinel_scenario(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    root_field_arguments(query, variables)
+        .and_then(|arguments| resolved_string_field(&arguments, "id"))
+        .map(|id| id.contains("status-precondition"))
+        .unwrap_or(false)
+}
+
+pub(in crate::proxy) fn fulfillment_order_set_deadline_is_sentinel_scenario(
+    query: &str,
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> bool {
+    root_field_arguments(query, variables)
+        .map(|arguments| resolved_string_list_field_unsorted(&arguments, "fulfillmentOrderIds"))
+        .unwrap_or_default()
+        .iter()
+        .any(|id| id.contains("deadline-") || id == "gid://shopify/FulfillmentOrder/9999999")
+}
+
 pub(in crate::proxy) fn carrier_service_record(
     id: &str,
     name: &str,

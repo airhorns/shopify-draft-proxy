@@ -2623,6 +2623,30 @@ fn order_fulfillments_mut(order: &mut Value) -> Option<&mut Vec<Value>> {
     order.get_mut("fulfillments")?.as_array_mut()
 }
 
+/// Recompute an order's `displayFulfillmentStatus` from its fulfillment-order
+/// node statuses, mirroring Shopify's aggregation rules. Used after a
+/// fulfillment-order mutation effect is folded onto a staged order.
+fn update_order_display_fulfillment_status(order: &mut Value) {
+    let statuses: Vec<String> = order["fulfillmentOrders"]["nodes"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|node| node["status"].as_str().map(str::to_string))
+        .collect();
+    let display = if statuses.iter().any(|status| status == "IN_PROGRESS") {
+        "IN_PROGRESS"
+    } else if statuses.iter().any(|status| status == "ON_HOLD")
+        && !statuses.iter().any(|status| status == "OPEN")
+    {
+        "ON_HOLD"
+    } else if !statuses.is_empty() && statuses.iter().all(|status| status == "CLOSED") {
+        "FULFILLED"
+    } else {
+        "UNFULFILLED"
+    };
+    order["displayFulfillmentStatus"] = json!(display);
+}
+
 fn normalize_hydrated_order(order: &mut Value) {
     if order
         .get("fulfillments")
@@ -5442,6 +5466,75 @@ impl DraftProxy {
             return None;
         }
         self.stage_hydrated_order(order)
+    }
+
+    /// Mirror the effect of a fulfillment-order hold/release/cancel mutation onto
+    /// the staged order it belongs to, so subsequent `order { fulfillmentOrders }`
+    /// reads in the same scenario reflect the transition (the discount-bulk
+    /// overlay pattern). The mutation itself is forwarded upstream byte-for-byte;
+    /// this only folds the real recorded response's fulfillment-order object(s)
+    /// back onto local state. Hold/release mirror only when the order is already
+    /// staged locally; cancel may hydrate the order, because the recorded
+    /// post-cancel order read sits at a stale pre-cancel state that would
+    /// otherwise shadow the correct closed projection.
+    pub(in crate::proxy) fn mirror_fulfillment_order_passthrough_effect(
+        &mut self,
+        root_field: &str,
+        body: &Value,
+        request: &Request,
+    ) {
+        let payload = &body["data"][root_field];
+        if !payload.is_object() {
+            return;
+        }
+        // A mutation that returned user errors made no state change.
+        if payload["userErrors"]
+            .as_array()
+            .is_some_and(|errors| !errors.is_empty())
+        {
+            return;
+        }
+        let Some(primary_id) = payload["fulfillmentOrder"]["id"].as_str().map(str::to_string)
+        else {
+            return;
+        };
+        let allow_hydrate = root_field == "fulfillmentOrderCancel";
+        let Some(order_id) = self
+            .staged_order_id_for_fulfillment_order(&primary_id)
+            .or_else(|| {
+                if allow_hydrate {
+                    self.hydrate_order_for_fulfillment_order(&primary_id, request)
+                } else {
+                    None
+                }
+            })
+        else {
+            return;
+        };
+        let mut updates: Vec<Value> = Vec::new();
+        for key in ["fulfillmentOrder", "replacementFulfillmentOrder"] {
+            let node = &payload[key];
+            if node.is_object() && node["id"].as_str().is_some() {
+                updates.push(node.clone());
+            }
+        }
+        let Some(order) = self.store.staged.orders.get_mut(&order_id) else {
+            return;
+        };
+        if let Some(nodes) = fulfillment_order_nodes_mut(order) {
+            for update in updates {
+                let update_id = update["id"].as_str().unwrap_or_default().to_string();
+                if let Some(existing) = nodes
+                    .iter_mut()
+                    .find(|node| node["id"].as_str() == Some(update_id.as_str()))
+                {
+                    *existing = update;
+                } else {
+                    nodes.push(update);
+                }
+            }
+        }
+        update_order_display_fulfillment_status(order);
     }
 
     fn hydrate_order_for_mark_as_paid(
