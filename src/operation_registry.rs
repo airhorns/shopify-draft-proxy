@@ -407,6 +407,18 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     ),
     local_mutation("locationAdd", CapabilityDomain::StoreProperties),
     local_mutation("locationActivate", CapabilityDomain::StoreProperties),
+    local_mutation(
+        "reverseDeliveryCreateWithShipping",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "reverseDeliveryShippingUpdate",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "reverseFulfillmentOrderDispose",
+        CapabilityDomain::ShippingFulfillments,
+    ),
     local_query("company", CapabilityDomain::B2b),
     local_query("companyContact", CapabilityDomain::B2b),
     local_query("companyContactRole", CapabilityDomain::B2b),

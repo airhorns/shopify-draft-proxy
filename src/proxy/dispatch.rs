@@ -1255,8 +1255,17 @@ impl DraftProxy {
             );
         }
 
-        if let Some(data) = self.order_return_local_runtime_data(root_field, &query, &variables) {
-            return ok_json(data);
+        if !matches!(
+            root_field,
+            "reverseDeliveryCreateWithShipping"
+                | "reverseDeliveryShippingUpdate"
+                | "reverseFulfillmentOrderDispose"
+        ) {
+            if let Some(data) =
+                self.order_return_local_runtime_data(root_field, &query, &variables, request)
+            {
+                return ok_json(data);
+            }
         }
 
         if operation.operation_type == OperationType::Query
@@ -2185,6 +2194,22 @@ impl DraftProxy {
             root_field,
         )
         .is_some();
+        if operation.operation_type == OperationType::Mutation
+            && has_local_dispatch
+            && matches!(
+                root_field,
+                "reverseDeliveryCreateWithShipping"
+                    | "reverseDeliveryShippingUpdate"
+                    | "reverseFulfillmentOrderDispose"
+            )
+        {
+            if let Some(data) =
+                self.order_return_local_runtime_data(root_field, &query, &variables, request)
+            {
+                self.record_mutation_log_entry(request, &query, &variables, root_field, Vec::new());
+                return ok_json(data);
+            }
+        }
         if operation.operation_type == OperationType::Mutation
             && self.is_registered_orders_stage_locally_root(operation.operation_type, root_field)
         {

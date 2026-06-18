@@ -159,15 +159,22 @@ original raw GraphQL request for commit replay. Shipping packages have no direct
 Admin GraphQL package read root in the captured schema, so successful staging is
 verified through local state/log behavior and targeted validation.
 
-Reverse delivery and order-edit shipping-line roots are modeled through the
-orders and returns local graph when covered by their parity specs. Their
-caller-visible order and return effects should be read with
-`/endpoints/orders/` and `/endpoints/returns/`.
+Reverse delivery roots are modeled through the orders and returns local graph:
+`reverseDeliveryCreateWithShipping`, `reverseDeliveryShippingUpdate`, and
+`reverseFulfillmentOrderDispose` stage reverse delivery, tracking/label, and
+reverse fulfillment order disposition state locally, retain the original raw
+mutation for commit replay, and expose caller-visible order and return effects
+through `/endpoints/orders/` and `/endpoints/returns/`.
+Order-edit shipping-line roots are also modeled through the orders local graph
+when covered by their parity specs.
 
 ### Boundaries
 
 - Implemented local slices should not be described as broad
   shipping/fulfillments root support beyond their covered request families.
+- Most shipping/fulfillment roots remain `implemented: false` in the current
+  operation registry. Reverse-logistics roots are implemented only for their
+  covered local lifecycle and read-after-write slices.
 - Delivery customization and delivery promise mutations are Shopify
   Function-backed or provider-backed and remain unsupported until function
   ownership, activation eligibility, metafields, provider state, validation,

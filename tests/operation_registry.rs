@@ -102,6 +102,24 @@ fn operation_capability_returns_registry_match_for_local_dispatch_roots_only() {
         Some("productCreate")
     );
 
+    let reverse_delivery_create = operation_capability(
+        &default_registry(),
+        OperationType::Mutation,
+        Some("reverseDeliveryCreateWithShipping"),
+    );
+    assert_eq!(
+        reverse_delivery_create.domain,
+        CapabilityDomain::ShippingFulfillments
+    );
+    assert_eq!(
+        reverse_delivery_create.execution,
+        CapabilityExecution::StageLocally
+    );
+    assert_eq!(
+        reverse_delivery_create.operation_name.as_deref(),
+        Some("reverseDeliveryCreateWithShipping")
+    );
+
     // `customerCreate` is implemented (handled in the document-gated special-case chain) but is
     // not a LOCAL_DISPATCH_ROOT. Capability routing must NOT surface its real domain/execution,
     // otherwise the table dispatch would fall into a 501 arm. It resolves to Unknown/Passthrough
