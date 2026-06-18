@@ -95,7 +95,7 @@ fn metaobject_definition_record(
     input: &BTreeMap<String, ResolvedValue>,
     meta_type: &str,
 ) -> Value {
-    let name = resolved_string_field(input, "name").unwrap_or_else(|| meta_type.to_string());
+    let name = resolved_string_field(input, "name").unwrap_or_default();
     let display_name_key = resolved_string_field(input, "displayNameKey");
     let field_definitions = resolved_object_list_field(input, "fieldDefinitions")
         .into_iter()
@@ -107,7 +107,7 @@ fn metaobject_definition_record(
         "name": name,
         "description": input.get("description").and_then(resolved_value_string).map_or(Value::Null, |description| json!(description)),
         "displayNameKey": display_name_key,
-        "access": {"admin": "PUBLIC_READ_WRITE", "storefront": "NONE", "customerAccount": "NONE"},
+        "access": metaobject_definition_access(input, meta_type),
         "capabilities": metaobject_definition_capabilities(input),
         "fieldDefinitions": field_definitions,
         "hasThumbnailField": false,
@@ -115,6 +115,23 @@ fn metaobject_definition_record(
         "standardTemplate": Value::Null,
         "createdAt": "2024-01-01T00:00:00.000Z",
         "updatedAt": "2024-01-01T00:00:00.000Z"
+    })
+}
+
+fn metaobject_definition_access(input: &BTreeMap<String, ResolvedValue>, meta_type: &str) -> Value {
+    let access = resolved_object_field(input, "access").unwrap_or_default();
+    let admin = match resolved_string_field(&access, "admin").as_deref() {
+        Some("MERCHANT_READ_WRITE") if metaobject_definition_is_app_reserved_type(meta_type) => {
+            "MERCHANT_READ_WRITE"
+        }
+        Some("MERCHANT_READ_WRITE") | Some("PUBLIC_READ_WRITE") => "PUBLIC_READ_WRITE",
+        Some("PUBLIC_READ") | Some("MERCHANT_READ") => "MERCHANT_READ",
+        _ => "PUBLIC_READ_WRITE",
+    };
+    json!({
+        "admin": admin,
+        "storefront": resolved_string_field(&access, "storefront").unwrap_or_else(|| "NONE".to_string()),
+        "customerAccount": resolved_string_field(&access, "customerAccount").unwrap_or_else(|| "NONE".to_string())
     })
 }
 
@@ -173,6 +190,7 @@ fn metaobject_field_definition_record(input: BTreeMap<String, ResolvedValue>) ->
         "description": input.get("description").and_then(resolved_value_string).map_or(Value::Null, |description| json!(description)),
         "required": resolved_bool_field(&input, "required").unwrap_or(false),
         "type": {"name": field_type, "category": metaobject_field_type_category(&field_type)},
+        "capabilities": metaobject_field_definition_capabilities(&input),
         "validations": resolved_object_list_field(&input, "validations")
             .into_iter()
             .map(|validation| {
@@ -182,6 +200,16 @@ fn metaobject_field_definition_record(input: BTreeMap<String, ResolvedValue>) ->
                 })
             })
             .collect::<Vec<_>>()
+    })
+}
+
+fn metaobject_field_definition_capabilities(input: &BTreeMap<String, ResolvedValue>) -> Value {
+    let capabilities = resolved_object_field(input, "capabilities").unwrap_or_default();
+    let admin_filterable = resolved_object_field(&capabilities, "adminFilterable")
+        .and_then(|admin_filterable| resolved_bool_field(&admin_filterable, "enabled"))
+        .unwrap_or(false);
+    json!({
+        "adminFilterable": {"enabled": admin_filterable}
     })
 }
 
@@ -240,6 +268,269 @@ fn metaobject_field_type_category(field_type: &str) -> &'static str {
         value if value.ends_with("_reference") || value.starts_with("list.") => "REFERENCE",
         _ => "TEXT",
     }
+}
+
+fn metaobject_definition_type_from_input(
+    input: &BTreeMap<String, ResolvedValue>,
+    request: &Request,
+) -> String {
+    canonical_metaobject_definition_type(
+        &resolved_string_field(input, "type").unwrap_or_default(),
+        request,
+    )
+}
+
+fn resolved_metaobject_definition_type_arg(
+    value: Option<&ResolvedValue>,
+    request: &Request,
+) -> String {
+    canonical_metaobject_definition_type(
+        &value.and_then(resolved_value_string).unwrap_or_default(),
+        request,
+    )
+}
+
+fn canonical_metaobject_definition_type(raw: &str, request: &Request) -> String {
+    let resolved = if let Some(suffix) = raw.strip_prefix("$app:") {
+        let api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id")
+            .unwrap_or_else(|| "347082227713".to_string());
+        format!("app--{api_client_id}--{suffix}")
+    } else {
+        raw.to_string()
+    };
+    resolved.to_lowercase()
+}
+
+fn metaobject_definition_type_token_chars_valid(value: &str) -> bool {
+    value
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+}
+
+fn metaobject_definition_field_key_chars_valid(value: &str) -> bool {
+    value
+        .chars()
+        .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_' || ch == '-')
+}
+
+fn metaobject_definition_is_reserved_type(meta_type: &str) -> bool {
+    meta_type.starts_with("shopify--")
+}
+
+fn metaobject_definition_is_app_reserved_type(meta_type: &str) -> bool {
+    meta_type.starts_with("app--")
+}
+
+fn metaobject_definition_create_validation_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    meta_type: &str,
+    existing_definitions: usize,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if metaobject_definition_is_reserved_type(meta_type) {
+        errors.push(metaobject_user_error(
+            vec!["definition"],
+            "Not authorized. This type is reserved for use by another application.",
+            "NOT_AUTHORIZED",
+            Value::Null,
+            Value::Null,
+        ));
+        return errors;
+    }
+
+    let name = resolved_string_field(input, "name").unwrap_or_default();
+    if name.trim().is_empty() {
+        errors.push(metaobject_user_error(
+            vec!["definition", "name"],
+            "Name can't be blank",
+            "BLANK",
+            Value::Null,
+            Value::Null,
+        ));
+    } else if name.chars().count() > 255 {
+        errors.push(metaobject_user_error(
+            vec!["definition", "name"],
+            "Name is too long (maximum is 255 characters)",
+            "TOO_LONG",
+            Value::Null,
+            Value::Null,
+        ));
+    }
+
+    if meta_type.is_empty() {
+        errors.push(metaobject_user_error(
+            vec!["definition", "type"],
+            "Type can't be blank",
+            "BLANK",
+            Value::Null,
+            Value::Null,
+        ));
+    } else if meta_type.chars().count() < 3 {
+        errors.push(metaobject_user_error(
+            vec!["definition", "type"],
+            "Type is too short (minimum is 3 characters)",
+            "TOO_SHORT",
+            Value::Null,
+            Value::Null,
+        ));
+    } else if meta_type.chars().count() > 255 {
+        errors.push(metaobject_user_error(
+            vec!["definition", "type"],
+            "Type is too long (maximum is 255 characters)",
+            "TOO_LONG",
+            Value::Null,
+            Value::Null,
+        ));
+    } else if !metaobject_definition_type_token_chars_valid(meta_type) {
+        errors.push(metaobject_user_error(
+            vec!["definition", "type"],
+            "Type contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.",
+            "INVALID",
+            Value::Null,
+            Value::Null,
+        ));
+    }
+
+    if let Some(description) = resolved_string_field(input, "description") {
+        if description.chars().count() > 255 {
+            errors.push(metaobject_user_error(
+                vec!["definition", "description"],
+                "Description is too long (maximum is 255 characters)",
+                "TOO_LONG",
+                Value::Null,
+                Value::Null,
+            ));
+        }
+    }
+
+    if let Some(access) = resolved_object_field(input, "access") {
+        if resolved_string_field(&access, "admin").is_some()
+            && !metaobject_definition_is_app_reserved_type(meta_type)
+        {
+            errors.push(metaobject_user_error(
+                vec!["definition", "access", "admin"],
+                "Admin access can only be specified on metaobject definitions that have an app-reserved type.",
+                "ADMIN_ACCESS_INPUT_NOT_ALLOWED",
+                Value::Null,
+                Value::Null,
+            ));
+        }
+    }
+
+    let field_definitions = resolved_object_list_field(input, "fieldDefinitions");
+    if field_definitions.len() > 40 {
+        errors.push(metaobject_user_error(
+            vec!["definition", "fieldDefinitions"],
+            "Maximum 40 fields per metaobject definition",
+            "INVALID",
+            Value::Null,
+            Value::Null,
+        ));
+    }
+
+    let admin_filterable_count = field_definitions
+        .iter()
+        .filter(|definition| {
+            resolved_object_field(definition, "capabilities")
+                .and_then(|capabilities| resolved_object_field(&capabilities, "adminFilterable"))
+                .and_then(|admin_filterable| resolved_bool_field(&admin_filterable, "enabled"))
+                .unwrap_or(false)
+        })
+        .count();
+    if admin_filterable_count > 40 {
+        errors.push(metaobject_user_error(
+            vec!["definition", "fieldDefinitions"],
+            "Maximum 40 admin filterable fields per metaobject definition",
+            "INVALID",
+            Value::Null,
+            Value::Null,
+        ));
+    }
+
+    let mut seen_keys = BTreeSet::new();
+    for (index, field_definition) in field_definitions.iter().enumerate() {
+        let key = resolved_string_field(field_definition, "key").unwrap_or_default();
+        let index_string = index.to_string();
+        if matches!(key.as_str(), "id" | "handle" | "system" | "metafields") {
+            errors.push(metaobject_user_error(
+                vec!["definition", "fieldDefinitions", &index_string],
+                &format!("The name \"{key}\" is reserved for system use"),
+                "RESERVED_NAME",
+                json!(key),
+                Value::Null,
+            ));
+            continue;
+        }
+        if key.chars().count() < 2 {
+            errors.push(metaobject_user_error(
+                vec!["definition", "fieldDefinitions", &index_string],
+                "Key is too short (minimum is 2 characters)",
+                "TOO_SHORT",
+                json!(key),
+                Value::Null,
+            ));
+            continue;
+        }
+        if !metaobject_definition_field_key_chars_valid(&key) {
+            errors.push(metaobject_user_error(
+                vec!["definition", "fieldDefinitions", &index_string],
+                "Key contains one or more invalid characters. Only lowercase alphanumeric characters, underscores, and dashes are allowed.",
+                "INVALID",
+                json!(key),
+                Value::Null,
+            ));
+            continue;
+        }
+        if !seen_keys.insert(key.clone()) {
+            errors.push(metaobject_user_error(
+                vec!["definition", "fieldDefinitions", &index_string],
+                &format!("Field \"{key}\" duplicates other inputs"),
+                "DUPLICATE_FIELD_INPUT",
+                json!(key),
+                Value::Null,
+            ));
+            continue;
+        }
+        let field_type = metaobject_field_definition_type(field_definition);
+        if !metafield_definition_type_allowed(&field_type) {
+            errors.push(metaobject_user_error(
+                vec!["definition", "fieldDefinitions", &index_string],
+                &format!(
+                    "Type name {field_type} is not a valid type. Valid types are: {}.",
+                    metafield_definition_valid_type_message()
+                ),
+                "INCLUSION",
+                json!(key),
+                Value::Null,
+            ));
+        }
+    }
+
+    if let Some(display_name_key) = resolved_string_field(input, "displayNameKey") {
+        if !field_definitions.iter().any(|definition| {
+            resolved_string_field(definition, "key") == Some(display_name_key.clone())
+        }) {
+            errors.push(metaobject_user_error(
+                vec!["definition", "displayNameKey"],
+                &format!("Field definition \"{display_name_key}\" does not exist"),
+                "UNDEFINED_OBJECT_FIELD",
+                Value::Null,
+                Value::Null,
+            ));
+        }
+    }
+
+    if existing_definitions >= 128 {
+        errors.push(metaobject_user_error(
+            vec!["definition"],
+            "Maximum number of metaobject definitions exceeded",
+            "MAX_DEFINITIONS_EXCEEDED",
+            Value::Null,
+            Value::Null,
+        ));
+    }
+
+    errors
 }
 
 fn metaobject_field_json_value(field_type: &str, value: Option<&str>) -> Value {
@@ -728,7 +1019,11 @@ impl DraftProxy {
             || !self.store.staged.deleted_metaobject_ids.is_empty()
     }
 
-    pub(in crate::proxy) fn metaobject_query_data(&self, fields: &[RootFieldSelection]) -> Value {
+    pub(in crate::proxy) fn metaobject_query_data(
+        &self,
+        fields: &[RootFieldSelection],
+        request: &Request,
+    ) -> Value {
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = match field.name.as_str() {
@@ -747,8 +1042,10 @@ impl DraftProxy {
                         .unwrap_or(Value::Null)
                 }
                 "metaobjectDefinitionByType" => {
-                    let meta_type =
-                        resolved_string_arg(&field.arguments, "type").unwrap_or_default();
+                    let meta_type = resolved_metaobject_definition_type_arg(
+                        field.arguments.get("type"),
+                        request,
+                    );
                     self.metaobject_definition_by_type(&meta_type)
                         .map(|definition| selected_json(&definition, &field.selection))
                         .unwrap_or(Value::Null)
@@ -829,7 +1126,7 @@ impl DraftProxy {
                 "metaobjectCreate" => self.metaobject_create(field, request, &mut staged_ids),
                 "metaobjectDelete" => self.metaobject_delete(field, request, &mut staged_ids),
                 "metaobjectDefinitionCreate" => {
-                    self.metaobject_definition_create(field, &mut staged_ids)
+                    self.metaobject_definition_create(field, request, &mut staged_ids)
                 }
                 "metaobjectDefinitionUpdate" => {
                     self.metaobject_definition_update(field, request, &mut staged_ids)
@@ -867,6 +1164,19 @@ impl DraftProxy {
             return Some(record.clone());
         }
         None
+    }
+
+    pub(in crate::proxy) fn metaobject_definition_update_targets_local_definition(
+        &self,
+        field: &RootFieldSelection,
+    ) -> bool {
+        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        self.store.staged.metaobject_definitions.contains_key(&id)
+            && !self
+                .store
+                .staged
+                .deleted_metaobject_definition_ids
+                .contains(&id)
     }
 
     fn hydrate_metaobject_by_id(&mut self, request: &Request, id: &str) -> Option<Value> {
@@ -1184,6 +1494,7 @@ impl DraftProxy {
     fn metaobject_definition_create(
         &mut self,
         field: &RootFieldSelection,
+        request: &Request,
         staged_ids: &mut Vec<String>,
     ) -> Value {
         let definition_input = match field.arguments.get("definition") {
@@ -1195,15 +1506,28 @@ impl DraftProxy {
                 )
             }
         };
-        let meta_type = resolved_string_field(definition_input, "type")
-            .unwrap_or_default()
-            .to_lowercase();
-        if meta_type.is_empty() {
+        let meta_type = metaobject_definition_type_from_input(definition_input, request);
+        let existing_definitions = self
+            .store
+            .staged
+            .metaobject_definitions
+            .iter()
+            .filter(|(id, _)| {
+                !self
+                    .store
+                    .staged
+                    .deleted_metaobject_definition_ids
+                    .contains(*id)
+            })
+            .count();
+        let validation_errors = metaobject_definition_create_validation_errors(
+            definition_input,
+            &meta_type,
+            existing_definitions,
+        );
+        if !validation_errors.is_empty() {
             return selected_json(
-                &json!({
-                    "metaobjectDefinition": null,
-                    "userErrors": [metaobject_user_error(vec!["definition", "type"], "Type can't be blank", "BLANK", Value::Null, Value::Null)]
-                }),
+                &json!({"metaobjectDefinition": null, "userErrors": validation_errors}),
                 &field.selection,
             );
         }

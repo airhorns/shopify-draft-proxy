@@ -9,6 +9,8 @@ struct OrdersLocalLogEntry<'a> {
     outcome: OrdersLocalLogOutcome<'a>,
 }
 
+const ORDER_LIFECYCLE_HYDRATE_QUERY: &str = "query OrderManagementDownstreamRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    closed\n    closedAt\n    updatedAt\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    paymentGatewayNames\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    customer {\n      id\n      email\n      displayName\n    }\n    transactions {\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n}";
+
 const MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH: usize = 100;
 const MOBILE_PLATFORM_APP_CLIP_APPLICATION_ID_MAX_LENGTH: usize = 255;
 const DRAFT_ORDER_HYDRATE_QUERY: &str = r#"
@@ -243,6 +245,41 @@ fn order_create_inventory_behaviour(field: &RootFieldSelection) -> String {
     resolved_object_field(&field.arguments, "options")
         .and_then(|options| resolved_string_field(&options, "inventoryBehaviour"))
         .unwrap_or_else(|| "DECREMENT_IGNORING_POLICY".to_string())
+}
+
+fn order_lifecycle_input_id(field: &RootFieldSelection) -> Option<String> {
+    resolved_object_field(&field.arguments, "input")
+        .and_then(|input| resolved_string_field(&input, "id"))
+}
+
+fn normalize_order_lifecycle_defaults(order: &mut Value) {
+    if order.get("closed").is_none() {
+        order["closed"] = json!(false);
+    }
+    if order.get("closedAt").is_none() {
+        order["closedAt"] = Value::Null;
+    }
+    if order.get("updatedAt").is_none() {
+        order["updatedAt"] = json!("2024-01-01T00:00:00.000Z");
+    }
+    if order.get("cancelledAt").is_none() {
+        order["cancelledAt"] = Value::Null;
+    }
+    if order.get("cancelReason").is_none() {
+        order["cancelReason"] = Value::Null;
+    }
+    if order.get("paymentGatewayNames").is_none() {
+        order["paymentGatewayNames"] = json!([]);
+    }
+    if order.get("transactions").is_none() {
+        order["transactions"] = json!([]);
+    }
+    if order.get("customer").is_none() {
+        order["customer"] = Value::Null;
+    }
+    if order.get("displayFinancialStatus").is_none() {
+        order["displayFinancialStatus"] = Value::Null;
+    }
 }
 
 fn order_line_inventory_item_id(line_item: &BTreeMap<String, ResolvedValue>) -> Option<String> {
@@ -3162,7 +3199,7 @@ impl DraftProxy {
         if !fields.iter().all(|field| {
             matches!(
                 field.name.as_str(),
-                "orderCreate" | "order" | "orders" | "ordersCount"
+                "orderCreate" | "orderClose" | "orderOpen" | "order" | "orders" | "ordersCount"
             )
         }) {
             return None;
@@ -3194,6 +3231,9 @@ impl DraftProxy {
         for field in fields {
             let value = match field.name.as_str() {
                 "orderCreate" => self.stage_order_create(request, query, variables, &field),
+                "orderClose" | "orderOpen" => {
+                    self.stage_order_lifecycle(request, query, variables, &field)
+                }
                 "order" => {
                     let id = resolved_string_arg(&field.arguments, "id")?;
                     let order = self
@@ -3297,6 +3337,116 @@ impl DraftProxy {
             &json!({ "order": order, "userErrors": [] }),
             &field.selection,
         )
+    }
+
+    fn stage_order_lifecycle(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        field: &RootFieldSelection,
+    ) -> Value {
+        let id = order_lifecycle_input_id(field).unwrap_or_default();
+        let Some(mut order) = self.order_lifecycle_order(&id, request, field.name.as_str()) else {
+            self.record_orders_local_log_entry(OrdersLocalLogEntry {
+                request,
+                query,
+                variables,
+                root_field: field.name.as_str(),
+                staged_resource_ids: Vec::new(),
+                outcome: OrdersLocalLogOutcome {
+                    status: "failed",
+                    notes: "Locally handled order lifecycle mutation for an unknown order.",
+                },
+            });
+            return selected_json(
+                &json!({
+                    "order": Value::Null,
+                    "userErrors": [{ "field": ["id"], "message": "Order does not exist" }]
+                }),
+                &field.selection,
+            );
+        };
+
+        normalize_order_lifecycle_defaults(&mut order);
+        let currently_closed = order["closed"].as_bool().unwrap_or(false);
+        match field.name.as_str() {
+            "orderClose" if !currently_closed => {
+                order["closed"] = json!(true);
+                order["closedAt"] = json!("2024-01-01T00:00:01.000Z");
+                order["updatedAt"] = json!("2024-01-01T00:00:01.000Z");
+            }
+            "orderOpen" if currently_closed => {
+                order["closed"] = json!(false);
+                order["closedAt"] = Value::Null;
+                order["updatedAt"] = json!("2024-01-01T00:00:02.000Z");
+            }
+            _ => {}
+        }
+
+        self.store.staged.orders.insert(id.clone(), order.clone());
+        self.record_orders_local_log_entry(OrdersLocalLogEntry {
+            request,
+            query,
+            variables,
+            root_field: field.name.as_str(),
+            staged_resource_ids: vec![id],
+            outcome: OrdersLocalLogOutcome {
+                status: "staged",
+                notes: "Locally staged order lifecycle mutation in shopify-draft-proxy.",
+            },
+        });
+        selected_json(
+            &json!({ "order": order, "userErrors": [] }),
+            &field.selection,
+        )
+    }
+
+    fn order_lifecycle_order(
+        &self,
+        id: &str,
+        request: &Request,
+        root_field: &str,
+    ) -> Option<Value> {
+        self.store
+            .staged
+            .orders
+            .get(id)
+            .cloned()
+            .or_else(|| self.hydrate_order_lifecycle_order(id, request, root_field))
+    }
+
+    fn hydrate_order_lifecycle_order(
+        &self,
+        id: &str,
+        request: &Request,
+        root_field: &str,
+    ) -> Option<Value> {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return None;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": ORDER_LIFECYCLE_HYDRATE_QUERY,
+                "variables": { "id": id }
+            })
+            .to_string(),
+        });
+        if !(200..300).contains(&response.status) {
+            return None;
+        }
+        let mut order = response.body["data"]["order"].clone();
+        if order.is_null() {
+            order = response.body["data"][root_field]["order"].clone();
+        }
+        if order.is_null() {
+            None
+        } else {
+            Some(order)
+        }
     }
 
     fn staged_order_id_for_fulfillment_order(&self, fulfillment_order_id: &str) -> Option<String> {
@@ -3769,6 +3919,12 @@ impl DraftProxy {
             "id": order_id,
             "name": format!("#{}", self.store.staged.orders.len() + 1),
             "email": resolved_string_field(order_input, "email"),
+            "closed": false,
+            "closedAt": Value::Null,
+            "cancelledAt": Value::Null,
+            "cancelReason": Value::Null,
+            "createdAt": "2024-01-01T00:00:00.000Z",
+            "updatedAt": "2024-01-01T00:00:00.000Z",
             "customer": resolved_string_field(order_input, "customerId")
                 .map(|id| json!({
                     "id": id,
