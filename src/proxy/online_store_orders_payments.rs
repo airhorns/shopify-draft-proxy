@@ -9,7 +9,7 @@ struct OrdersLocalLogEntry<'a> {
     outcome: OrdersLocalLogOutcome<'a>,
 }
 
-const ORDER_LIFECYCLE_HYDRATE_QUERY: &str = "query OrderManagementDownstreamRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    closed\n    closedAt\n    updatedAt\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    paymentGatewayNames\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    customer {\n      id\n      email\n      displayName\n    }\n    transactions {\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n}";
+const ORDER_LIFECYCLE_HYDRATE_QUERY: &str = "query OrderManagementDownstreamRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    paymentGatewayNames\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    customer {\n      id\n      email\n      displayName\n    }\n    transactions {\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n}";
 
 const MOBILE_PLATFORM_APPLICATION_ID_MAX_LENGTH: usize = 100;
 const MOBILE_PLATFORM_APP_CLIP_APPLICATION_ID_MAX_LENGTH: usize = 255;
@@ -651,6 +651,7 @@ fn order_create_address(input: Option<BTreeMap<String, ResolvedValue>>) -> Value
         "lastName": resolved_string_field(&input, "lastName").unwrap_or_default(),
         "address1": resolved_string_field(&input, "address1").unwrap_or_default(),
         "address2": resolved_string_field(&input, "address2"),
+        "company": resolved_string_field(&input, "company"),
         "city": resolved_string_field(&input, "city").unwrap_or_default(),
         "province": resolved_string_field(&input, "province"),
         "provinceCode": resolved_string_field(&input, "provinceCode").unwrap_or_default(),
@@ -759,18 +760,34 @@ fn order_update_validation_errors(input: &BTreeMap<String, ResolvedValue>) -> Ve
     errors
 }
 
-fn order_update_metafields(order_id: &str, input: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
+fn order_update_metafields(
+    order_id: &str,
+    input: &BTreeMap<String, ResolvedValue>,
+    existing: &[Value],
+) -> Vec<Value> {
     resolved_object_list_field(input, "metafields")
         .into_iter()
         .enumerate()
         .filter_map(|(index, metafield)| {
             let namespace = resolved_string_field(&metafield, "namespace")?;
             let key = resolved_string_field(&metafield, "key")?;
-            let metafield_id = format!(
-                "gid://shopify/Metafield/{}{}",
-                resource_id_tail(order_id),
-                index + 1
-            );
+            // Reuse the backing metafield id when the order already carries a
+            // metafield at this namespace/key (an update, not a create), so the
+            // identifier stays stable across the mutation and downstream reads.
+            let metafield_id = existing
+                .iter()
+                .find(|m| {
+                    m["namespace"].as_str() == Some(namespace.as_str())
+                        && m["key"].as_str() == Some(key.as_str())
+                })
+                .and_then(|m| m["id"].as_str().map(str::to_string))
+                .unwrap_or_else(|| {
+                    format!(
+                        "gid://shopify/Metafield/{}{}",
+                        resource_id_tail(order_id),
+                        index + 1
+                    )
+                });
             Some(json!({
                 "id": metafield_id,
                 "namespace": namespace,
@@ -3881,6 +3898,17 @@ impl DraftProxy {
         }
 
         let order_id = resolved_string_field(&input, "id")?;
+        // An update targets an order that already lives in the backend; pull its
+        // current state so the merge applies onto real fields (name, customer,
+        // line items) rather than a synthetic stub. Only hydrate when the order
+        // is not already staged: a record produced by an earlier local mutation
+        // (e.g. a prior orderUpdate accumulating localization entries) is more
+        // current than the backend snapshot and must not be clobbered. On a
+        // cassette miss this is a no-op and we fall through to the
+        // "Order does not exist" guard below.
+        if !self.store.staged.orders.contains_key(&order_id) {
+            self.ensure_order_hydrated(request, &order_id);
+        }
         let Some(existing_order) = self.store.staged.orders.get(&order_id).cloned() else {
             if self.config.read_mode != ReadMode::Snapshot
                 && self.config.unsupported_mutation_mode
@@ -3934,13 +3962,50 @@ impl DraftProxy {
                 order_create_address(resolved_object_field(&input, "shippingAddress"));
         }
         if input.contains_key("metafields") {
-            let metafields = order_update_metafields(&order_id, &input);
+            let existing_metafields = order["metafields"]["nodes"]
+                .as_array()
+                .cloned()
+                .or_else(|| self.store.staged.owner_metafields.get(&order_id).cloned())
+                .unwrap_or_default();
+            let metafields = order_update_metafields(&order_id, &input, &existing_metafields);
             self.store
                 .staged
                 .owner_metafields
                 .insert(order_id.clone(), metafields.clone());
             order["metafield"] = metafields.first().cloned().unwrap_or(Value::Null);
             order["metafields"] = order_connection(metafields);
+        }
+        // Shopify mirrors order localization between `localizedFields` and
+        // `localizationExtensions`: a value submitted through either input
+        // surfaces under both connections, and successive updates accumulate
+        // (deduped by key) rather than replacing the prior set.
+        let localization_input: Vec<Value> = resolved_object_list_field(&input, "localizedFields")
+            .into_iter()
+            .chain(resolved_object_list_field(&input, "localizationExtensions"))
+            .filter_map(|entry| {
+                let key = resolved_string_field(&entry, "key")?;
+                let value = resolved_string_field(&entry, "value")?;
+                Some(json!({ "key": key, "value": value }))
+            })
+            .collect();
+        if !localization_input.is_empty() {
+            let mut entries = order["localizedFields"]["nodes"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+            for entry in localization_input {
+                let key = entry["key"].as_str().unwrap_or_default().to_string();
+                if let Some(slot) = entries
+                    .iter_mut()
+                    .find(|existing| existing["key"].as_str() == Some(key.as_str()))
+                {
+                    *slot = entry;
+                } else {
+                    entries.push(entry);
+                }
+            }
+            order["localizedFields"] = order_connection(entries.clone());
+            order["localizationExtensions"] = order_connection(entries);
         }
         order["updatedAt"] = json!(order_mutation_timestamp(self.log_entries.len() as u64));
 
