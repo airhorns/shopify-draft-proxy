@@ -248,7 +248,7 @@
         "returnRequest": {
           "return": {
             "status": "REQUESTED",
-            "id": "gid://shopify/Return/10"
+            "id": "gid://shopify/Return/6"
           },
           "userErrors": []
         }
@@ -311,12 +311,12 @@
             "reverseFulfillmentOrders": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ReverseFulfillmentOrder/5",
+                  "id": "gid://shopify/ReverseFulfillmentOrder/4",
                   "status": "OPEN",
                   "lineItems": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/ReverseFulfillmentOrderLineItem/4",
+                        "id": "gid://shopify/ReverseFulfillmentOrderLineItem/3",
                         "totalQuantity": 1,
                         "remainingQuantity": 1,
                         "returnLineItem": {
@@ -337,17 +337,17 @@
       "data": {
         "reverseDeliveryCreateWithShipping": {
           "reverseDelivery": {
-            "id": "gid://shopify/ReverseDelivery/8",
+            "id": "gid://shopify/ReverseDelivery/5",
             "reverseFulfillmentOrder": {
-              "id": "gid://shopify/ReverseFulfillmentOrder/5"
+              "id": "gid://shopify/ReverseFulfillmentOrder/4"
             },
             "reverseDeliveryLineItems": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ReverseDeliveryLineItem/7",
+                  "id": "gid://shopify/ReverseDeliveryLineItem/6",
                   "quantity": 1,
                   "reverseFulfillmentOrderLineItem": {
-                    "id": "gid://shopify/ReverseFulfillmentOrderLineItem/4",
+                    "id": "gid://shopify/ReverseFulfillmentOrderLineItem/3",
                     "remainingQuantity": 1
                   }
                 }
@@ -373,7 +373,7 @@
       "data": {
         "reverseDeliveryShippingUpdate": {
           "reverseDelivery": {
-            "id": "gid://shopify/ReverseDelivery/8",
+            "id": "gid://shopify/ReverseDelivery/5",
             "deliverable": {
               "__typename": "ReverseDeliveryShippingDeliverable",
               "tracking": {
@@ -392,7 +392,7 @@
         "reverseFulfillmentOrderDispose": {
           "reverseFulfillmentOrderLineItems": [
             {
-              "id": "gid://shopify/ReverseFulfillmentOrderLineItem/4",
+              "id": "gid://shopify/ReverseFulfillmentOrderLineItem/3",
               "remainingQuantity": 0,
               "dispositionType": "RESTOCKED"
             }
@@ -420,12 +420,12 @@
             "reverseFulfillmentOrders": {
               "nodes": [
                 {
-                  "id": "gid://shopify/ReverseFulfillmentOrder/5",
+                  "id": "gid://shopify/ReverseFulfillmentOrder/4",
                   "status": "OPEN",
                   "lineItems": {
                     "nodes": [
                       {
-                        "id": "gid://shopify/ReverseFulfillmentOrderLineItem/4",
+                        "id": "gid://shopify/ReverseFulfillmentOrderLineItem/3",
                         "remainingQuantity": 0,
                         "dispositionType": "RESTOCKED"
                       }
@@ -459,7 +459,7 @@
           }
         },
         "reverseDelivery": {
-          "id": "gid://shopify/ReverseDelivery/8",
+          "id": "gid://shopify/ReverseDelivery/5",
           "deliverable": {
             "__typename": "ReverseDeliveryShippingDeliverable",
             "tracking": {
@@ -468,12 +468,12 @@
           }
         },
         "reverseFulfillmentOrder": {
-          "id": "gid://shopify/ReverseFulfillmentOrder/5",
+          "id": "gid://shopify/ReverseFulfillmentOrder/4",
           "status": "OPEN",
           "lineItems": {
             "nodes": [
               {
-                "id": "gid://shopify/ReverseFulfillmentOrderLineItem/4",
+                "id": "gid://shopify/ReverseFulfillmentOrderLineItem/3",
                 "remainingQuantity": 0,
                 "dispositionType": "RESTOCKED"
               }
@@ -482,7 +482,7 @@
           "reverseDeliveries": {
             "nodes": [
               {
-                "id": "gid://shopify/ReverseDelivery/8"
+                "id": "gid://shopify/ReverseDelivery/5"
               }
             ]
           }
