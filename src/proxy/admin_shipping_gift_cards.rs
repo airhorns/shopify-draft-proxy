@@ -3571,7 +3571,16 @@ impl DraftProxy {
             .get("id")
             .and_then(resolved_as_string)
             .unwrap_or_default();
-        let Some(service) = self.store.staged.fulfillment_services.remove(&id) else {
+        let inventory_action = field
+            .arguments
+            .get("inventoryAction")
+            .and_then(resolved_as_string);
+        let destination_location_id = field
+            .arguments
+            .get("destinationLocationId")
+            .and_then(resolved_as_string)
+            .filter(|value| !value.trim().is_empty());
+        if !self.store.staged.fulfillment_services.contains_key(&id) {
             return (
                 fulfillment_service_delete_payload(
                     Value::Null,
@@ -3582,7 +3591,47 @@ impl DraftProxy {
                 ),
                 vec![],
             );
-        };
+        }
+        // KEEP/DELETE must not carry a destination location; TRANSFER must name a real one.
+        match inventory_action.as_deref() {
+            Some("KEEP") | Some("DELETE") if destination_location_id.is_some() => {
+                return (
+                    fulfillment_service_delete_payload(
+                        Value::Null,
+                        &field.selection,
+                        vec![json!({
+                            "field": ["inventoryAction"],
+                            "message": "Inventory action Destination location id should not be present when deleting/keeping the inventory of the fulfillment service."
+                        })],
+                    ),
+                    vec![],
+                );
+            }
+            Some("TRANSFER") => {
+                if let Some(destination) = destination_location_id.as_ref() {
+                    if !self.store.staged.locations.contains_key(destination) {
+                        return (
+                            fulfillment_service_delete_payload(
+                                Value::Null,
+                                &field.selection,
+                                vec![json!({
+                                    "field": Value::Null,
+                                    "message": "Invalid destination location."
+                                })],
+                            ),
+                            vec![],
+                        );
+                    }
+                }
+            }
+            _ => {}
+        }
+        let service = self
+            .store
+            .staged
+            .fulfillment_services
+            .remove(&id)
+            .expect("fulfillment service existence checked above");
         let location_id = service["location"]["id"]
             .as_str()
             .unwrap_or_default()
@@ -3747,6 +3796,35 @@ impl DraftProxy {
                 &field.selection,
                 &carrier_selection,
                 vec![error],
+            );
+        }
+        // A carrier service name is unique per app/shop: a second create with the same
+        // (trimmed) name returns a base CARRIER_SERVICE_CREATE_FAILED userError naming the
+        // already-configured service and stages no additional record.
+        let trimmed_name = name.trim();
+        if self
+            .store
+            .staged
+            .carrier_services
+            .iter()
+            .filter(|(id, _)| !self.store.staged.deleted_carrier_service_ids.contains(*id))
+            .any(|(_, carrier)| {
+                carrier
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    == Some(trimmed_name)
+            })
+        {
+            return carrier_service_payload_json(
+                Value::Null,
+                &field.selection,
+                &carrier_selection,
+                vec![carrier_service_user_error(
+                    Value::Null,
+                    &format!("{trimmed_name} is already configured"),
+                    "CARRIER_SERVICE_CREATE_FAILED",
+                )],
             );
         }
         let id = self.next_proxy_synthetic_gid("DeliveryCarrierService");

@@ -1036,13 +1036,44 @@ pub(in crate::proxy) fn carrier_service_create_callback_url_coercion_error(
     else {
         return None;
     };
-    let problem = match input.get("callbackUrl") {
-        None | Some(ResolvedValue::Null) => CarrierServiceCallbackUrlCoercionProblem::Missing,
-        Some(ResolvedValue::String(value)) if value.is_empty() || !value.contains("://") => {
-            CarrierServiceCallbackUrlCoercionProblem::MissingScheme(value.clone())
+
+    // Shopify coerces `DeliveryCarrierServiceCreateInput!` as a single variable, so a
+    // create that omits more than one required field surfaces one INVALID_VARIABLE error
+    // whose message and `problems` list every offending field in input-field order
+    // (callbackUrl, supportsServiceDiscovery, active).
+    let mut message_parts: Vec<String> = Vec::new();
+    let mut problems: Vec<Value> = Vec::new();
+
+    match input.get("callbackUrl") {
+        None | Some(ResolvedValue::Null) => {
+            let explanation = "Expected value to not be null";
+            message_parts.push(format!("callbackUrl ({explanation})"));
+            problems.push(json!({ "path": ["callbackUrl"], "explanation": explanation }));
         }
-        _ => return None,
-    };
+        Some(ResolvedValue::String(value)) if value.is_empty() || !value.contains("://") => {
+            let message = format!("Invalid url '{value}', missing scheme");
+            message_parts.push(format!("callbackUrl ({message})"));
+            problems.push(json!({
+                "path": ["callbackUrl"],
+                "explanation": message,
+                "message": message
+            }));
+        }
+        _ => {}
+    }
+
+    for required in ["supportsServiceDiscovery", "active"] {
+        if matches!(input.get(required), None | Some(ResolvedValue::Null)) {
+            let explanation = "Expected value to not be null";
+            message_parts.push(format!("{required} ({explanation})"));
+            problems.push(json!({ "path": [required], "explanation": explanation }));
+        }
+    }
+
+    if problems.is_empty() {
+        return None;
+    }
+
     let definition = variable_definition_info(query, variable_name);
     let type_display = definition
         .as_ref()
@@ -1052,57 +1083,18 @@ pub(in crate::proxy) fn carrier_service_create_callback_url_coercion_error(
         .map(|definition| json!({ "line": definition.location.line, "column": definition.location.column }))
         .unwrap_or_else(|| json!({ "line": 1, "column": 1 }));
     let value = resolved_value_json(&ResolvedValue::Object(input.clone()));
-    Some(problem.error(variable_name, &type_display, location, value))
-}
-
-enum CarrierServiceCallbackUrlCoercionProblem {
-    Missing,
-    MissingScheme(String),
-}
-
-impl CarrierServiceCallbackUrlCoercionProblem {
-    fn error(
-        &self,
-        variable_name: &str,
-        type_display: &str,
-        location: Value,
-        value: Value,
-    ) -> Value {
-        match self {
-            Self::Missing => json!({
-                "message": format!(
-                    "Variable ${variable_name} of type {type_display} was provided invalid value for callbackUrl (Expected value to not be null)"
-                ),
-                "locations": [location],
-                "extensions": {
-                    "code": "INVALID_VARIABLE",
-                    "value": value,
-                    "problems": [{
-                        "path": ["callbackUrl"],
-                        "explanation": "Expected value to not be null"
-                    }]
-                }
-            }),
-            Self::MissingScheme(callback_url) => {
-                let message = format!("Invalid url '{callback_url}', missing scheme");
-                json!({
-                    "message": format!(
-                        "Variable ${variable_name} of type {type_display} was provided invalid value for callbackUrl ({message})"
-                    ),
-                    "locations": [location],
-                    "extensions": {
-                        "code": "INVALID_VARIABLE",
-                        "value": value,
-                        "problems": [{
-                            "path": ["callbackUrl"],
-                            "explanation": message,
-                            "message": message
-                        }]
-                    }
-                })
-            }
+    Some(json!({
+        "message": format!(
+            "Variable ${variable_name} of type {type_display} was provided invalid value for {}",
+            message_parts.join(", ")
+        ),
+        "locations": [location],
+        "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": value,
+            "problems": problems
         }
-    }
+    }))
 }
 
 pub(in crate::proxy) fn carrier_service_https_callback_host(callback_url: &str) -> Option<String> {

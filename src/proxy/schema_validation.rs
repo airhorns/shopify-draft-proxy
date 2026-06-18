@@ -1161,8 +1161,35 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         extend_online_store_input_schema(&mut schema);
         extend_markets_input_schema(&mut schema);
         extend_payments_input_schema(&mut schema);
+        extend_shipping_input_schema(&mut schema);
         schema
     })
+}
+
+fn extend_shipping_input_schema(schema: &mut AdminInputSchema) {
+    // `fulfillmentServiceCreate` on the active public Admin schema (2026-04) accepts
+    // only these field arguments. `permitsSkuSharing`, `inventorySyncEnabled`, and
+    // `fulfillmentOrdersOptIn` are not exposed, so supplying one must raise a top-level
+    // `argumentNotAccepted` GraphQL error (anchored at the argument name token) before
+    // the resolver runs. Every accepted argument is registered nullable so the validator
+    // only rejects unaccepted arguments and never fabricates a missing-required error for
+    // the create docs that omit `callbackUrl`.
+    schema.mutation_fields.insert(
+        "fulfillmentServiceCreate".to_string(),
+        BTreeMap::from([
+            ("name".to_string(), mutation_arg(named("String"))),
+            ("callbackUrl".to_string(), mutation_arg(named("URL"))),
+            ("trackingSupport".to_string(), mutation_arg(named("Boolean"))),
+            (
+                "inventoryManagement".to_string(),
+                mutation_arg(named("Boolean")),
+            ),
+            (
+                "requiresShippingMethod".to_string(),
+                mutation_arg(named("Boolean")),
+            ),
+        ]),
+    );
 }
 
 fn extend_payments_input_schema(schema: &mut AdminInputSchema) {
