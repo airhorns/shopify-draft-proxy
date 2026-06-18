@@ -2052,21 +2052,21 @@ impl DraftProxy {
                     && has_local_dispatch
                     && root_field == "customerCreate" =>
             {
-                self.customer_create(&query, &variables, request)
+                self.customer_mutation_response(request, &query, &variables)
             }
             (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && has_local_dispatch
                     && root_field == "customerUpdate" =>
             {
-                self.customer_update(&query, &variables, request)
+                self.customer_mutation_response(request, &query, &variables)
             }
             (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && has_local_dispatch
                     && root_field == "customerDelete" =>
             {
-                self.customer_delete(&query, &variables, request)
+                self.customer_mutation_response(request, &query, &variables)
             }
             (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
@@ -2080,18 +2080,7 @@ impl DraftProxy {
                     && has_local_dispatch
                     && root_field == "customerSet" =>
             {
-                if let Some(response) = self.customer_set_guard_response(&query, &variables) {
-                    response
-                } else {
-                    self.dispatch_unknown_passthrough_or_legacy_error(
-                        request,
-                        &query,
-                        &variables,
-                        operation.operation_type,
-                        &operation.root_fields,
-                        root_field,
-                    )
-                }
+                self.customer_mutation_response(request, &query, &variables)
             }
             (CapabilityDomain::B2b, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
