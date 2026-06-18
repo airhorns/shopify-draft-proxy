@@ -1,4 +1,4 @@
-mutation DiscountRedeemCodeBulkDeleteValidation(
+mutation BulkDeleteValidation(
   $discountId: ID!
   $unknownDiscountId: ID!
   $ids: [ID!]
