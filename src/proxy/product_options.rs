@@ -591,6 +591,21 @@ impl DraftProxy {
             let Some(linked_metafield) = resolved_object_field(option, "linkedMetafield") else {
                 continue;
             };
+            // The `values` of a linked-metafield option are the metaobject entry
+            // gids surfaced as the option's value list. Record the entries that
+            // share a single option together so a later metaobjectUpdate/Upsert
+            // that renames one entry to collide with a sibling's display name can
+            // be rejected with DISPLAY_NAME_CONFLICT (Shopify forbids two linked
+            // option values from resolving to the same display name).
+            let linked_entry_ids = resolved_string_list_field_unsorted(&linked_metafield, "values")
+                .into_iter()
+                .collect::<BTreeSet<String>>();
+            if linked_entry_ids.len() >= 2 {
+                self.store
+                    .staged
+                    .linked_product_option_metaobject_sets
+                    .push(linked_entry_ids);
+            }
             let namespace =
                 resolved_string_field(&linked_metafield, "namespace").unwrap_or_default();
             let key = resolved_string_field(&linked_metafield, "key").unwrap_or_default();

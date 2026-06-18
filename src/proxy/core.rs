@@ -290,6 +290,25 @@ impl DraftProxy {
                 .cloned()
                 .collect::<Vec<_>>());
         }
+        // Linked product-option metaobject entry sets feed DISPLAY_NAME_CONFLICT
+        // detection on metaobjectUpdate/Upsert. The runner restores mainState
+        // before every downstream target, so the set staged by the
+        // productOptionsCreate target must round-trip to reach the later
+        // rename targets.
+        if !self
+            .store
+            .staged
+            .linked_product_option_metaobject_sets
+            .is_empty()
+        {
+            snapshot["stagedState"]["linkedProductOptionMetaobjectSets"] = json!(self
+                .store
+                .staged
+                .linked_product_option_metaobject_sets
+                .iter()
+                .map(|ids| ids.iter().cloned().collect::<Vec<_>>())
+                .collect::<Vec<_>>());
+        }
         if !self.store.staged.flow_signatures.is_empty() {
             snapshot["stagedState"]["flowSignatures"] = json!(self.store.staged.flow_signatures);
         }
@@ -1131,6 +1150,15 @@ impl DraftProxy {
             .unwrap_or_default()
             .into_iter()
             .collect();
+        self.store.staged.linked_product_option_metaobject_sets = state["stagedState"]
+            .get("linkedProductOptionMetaobjectSets")
+            .and_then(Value::as_array)
+            .map(|sets| {
+                sets.iter()
+                    .map(|set| string_array_from_json(set).into_iter().collect())
+                    .collect()
+            })
+            .unwrap_or_default();
         self.store.staged.metafield_definitions = state["stagedState"]
             .get("metafieldDefinitions")
             .and_then(Value::as_object)
