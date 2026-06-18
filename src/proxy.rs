@@ -1003,6 +1003,36 @@ impl Store {
         existed
     }
 
+    fn reorder_product_variants(&mut self, product_id: &str, ordered_ids: &[String]) {
+        let variants = self.product_variants_for_product(product_id);
+        let mut by_id = variants
+            .iter()
+            .cloned()
+            .map(|variant| (variant.id.clone(), variant))
+            .collect::<BTreeMap<_, _>>();
+        let product_variant_ids = by_id.keys().cloned().collect::<BTreeSet<_>>();
+        let mut staged_order = Vec::new();
+
+        for id in ordered_ids {
+            if product_variant_ids.contains(id) && !staged_order.contains(id) {
+                staged_order.push(id.clone());
+            }
+        }
+        for variant in variants {
+            if !staged_order.contains(&variant.id) {
+                staged_order.push(variant.id.clone());
+            }
+        }
+
+        for id in staged_order.iter().cloned() {
+            if let Some(variant) = by_id.remove(&id) {
+                self.staged.product_variants.stage(id, variant);
+            }
+        }
+        self.staged.product_variants.order =
+            normalized_order(self.staged.product_variants.records.keys(), staged_order);
+    }
+
     fn saved_search_base_with_defaults(
         &self,
         resource_type: &str,
