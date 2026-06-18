@@ -468,7 +468,7 @@ struct StagedState {
     deleted_order_ids: BTreeSet<String>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 struct InventoryTransferRecord {
     id: String,
     name: String,
@@ -478,7 +478,7 @@ struct InventoryTransferRecord {
     line_items: Vec<InventoryTransferLineItemRecord>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 struct InventoryTransferLineItemRecord {
     id: String,
     inventory_item_id: String,
