@@ -788,7 +788,6 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                 "availableLocales": state.body["baseState"]["availableLocales"].clone(),
                 "shopLocales": state.body["baseState"]["shopLocales"].clone()
             },
-<<<<<<< ours
             "stagedState": {
                 "products": {
                     "gid://shopify/Product/1?shopify-draft-proxy=synthetic": {
@@ -883,29 +882,6 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
             }
         })
     );
-=======
-            "savedSearchOrder": ["gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic"],
-            "deletedSavedSearchIds": []
-        }
-    });
-    let staged_state = expected["stagedState"]
-        .as_object_mut()
-        .expect("expected stagedState object");
-    staged_state.insert("customerAddresses".to_string(), json!({}));
-    staged_state.insert("customerAddressOrder".to_string(), json!({}));
-    staged_state.insert("customerAddressOwners".to_string(), json!({}));
-    staged_state.insert("b2bCompanies".to_string(), json!({}));
-    staged_state.insert("b2bLocations".to_string(), json!({}));
-    staged_state.insert("b2bContacts".to_string(), json!({}));
-    staged_state.insert("deletedB2bContactIds".to_string(), json!([]));
-    staged_state.insert("b2bContactRoles".to_string(), json!({}));
-    staged_state.insert("b2bContactRoleAssignments".to_string(), json!({}));
-    staged_state.insert("deletedB2bContactRoleAssignmentIds".to_string(), json!([]));
-    staged_state.insert("nextB2bCompanyId".to_string(), json!(1));
-    staged_state.insert("nextB2bContactId".to_string(), json!(1));
-    staged_state.insert("nextB2bContactRoleAssignmentId".to_string(), json!(1));
-    assert_eq!(state.body, expected);
->>>>>>> theirs
 }
 
 #[test]
