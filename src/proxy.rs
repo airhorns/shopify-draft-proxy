@@ -1175,6 +1175,7 @@ mod metafield_metaobject_definitions;
 mod metafields_orders_payments;
 mod metaobjects;
 mod online_store_orders_payments;
+mod privacy;
 mod product_helpers;
 mod product_options;
 mod resolved_values;
@@ -1215,6 +1216,8 @@ pub(in crate::proxy) use self::metafields_orders_payments::*;
 pub(in crate::proxy) use self::metaobjects::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::online_store_orders_payments::*;
+#[allow(unused_imports)]
+pub(in crate::proxy) use self::privacy::*;
 #[allow(unused_imports)]
 pub(in crate::proxy) use self::product_helpers::*;
 #[allow(unused_imports)]

@@ -393,6 +393,7 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
         "giftCardSendNotificationToRecipient",
         CapabilityDomain::GiftCards,
     ),
+    local_mutation("dataSaleOptOut", CapabilityDomain::Privacy),
     local_query(
         "locationsAvailableForDeliveryProfilesConnection",
         CapabilityDomain::ShippingFulfillments,

@@ -2506,6 +2506,10 @@ impl DraftProxy {
                 _ => false,
             },
             "customerByIdentifier" => !self.store.staged.customers.is_empty(),
+            "customers" => {
+                customer_query_matches_staged_customer(field)
+                    && !self.store.staged.customers.is_empty()
+            }
             _ => false,
         })
     }
@@ -2519,7 +2523,7 @@ impl DraftProxy {
             let value = match field.name.as_str() {
                 "customer" => Some(self.customer_read_field(field)),
                 "customerByIdentifier" => Some(self.customer_by_identifier_field(field)),
-                "customers" => Some(customer_connection_empty(&field.selection)),
+                "customers" => Some(self.customers_connection_field(field)),
                 "customersCount" => Some(selected_json(
                     &json!({ "count": 177, "precision": "EXACT" }),
                     &field.selection,
@@ -2602,6 +2606,34 @@ impl DraftProxy {
         customer
             .map(|customer| selected_json(customer, &field.selection))
             .unwrap_or(Value::Null)
+    }
+
+    pub(in crate::proxy) fn customers_connection_field(&self, field: &RootFieldSelection) -> Value {
+        let Some(ResolvedValue::String(query)) = field.arguments.get("query") else {
+            return customer_connection_empty(&field.selection);
+        };
+        let nodes = if let Some(tag) = query.strip_prefix("tag:") {
+            self.store
+                .staged
+                .customers
+                .values()
+                .filter(|customer| {
+                    customer
+                        .get("tags")
+                        .and_then(Value::as_array)
+                        .is_some_and(|tags| tags.iter().any(|value| value.as_str() == Some(tag)))
+                })
+                .cloned()
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
+        selected_connection_json_with_args(
+            nodes,
+            &field.arguments,
+            &field.selection,
+            value_id_cursor,
+        )
     }
 
     pub(in crate::proxy) fn customer_create(
@@ -3323,4 +3355,11 @@ fn customer_update_inline_consent_error(field: &str, mutation: &str) -> Value {
         "field": [field],
         "message": format!("To update {field}, please use the {mutation} Mutation instead")
     })
+}
+
+fn customer_query_matches_staged_customer(field: &RootFieldSelection) -> bool {
+    matches!(
+        field.arguments.get("query"),
+        Some(ResolvedValue::String(query)) if query.starts_with("tag:")
+    )
 }
