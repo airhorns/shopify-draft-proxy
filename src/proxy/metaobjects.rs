@@ -105,7 +105,18 @@ fn metaobject_field_record_from_definition(
     let field_type = field_definition["type"]["name"]
         .as_str()
         .unwrap_or("single_line_text_field");
-    let raw_value = value.map(String::as_str).unwrap_or_default();
+    // A field defined on the type but never given a value for this entry reads back
+    // as `null`/`null` (not empty string) — e.g. a field omitted at create time, or a
+    // field the entry predates after a schema change adds it.
+    let Some(raw_value) = value.map(String::as_str) else {
+        return json!({
+            "key": field_definition.get("key").cloned().unwrap_or(Value::Null),
+            "type": field_type,
+            "value": Value::Null,
+            "jsonValue": Value::Null,
+            "definition": field_definition
+        });
+    };
     // Most fields echo their stored string verbatim; measurement and date_time fields
     // are normalized to Shopify's canonical form (uppercased units / decimal values /
     // explicit UTC offset). `json`/`rich_text_field` are free-form and never reshaped.
@@ -933,6 +944,7 @@ fn apply_metaobject_definition_field_operations(
     input: &BTreeMap<String, ResolvedValue>,
 ) {
     let operations = resolved_object_list_field(input, "fieldDefinitions");
+    let reset_field_order = resolved_bool_field(input, "resetFieldOrder").unwrap_or(false);
     if operations.is_empty() {
         return;
     }
@@ -940,21 +952,41 @@ fn apply_metaobject_definition_field_operations(
         .as_array()
         .cloned()
         .unwrap_or_default();
-    for operation in operations {
-        if let Some(create) = resolved_object_field(&operation, "create") {
+    // When `resetFieldOrder` is set, Shopify reorders the surviving field definitions
+    // to follow the order the caller listed their create/update operations (deletes
+    // drop out). We record that intended order as we apply each operation.
+    let mut intended_order: Vec<String> = Vec::new();
+    for operation in &operations {
+        if let Some(create) = resolved_object_field(operation, "create") {
+            if let Some(key) = resolved_string_field(&create, "key") {
+                intended_order.push(key);
+            }
             fields.push(metaobject_field_definition_record(create));
-        } else if let Some(update) = resolved_object_field(&operation, "update") {
+        } else if let Some(update) = resolved_object_field(operation, "update") {
             let key = resolved_string_field(&update, "key").unwrap_or_default();
+            if !key.is_empty() {
+                intended_order.push(key.clone());
+            }
             if let Some(field) = fields
                 .iter_mut()
                 .find(|field| field["key"].as_str() == Some(key.as_str()))
             {
                 apply_metaobject_field_definition_update(field, &update);
             }
-        } else if let Some(delete) = resolved_object_field(&operation, "delete") {
+        } else if let Some(delete) = resolved_object_field(operation, "delete") {
             let key = resolved_string_field(&delete, "key").unwrap_or_default();
             fields.retain(|field| field["key"].as_str() != Some(key.as_str()));
         }
+    }
+    if reset_field_order {
+        // Stable sort by position in the intended order; any field the caller did not
+        // mention keeps its relative position after the reordered ones.
+        fields.sort_by_key(|field| {
+            field["key"]
+                .as_str()
+                .and_then(|key| intended_order.iter().position(|ordered| ordered == key))
+                .unwrap_or(usize::MAX)
+        });
     }
     definition["fieldDefinitions"] = json!(fields);
 }
@@ -1652,10 +1684,10 @@ fn metaobject_create_validation_errors(
             if !definition_keys.contains(key.as_str()) {
                 errors.push(metaobject_user_error(
                     vec!["metaobject", "fields", &index.to_string()],
-                    &format!("Field key \"{key}\" is not defined on this metaobject definition."),
+                    &format!("Field definition \"{key}\" does not exist"),
                     "UNDEFINED_OBJECT_FIELD",
                     json!(key),
-                    json!(index),
+                    Value::Null,
                 ));
             } else if let Some(field_definition) = definition["fieldDefinitions"]
                 .as_array()
@@ -1698,17 +1730,10 @@ fn metaobject_create_validation_errors(
         }
     }
 
-    for key in input_values.keys() {
-        if !definition_keys.contains(key.as_str()) {
-            errors.push(metaobject_user_error(
-                vec!["metaobject", "values", key],
-                &format!("Field key \"{key}\" is not defined on this metaobject definition."),
-                "UNDEFINED_OBJECT_FIELD",
-                json!(key),
-                Value::Null,
-            ));
-        }
-    }
+    // Undefined keys are flagged only for fields the caller explicitly supplied in
+    // this request (handled in the `fields` loop above). Stale values merged from a
+    // pre-existing entry whose definition later dropped the field are NOT re-flagged
+    // here — Shopify only errors on keys present in the current input.
 
     for field_definition in definition["fieldDefinitions"]
         .as_array()
@@ -1727,13 +1752,40 @@ fn metaobject_create_validation_errors(
                 .get(key)
                 .is_none_or(|value| value.trim().is_empty())
         {
-            errors.push(metaobject_user_error(
-                vec!["metaobject", "fields"],
-                &format!("Field \"{key}\" is required."),
-                "OBJECT_FIELD_REQUIRED",
-                json!(key),
-                Value::Null,
-            ));
+            // A required field reads as blank either because the caller supplied it
+            // empty (anchor at that input field's index) or omitted it entirely
+            // (anchor at the metaobject root). The message uses the field's display
+            // name: "Summary can't be blank".
+            let provided_index = input
+                .get("fields")
+                .and_then(|fields| match fields {
+                    ResolvedValue::List(fields) => Some(fields),
+                    _ => None,
+                })
+                .and_then(|fields| {
+                    fields.iter().rposition(|field| match field {
+                        ResolvedValue::Object(field) => {
+                            resolved_string_field(field, "key").as_deref() == Some(key)
+                        }
+                        _ => false,
+                    })
+                });
+            let field_path = match provided_index {
+                Some(index) => json!(["metaobject", "fields", index.to_string()]),
+                None => json!(["metaobject"]),
+            };
+            let field_name = field_definition
+                .get("name")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+                .unwrap_or_else(|| metaobject_field_name(key));
+            errors.push(json!({
+                "field": field_path,
+                "message": format!("{field_name} can't be blank"),
+                "code": "OBJECT_FIELD_REQUIRED",
+                "elementKey": key,
+                "elementIndex": Value::Null
+            }));
         }
     }
 
@@ -2027,6 +2079,7 @@ impl DraftProxy {
                 "metaobject" => {
                     let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
                     self.metaobject_by_id(&id)
+                        .map(|record| self.project_metaobject_against_definition(&record))
                         .map(|record| self.selected_metaobject(&record, &field.selection))
                         .unwrap_or(Value::Null)
                 }
@@ -2179,6 +2232,18 @@ impl DraftProxy {
             return Some(record.clone());
         }
         None
+    }
+
+    /// Resolve a linked metaobject reference (the gid stored in a product option's
+    /// `linkedMetafieldValue`) to its display name, projected against the current
+    /// definition. Used to render product option values whose names mirror the linked
+    /// metaobject entry (e.g. "One"/"Two") rather than echoing the raw gid.
+    pub(in crate::proxy) fn linked_metaobject_display_name(&self, id: &str) -> Option<String> {
+        let record = self.metaobject_by_id(id)?;
+        self.project_metaobject_against_definition(&record)
+            .get("displayName")
+            .and_then(Value::as_str)
+            .map(str::to_string)
     }
 
     pub(in crate::proxy) fn metaobject_definition_update_targets_local_definition(
@@ -2423,6 +2488,7 @@ impl DraftProxy {
         let meta_type = resolved_string_field(handle, "type").unwrap_or_default();
         let meta_handle = resolved_string_field(handle, "handle").unwrap_or_default();
         self.metaobject_by_type_and_handle(&meta_type, &meta_handle)
+            .map(|record| self.project_metaobject_against_definition(&record))
             .map(|record| self.selected_metaobject(&record, &field.selection))
     }
 
@@ -2462,7 +2528,10 @@ impl DraftProxy {
                         .deleted_metaobject_ids
                         .contains(record.get("id").and_then(Value::as_str).unwrap_or_default())
             })
-            .cloned()
+            .map(|record| self.project_metaobject_against_definition(record))
+            // A row whose required display field has no value is not yet surfaced
+            // by the Admin search index that backs `metaobjects(type:)`.
+            .filter(|record| self.metaobject_visible_in_catalog(record))
             .collect();
         // Shopify's default `metaobjects(type:)` ordering is ascending by
         // creation, which corresponds to ascending numeric id. A lexicographic
@@ -2759,13 +2828,17 @@ impl DraftProxy {
         let display_name = metaobject_display_name(&definition, &input_values);
         let publishable_status =
             metaobject_updated_publishable_status(input, &definition, &existing);
-        let record = metaobject_record_from_definition(
+        // `_with_options` nulls the publishable capability when the definition has it
+        // disabled (e.g. after a schema change turned it off), matching how Shopify
+        // reads back entries whose definition no longer exposes the capability.
+        let record = metaobject_record_from_definition_with_options(
             &id,
             &next_handle,
             &definition,
             &input_values,
             &display_name,
             &publishable_status,
+            "2026-01-01T00:00:00Z",
         );
         self.store
             .staged
@@ -3139,6 +3212,136 @@ impl DraftProxy {
         })
     }
 
+    /// Re-projects a stored metaobject entry against the current local definition for
+    /// its type, so reads reflect schema changes applied after the entry was created:
+    /// field definitions (key/name/required/type), field order, newly-added fields
+    /// (read as `null`), dropped fields, the recomputed `displayName`, and the
+    /// `publishable` capability all follow the live definition. Stored field VALUES
+    /// are preserved verbatim. When no local definition is staged for the type (e.g.
+    /// an upstream-hydrated entry), the record is returned unchanged.
+    fn project_metaobject_against_definition(&self, record: &Value) -> Value {
+        let Some(meta_type) = record.get("type").and_then(Value::as_str) else {
+            return record.clone();
+        };
+        let Some(definition) = self.metaobject_definition_by_type(meta_type) else {
+            return record.clone();
+        };
+        let mut stored: BTreeMap<String, (Value, Value)> = BTreeMap::new();
+        if let Some(fields) = record["fields"].as_array() {
+            for entry in fields {
+                if let Some(key) = entry.get("key").and_then(Value::as_str) {
+                    stored.insert(
+                        key.to_string(),
+                        (
+                            entry.get("value").cloned().unwrap_or(Value::Null),
+                            entry.get("jsonValue").cloned().unwrap_or(Value::Null),
+                        ),
+                    );
+                }
+            }
+        }
+        let fields = definition["fieldDefinitions"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|field_definition| {
+                let key = field_definition
+                    .get("key")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let field_type = field_definition["type"]["name"]
+                    .as_str()
+                    .unwrap_or("single_line_text_field");
+                let (value, json_value) = stored
+                    .get(key)
+                    .cloned()
+                    .unwrap_or((Value::Null, Value::Null));
+                json!({
+                    "key": key,
+                    "type": field_type,
+                    "value": value,
+                    "jsonValue": json_value,
+                    "definition": field_definition
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let display_field_present = definition
+            .get("displayNameKey")
+            .and_then(Value::as_str)
+            .and_then(|key| stored.get(key))
+            .and_then(|(value, _)| value.as_str())
+            .is_some_and(|value| !value.trim().is_empty());
+        let display_name = if display_field_present {
+            // Keep the displayName the write path already computed for this field.
+            // Shopify renders displayName from the raw input, which can differ from
+            // the normalized stored field value (e.g. a measurement `60` vs `60.0`,
+            // `kilometers_per_hour` vs `KILOMETERS_PER_HOUR`), so re-deriving it from
+            // the stored field value here would corrupt it.
+            record.get("displayName").cloned().unwrap_or(Value::Null)
+        } else {
+            // A blank display field (e.g. a schema change moved displayNameKey onto a
+            // field this row never set) falls back to the entry's handle, title-cased
+            // ("codex-har-245-pre-..." -> "Codex Har 245 Pre ...").
+            json!(metaobject_field_name(
+                record.get("handle").and_then(Value::as_str).unwrap_or_default()
+            ))
+        };
+
+        let publishable_enabled = definition["capabilities"]["publishable"]["enabled"]
+            .as_bool()
+            .unwrap_or(false);
+        let publishable = if publishable_enabled {
+            record["capabilities"]["publishable"].clone()
+        } else {
+            Value::Null
+        };
+
+        let mut projected = record.clone();
+        projected["fields"] = json!(fields);
+        projected["displayName"] = display_name;
+        if let Some(capabilities) = projected
+            .get_mut("capabilities")
+            .and_then(Value::as_object_mut)
+        {
+            capabilities.insert("publishable".to_string(), publishable);
+        }
+        projected
+    }
+
+    /// Whether a (already definition-projected) entry is visible in an immediate
+    /// `metaobjects(type:)` catalog read. Rows missing a value for a required display
+    /// field are omitted, matching Shopify's behaviour where such rows are not yet
+    /// surfaced by the Admin search index.
+    fn metaobject_visible_in_catalog(&self, projected: &Value) -> bool {
+        let Some(meta_type) = projected.get("type").and_then(Value::as_str) else {
+            return true;
+        };
+        let Some(definition) = self.metaobject_definition_by_type(meta_type) else {
+            return true;
+        };
+        let Some(display_key) = definition.get("displayNameKey").and_then(Value::as_str) else {
+            return true;
+        };
+        let display_required = definition["fieldDefinitions"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|field| field.get("key").and_then(Value::as_str) == Some(display_key))
+            .and_then(|field| field.get("required").and_then(Value::as_bool))
+            .unwrap_or(false);
+        if !display_required {
+            return true;
+        }
+        projected["fields"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|field| field.get("key").and_then(Value::as_str) == Some(display_key))
+            .and_then(|field| field.get("value").and_then(Value::as_str))
+            .is_some_and(|value| !value.trim().is_empty())
+    }
+
     fn metaobject_definition_create(
         &mut self,
         field: &RootFieldSelection,
@@ -3233,6 +3436,38 @@ impl DraftProxy {
             .get("type")
             .and_then(Value::as_str)
             .unwrap_or_default();
+        // A metaobject definition that backs a product option's linked metafield has
+        // an immutable display name field: Shopify forbids re-pointing displayNameKey
+        // while the definition is linked, because the option values are surfaced by
+        // their resolved display name. The link set is populated by
+        // `record_product_option_linked_metaobject_definitions` during
+        // productOptionsCreate.
+        if self
+            .store
+            .staged
+            .product_option_linked_metaobject_definition_ids
+            .contains(&id)
+        {
+            let current_display_name_key =
+                definition.get("displayNameKey").and_then(Value::as_str);
+            let changes_display_name_key = resolved_string_field(definition_input, "displayNameKey")
+                .is_some_and(|next| Some(next.as_str()) != current_display_name_key);
+            if changes_display_name_key {
+                return selected_json(
+                    &json!({
+                        "metaobjectDefinition": null,
+                        "userErrors": [metaobject_user_error(
+                            vec!["definition", "displayNameKey"],
+                            "Cannot change display name field when metaobject is used in product options",
+                            "IMMUTABLE",
+                            Value::Null,
+                            Value::Null,
+                        )]
+                    }),
+                    &field.selection,
+                );
+            }
+        }
         let existing_field_definitions = definition["fieldDefinitions"]
             .as_array()
             .cloned()

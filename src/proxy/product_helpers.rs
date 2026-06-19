@@ -2368,13 +2368,19 @@ pub(in crate::proxy) fn product_json(
                 .cloned()
                 .unwrap_or(Value::Null),
         ),
-        "options" => Some(
+        "options" => Some(Value::Array(
             product
                 .extra_fields
                 .get("options")
-                .cloned()
-                .unwrap_or_else(|| Value::Array(Vec::new())),
-        ),
+                .and_then(Value::as_array)
+                .map(|options| {
+                    options
+                        .iter()
+                        .map(|option| nullable_selected_json(option, &selection.selection))
+                        .collect()
+                })
+                .unwrap_or_default(),
+        )),
         "variants" => Some(selected_connection_json(
             product.variants.clone(),
             &selection.selection,
@@ -2572,13 +2578,19 @@ pub(in crate::proxy) fn product_json_with_variants(
                 .cloned()
                 .unwrap_or(Value::Null),
         ),
-        "options" => Some(
+        "options" => Some(Value::Array(
             product
                 .extra_fields
                 .get("options")
-                .cloned()
-                .unwrap_or_else(|| Value::Array(Vec::new())),
-        ),
+                .and_then(Value::as_array)
+                .map(|options| {
+                    options
+                        .iter()
+                        .map(|option| nullable_selected_json(option, &selection.selection))
+                        .collect()
+                })
+                .unwrap_or_default(),
+        )),
         "variants" => Some(if variants.is_empty() {
             selected_connection_json(product.variants.clone(), &selection.selection)
         } else {

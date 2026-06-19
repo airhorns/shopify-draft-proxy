@@ -855,29 +855,36 @@ fn option_input_value_nodes(
             values = resolved_list_arg(&linked_metafield, "values");
         }
     }
+    let has_linked_metafield = resolved_object_field(input, "linkedMetafield").is_some();
     values
         .iter()
         .enumerate()
         .map(|(index, value)| {
-            let name = match value {
-                ResolvedValue::Object(object) => resolved_string_field(object, "name")
-                    .or_else(|| resolved_string_field(object, "linkedMetafieldValue"))
-                    .unwrap_or_default(),
-                ResolvedValue::String(value) => value.clone(),
-                _ => String::new(),
-            };
             let linked_value = match value {
                 ResolvedValue::Object(object) => {
                     resolved_string_field(object, "linkedMetafieldValue")
                 }
-                ResolvedValue::String(value) if name == *value => {
-                    if resolved_object_field(input, "linkedMetafield").is_some() {
-                        Some(value.clone())
-                    } else {
-                        None
-                    }
-                }
+                ResolvedValue::String(value) if has_linked_metafield => Some(value.clone()),
                 _ => None,
+            };
+            // A linked option value's name mirrors the referenced metaobject's display
+            // name (e.g. "One"/"Two"), not the raw gid; fall back to the gid if the
+            // referenced entry isn't staged locally.
+            let name = match value {
+                ResolvedValue::Object(object) => resolved_string_field(object, "name")
+                    .or_else(|| {
+                        resolved_string_field(object, "linkedMetafieldValue").map(|gid| {
+                            proxy
+                                .linked_metaobject_display_name(&gid)
+                                .unwrap_or(gid)
+                        })
+                    })
+                    .unwrap_or_default(),
+                ResolvedValue::String(value) if has_linked_metafield => proxy
+                    .linked_metaobject_display_name(value)
+                    .unwrap_or_else(|| value.clone()),
+                ResolvedValue::String(value) => value.clone(),
+                _ => String::new(),
             };
             ProductOptionValueNode {
                 id: proxy.next_proxy_synthetic_gid("ProductOptionValue"),
