@@ -12,33 +12,13 @@ const SHOP_POLICY_TYPE_VALUES: &[&str] = &[
     "SUBSCRIPTION_POLICY",
     "CONTACT_INFORMATION",
 ];
-const SHOP_POLICY_HYDRATE_QUERY: &str = r#"
-query StorePropertiesShopPolicyHydrate {
-  shop {
-    id
-    myshopifyDomain
-    url
-    primaryDomain { host url }
-    shopPolicies {
-      id
-      title
-      body
-      type
-      url
-      createdAt
-      updatedAt
-      translations(locale: "fr") {
-        key
-        locale
-        outdated
-        updatedAt
-        value
-        market { id }
-      }
-    }
-  }
-}
-"#;
+// Must match the recorded `StorePropertiesShopBaselineHydrate` upstream call
+// byte-for-byte (the strict cassette matcher compares the outgoing query against
+// the recorded entry). The Rust port previously diverged to a narrower
+// `StorePropertiesShopPolicyHydrate` document, which no longer matched the
+// recorded cassette entry, so shop-policy hydration silently failed in parity
+// runs and the proxy fell back to synthetic policy ids/timestamps.
+const SHOP_POLICY_HYDRATE_QUERY: &str = "query StorePropertiesShopBaselineHydrate { shop { id name myshopifyDomain url primaryDomain { id host url sslEnabled } contactEmail email currencyCode enabledPresentmentCurrencies ianaTimezone timezoneAbbreviation timezoneOffset timezoneOffsetMinutes taxesIncluded taxShipping unitSystem weightUnit shopAddress { id address1 address2 city company coordinatesValidated country countryCodeV2 formatted formattedArea latitude longitude phone province provinceCode zip } plan { partnerDevelopment publicDisplayName shopifyPlus } resourceLimits { locationLimit maxProductOptions maxProductVariants redirectLimitReached } features { avalaraAvatax branding bundles { eligibleForBundles ineligibilityReason sellsBundles } captcha cartTransform { eligibleOperations { expandOperation mergeOperation updateOperation } } dynamicRemarketing eligibleForSubscriptionMigration eligibleForSubscriptions giftCards harmonizedSystemCode legacySubscriptionGatewayEnabled liveView paypalExpressSubscriptionGatewayStatus reports sellsSubscriptions showMetrics storefront unifiedMarkets } paymentSettings { supportedDigitalWallets } shopPolicies { id title body type url createdAt updatedAt } } }";
 
 impl DraftProxy {
     pub(in crate::proxy) fn shop_policy_update(
@@ -197,6 +177,17 @@ impl DraftProxy {
             .to_string(),
         });
         if (200..300).contains(&response.status) {
+            // Populate the structured shop-policy records (read by
+            // `shop_policy_by_type`/`shop_policies`); `hydrate_shop_state_from_response_data`
+            // only stores the raw `base.shop` blob.
+            if let Some(shop) = response.body["data"]
+                .get("shop")
+                .filter(|shop| shop.is_object())
+            {
+                let (policies, order) = shop_policy_state_from_shop(shop);
+                self.store
+                    .replace_base_shop_policies_map_with_order(policies, order);
+            }
             self.hydrate_shop_state_from_response_data(&response.body["data"]);
         }
     }
