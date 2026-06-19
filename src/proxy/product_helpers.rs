@@ -2398,6 +2398,30 @@ fn product_collections_connection_json(
     )
 }
 
+/// `Product.hasOnlyDefaultVariant` is true exactly when the product has a single variant
+/// carrying Shopify's implicit default option (`Title: Default Title`).
+pub(in crate::proxy) fn product_has_only_default_variant(variants: &[ProductVariantRecord]) -> bool {
+    match variants {
+        [variant] => {
+            variant.selected_options.len() == 1
+                && variant.selected_options[0].name == "Title"
+                && variant.selected_options[0].value == "Default Title"
+        }
+        _ => false,
+    }
+}
+
+/// `Product.hasOutOfStockVariants` is true when any inventory-tracked variant has a
+/// non-positive available quantity. `inventory_quantity` mirrors the variant's total
+/// available stock (kept in sync by the inventory mutation handlers), so it is the
+/// available figure to test; untracked variants never count as out of stock.
+pub(in crate::proxy) fn product_has_out_of_stock_variants(variants: &[ProductVariantRecord]) -> bool {
+    variants
+        .iter()
+        .filter(|variant| variant.inventory_item.tracked)
+        .any(|variant| variant.inventory_quantity <= 0)
+}
+
 pub(in crate::proxy) fn product_json_with_variants(
     product: &ProductRecord,
     variants: &[ProductVariantRecord],
@@ -2416,24 +2440,48 @@ pub(in crate::proxy) fn product_json_with_variants(
         "productType" => Some(json!(product.product_type)),
         "tags" => Some(json!(product.tags)),
         "legacyResourceId" => Some(json!(resource_id_tail(&product.id))),
-        "totalInventory" => Some(if variants.is_empty() {
-            json!(product.total_inventory)
-        } else {
-            // Shopify's `Product.totalInventory` aggregates stocked quantity across
-            // tracked variants only; untracked variants report their own
-            // `inventoryQuantity` but never contribute to the product total.
-            json!(variants
-                .iter()
-                .filter(|variant| variant.inventory_item.tracked)
-                .map(|variant| variant.inventory_quantity)
-                .sum::<i64>())
-        }),
+        // `Product.totalInventory` is a denormalized aggregate Shopify maintains lazily:
+        // variant/inventory-item quantities update immediately, but the product total can
+        // lag (notably after a 2025-01 `inventoryAdjustQuantities`, and for non-`available`
+        // quantity changes). The mutation handlers recompute and store it on the product
+        // record (`sync_product_total_inventory`) following the route-version contract, so
+        // the read path renders the stored value rather than recomputing live.
+        "totalInventory" => Some(json!(product.total_inventory)),
         "tracksInventory" => Some(if variants.is_empty() {
             json!(product.tracks_inventory)
         } else {
             json!(variants
                 .iter()
                 .any(|variant| variant.inventory_item.tracked))
+        }),
+        // Recomputed live from the effective variants: unlike `totalInventory`, Shopify
+        // keeps these structural aggregates in step with the current variant set.
+        "hasOnlyDefaultVariant" => Some(if variants.is_empty() {
+            product
+                .extra_fields
+                .get("hasOnlyDefaultVariant")
+                .cloned()
+                .unwrap_or(Value::Bool(true))
+        } else {
+            json!(product_has_only_default_variant(variants))
+        }),
+        "hasOutOfStockVariants" => Some(if variants.is_empty() {
+            product
+                .extra_fields
+                .get("hasOutOfStockVariants")
+                .cloned()
+                .unwrap_or(Value::Bool(false))
+        } else {
+            json!(product_has_out_of_stock_variants(variants))
+        }),
+        "totalVariants" => Some(if variants.is_empty() {
+            product
+                .extra_fields
+                .get("totalVariants")
+                .cloned()
+                .unwrap_or_else(|| json!(product.variants.len()))
+        } else {
+            json!(variants.len())
         }),
         "templateSuffix" => Some(
             product

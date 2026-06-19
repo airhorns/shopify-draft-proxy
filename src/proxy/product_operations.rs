@@ -715,7 +715,13 @@ impl DraftProxy {
             let mut quantities = BTreeMap::new();
             quantities.insert("available".to_string(), available);
             quantities.insert("on_hand".to_string(), available);
-            self.store.staged.inventory_levels.insert(key, quantities);
+            self.store.staged.inventory_levels.insert(key.clone(), quantities);
+            // Record creation order so materialized `inventoryLevels` connections surface
+            // these levels in the input's location order rather than the BTreeMap's
+            // sorted-by-location-id fallback (which would reverse two-location variants).
+            if !self.store.staged.inventory_level_order.contains(&key) {
+                self.store.staged.inventory_level_order.push(key);
+            }
             self.store.staged.inventory_quantity_updated_at.insert(
                 (
                     inventory_item_id.clone(),
