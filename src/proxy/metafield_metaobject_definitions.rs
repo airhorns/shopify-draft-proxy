@@ -1408,8 +1408,7 @@ impl DraftProxy {
         // Shopify's behavior of mapping the legacy flags onto the structured
         // inputs (useAsAdminFilter -> capabilities.adminFilterable, etc.).
         let args = translate_standard_enable_deprecated_args(arguments);
-        let mut definition =
-            self.metafield_definition_from_input(request, &args, Some(&template));
+        let mut definition = self.metafield_definition_from_input(request, &args, Some(&template));
         definition["ownerType"] = json!(owner_type);
         if template.namespace == "shopify" && resolved_object_field(&args, "access").is_none() {
             definition["access"] = json!({
@@ -1667,8 +1666,14 @@ fn translate_standard_enable_deprecated_capability(
     }
     let mut capability = BTreeMap::new();
     capability.insert("enabled".to_string(), ResolvedValue::Bool(enabled));
-    capabilities.insert(capability_key.to_string(), ResolvedValue::Object(capability));
-    args.insert("capabilities".to_string(), ResolvedValue::Object(capabilities));
+    capabilities.insert(
+        capability_key.to_string(),
+        ResolvedValue::Object(capability),
+    );
+    args.insert(
+        "capabilities".to_string(),
+        ResolvedValue::Object(capabilities),
+    );
 }
 
 fn translate_standard_enable_deprecated_storefront_access(

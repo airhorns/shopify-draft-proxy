@@ -280,7 +280,9 @@ fn metaobject_definition_capabilities(input: &BTreeMap<String, ResolvedValue>) -
     let online_store_data = online_store_input
         .as_ref()
         .and_then(|online_store| resolved_object_field(online_store, "data"))
-        .map_or(Value::Null, |data| metaobject_online_store_capability_data(&data));
+        .map_or(Value::Null, |data| {
+            metaobject_online_store_capability_data(&data)
+        });
     let renderable = resolved_object_field(&capabilities, "renderable")
         .and_then(|renderable| resolved_bool_field(&renderable, "enabled"))
         .unwrap_or(false);
@@ -690,7 +692,9 @@ fn metaobject_renderable_capability_errors(
                 Value::Null,
             )),
             Some(field_definition) => {
-                let field_type = field_definition["type"]["name"].as_str().unwrap_or_default();
+                let field_type = field_definition["type"]["name"]
+                    .as_str()
+                    .unwrap_or_default();
                 if !matches!(
                     field_type,
                     "single_line_text_field" | "multi_line_text_field" | "rich_text_field"
@@ -760,7 +764,10 @@ fn metaobject_definition_update_validation_errors(
             ));
         }
     }
-    errors.extend(metaobject_renderable_capability_errors(input, field_definitions));
+    errors.extend(metaobject_renderable_capability_errors(
+        input,
+        field_definitions,
+    ));
     errors.extend(metaobject_field_operation_errors(input, field_definitions));
     errors
 }
@@ -835,7 +842,13 @@ fn metaobject_field_operation_errors(
             }
             if known_keys.contains(&key) {
                 errors.push(metaobject_user_error(
-                    vec!["definition", "fieldDefinitions", &index_string, "create", "key"],
+                    vec![
+                        "definition",
+                        "fieldDefinitions",
+                        &index_string,
+                        "create",
+                        "key",
+                    ],
                     &format!("Field definition \"{key}\" is already taken"),
                     "OBJECT_FIELD_TAKEN",
                     json!(key),
@@ -848,7 +861,13 @@ fn metaobject_field_operation_errors(
             let key = resolved_string_field(&update, "key").unwrap_or_default();
             if !known_keys.contains(&key) {
                 errors.push(metaobject_user_error(
-                    vec!["definition", "fieldDefinitions", &index_string, "update", "key"],
+                    vec![
+                        "definition",
+                        "fieldDefinitions",
+                        &index_string,
+                        "update",
+                        "key",
+                    ],
                     &format!("Field definition \"{key}\" does not exist"),
                     "UNDEFINED_OBJECT_FIELD",
                     json!(key),
@@ -859,7 +878,13 @@ fn metaobject_field_operation_errors(
             let key = resolved_string_field(&delete, "key").unwrap_or_default();
             if !known_keys.contains(&key) {
                 errors.push(metaobject_user_error(
-                    vec!["definition", "fieldDefinitions", &index_string, "delete", "key"],
+                    vec![
+                        "definition",
+                        "fieldDefinitions",
+                        &index_string,
+                        "delete",
+                        "key",
+                    ],
                     &format!("Field definition \"{key}\" does not exist"),
                     "UNDEFINED_OBJECT_FIELD",
                     json!(key),
@@ -1323,17 +1348,14 @@ fn metaobject_value_is_valid_date_time(value: &str) -> bool {
     if !metaobject_value_is_valid_date(date_part) {
         return false;
     }
-    let time_core = time_part
-        .split(['+', 'Z', '.'])
-        .next()
-        .unwrap_or(time_part);
+    let time_core = time_part.split(['+', 'Z', '.']).next().unwrap_or(time_part);
     let segments: Vec<&str> = time_core.split(':').collect();
     if !(2..=3).contains(&segments.len()) {
         return false;
     }
-    segments
-        .iter()
-        .all(|segment| !segment.is_empty() && segment.chars().all(|character| character.is_ascii_digit()))
+    segments.iter().all(|segment| {
+        !segment.is_empty() && segment.chars().all(|character| character.is_ascii_digit())
+    })
 }
 
 fn metaobject_value_is_valid_measurement(value: &str) -> bool {
@@ -1344,7 +1366,10 @@ fn metaobject_value_is_valid_measurement(value: &str) -> bool {
         return false;
     };
     let has_numeric_value = object.get("value").is_some_and(|value| {
-        value.is_number() || value.as_str().is_some_and(|value| value.parse::<f64>().is_ok())
+        value.is_number()
+            || value
+                .as_str()
+                .is_some_and(|value| value.parse::<f64>().is_ok())
     });
     let has_unit = object
         .get("unit")
@@ -1443,16 +1468,26 @@ fn metaobject_scalar_value_error(
         }
         "rating" => {
             let parsed = serde_json::from_str::<Value>(value).ok()?;
-            let rating = parsed
-                .get("value")
-                .and_then(|value| value.as_f64().or_else(|| value.as_str()?.parse::<f64>().ok()))?;
+            let rating = parsed.get("value").and_then(|value| {
+                value
+                    .as_f64()
+                    .or_else(|| value.as_str()?.parse::<f64>().ok())
+            })?;
             if let Some(scale_max) = metaobject_field_validation_value(validations, "scale_max") {
-                if scale_max.parse::<f64>().ok().is_some_and(|max| rating > max) {
+                if scale_max
+                    .parse::<f64>()
+                    .ok()
+                    .is_some_and(|max| rating > max)
+                {
                     return Some(format!("Value has a maximum of {scale_max}."));
                 }
             }
             if let Some(scale_min) = metaobject_field_validation_value(validations, "scale_min") {
-                if scale_min.parse::<f64>().ok().is_some_and(|min| rating < min) {
+                if scale_min
+                    .parse::<f64>()
+                    .ok()
+                    .is_some_and(|min| rating < min)
+                {
                     return Some(format!("Value has a minimum of {scale_min}."));
                 }
             }
@@ -1472,9 +1507,11 @@ fn metaobject_scalar_value_error(
                 Some("Value cannot have an empty scheme (protocol), must include one of the following URL schemes: [\"http\", \"https\", \"mailto\", \"sms\", \"tel\"].'".to_string())
             }
         }
-        "product_reference" => {
-            metaobject_reference_value_error(value, "Product", "Value must be a valid product reference.")
-        }
+        "product_reference" => metaobject_reference_value_error(
+            value,
+            "Product",
+            "Value must be a valid product reference.",
+        ),
         "variant_reference" => metaobject_reference_value_error(
             value,
             "ProductVariant",
@@ -1485,12 +1522,16 @@ fn metaobject_scalar_value_error(
             "Collection",
             "Value must be a valid collection reference.",
         ),
-        "customer_reference" => {
-            metaobject_reference_value_error(value, "Customer", "Value must be a valid customer reference.")
-        }
-        "company_reference" => {
-            metaobject_reference_value_error(value, "Company", "Value must be a valid company reference.")
-        }
+        "customer_reference" => metaobject_reference_value_error(
+            value,
+            "Customer",
+            "Value must be a valid customer reference.",
+        ),
+        "company_reference" => metaobject_reference_value_error(
+            value,
+            "Company",
+            "Value must be a valid company reference.",
+        ),
         "metaobject_reference" => metaobject_reference_value_error(
             value,
             "Metaobject",
@@ -1698,7 +1739,9 @@ fn metaobject_create_validation_errors(
                 })
             {
                 let value = resolved_string_field(field, "value").unwrap_or_default();
-                let field_type = field_definition["type"]["name"].as_str().unwrap_or_default();
+                let field_type = field_definition["type"]["name"]
+                    .as_str()
+                    .unwrap_or_default();
                 let validations = field_definition["validations"]
                     .as_array()
                     .map(Vec::as_slice)
@@ -2907,7 +2950,12 @@ impl DraftProxy {
             }
             let input_values = metaobject_merged_input_values(&existing, &update_input);
             let mut validation_errors = metaobject_required_field_errors_for_upsert(
-                metaobject_create_validation_errors(&update_input, &definition, &input_values, true),
+                metaobject_create_validation_errors(
+                    &update_input,
+                    &definition,
+                    &input_values,
+                    true,
+                ),
                 &definition,
             );
             validation_errors.extend(
@@ -3284,7 +3332,10 @@ impl DraftProxy {
             // field this row never set) falls back to the entry's handle, title-cased
             // ("codex-har-245-pre-..." -> "Codex Har 245 Pre ...").
             json!(metaobject_field_name(
-                record.get("handle").and_then(Value::as_str).unwrap_or_default()
+                record
+                    .get("handle")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
             ))
         };
 
@@ -3448,10 +3499,10 @@ impl DraftProxy {
             .product_option_linked_metaobject_definition_ids
             .contains(&id)
         {
-            let current_display_name_key =
-                definition.get("displayNameKey").and_then(Value::as_str);
-            let changes_display_name_key = resolved_string_field(definition_input, "displayNameKey")
-                .is_some_and(|next| Some(next.as_str()) != current_display_name_key);
+            let current_display_name_key = definition.get("displayNameKey").and_then(Value::as_str);
+            let changes_display_name_key =
+                resolved_string_field(definition_input, "displayNameKey")
+                    .is_some_and(|next| Some(next.as_str()) != current_display_name_key);
             if changes_display_name_key {
                 return selected_json(
                     &json!({

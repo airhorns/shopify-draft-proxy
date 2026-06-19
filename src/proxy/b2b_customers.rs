@@ -374,9 +374,7 @@ impl DraftProxy {
                                 .map(|company| {
                                     self.b2b_company_selected_json(company, &field.selection)
                                 })
-                                .or_else(|| {
-                                    b2b_company_customer_since_value(&id, &field.selection)
-                                })
+                                .or_else(|| b2b_company_customer_since_value(&id, &field.selection))
                                 .unwrap_or(Value::Null)
                         }
                         "companyContact" => {
@@ -533,16 +531,29 @@ impl DraftProxy {
                 "RESOURCE_NOT_FOUND",
                 None,
             );
-            return (json!({ "companyContact": null, "userErrors": [error] }), "failed", Vec::new());
+            return (
+                json!({ "companyContact": null, "userErrors": [error] }),
+                "failed",
+                Vec::new(),
+            );
         };
-        if customer["email"].as_str().map(str::trim).unwrap_or_default().is_empty() {
+        if customer["email"]
+            .as_str()
+            .map(str::trim)
+            .unwrap_or_default()
+            .is_empty()
+        {
             let error = b2b_company_user_error(
                 vec!["companyId"],
                 "Customer must have an email address.",
                 "INVALID_INPUT",
                 None,
             );
-            return (json!({ "companyContact": null, "userErrors": [error] }), "failed", Vec::new());
+            return (
+                json!({ "companyContact": null, "userErrors": [error] }),
+                "failed",
+                Vec::new(),
+            );
         }
         let already_contact = self
             .store
@@ -557,7 +568,11 @@ impl DraftProxy {
                 "INVALID_INPUT",
                 None,
             );
-            return (json!({ "companyContact": null, "userErrors": [error] }), "failed", Vec::new());
+            return (
+                json!({ "companyContact": null, "userErrors": [error] }),
+                "failed",
+                Vec::new(),
+            );
         }
         let contact_id = self.next_proxy_synthetic_gid("CompanyContact");
         let contact = json!({
@@ -581,7 +596,11 @@ impl DraftProxy {
             b2b_push_json_id(&mut company, "contactIds", &contact_id);
             self.store.staged.b2b_companies.insert(company_id, company);
         }
-        (json!({ "companyContact": contact, "userErrors": [] }), "staged", vec![contact_id])
+        (
+            json!({ "companyContact": contact, "userErrors": [] }),
+            "staged",
+            vec![contact_id],
+        )
     }
 
     pub(in crate::proxy) fn b2b_company_create_payload(
@@ -1067,7 +1086,8 @@ impl DraftProxy {
         &mut self,
         field: &RootFieldSelection,
     ) -> (Value, &'static str, Vec<String>) {
-        let contact_id = resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+        let contact_id =
+            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
         let Some(mut contact) = self.store.staged.b2b_contacts.get(&contact_id).cloned() else {
             return (
@@ -2140,9 +2160,7 @@ impl DraftProxy {
             .staged
             .b2b_role_assignments
             .iter()
-            .filter(|(_, assignment)| {
-                assignment["companyContactId"].as_str() == Some(contact_id)
-            })
+            .filter(|(_, assignment)| assignment["companyContactId"].as_str() == Some(contact_id))
             .map(|(id, _)| id.clone())
             .collect();
         for assignment_id in assignment_ids {
@@ -2280,8 +2298,11 @@ impl DraftProxy {
         parsed_root_fields: &[String],
         root_field: &str,
     ) -> Response {
-        let create = root_fields(query, variables)
-            .and_then(|fields| fields.into_iter().find(|f| f.name == "companyContactCreate"));
+        let create = root_fields(query, variables).and_then(|fields| {
+            fields
+                .into_iter()
+                .find(|f| f.name == "companyContactCreate")
+        });
 
         let response = self.dispatch_unknown_passthrough_or_legacy_error(
             request,
@@ -2302,7 +2323,8 @@ impl DraftProxy {
                 {
                     let company_id =
                         resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
-                    let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+                    let input =
+                        resolved_object_field(&field.arguments, "input").unwrap_or_default();
                     let first = resolved_string_field(&input, "firstName");
                     let last = resolved_string_field(&input, "lastName");
                     let title = resolved_string_field(&input, "title");
@@ -2352,8 +2374,11 @@ impl DraftProxy {
         parsed_root_fields: &[String],
         root_field: &str,
     ) -> Response {
-        let assign = root_fields(query, variables)
-            .and_then(|fields| fields.into_iter().find(|f| f.name == "companyAssignMainContact"));
+        let assign = root_fields(query, variables).and_then(|fields| {
+            fields
+                .into_iter()
+                .find(|f| f.name == "companyAssignMainContact")
+        });
 
         let response = self.dispatch_unknown_passthrough_or_legacy_error(
             request,
@@ -2388,8 +2413,11 @@ impl DraftProxy {
         parsed_root_fields: &[String],
         root_field: &str,
     ) -> Response {
-        let revoke = root_fields(query, variables)
-            .and_then(|fields| fields.into_iter().find(|f| f.name == "companyRevokeMainContact"));
+        let revoke = root_fields(query, variables).and_then(|fields| {
+            fields
+                .into_iter()
+                .find(|f| f.name == "companyRevokeMainContact")
+        });
 
         let response = self.dispatch_unknown_passthrough_or_legacy_error(
             request,
@@ -3373,9 +3401,11 @@ impl DraftProxy {
                     &field.selection,
                     order_connection_cursor,
                 ),
-                None if connection_has_nodes(&customer["orders"]) => {
-                    project_seeded_connection(&customer["orders"], &field.arguments, &field.selection)
-                }
+                None if connection_has_nodes(&customer["orders"]) => project_seeded_connection(
+                    &customer["orders"],
+                    &field.arguments,
+                    &field.selection,
+                ),
                 None => selected_connection_json_with_args(
                     Vec::new(),
                     &field.arguments,
@@ -3889,7 +3919,10 @@ impl DraftProxy {
             .customers
             .values()
             .filter(|customer| {
-                let id = customer.get("id").and_then(Value::as_str).unwrap_or_default();
+                let id = customer
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
                 !self.store.staged.deleted_customer_ids.contains(id)
             })
             .filter(|customer| customer_matches_query(customer, query.as_deref()))
@@ -4182,7 +4215,7 @@ impl DraftProxy {
         // `customer_with_order_connection`.
         if customer
             .get("storeCreditAccounts")
-            .map_or(true, Value::is_null)
+            .is_none_or(Value::is_null)
         {
             customer["storeCreditAccounts"] = empty_orders_connection();
         }
@@ -4291,7 +4324,10 @@ impl DraftProxy {
             return (
                 customer_address_payload(
                     Value::Null,
-                    vec![customer_user_error(json!(["address"]), "Address already exists")],
+                    vec![customer_user_error(
+                        json!(["address"]),
+                        "Address already exists",
+                    )],
                 ),
                 Vec::new(),
                 Vec::new(),
@@ -4346,14 +4382,18 @@ impl DraftProxy {
             .as_ref()
             .and_then(|(_, _, nodes, _)| customer_address_node_index(nodes, &address_id));
         let Some((customer_first, customer_last, existing_nodes, current_default)) = context else {
-            return self.customer_address_missing_result(&address_id, &field.response_key, |errors| {
-                customer_address_payload(Value::Null, errors)
-            });
+            return self.customer_address_missing_result(
+                &address_id,
+                &field.response_key,
+                |errors| customer_address_payload(Value::Null, errors),
+            );
         };
         let Some(index) = index else {
-            return self.customer_address_missing_result(&address_id, &field.response_key, |errors| {
-                customer_address_payload(Value::Null, errors)
-            });
+            return self.customer_address_missing_result(
+                &address_id,
+                &field.response_key,
+                |errors| customer_address_payload(Value::Null, errors),
+            );
         };
         let (node, errors) = customer_address_input_node(
             &address_input,
@@ -4398,14 +4438,18 @@ impl DraftProxy {
             .as_ref()
             .and_then(|(_, _, nodes, _)| customer_address_node_index(nodes, &address_id));
         let Some((_, _, existing_nodes, current_default)) = context else {
-            return self.customer_address_missing_result(&address_id, &field.response_key, |errors| {
-                json!({ "deletedAddressId": Value::Null, "userErrors": errors })
-            });
+            return self.customer_address_missing_result(
+                &address_id,
+                &field.response_key,
+                |errors| json!({ "deletedAddressId": Value::Null, "userErrors": errors }),
+            );
         };
         let Some(index) = index else {
-            return self.customer_address_missing_result(&address_id, &field.response_key, |errors| {
-                json!({ "deletedAddressId": Value::Null, "userErrors": errors })
-            });
+            return self.customer_address_missing_result(
+                &address_id,
+                &field.response_key,
+                |errors| json!({ "deletedAddressId": Value::Null, "userErrors": errors }),
+            );
         };
         let was_default = current_default.as_deref() == Some(address_id.as_str());
         let mut nodes = existing_nodes;
@@ -4467,7 +4511,9 @@ impl DraftProxy {
             return (
                 Value::Null,
                 Vec::new(),
-                vec![customer_address_resource_not_found_error(&field.response_key)],
+                vec![customer_address_resource_not_found_error(
+                    &field.response_key,
+                )],
             );
         };
         let Some(index) = index else {
@@ -4488,7 +4534,9 @@ impl DraftProxy {
             return (
                 Value::Null,
                 Vec::new(),
-                vec![customer_address_resource_not_found_error(&field.response_key)],
+                vec![customer_address_resource_not_found_error(
+                    &field.response_key,
+                )],
             );
         };
         let default_id = existing_nodes[index]
@@ -4534,11 +4582,9 @@ impl DraftProxy {
     }
 
     fn customer_address_exists_anywhere(&self, address_id: &str) -> bool {
-        self.store
-            .staged
-            .customers
-            .values()
-            .any(|customer| customer_address_node_index(&customer_address_nodes(customer), address_id).is_some())
+        self.store.staged.customers.values().any(|customer| {
+            customer_address_node_index(&customer_address_nodes(customer), address_id).is_some()
+        })
     }
 
     /// Shared "addressId not present on this customer" branch for update/delete.
@@ -4926,7 +4972,13 @@ impl DraftProxy {
                 }
                 normalized.email = Some(Some(email));
             } else {
-                if raw_email.split_whitespace().collect::<String>().chars().count() > 255 {
+                if raw_email
+                    .split_whitespace()
+                    .collect::<String>()
+                    .chars()
+                    .count()
+                    > 255
+                {
                     errors.push(customer_user_error(
                         customer_field_path(customer_set, "email"),
                         "Email is too long (maximum is 255 characters)",
@@ -5658,7 +5710,10 @@ fn apply_customer_marketing_consent(
 /// already validated that the matching contact (email/phone) is present and
 /// that the marketing state is not `REDACTED`.
 fn apply_inline_consent_from_input(customer: &mut Value, input: &BTreeMap<String, ResolvedValue>) {
-    for (key, is_email) in [("emailMarketingConsent", true), ("smsMarketingConsent", false)] {
+    for (key, is_email) in [
+        ("emailMarketingConsent", true),
+        ("smsMarketingConsent", false),
+    ] {
         let Some(consent) = resolved_object_field(input, key) else {
             continue;
         };
@@ -6100,8 +6155,7 @@ fn customer_address_input_node(
         None => None,
     };
 
-    let province_present =
-        input.contains_key("provinceCode") || input.contains_key("province");
+    let province_present = input.contains_key("provinceCode") || input.contains_key("province");
     let province_raw = if province_present {
         customer_address_string(input, "provinceCode")
             .or_else(|| customer_address_string(input, "province"))
@@ -6812,9 +6866,8 @@ fn is_valid_product_feed_country(code: &str) -> bool {
 /// optionally with an alpha-2 region suffix (e.g. `EN`, `ZH_CN`).
 fn is_valid_product_feed_language(code: &str) -> bool {
     let mut parts = code.split('_');
-    let valid_segment = |segment: &str| {
-        segment.len() == 2 && segment.bytes().all(|byte| byte.is_ascii_uppercase())
-    };
+    let valid_segment =
+        |segment: &str| segment.len() == 2 && segment.bytes().all(|byte| byte.is_ascii_uppercase());
     match (parts.next(), parts.next(), parts.next()) {
         (Some(language), None, None) => valid_segment(language),
         (Some(language), Some(region), None) => valid_segment(language) && valid_segment(region),
@@ -6879,7 +6932,12 @@ fn b2b_location_input_errors(
         if !phone.trim().is_empty() && b2b_normalize_phone(&phone).is_none() {
             let mut field = prefix.to_vec();
             field.push("phone");
-            errors.push(b2b_company_user_error(field, "Phone is invalid", "INVALID", None));
+            errors.push(b2b_company_user_error(
+                field,
+                "Phone is invalid",
+                "INVALID",
+                None,
+            ));
         }
     }
     // When billingSameAsShipping is true, Shopify mirrors the shipping address as
@@ -6894,18 +6952,33 @@ fn b2b_location_input_errors(
         if billing_present {
             let mut field = prefix.to_vec();
             field.push("billingAddress");
-            errors.push(b2b_company_user_error(field, "Invalid input.", "INVALID_INPUT", None));
+            errors.push(b2b_company_user_error(
+                field,
+                "Invalid input.",
+                "INVALID_INPUT",
+                None,
+            ));
         } else if !shipping_present {
             let mut field = prefix.to_vec();
             field.push("shippingAddress");
-            errors.push(b2b_company_user_error(field, "Invalid input.", "INVALID_INPUT", None));
+            errors.push(b2b_company_user_error(
+                field,
+                "Invalid input.",
+                "INVALID_INPUT",
+                None,
+            ));
         }
     }
     // An explicit null taxExempt is rejected; an absent taxExempt defaults to false.
     if matches!(input.get("taxExempt"), Some(ResolvedValue::Null)) {
         let mut field = prefix.to_vec();
         field.push("taxExempt");
-        errors.push(b2b_company_user_error(field, "Invalid input.", "INVALID_INPUT", None));
+        errors.push(b2b_company_user_error(
+            field,
+            "Invalid input.",
+            "INVALID_INPUT",
+            None,
+        ));
     }
     // Each nested CompanyAddressInput is validated under its own field path, so a
     // malformed shipping/billing address is rejected before the location is staged
@@ -6974,7 +7047,12 @@ fn b2b_address_input_errors(
             if !b2b_postal_code_valid(country_code, zone_code.as_deref(), &zip) {
                 let mut field = prefix.to_vec();
                 field.push("zip");
-                errors.push(b2b_company_user_error(field, "Zip is invalid", "INVALID", None));
+                errors.push(b2b_company_user_error(
+                    field,
+                    "Zip is invalid",
+                    "INVALID",
+                    None,
+                ));
             }
         }
     }
@@ -7016,7 +7094,9 @@ const B2B_NO_ZONES: &[(&str, &str)] = &[];
 /// code and subdivision (zone) list. Countries outside this set are reported as
 /// invalid, matching the captured live-Admin validation boundary for the B2B
 /// address scenarios.
-fn b2b_country_catalog_by_code(code: &str) -> Option<(&'static str, &'static [(&'static str, &'static str)])> {
+fn b2b_country_catalog_by_code(
+    code: &str,
+) -> Option<(&'static str, &'static [(&'static str, &'static str)])> {
     match code.to_ascii_uppercase().as_str() {
         "CA" => Some(("CA", B2B_CANADA_ZONES)),
         "US" => Some(("US", B2B_UNITED_STATES_ZONES)),
@@ -7106,8 +7186,23 @@ fn b2b_canada_postal_code_valid(zip: &str) -> bool {
 fn b2b_canada_postal_alpha(character: char) -> bool {
     matches!(
         character,
-        'A' | 'B' | 'C' | 'E' | 'G' | 'H' | 'J' | 'K' | 'L' | 'M' | 'N' | 'P' | 'R' | 'S' | 'T'
-            | 'V' | 'X' | 'Y'
+        'A' | 'B'
+            | 'C'
+            | 'E'
+            | 'G'
+            | 'H'
+            | 'J'
+            | 'K'
+            | 'L'
+            | 'M'
+            | 'N'
+            | 'P'
+            | 'R'
+            | 'S'
+            | 'T'
+            | 'V'
+            | 'X'
+            | 'Y'
     )
 }
 
@@ -7217,7 +7312,12 @@ fn b2b_contact_input_errors(
         if !is_valid_customer_email(&email) {
             let mut field = prefix.to_vec();
             field.push("email");
-            errors.push(b2b_company_user_error(field, "Email is invalid", "INVALID", None));
+            errors.push(b2b_company_user_error(
+                field,
+                "Email is invalid",
+                "INVALID",
+                None,
+            ));
         }
     }
     for name_field in ["firstName", "lastName"] {
@@ -7645,7 +7745,10 @@ impl DraftProxy {
         }
         let blockers = self.customer_merge_blocker_errors(one_id, two_id);
         if !blockers.is_empty() {
-            return (customer_merge_payload_json(None, None, blockers), Vec::new());
+            return (
+                customer_merge_payload_json(None, None, blockers),
+                Vec::new(),
+            );
         }
 
         // Success: customerTwo is the resulting customer; customerOne is merged away.
@@ -8058,13 +8161,13 @@ fn customer_matches_query(customer: &Value, query: Option<&str>) -> bool {
 /// page selection expects). Only fills fields that are absent/null so a record
 /// that already carries real order state (e.g. a seeded customer) is untouched.
 fn apply_customer_order_summary_defaults(customer: &mut Value) {
-    if customer.get("numberOfOrders").map_or(true, Value::is_null) {
+    if customer.get("numberOfOrders").is_none_or(Value::is_null) {
         customer["numberOfOrders"] = json!("0");
     }
     if customer.get("lastOrder").is_none() {
         customer["lastOrder"] = Value::Null;
     }
-    if customer.get("orders").map_or(true, Value::is_null) {
+    if customer.get("orders").is_none_or(Value::is_null) {
         customer["orders"] = empty_orders_connection();
     }
 }
@@ -8201,5 +8304,7 @@ fn is_valid_customer_phone(phone: &str) -> bool {
         return false;
     }
     // Only allow digits, spaces, dashes, parentheses, dots after the +
-    after_plus.chars().all(|c| c.is_ascii_digit() || c == ' ' || c == '-' || c == '(' || c == ')' || c == '.')
+    after_plus
+        .chars()
+        .all(|c| c.is_ascii_digit() || c == ' ' || c == '-' || c == '(' || c == ')' || c == '.')
 }

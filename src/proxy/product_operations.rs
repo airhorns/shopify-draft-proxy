@@ -249,9 +249,10 @@ impl DraftProxy {
         // metafield GIDs independently, so the parity spec matches `id` via `shopify-gid`.
         let metafield_nodes = self.product_set_input_metafield_nodes(&input);
         if !metafield_nodes.is_empty() {
-            product
-                .extra_fields
-                .insert("metafields".to_string(), connection_json(metafield_nodes.clone()));
+            product.extra_fields.insert(
+                "metafields".to_string(),
+                connection_json(metafield_nodes.clone()),
+            );
             if let Some(first) = metafield_nodes.first() {
                 product
                     .extra_fields
@@ -260,12 +261,15 @@ impl DraftProxy {
         }
         // Shopify returns a store-specific signed preview URL for staged products; the
         // parity spec matches it via `non-empty-string`, so a stable local URL suffices.
-        product.extra_fields.entry("onlineStorePreviewUrl".to_string()).or_insert_with(|| {
-            json!(format!(
-                "https://shopify-draft-proxy.preview/products/{}",
-                resource_id_tail(&product_id)
-            ))
-        });
+        product
+            .extra_fields
+            .entry("onlineStorePreviewUrl".to_string())
+            .or_insert_with(|| {
+                json!(format!(
+                    "https://shopify-draft-proxy.preview/products/{}",
+                    resource_id_tail(&product_id)
+                ))
+            });
         // Shopify reports `null` (not an empty string) for unset SEO fields and template
         // suffix. Render the effective value (input or carried-over base) as null when empty.
         product.extra_fields.insert(
@@ -686,8 +690,8 @@ impl DraftProxy {
         let mut location_order_local: Vec<String> = Vec::new();
         let mut available_by_location: BTreeMap<String, i64> = BTreeMap::new();
         for quantity in resolved_object_list_field(variant_input, "inventoryQuantities") {
-            let name = resolved_string_field(&quantity, "name")
-                .unwrap_or_else(|| "available".to_string());
+            let name =
+                resolved_string_field(&quantity, "name").unwrap_or_else(|| "available".to_string());
             if name != "available" {
                 continue;
             }
@@ -715,7 +719,10 @@ impl DraftProxy {
             let mut quantities = BTreeMap::new();
             quantities.insert("available".to_string(), available);
             quantities.insert("on_hand".to_string(), available);
-            self.store.staged.inventory_levels.insert(key.clone(), quantities);
+            self.store
+                .staged
+                .inventory_levels
+                .insert(key.clone(), quantities);
             // Record creation order so materialized `inventoryLevels` connections surface
             // these levels in the input's location order rather than the BTreeMap's
             // sorted-by-location-id fallback (which would reverse two-location variants).
@@ -747,7 +754,10 @@ impl DraftProxy {
         // Seed the nested `inventoryItem` fields the downstream reads select. Shopify
         // reports `null` for unset origin/HS-code fields and a zero-weight measurement.
         let inventory_item = &mut variant.inventory_item.extra_fields;
-        inventory_item.insert("inventoryLevels".to_string(), json!({ "nodes": level_nodes }));
+        inventory_item.insert(
+            "inventoryLevels".to_string(),
+            json!({ "nodes": level_nodes }),
+        );
         inventory_item
             .entry("countryCodeOfOrigin".to_string())
             .or_insert(Value::Null);

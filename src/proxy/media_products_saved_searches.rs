@@ -224,8 +224,10 @@ impl DraftProxy {
         // LiveHybrid (returning Shopify's real BulkOperation id) rather than minting a
         // synthetic operation we cannot faithfully export.
         let root_name = bulk_query_root_field_name(&query_text);
-        let locally_synthesized =
-            matches!(root_name.as_deref(), Some("products") | Some("productVariants"));
+        let locally_synthesized = matches!(
+            root_name.as_deref(),
+            Some("products") | Some("productVariants")
+        );
         if !locally_synthesized {
             if let Some(payload) =
                 self.bulk_operation_run_query_upstream_payload(request, &query_text)
@@ -1151,8 +1153,7 @@ impl DraftProxy {
         }
         let mut errors = Vec::new();
         let mut targets = Vec::new();
-        for ((index, input), input_errors) in
-            inputs.iter().enumerate().zip(validations.into_iter())
+        for ((index, input), input_errors) in inputs.iter().enumerate().zip(validations.into_iter())
         {
             if input_errors.is_empty() {
                 let id = self.next_synthetic_gid(&format!("StagedUploadTarget{index}"));
@@ -1442,11 +1443,9 @@ impl DraftProxy {
         let any_missing = inputs.iter().any(|input| {
             let mut product_ids = list_string_field(input, "referencesToAdd");
             product_ids.extend(list_string_field(input, "referencesToRemove"));
-            dedupe_media_strings(product_ids)
-                .iter()
-                .any(|product_id| {
-                    !product_id.is_empty() && self.store.product_by_id(product_id).is_none()
-                })
+            dedupe_media_strings(product_ids).iter().any(|product_id| {
+                !product_id.is_empty() && self.store.product_by_id(product_id).is_none()
+            })
         });
         if any_missing {
             vec![json!({
@@ -1523,9 +1522,7 @@ impl DraftProxy {
                         .staged
                         .media_files
                         .iter()
-                        .filter(|(id, _)| {
-                            !self.store.staged.deleted_media_file_ids.contains(*id)
-                        })
+                        .filter(|(id, _)| !self.store.staged.deleted_media_file_ids.contains(*id))
                         .map(|(_, file)| file.clone())
                         .collect::<Vec<_>>();
                     // Order by sortKey: ID (the numeric resource id), then honor
@@ -2673,7 +2670,8 @@ impl DraftProxy {
                     .iter()
                     .map(|variant| self.variant_with_inventory_levels(variant))
                     .collect::<Vec<_>>();
-                let base = self.product_json_with_selling_plan_overlay(product, &variants, selection);
+                let base =
+                    self.product_json_with_selling_plan_overlay(product, &variants, selection);
                 self.owner_metafield_overlay_owner_json_with_product_variants(
                     "product",
                     &product.id,
@@ -2720,7 +2718,8 @@ impl DraftProxy {
                     .iter()
                     .map(|variant| self.variant_with_inventory_levels(variant))
                     .collect::<Vec<_>>();
-                let base = self.product_json_with_selling_plan_overlay(product, &variants, selection);
+                let base =
+                    self.product_json_with_selling_plan_overlay(product, &variants, selection);
                 self.owner_metafield_overlay_owner_json_with_product_variants(
                     "product",
                     &product.id,
@@ -2779,7 +2778,9 @@ impl DraftProxy {
         if let Some(variant) = self.store.product_variant_by_inventory_item_id(id) {
             let variant = self.variant_with_inventory_levels(variant);
             let product = self.store.product_by_id(&variant.product_id);
-            return Some(product_variant_inventory_item_json(&variant, product, selection));
+            return Some(product_variant_inventory_item_json(
+                &variant, product, selection,
+            ));
         }
         self.store.products().iter().find_map(|product| {
             product.variants.iter().find_map(|variant| {
@@ -3056,9 +3057,10 @@ impl DraftProxy {
         // Echo product-level inputs that Shopify persists verbatim onto the created product
         // and surfaces through downstream reads.
         if let Some(requires_selling_plan) = resolved_bool_field(&input, "requiresSellingPlan") {
-            product
-                .extra_fields
-                .insert("requiresSellingPlan".to_string(), json!(requires_selling_plan));
+            product.extra_fields.insert(
+                "requiresSellingPlan".to_string(),
+                json!(requires_selling_plan),
+            );
         }
         let is_gift_card = resolved_bool_field(&input, "giftCard").unwrap_or(false);
         if is_gift_card {
@@ -3245,7 +3247,11 @@ impl DraftProxy {
 
     /// Add a single product to a collection's membership, preserving any existing members,
     /// so downstream `collection` reads expose hasProduct/productsCount/products for it.
-    fn add_product_to_collection_membership(&mut self, collection_id: &str, product: &ProductRecord) {
+    fn add_product_to_collection_membership(
+        &mut self,
+        collection_id: &str,
+        product: &ProductRecord,
+    ) {
         let Some(collection) = self.store.collection_by_id(collection_id).cloned() else {
             return;
         };
@@ -3271,7 +3277,8 @@ impl DraftProxy {
         input: &BTreeMap<String, ResolvedValue>,
     ) {
         for metafield_input in resolved_object_list_field(input, "metafields") {
-            let namespace = resolved_string_field(&metafield_input, "namespace").unwrap_or_default();
+            let namespace =
+                resolved_string_field(&metafield_input, "namespace").unwrap_or_default();
             let key = resolved_string_field(&metafield_input, "key").unwrap_or_default();
             if namespace.is_empty() && key.is_empty() {
                 continue;
@@ -3355,8 +3362,7 @@ impl DraftProxy {
         let Some(id) = resolved_string_field(&input, "id") else {
             return MutationOutcome::response(product_update_missing_product(query));
         };
-        if self.store.product_by_id(&id).is_none()
-            && self.config.read_mode == ReadMode::LiveHybrid
+        if self.store.product_by_id(&id).is_none() && self.config.read_mode == ReadMode::LiveHybrid
         {
             self.hydrate_product_nodes_for_observation_with_request(request, vec![id.clone()]);
         }
@@ -3938,10 +3944,9 @@ impl DraftProxy {
                 .into_iter()
                 .flatten()
             {
-                if let (Some(value_name), Some(id)) = (
-                    value.get("name").and_then(Value::as_str),
-                    value.get("id"),
-                ) {
+                if let (Some(value_name), Some(id)) =
+                    (value.get("name").and_then(Value::as_str), value.get("id"))
+                {
                     if !id.is_null() {
                         existing_value_id
                             .insert((name.clone(), value_name.to_string()), id.clone());
@@ -3957,7 +3962,9 @@ impl DraftProxy {
                 if !option_names.contains(&selected.name) {
                     option_names.push(selected.name.clone());
                 }
-                let values = option_values_by_name.entry(selected.name.clone()).or_default();
+                let values = option_values_by_name
+                    .entry(selected.name.clone())
+                    .or_default();
                 if !values.contains(&selected.value) {
                     values.push(selected.value.clone());
                 }
@@ -5527,7 +5534,11 @@ impl DraftProxy {
         }
         if !name_is_blank
             && (is_reserved_saved_search_name(&existing.resource_type, &requested_name)
-                || self.saved_search_name_exists(&existing.resource_type, &requested_name, Some(&id)))
+                || self.saved_search_name_exists(
+                    &existing.resource_type,
+                    &requested_name,
+                    Some(&id),
+                ))
         {
             user_errors.push(saved_search_name_taken_user_error());
         }
@@ -5785,10 +5796,7 @@ fn bulk_operation_run_query_user_error(message: &str) -> Value {
 /// used to decide whether the proxy synthesizes JSONL locally or replays upstream.
 fn bulk_query_root_field_name(query_text: &str) -> Option<String> {
     let document = parsed_document(query_text, &BTreeMap::new())?;
-    document
-        .root_fields
-        .first()
-        .map(|field| field.name.clone())
+    document.root_fields.first().map(|field| field.name.clone())
 }
 
 /// Mirrors Shopify-vs-proxy divergence: a root the schema-driven validator accepts but
@@ -6763,7 +6771,10 @@ fn media_file_record_from_node(node: &Value) -> Option<Value> {
     } else if record.get("mimeType").is_none() {
         record["mimeType"] = Value::Null;
     }
-    if matches!(typename, "MediaImage" | "Video" | "ExternalVideo" | "Model3d") {
+    if matches!(
+        typename,
+        "MediaImage" | "Video" | "ExternalVideo" | "Model3d"
+    ) {
         record["mediaErrors"] = json!([]);
         record["mediaWarnings"] = json!([]);
     }
@@ -7014,8 +7025,7 @@ fn metafield_cursor(metafield: &Value) -> Option<String> {
     let id = metafield.get("id").and_then(Value::as_str)?;
     let tail = resource_id_tail(id);
     if let Ok(last_id) = tail.parse::<u64>() {
-        if let Ok(bytes) = serde_json::to_vec(&json!({ "last_id": last_id, "last_value": tail }))
-        {
+        if let Ok(bytes) = serde_json::to_vec(&json!({ "last_id": last_id, "last_value": tail })) {
             return Some(base64::engine::general_purpose::STANDARD.encode(bytes));
         }
     }

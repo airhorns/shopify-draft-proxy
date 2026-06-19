@@ -1967,7 +1967,12 @@ fn oe_line_discount_per_unit(line: &Value) -> i64 {
         .map(|discounts| {
             discounts
                 .iter()
-                .map(|discount| discount.get("perUnitCents").and_then(Value::as_i64).unwrap_or(0))
+                .map(|discount| {
+                    discount
+                        .get("perUnitCents")
+                        .and_then(Value::as_i64)
+                        .unwrap_or(0)
+                })
                 .sum()
         })
         .unwrap_or(0)
@@ -1980,11 +1985,17 @@ fn oe_line_view(line: &Value, currency: &str) -> Value {
     let current_quantity = oe_int(line, "curQty");
     let per_unit_discount = oe_line_discount_per_unit(line);
     let empty = Vec::new();
-    let discounts = line.get("discounts").and_then(Value::as_array).unwrap_or(&empty);
+    let discounts = line
+        .get("discounts")
+        .and_then(Value::as_array)
+        .unwrap_or(&empty);
     let allocations: Vec<Value> = discounts
         .iter()
         .map(|discount| {
-            let per_unit = discount.get("perUnitCents").and_then(Value::as_i64).unwrap_or(0);
+            let per_unit = discount
+                .get("perUnitCents")
+                .and_then(Value::as_i64)
+                .unwrap_or(0);
             json!({
                 "allocatedAmountSet": oe_shop_money(per_unit * current_quantity, currency),
                 "discountApplication": {
@@ -2020,7 +2031,10 @@ fn oe_shipping_view(shipping: &Value, currency: &str) -> Value {
 /// (subtotal cents, total cents, total current quantity) over a session.
 fn oe_session_totals(session: &Value) -> (i64, i64, i64) {
     let empty = Vec::new();
-    let lines = session.get("lines").and_then(Value::as_array).unwrap_or(&empty);
+    let lines = session
+        .get("lines")
+        .and_then(Value::as_array)
+        .unwrap_or(&empty);
     let mut subtotal = 0_i64;
     let mut discount = 0_i64;
     let mut quantity = 0_i64;
@@ -2039,9 +2053,15 @@ fn oe_session_totals(session: &Value) -> (i64, i64, i64) {
 }
 
 fn oe_calc_order_view(session: &Value) -> Value {
-    let currency = session.get("currency").and_then(Value::as_str).unwrap_or("CAD");
+    let currency = session
+        .get("currency")
+        .and_then(Value::as_str)
+        .unwrap_or("CAD");
     let empty = Vec::new();
-    let lines = session.get("lines").and_then(Value::as_array).unwrap_or(&empty);
+    let lines = session
+        .get("lines")
+        .and_then(Value::as_array)
+        .unwrap_or(&empty);
     let mut existing = Vec::new();
     let mut added = Vec::new();
     for line in lines {
@@ -2086,7 +2106,8 @@ fn oe_next_seq(session: &mut Value) -> i64 {
 fn oe_order_currency(order: &Value) -> String {
     if let Some(nodes) = order["lineItems"]["nodes"].as_array() {
         for node in nodes {
-            if let Some(currency) = node["originalUnitPriceSet"]["shopMoney"]["currencyCode"].as_str()
+            if let Some(currency) =
+                node["originalUnitPriceSet"]["shopMoney"]["currencyCode"].as_str()
             {
                 return currency.to_string();
             }
@@ -2208,9 +2229,15 @@ fn oe_shipping_index(session: &Value, shipping_id: &str) -> Option<usize> {
 /// lines are materialised as new line items. Current totals, the edit history
 /// event, and per-line fulfillment orders are recomputed from the session.
 fn oe_commit_order(base: &Value, session: &Value, author: Option<&str>) -> Value {
-    let currency = session.get("currency").and_then(Value::as_str).unwrap_or("CAD");
+    let currency = session
+        .get("currency")
+        .and_then(Value::as_str)
+        .unwrap_or("CAD");
     let empty = Vec::new();
-    let lines = session.get("lines").and_then(Value::as_array).unwrap_or(&empty);
+    let lines = session
+        .get("lines")
+        .and_then(Value::as_array)
+        .unwrap_or(&empty);
     let mut line_nodes = Vec::new();
     let mut fulfillment_orders = Vec::new();
     let mut subtotal = 0_i64;
@@ -4905,7 +4932,13 @@ impl DraftProxy {
         if !fields.iter().all(|field| {
             matches!(
                 field.name.as_str(),
-                "orderCreate" | "orderUpdate" | "orderClose" | "orderOpen" | "order" | "orders" | "ordersCount"
+                "orderCreate"
+                    | "orderUpdate"
+                    | "orderClose"
+                    | "orderOpen"
+                    | "order"
+                    | "orders"
+                    | "ordersCount"
             )
         }) {
             return None;
@@ -4965,10 +4998,7 @@ impl DraftProxy {
     /// `query:` filter, ordered by `sortKey`/`reverse`. The returned values are
     /// whole orders (not yet selection-projected) so the caller can window them
     /// and then project both `nodes` and `pageInfo` through the field selection.
-    fn matching_orders_sorted(
-        &self,
-        arguments: &BTreeMap<String, ResolvedValue>,
-    ) -> Vec<Value> {
+    fn matching_orders_sorted(&self, arguments: &BTreeMap<String, ResolvedValue>) -> Vec<Value> {
         let query_arg = resolved_string_arg(arguments, "query").unwrap_or_default();
         // Enum arguments resolve to their variant name as a string.
         let sort_key = resolved_string_arg(arguments, "sortKey").unwrap_or_default();
@@ -4981,7 +5011,7 @@ impl DraftProxy {
             .filter(|order| order_matches_query(order, &query_arg))
             .cloned()
             .collect::<Vec<_>>();
-        matched.sort_by(|a, b| order_sort_value(a, &sort_key).cmp(&order_sort_value(b, &sort_key)));
+        matched.sort_by_key(|a| order_sort_value(a, &sort_key));
         if reverse {
             matched.reverse();
         }
@@ -5367,7 +5397,10 @@ impl DraftProxy {
     /// authoritative refunded/restocked order projection to the backend by leaving
     /// the order unstaged (the downstream read then forwards upstream).
     fn order_exists_upstream(&self, request: &Request, id: &str) -> bool {
-        !id.is_empty() && self.hydrate_order_lifecycle_order(id, request, "").is_some()
+        !id.is_empty()
+            && self
+                .hydrate_order_lifecycle_order(id, request, "")
+                .is_some()
     }
 
     /// Hydrate the summary customer projection used by orderCustomerSet and
@@ -5396,10 +5429,7 @@ impl DraftProxy {
         }
         let customer = response.body["data"]["customer"].clone();
         if customer.is_object() {
-            self.store
-                .staged
-                .customers
-                .insert(id.to_string(), customer);
+            self.store.staged.customers.insert(id.to_string(), customer);
         }
     }
 
@@ -5494,7 +5524,9 @@ impl DraftProxy {
         {
             return;
         }
-        let Some(primary_id) = payload["fulfillmentOrder"]["id"].as_str().map(str::to_string)
+        let Some(primary_id) = payload["fulfillmentOrder"]["id"]
+            .as_str()
+            .map(str::to_string)
         else {
             return;
         };
@@ -7772,7 +7804,8 @@ impl DraftProxy {
         }
         if root_field == "fulfillmentCancel" {
             let field = field?;
-            let payload = self.cancel_staged_fulfillment_payload(request, query, variables, &field)?;
+            let payload =
+                self.cancel_staged_fulfillment_payload(request, query, variables, &field)?;
             return Some(data_response(&field.response_key, payload));
         }
         if root_field == "fulfillmentTrackingInfoUpdate" {
@@ -7842,8 +7875,10 @@ impl DraftProxy {
                     ),
                 ));
             }
-            let calculated_id =
-                format!("gid://shopify/CalculatedOrder/{}", resource_id_tail(&order_id));
+            let calculated_id = format!(
+                "gid://shopify/CalculatedOrder/{}",
+                resource_id_tail(&order_id)
+            );
             let session_id = calculated_id.replace("CalculatedOrder", "OrderEditSession");
             let session = oe_build_session(&order, &calculated_id, &session_id);
             let view = oe_calc_order_view(&session);
@@ -7883,7 +7918,11 @@ impl DraftProxy {
                 return Some(data_response(
                     &field.response_key,
                     oe_error_payload(
-                        vec![oe_user_error(&["id"], "The calculated order does not exist.", None)],
+                        vec![oe_user_error(
+                            &["id"],
+                            "The calculated order does not exist.",
+                            None,
+                        )],
                         &field.selection,
                     ),
                 ));
@@ -7946,12 +7985,17 @@ impl DraftProxy {
             // into duplicates, Shopify returns that line's calculated view
             // unchanged rather than adding a second line.
             if !allow_duplicates {
-                let existing = session.get("lines").and_then(Value::as_array).and_then(|lines| {
-                    lines
-                        .iter()
-                        .find(|line| line["variant"]["id"].as_str() == Some(variant_id.as_str()))
-                        .cloned()
-                });
+                let existing = session
+                    .get("lines")
+                    .and_then(Value::as_array)
+                    .and_then(|lines| {
+                        lines
+                            .iter()
+                            .find(|line| {
+                                line["variant"]["id"].as_str() == Some(variant_id.as_str())
+                            })
+                            .cloned()
+                    });
                 if let Some(line) = existing {
                     let view = oe_line_view(&line, &currency);
                     let order_view = oe_calc_order_view(&session);
@@ -8000,7 +8044,10 @@ impl DraftProxy {
             };
             let seq = oe_next_seq(&mut session);
             let unit = oe_amount_to_cents(
-                catalog_entry.get("price").and_then(Value::as_str).unwrap_or("0"),
+                catalog_entry
+                    .get("price")
+                    .and_then(Value::as_str)
+                    .unwrap_or("0"),
             );
             let line = json!({
                 "calcId": format!("gid://shopify/CalculatedLineItem/oe-{seq}"),
@@ -8053,7 +8100,11 @@ impl DraftProxy {
                 return Some(data_response(
                     &field.response_key,
                     oe_error_payload(
-                        vec![oe_user_error(&["id"], "The calculated order does not exist.", None)],
+                        vec![oe_user_error(
+                            &["id"],
+                            "The calculated order does not exist.",
+                            None,
+                        )],
                         &field.selection,
                     ),
                 ));
@@ -8140,7 +8191,11 @@ impl DraftProxy {
                 return Some(data_response(
                     &field.response_key,
                     oe_error_payload(
-                        vec![oe_user_error(&["id"], "The calculated order does not exist.", None)],
+                        vec![oe_user_error(
+                            &["id"],
+                            "The calculated order does not exist.",
+                            None,
+                        )],
                         &field.selection,
                     ),
                 ));
@@ -8270,7 +8325,11 @@ impl DraftProxy {
                 return Some(data_response(
                     &field.response_key,
                     oe_error_payload(
-                        vec![oe_user_error(&["id"], "The calculated order does not exist.", None)],
+                        vec![oe_user_error(
+                            &["id"],
+                            "The calculated order does not exist.",
+                            None,
+                        )],
                         &field.selection,
                     ),
                 ));
@@ -8311,8 +8370,7 @@ impl DraftProxy {
                 .and_then(oe_money_obj_cents)
                 .unwrap_or(0);
             let seq = oe_next_seq(&mut session);
-            let app_id =
-                format!("gid://shopify/CalculatedManualDiscountApplication/oe-disc-{seq}");
+            let app_id = format!("gid://shopify/CalculatedManualDiscountApplication/oe-disc-{seq}");
             let staged_change_id =
                 format!("gid://shopify/OrderStagedChangeAddLineItemDiscount/oe-disc-{seq}");
             let discount_entry = json!({
@@ -8369,7 +8427,11 @@ impl DraftProxy {
                 return Some(data_response(
                     &field.response_key,
                     oe_error_payload(
-                        vec![oe_user_error(&["id"], "The calculated order does not exist.", None)],
+                        vec![oe_user_error(
+                            &["id"],
+                            "The calculated order does not exist.",
+                            None,
+                        )],
                         &field.selection,
                     ),
                 ));
@@ -8384,8 +8446,7 @@ impl DraftProxy {
                 resolved_string_arg(&field.arguments, "discountApplicationId").unwrap_or_default();
             if let Some(lines) = session.get_mut("lines").and_then(Value::as_array_mut) {
                 for line in lines.iter_mut() {
-                    if let Some(discounts) =
-                        line.get_mut("discounts").and_then(Value::as_array_mut)
+                    if let Some(discounts) = line.get_mut("discounts").and_then(Value::as_array_mut)
                     {
                         discounts.retain(|discount| {
                             discount.get("appId").and_then(Value::as_str)
@@ -8424,7 +8485,11 @@ impl DraftProxy {
                 return Some(data_response(
                     &field.response_key,
                     oe_error_payload(
-                        vec![oe_user_error(&["id"], "The calculated order does not exist.", None)],
+                        vec![oe_user_error(
+                            &["id"],
+                            "The calculated order does not exist.",
+                            None,
+                        )],
                         &field.selection,
                     ),
                 ));
@@ -8465,7 +8530,10 @@ impl DraftProxy {
                 "stagedStatus": "ADDED",
                 "priceCents": price_cents
             });
-            if let Some(lines) = session.get_mut("shippingLines").and_then(Value::as_array_mut) {
+            if let Some(lines) = session
+                .get_mut("shippingLines")
+                .and_then(Value::as_array_mut)
+            {
                 lines.push(shipping.clone());
             }
             let view = oe_shipping_view(&shipping, &currency);
@@ -8503,7 +8571,11 @@ impl DraftProxy {
                 return Some(data_response(
                     &field.response_key,
                     oe_error_payload(
-                        vec![oe_user_error(&["id"], "The calculated order does not exist.", None)],
+                        vec![oe_user_error(
+                            &["id"],
+                            "The calculated order does not exist.",
+                            None,
+                        )],
                         &field.selection,
                     ),
                 ));
@@ -8599,7 +8671,11 @@ impl DraftProxy {
                 return Some(data_response(
                     &field.response_key,
                     oe_error_payload(
-                        vec![oe_user_error(&["id"], "The calculated order does not exist.", None)],
+                        vec![oe_user_error(
+                            &["id"],
+                            "The calculated order does not exist.",
+                            None,
+                        )],
                         &field.selection,
                     ),
                 ));
@@ -8628,7 +8704,10 @@ impl DraftProxy {
                     ));
                 }
             };
-            if let Some(lines) = session.get_mut("shippingLines").and_then(Value::as_array_mut) {
+            if let Some(lines) = session
+                .get_mut("shippingLines")
+                .and_then(Value::as_array_mut)
+            {
                 lines.remove(index);
             }
             let order_view = oe_calc_order_view(&session);
@@ -8661,7 +8740,11 @@ impl DraftProxy {
                 return Some(data_response(
                     &field.response_key,
                     oe_error_payload(
-                        vec![oe_user_error(&["id"], "The calculated order does not exist.", None)],
+                        vec![oe_user_error(
+                            &["id"],
+                            "The calculated order does not exist.",
+                            None,
+                        )],
                         &field.selection,
                     ),
                 ));
@@ -8691,7 +8774,13 @@ impl DraftProxy {
                 .map(str::to_string)
                 .into_iter()
                 .collect();
-            self.record_mutation_log_entry(request, query, variables, "orderEditCommit", staged_ids);
+            self.record_mutation_log_entry(
+                request,
+                query,
+                variables,
+                "orderEditCommit",
+                staged_ids,
+            );
             self.store.staged.order_edit_existing_order = Some(committed.clone());
             self.store.staged.order_edit_existing_calculated_order = None;
             self.store.staged.order_edit_existing_calculated_order_id = None;
@@ -9532,9 +9621,7 @@ impl DraftProxy {
                 "orderCancel" => {
                     self.order_customer_paths_cancel_order(request, query, variables, &field)
                 }
-                "orderCustomerSet" => {
-                    Some(self.order_customer_set_error_paths(request, &field))
-                }
+                "orderCustomerSet" => Some(self.order_customer_set_error_paths(request, &field)),
                 "orderCustomerRemove" => {
                     Some(self.order_customer_remove_error_paths(request, &field))
                 }
@@ -9680,7 +9767,11 @@ impl DraftProxy {
         let order_id = resolved_string_arg(&field.arguments, "orderId")?;
         let refund_method_cancel = field.arguments.contains_key("refundMethod");
         let order_locally_known = self.store.staged.orders.contains_key(&order_id)
-            || self.store.staged.order_customer_orders.contains_key(&order_id);
+            || self
+                .store
+                .staged
+                .order_customer_orders
+                .contains_key(&order_id);
         // Earn the order from the backend when no precondition seed staged it.
         // Synthetic order-customer ids (seeded by orderCreate error-paths) live
         // in `order_customer_orders` and must not trigger an upstream read.
@@ -9916,7 +10007,11 @@ impl DraftProxy {
         // Synthetic error-path ids stay local-only.
         if !order_id.is_empty()
             && !order_id.contains("shopify-draft-proxy=synthetic")
-            && !self.store.staged.order_customer_orders.contains_key(&order_id)
+            && !self
+                .store
+                .staged
+                .order_customer_orders
+                .contains_key(&order_id)
             && !self.store.staged.orders.contains_key(&order_id)
         {
             self.ensure_order_lifecycle_hydrated(request, &order_id);
@@ -9925,7 +10020,11 @@ impl DraftProxy {
             self.ensure_order_customer_hydrated(request, &customer_id);
         }
         let customer = self.store.staged.customers.get(&customer_id).cloned();
-        let from_customer_map = self.store.staged.order_customer_orders.contains_key(&order_id);
+        let from_customer_map = self
+            .store
+            .staged
+            .order_customer_orders
+            .contains_key(&order_id);
         let Some(mut order) = self
             .store
             .staged
@@ -10016,12 +10115,20 @@ impl DraftProxy {
         let order_id = resolved_string_arg(&field.arguments, "orderId").unwrap_or_default();
         if !order_id.is_empty()
             && !order_id.contains("shopify-draft-proxy=synthetic")
-            && !self.store.staged.order_customer_orders.contains_key(&order_id)
+            && !self
+                .store
+                .staged
+                .order_customer_orders
+                .contains_key(&order_id)
             && !self.store.staged.orders.contains_key(&order_id)
         {
             self.ensure_order_lifecycle_hydrated(request, &order_id);
         }
-        let from_customer_map = self.store.staged.order_customer_orders.contains_key(&order_id);
+        let from_customer_map = self
+            .store
+            .staged
+            .order_customer_orders
+            .contains_key(&order_id);
         let Some(mut order) = self
             .store
             .staged

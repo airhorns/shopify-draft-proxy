@@ -600,14 +600,20 @@ impl DraftProxy {
                 let record = if publication.get("channel").is_some() {
                     publication.clone()
                 } else {
-                    let name = publication.get("name").and_then(Value::as_str).unwrap_or("");
+                    let name = publication
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .unwrap_or("");
                     let auto_publish = publication
                         .get("autoPublish")
                         .and_then(Value::as_bool)
                         .unwrap_or(false);
                     publication_record_json(id, name, auto_publish)
                 };
-                self.store.staged.publications.insert(id.to_string(), record);
+                self.store
+                    .staged
+                    .publications
+                    .insert(id.to_string(), record);
             }
         }
         // Seed per-resource publication membership from the `publicationIds`
@@ -683,10 +689,7 @@ impl DraftProxy {
                         record["__draftProxyLineItems"] = Value::Array(nodes.clone());
                     }
                 }
-                self.store
-                    .staged
-                    .draft_orders
-                    .insert(id.clone(), record);
+                self.store.staged.draft_orders.insert(id.clone(), record);
                 self.sync_draft_order_tags(&id);
                 // Advance the synthetic draft sequence past any seeded numeric id so a
                 // later create in the same scenario cannot collide with a precondition.
@@ -1049,7 +1052,10 @@ impl DraftProxy {
             .map(|map| {
                 map.iter()
                     .map(|(resource, pubs)| {
-                        (resource.clone(), string_array_from_json(pubs).into_iter().collect())
+                        (
+                            resource.clone(),
+                            string_array_from_json(pubs).into_iter().collect(),
+                        )
                     })
                     .collect()
             })
@@ -1206,7 +1212,8 @@ impl DraftProxy {
                     .cloned()
                     .collect()
             });
-        self.store.staged.store_credit_transactions = state["stagedState"]["storeCreditTransactions"]
+        self.store.staged.store_credit_transactions = state["stagedState"]
+            ["storeCreditTransactions"]
             .as_object()
             .map(|transactions| {
                 transactions

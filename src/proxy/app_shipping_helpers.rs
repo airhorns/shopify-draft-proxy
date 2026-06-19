@@ -1558,9 +1558,11 @@ pub(in crate::proxy) fn b2b_company_external_id_errors(
         )];
     }
     // Allowed characters mirror Shopify's externalId charset exactly.
-    const EXTERNAL_ID_ALLOWED: &str =
-        r#"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*(){}[]\/?<>_-~.,;:'"`"#;
-    if !external_id.chars().all(|ch| EXTERNAL_ID_ALLOWED.contains(ch)) {
+    const EXTERNAL_ID_ALLOWED: &str = r#"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*(){}[]\/?<>_-~.,;:'"`"#;
+    if !external_id
+        .chars()
+        .all(|ch| EXTERNAL_ID_ALLOWED.contains(ch))
+    {
         return vec![b2b_company_user_error(
             field,
             r#"External Id can only contain numbers, letters, and some special characters, including !@#$%^&*(){}[]\/?<>_-~,.;:'`""#,
@@ -1597,9 +1599,11 @@ pub(in crate::proxy) fn b2b_location_external_id_errors(
             None,
         )];
     }
-    const EXTERNAL_ID_ALLOWED: &str =
-        r#"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*(){}[]\/?<>_-~.,;:'"`"#;
-    if !external_id.chars().all(|ch| EXTERNAL_ID_ALLOWED.contains(ch)) {
+    const EXTERNAL_ID_ALLOWED: &str = r#"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*(){}[]\/?<>_-~.,;:'"`"#;
+    if !external_id
+        .chars()
+        .all(|ch| EXTERNAL_ID_ALLOWED.contains(ch))
+    {
         return vec![b2b_company_user_error(
             field,
             r#"External Id can only contain numbers, letters, and some special characters, including !@#$%^&*(){}[]\/?<>_-~,.;:'`""#,

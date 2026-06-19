@@ -873,11 +873,8 @@ fn option_input_value_nodes(
             let name = match value {
                 ResolvedValue::Object(object) => resolved_string_field(object, "name")
                     .or_else(|| {
-                        resolved_string_field(object, "linkedMetafieldValue").map(|gid| {
-                            proxy
-                                .linked_metaobject_display_name(&gid)
-                                .unwrap_or(gid)
-                        })
+                        resolved_string_field(object, "linkedMetafieldValue")
+                            .map(|gid| proxy.linked_metaobject_display_name(&gid).unwrap_or(gid))
                     })
                     .unwrap_or_default(),
                 ResolvedValue::String(value) if has_linked_metafield => proxy

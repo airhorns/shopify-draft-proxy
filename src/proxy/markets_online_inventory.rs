@@ -353,7 +353,10 @@ pub(in crate::proxy) fn append_unique_strings(base: &mut Vec<String>, extra: &[S
 }
 
 /// `read_arg_string_nonempty` — an object field that is a non-empty string.
-pub(in crate::proxy) fn resolved_nonempty_string(value: &ResolvedValue, name: &str) -> Option<String> {
+pub(in crate::proxy) fn resolved_nonempty_string(
+    value: &ResolvedValue,
+    name: &str,
+) -> Option<String> {
     resolved_object_string(value, name).filter(|value| !value.is_empty())
 }
 
@@ -517,7 +520,9 @@ pub(in crate::proxy) fn upsert_fixed_price_nodes(
         let Some((variant, product)) = store.fixed_price_variant_lookup(&variant_id) else {
             continue;
         };
-        new_edges.push(fixed_price_edge_for_variant(&variant, &product, input, &currency));
+        new_edges.push(fixed_price_edge_for_variant(
+            &variant, &product, input, &currency,
+        ));
     }
     new_edges.append(&mut retained);
     rebuild_price_list_prices(price_list, new_edges);
@@ -648,7 +653,8 @@ pub(in crate::proxy) fn fixed_price_delete_not_fixed_errors(
 pub(in crate::proxy) fn read_price_list_id(
     arguments: &BTreeMap<String, ResolvedValue>,
 ) -> Option<String> {
-    if let Some(id) = resolved_string_arg(arguments, "priceListId").filter(|value| !value.is_empty())
+    if let Some(id) =
+        resolved_string_arg(arguments, "priceListId").filter(|value| !value.is_empty())
     {
         return Some(id);
     }
@@ -668,7 +674,10 @@ pub(in crate::proxy) fn read_fixed_price_update_inputs(
 ) -> (Vec<ResolvedValue>, &'static str) {
     let prices = resolved_object_list(arguments, "prices");
     if prices.is_empty() {
-        (resolved_object_list(arguments, "pricesToAdd"), "pricesToAdd")
+        (
+            resolved_object_list(arguments, "pricesToAdd"),
+            "pricesToAdd",
+        )
     } else {
         (prices, "prices")
     }
@@ -809,7 +818,8 @@ pub(in crate::proxy) fn product_level_fixed_price_errors(
         }
     }
     if let Some(existing) = price_list {
-        if resulting_fixed_price_variant_ids(store, existing, price_inputs, delete_product_ids).len()
+        if resulting_fixed_price_variant_ids(store, existing, price_inputs, delete_product_ids)
+            .len()
             >= 10_000
         {
             errors.push(fixed_price_by_product_error(

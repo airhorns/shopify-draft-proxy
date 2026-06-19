@@ -51,7 +51,10 @@ pub(in crate::proxy) fn owner_type_from_gid(id: &str) -> &'static str {
 /// and measurement / list-measurement values are reformatted (float-style
 /// number + UPPERCASE unit). Value strings are built manually because key
 /// order is observable and serde_json::Map sorts keys alphabetically.
-pub(in crate::proxy) fn normalize_metafield_value_string(metafield_type: &str, value: &str) -> String {
+pub(in crate::proxy) fn normalize_metafield_value_string(
+    metafield_type: &str,
+    value: &str,
+) -> String {
     match metafield_type {
         "date_time" => normalize_date_time_value(value),
         "rating" => normalize_rating_value_string(value),
@@ -454,14 +457,18 @@ fn normalize_list_metafield_value_string(type_name: &str, raw: &str) -> String {
             "rating" => {
                 let parts: Vec<String> = items
                     .iter()
-                    .map(|item| rating_value_object_string(item).unwrap_or_else(|| item.to_string()))
+                    .map(|item| {
+                        rating_value_object_string(item).unwrap_or_else(|| item.to_string())
+                    })
                     .collect();
                 format!("[{}]", parts.join(","))
             }
             _ => {
                 if is_measurement_metafield_type_name(type_name) {
-                    let serialized: Vec<Option<String>> =
-                        items.iter().map(serialize_measurement_value_object).collect();
+                    let serialized: Vec<Option<String>> = items
+                        .iter()
+                        .map(serialize_measurement_value_object)
+                        .collect();
                     if serialized.iter().all(Option::is_some) {
                         let joined = serialized
                             .into_iter()
@@ -516,7 +523,8 @@ pub(in crate::proxy) fn metafields_set_coercion_error(
     let mut problems: Vec<(usize, &'static str)> = Vec::new();
     for (index, input) in inputs.iter().enumerate() {
         for field in ["key", "ownerId", "value"] {
-            let present = matches!(input.get(field), Some(value) if !matches!(value, ResolvedValue::Null));
+            let present =
+                matches!(input.get(field), Some(value) if !matches!(value, ResolvedValue::Null));
             if !present {
                 problems.push((index, field));
             }
@@ -545,7 +553,8 @@ pub(in crate::proxy) fn metafields_set_coercion_error(
             })
         })
         .collect();
-    let variable_name = metafields_set_variable_name(query).unwrap_or_else(|| "metafields".to_string());
+    let variable_name =
+        metafields_set_variable_name(query).unwrap_or_else(|| "metafields".to_string());
     let message = format!(
         "Variable ${variable_name} of type [MetafieldsSetInput!]! was provided invalid value for {first_index}.{first_field} (Expected value to not be null)"
     );
@@ -1517,7 +1526,7 @@ pub(in crate::proxy) fn market_web_presence_helper_record(
     let mut sorted_alternates = draft.alternate_locales.clone();
     sorted_alternates.sort();
     let locales = std::iter::once(draft.default_locale.clone())
-        .chain(sorted_alternates.into_iter())
+        .chain(sorted_alternates)
         .collect::<Vec<_>>();
     // Shopify roots a subfolder web presence at `/{language}-{suffix}/` for every
     // locale (the language subtag of e.g. `en-us`/`fr-CA` collapses to `en`/`fr`).
@@ -2078,7 +2087,10 @@ pub(in crate::proxy) fn payment_terms_success_record(
                 .and_then(|node| node.get("id"))
                 .and_then(Value::as_str)
                 .unwrap_or_default();
-            (json!(format!("cursor:{first}")), json!(format!("cursor:{last}")))
+            (
+                json!(format!("cursor:{first}")),
+                json!(format!("cursor:{last}")),
+            )
         })
         .unwrap_or((Value::Null, Value::Null));
     json!({
@@ -2829,7 +2841,10 @@ fn find_order_fulfillment_line_item(order: &Value, id: &str) -> Option<Value> {
                     .cloned()
             })
             .unwrap_or_default();
-        if let Some(line) = lines.into_iter().find(|line| line["id"].as_str() == Some(id)) {
+        if let Some(line) = lines
+            .into_iter()
+            .find(|line| line["id"].as_str() == Some(id))
+        {
             return Some(line);
         }
     }
@@ -2870,15 +2885,15 @@ fn build_return_line_item(
 /// reason takes precedence (Shopify rejects it at the enum boundary with
 /// `Expected "<value>" to be one of: …`), then an invalid notify email carried
 /// under the `tmp_notify_customer.email_address` shim.
-fn validate_return_decline_input(input: &BTreeMap<String, ResolvedValue>) -> Result<String, Vec<Value>> {
+fn validate_return_decline_input(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Result<String, Vec<Value>> {
     const VALID_REASONS: &[&str] = &["RETURN_PERIOD_ENDED", "FINAL_SALE", "OTHER"];
     let reason = resolved_string_field(input, "declineReason").unwrap_or_default();
     if !VALID_REASONS.contains(&reason.as_str()) {
         return Err(vec![return_user_error(
             &["declineReason"],
-            &format!(
-                "Expected \"{reason}\" to be one of: RETURN_PERIOD_ENDED, FINAL_SALE, OTHER"
-            ),
+            &format!("Expected \"{reason}\" to be one of: RETURN_PERIOD_ENDED, FINAL_SALE, OTHER"),
             "INVALID",
         )]);
     }
@@ -2914,7 +2929,10 @@ fn valid_email_address(email: &str) -> bool {
 /// `returnCancel`. Returns `Some((message, code))` when the transition is
 /// disallowed for the return's current status; `None` when it is allowed
 /// (including idempotent same-status requests).
-fn return_status_transition_error(target_status: &str, record: &Value) -> Option<(&'static str, &'static str)> {
+fn return_status_transition_error(
+    target_status: &str,
+    record: &Value,
+) -> Option<(&'static str, &'static str)> {
     let status = record["status"].as_str().unwrap_or_default();
     match target_status {
         "CLOSED" => {
@@ -2935,7 +2953,9 @@ fn return_status_transition_error(target_status: &str, record: &Value) -> Option
             let has_processed = return_line_items_array(record)
                 .iter()
                 .any(|line| line["processedQuantity"].as_i64().unwrap_or(0) > 0);
-            if status == "CANCELED" || (!has_processed && matches!(status, "OPEN" | "REQUESTED" | "DECLINED")) {
+            if status == "CANCELED"
+                || (!has_processed && matches!(status, "OPEN" | "REQUESTED" | "DECLINED"))
+            {
                 None
             } else {
                 Some(("Return is not cancelable.", "INVALID_STATE"))
@@ -3034,8 +3054,7 @@ fn base64_urlsafe_no_pad_decode(input: &str) -> Option<Vec<u8>> {
 /// `customer_payment_method_duplication_data`. Returns `None` for any token the
 /// local engine did not mint.
 fn customer_payment_method_duplication_source_id(token: &str) -> Option<String> {
-    let payload =
-        token.strip_prefix("shopify-draft-proxy:customer-payment-method-duplication:")?;
+    let payload = token.strip_prefix("shopify-draft-proxy:customer-payment-method-duplication:")?;
     let bytes = base64_urlsafe_no_pad_decode(payload)?;
     let decoded: Value = serde_json::from_slice(&bytes).ok()?;
     decoded
@@ -4419,10 +4438,7 @@ impl DraftProxy {
                                     .staged
                                     .payment_terms_owner_index
                                     .insert(owner_id.clone(), terms_id.clone());
-                                self.attach_payment_terms_to_owner(
-                                    &owner_id,
-                                    Some(record.clone()),
-                                );
+                                self.attach_payment_terms_to_owner(&owner_id, Some(record.clone()));
                                 staged_ids.push(terms_id);
                                 logged = true;
                                 payment_terms_payload_value(
@@ -4461,9 +4477,7 @@ impl DraftProxy {
                                     Some(owner) => self.payment_terms_owner_money(request, owner),
                                     None => self
                                         .payment_terms_record_money(&terms_id)
-                                        .unwrap_or_else(|| {
-                                            ("0.0".to_string(), "CAD".to_string())
-                                        }),
+                                        .unwrap_or_else(|| ("0.0".to_string(), "CAD".to_string())),
                                 };
                                 let record = payment_terms_record_from_attrs(
                                     &terms_id, &attrs, &amount, &currency,
@@ -4603,9 +4617,15 @@ impl DraftProxy {
             return None;
         }
         let (query, operation_name) = if owner_id.starts_with("gid://shopify/DraftOrder/") {
-            (PAYMENT_TERMS_DRAFT_HYDRATE_QUERY, "PaymentTermsDraftHydrate")
+            (
+                PAYMENT_TERMS_DRAFT_HYDRATE_QUERY,
+                "PaymentTermsDraftHydrate",
+            )
         } else {
-            (PAYMENT_TERMS_OWNER_HYDRATE_QUERY, "PaymentTermsOwnerHydrate")
+            (
+                PAYMENT_TERMS_OWNER_HYDRATE_QUERY,
+                "PaymentTermsOwnerHydrate",
+            )
         };
         let response = (self.upstream_transport)(Request {
             method: "POST".to_string(),
@@ -4993,7 +5013,11 @@ impl DraftProxy {
                 .and_then(|id| find_order_fulfillment_line_item(&order, id));
             match fulfillment_line_item {
                 None => user_errors.push(return_user_error(
-                    &["returnLineItems", &index.to_string(), "fulfillmentLineItemId"],
+                    &[
+                        "returnLineItems",
+                        &index.to_string(),
+                        "fulfillmentLineItemId",
+                    ],
                     "Fulfillment line item does not exist.",
                     "INVALID",
                 )),
@@ -5013,8 +5037,11 @@ impl DraftProxy {
                         ));
                     } else {
                         let rli_id = self.next_synthetic_gid("ReturnLineItem");
-                        line_items
-                            .push(build_return_line_item(&rli_id, &fulfillment_line_item, item));
+                        line_items.push(build_return_line_item(
+                            &rli_id,
+                            &fulfillment_line_item,
+                            item,
+                        ));
                     }
                 }
             }
@@ -5107,8 +5134,7 @@ impl DraftProxy {
                 return;
             }
             for line in return_line_items_array(return_value) {
-                if return_line_item_fulfillment_line_item_id(&line)
-                    .as_deref()
+                if return_line_item_fulfillment_line_item_id(&line).as_deref()
                     == Some(fulfillment_line_item_id)
                 {
                     total += line["quantity"].as_i64().unwrap_or(0);
@@ -5295,9 +5321,11 @@ impl DraftProxy {
         for (index, removal) in removals.iter().enumerate() {
             let line_item_id = resolved_string_field(removal, "returnLineItemId");
             let quantity = resolved_i64_field(removal, "quantity").unwrap_or(0);
-            let position = line_item_id
-                .as_deref()
-                .and_then(|id| nodes.iter().position(|node| node["id"].as_str() == Some(id)));
+            let position = line_item_id.as_deref().and_then(|id| {
+                nodes
+                    .iter()
+                    .position(|node| node["id"].as_str() == Some(id))
+            });
             match position {
                 None => user_errors.push(return_user_error(
                     &["returnLineItems", &index.to_string(), "returnLineItemId"],
@@ -5335,14 +5363,14 @@ impl DraftProxy {
                 &field.selection,
             );
         }
-        let total_quantity: i64 = nodes.iter().map(|n| n["quantity"].as_i64().unwrap_or(0)).sum();
+        let total_quantity: i64 = nodes
+            .iter()
+            .map(|n| n["quantity"].as_i64().unwrap_or(0))
+            .sum();
         record["returnLineItems"] = json!({ "nodes": nodes.clone() });
         record["totalQuantity"] = json!(total_quantity);
         self.sync_reverse_fulfillment_line_items(&mut record);
-        self.store
-            .staged
-            .returns
-            .insert(return_id, record.clone());
+        self.store.staged.returns.insert(return_id, record.clone());
         selected_json(
             &json!({ "return": record, "userErrors": [] }),
             &field.selection,

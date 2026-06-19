@@ -1516,18 +1516,28 @@ impl DraftProxy {
         if let Some(fulfills) = resolved_bool_field(input, "fulfillsOnlineOrders") {
             location["fulfillsOnlineOrders"] = json!(fulfills);
         }
-        if let Some(active) = resolved_bool_field(input, "isActive")
-            .or_else(|| resolved_bool_field(input, "active"))
+        if let Some(active) =
+            resolved_bool_field(input, "isActive").or_else(|| resolved_bool_field(input, "active"))
         {
             location["isActive"] = json!(active);
         }
         if let Some(address_input) = resolved_object_field(input, "address") {
-            let mut address = location.get("address").cloned().unwrap_or_else(|| json!({}));
+            let mut address = location
+                .get("address")
+                .cloned()
+                .unwrap_or_else(|| json!({}));
             if !address.is_object() {
                 address = json!({});
             }
             if let Some(object) = address.as_object_mut() {
-                for key in ["address1", "address2", "city", "countryCode", "provinceCode", "zip"] {
+                for key in [
+                    "address1",
+                    "address2",
+                    "city",
+                    "countryCode",
+                    "provinceCode",
+                    "zip",
+                ] {
                     if address_input.contains_key(key) {
                         object.insert(
                             key.to_string(),
@@ -1622,9 +1632,7 @@ impl DraftProxy {
                     "code": "TOO_LONG"
                 }));
             }
-            if resolved_string_field(&address, "zip")
-                .is_some_and(|zip| zip.chars().count() > 255)
-            {
+            if resolved_string_field(&address, "zip").is_some_and(|zip| zip.chars().count() > 255) {
                 errors.push(json!({
                     "field": ["input", "address", "zip"],
                     "message": "Use a shorter postal / ZIP code (up to 255 characters)",
@@ -1780,9 +1788,7 @@ impl DraftProxy {
                     "code": "TOO_LONG"
                 }));
             }
-            if resolved_string_field(&address, "zip")
-                .is_some_and(|zip| zip.chars().count() > 255)
-            {
+            if resolved_string_field(&address, "zip").is_some_and(|zip| zip.chars().count() > 255) {
                 errors.push(json!({
                     "field": ["input", "address", "zip"],
                     "message": "Use a shorter postal / ZIP code (up to 255 characters)",
@@ -2587,9 +2593,8 @@ impl DraftProxy {
         // publication/product/collection reads reflect the change) instead of the
         // standalone shop-publication-count path below.
         if self.publication_engine_active() {
-            return self.publishable_publish_with_publications(
-                root_field, query, variables, request,
-            );
+            return self
+                .publishable_publish_with_publications(root_field, query, variables, request);
         }
         let Some(fields) = root_fields(query, variables) else {
             return json_error(400, "Unable to parse publishable mutation");
@@ -2829,17 +2834,15 @@ impl DraftProxy {
                     Some(count) => selected_json(count, &field.selection),
                     None => segment_count_json(self.store.staged.segments.len(), &field.selection),
                 },
-                "segmentFilters" | "segmentFilterSuggestions" | "segmentValueSuggestions"
-                | "segmentMigrations" => {
-                    match self.store.staged.segment_catalog.get(&field.name) {
-                        Some(connection) => project_seeded_connection(
-                            connection,
-                            &field.arguments,
-                            &field.selection,
-                        ),
-                        None => continue,
+                "segmentFilters"
+                | "segmentFilterSuggestions"
+                | "segmentValueSuggestions"
+                | "segmentMigrations" => match self.store.staged.segment_catalog.get(&field.name) {
+                    Some(connection) => {
+                        project_seeded_connection(connection, &field.arguments, &field.selection)
                     }
-                }
+                    None => continue,
+                },
                 _ => continue,
             };
             data.insert(field.response_key.clone(), value);
@@ -3173,9 +3176,9 @@ impl DraftProxy {
             // A direct query goes through the Customer Data Platform grammar; a
             // malformed query returns a CDP-shaped error (field null) while broad
             // valid grammar stages an async job.
-            (Some(direct_query), None) => {
-                member_query_direct_query_error(direct_query).into_iter().collect()
-            }
+            (Some(direct_query), None) => member_query_direct_query_error(direct_query)
+                .into_iter()
+                .collect(),
             // A segment_id reuses a stored segment's query without revalidating it,
             // but the segment must exist in the shop.
             (None, Some(segment_id)) => {
@@ -3825,11 +3828,7 @@ impl DraftProxy {
             .iter()
             .filter(|(id, _)| !self.store.staged.deleted_carrier_service_ids.contains(*id))
             .any(|(_, carrier)| {
-                carrier
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .map(str::trim)
-                    == Some(trimmed_name)
+                carrier.get("name").and_then(Value::as_str).map(str::trim) == Some(trimmed_name)
             })
         {
             return carrier_service_payload_json(
@@ -5811,32 +5810,125 @@ fn location_add_inline_argument_not_accepted_error(
 /// metafield input and to render the "Type must be one of the following: ..."
 /// message verbatim.
 const LOCATION_METAFIELD_VALID_TYPES: &[&str] = &[
-    "antenna_gain", "area", "battery_charge_capacity", "battery_energy_capacity", "boolean",
-    "capacitance", "color", "concentration", "data_storage_capacity", "data_transfer_rate",
-    "date_time", "date", "dimension", "display_density", "distance", "duration", "electric_current",
-    "electrical_resistance", "energy", "float", "frequency", "id", "illuminance", "inductance",
-    "integer", "json_string", "json", "language", "link", "list.antenna_gain", "list.area",
-    "list.battery_charge_capacity", "list.battery_energy_capacity", "list.boolean",
-    "list.capacitance", "list.color", "list.concentration", "list.data_storage_capacity",
-    "list.data_transfer_rate", "list.date_time", "list.date", "list.dimension",
-    "list.display_density", "list.distance", "list.duration", "list.electric_current",
-    "list.electrical_resistance", "list.energy", "list.frequency", "list.illuminance",
-    "list.inductance", "list.link", "list.luminous_flux", "list.mass_flow_rate",
-    "list.multi_line_text_field", "list.number_decimal", "list.number_integer", "list.power",
-    "list.pressure", "list.rating", "list.resolution", "list.rotational_speed",
-    "list.single_line_text_field", "list.sound_level", "list.speed", "list.temperature",
-    "list.thermal_power", "list.url", "list.voltage", "list.volume", "list.volumetric_flow_rate",
-    "list.weight", "luminous_flux", "mass_flow_rate", "money", "multi_line_text_field",
-    "number_decimal", "number_integer", "power", "pressure", "rating", "resolution",
-    "rich_text_field", "rotational_speed", "single_line_text_field", "sound_level", "speed",
-    "string", "temperature", "thermal_power", "url", "voltage", "volume", "volumetric_flow_rate",
-    "weight", "company_reference", "list.company_reference", "customer_reference",
-    "list.customer_reference", "product_reference", "list.product_reference", "collection_reference",
-    "list.collection_reference", "variant_reference", "list.variant_reference", "file_reference",
-    "list.file_reference", "product_taxonomy_value_reference",
-    "list.product_taxonomy_value_reference", "metaobject_reference", "list.metaobject_reference",
-    "mixed_reference", "list.mixed_reference", "page_reference", "list.page_reference",
-    "article_reference", "list.article_reference", "order_reference", "list.order_reference",
+    "antenna_gain",
+    "area",
+    "battery_charge_capacity",
+    "battery_energy_capacity",
+    "boolean",
+    "capacitance",
+    "color",
+    "concentration",
+    "data_storage_capacity",
+    "data_transfer_rate",
+    "date_time",
+    "date",
+    "dimension",
+    "display_density",
+    "distance",
+    "duration",
+    "electric_current",
+    "electrical_resistance",
+    "energy",
+    "float",
+    "frequency",
+    "id",
+    "illuminance",
+    "inductance",
+    "integer",
+    "json_string",
+    "json",
+    "language",
+    "link",
+    "list.antenna_gain",
+    "list.area",
+    "list.battery_charge_capacity",
+    "list.battery_energy_capacity",
+    "list.boolean",
+    "list.capacitance",
+    "list.color",
+    "list.concentration",
+    "list.data_storage_capacity",
+    "list.data_transfer_rate",
+    "list.date_time",
+    "list.date",
+    "list.dimension",
+    "list.display_density",
+    "list.distance",
+    "list.duration",
+    "list.electric_current",
+    "list.electrical_resistance",
+    "list.energy",
+    "list.frequency",
+    "list.illuminance",
+    "list.inductance",
+    "list.link",
+    "list.luminous_flux",
+    "list.mass_flow_rate",
+    "list.multi_line_text_field",
+    "list.number_decimal",
+    "list.number_integer",
+    "list.power",
+    "list.pressure",
+    "list.rating",
+    "list.resolution",
+    "list.rotational_speed",
+    "list.single_line_text_field",
+    "list.sound_level",
+    "list.speed",
+    "list.temperature",
+    "list.thermal_power",
+    "list.url",
+    "list.voltage",
+    "list.volume",
+    "list.volumetric_flow_rate",
+    "list.weight",
+    "luminous_flux",
+    "mass_flow_rate",
+    "money",
+    "multi_line_text_field",
+    "number_decimal",
+    "number_integer",
+    "power",
+    "pressure",
+    "rating",
+    "resolution",
+    "rich_text_field",
+    "rotational_speed",
+    "single_line_text_field",
+    "sound_level",
+    "speed",
+    "string",
+    "temperature",
+    "thermal_power",
+    "url",
+    "voltage",
+    "volume",
+    "volumetric_flow_rate",
+    "weight",
+    "company_reference",
+    "list.company_reference",
+    "customer_reference",
+    "list.customer_reference",
+    "product_reference",
+    "list.product_reference",
+    "collection_reference",
+    "list.collection_reference",
+    "variant_reference",
+    "list.variant_reference",
+    "file_reference",
+    "list.file_reference",
+    "product_taxonomy_value_reference",
+    "list.product_taxonomy_value_reference",
+    "metaobject_reference",
+    "list.metaobject_reference",
+    "mixed_reference",
+    "list.mixed_reference",
+    "page_reference",
+    "list.page_reference",
+    "article_reference",
+    "list.article_reference",
+    "order_reference",
+    "list.order_reference",
 ];
 
 /// Top-level GraphQL error returned when a `locationAdd` metafield carries a

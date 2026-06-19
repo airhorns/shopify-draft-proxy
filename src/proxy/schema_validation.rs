@@ -305,7 +305,11 @@ fn validate_argument_value(
     if type_ref.named_type == "ID" {
         if let RawArgumentValue::String(s) = value {
             if s.trim().is_empty() {
-                return vec![blank_id_argument_literal_error(field, argument_name, context)];
+                return vec![blank_id_argument_literal_error(
+                    field,
+                    argument_name,
+                    context,
+                )];
             }
         }
     }
@@ -405,7 +409,11 @@ fn validate_argument_value(
             context,
         )],
         RawArgumentValue::String(s) if type_ref.named_type == "ID" && s.trim().is_empty() => {
-            vec![blank_id_argument_literal_error(field, argument_name, context)]
+            vec![blank_id_argument_literal_error(
+                field,
+                argument_name,
+                context,
+            )]
         }
         _ => Vec::new(),
     }
@@ -473,8 +481,7 @@ fn validate_raw_input_object(
         // Shopify anchors the argumentLiteralsIncompatible error at the enclosing
         // argument value (the input-object literal), with the full path to the
         // offending field.
-        if let Some(invalid_value) =
-            int_literal_coercion_value(field_value, &field_schema.type_ref)
+        if let Some(invalid_value) = int_literal_coercion_value(field_value, &field_schema.type_ref)
         {
             errors.push(argument_literal_incompatible_error(
                 input_type_name,
@@ -631,7 +638,10 @@ fn validate_resolved_scalar(
                 return None;
             };
             Some(ScalarValidationProblem {
-                explanation: format!("Could not coerce value {} to Int", format_float_literal(*raw)),
+                explanation: format!(
+                    "Could not coerce value {} to Int",
+                    format_float_literal(*raw)
+                ),
                 include_message: false,
             })
         }
@@ -724,7 +734,7 @@ fn root_argument_not_accepted_error(
 fn required_root_argument_error(
     field: &RootFieldSelection,
     argument_name: &str,
-    type_ref: &SchemaTypeRef,
+    _type_ref: &SchemaTypeRef,
     context: ValidationContext<'_>,
 ) -> Value {
     json!({
@@ -741,7 +751,7 @@ fn required_root_argument_error(
 }
 
 fn blank_id_argument_literal_error(
-    field: &RootFieldSelection,
+    _field: &RootFieldSelection,
     argument_name: &str,
     context: ValidationContext<'_>,
 ) -> Value {
@@ -857,9 +867,13 @@ fn input_object_argument_not_accepted_error(
     // `themeUpdate`. Variable-supplied input objects have no literal token, so fall back to
     // the field location.
     let target_depth = 1 + path.len() as i32;
-    let location =
-        inline_input_field_name_location(context.query, context.field_location, target_depth, argument_name)
-            .unwrap_or(context.field_location);
+    let location = inline_input_field_name_location(
+        context.query,
+        context.field_location,
+        target_depth,
+        argument_name,
+    )
+    .unwrap_or(context.field_location);
     json!({
         "message": format!("InputObject '{input_type_name}' doesn't accept argument '{argument_name}'"),
         "locations": [{ "line": location.line, "column": location.column }],
@@ -962,7 +976,9 @@ fn inline_input_field_name_location(
                 let before_ok = index == 0 || !is_graphql_name_byte(bytes[index - 1]);
                 if before_ok && query[index..].starts_with(name) {
                     let after = index + name.len();
-                    let after_ok = bytes.get(after).is_none_or(|next| !is_graphql_name_byte(*next));
+                    let after_ok = bytes
+                        .get(after)
+                        .is_none_or(|next| !is_graphql_name_byte(*next));
                     let followed_by_colon = query[after..].trim_start().starts_with(':');
                     if after_ok && followed_by_colon {
                         return source_location_for_byte_offset(query, index);
@@ -1003,7 +1019,8 @@ fn inline_input_field_value_location(
     target_depth: i32,
     name: &str,
 ) -> Option<SourceLocation> {
-    let name_location = inline_input_field_name_location(query, field_location, target_depth, name)?;
+    let name_location =
+        inline_input_field_name_location(query, field_location, target_depth, name)?;
     let start = byte_offset_for_location(query, name_location)?;
     let after_name = start + name.len();
     let after_colon = query[after_name..].find(':')? + after_name + 1;
@@ -1229,7 +1246,10 @@ fn extend_shipping_input_schema(schema: &mut AdminInputSchema) {
         BTreeMap::from([
             ("name".to_string(), mutation_arg(named("String"))),
             ("callbackUrl".to_string(), mutation_arg(named("URL"))),
-            ("trackingSupport".to_string(), mutation_arg(named("Boolean"))),
+            (
+                "trackingSupport".to_string(),
+                mutation_arg(named("Boolean")),
+            ),
             (
                 "inventoryManagement".to_string(),
                 mutation_arg(named("Boolean")),
@@ -1309,14 +1329,8 @@ fn extend_markets_input_schema(schema: &mut AdminInputSchema) {
                 "context".to_string(),
                 input_field(non_null("CatalogContextInput")),
             ),
-            (
-                "priceListId".to_string(),
-                input_field(named("ID")),
-            ),
-            (
-                "publicationId".to_string(),
-                input_field(named("ID")),
-            ),
+            ("priceListId".to_string(), input_field(named("ID"))),
+            ("publicationId".to_string(), input_field(named("ID"))),
         ]),
     );
     schema.mutation_fields.insert(
@@ -1334,7 +1348,10 @@ fn extend_markets_input_schema(schema: &mut AdminInputSchema) {
         "PriceListCreateInput".to_string(),
         BTreeMap::from([
             ("name".to_string(), input_field(named("String"))),
-            ("currency".to_string(), input_field(non_null("CurrencyCode"))),
+            (
+                "currency".to_string(),
+                input_field(non_null("CurrencyCode")),
+            ),
             (
                 "parent".to_string(),
                 input_field(non_null("PriceListParentCreateInput")),
@@ -1406,9 +1423,18 @@ fn extend_marketing_engagement_input_schema(schema: &mut AdminInputSchema) {
             ("sales".to_string(), input_field(named("MoneyInput"))),
             ("sessionsCount".to_string(), input_field(named("Int"))),
             ("orders".to_string(), input_field(named("Decimal"))),
-            ("firstTimeCustomers".to_string(), input_field(named("Decimal"))),
-            ("returningCustomers".to_string(), input_field(named("Decimal"))),
-            ("primaryConversions".to_string(), input_field(named("Decimal"))),
+            (
+                "firstTimeCustomers".to_string(),
+                input_field(named("Decimal")),
+            ),
+            (
+                "returningCustomers".to_string(),
+                input_field(named("Decimal")),
+            ),
+            (
+                "primaryConversions".to_string(),
+                input_field(named("Decimal")),
+            ),
             ("allConversions".to_string(), input_field(named("Decimal"))),
         ]),
     );
@@ -1564,7 +1590,10 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
     // unregistered — field-level validation stays with the local resolvers.
     schema.mutation_fields.insert(
         "draftOrderCreate".to_string(),
-        BTreeMap::from([("input".to_string(), mutation_arg(non_null("DraftOrderInput")))]),
+        BTreeMap::from([(
+            "input".to_string(),
+            mutation_arg(non_null("DraftOrderInput")),
+        )]),
     );
     schema.mutation_fields.insert(
         "draftOrderComplete".to_string(),
@@ -1579,7 +1608,10 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
         "draftOrderUpdate".to_string(),
         BTreeMap::from([
             ("id".to_string(), mutation_arg(non_null("ID"))),
-            ("input".to_string(), mutation_arg(non_null("DraftOrderInput"))),
+            (
+                "input".to_string(),
+                mutation_arg(non_null("DraftOrderInput")),
+            ),
         ]),
     );
     schema.mutation_fields.insert(
@@ -1658,7 +1690,10 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
             ("variantId".to_string(), mutation_arg(non_null("ID"))),
             ("quantity".to_string(), mutation_arg(non_null("Int"))),
             ("locationId".to_string(), mutation_arg(named("ID"))),
-            ("allowDuplicates".to_string(), mutation_arg(named("Boolean"))),
+            (
+                "allowDuplicates".to_string(),
+                mutation_arg(named("Boolean")),
+            ),
         ]),
     );
     schema.mutation_fields.insert(
@@ -1677,7 +1712,10 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
             ("title".to_string(), mutation_arg(non_null("String"))),
             ("quantity".to_string(), mutation_arg(non_null("Int"))),
             ("price".to_string(), mutation_arg(non_null("MoneyInput"))),
-            ("requiresShipping".to_string(), mutation_arg(named("Boolean"))),
+            (
+                "requiresShipping".to_string(),
+                mutation_arg(named("Boolean")),
+            ),
             ("taxable".to_string(), mutation_arg(named("Boolean"))),
         ]),
     );
@@ -1767,7 +1805,10 @@ fn extend_orders_input_schema(schema: &mut AdminInputSchema) {
                 "allowOverRefunding".to_string(),
                 input_field(named("Boolean")),
             ),
-            ("shipping".to_string(), input_field(named("ShippingRefundInput"))),
+            (
+                "shipping".to_string(),
+                input_field(named("ShippingRefundInput")),
+            ),
             (
                 "refundLineItems".to_string(),
                 input_field(list_of_non_null("RefundLineItemInput")),

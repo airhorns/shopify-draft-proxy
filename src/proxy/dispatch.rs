@@ -148,8 +148,7 @@ impl DraftProxy {
         if let Some(data) = self.order_create_local_data(request, root_field, query, variables) {
             return ok_json(data);
         }
-        if let Some(response) =
-            self.draft_order_lifecycle_local_response(request, query, variables)
+        if let Some(response) = self.draft_order_lifecycle_local_response(request, query, variables)
         {
             return response;
         }
@@ -515,7 +514,8 @@ impl DraftProxy {
             return json_error(400, "Operation has no root field");
         };
 
-        let schema_input_errors = public_admin_schema_input_errors(&query, &variables, &request.body);
+        let schema_input_errors =
+            public_admin_schema_input_errors(&query, &variables, &request.body);
         if !schema_input_errors.is_empty() {
             return ok_json(json!({ "errors": schema_input_errors }));
         }

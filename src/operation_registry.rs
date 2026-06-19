@@ -440,7 +440,10 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("inventoryTransferCancel", CapabilityDomain::Products),
     local_mutation("inventoryTransferDelete", CapabilityDomain::Products),
     local_mutation("inventoryShipmentCreate", CapabilityDomain::Products),
-    local_mutation("inventoryShipmentCreateInTransit", CapabilityDomain::Products),
+    local_mutation(
+        "inventoryShipmentCreateInTransit",
+        CapabilityDomain::Products,
+    ),
     local_mutation("inventoryShipmentAddItems", CapabilityDomain::Products),
     local_mutation("inventoryShipmentRemoveItems", CapabilityDomain::Products),
     local_mutation(

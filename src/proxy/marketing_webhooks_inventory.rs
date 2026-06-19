@@ -343,9 +343,7 @@ impl DraftProxy {
             if !required_errors.is_empty() {
                 return ok_json(json!({ "errors": required_errors }));
             }
-            if let Some(error) =
-                webhook_subscription_topic_coercion_error(field, Some(&document))
-            {
+            if let Some(error) = webhook_subscription_topic_coercion_error(field, Some(&document)) {
                 return ok_json(json!({ "errors": [error] }));
             }
             if let Some(error) =
@@ -370,9 +368,7 @@ impl DraftProxy {
                 other => {
                     return json_error(
                         501,
-                        &format!(
-                            "No Rust webhooks dispatcher implemented for root field: {other}"
-                        ),
+                        &format!("No Rust webhooks dispatcher implemented for root field: {other}"),
                     );
                 }
             };
@@ -769,13 +765,12 @@ impl DraftProxy {
                 .unwrap_or_else(|| json!([]))
         };
         let metafield_namespaces = if webhook_input.contains_key("metafieldNamespaces") {
-            json!(resolved_string_list_field_unsorted(
-                &webhook_input,
-                "metafieldNamespaces"
+            json!(
+                resolved_string_list_field_unsorted(&webhook_input, "metafieldNamespaces")
+                    .into_iter()
+                    .map(|namespace| resolve_webhook_metafield_namespace(&namespace, api_client_id))
+                    .collect::<Vec<_>>()
             )
-            .into_iter()
-            .map(|namespace| resolve_webhook_metafield_namespace(&namespace, api_client_id))
-            .collect::<Vec<_>>())
         } else {
             existing
                 .as_ref()
@@ -1677,9 +1672,9 @@ impl DraftProxy {
                 "code": "IMMUTABLE_CHANNEL_HANDLE"
             }));
         }
-        if input_string_field_value(input, "urlParameterValue").is_some_and(|value| {
-            json_string_value(&existing["urlParameterValue"]) != Some(value)
-        }) {
+        if input_string_field_value(input, "urlParameterValue")
+            .is_some_and(|value| json_string_value(&existing["urlParameterValue"]) != Some(value))
+        {
             return Some(json!({
                 "field": ["input"],
                 "message": "URL parameter value cannot be modified.",
@@ -2209,7 +2204,12 @@ impl DraftProxy {
         else {
             return Value::Null;
         };
-        self.inventory_level_json_with_item(&inventory_item_id, &location_id, quantities, selections)
+        self.inventory_level_json_with_item(
+            &inventory_item_id,
+            &location_id,
+            quantities,
+            selections,
+        )
     }
 
     fn inventory_levels_for_item(
@@ -3705,7 +3705,11 @@ impl DraftProxy {
             id: id.clone(),
             name: format!(
                 "#S{}",
-                self.store.staged.inventory_shipments.len().saturating_add(1)
+                self.store
+                    .staged
+                    .inventory_shipments
+                    .len()
+                    .saturating_add(1)
             ),
             status: status.to_string(),
             transfer_id,
@@ -3821,7 +3825,10 @@ impl DraftProxy {
         let mut kept = Vec::new();
         let mut removed_ids = Vec::new();
         for line_item in record.line_items {
-            if remove_ids.iter().any(|candidate| candidate == &line_item.id) {
+            if remove_ids
+                .iter()
+                .any(|candidate| candidate == &line_item.id)
+            {
                 if was_in_transit {
                     self.apply_inventory_quantity_delta(
                         &line_item.inventory_item_id,
@@ -4261,7 +4268,11 @@ impl DraftProxy {
             });
             if transfer_line_item_id.is_some() && matching_line.is_none() {
                 return Some(vec![inventory_shipment_user_error(
-                    vec![field_name, &index.to_string(), "inventoryTransferLineItemId"],
+                    vec![
+                        field_name,
+                        &index.to_string(),
+                        "inventoryTransferLineItemId",
+                    ],
                     "The specified inventory transfer line item could not be found.",
                     "NOT_FOUND",
                 )]);
@@ -5714,17 +5725,17 @@ fn webhook_subscription_topic_coercion_error(
                 .and_then(|document| document.variable_definitions.get(name))
                 .map_or(field.location, |definition| definition.location);
             json!({
-            "message": format!("Variable ${} of type WebhookSubscriptionTopic! was provided invalid value", name),
-            "locations": [{ "line": location.line, "column": location.column }],
-            "extensions": {
-                "code": "INVALID_VARIABLE",
-                "value": topic,
-                "problems": [{
-                    "path": [],
-                    "explanation": format!("Expected \"{}\" to be one of: {}", topic, WEBHOOK_SUBSCRIPTION_TOPIC_EXPECTED_VALUES)
-                }]
-            }
-        })
+                "message": format!("Variable ${} of type WebhookSubscriptionTopic! was provided invalid value", name),
+                "locations": [{ "line": location.line, "column": location.column }],
+                "extensions": {
+                    "code": "INVALID_VARIABLE",
+                    "value": topic,
+                    "problems": [{
+                        "path": [],
+                        "explanation": format!("Expected \"{}\" to be one of: {}", topic, WEBHOOK_SUBSCRIPTION_TOPIC_EXPECTED_VALUES)
+                    }]
+                }
+            })
         }
         _ => unreachable!(),
     })

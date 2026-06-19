@@ -330,7 +330,12 @@ impl DraftProxy {
             if field.name != "collections" {
                 continue;
             }
-            let value = match self.store.staged.collection_catalog.get(&field.response_key) {
+            let value = match self
+                .store
+                .staged
+                .collection_catalog
+                .get(&field.response_key)
+            {
                 Some(connection) => {
                     project_seeded_connection(connection, &field.arguments, &field.selection)
                 }
@@ -362,9 +367,7 @@ impl DraftProxy {
                 "publication" => self.publication_root_value(field),
                 "channel" => self.channel_root_value(field),
                 "channels" => self.channels_root_value(field),
-                "publicationsCount" => {
-                    publication_count_json(self.store.staged.publications.len())
-                }
+                "publicationsCount" => publication_count_json(self.store.staged.publications.len()),
                 "publishedProductsCount" => {
                     let publication_id = resolved_string_field(&field.arguments, "publicationId");
                     publication_count_json(
@@ -424,14 +427,18 @@ impl DraftProxy {
     }
 
     fn publication_by_channel_id(&self, channel_id: &str) -> Option<(String, Value)> {
-        self.store.staged.publications.iter().find_map(|(id, record)| {
-            let matches = record
-                .get("channel")
-                .and_then(|channel| channel.get("id"))
-                .and_then(Value::as_str)
-                == Some(channel_id);
-            matches.then(|| (id.clone(), record.clone()))
-        })
+        self.store
+            .staged
+            .publications
+            .iter()
+            .find_map(|(id, record)| {
+                let matches = record
+                    .get("channel")
+                    .and_then(|channel| channel.get("id"))
+                    .and_then(Value::as_str)
+                    == Some(channel_id);
+                matches.then(|| (id.clone(), record.clone()))
+            })
     }
 
     fn publication_root_value(&self, field: &RootFieldSelection) -> Value {
@@ -557,14 +564,13 @@ impl DraftProxy {
                 "__typename" => json!(resource_type),
                 "publishedOnPublication" => {
                     let publication_id = resolved_string_field(&sel.arguments, "publicationId");
-                    json!(publication_id
-                        .map(|id| pubs.contains(&id))
-                        .unwrap_or(false))
+                    json!(publication_id.map(|id| pubs.contains(&id)).unwrap_or(false))
                 }
                 "publishedOnCurrentPublication" => json!(false),
-                "resourcePublicationsCount" | "publicationCount"
-                | "availablePublicationsCount" => {
-                    publication_count_json(self.publishable_live_publication_count(resource_id, &pubs))
+                "resourcePublicationsCount" | "publicationCount" | "availablePublicationsCount" => {
+                    publication_count_json(
+                        self.publishable_live_publication_count(resource_id, &pubs),
+                    )
                 }
                 _ => continue,
             };
@@ -749,7 +755,10 @@ impl DraftProxy {
         self.observe_nodes_response(&response);
     }
 
-    pub(in crate::proxy) fn collection_membership_value(&self, field: &RootFieldSelection) -> Value {
+    pub(in crate::proxy) fn collection_membership_value(
+        &self,
+        field: &RootFieldSelection,
+    ) -> Value {
         let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
         self.store
             .collection_by_id(&id)
@@ -792,7 +801,7 @@ impl DraftProxy {
         for node in &nodes {
             let id = node.get("id").and_then(Value::as_str).unwrap_or_default();
             if id.starts_with("gid://shopify/Product/") {
-                self.store.stage_observed_product_json(&node);
+                self.store.stage_observed_product_json(node);
                 if let Some(product_id) = node.get("id").and_then(Value::as_str) {
                     for variant in node
                         .get("variants")
@@ -814,7 +823,7 @@ impl DraftProxy {
                     }
                 }
             } else if id.starts_with("gid://shopify/Collection/") {
-                self.stage_collection_from_observed_json(&node);
+                self.stage_collection_from_observed_json(node);
             } else if id.starts_with("gid://shopify/ProductVariant/") {
                 if let Some(variant) = product_variant_state_from_observed_json(node) {
                     self.store.stage_product_variant(variant);
@@ -823,9 +832,9 @@ impl DraftProxy {
                     self.store.stage_observed_product(product);
                 }
             } else if id.starts_with("gid://shopify/InventoryItem/") {
-                self.observe_inventory_item_node(&node);
+                self.observe_inventory_item_node(node);
             } else if id.starts_with("gid://shopify/InventoryLevel/") {
-                self.observe_inventory_level_node(&node);
+                self.observe_inventory_level_node(node);
             }
         }
         for node in nodes {
@@ -1555,8 +1564,7 @@ impl DraftProxy {
         let mut created = Vec::new();
         let mut staged = Vec::new();
         for (index, item) in media_inputs.iter().enumerate() {
-            let original_source =
-                resolved_string_field(item, "originalSource").unwrap_or_default();
+            let original_source = resolved_string_field(item, "originalSource").unwrap_or_default();
             if !media_source_is_valid(&original_source) {
                 source_errors.push(json!({
                     "field": ["media", index.to_string(), "originalSource"],
@@ -1645,9 +1653,7 @@ impl DraftProxy {
                 // Preserve an observed ProductImage id so downstream deletes can
                 // still derive `deletedProductImageIds` from the asset.
                 match node.get("image").and_then(|image| image.get("id")) {
-                    Some(image_id) => {
-                        node["image"] = json!({ "id": image_id, "url": ready_url })
-                    }
+                    Some(image_id) => node["image"] = json!({ "id": image_id, "url": ready_url }),
                     None => node["image"] = json!({ "url": ready_url }),
                 }
                 updated.push(node.clone());
@@ -1834,9 +1840,7 @@ impl DraftProxy {
             .and_then(|product| {
                 product.media.iter().find_map(|node| {
                     if node.get("id").and_then(Value::as_str) == Some(id) {
-                        node.get("alt")
-                            .and_then(Value::as_str)
-                            .map(str::to_string)
+                        node.get("alt").and_then(Value::as_str).map(str::to_string)
                     } else {
                         None
                     }
@@ -2445,7 +2449,9 @@ fn product_collections_connection_json(
 
 /// `Product.hasOnlyDefaultVariant` is true exactly when the product has a single variant
 /// carrying Shopify's implicit default option (`Title: Default Title`).
-pub(in crate::proxy) fn product_has_only_default_variant(variants: &[ProductVariantRecord]) -> bool {
+pub(in crate::proxy) fn product_has_only_default_variant(
+    variants: &[ProductVariantRecord],
+) -> bool {
     match variants {
         [variant] => {
             variant.selected_options.len() == 1
@@ -2460,7 +2466,9 @@ pub(in crate::proxy) fn product_has_only_default_variant(variants: &[ProductVari
 /// non-positive available quantity. `inventory_quantity` mirrors the variant's total
 /// available stock (kept in sync by the inventory mutation handlers), so it is the
 /// available figure to test; untracked variants never count as out of stock.
-pub(in crate::proxy) fn product_has_out_of_stock_variants(variants: &[ProductVariantRecord]) -> bool {
+pub(in crate::proxy) fn product_has_out_of_stock_variants(
+    variants: &[ProductVariantRecord],
+) -> bool {
     variants
         .iter()
         .filter(|variant| variant.inventory_item.tracked)
@@ -2750,9 +2758,7 @@ pub(in crate::proxy) fn variant_attached_media_nodes(
                 product
                     .media
                     .iter()
-                    .find(|node| {
-                        node.get("id").and_then(Value::as_str) == Some(media_id.as_str())
-                    })
+                    .find(|node| node.get("id").and_then(Value::as_str) == Some(media_id.as_str()))
                     .cloned()
             })
             .collect(),
@@ -4390,9 +4396,7 @@ pub(in crate::proxy) fn product_category_input_id(
 /// the taxonomy exposes (falling back to the bare id for nodes we don't model).
 pub(in crate::proxy) fn product_category_value(id: &str) -> Value {
     let full_name = match id {
-        "gid://shopify/TaxonomyCategory/aa-1-1" => {
-            "Apparel & Accessories > Clothing > Activewear"
-        }
+        "gid://shopify/TaxonomyCategory/aa-1-1" => "Apparel & Accessories > Clothing > Activewear",
         "gid://shopify/TaxonomyCategory/na" => "Uncategorized",
         other => other,
     };

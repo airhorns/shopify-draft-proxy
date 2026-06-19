@@ -800,7 +800,7 @@ impl Default for StagedState {
                 .expect("default backup region country must be captured"),
             flow_signatures: Vec::new(),
             flow_trigger_receipts: Vec::new(),
-        
+
             b2b_contact_role_assignments: BTreeMap::new(),
             deleted_b2b_contact_ids: BTreeSet::new(),
             deleted_b2b_contact_role_assignment_ids: BTreeSet::new(),
@@ -1365,8 +1365,9 @@ impl Store {
             return;
         }
         let removes = |id: &str| media_ids.iter().any(|m| m == id);
-        let in_scope =
-            |product_id: &str| only_products.is_none_or(|filter| filter.iter().any(|p| p == product_id));
+        let in_scope = |product_id: &str| {
+            only_products.is_none_or(|filter| filter.iter().any(|p| p == product_id))
+        };
         for mut product in self.products() {
             if !in_scope(&product.id) {
                 continue;

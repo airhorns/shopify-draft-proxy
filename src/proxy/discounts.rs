@@ -75,7 +75,9 @@ impl DraftProxy {
                     .discount_code_index
                     .contains_key(&code.to_ascii_uppercase())
             }
-            "discountNodes" | "discountNodesCount" | "automaticDiscountNodes"
+            "discountNodes"
+            | "discountNodesCount"
+            | "automaticDiscountNodes"
             | "codeDiscountNodes" => !self.has_staged_discounts(),
             "discountRedeemCodeBulkCreation" => {
                 let id = resolved_field_string_arg(field, "id").unwrap_or_default();
@@ -165,12 +167,20 @@ impl DraftProxy {
                 "code",
                 "DiscountCodeBasic",
             ),
-            "discountCodeBxgyCreate" => {
-                self.discount_create(request, field, "bxgyCodeDiscount", "code", "DiscountCodeBxgy")
-            }
-            "discountCodeBxgyUpdate" => {
-                self.discount_update(request, field, "bxgyCodeDiscount", "code", "DiscountCodeBxgy")
-            }
+            "discountCodeBxgyCreate" => self.discount_create(
+                request,
+                field,
+                "bxgyCodeDiscount",
+                "code",
+                "DiscountCodeBxgy",
+            ),
+            "discountCodeBxgyUpdate" => self.discount_update(
+                request,
+                field,
+                "bxgyCodeDiscount",
+                "code",
+                "DiscountCodeBxgy",
+            ),
             "discountCodeFreeShippingCreate" => self.discount_create(
                 request,
                 field,
@@ -342,7 +352,10 @@ impl DraftProxy {
         };
         if let Some(customers) = context.get_mut("customers").and_then(Value::as_array_mut) {
             for customer in customers {
-                let Some(id) = customer.get("id").and_then(Value::as_str).map(str::to_string)
+                let Some(id) = customer
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
                 else {
                     continue;
                 };
@@ -361,7 +374,11 @@ impl DraftProxy {
         }
         if let Some(segments) = context.get_mut("segments").and_then(Value::as_array_mut) {
             for segment in segments {
-                let Some(id) = segment.get("id").and_then(Value::as_str).map(str::to_string) else {
+                let Some(id) = segment
+                    .get("id")
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+                else {
                     continue;
                 };
                 if let Some(name) = self
@@ -472,7 +489,13 @@ impl DraftProxy {
         for variant_id in &variants {
             if !self.discount_reference_product_variant_exists(variant_id) {
                 errors.push(discount_user_error(
-                    vec![input_arg, selection, "items", "products", "productVariantsToAdd"],
+                    vec![
+                        input_arg,
+                        selection,
+                        "items",
+                        "products",
+                        "productVariantsToAdd",
+                    ],
                     &format!(
                         "Product variant with id: {} is invalid",
                         discount_reference_numeric_id(variant_id)
@@ -802,18 +825,21 @@ impl DraftProxy {
             return None;
         }
         let data = response.body.get("data")?;
-        let (node, kind, disc_key) =
-            if data.get("codeNode").map(|node| !node.is_null()).unwrap_or(false) {
-                (&data["codeNode"], "code", "codeDiscount")
-            } else if data
-                .get("automaticNode")
-                .map(|node| !node.is_null())
-                .unwrap_or(false)
-            {
-                (&data["automaticNode"], "automatic", "automaticDiscount")
-            } else {
-                return None;
-            };
+        let (node, kind, disc_key) = if data
+            .get("codeNode")
+            .map(|node| !node.is_null())
+            .unwrap_or(false)
+        {
+            (&data["codeNode"], "code", "codeDiscount")
+        } else if data
+            .get("automaticNode")
+            .map(|node| !node.is_null())
+            .unwrap_or(false)
+        {
+            (&data["automaticNode"], "automatic", "automaticDiscount")
+        } else {
+            return None;
+        };
         let node_id = node.get("id").and_then(Value::as_str)?.to_string();
         let disc = node.get(disc_key)?;
         let typename = disc
@@ -1030,7 +1056,10 @@ impl DraftProxy {
     fn apply_discount_bulk_transition(&mut self, id: &str, action: DiscountBulkAction) {
         match action {
             DiscountBulkAction::Delete => {
-                self.store.staged.deleted_discount_ids.insert(id.to_string());
+                self.store
+                    .staged
+                    .deleted_discount_ids
+                    .insert(id.to_string());
                 self.store.staged.discounts.remove(id);
                 self.store
                     .staged
@@ -1740,8 +1769,12 @@ fn discount_input_user_errors(
     if let Some(error) = discount_numeric_user_error(input, input_arg, typename) {
         errors.push(error);
     }
-    errors.extend(discount_usage_recurring_bounds_user_errors(input, input_arg));
-    errors.extend(discount_combines_with_user_errors(input, input_arg, typename));
+    errors.extend(discount_usage_recurring_bounds_user_errors(
+        input, input_arg,
+    ));
+    errors.extend(discount_combines_with_user_errors(
+        input, input_arg, typename,
+    ));
     if let (Some(starts_at), Some(ends_at)) = (
         resolved_string_path(input, &["startsAt"]),
         resolved_string_path(input, &["endsAt"]),
@@ -1784,7 +1817,8 @@ fn discount_bxgy_customer_gets_user_errors(
         "This field is not supported by automatic bxgy discounts."
     };
 
-    if resolved_object_path(Some(&input_value), &["customerGets", "value", "percentage"]).is_some() {
+    if resolved_object_path(Some(&input_value), &["customerGets", "value", "percentage"]).is_some()
+    {
         errors.push(discount_user_error(
             vec![input_arg, "customerGets", "value", "percentage"],
             "Only discountOnQuantity permitted with bxgy discounts.",
@@ -1826,8 +1860,11 @@ fn discount_bxgy_customer_gets_user_errors(
             ));
         }
     }
-    if resolved_object_path(Some(&input_value), &["customerGets", "appliesOnSubscription"])
-        .is_some()
+    if resolved_object_path(
+        Some(&input_value),
+        &["customerGets", "appliesOnSubscription"],
+    )
+    .is_some()
     {
         errors.push(discount_user_error(
             vec![input_arg, "customerGets", "appliesOnSubscription"],
@@ -1853,8 +1890,7 @@ fn discount_bxgy_customer_gets_user_errors(
     if create {
         let buys_items_present =
             resolved_object_path(Some(&input_value), &["customerBuys", "items"]).is_some();
-        let buys_all =
-            resolved_bool_path(input, &["customerBuys", "items", "all"]) == Some(true);
+        let buys_all = resolved_bool_path(input, &["customerBuys", "items", "all"]) == Some(true);
         if !buys_items_present || buys_all {
             errors.push(discount_user_error(
                 vec![input_arg, "customerBuys", "items"],
@@ -1891,7 +1927,11 @@ fn discount_combines_with_user_errors(
     .is_some()
     {
         errors.push(discount_user_error(
-            vec![input_arg, "combinesWith", "productDiscountsWithTagsOnSameCartLine"],
+            vec![
+                input_arg,
+                "combinesWith",
+                "productDiscountsWithTagsOnSameCartLine",
+            ],
             "The shop's plan does not allow setting `productDiscountsWithTagsOnSameCartLine`.",
             "PRODUCT_DISCOUNTS_WITH_TAGS_ON_SAME_CART_LINE_NOT_ENTITLED",
         ));
@@ -1962,7 +2002,8 @@ fn discount_document_level_error_response(fields: &[RootFieldSelection]) -> Opti
         } else {
             "DiscountAutomaticBxgyInput"
         };
-        if let Some(error) = discount_bxgy_variable_error(&input, is_code, is_create, graphql_type) {
+        if let Some(error) = discount_bxgy_variable_error(&input, is_code, is_create, graphql_type)
+        {
             return Some(ok_json(json!({ "errors": [error] })));
         }
     }
@@ -2002,7 +2043,9 @@ fn discount_field_top_level_error(field: &RootFieldSelection) -> Option<Value> {
     }))
 }
 
-fn discount_bad_request_conflict_message(input: &BTreeMap<String, ResolvedValue>) -> Option<String> {
+fn discount_bad_request_conflict_message(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Option<String> {
     let input_value = ResolvedValue::Object(input.clone());
     if resolved_bool_path(input, &["customerSelection", "all"]) == Some(true) {
         if resolved_object_path(Some(&input_value), &["customerSelection", "customers"]).is_some()
@@ -2017,8 +2060,11 @@ fn discount_bad_request_conflict_message(input: &BTreeMap<String, ResolvedValue>
                     .to_string(),
             );
         }
-        if resolved_object_path(Some(&input_value), &["customerSelection", "customerSegments"])
-            .is_some()
+        if resolved_object_path(
+            Some(&input_value),
+            &["customerSelection", "customerSegments"],
+        )
+        .is_some()
         {
             return Some(
                 "A discount cannot have customerSelection set to all, when customerSegments is specified."
@@ -2102,8 +2148,9 @@ fn discount_add_remove_overlap(
     if add.is_empty() {
         return false;
     }
-    let remove: std::collections::BTreeSet<String> =
-        resolved_string_list_path(input, remove_path).into_iter().collect();
+    let remove: std::collections::BTreeSet<String> = resolved_string_list_path(input, remove_path)
+        .into_iter()
+        .collect();
     add.iter().any(|id| remove.contains(id))
 }
 
@@ -2322,9 +2369,16 @@ fn discount_subscription_field_user_error(
     // selling-plan path the shop IS entitled to, so its subscription/recurring
     // fields are permitted. Any other use of these fields is gated off.
     let subscription_only = |scope: &[&str]| -> bool {
-        let on_sub: Vec<&str> = scope.iter().copied().chain(["appliesOnSubscription"]).collect();
-        let on_one: Vec<&str> =
-            scope.iter().copied().chain(["appliesOnOneTimePurchase"]).collect();
+        let on_sub: Vec<&str> = scope
+            .iter()
+            .copied()
+            .chain(["appliesOnSubscription"])
+            .collect();
+        let on_one: Vec<&str> = scope
+            .iter()
+            .copied()
+            .chain(["appliesOnOneTimePurchase"])
+            .collect();
         resolved_bool_path(input, &on_sub) == Some(true)
             && resolved_bool_path(input, &on_one) == Some(false)
     };
@@ -5399,10 +5453,7 @@ fn cart_transform_undefined_field_error(
 ) -> Value {
     let location = cart_transform_field_token_location(query, field_name)
         .unwrap_or(SourceLocation { line: 1, column: 1 });
-    let mut path = vec![
-        Value::from(operation_path),
-        Value::from(response_key),
-    ];
+    let mut path = vec![Value::from(operation_path), Value::from(response_key)];
     path.extend(container_path.iter().map(|segment| Value::from(*segment)));
     path.push(Value::from(field_name));
     json!({
@@ -5878,7 +5929,10 @@ pub(in crate::proxy) fn discount_redeem_code_bulk_creation_node(
 pub(in crate::proxy) fn redeem_codes_are_string_inputs(field: &RootFieldSelection) -> bool {
     match field.arguments.get("codes") {
         Some(ResolvedValue::List(items)) => {
-            !items.is_empty() && items.iter().all(|item| matches!(item, ResolvedValue::String(_)))
+            !items.is_empty()
+                && items
+                    .iter()
+                    .all(|item| matches!(item, ResolvedValue::String(_)))
         }
         _ => false,
     }

@@ -345,13 +345,11 @@ impl DraftProxy {
                 .localization_available_locale_name(&locale)
                 .unwrap_or(locale.as_str());
             let mut record = shop_locale_record(&locale, name, false);
-            let target_web_presence_ids = resolved_string_list_arg(
-                &field.arguments,
-                "marketWebPresenceIds",
-            )
-            .into_iter()
-            .filter(|id| is_known_market_web_presence_id(id))
-            .collect::<Vec<_>>();
+            let target_web_presence_ids =
+                resolved_string_list_arg(&field.arguments, "marketWebPresenceIds")
+                    .into_iter()
+                    .filter(|id| is_known_market_web_presence_id(id))
+                    .collect::<Vec<_>>();
             record["marketWebPresences"] = Value::Array(
                 target_web_presence_ids
                     .iter()
@@ -2011,12 +2009,17 @@ impl DraftProxy {
             (Some(existing), true) => {
                 let mut updated = existing;
                 upsert_fixed_price_nodes(&mut updated, &self.store, &price_inputs);
-                let prices =
-                    fixed_price_nodes_for_variant_ids(&updated, &mutation_variant_ids(&price_inputs));
+                let prices = fixed_price_nodes_for_variant_ids(
+                    &updated,
+                    &mutation_variant_ids(&price_inputs),
+                );
                 if let Some(id) = price_list_id {
                     self.store.staged.price_lists.insert(id, updated);
                 }
-                selected_json(&json!({"prices": prices, "userErrors": []}), &field.selection)
+                selected_json(
+                    &json!({"prices": prices, "userErrors": []}),
+                    &field.selection,
+                )
             }
             (price_list, _) => {
                 let prices = if price_list.is_some() {
@@ -2060,7 +2063,8 @@ impl DraftProxy {
 
         match (price_list, errors.is_empty()) {
             (Some(existing), true) => {
-                let deleted = fixed_price_variant_ids_in_request_order(&existing, &delete_variant_ids);
+                let deleted =
+                    fixed_price_variant_ids_in_request_order(&existing, &delete_variant_ids);
                 let mut updated = existing;
                 upsert_fixed_price_nodes(&mut updated, &self.store, &price_inputs);
                 delete_fixed_price_nodes(&mut updated, &delete_variant_ids);
@@ -2306,11 +2310,7 @@ impl DraftProxy {
         };
         for record in markets_collect_records(data, "webPresences", "webPresence") {
             if let Some(id) = record_gid(&record, "gid://shopify/MarketWebPresence/") {
-                self.store
-                    .staged
-                    .web_presences
-                    .entry(id)
-                    .or_insert(record);
+                self.store.staged.web_presences.entry(id).or_insert(record);
             }
         }
     }
@@ -2696,10 +2696,11 @@ impl DraftProxy {
             }
             let key = resolved_object_string(input, "key").unwrap_or_default();
             // 3. The key must be one of the resource's localizable content keys.
-            let Some(content_entry) = content
-                .as_array()
-                .and_then(|entries| entries.iter().find(|entry| entry["key"].as_str() == Some(key.as_str())))
-            else {
+            let Some(content_entry) = content.as_array().and_then(|entries| {
+                entries
+                    .iter()
+                    .find(|entry| entry["key"].as_str() == Some(key.as_str()))
+            }) else {
                 return selected_json(
                     &json!({
                         "marketLocalizations": null,
@@ -3320,8 +3321,13 @@ impl DraftProxy {
                         .contains_key(&resource_id)
                 })
                 .unwrap_or(true),
-            "markets" | "catalogs" | "catalogsCount" | "priceLists" | "webPresences"
-            | "marketsResolvedValues" | "marketLocalizableResources"
+            "markets"
+            | "catalogs"
+            | "catalogsCount"
+            | "priceLists"
+            | "webPresences"
+            | "marketsResolvedValues"
+            | "marketLocalizableResources"
             | "marketLocalizableResourcesByIds" => !self.has_markets_overlay_state(),
             _ => false,
         }
@@ -3412,10 +3418,14 @@ impl DraftProxy {
         }
         // Market-localizable resources: the singular field, the type-scoped and
         // by-ids connections, plus the mutation-preflight `marketLocalizableResource`.
-        let mut localizable_records =
-            markets_collect_records(data, "marketLocalizableResources", "marketLocalizableResource");
-        localizable_records
-            .extend(markets_connection_nodes(data.get("marketLocalizableResourcesByIds")));
+        let mut localizable_records = markets_collect_records(
+            data,
+            "marketLocalizableResources",
+            "marketLocalizableResource",
+        );
+        localizable_records.extend(markets_connection_nodes(
+            data.get("marketLocalizableResourcesByIds"),
+        ));
         for record in &localizable_records {
             self.stage_observed_market_localizable_resource(record);
         }
@@ -3736,7 +3746,10 @@ fn web_presence_remove_locale(record: &mut Value, locale: &str) {
     let Some(obj) = record.as_object_mut() else {
         return;
     };
-    if let Some(alternates) = obj.get_mut("alternateLocales").and_then(Value::as_array_mut) {
+    if let Some(alternates) = obj
+        .get_mut("alternateLocales")
+        .and_then(Value::as_array_mut)
+    {
         alternates.retain(|entry| entry["locale"].as_str() != Some(locale));
     }
     if let Some(root_urls) = obj.get_mut("rootUrls").and_then(Value::as_array_mut) {
@@ -3860,7 +3873,18 @@ fn captured_region_market_for_country(domain: &str, code: &str) -> bool {
         "very-big-test-store.myshopify.com" => code == "CA",
         "harry-test-heelo.myshopify.com" => matches!(
             code,
-            "CA" | "AE" | "AT" | "AU" | "BE" | "CH" | "CZ" | "DE" | "DK" | "ES" | "FI" | "MX" | "US"
+            "CA" | "AE"
+                | "AT"
+                | "AU"
+                | "BE"
+                | "CH"
+                | "CZ"
+                | "DE"
+                | "DK"
+                | "ES"
+                | "FI"
+                | "MX"
+                | "US"
         ),
         _ => code == "CA",
     }
