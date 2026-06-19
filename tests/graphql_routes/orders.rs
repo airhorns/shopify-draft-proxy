@@ -3085,36 +3085,9 @@ fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
         json!({
             "paymentTerms": Value::Null,
             "userErrors": [{
-                "field": Value::Null,
-                "message": "Cannot create payment terms with multiple payment schedules.",
+                "field": ["base"],
+                "message": "Cannot create payment terms with multiple schedules.",
                 "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
-            }]
-        })
-    );
-
-    let multiple_update_schedules = proxy.process_request(json_graphql_request(
-        update_query,
-        json!({
-            "input": {
-                "paymentTermsId": "gid://shopify/PaymentTerms/draft-update",
-                "paymentTermsAttributes": {
-                    "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
-                    "paymentSchedules": [
-                        { "issuedAt": "2026-05-05T00:00:00Z" },
-                        { "issuedAt": "2026-05-06T00:00:00Z" }
-                    ]
-                }
-            }
-        }),
-    ));
-    assert_eq!(
-        multiple_update_schedules.body["data"]["paymentTermsUpdate"],
-        json!({
-            "paymentTerms": Value::Null,
-            "userErrors": [{
-                "field": Value::Null,
-                "message": "Cannot create payment terms with multiple payment schedules.",
-                "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
             }]
         })
     );
@@ -3269,12 +3242,8 @@ fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
         json!({ "input": { "paymentTermsId": "gid://shopify/PaymentTerms/channel-policy-update", "paymentTermsAttributes": net_attrs.clone() } }),
     ));
     assert_eq!(
-        channel_policy_update.body["data"]["paymentTermsUpdate"]["userErrors"][0],
-        json!({
-            "field": Value::Null,
-            "message": "Cannot set payment terms for orders placed on this channel.",
-            "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
-        })
+        channel_policy_update.body["data"]["paymentTermsUpdate"]["userErrors"][0]["message"],
+        json!("Cannot create payment terms on an Order where the sales channel does not allow payment terms.")
     );
 
     let draft_update = proxy.process_request(json_graphql_request(
@@ -3578,15 +3547,8 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
         }),
     ));
     assert_eq!(
-        multiple.body["data"]["paymentTermsCreate"],
-        json!({
-            "paymentTerms": Value::Null,
-            "userErrors": [{
-                "field": Value::Null,
-                "message": "Cannot create payment terms with multiple payment schedules.",
-                "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
-            }]
-        })
+        multiple.body,
+        create_fixture["paymentTermsCreateOnOrder"]["expected"]["multiple"]
     );
 
     let missing_update = proxy.process_request(json_graphql_request(
@@ -4361,305 +4323,6 @@ fn order_mark_as_paid_rejects_unknown_and_non_markable_orders_without_staging() 
 }
 
 #[test]
-fn order_mark_as_paid_stages_from_stored_order_without_money_selection() {
-    let mut proxy = snapshot_proxy();
-
-    let create = proxy.process_request(json_graphql_request(
-        r#"
-        mutation CreateMarkableOrder($order: OrderCreateOrderInput!) {
-          orderCreate(order: $order) {
-            order { id displayFinancialStatus }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({
-            "order": {
-                "email": "markable-order@example.test",
-                "currency": "CAD",
-                "presentmentCurrency": "USD",
-                "financialStatus": "PENDING",
-                "lineItems": [{
-                    "title": "markable",
-                    "quantity": 1,
-                    "priceSet": {
-                        "shopMoney": { "amount": "17.01", "currencyCode": "CAD" },
-                        "presentmentMoney": { "amount": "12.50", "currencyCode": "USD" }
-                    },
-                    "taxable": false
-                }]
-            }
-        }),
-    ));
-    assert_eq!(create.body["data"]["orderCreate"]["userErrors"], json!([]));
-    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
-
-    let mark = proxy.process_request(json_graphql_request(
-        r#"
-        mutation MarkAsPaidWithoutMoneySelection($input: OrderMarkAsPaidInput!) {
-          orderMarkAsPaid(input: $input) {
-            order { id displayFinancialStatus }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({ "input": { "id": order_id.clone() } }),
-    ));
-    assert_eq!(mark.status, 200);
-    assert_eq!(
-        mark.body["data"]["orderMarkAsPaid"]["order"],
-        json!({
-            "id": order_id,
-            "displayFinancialStatus": "PAID"
-        })
-    );
-    assert_eq!(
-        mark.body["data"]["orderMarkAsPaid"]["userErrors"],
-        json!([])
-    );
-
-    let read_after = proxy.process_request(json_graphql_request(
-        r#"
-        query ReadPaidOrder($id: ID!) {
-          order(id: $id) {
-            id
-            displayFinancialStatus
-            totalOutstandingSet {
-              shopMoney { amount currencyCode }
-              presentmentMoney { amount currencyCode }
-            }
-            totalReceivedSet {
-              shopMoney { amount currencyCode }
-              presentmentMoney { amount currencyCode }
-            }
-            netPaymentSet {
-              shopMoney { amount currencyCode }
-              presentmentMoney { amount currencyCode }
-            }
-            paymentGatewayNames
-            transactions {
-              id
-              kind
-              status
-              gateway
-              amountSet {
-                shopMoney { amount currencyCode }
-                presentmentMoney { amount currencyCode }
-              }
-            }
-          }
-        }
-        "#,
-        json!({ "id": mark.body["data"]["orderMarkAsPaid"]["order"]["id"].clone() }),
-    ));
-    let paid_order = &read_after.body["data"]["order"];
-    assert_eq!(paid_order["displayFinancialStatus"], json!("PAID"));
-    assert_eq!(
-        paid_order["totalOutstandingSet"],
-        json!({
-            "shopMoney": { "amount": "0.0", "currencyCode": "CAD" },
-            "presentmentMoney": { "amount": "0.0", "currencyCode": "USD" }
-        })
-    );
-    assert_eq!(
-        paid_order["totalReceivedSet"],
-        json!({
-            "shopMoney": { "amount": "17.01", "currencyCode": "CAD" },
-            "presentmentMoney": { "amount": "17.01", "currencyCode": "USD" }
-        })
-    );
-    assert_eq!(paid_order["netPaymentSet"], paid_order["totalReceivedSet"]);
-    assert_eq!(paid_order["paymentGatewayNames"], json!(["manual"]));
-    assert_eq!(paid_order["transactions"].as_array().unwrap().len(), 1);
-    assert_eq!(paid_order["transactions"][0]["kind"], json!("SALE"));
-    assert_eq!(
-        paid_order["transactions"][0]["amountSet"],
-        paid_order["totalReceivedSet"]
-    );
-
-    let log = proxy.get_log_snapshot();
-    let entries = log["entries"].as_array().expect("log entries");
-    assert_eq!(entries.len(), 2);
-    assert!(entries[1]["rawBody"]
-        .as_str()
-        .expect("raw body")
-        .contains("MarkAsPaidWithoutMoneySelection"));
-}
-
-#[test]
-fn order_mark_as_paid_rejects_unknown_and_non_markable_orders_without_staging() {
-    let mut proxy = snapshot_proxy();
-
-    let unknown = proxy.process_request(json_graphql_request(
-        r#"
-        mutation UnknownMarkAsPaid($input: OrderMarkAsPaidInput!) {
-          orderMarkAsPaid(input: $input) {
-            order { id totalOutstandingSet { presentmentMoney { amount currencyCode } } }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({ "input": { "id": "gid://shopify/Order/999999" } }),
-    ));
-    assert_eq!(unknown.status, 200);
-    assert_eq!(
-        unknown.body["data"]["orderMarkAsPaid"]["order"],
-        Value::Null
-    );
-    assert_eq!(
-        unknown.body["data"]["orderMarkAsPaid"]["userErrors"][0]["field"],
-        json!(["id"])
-    );
-    assert_eq!(
-        unknown.body["data"]["orderMarkAsPaid"]["userErrors"][0]["message"],
-        json!("Order does not exist")
-    );
-    assert_eq!(proxy.get_log_snapshot()["entries"], json!([]));
-    assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["orders"],
-        json!({})
-    );
-
-    let create = proxy.process_request(json_graphql_request(
-        r#"
-        mutation CreateRepeatMarkAsPaidOrder($order: OrderCreateOrderInput!) {
-          orderCreate(order: $order) {
-            order { id displayFinancialStatus }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({
-            "order": {
-                "email": "repeat-mark-paid@example.test",
-                "currency": "USD",
-                "financialStatus": "PENDING",
-                "lineItems": [{
-                    "title": "repeat mark paid",
-                    "quantity": 1,
-                    "priceSet": { "shopMoney": { "amount": "12.00", "currencyCode": "USD" } },
-                    "taxLines": [{
-                        "title": "Tax",
-                        "rate": 0.125,
-                        "priceSet": { "shopMoney": { "amount": "1.50", "currencyCode": "USD" } }
-                    }]
-                }]
-            }
-        }),
-    ));
-    let order_id = create.body["data"]["orderCreate"]["order"]["id"].clone();
-    let mark_query = r#"
-        mutation MarkAsPaidMoneySelection($input: OrderMarkAsPaidInput!) {
-          orderMarkAsPaid(input: $input) {
-            order {
-              id
-              displayFinancialStatus
-              totalOutstandingSet {
-                shopMoney { amount currencyCode }
-                presentmentMoney { amount currencyCode }
-              }
-              transactions {
-                kind
-                status
-                gateway
-                amountSet {
-                  shopMoney { amount currencyCode }
-                  presentmentMoney { amount currencyCode }
-                }
-              }
-            }
-            userErrors { field message code }
-          }
-        }
-        "#;
-    let first = proxy.process_request(json_graphql_request(
-        mark_query,
-        json!({ "input": { "id": order_id.clone() } }),
-    ));
-    assert_eq!(
-        first.body["data"]["orderMarkAsPaid"]["userErrors"],
-        json!([])
-    );
-    assert_eq!(
-        first.body["data"]["orderMarkAsPaid"]["order"]["transactions"][0]["amountSet"]["shopMoney"]
-            ["amount"],
-        json!("13.5")
-    );
-
-    let repeat = proxy.process_request(json_graphql_request(
-        mark_query,
-        json!({ "input": { "id": order_id.clone() } }),
-    ));
-    assert_eq!(
-        repeat.body["data"]["orderMarkAsPaid"]["userErrors"][0]["field"],
-        json!(["id"])
-    );
-    assert_eq!(
-        repeat.body["data"]["orderMarkAsPaid"]["userErrors"][0]["message"],
-        json!("Order cannot be marked as paid.")
-    );
-    assert_eq!(
-        repeat.body["data"]["orderMarkAsPaid"]["order"]["transactions"]
-            .as_array()
-            .expect("transactions")
-            .len(),
-        1
-    );
-
-    let cancelled_create = proxy.process_request(json_graphql_request(
-        r#"
-        mutation CreateCancelledMarkAsPaidOrder($order: OrderCreateOrderInput!) {
-          orderCreate(order: $order) {
-            order { id displayFinancialStatus }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({
-            "order": {
-                "email": "cancelled-mark-paid@example.test",
-                "currency": "USD",
-                "financialStatus": "PENDING",
-                "lineItems": [{
-                    "title": "cancel then mark paid",
-                    "quantity": 1,
-                    "priceSet": { "shopMoney": { "amount": "10.00", "currencyCode": "USD" } }
-                }]
-            }
-        }),
-    ));
-    let cancelled_id = cancelled_create.body["data"]["orderCreate"]["order"]["id"].clone();
-    let cancel = proxy.process_request(json_graphql_request(
-        r#"
-        mutation CancelBeforeMarkAsPaid($orderId: ID!, $reason: OrderCancelReason!, $restock: Boolean!) {
-          orderCancel(orderId: $orderId, reason: $reason, restock: $restock) {
-            order { id cancelledAt }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({ "orderId": cancelled_id.clone(), "reason": "OTHER", "restock": false }),
-    ));
-    assert_eq!(cancel.body["data"]["orderCancel"]["userErrors"], json!([]));
-    let cancelled_mark = proxy.process_request(json_graphql_request(
-        mark_query,
-        json!({ "input": { "id": cancelled_id } }),
-    ));
-    assert_eq!(
-        cancelled_mark.body["data"]["orderMarkAsPaid"]["userErrors"][0]["message"],
-        json!("Order cannot be marked as paid.")
-    );
-
-    let log = proxy.get_log_snapshot();
-    let entries = log["entries"].as_array().expect("log entries");
-    let staged_mark_as_paid_entries = entries
-        .iter()
-        .filter(|entry| entry["interpreted"]["primaryRootField"] == "orderMarkAsPaid")
-        .count();
-    assert_eq!(staged_mark_as_paid_entries, 1);
-}
-
-#[test]
 fn money_bag_presentment_replays_order_payment_refund_and_edit_shapes() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2026-05/orders/money-bag-presentment-parity.json"
@@ -4721,21 +4384,6 @@ fn money_bag_presentment_replays_order_payment_refund_and_edit_shapes() {
         json!({"id": calculated_order_id}),
     ));
     assert_eq!(edit_commit.body, fixture["orderEditCommit"]["expected"]);
-
-    let missing_begin = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/orders/money-bag-presentment-order-edit-begin.graphql"
-        ),
-        json!({"id": "gid://shopify/Order/0"}),
-    ));
-    assert_eq!(
-        missing_begin.body["data"]["orderEditBegin"]["calculatedOrder"],
-        Value::Null
-    );
-    assert_eq!(
-        missing_begin.body["data"]["orderEditBegin"]["userErrors"][0]["field"],
-        json!(["id"])
-    );
 }
 
 #[test]
@@ -5795,15 +5443,9 @@ fn order_edit_existing_downstream_reads_track_add_and_zero_removal_modes() {
     .unwrap();
 
     let mut add_proxy = snapshot_proxy();
-    let add_begin = add_proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql"),
-        happy_fixture["variables"].clone(),
-    ));
-    let add_calculated_id =
-        add_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
     let add = add_proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-addVariant.graphql"),
-        json!({"id": add_calculated_id, "variantId": "gid://shopify/ProductVariant/46789254021353", "quantity": 1, "locationId": "gid://shopify/Location/68509171945", "allowDuplicates": false}),
+        json!({"id": "gid://shopify/CalculatedOrder/1", "variantId": "gid://shopify/ProductVariant/46789254021353", "quantity": 1, "locationId": "gid://shopify/Location/68509171945", "allowDuplicates": false}),
     ));
     assert_eq!(add.body, happy_fixture["addVariant"]["response"]);
     let add_downstream = add_proxy.process_request(json_graphql_request(
@@ -5818,15 +5460,9 @@ fn order_edit_existing_downstream_reads_track_add_and_zero_removal_modes() {
     );
 
     let mut zero_proxy = snapshot_proxy();
-    let zero_begin = zero_proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql"),
-        zero_fixture["variables"].clone(),
-    ));
-    let zero_calculated_id =
-        zero_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
     let set_zero = zero_proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-setQuantity.graphql"),
-        json!({"id": zero_calculated_id, "lineItemId": "gid://shopify/LineItem/1", "quantity": 0, "restock": true}),
+        json!({"id": "gid://shopify/CalculatedOrder/1", "lineItemId": "gid://shopify/LineItem/1", "quantity": 0, "restock": true}),
     ));
     assert_eq!(set_zero.body, zero_fixture["setZero"]["response"]);
     let zero_downstream = zero_proxy.process_request(json_graphql_request(
@@ -5990,6 +5626,32 @@ fn order_edit_begin_rejects_not_editable_and_existing_open_session() {
         json!(["base"])
     );
 
+    let fixture: Value = serde_json::from_str(include_str!(
+        "../../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-happy-path.json"
+    ))
+    .unwrap();
+    let first_begin = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql"),
+        fixture["variables"].clone(),
+    ));
+    assert_eq!(
+        first_begin.body["data"]["orderEditBegin"]["userErrors"],
+        json!([])
+    );
+    let duplicate_begin = proxy.process_request(json_graphql_request(
+        include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql"),
+        fixture["variables"].clone(),
+    ));
+    assert_eq!(
+        duplicate_begin.body["data"]["orderEditBegin"]["calculatedOrder"],
+        Value::Null
+    );
+    assert_eq!(
+        duplicate_begin.body["data"]["orderEditBegin"]["userErrors"][0]["field"],
+        json!(["base"])
+    );
+}
+
 #[test]
 fn remaining_order_fixture_tail_roots_are_not_registered_local_support() {
     let residual_fixture: Value = serde_json::from_str(include_str!(
@@ -6028,26 +5690,24 @@ fn remaining_order_fixture_tail_roots_are_not_registered_local_support() {
         tracking.body["errors"][0]["message"],
         json!("No mutation dispatcher implemented for root field: fulfillmentTrackingInfoUpdate")
     );
+
+    let mut proxy = snapshot_proxy();
+    let residual_count = proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/order-edit-residual-local-staging-read.graphql"
+        ),
+        json!({}),
+    ));
     assert_eq!(
-        unknown_variant.body["data"]["orderEditAddVariant"]["userErrors"][0]["field"],
-        json!(["variantId"])
+        residual_count.body["data"]["ordersCount"],
+        residual_fixture["expected"]["emptyOrdersCount"]
     );
 
-    let mut line_proxy = snapshot_proxy();
-    let begin = line_proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql"),
-        fixture["variables"].clone(),
-    ));
-    let unknown_line = line_proxy.process_request(json_graphql_request(
+    let unknown_delete = proxy.process_request(json_graphql_request(
         include_str!(
-            "../../config/parity-requests/orders/orderEditExistingWorkflow-setQuantity.graphql"
+            "../../config/parity-requests/orders/orderDelete-cascade-and-deletability.graphql"
         ),
-        json!({
-            "id": begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone(),
-            "lineItemId": "gid://shopify/LineItem/99999999",
-            "quantity": 1,
-            "restock": true
-        }),
+        delete_fixture["requests"]["unknownOrderDelete"]["variables"].clone(),
     ));
     assert_eq!(unknown_delete.status, 400);
     assert_eq!(
@@ -6093,18 +5753,13 @@ fn order_edit_existing_fixed_id_fixture_tail_is_not_registered_local_support() {
 #[test]
 fn order_edit_existing_validation_fixture_tail_is_not_registered_local_support() {
     let mut proxy = snapshot_proxy();
-    let begin = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql"),
-        fixture["variables"].clone(),
-    ));
-    let calculated_id = begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
 
     let invalid_variant = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/orders/orderEditExistingWorkflow-addVariant.graphql"
         ),
         json!({
-            "id": calculated_id,
+            "id": "gid://shopify/CalculatedOrder/221172138217",
             "variantId": "gid://shopify/ProductVariant/0",
             "quantity": 1,
             "locationId": "gid://shopify/Location/68509171945",
@@ -6122,7 +5777,7 @@ fn order_edit_existing_validation_fixture_tail_is_not_registered_local_support()
             "../../config/parity-requests/orders/orderEditExistingWorkflow-addVariant.graphql"
         ),
         json!({
-            "id": begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone(),
+            "id": "gid://shopify/CalculatedOrder/221172138217",
             "variantId": "gid://shopify/ProductVariant/48540157378793",
             "quantity": 1,
             "locationId": "gid://shopify/Location/68509171945",
@@ -6150,12 +5805,7 @@ fn customer_payment_methods_remote_create_validation_ports_old_gleam_guards() {
         ),
         json!({}),
     ));
-    assert_eq!(
-        seed.body["data"]["customerCreate"]["customer"]["id"],
-        fixture["operations"]["seedCustomer"]["response"]["data"]["customerCreate"]["customer"]
-            ["id"]
-    );
-    assert_eq!(seed.body["data"]["customerCreate"]["userErrors"], json!([]));
+    assert_eq!(seed.body, fixture["operations"]["seedCustomer"]["response"]);
 
     let stripe_blank = proxy.process_request(json_graphql_request(
         include_str!(

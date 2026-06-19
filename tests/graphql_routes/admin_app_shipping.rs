@@ -73,19 +73,6 @@ fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
         json!("1432")
     );
 
-    let cancel_id = "gid://shopify/BulkOperation/7689772990770";
-    let captured_query = "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}";
-    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
-        let operation = bulk_operation_test_record(
-            cancel_id,
-            "CREATED",
-            "QUERY",
-            "2026-04-27T20:35:00Z",
-            captured_query,
-        );
-        move |_request| bulk_operation_hydrate_response(operation.clone())
-    });
-
     let cancel = proxy.process_request(json_graphql_request(
         r#"
         mutation BulkOperationCancelParity($id: ID!) {
@@ -95,7 +82,7 @@ fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
           }
         }
         "#,
-        json!({ "id": cancel_id }),
+        json!({ "id": "gid://shopify/BulkOperation/7689772990770" }),
     ));
     assert_eq!(
         cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
@@ -336,7 +323,7 @@ fn bulk_operation_run_query_routes_ordinary_operation_names_locally() {
 #[test]
 fn bulk_operation_run_query_throttles_when_query_operation_in_progress() {
     let mut proxy = snapshot_proxy();
-    let mut cancel_request = json_graphql_request(
+    let cancel = proxy.process_request(json_graphql_request(
         r#"
         mutation BulkOperationCancelParity($id: ID!) {
           bulkOperationCancel(id: $id) {
@@ -346,15 +333,13 @@ fn bulk_operation_run_query_throttles_when_query_operation_in_progress() {
         }
         "#,
         json!({ "id": "gid://shopify/BulkOperation/7689772990770" }),
-    );
-    cancel_request.path = "/admin/api/2025-01/graphql.json".to_string();
-    let cancel = proxy.process_request(cancel_request);
+    ));
     assert_eq!(
         cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
         json!("CANCELING")
     );
 
-    let mut run_request = json_graphql_request(
+    let response = proxy.process_request(json_graphql_request(
         r#"
         mutation BulkOperationRunQueryUserErrorCodes($query: String!) {
           bulkOperationRunQuery(query: $query) {
@@ -364,9 +349,7 @@ fn bulk_operation_run_query_throttles_when_query_operation_in_progress() {
         }
         "#,
         json!({ "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}" }),
-    );
-    run_request.path = "/admin/api/2025-01/graphql.json".to_string();
-    let response = proxy.process_request(run_request);
+    ));
 
     assert_eq!(response.status, 200);
     assert_eq!(
@@ -806,7 +789,7 @@ fn bulk_operation_run_mutation_file_size_error_precedes_in_progress_throttle() {
     );
     let log_before = proxy.get_log_snapshot();
 
-    let mut run_request = json_graphql_request(
+    let response = proxy.process_request(json_graphql_request(
         r#"
         mutation RunBulkImport($mutation: String!, $path: String!) {
           bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
@@ -819,9 +802,7 @@ fn bulk_operation_run_mutation_file_size_error_precedes_in_progress_throttle() {
             "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
             "path": path
         }),
-    );
-    run_request.path = "/admin/api/2025-01/graphql.json".to_string();
-    let response = proxy.process_request(run_request);
+    ));
 
     assert_eq!(response.status, 200);
     assert_eq!(
@@ -845,17 +826,7 @@ fn bulk_operation_run_mutation_file_size_error_precedes_in_progress_throttle() {
 
 #[test]
 fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
-    let id = "gid://shopify/BulkOperation/7749099127090";
-    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
-        let operation = bulk_operation_test_record(
-            id,
-            "CREATED",
-            "MUTATION",
-            "2026-05-05T20:34:00Z",
-            "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
-        );
-        move |_request| bulk_operation_hydrate_response(operation.clone())
-    });
+    let mut proxy = snapshot_proxy();
     let mut cancel_request = json_graphql_request(
         r#"
         mutation CancelCapturedMutation($id: ID!) {
@@ -865,7 +836,7 @@ fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
           }
         }
         "#,
-        json!({ "id": id }),
+        json!({ "id": "gid://shopify/BulkOperation/7749099127090" }),
     );
     cancel_request.path = "/admin/api/2025-01/graphql.json".to_string();
     let cancel = proxy.process_request(cancel_request);
@@ -878,7 +849,7 @@ fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
         json!("CANCELING")
     );
 
-    let mut run_request = json_graphql_request(
+    let response = proxy.process_request(json_graphql_request(
         r#"
         mutation RunBulkImport($mutation: String!, $path: String!) {
           bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
@@ -891,9 +862,7 @@ fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
             "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
             "path": "valid"
         }),
-    );
-    run_request.path = "/admin/api/2025-01/graphql.json".to_string();
-    let response = proxy.process_request(run_request);
+    ));
 
     assert_eq!(response.status, 200);
     assert_eq!(
@@ -903,206 +872,8 @@ fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
     assert_eq!(
         response.body["data"]["bulkOperationRunMutation"]["userErrors"],
         json!([{
-                "field": null,
-                "message": "A bulk mutation operation for this app and shop is already in progress: gid://shopify/BulkOperation/7749099127090.",
-            "code": "OPERATION_IN_PROGRESS"
-        }])
-    );
-}
-
-fn mutation_bulk_operation_fixture(id: &str) -> Value {
-    json!({
-        "id": id,
-        "status": "CREATED",
-        "type": "MUTATION",
-        "errorCode": null,
-        "createdAt": "2026-06-01T00:00:00Z",
-        "completedAt": null,
-        "objectCount": "0",
-        "rootObjectCount": "0",
-        "fileSize": null,
-        "url": null,
-        "partialDataUrl": null,
-        "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }"
-    })
-}
-
-fn live_hybrid_proxy_with_bulk_operation_hydration(
-    operations: BTreeMap<String, Value>,
-) -> DraftProxy {
-    configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
-        let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
-        let id = body
-            .get("variables")
-            .and_then(|variables| variables.get("id"))
-            .and_then(Value::as_str)
-            .unwrap_or_default();
-        shopify_draft_proxy::proxy::Response {
-            status: 200,
-            headers: Default::default(),
-            body: json!({
-                "data": {
-                    "bulkOperation": operations.get(id).cloned().unwrap_or(Value::Null)
-                }
-            }),
-        }
-    })
-}
-
-fn run_bulk_operation_mutation(proxy: &mut DraftProxy, api_version: &str) -> Value {
-    let mut request = json_graphql_request(
-        r#"
-        mutation RunBulkImport($mutation: String!, $path: String!) {
-          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
-            bulkOperation { id status type }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({
-            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
-            "path": "valid"
-        }),
-    );
-    request.path = format!("/admin/api/{api_version}/graphql.json");
-    let response = proxy.process_request(request);
-    assert_eq!(response.status, 200);
-    response.body["data"]["bulkOperationRunMutation"].clone()
-}
-
-#[test]
-fn bulk_operation_run_mutation_allows_five_mutation_operations_before_2026_04_throttle() {
-    let hydrated_operations = (0..5)
-        .map(|index| {
-            let id = format!("gid://shopify/BulkOperation/991000000000{index}");
-            (id.clone(), mutation_bulk_operation_fixture(&id))
-        })
-        .collect::<BTreeMap<_, _>>();
-    let mut proxy = live_hybrid_proxy_with_bulk_operation_hydration(hydrated_operations);
-
-    for index in 0..4 {
-        let id = format!("gid://shopify/BulkOperation/991000000000{index}");
-        let operation = cancel_bulk_operation(&mut proxy, &id, "2026-04");
-        assert_eq!(operation["type"], json!("MUTATION"));
-        assert_eq!(operation["status"], json!("CANCELING"));
-
-        let allowed = run_bulk_operation_mutation(&mut proxy, "2026-04");
-        assert!(
-            allowed["bulkOperation"].is_object(),
-            "2026-04 must allow mutation run while only {} mutation operations are non-terminal: {allowed}",
-            index + 1
-        );
-        assert_eq!(allowed["userErrors"], json!([]));
-    }
-
-    let fifth_id = "gid://shopify/BulkOperation/9910000000004";
-    cancel_bulk_operation(&mut proxy, fifth_id, "2026-04");
-    let throttled = run_bulk_operation_mutation(&mut proxy, "2026-04");
-    assert_eq!(throttled["bulkOperation"], Value::Null);
-    assert_eq!(
-        throttled["userErrors"],
-        json!([{
             "field": null,
-            "message": "A bulk mutation operation for this app and shop is already in progress: gid://shopify/BulkOperation/9910000000000, gid://shopify/BulkOperation/9910000000001, gid://shopify/BulkOperation/9910000000002, gid://shopify/BulkOperation/9910000000003, gid://shopify/BulkOperation/9910000000004.",
-            "code": "OPERATION_IN_PROGRESS"
-        }])
-    );
-}
-
-fn mutation_bulk_operation_fixture(id: &str) -> Value {
-    json!({
-        "id": id,
-        "status": "CREATED",
-        "type": "MUTATION",
-        "errorCode": null,
-        "createdAt": "2026-06-01T00:00:00Z",
-        "completedAt": null,
-        "objectCount": "0",
-        "rootObjectCount": "0",
-        "fileSize": null,
-        "url": null,
-        "partialDataUrl": null,
-        "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }"
-    })
-}
-
-fn live_hybrid_proxy_with_bulk_operation_hydration(
-    operations: BTreeMap<String, Value>,
-) -> DraftProxy {
-    configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
-        let body = serde_json::from_str::<Value>(&request.body).unwrap_or(Value::Null);
-        let id = body
-            .get("variables")
-            .and_then(|variables| variables.get("id"))
-            .and_then(Value::as_str)
-            .unwrap_or_default();
-        shopify_draft_proxy::proxy::Response {
-            status: 200,
-            headers: Default::default(),
-            body: json!({
-                "data": {
-                    "bulkOperation": operations.get(id).cloned().unwrap_or(Value::Null)
-                }
-            }),
-        }
-    })
-}
-
-fn run_bulk_operation_mutation(proxy: &mut DraftProxy, api_version: &str) -> Value {
-    let mut request = json_graphql_request(
-        r#"
-        mutation RunBulkImport($mutation: String!, $path: String!) {
-          bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
-            bulkOperation { id status type }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({
-            "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
-            "path": "valid"
-        }),
-    );
-    request.path = format!("/admin/api/{api_version}/graphql.json");
-    let response = proxy.process_request(request);
-    assert_eq!(response.status, 200);
-    response.body["data"]["bulkOperationRunMutation"].clone()
-}
-
-#[test]
-fn bulk_operation_run_mutation_allows_five_mutation_operations_before_2026_04_throttle() {
-    let hydrated_operations = (0..5)
-        .map(|index| {
-            let id = format!("gid://shopify/BulkOperation/991000000000{index}");
-            (id.clone(), mutation_bulk_operation_fixture(&id))
-        })
-        .collect::<BTreeMap<_, _>>();
-    let mut proxy = live_hybrid_proxy_with_bulk_operation_hydration(hydrated_operations);
-
-    for index in 0..4 {
-        let id = format!("gid://shopify/BulkOperation/991000000000{index}");
-        let operation = cancel_bulk_operation(&mut proxy, &id, "2026-04");
-        assert_eq!(operation["type"], json!("MUTATION"));
-        assert_eq!(operation["status"], json!("CANCELING"));
-
-        let allowed = run_bulk_operation_mutation(&mut proxy, "2026-04");
-        assert!(
-            allowed["bulkOperation"].is_object(),
-            "2026-04 must allow mutation run while only {} mutation operations are non-terminal: {allowed}",
-            index + 1
-        );
-        assert_eq!(allowed["userErrors"], json!([]));
-    }
-
-    let fifth_id = "gid://shopify/BulkOperation/9910000000004";
-    cancel_bulk_operation(&mut proxy, fifth_id, "2026-04");
-    let throttled = run_bulk_operation_mutation(&mut proxy, "2026-04");
-    assert_eq!(throttled["bulkOperation"], Value::Null);
-    assert_eq!(
-        throttled["userErrors"],
-        json!([{
-            "field": null,
-            "message": "A bulk mutation operation for this app and shop is already in progress: gid://shopify/BulkOperation/9910000000000, gid://shopify/BulkOperation/9910000000001, gid://shopify/BulkOperation/9910000000002, gid://shopify/BulkOperation/9910000000003, gid://shopify/BulkOperation/9910000000004.",
+            "message": "A bulk mutation operation for this app and shop is already in progress: gid://shopify/BulkOperation/7749099127090.",
             "code": "OPERATION_IN_PROGRESS"
         }])
     );
@@ -1269,7 +1040,10 @@ fn bulk_operation_cancel_unknown_gid_returns_not_found_without_staging() {
     );
 }
 
-    let mut run_request = json_graphql_request(
+#[test]
+fn bulk_operation_cancel_completed_staged_operation_echoes_terminal_without_mutation() {
+    let mut proxy = snapshot_proxy();
+    let run = proxy.process_request(json_graphql_request(
         r#"
         mutation RunCompleted($query: String!) {
           bulkOperationRunQuery(query: $query) {
@@ -1279,9 +1053,23 @@ fn bulk_operation_cancel_unknown_gid_returns_not_found_without_staging() {
         }
         "#,
         json!({ "query": "{ products { edges { node { id } } } }" }),
-    );
-    run_request.path = "/admin/api/2025-01/graphql.json".to_string();
-    let response = proxy.process_request(run_request);
+    ));
+    let id = run.body["data"]["bulkOperationRunQuery"]["bulkOperation"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let cancel = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CancelCompleted($id: ID!) {
+          bulkOperationCancel(id: $id) {
+            bulkOperation { id status type }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "id": id }),
+    ));
 
     assert_eq!(
         cancel.body["data"]["bulkOperationCancel"],
@@ -1374,17 +1162,8 @@ fn bulk_operation_cancel_terminal_hydrated_operation_echoes_existing_record() {
 
 #[test]
 fn bulk_operation_list_filters_paginates_and_selects_current_by_type() {
+    let mut proxy = snapshot_proxy();
     let older_id = "gid://shopify/BulkOperation/9999999999999";
-    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
-        let operation = bulk_operation_test_record(
-            older_id,
-            "CREATED",
-            "QUERY",
-            "2026-04-27T20:33:59Z",
-            "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}",
-        );
-        move |_request| bulk_operation_hydrate_response(operation.clone())
-    });
     let run = proxy.process_request(json_graphql_request(
         r#"
         mutation BulkOperationRunQueryGroupObjectsTrue($query: String!) {
@@ -1765,60 +1544,111 @@ fn customer_mutations_are_operation_name_independent_and_store_backed() {
         json!([{ "field": ["email"], "message": "Email is invalid" }])
     );
 
-#[test]
-fn customer_tax_exemption_roots_stage_and_project_downstream_reads() {
-    let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
         r#"
-        mutation CustomerCreateParityPlan($input: CustomerInput!) {
+        mutation ConsumerCreateCustomer($input: CustomerInput!) {
           customerCreate(input: $input) {
-            customer { id taxExempt taxExemptions }
+            customer { id firstName lastName displayName email phone locale verifiedEmail tags defaultEmailAddress { emailAddress } defaultPhoneNumber { phoneNumber } }
             userErrors { field message }
           }
         }
         "#,
         json!({
             "input": {
-                "email": "tax-exemption-roots@example.test",
-                "firstName": "Tax",
-                "lastName": "Roots",
-                "taxExempt": false
+                "firstName": "Alice",
+                "lastName": "Buyer",
+                "email": "Alice@Example.COM",
+                "phone": "+1 (613) 450-5293",
+                "tags": ["Retail, VIP", "vip"]
             }
         }),
     ));
-    let id = create.body["data"]["customerCreate"]["customer"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
+    assert_eq!(create.status, 200);
+    assert_eq!(create.body["errors"], Value::Null);
+    assert_eq!(
+        create.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    let customer = &create.body["data"]["customerCreate"]["customer"];
+    let id = customer["id"].as_str().unwrap();
+    assert!(id.starts_with("gid://shopify/Customer/"));
+    assert_eq!(customer["email"], json!("alice@example.com"));
+    assert_eq!(customer["phone"], json!("+16134505293"));
+    assert_eq!(customer["locale"], json!("en"));
+    assert_eq!(customer["verifiedEmail"], json!(false));
+    assert_eq!(customer["tags"], json!(["Retail", "VIP"]));
 
-    let add = proxy.process_request(json_graphql_request(
+    let mut versioned_proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
+    let mut versioned_create = json_graphql_request(
         r#"
-        mutation UnrelatedAddName($id: ID!, $taxExemptions: [TaxExemption!]!) {
-          aliasedAdd: customerAddTaxExemptions(customerId: $id, taxExemptions: $taxExemptions) {
-            customer { id taxExempt taxExemptions }
+        mutation VersionedCustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email verifiedEmail }
             userErrors { field message }
           }
         }
         "#,
-        json!({
-            "id": id,
-            "taxExemptions": [
-                "CA_BC_RESELLER_EXEMPTION",
-                "US_CA_RESELLER_EXEMPTION",
-                "CA_BC_RESELLER_EXEMPTION"
-            ]
-        }),
+        json!({ "input": { "email": "legacy-version@example.com" } }),
+    );
+    versioned_create.path = "/admin/api/2025-01/graphql.json".to_string();
+    let versioned_create = versioned_proxy.process_request(versioned_create);
+    assert_eq!(versioned_create.status, 200);
+    assert_eq!(
+        versioned_create.body["data"]["customerCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        versioned_create.body["data"]["customerCreate"]["customer"]["verifiedEmail"],
+        json!(true)
+    );
+
+    let read = proxy.process_request(json_graphql_request(
+        r#"
+        query ReadConsumerCustomer($id: ID!, $identifier: CustomerIdentifierInput!) {
+          customer(id: $id) { id email phone locale verifiedEmail tags }
+          customerByIdentifier(identifier: $identifier) { id email phone }
+        }
+        "#,
+        json!({ "id": id, "identifier": { "email": "alice@example.com" } }),
     ));
-    assert_eq!(add.status, 200);
+    assert_eq!(read.body["data"]["customer"]["id"], json!(id));
+    assert_eq!(read.body["data"]["customerByIdentifier"]["id"], json!(id));
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ConsumerDuplicateCustomer($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "email": "ALICE@example.com", "firstName": "Duplicate" } }),
+    ));
+    assert_eq!(duplicate.status, 200);
     assert_eq!(
-        add.body["data"]["aliasedAdd"]["customer"]["taxExempt"],
-        json!(false)
+        duplicate.body["data"]["customerCreate"]["customer"],
+        Value::Null
     );
     assert_eq!(
-        add.body["data"]["aliasedAdd"]["customer"]["taxExemptions"],
-        json!(["CA_BC_RESELLER_EXEMPTION", "US_CA_RESELLER_EXEMPTION"])
+        duplicate.body["data"]["customerCreate"]["userErrors"],
+        json!([{ "field": ["email"], "message": "Email has already been taken" }])
     );
-    assert_eq!(add.body["data"]["aliasedAdd"]["userErrors"], json!([]));
+
+    let log = proxy.get_log_snapshot();
+    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        log["entries"][0]["interpreted"]["primaryRootField"],
+        json!("customerCreate")
+    );
+    assert!(log["entries"][0]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("ConsumerCreateCustomer"));
+}
 
 #[test]
 fn customer_tax_exemption_roots_stage_and_project_downstream_reads() {
@@ -2215,962 +2045,6 @@ fn customer_tax_exemption_roots_hydrate_live_hybrid_customer_before_staging() {
 #[test]
 fn customer_update_rejects_inline_marketing_consent_without_mutating_customer() {
     let mut proxy = snapshot_proxy();
-    let id = "gid://shopify/Customer/9102966915305";
-    let create_baseline = proxy.process_request(json_graphql_request(
-        r#"
-        mutation UnrelatedRemoveName($id: ID!, $taxExemptions: [TaxExemption!]!) {
-          customerRemoveTaxExemptions(customerId: $id, taxExemptions: $taxExemptions) {
-            customer { id taxExemptions }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({
-            "id": id,
-            "taxExemptions": ["CA_STATUS_CARD_EXEMPTION", "CA_BC_RESELLER_EXEMPTION"]
-        }),
-    ));
-    assert_eq!(
-        remove.body["data"]["customerRemoveTaxExemptions"]["customer"]["taxExemptions"],
-        json!(["US_CA_RESELLER_EXEMPTION"])
-    );
-
-    let replace = proxy.process_request(json_graphql_request(
-        r#"
-        mutation UnrelatedReplaceName($id: ID!, $taxExemptions: [TaxExemption!]!) {
-          customerReplaceTaxExemptions(customerId: $id, taxExemptions: $taxExemptions) {
-            customer { id taxExempt taxExemptions }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({
-            "id": id,
-            "taxExemptions": [
-                "US_CA_RESELLER_EXEMPTION",
-                "CA_STATUS_CARD_EXEMPTION",
-                "US_CA_RESELLER_EXEMPTION"
-            ]
-        }),
-    ));
-    assert_eq!(
-        replace.body["data"]["customerReplaceTaxExemptions"]["customer"]["taxExemptions"],
-        json!(["US_CA_RESELLER_EXEMPTION", "CA_STATUS_CARD_EXEMPTION"])
-    );
-    assert_eq!(
-        replace.body["data"]["customerReplaceTaxExemptions"]["customer"]["taxExempt"],
-        json!(false)
-    );
-
-    let downstream = proxy.process_request(json_graphql_request(
-        r#"
-        query TaxRootDownstream($id: ID!, $identifier: CustomerIdentifierInput!, $query: String!, $first: Int!) {
-          customer(id: $id) { id taxExempt taxExemptions }
-          customerByIdentifier(identifier: $identifier) { id taxExempt taxExemptions }
-          customers(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {
-            nodes { id taxExempt taxExemptions }
-            pageInfo { hasNextPage hasPreviousPage }
-          }
-          customersCount { count precision }
-        }
-        "#,
-        json!({
-            "id": id,
-            "identifier": { "id": id },
-            "query": "__customer_parity_no_match__",
-            "first": 5
-        }),
-    ));
-    let expected = json!({
-        "id": id,
-        "taxExempt": false,
-        "taxExemptions": ["US_CA_RESELLER_EXEMPTION", "CA_STATUS_CARD_EXEMPTION"]
-    });
-    assert_eq!(downstream.body["data"]["customer"], expected);
-    assert_eq!(downstream.body["data"]["customerByIdentifier"], expected);
-    assert_eq!(
-        downstream.body["data"]["customers"],
-        json!({
-            "nodes": [],
-            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false }
-        })
-    );
-    assert_eq!(
-        downstream.body["data"]["customersCount"],
-        json!({ "count": 177, "precision": "EXACT" })
-    );
-
-    let empty_replace = proxy.process_request(json_graphql_request(
-        r#"
-        mutation EmptyReplace($id: ID!, $taxExemptions: [TaxExemption!]!) {
-          customerReplaceTaxExemptions(customerId: $id, taxExemptions: $taxExemptions) {
-            customer { id taxExemptions }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({ "id": id, "taxExemptions": [] }),
-    ));
-    assert_eq!(
-        empty_replace.body["data"]["customerReplaceTaxExemptions"]["customer"]["taxExemptions"],
-        json!([])
-    );
-
-    let log = proxy.get_log_snapshot();
-    let entries = log["entries"].as_array().unwrap();
-    assert_eq!(entries.len(), 5);
-    assert_eq!(
-        entries[1]["interpreted"]["primaryRootField"],
-        json!("customerAddTaxExemptions")
-    );
-    assert_eq!(entries[1]["status"], json!("staged"));
-    assert!(entries[1]["rawBody"]
-        .as_str()
-        .unwrap()
-        .contains("UnrelatedAddName"));
-    assert_eq!(
-        entries[4]["interpreted"]["primaryRootField"],
-        json!("customerReplaceTaxExemptions")
-    );
-}
-
-#[test]
-fn customer_tax_exemption_roots_return_unknown_customer_user_errors() {
-    let mut proxy = snapshot_proxy();
-    for root in [
-        "customerAddTaxExemptions",
-        "customerRemoveTaxExemptions",
-        "customerReplaceTaxExemptions",
-    ] {
-        let query = format!(
-            r#"
-            mutation UnknownTaxRoot($id: ID!, $taxExemptions: [TaxExemption!]!) {{
-              {root}(customerId: $id, taxExemptions: $taxExemptions) {{
-                customer {{ id taxExemptions }}
-                userErrors {{ field message }}
-              }}
-            }}
-            "#
-        );
-        let response = proxy.process_request(json_graphql_request(
-            &query,
-            json!({
-                "id": "gid://shopify/Customer/999999999999999",
-                "taxExemptions": ["CA_BC_RESELLER_EXEMPTION"]
-            }),
-        ));
-        assert_eq!(response.status, 200);
-        assert_eq!(response.body["data"][root]["customer"], Value::Null);
-        assert_eq!(
-            response.body["data"][root]["userErrors"],
-            json!([{ "field": ["customerId"], "message": "Customer does not exist." }])
-        );
-    }
-    assert!(proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .is_empty());
-}
-
-#[test]
-fn customer_tax_exemption_roots_reject_invalid_enum_variables_before_staging() {
-    let mut proxy = snapshot_proxy();
-    let response = proxy.process_request(json_graphql_request(
-        r#"
-        mutation InvalidTaxVariable($id: ID!, $taxExemptions: [TaxExemption!]!) {
-          customerAddTaxExemptions(customerId: $id, taxExemptions: $taxExemptions) {
-            customer { id taxExemptions }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({
-            "id": "gid://shopify/Customer/9102966915305",
-            "taxExemptions": ["NOT_A_REAL_EXEMPTION"]
-        }),
-    ));
-
-    assert_eq!(response.status, 200);
-    assert_eq!(
-        response.body["errors"][0]["extensions"]["code"],
-        json!("INVALID_VARIABLE")
-    );
-    assert!(response.body["errors"][0]["message"]
-        .as_str()
-        .is_some_and(|message| message.contains("NOT_A_REAL_EXEMPTION")
-            && message.contains("CA_STATUS_CARD_EXEMPTION")
-            && message.contains("CA_BC_RESELLER_EXEMPTION")
-            && message.contains("US_CA_RESELLER_EXEMPTION")));
-    assert!(proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .is_empty());
-}
-
-#[test]
-fn customer_tax_exemption_roots_reject_invalid_enum_literals_before_staging() {
-    let mut proxy = snapshot_proxy();
-    let response = proxy.process_request(json_graphql_request(
-        r#"
-        mutation InvalidTaxLiteral {
-          customerAddTaxExemptions(
-            customerId: "gid://shopify/Customer/9102966915305",
-            taxExemptions: [NOT_A_REAL_EXEMPTION]
-          ) {
-            customer { id taxExemptions }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({}),
-    ));
-
-    assert_eq!(response.status, 200);
-    assert_eq!(
-        response.body["errors"][0]["extensions"]["code"],
-        json!("argumentLiteralsIncompatible")
-    );
-    assert_eq!(
-        response.body["errors"][0]["extensions"]["argumentName"],
-        json!("taxExemptions")
-    );
-    assert!(response.body["errors"][0]["message"]
-        .as_str()
-        .is_some_and(|message| message.contains("NOT_A_REAL_EXEMPTION")
-            && message.contains("CA_STATUS_CARD_EXEMPTION")));
-    assert!(proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .is_empty());
-}
-
-#[test]
-fn customer_tax_exemption_roots_hydrate_live_hybrid_customer_before_staging() {
-    let customer_id = "gid://shopify/Customer/10540996428082";
-    let upstream_queries = Arc::new(Mutex::new(Vec::<String>::new()));
-    let captured_queries = Arc::clone(&upstream_queries);
-    let mut proxy =
-        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
-            let body: Value =
-                serde_json::from_str(&request.body).expect("upstream request body parses");
-            let query = body["query"]
-                .as_str()
-                .expect("upstream query is a string")
-                .to_string();
-            captured_queries.lock().unwrap().push(query.clone());
-            let response = if query.contains("CustomerHydrate") {
-                json!({
-                    "data": {
-                        "customer": {
-                            "id": customer_id,
-                            "firstName": "Hermes",
-                            "lastName": "Tax",
-                            "displayName": "Hermes Tax",
-                            "email": "hermes-tax@example.com",
-                            "taxExempt": false,
-                            "taxExemptions": [],
-                            "tags": ["parity"],
-                            "defaultEmailAddress": { "emailAddress": "hermes-tax@example.com" },
-                            "createdAt": "2026-04-25T22:56:29Z",
-                            "updatedAt": "2026-04-25T22:56:29Z"
-                        }
-                    }
-                })
-            } else if query.contains("CustomerCountHydrate") {
-                json!({
-                    "data": {
-                        "customersCount": { "count": 23, "precision": "EXACT" }
-                    }
-                })
-            } else {
-                json!({"errors": [{"message": format!("unexpected upstream query: {query}")}]})
-            };
-            shopify_draft_proxy::proxy::Response {
-                status: 200,
-                headers: Default::default(),
-                body: response,
-            }
-        });
-
-    let add = proxy.process_request(json_graphql_request(
-        r#"
-        mutation HydrateTaxRoot($id: ID!, $taxExemptions: [TaxExemption!]!) {
-          customerAddTaxExemptions(customerId: $id, taxExemptions: $taxExemptions) {
-            customer { id email taxExempt taxExemptions }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({
-            "id": customer_id,
-            "taxExemptions": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
-        }),
-    ));
-    assert_eq!(add.status, 200);
-    assert_eq!(
-        add.body["data"]["customerAddTaxExemptions"]["userErrors"],
-        json!([])
-    );
-    assert_eq!(
-        add.body["data"]["customerAddTaxExemptions"]["customer"],
-        json!({
-            "id": customer_id,
-            "email": "hermes-tax@example.com",
-            "taxExempt": false,
-            "taxExemptions": ["EU_REVERSE_CHARGE_EXEMPTION_RULE"]
-        })
-    );
-
-    let read = proxy.process_request(json_graphql_request(
-        r#"
-        query HydratedTaxRead($id: ID!, $identifier: CustomerIdentifierInput!) {
-          customer(id: $id) { id taxExemptions }
-          customerByIdentifier(identifier: $identifier) { id taxExemptions }
-          customersCount { count precision }
-        }
-        "#,
-        json!({
-            "id": customer_id,
-            "identifier": { "id": customer_id }
-        }),
-    ));
-    assert_eq!(
-        read.body["data"]["customer"]["taxExemptions"],
-        json!(["EU_REVERSE_CHARGE_EXEMPTION_RULE"])
-    );
-    assert_eq!(
-        read.body["data"]["customerByIdentifier"]["taxExemptions"],
-        json!(["EU_REVERSE_CHARGE_EXEMPTION_RULE"])
-    );
-    assert_eq!(
-        read.body["data"]["customersCount"],
-        json!({ "count": 23, "precision": "EXACT" })
-    );
-
-    let queries = upstream_queries.lock().unwrap();
-    assert_eq!(queries.len(), 2);
-    assert!(queries[0].contains("CustomerHydrate"));
-    assert!(queries[1].contains("CustomerCountHydrate"));
-}
-
-#[test]
-fn customer_update_rejects_inline_marketing_consent_without_mutating_customer() {
-    let mut proxy = snapshot_proxy();
-    let id = "gid://shopify/Customer/9102966915305";
-    let create_baseline = proxy.process_request(json_graphql_request(
-        r#"
-        mutation ConsumerCreateCustomer($input: CustomerInput!) {
-          customerCreate(input: $input) {
-            customer { id firstName lastName displayName email phone locale verifiedEmail tags defaultEmailAddress { emailAddress } defaultPhoneNumber { phoneNumber } }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({
-            "input": {
-                "firstName": "Alice",
-                "lastName": "Buyer",
-                "email": "Alice@Example.COM",
-                "phone": "+1 (613) 450-5293",
-                "tags": ["Retail, VIP", "vip"]
-            }
-        }),
-    ));
-    assert_eq!(create.status, 200);
-    assert_eq!(create.body["errors"], Value::Null);
-    assert_eq!(
-        create.body["data"]["customerCreate"]["userErrors"],
-        json!([])
-    );
-    let customer = &create.body["data"]["customerCreate"]["customer"];
-    let id = customer["id"].as_str().unwrap();
-    assert!(id.starts_with("gid://shopify/Customer/"));
-    assert_eq!(customer["email"], json!("alice@example.com"));
-    assert_eq!(customer["phone"], json!("+16134505293"));
-    assert_eq!(customer["locale"], json!("en"));
-    assert_eq!(customer["verifiedEmail"], json!(false));
-    assert_eq!(customer["tags"], json!(["Retail", "VIP"]));
-
-    let mut versioned_proxy = configured_proxy(
-        ReadMode::Snapshot,
-        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
-    );
-    let mut versioned_create = json_graphql_request(
-        r#"
-        mutation VersionedCustomerCreate($input: CustomerInput!) {
-          customerCreate(input: $input) {
-            customer { id email verifiedEmail }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({ "input": { "email": "legacy-version@example.com" } }),
-    );
-    versioned_create.path = "/admin/api/2025-01/graphql.json".to_string();
-    let versioned_create = versioned_proxy.process_request(versioned_create);
-    assert_eq!(versioned_create.status, 200);
-    assert_eq!(
-        versioned_create.body["data"]["customerCreate"]["userErrors"],
-        json!([])
-    );
-    assert_eq!(
-        versioned_create.body["data"]["customerCreate"]["customer"]["verifiedEmail"],
-        json!(true)
-    );
-
-    let read = proxy.process_request(json_graphql_request(
-        r#"
-        query ReadConsumerCustomer($id: ID!, $identifier: CustomerIdentifierInput!) {
-          customer(id: $id) { id email phone locale verifiedEmail tags }
-          customerByIdentifier(identifier: $identifier) { id email phone }
-        }
-        "#,
-        json!({ "id": id, "identifier": { "email": "alice@example.com" } }),
-    ));
-    assert_eq!(read.body["data"]["customer"]["id"], json!(id));
-    assert_eq!(read.body["data"]["customerByIdentifier"]["id"], json!(id));
-
-    let duplicate = proxy.process_request(json_graphql_request(
-        r#"
-        mutation ConsumerDuplicateCustomer($input: CustomerInput!) {
-          customerCreate(input: $input) {
-            customer { id }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({ "input": { "email": "ALICE@example.com", "firstName": "Duplicate" } }),
-    ));
-    assert_eq!(duplicate.status, 200);
-    assert_eq!(
-        duplicate.body["data"]["customerCreate"]["customer"],
-        Value::Null
-    );
-    assert_eq!(
-        duplicate.body["data"]["customerCreate"]["userErrors"],
-        json!([{ "field": ["email"], "message": "Email has already been taken" }])
-    );
-
-    let log = proxy.get_log_snapshot();
-    assert_eq!(log["entries"].as_array().unwrap().len(), 1);
-    assert_eq!(
-        log["entries"][0]["interpreted"]["primaryRootField"],
-        json!("customerCreate")
-    );
-    assert!(log["entries"][0]["rawBody"]
-        .as_str()
-        .unwrap()
-        .contains("ConsumerCreateCustomer"));
-}
-
-#[test]
-fn customer_update_delete_and_set_are_root_field_routed() {
-    let mut proxy = configured_proxy(
-        ReadMode::Snapshot,
-        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
-    );
-
-    let create = proxy.process_request(json_graphql_request(
-        r#"
-        mutation SeedCustomerForSet($input: CustomerInput!) {
-          customerCreate(input: $input) {
-            customer { id email phone }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({ "input": { "email": "set-route@example.com", "phone": "+1 415 555 0101" } }),
-    ));
-    let id = create.body["data"]["customerCreate"]["customer"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-
-    let set_create = proxy.process_request(json_graphql_request(
-        r#"
-        mutation ConsumerCustomerSetCreate($input: CustomerSetInput!) {
-          customerSet(input: $input) {
-            customer { id firstName email locale verifiedEmail }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({ "input": { "firstName": "Bob", "email": "set-create@example.com" } }),
-    ));
-    assert_eq!(set_create.status, 200);
-    assert_eq!(
-        set_create.body["data"]["customerSet"]["userErrors"],
-        json!([])
-    );
-    assert_eq!(
-        set_create.body["data"]["customerSet"]["customer"]["email"],
-        json!("set-create@example.com")
-    );
-
-#[test]
-fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycle() {
-    let mut proxy = snapshot_proxy();
-
-    let mut expires_after_parent_request = json_graphql_request(
-        r#"
-        mutation ConsumerCustomerSetByEmail($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
-          customerSet(identifier: $identifier, input: $input) {
-            customer {
-              id
-              firstName
-              email
-              defaultAddress { address1 city province country zip formattedArea }
-              addressesV2(first: 5) {
-                nodes { id address1 city province country zip formattedArea }
-                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
-              }
-            }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({}),
-    );
-    expires_after_parent_request.headers.insert(
-        "x-shopify-draft-proxy-access-token-expires-at".to_string(),
-        "2026-04-28T03:10:00.000Z".to_string(),
-    );
-    let expires_after_parent = proxy.process_request(expires_after_parent_request);
-    assert_eq!(
-        set_update.body["data"]["customerSet"]["userErrors"],
-        json!([])
-    );
-    assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["delegatedAccessTokens"],
-        json!({})
-    );
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"][0]["status"],
-        json!("failed")
-    );
-
-    for query in [
-        r#"
-        mutation ConsumerNamedDelegate {
-          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 99999999 }) {
-            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        r#"
-        mutation {
-          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 99999999 }) {
-            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
-            userErrors { field message code }
-          }
-        }
-        "#,
-    ] {
-        let mut request = json_graphql_request(query, json!({}));
-        request.headers.insert(
-            "x-shopify-draft-proxy-access-token-expires-at".to_string(),
-            "2026-04-28T03:10:00.000Z".to_string(),
-        );
-        let response = proxy.process_request(request);
-        assert_eq!(
-            response.body["data"]["delegateAccessTokenCreate"],
-            json!({
-                "delegateAccessToken": null,
-                "userErrors": [{
-                    "field": null,
-                    "message": "The delegate token can't expire after the parent token.",
-                    "code": "EXPIRES_AFTER_PARENT"
-                }]
-            })
-        );
-    }
-    assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["delegatedAccessTokens"],
-        json!({})
-    );
-    assert!(proxy.get_log_snapshot()["entries"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .all(|entry| entry["status"] == json!("failed")));
-
-    let missing = proxy.process_request(json_graphql_request(
-        r#"
-        mutation DelegateAccessTokenDestroyCodes($token: String!) {
-          delegateAccessTokenDestroy(accessToken: $token) {
-            status
-            shop { id name }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({ "token": "shpat_does_not_exist" }),
-    ));
-    assert_eq!(
-        set_update.body["data"]["customerSet"]["customer"]["id"],
-        json!(id)
-    );
-    assert_eq!(
-        set_update.body["data"]["customerSet"]["customer"]["firstName"],
-        json!("Updated")
-    );
-    assert_eq!(
-        set_update.body["data"]["customerSet"]["customer"]["defaultAddress"],
-        json!({
-            "address1": "11 Upsert St",
-            "city": "Toronto",
-            "province": "Ontario",
-            "country": "Canada",
-            "zip": "M5H 2N2",
-            "formattedArea": "Toronto ON, Canada"
-        })
-    );
-    assert_eq!(
-        set_update.body["data"]["customerSet"]["customer"]["addressesV2"]["nodes"][0]["address1"],
-        json!("11 Upsert St")
-    );
-
-    let null_addresses = proxy.process_request(json_graphql_request(
-        r#"
-        mutation ConsumerCustomerSetNullAddresses($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
-          customerSet(identifier: $identifier, input: $input) {
-            customer {
-              defaultAddress { address1 city province country zip formattedArea }
-              addressesV2(first: 5) { nodes { address1 city } }
-            }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({
-            "identifier": { "id": id },
-            "input": { "email": "set-route@example.com", "addresses": null }
-        }),
-    ));
-    assert_eq!(null_addresses.status, 200);
-    assert_eq!(
-        null_addresses.body["data"]["customerSet"]["customer"]["defaultAddress"]["address1"],
-        json!("11 Upsert St")
-    );
-    assert_eq!(
-        null_addresses.body["data"]["customerSet"]["customer"]["addressesV2"]["nodes"][0]["city"],
-        json!("Toronto")
-    );
-
-    let clear_addresses = proxy.process_request(json_graphql_request(
-        r#"
-        mutation ConsumerCustomerSetClearAddresses($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
-          customerSet(identifier: $identifier, input: $input) {
-            customer {
-              defaultAddress { address1 }
-              addressesV2(first: 5) { nodes { address1 } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
-            }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({
-            "identifier": { "id": id },
-            "input": { "email": "set-route@example.com", "addresses": [] }
-        }),
-    ));
-    assert_eq!(clear_addresses.status, 200);
-    assert_eq!(
-        clear_addresses.body["data"]["customerSet"]["customer"]["defaultAddress"],
-        Value::Null
-    );
-    assert_eq!(
-        clear_addresses.body["data"]["customerSet"]["customer"]["addressesV2"],
-        json!({
-            "nodes": [],
-            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null }
-        })
-    );
-
-    let update_identity = proxy.process_request(json_graphql_request(
-        r#"
-        mutation ConsumerCustomerUpdate($input: CustomerInput!) {
-          customerUpdate(input: $input) {
-            customer { id }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({ "input": { "id": id, "firstName": "", "lastName": "", "email": "", "phone": "" } }),
-    ));
-    assert_eq!(update_identity.status, 200);
-    assert_eq!(
-        update_identity.body["data"]["customerUpdate"]["userErrors"],
-        json!([{ "field": null, "message": "A name, phone number, or email address must be present" }])
-    );
-
-    let delete = proxy.process_request(json_graphql_request(
-        r#"
-        mutation ConsumerCustomerDelete($input: CustomerDeleteInput!) {
-          customerDelete(input: $input) {
-            deletedCustomerId
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({ "input": { "id": create.body["data"]["customerCreate"]["customer"]["id"] } }),
-    ));
-    assert_eq!(delete.status, 200);
-    assert_eq!(
-        delete.body["data"]["customerDelete"]["deletedCustomerId"],
-        create.body["data"]["customerCreate"]["customer"]["id"]
-    );
-    assert_eq!(
-        delete.body["data"]["customerDelete"]["userErrors"],
-        json!([])
-    );
-}
-
-#[test]
-fn customer_mutations_hydrate_existing_live_customers_without_passthrough_writes() {
-    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
-    let captured_calls = Arc::clone(&upstream_calls);
-    let mut proxy = configured_proxy(
-        ReadMode::LiveHybrid,
-        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
-    )
-    .with_upstream_transport(move |request| {
-        let body: Value = serde_json::from_str(&request.body).unwrap();
-        captured_calls.lock().unwrap().push(body.clone());
-        match (
-            body["operationName"].as_str().unwrap_or_default(),
-            body["variables"]["query"].as_str(),
-            body["variables"]["id"].as_str(),
-        ) {
-            ("CustomerDuplicateHydrate", Some("email:upstream@example.com"), _) => {
-                shopify_draft_proxy::proxy::Response {
-                    status: 200,
-                    headers: Default::default(),
-                    body: json!({
-                        "data": {
-                            "customers": {
-                                "nodes": [{ "id": "gid://shopify/Customer/upstream" }]
-                            }
-                        }
-                    }),
-                }
-            }
-            ("CustomerHydrate", _, Some("gid://shopify/Customer/upstream")) => {
-                shopify_draft_proxy::proxy::Response {
-                    status: 200,
-                    headers: Default::default(),
-                    body: json!({
-                        "data": {
-                            "customer": {
-                                "id": "gid://shopify/Customer/upstream",
-                                "email": "upstream@example.com",
-                                "displayName": "Upstream Customer",
-                                "defaultEmailAddress": { "emailAddress": "upstream@example.com" },
-                                "defaultPhoneNumber": { "phoneNumber": "+14155550199" },
-                                "canDelete": true,
-                                "verifiedEmail": true,
-                                "taxExempt": false,
-                                "taxExemptions": [],
-                                "tags": [],
-                                "state": "DISABLED",
-                                "locale": "en"
-                            }
-                        }
-                    }),
-                }
-            }
-            _ => shopify_draft_proxy::proxy::Response {
-                status: 200,
-                headers: Default::default(),
-                body: json!({ "data": { "customers": { "nodes": [] }, "customer": null } }),
-            },
-        }
-    });
-
-    let duplicate = proxy.process_request(json_graphql_request(
-        r#"
-        mutation OrdinaryDuplicate($input: CustomerInput!) {
-          customerCreate(input: $input) {
-            customer { id }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({ "input": { "firstName": "Dupe", "email": "upstream@example.com" } }),
-    ));
-    assert_eq!(duplicate.status, 200);
-    assert_eq!(
-        duplicate.body["data"]["customerCreate"]["customer"],
-        Value::Null
-    );
-    assert_eq!(
-        duplicate.body["data"]["customerCreate"]["userErrors"],
-        json!([{ "field": ["email"], "message": "Email has already been taken" }])
-    );
-
-    let update = proxy.process_request(json_graphql_request(
-        r#"
-        mutation OrdinaryUpdate($input: CustomerInput!) {
-          customerUpdate(input: $input) {
-            customer { id firstName email defaultPhoneNumber { phoneNumber } verifiedEmail }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({ "input": { "id": "gid://shopify/Customer/upstream", "firstName": "Updated" } }),
-    ));
-    assert_eq!(update.status, 200);
-    assert_eq!(
-        update.body["data"]["customerUpdate"]["userErrors"],
-        json!([])
-    );
-    assert_eq!(
-        update.body["data"]["customerUpdate"]["customer"]["id"],
-        json!("gid://shopify/Customer/upstream")
-    );
-    assert_eq!(
-        update.body["data"]["customerUpdate"]["customer"]["firstName"],
-        json!("Updated")
-    );
-    assert_eq!(
-        update.body["data"]["customerUpdate"]["customer"]["defaultPhoneNumber"]["phoneNumber"],
-        json!("+14155550199")
-    );
-    assert_eq!(
-        update.body["data"]["customerUpdate"]["customer"]["verifiedEmail"],
-        json!(true)
-    );
-
-    let calls = upstream_calls.lock().unwrap();
-    assert_eq!(calls.len(), 2);
-    assert_eq!(calls[0]["operationName"], json!("CustomerDuplicateHydrate"));
-    assert_eq!(calls[1]["operationName"], json!("CustomerHydrate"));
-    assert!(calls.iter().all(|call| !call["query"]
-        .as_str()
-        .unwrap_or_default()
-        .contains("mutation")));
-}
-
-#[test]
-fn customer_update_and_delete_stage_known_fixture_customer_reads() {
-    let mut proxy = snapshot_proxy();
-    let create = proxy.process_request(json_graphql_request(
-        r#"
-        mutation CustomerUpdateDeleteSeed($input: CustomerInput!) {
-          customerCreate(input: $input) {
-            customer { id }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({ "input": { "email": "update-delete-seed@example.com", "firstName": "Hermes", "lastName": "Create", "phone": "+14155550123" } }),
-    ));
-    assert_eq!(
-        required.body["data"]["appRevokeAccessScopes"],
-        json!({
-            "revoked": [],
-            "userErrors": [{
-                "field": ["scopes"],
-                "message": "Scopes that are declared as required cannot be revoked.",
-                "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
-            }]
-        })
-    );
-
-    let mut missing_source_app_request = json_graphql_request(
-        r#"
-        mutation CustomerUpdateParityPlan($input: CustomerInput!) {
-          customerUpdate(input: $input) {
-            customer { id firstName lastName displayName email note taxExempt taxExemptions tags defaultPhoneNumber { phoneNumber } loyalty: metafield(namespace: "custom", key: "loyalty") { id namespace key type value } metafields(first: 5) { nodes { id namespace key type value } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({}),
-    );
-    missing_source_app_request.headers.insert(
-        "x-shopify-draft-proxy-source-app-missing".to_string(),
-        "true".to_string(),
-    );
-    let missing_source_app = proxy.process_request(missing_source_app_request);
-    assert_eq!(
-        update.body["data"]["customerUpdate"]["customer"]["displayName"],
-        json!("Hermes Updated")
-    );
-    assert_eq!(
-        update.body["data"]["customerUpdate"]["customer"]["loyalty"]["value"],
-        json!("gold")
-    );
-    assert_eq!(
-        update.body["data"]["customerUpdate"]["customer"]["defaultPhoneNumber"]["phoneNumber"],
-        json!("+14155550123")
-    );
-
-    for query in [
-        r#"
-        mutation ConsumerNamedRevoke {
-          appRevokeAccessScopes(scopes: ["write_products"]) {
-            revoked { handle description }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        r#"
-        mutation {
-          appRevokeAccessScopes(scopes: ["write_products"]) {
-            revoked { handle description }
-            userErrors { field message code }
-          }
-        }
-        "#,
-    ] {
-        let mut request = json_graphql_request(query, json!({}));
-        request.headers.insert(
-            "x-shopify-draft-proxy-source-app-missing".to_string(),
-            "true".to_string(),
-        );
-        let response = proxy.process_request(request);
-        assert_eq!(
-            response.body["data"]["appRevokeAccessScopes"],
-            json!({
-                "revoked": [],
-                "userErrors": [{ "field": ["base"], "message": "Source app is missing.", "code": "MISSING_SOURCE_APP" }]
-            })
-        );
-    }
-
-    let optional = proxy.process_request(json_graphql_request(
-        r#"
-        mutation CustomerDeleteParityPlan($input: CustomerDeleteInput!) {
-          customerDelete(input: $input) { deletedCustomerId shop { id } userErrors { field message } }
-        }
-        "#,
-        json!({}),
-    );
-    optional_request.headers.insert(
-        "x-shopify-draft-proxy-api-client-id".to_string(),
-        "gid://shopify/App/local".to_string(),
-    );
-    let optional = proxy.process_request(optional_request);
-    assert_eq!(
-        delete.body["data"]["customerDelete"],
-        json!({
-            "deletedCustomerId": id,
-            "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
-            "userErrors": []
-        })
-    );
-    let read = proxy.process_request(json_graphql_request(
-        "query($id: ID!) { customer(id: $id) { id email } }",
-        json!({ "id": id }),
-    ));
-    assert_eq!(read.body["data"]["customer"], Value::Null);
-}
-
-#[test]
-fn customer_update_rejects_inline_marketing_consent_without_mutating_customer() {
-    let mut proxy = snapshot_proxy();
     let create = proxy.process_request(json_graphql_request(
         r#"
         mutation CustomerUpdateInlineConsentCreate($input: CustomerInput!) {
@@ -3376,10 +2250,212 @@ fn customer_update_rejects_inline_marketing_consent_without_mutating_customer() 
 }
 
 #[test]
-fn customer_delete_order_precondition_blocks_only_when_order_exists() {
+fn customer_update_delete_and_set_are_root_field_routed() {
+    let mut proxy = configured_proxy(
+        ReadMode::Snapshot,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    );
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation SeedCustomerForSet($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email phone }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "email": "set-route@example.com", "phone": "+1 415 555 0101" } }),
+    ));
+    let id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let set_create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ConsumerCustomerSetCreate($input: CustomerSetInput!) {
+          customerSet(input: $input) {
+            customer { id firstName email locale verifiedEmail }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": { "firstName": "Bob", "email": "set-create@example.com" } }),
+    ));
+    assert_eq!(set_create.status, 200);
+    assert_eq!(
+        set_create.body["data"]["customerSet"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        set_create.body["data"]["customerSet"]["customer"]["email"],
+        json!("set-create@example.com")
+    );
+
+    let set_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ConsumerCustomerSetByEmail($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer {
+              id
+              firstName
+              email
+              defaultAddress { address1 city province country zip formattedArea }
+              addressesV2(first: 5) {
+                nodes { id address1 city province country zip formattedArea }
+                pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+              }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "email": "set-route@example.com" },
+            "input": {
+                "email": "set-route@example.com",
+                "firstName": "Updated",
+                "addresses": [{
+                    "address1": "11 Upsert St",
+                    "city": "Toronto",
+                    "countryCode": "CA",
+                    "provinceCode": "ON",
+                    "zip": "M5H 2N2"
+                }]
+            }
+        }),
+    ));
+    assert_eq!(set_update.status, 200);
+    assert_eq!(
+        set_update.body["data"]["customerSet"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        set_update.body["data"]["customerSet"]["customer"]["id"],
+        json!(id)
+    );
+    assert_eq!(
+        set_update.body["data"]["customerSet"]["customer"]["firstName"],
+        json!("Updated")
+    );
+    assert_eq!(
+        set_update.body["data"]["customerSet"]["customer"]["defaultAddress"],
+        json!({
+            "address1": "11 Upsert St",
+            "city": "Toronto",
+            "province": "Ontario",
+            "country": "Canada",
+            "zip": "M5H 2N2",
+            "formattedArea": "Toronto ON, Canada"
+        })
+    );
+    assert_eq!(
+        set_update.body["data"]["customerSet"]["customer"]["addressesV2"]["nodes"][0]["address1"],
+        json!("11 Upsert St")
+    );
+
+    let null_addresses = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ConsumerCustomerSetNullAddresses($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer {
+              defaultAddress { address1 city province country zip formattedArea }
+              addressesV2(first: 5) { nodes { address1 city } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "id": id },
+            "input": { "email": "set-route@example.com", "addresses": null }
+        }),
+    ));
+    assert_eq!(null_addresses.status, 200);
+    assert_eq!(
+        null_addresses.body["data"]["customerSet"]["customer"]["defaultAddress"]["address1"],
+        json!("11 Upsert St")
+    );
+    assert_eq!(
+        null_addresses.body["data"]["customerSet"]["customer"]["addressesV2"]["nodes"][0]["city"],
+        json!("Toronto")
+    );
+
+    let clear_addresses = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ConsumerCustomerSetClearAddresses($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+          customerSet(identifier: $identifier, input: $input) {
+            customer {
+              defaultAddress { address1 }
+              addressesV2(first: 5) { nodes { address1 } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "identifier": { "id": id },
+            "input": { "email": "set-route@example.com", "addresses": [] }
+        }),
+    ));
+    assert_eq!(clear_addresses.status, 200);
+    assert_eq!(
+        clear_addresses.body["data"]["customerSet"]["customer"]["defaultAddress"],
+        Value::Null
+    );
+    assert_eq!(
+        clear_addresses.body["data"]["customerSet"]["customer"]["addressesV2"],
+        json!({
+            "nodes": [],
+            "pageInfo": { "hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null }
+        })
+    );
+
+    let update_identity = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ConsumerCustomerUpdate($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": id, "firstName": "", "lastName": "", "email": "", "phone": "" } }),
+    ));
+    assert_eq!(update_identity.status, 200);
+    assert_eq!(
+        update_identity.body["data"]["customerUpdate"]["userErrors"],
+        json!([{ "field": null, "message": "A name, phone number, or email address must be present" }])
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation ConsumerCustomerDelete($input: CustomerDeleteInput!) {
+          customerDelete(input: $input) {
+            deletedCustomerId
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": create.body["data"]["customerCreate"]["customer"]["id"] } }),
+    ));
+    assert_eq!(delete.status, 200);
+    assert_eq!(
+        delete.body["data"]["customerDelete"]["deletedCustomerId"],
+        create.body["data"]["customerCreate"]["customer"]["id"]
+    );
+    assert_eq!(
+        delete.body["data"]["customerDelete"]["userErrors"],
+        json!([])
+    );
+}
+
+#[test]
+fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycle() {
     let mut proxy = snapshot_proxy();
 
-    let mut expires_after_parent_request = json_graphql_request(
+    let expires_after_parent = proxy.process_request(json_graphql_request(
         r#"
         mutation DelegateAccessTokenCreateExpiresAfterParent {
           delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 99999999 }) {
@@ -3389,70 +2465,366 @@ fn customer_delete_order_precondition_blocks_only_when_order_exists() {
         }
         "#,
         json!({}),
+    ));
+    assert_eq!(
+        expires_after_parent.body["data"]["delegateAccessTokenCreate"],
+        json!({
+            "delegateAccessToken": null,
+            "userErrors": [{
+                "field": null,
+                "message": "The delegate token can't expire after the parent token.",
+                "code": "EXPIRES_AFTER_PARENT"
+            }]
+        })
     );
-    expires_after_parent_request.headers.insert(
-        "x-shopify-draft-proxy-access-token-expires-at".to_string(),
-        "2026-04-28T03:10:00.000Z".to_string(),
+
+    let missing = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenDestroyCodes($token: String!) {
+          delegateAccessTokenDestroy(accessToken: $token) {
+            status
+            shop { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "token": "shpat_does_not_exist" }),
+    ));
+    assert_eq!(
+        missing.body["data"]["delegateAccessTokenDestroy"],
+        json!({
+            "status": false,
+            "shop": { "id": "gid://shopify/Shop/92891250994", "name": "harry-test-heelo" },
+            "userErrors": [{ "field": null, "message": "Access token does not exist.", "code": "ACCESS_TOKEN_NOT_FOUND" }]
+        })
     );
-    let expires_after_parent = proxy.process_request(expires_after_parent_request);
+
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenCreateShopPayload {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 300 }) {
+            delegateAccessToken { accessToken }
+            shop { id myshopifyDomain currencyCode }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        create.body["data"]["delegateAccessTokenCreate"]["shop"],
+        json!({
+            "id": "gid://shopify/Shop/92891250994",
+            "myshopifyDomain": "harry-test-heelo.myshopify.com",
+            "currencyCode": "USD"
+        })
+    );
+    assert_eq!(
+        create.body["data"]["delegateAccessTokenCreate"]["userErrors"],
+        json!([])
+    );
+    let token = create.body["data"]["delegateAccessTokenCreate"]["delegateAccessToken"]
+        ["accessToken"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let destroy = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenDestroyShopPayload($token: String!) {
+          delegateAccessTokenDestroy(accessToken: $token) {
+            shop { id }
+            status
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "token": token }),
+    ));
+    assert_eq!(
+        destroy.body["data"]["delegateAccessTokenDestroy"],
+        json!({
+            "shop": { "id": "gid://shopify/Shop/92891250994" },
+            "status": true,
+            "userErrors": []
+        })
+    );
+
+    let repeat = proxy.process_request(json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenDestroyShopPayloadUnknown {
+          delegateAccessTokenDestroy(accessToken: "shpat_unknown") {
+            shop { id }
+            status
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        repeat.body["data"]["delegateAccessTokenDestroy"],
+        json!({
+            "shop": { "id": "gid://shopify/Shop/92891250994" },
+            "status": false,
+            "userErrors": [{ "field": null, "message": "Access token does not exist.", "code": "ACCESS_TOKEN_NOT_FOUND" }]
+        })
+    );
+
+    let mut self_delete = json_graphql_request(
+        r#"
+        mutation DelegateAccessTokenDestroyCodes($token: String!) {
+          delegateAccessTokenDestroy(accessToken: $token) {
+            status
+            shop { id name }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "token": "shpat_parent_destroy_self" }),
+    );
+    self_delete.headers.insert(
+        "X-Shopify-Access-Token".to_string(),
+        "shpat_parent_destroy_self".to_string(),
+    );
+    let self_delete = proxy.process_request(self_delete);
+    assert_eq!(
+        self_delete.body["data"]["delegateAccessTokenDestroy"]["userErrors"],
+        json!([{ "field": null, "message": "Can only delete delegate tokens.", "code": "CAN_ONLY_DELETE_DELEGATE_TOKENS" }])
+    );
+}
+
+#[test]
+fn customer_mutations_hydrate_existing_live_customers_without_passthrough_writes() {
+    let upstream_calls = Arc::new(Mutex::new(Vec::<Value>::new()));
+    let captured_calls = Arc::clone(&upstream_calls);
+    let mut proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Reject),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap();
+        captured_calls.lock().unwrap().push(body.clone());
+        match (
+            body["operationName"].as_str().unwrap_or_default(),
+            body["variables"]["query"].as_str(),
+            body["variables"]["id"].as_str(),
+        ) {
+            ("CustomerDuplicateHydrate", Some("email:upstream@example.com"), _) => {
+                shopify_draft_proxy::proxy::Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "customers": {
+                                "nodes": [{ "id": "gid://shopify/Customer/upstream" }]
+                            }
+                        }
+                    }),
+                }
+            }
+            ("CustomerHydrate", _, Some("gid://shopify/Customer/upstream")) => {
+                shopify_draft_proxy::proxy::Response {
+                    status: 200,
+                    headers: Default::default(),
+                    body: json!({
+                        "data": {
+                            "customer": {
+                                "id": "gid://shopify/Customer/upstream",
+                                "email": "upstream@example.com",
+                                "displayName": "Upstream Customer",
+                                "defaultEmailAddress": { "emailAddress": "upstream@example.com" },
+                                "defaultPhoneNumber": { "phoneNumber": "+14155550199" },
+                                "canDelete": true,
+                                "verifiedEmail": true,
+                                "taxExempt": false,
+                                "taxExemptions": [],
+                                "tags": [],
+                                "state": "DISABLED",
+                                "locale": "en"
+                            }
+                        }
+                    }),
+                }
+            }
+            _ => shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({ "data": { "customers": { "nodes": [] }, "customer": null } }),
+            },
+        }
+    });
+
+    let duplicate = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrdinaryDuplicate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "firstName": "Dupe", "email": "upstream@example.com" } }),
+    ));
+    assert_eq!(duplicate.status, 200);
+    assert_eq!(
+        duplicate.body["data"]["customerCreate"]["customer"],
+        Value::Null
+    );
+    assert_eq!(
+        duplicate.body["data"]["customerCreate"]["userErrors"],
+        json!([{ "field": ["email"], "message": "Email has already been taken" }])
+    );
+
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation OrdinaryUpdate($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id firstName email defaultPhoneNumber { phoneNumber } verifiedEmail }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "id": "gid://shopify/Customer/upstream", "firstName": "Updated" } }),
+    ));
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"]["id"],
+        json!("gid://shopify/Customer/upstream")
+    );
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"]["firstName"],
+        json!("Updated")
+    );
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"]["defaultPhoneNumber"]["phoneNumber"],
+        json!("+14155550199")
+    );
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"]["verifiedEmail"],
+        json!(true)
+    );
+
+    let calls = upstream_calls.lock().unwrap();
+    assert_eq!(calls.len(), 2);
+    assert_eq!(calls[0]["operationName"], json!("CustomerDuplicateHydrate"));
+    assert_eq!(calls[1]["operationName"], json!("CustomerHydrate"));
+    assert!(calls.iter().all(|call| !call["query"]
+        .as_str()
+        .unwrap_or_default()
+        .contains("mutation")));
+}
+
+#[test]
+fn customer_update_and_delete_stage_known_fixture_customer_reads() {
+    let mut proxy = snapshot_proxy();
+    let create = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerUpdateDeleteSeed($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({ "input": { "email": "update-delete-seed@example.com", "firstName": "Hermes", "lastName": "Create", "phone": "+14155550123" } }),
+    ));
+    let id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerUpdateParityPlan($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer { id firstName lastName displayName email note taxExempt taxExemptions tags defaultPhoneNumber { phoneNumber } loyalty: metafield(namespace: "custom", key: "loyalty") { id namespace key type value } metafields(first: 5) { nodes { id namespace key type value } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }
+            userErrors { field message }
+          }
+        }
+        "#,
+        json!({
+            "input": {
+                "id": id,
+                "firstName": "Hermes",
+                "lastName": "Updated",
+                "note": "customer update parity probe",
+                "tags": ["parity", "updated"],
+                "taxExempt": false,
+                "taxExemptions": ["CA_BC_RESELLER_EXEMPTION"],
+                "metafields": [{ "namespace": "custom", "key": "loyalty", "type": "single_line_text_field", "value": "gold" }]
+            }
+        }),
+    ));
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"]["displayName"],
+        json!("Hermes Updated")
+    );
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"]["loyalty"]["value"],
+        json!("gold")
+    );
+    assert_eq!(
+        update.body["data"]["customerUpdate"]["customer"]["defaultPhoneNumber"]["phoneNumber"],
+        json!("+14155550123")
+    );
+
+    let delete = proxy.process_request(json_graphql_request(
+        r#"
+        mutation CustomerDeleteParityPlan($input: CustomerDeleteInput!) {
+          customerDelete(input: $input) { deletedCustomerId shop { id } userErrors { field message } }
+        }
+        "#,
+        json!({ "input": { "id": id } }),
+    ));
+    assert_eq!(
+        delete.body["data"]["customerDelete"],
+        json!({
+            "deletedCustomerId": id,
+            "shop": { "id": "gid://shopify/Shop/1?shopify-draft-proxy=synthetic" },
+            "userErrors": []
+        })
+    );
+    let read = proxy.process_request(json_graphql_request(
+        "query($id: ID!) { customer(id: $id) { id email } }",
+        json!({ "id": id }),
+    ));
+    assert_eq!(read.body["data"]["customer"], Value::Null);
+}
+
+#[test]
+fn customer_delete_order_precondition_blocks_only_when_order_exists() {
+    let mut proxy = snapshot_proxy();
+
+    let create_query = r#"
+        mutation CustomerDeleteOrderPreconditionCustomerCreate($input: CustomerInput!) {
+          customerCreate(input: $input) {
+            customer { id email displayName }
+            userErrors { field message }
+          }
+        }
+        "#;
+    let create = proxy.process_request(json_graphql_request(
+        create_query,
+        json!({
+            "input": {
+                "email": "har-773-blocked@example.test",
+                "firstName": "Blocked",
+                "lastName": "Delete"
+            }
+        }),
+    ));
     assert_eq!(
         create.body["data"]["customerCreate"]["userErrors"],
         json!([])
     );
-    assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["delegatedAccessTokens"],
-        json!({})
-    );
-    assert_eq!(
-        proxy.get_log_snapshot()["entries"][0]["status"],
-        json!("failed")
-    );
-
-    for query in [
-        r#"
-        mutation ConsumerNamedDelegate {
-          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 99999999 }) {
-            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        r#"
-        mutation {
-          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 99999999 }) {
-            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
-            userErrors { field message code }
-          }
-        }
-        "#,
-    ] {
-        let mut request = json_graphql_request(query, json!({}));
-        request.headers.insert(
-            "x-shopify-draft-proxy-access-token-expires-at".to_string(),
-            "2026-04-28T03:10:00.000Z".to_string(),
-        );
-        let response = proxy.process_request(request);
-        assert_eq!(
-            response.body["data"]["delegateAccessTokenCreate"],
-            json!({
-                "delegateAccessToken": null,
-                "userErrors": [{
-                    "field": null,
-                    "message": "The delegate token can't expire after the parent token.",
-                    "code": "EXPIRES_AFTER_PARENT"
-                }]
-            })
-        );
-    }
-    assert_eq!(
-        proxy.get_state_snapshot()["stagedState"]["delegatedAccessTokens"],
-        json!({})
-    );
-    assert!(proxy.get_log_snapshot()["entries"]
-        .as_array()
+    let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
+        .as_str()
         .unwrap()
-        .iter()
-        .all(|entry| entry["status"] == json!("failed")));
+        .to_string();
 
     let order = proxy.process_request(json_graphql_request(
         r#"
@@ -3820,193 +3192,25 @@ fn customer_marketing_consent_updates_stage_and_project_downstream_reads() {
         json!("OTHER")
     );
 
-    let mut missing_source_app_request = json_graphql_request(
-        r#"
-        mutation CustomerCreateParityPlan($input: CustomerInput!) {
-          customerCreate(input: $input) {
-            customer { id defaultEmailAddress { marketingState } defaultPhoneNumber { marketingState } }
-            userErrors { field message }
-          }
-        }
-        "#,
-        json!({}),
-    );
-    missing_source_app_request.headers.insert(
-        "x-shopify-draft-proxy-source-app-missing".to_string(),
-        "true".to_string(),
-    );
-    let missing_source_app = proxy.process_request(missing_source_app_request);
-    assert_eq!(
-        missing_source_app.body["data"]["appRevokeAccessScopes"],
-        json!({
-            "input": {
-                "email": "hermes-consent-validation@example.com",
-                "firstName": "Hermes",
-                "lastName": "Consent",
-                "phone": "+14155556022"
-            }
-        }),
-    ));
-    let customer_id = create.body["data"]["customerCreate"]["customer"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-
-    for query in [
-        r#"
-        mutation ConsumerNamedRevoke {
-          appRevokeAccessScopes(scopes: ["write_products"]) {
-            revoked { handle description }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        r#"
-        mutation {
-          appRevokeAccessScopes(scopes: ["write_products"]) {
-            revoked { handle description }
-            userErrors { field message code }
-          }
-        }
-        "#,
-    ] {
-        let mut request = json_graphql_request(query, json!({}));
-        request.headers.insert(
-            "x-shopify-draft-proxy-source-app-missing".to_string(),
-            "true".to_string(),
-        );
-        let response = proxy.process_request(request);
-        assert_eq!(
-            response.body["data"]["appRevokeAccessScopes"],
-            json!({
-                "revoked": [],
-                "userErrors": [{ "field": ["base"], "message": "Source app is missing.", "code": "MISSING_SOURCE_APP" }]
-            })
-        );
-    }
-
-    let optional = proxy.process_request(json_graphql_request(
-        r#"
-        mutation AppRevokeAccessScopesOptionalWriteProducts {
-          appRevokeAccessScopes(scopes: ["write_products"]) {
-            revoked { handle description }
-            userErrors { field message code }
-          }
-        }
-    "#;
-    let sms_document = r#"
-        mutation ArbitrarySmsValidation($input: CustomerSmsMarketingConsentUpdateInput!) {
-          customerSmsMarketingConsentUpdate(input: $input) {
-            customer { id defaultPhoneNumber { marketingState marketingUpdatedAt } }
-            userErrors { field message code }
-          }
-        }
-    "#;
-
-    for (query, variables, expected_problem_path) in [
-        (
-            email_document,
-            json!({ "input": { "customerId": customer_id.clone() } }),
-            json!(["emailMarketingConsent"]),
-        ),
-        (
-            email_document,
-            json!({
-                "input": {
-                    "customerId": customer_id.clone(),
-                    "emailMarketingConsent": {
-                        "marketingState": null,
-                        "marketingOptInLevel": "SINGLE_OPT_IN"
-                    }
-                }
-            }),
-            json!(["emailMarketingConsent", "marketingState"]),
-        ),
-        (
-            email_document,
-            json!({
-                "input": {
-                    "customerId": customer_id.clone(),
-                    "emailMarketingConsent": {
-                        "marketingState": "SUBSCRIBED",
-                        "marketingOptInLevel": "SINGLE_OPT_IN",
-                        "consentUpdatedAt": "not-a-date"
-                    }
-                }
-            }),
-            json!(["emailMarketingConsent", "consentUpdatedAt"]),
-        ),
-        (
-            sms_document,
-            json!({
-                "input": {
-                    "customerId": customer_id.clone(),
-                    "smsMarketingConsent": {
-                        "marketingState": "INVALID",
-                        "marketingOptInLevel": "SINGLE_OPT_IN"
-                    }
-                }
-            }),
-            json!(["smsMarketingConsent", "marketingState"]),
-        ),
-        (
-            sms_document,
-            json!({
-                "input": {
-                    "customerId": customer_id.clone(),
-                    "smsMarketingConsent": {
-                        "marketingState": "SUBSCRIBED",
-                        "marketingOptInLevel": "SINGLE_OPT_IN",
-                        "consentCollectedFrom": "SHOPIFY"
-                    }
-                }
-            }),
-            json!(["smsMarketingConsent", "consentCollectedFrom"]),
-        ),
-    ] {
-        let response = proxy.process_request(json_graphql_request(query, variables));
-        assert_eq!(response.status, 200);
-        assert_eq!(
-            response.body["errors"][0]["extensions"]["code"],
-            json!("INVALID_VARIABLE")
-        );
-        assert_eq!(
-            response.body["errors"][0]["extensions"]["problems"][0]["path"],
-            expected_problem_path
-        );
-    }
-
-    let read = proxy.process_request(json_graphql_request(
-        r#"
-        query ConsentValidationNoMutation($id: ID!) {
-          customer(id: $id) {
-            defaultEmailAddress { marketingState marketingUpdatedAt }
-            defaultPhoneNumber { marketingState marketingUpdatedAt marketingCollectedFrom }
-          }
-        }
-        "#,
-        json!({ "id": customer_id }),
-    ));
-    assert_eq!(
-        read.body["data"]["customer"]["defaultEmailAddress"],
-        json!({ "marketingState": "NOT_SUBSCRIBED", "marketingUpdatedAt": Value::Null })
-    );
-    assert_eq!(
-        read.body["data"]["customer"]["defaultPhoneNumber"],
-        json!({
-            "marketingState": "NOT_SUBSCRIBED",
-            "marketingUpdatedAt": Value::Null,
-            "marketingCollectedFrom": Value::Null
-        })
-    );
-
     let log = proxy.process_request(Request {
         method: "GET".to_string(),
         path: "/__meta/log".to_string(),
         headers: Default::default(),
         body: String::new(),
     });
-    assert_eq!(log.body["entries"].as_array().unwrap().len(), 1);
+    assert_eq!(log.body["entries"].as_array().unwrap().len(), 3);
+    assert!(log.body["entries"][1]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("ConsumerNamedEmailConsent"));
+    assert_eq!(
+        log.body["entries"][1]["stagedResourceIds"],
+        json!([customer_id.clone()])
+    );
+    assert!(log.body["entries"][2]["rawBody"]
+        .as_str()
+        .unwrap()
+        .contains("ConsumerNamedSmsConsent"));
 }
 
 #[test]
@@ -4177,38 +3381,7 @@ fn customer_marketing_consent_resolver_errors_do_not_mutate_state() {
         json!([])
     );
 
-    for query in [
-        r#"
-        mutation ConsumerNamedTrial($id: ID!) {
-          appSubscriptionTrialExtend(id: $id, days: 3) {
-            appSubscription { id trialDays }
-            userErrors { field message }
-          }
-        }
-        "#,
-        r#"
-        mutation($id: ID!) {
-          appSubscriptionTrialExtend(id: $id, days: 3) {
-            appSubscription { id trialDays }
-            userErrors { field message }
-          }
-        }
-        "#,
-    ] {
-        let response = proxy.process_request(json_graphql_request(
-            query,
-            json!({ "id": "gid://shopify/AppSubscription/expected" }),
-        ));
-        assert_eq!(
-            response.body["data"]["appSubscriptionTrialExtend"],
-            json!({
-                "appSubscription": null,
-                "userErrors": [{ "field": ["id"], "message": "The trial can't be extended after expiration." }]
-            })
-        );
-    }
-
-    proxy.process_request(json_graphql_request(
+    let email_only = proxy.process_request(json_graphql_request(
         r#"
         mutation CustomerInputInlineConsentCreate($input: CustomerInput!) {
           customerCreate(input: $input) {
@@ -4721,77 +3894,6 @@ fn data_sale_opt_out_unknown_valid_email_creates_customer_defaults_and_tag_searc
     );
 }
 
-    for query in [
-        r#"
-        mutation ConsumerNamedTrial($id: ID!) {
-          appSubscriptionTrialExtend(id: $id, days: 3) {
-            appSubscription { id trialDays }
-            userErrors { field message }
-          }
-        }
-        "#,
-        r#"
-        mutation($id: ID!) {
-          appSubscriptionTrialExtend(id: $id, days: 3) {
-            appSubscription { id trialDays }
-            userErrors { field message }
-          }
-        }
-        "#,
-    ] {
-        let response = proxy.process_request(json_graphql_request(
-            query,
-            json!({ "id": "gid://shopify/AppSubscription/expected" }),
-        ));
-        assert_eq!(
-            response.body["data"]["appSubscriptionTrialExtend"],
-            json!({
-                "appSubscription": null,
-                "userErrors": [{ "field": ["id"], "message": "The trial can't be extended after expiration." }]
-            })
-        );
-    }
-
-    proxy.process_request(json_graphql_request(
-        r#"
-        mutation QuantityPricingByVariantUpdate($priceListId: ID!, $input: QuantityPricingByVariantUpdateInput!) {
-          quantityPricingByVariantUpdate(priceListId: $priceListId, input: $input) {
-            productVariants { id }
-            userErrors { field code message }
-          }
-        }
-        "#,
-        json!({
-            "priceListId": "gid://shopify/PriceList/31575376178",
-            "input": {
-                "pricesToAdd": [{
-                    "variantId": "gid://shopify/ProductVariant/49875425296690",
-                    "price": { "amount": "20.00", "currencyCode": "CAD" }
-                }],
-                "quantityRulesToAdd": [{
-                    "variantId": "gid://shopify/ProductVariant/49875425296690",
-                    "minimum": 1,
-                    "maximum": 20,
-                    "increment": 1
-                }],
-                "quantityPriceBreaksToAdd": [{
-                    "variantId": "gid://shopify/ProductVariant/49875425296690",
-                    "minimumQuantity": 10,
-                    "price": { "amount": "18.00", "currencyCode": "CAD" }
-                }]
-            }
-        }),
-    ));
-
-    assert_eq!(
-        response.body["data"]["quantityPricingByVariantUpdate"],
-        json!({
-            "productVariants": [{ "id": "gid://shopify/ProductVariant/49875425296690" }],
-            "userErrors": []
-        })
-    );
-}
-
 #[test]
 fn delegate_access_token_create_validates_and_stages_synthetic_secret() {
     let mut proxy = snapshot_proxy();
@@ -5026,149 +4128,6 @@ fn apps_mutations_dispatch_by_root_field_for_ordinary_operation_names() {
     assert_eq!(
         destroy.body["data"]["delegateAccessTokenDestroy"],
         json!({ "status": true, "userErrors": [] })
-    );
-}
-
-#[test]
-fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycle() {
-    let mut proxy = snapshot_proxy();
-
-    let expires_after_parent = proxy.process_request(json_graphql_request(
-        r#"
-        mutation DelegateAccessTokenCreateExpiresAfterParent {
-          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 99999999 }) {
-            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({}),
-    ));
-    assert_eq!(
-        expires_after_parent.body["data"]["delegateAccessTokenCreate"],
-        json!({
-            "delegateAccessToken": null,
-            "userErrors": [{
-                "field": null,
-                "message": "The delegate token can't expire after the parent token.",
-                "code": "EXPIRES_AFTER_PARENT"
-            }]
-        })
-    );
-
-    let missing = proxy.process_request(json_graphql_request(
-        r#"
-        mutation DelegateAccessTokenDestroyCodes($token: String!) {
-          delegateAccessTokenDestroy(accessToken: $token) {
-            status
-            shop { id name }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({ "token": "shpat_does_not_exist" }),
-    ));
-    assert_eq!(
-        missing.body["data"]["delegateAccessTokenDestroy"],
-        json!({
-            "status": false,
-            "shop": { "id": "gid://shopify/Shop/92891250994", "name": "harry-test-heelo" },
-            "userErrors": [{ "field": null, "message": "Access token does not exist.", "code": "ACCESS_TOKEN_NOT_FOUND" }]
-        })
-    );
-
-    let create = proxy.process_request(json_graphql_request(
-        r#"
-        mutation DelegateAccessTokenCreateShopPayload {
-          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 300 }) {
-            delegateAccessToken { accessToken }
-            shop { id myshopifyDomain currencyCode }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({}),
-    ));
-    assert_eq!(
-        create.body["data"]["delegateAccessTokenCreate"]["shop"],
-        json!({
-            "id": "gid://shopify/Shop/92891250994",
-            "myshopifyDomain": "harry-test-heelo.myshopify.com",
-            "currencyCode": "USD"
-        })
-    );
-    assert_eq!(
-        create.body["data"]["delegateAccessTokenCreate"]["userErrors"],
-        json!([])
-    );
-    let token = create.body["data"]["delegateAccessTokenCreate"]["delegateAccessToken"]
-        ["accessToken"]
-        .as_str()
-        .unwrap()
-        .to_string();
-
-    let destroy = proxy.process_request(json_graphql_request(
-        r#"
-        mutation DelegateAccessTokenDestroyShopPayload($token: String!) {
-          delegateAccessTokenDestroy(accessToken: $token) {
-            shop { id }
-            status
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({ "token": token }),
-    ));
-    assert_eq!(
-        destroy.body["data"]["delegateAccessTokenDestroy"],
-        json!({
-            "shop": { "id": "gid://shopify/Shop/92891250994" },
-            "status": true,
-            "userErrors": []
-        })
-    );
-
-    let repeat = proxy.process_request(json_graphql_request(
-        r#"
-        mutation DelegateAccessTokenDestroyShopPayloadUnknown {
-          delegateAccessTokenDestroy(accessToken: "shpat_unknown") {
-            shop { id }
-            status
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({}),
-    ));
-    assert_eq!(
-        repeat.body["data"]["delegateAccessTokenDestroy"],
-        json!({
-            "shop": { "id": "gid://shopify/Shop/92891250994" },
-            "status": false,
-            "userErrors": [{ "field": null, "message": "Access token does not exist.", "code": "ACCESS_TOKEN_NOT_FOUND" }]
-        })
-    );
-
-    let mut self_delete = json_graphql_request(
-        r#"
-        mutation DelegateAccessTokenDestroyCodes($token: String!) {
-          delegateAccessTokenDestroy(accessToken: $token) {
-            status
-            shop { id name }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({ "token": "shpat_parent_destroy_self" }),
-    );
-    self_delete.headers.insert(
-        "X-Shopify-Access-Token".to_string(),
-        "shpat_parent_destroy_self".to_string(),
-    );
-    let self_delete = proxy.process_request(self_delete);
-    assert_eq!(
-        self_delete.body["data"]["delegateAccessTokenDestroy"]["userErrors"],
-        json!([{ "field": null, "message": "Can only delete delegate tokens.", "code": "CAN_ONLY_DELETE_DELEGATE_TOKENS" }])
     );
 }
 
@@ -7289,9 +6248,7 @@ fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
         "#,
         json!({ "input": {
             "name": "HTTP Carrier",
-            "callbackUrl": "http://example.com/rates",
-            "supportsServiceDiscovery": false,
-            "active": false
+            "callbackUrl": "http://example.com/rates"
         }}),
     ));
     assert_eq!(
@@ -7317,9 +6274,7 @@ fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
         "#,
         json!({ "input": {
             "name": "Banned Carrier",
-            "callbackUrl": "https://localhost/rates",
-            "supportsServiceDiscovery": false,
-            "active": false
+            "callbackUrl": "https://localhost/rates"
         }}),
     ));
     assert_eq!(
@@ -7345,9 +6300,7 @@ fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
         "#,
         json!({ "input": {
             "name": "Unparseable Carrier",
-            "callbackUrl": "not-a-url",
-            "supportsServiceDiscovery": false,
-            "active": false
+            "callbackUrl": "not-a-url"
         }}),
     ));
     assert_eq!(
@@ -7370,9 +6323,7 @@ fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
         "#,
         json!({ "input": {
             "name": "",
-            "callbackUrl": "https://mock.shop/carrier-service-rates",
-            "supportsServiceDiscovery": false,
-            "active": false
+            "callbackUrl": "https://mock.shop/carrier-service-rates"
         }}),
     ));
     assert_eq!(
@@ -7398,9 +6349,7 @@ fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
         "#,
         json!({ "input": {
             "name": "Hermes Carrier Local",
-            "callbackUrl": "https://mock.shop/carrier-service-rates",
-            "supportsServiceDiscovery": false,
-            "active": false
+            "callbackUrl": "https://mock.shop/carrier-service-rates"
         }}),
     ));
     assert_eq!(
@@ -7520,9 +6469,7 @@ fn carrier_service_update_validates_changed_callback_url_and_codes_unknowns() {
         "#,
         json!({ "input": {
             "name": "Hermes Carrier Local",
-            "callbackUrl": "https://mock.shop/carrier-service-rates",
-            "supportsServiceDiscovery": false,
-            "active": false
+            "callbackUrl": "https://mock.shop/carrier-service-rates"
         }}),
     ));
     let id = create.body["data"]["carrierServiceCreate"]["carrierService"]["id"]
@@ -9188,7 +8135,7 @@ fn store_credit_schema_rejects_non_public_variable_fields() {
 fn create_store_credit_customer(proxy: &mut DraftProxy) -> String {
     let create = proxy.process_request(json_graphql_request(
         r#"
-        mutation CustomerCreateParityPlan($input: CustomerInput!) {
+        mutation StoreCreditSetupCustomer($input: CustomerInput!) {
           customerCreate(input: $input) {
             customer { id email displayName }
             userErrors { field message }
@@ -9282,4 +8229,36 @@ fn store_credit_debit_error(proxy: &mut DraftProxy, id: &str, amount: Value) -> 
     ));
     assert_eq!(response.status, 200);
     response.body["data"]["storeCreditAccountDebit"]["userErrors"].clone()
+}
+
+fn bulk_operation_hydrate_response(operation: Value) -> shopify_draft_proxy::proxy::Response {
+    shopify_draft_proxy::proxy::Response {
+        status: 200,
+        headers: Default::default(),
+        body: json!({ "data": { "bulkOperation": operation } }),
+    }
+}
+
+fn bulk_operation_test_record(
+    id: &str,
+    status: &str,
+    operation_type: &str,
+    created_at: &str,
+    query: &str,
+) -> Value {
+    let completed = status == "COMPLETED";
+    json!({
+        "id": id,
+        "status": status,
+        "type": operation_type,
+        "errorCode": null,
+        "createdAt": created_at,
+        "completedAt": if completed { json!(created_at) } else { Value::Null },
+        "objectCount": if completed { "1424" } else { "0" },
+        "rootObjectCount": if completed { "1424" } else { "0" },
+        "fileSize": if completed { json!("112704") } else { Value::Null },
+        "url": if completed { json!("https://example.test/bulk.jsonl") } else { Value::Null },
+        "partialDataUrl": null,
+        "query": query
+    })
 }
