@@ -570,6 +570,7 @@ impl DraftProxy {
                             | "inventoryProperties"
                             | "inventoryTransfer"
                             | "inventoryTransfers"
+                            | "inventoryShipment"
                     )
                 });
                 let has_product_overlay_fields = operation.root_fields.iter().any(|field| {
@@ -623,6 +624,7 @@ impl DraftProxy {
                             | "inventoryProperties"
                             | "inventoryTransfer"
                             | "inventoryTransfers"
+                            | "inventoryShipment"
                     ) =>
             {
                 if let Some(fields) = root_fields(&query, &variables) {
@@ -910,6 +912,15 @@ impl DraftProxy {
                             | "inventoryTransferDuplicate"
                             | "inventoryTransferCancel"
                             | "inventoryTransferDelete"
+                            | "inventoryShipmentCreate"
+                            | "inventoryShipmentCreateInTransit"
+                            | "inventoryShipmentAddItems"
+                            | "inventoryShipmentRemoveItems"
+                            | "inventoryShipmentUpdateItemQuantities"
+                            | "inventoryShipmentSetTracking"
+                            | "inventoryShipmentMarkInTransit"
+                            | "inventoryShipmentReceive"
+                            | "inventoryShipmentDelete"
                     ) =>
             {
                 if let Some(fields) = root_fields(&query, &variables) {

@@ -276,6 +276,10 @@ impl DraftProxy {
             snapshot["stagedState"]["inventoryTransfers"] =
                 serde_json::to_value(&self.store.staged.inventory_transfers).unwrap_or_default();
         }
+        if !self.store.staged.inventory_shipments.is_empty() {
+            snapshot["stagedState"]["inventoryShipments"] =
+                serde_json::to_value(&self.store.staged.inventory_shipments).unwrap_or_default();
+        }
         if !self.store.staged.inventory_quantity_updated_at.is_empty() {
             snapshot["stagedState"]["inventoryQuantityUpdatedAt"] =
                 inventory_quantity_updated_at_json(
@@ -1401,6 +1405,10 @@ impl DraftProxy {
             inactive_inventory_levels_from_json(&state["stagedState"]["inactiveInventoryLevels"]);
         self.store.staged.inventory_transfers = state["stagedState"]
             .get("inventoryTransfers")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
+        self.store.staged.inventory_shipments = state["stagedState"]
+            .get("inventoryShipments")
             .and_then(|value| serde_json::from_value(value.clone()).ok())
             .unwrap_or_default();
         self.store.staged.inventory_quantity_updated_at = inventory_quantity_updated_at_from_json(
