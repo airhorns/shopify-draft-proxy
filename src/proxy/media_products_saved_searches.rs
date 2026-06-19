@@ -2540,7 +2540,12 @@ impl DraftProxy {
         };
         match self.product_record_by_id(id) {
             Some(product) => {
-                let variants = self.store.product_variants_for_product(&product.id);
+                let variants = self
+                    .store
+                    .product_variants_for_product(&product.id)
+                    .iter()
+                    .map(|variant| self.variant_with_inventory_levels(variant))
+                    .collect::<Vec<_>>();
                 let base = self.product_json_with_selling_plan_overlay(product, &variants, selection);
                 self.owner_metafield_overlay_owner_json_with_product_variants(
                     "product",
@@ -2582,7 +2587,12 @@ impl DraftProxy {
         };
         match product {
             Some(product) => {
-                let variants = self.store.product_variants_for_product(&product.id);
+                let variants = self
+                    .store
+                    .product_variants_for_product(&product.id)
+                    .iter()
+                    .map(|variant| self.variant_with_inventory_levels(variant))
+                    .collect::<Vec<_>>();
                 let base = self.product_json_with_selling_plan_overlay(product, &variants, selection);
                 self.owner_metafield_overlay_owner_json_with_product_variants(
                     "product",
@@ -2625,8 +2635,9 @@ impl DraftProxy {
                 Value::Null
             };
         };
+        let variant = self.variant_with_inventory_levels(variant);
         let base = self.product_variant_json_with_selling_plan_overlay(
-            variant,
+            &variant,
             self.store.product_by_id(&variant.product_id),
             selection,
         );
@@ -2639,8 +2650,9 @@ impl DraftProxy {
         selection: &[SelectedField],
     ) -> Option<Value> {
         if let Some(variant) = self.store.product_variant_by_inventory_item_id(id) {
+            let variant = self.variant_with_inventory_levels(variant);
             let product = self.store.product_by_id(&variant.product_id);
-            return Some(product_variant_inventory_item_json(variant, product, selection));
+            return Some(product_variant_inventory_item_json(&variant, product, selection));
         }
         self.store.products().iter().find_map(|product| {
             product.variants.iter().find_map(|variant| {

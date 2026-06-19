@@ -263,6 +263,11 @@ impl DraftProxy {
             snapshot["stagedState"]["inventoryLevelOrder"] =
                 inventory_level_order_json(&self.store.staged.inventory_level_order);
         }
+        if !self.store.staged.inventory_level_cursors.is_empty() {
+            snapshot["stagedState"]["inventoryLevelCursors"] =
+                serde_json::to_value(&self.store.staged.inventory_level_cursors)
+                    .unwrap_or_default();
+        }
         if !self.store.staged.inactive_inventory_levels.is_empty() {
             snapshot["stagedState"]["inactiveInventoryLevels"] =
                 inactive_inventory_levels_json(&self.store.staged.inactive_inventory_levels);
@@ -716,6 +721,21 @@ impl DraftProxy {
         }
         if let Some(author) = body.get("orderEditAuthor").and_then(Value::as_str) {
             self.store.staged.order_edit_author = Some(author.to_string());
+        }
+        // Opaque InventoryLevel connection cursors (level gid -> cursor) recovered
+        // from a capture's recorded inventory-level edges. These Relay pagination
+        // tokens encode Shopify's internal row ids and can't be synthesized from
+        // store state, so seeding them lets the inventory-level connection renderer
+        // replay the live cursors verbatim when projecting edges/pageInfo.
+        if let Some(cursors) = body.get("inventoryLevelCursors").and_then(Value::as_object) {
+            for (level_id, cursor) in cursors {
+                if let Some(cursor) = cursor.as_str() {
+                    self.store
+                        .staged
+                        .inventory_level_cursors
+                        .insert(level_id.clone(), cursor.to_string());
+                }
+            }
         }
         ok_json(json!({
             "ok": true,
@@ -1373,6 +1393,10 @@ impl DraftProxy {
             inventory_level_ids_from_json(&state["stagedState"]["inventoryLevelIds"]);
         self.store.staged.inventory_level_order =
             inventory_level_order_from_json(&state["stagedState"]["inventoryLevelOrder"]);
+        self.store.staged.inventory_level_cursors = state["stagedState"]
+            .get("inventoryLevelCursors")
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .unwrap_or_default();
         self.store.staged.inactive_inventory_levels =
             inactive_inventory_levels_from_json(&state["stagedState"]["inactiveInventoryLevels"]);
         self.store.staged.inventory_transfers = state["stagedState"]

@@ -371,6 +371,11 @@ struct StagedState {
     inventory_levels: BTreeMap<(String, String), BTreeMap<String, i64>>,
     inventory_level_order: Vec<(String, String)>,
     inventory_level_ids: BTreeMap<(String, String), String>,
+    // Opaque Relay pagination cursors for InventoryLevel connection edges, keyed by
+    // the level's gid. These tokens encode Shopify's internal row ids and cannot be
+    // reconstructed from store state, so they are seeded from recorded captures and
+    // replayed when the inventory-level connection renderer projects edges/pageInfo.
+    inventory_level_cursors: BTreeMap<String, String>,
     inactive_inventory_levels: BTreeSet<(String, String)>,
     inventory_quantity_updated_at: BTreeMap<(String, String, String), String>,
     next_inventory_quantity_timestamp: u64,
@@ -681,6 +686,7 @@ impl Default for StagedState {
             inventory_levels: BTreeMap::new(),
             inventory_level_order: Vec::new(),
             inventory_level_ids: BTreeMap::new(),
+            inventory_level_cursors: BTreeMap::new(),
             inactive_inventory_levels: BTreeSet::new(),
             inventory_quantity_updated_at: BTreeMap::new(),
             next_inventory_quantity_timestamp: 0,

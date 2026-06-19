@@ -2233,6 +2233,131 @@ impl DraftProxy {
         levels
     }
 
+    /// Build a fully-materialized `inventoryLevels` connection value for an inventory
+    /// item from staged level state (ids, locations, quantities, updatedAt timestamps,
+    /// and the opaque seeded edge cursors). The result carries `edges`, `nodes`, and
+    /// `pageInfo` with every canonical quantity name, so the generic selection
+    /// projector can render whatever shape an `inventoryItem.inventoryLevels(...)`
+    /// selection asks for. Returns `None` when the item has no staged levels, leaving
+    /// the field absent exactly as before. The overlay product/variant/inventory-item
+    /// read paths inject this onto the variant's inventory item before projection so a
+    /// variant-backed `inventoryItem` resolves its levels rather than dropping them.
+    pub(in crate::proxy) fn materialized_inventory_levels_value(
+        &self,
+        inventory_item_id: &str,
+    ) -> Option<Value> {
+        let levels = self.inventory_levels_for_item(inventory_item_id);
+        if levels.is_empty() {
+            return None;
+        }
+        let view = self.inventory_level_view_state();
+        const CANONICAL: [&str; 8] = [
+            "available",
+            "on_hand",
+            "committed",
+            "incoming",
+            "reserved",
+            "damaged",
+            "quality_control",
+            "safety_stock",
+        ];
+        let mut edges = Vec::new();
+        let mut nodes = Vec::new();
+        for (location_id, quantities) in &levels {
+            let key = (inventory_item_id.to_string(), location_id.clone());
+            let level_id = view
+                .inventory_level_ids
+                .get(&key)
+                .cloned()
+                .unwrap_or_else(|| inventory_level_id(inventory_item_id, location_id));
+            let is_active = !view.inactive_levels.contains(&key);
+            let location = view
+                .locations
+                .and_then(|locations| locations.get(location_id))
+                .cloned()
+                .unwrap_or_else(|| {
+                    json!({
+                        "id": location_id,
+                        "name": inventory_location_name(location_id)
+                    })
+                });
+            let quantities_value: Vec<Value> = CANONICAL
+                .iter()
+                .map(|name| {
+                    let updated_at = view
+                        .quantity_updated_at
+                        .get(&(
+                            inventory_item_id.to_string(),
+                            location_id.clone(),
+                            (*name).to_string(),
+                        ))
+                        .map_or(Value::Null, |value| json!(value));
+                    json!({
+                        "name": name,
+                        "quantity": quantities.get(*name).copied().unwrap_or(0),
+                        "updatedAt": updated_at
+                    })
+                })
+                .collect();
+            let cursor = self
+                .store
+                .staged
+                .inventory_level_cursors
+                .get(&level_id)
+                .cloned();
+            let node = json!({
+                "id": level_id,
+                "isActive": is_active,
+                "item": { "id": inventory_item_id },
+                "location": location,
+                "quantities": quantities_value
+            });
+            match cursor {
+                Some(cursor) => edges.push(json!({ "cursor": cursor, "node": node.clone() })),
+                None => edges.push(json!({ "node": node.clone() })),
+            }
+            nodes.push(node);
+        }
+        let start_cursor = edges
+            .first()
+            .and_then(|edge| edge.get("cursor"))
+            .cloned()
+            .unwrap_or(Value::Null);
+        let end_cursor = edges
+            .last()
+            .and_then(|edge| edge.get("cursor"))
+            .cloned()
+            .unwrap_or(Value::Null);
+        Some(json!({
+            "edges": edges,
+            "nodes": nodes,
+            "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": start_cursor,
+                "endCursor": end_cursor
+            }
+        }))
+    }
+
+    /// Clone a variant record and inject its materialized `inventoryLevels` connection
+    /// onto the inventory item's extra fields, so overlay reads that project
+    /// `inventoryItem.inventoryLevels` resolve from staged level state. A no-op clone
+    /// when the item has no staged levels.
+    pub(in crate::proxy) fn variant_with_inventory_levels(
+        &self,
+        variant: &ProductVariantRecord,
+    ) -> ProductVariantRecord {
+        let mut variant = variant.clone();
+        if let Some(levels) = self.materialized_inventory_levels_value(&variant.inventory_item.id) {
+            variant
+                .inventory_item
+                .extra_fields
+                .insert("inventoryLevels".to_string(), levels);
+        }
+        variant
+    }
+
     fn active_inventory_levels_for_item(
         &self,
         inventory_item_id: &str,

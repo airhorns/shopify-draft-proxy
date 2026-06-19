@@ -761,6 +761,32 @@ function collectOrderCatalogSeeds(capture: unknown): Record<string, unknown>[] {
   return [...orders.values()];
 }
 
+// Recursively collect opaque InventoryLevel connection cursors (level gid -> cursor)
+// from any recorded `inventoryLevels { edges { cursor node { id } } }` shape in a
+// capture (top-level data or upstream-call response bodies). These Relay pagination
+// tokens encode Shopify's internal row ids and cannot be reconstructed from store
+// state, so re-seeding them lets the local inventory-level connection renderer replay
+// the live cursors verbatim when a read projects edges/pageInfo.
+function collectInventoryLevelCursors(node: unknown, out: Record<string, string>): void {
+  if (Array.isArray(node)) {
+    for (const item of node) collectInventoryLevelCursors(item, out);
+    return;
+  }
+  if (!node || typeof node !== 'object') return;
+  const record = node as Record<string, unknown>;
+  const cursor = record['cursor'];
+  const inner = record['node'] as Record<string, unknown> | undefined;
+  const id = inner?.['id'];
+  if (
+    typeof cursor === 'string' &&
+    typeof id === 'string' &&
+    id.includes('/InventoryLevel/')
+  ) {
+    out[id] = cursor;
+  }
+  for (const value of Object.values(record)) collectInventoryLevelCursors(value, out);
+}
+
 async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown): Promise<void> {
   const record = capture as Record<string, unknown>;
   const customers = Array.isArray(record['seedCustomers']) ? record['seedCustomers'] : [];
@@ -879,6 +905,20 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
     record['seedCollectionCatalog'] && typeof record['seedCollectionCatalog'] === 'object'
       ? (record['seedCollectionCatalog'] as Record<string, unknown>)
       : null;
+  // Recover opaque InventoryLevel connection cursors recorded anywhere in the capture
+  // (the captured response under test plus every upstream-call body) so variant /
+  // inventory-item reads can replay them on their `inventoryLevels` edges/pageInfo.
+  const inventoryLevelCursors: Record<string, string> = {};
+  collectInventoryLevelCursors(record['data'], inventoryLevelCursors);
+  if (Array.isArray(record['upstreamCalls'])) {
+    for (const rawCall of record['upstreamCalls'] as unknown[]) {
+      const call = rawCall as Record<string, unknown> | null;
+      const response = call?.['response'] as Record<string, unknown> | undefined;
+      const body = (response?.['body'] ?? response) as Record<string, unknown> | undefined;
+      collectInventoryLevelCursors(body?.['data'], inventoryLevelCursors);
+    }
+  }
+  const hasInventoryLevelCursors = Object.keys(inventoryLevelCursors).length > 0;
   if (
     customers.length === 0 &&
     segments.length === 0 &&
@@ -894,7 +934,8 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
     segmentCatalog === null &&
     customersCount === null &&
     customerOrders === null &&
-    collectionCatalog === null
+    collectionCatalog === null &&
+    !hasInventoryLevelCursors
   )
     return;
   await proxy.processRequest({
@@ -916,6 +957,7 @@ async function seedPreconditionsFromCapture(proxy: DraftProxy, capture: unknown)
       ...(customersCount !== null ? { customersCount } : {}),
       ...(customerOrders !== null ? { customerOrders } : {}),
       ...(collectionCatalog ? { collectionCatalog } : {}),
+      ...(hasInventoryLevelCursors ? { inventoryLevelCursors } : {}),
     },
   });
 }
