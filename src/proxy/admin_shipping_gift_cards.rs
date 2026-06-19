@@ -5126,17 +5126,16 @@ fn gift_card_assignment_errors(
 }
 
 fn gift_card_customer_assignment_is_trial_guarded(id: &str) -> bool {
-    matches!(
-        id,
-        "gid://shopify/Customer/1" | "gid://shopify/Customer/trial-customer"
-    )
+    // Only the explicit trial-shop sentinel signals the trial-assignment branch.
+    // A plain synthetic `gid://shopify/Customer/N` is a legitimately created
+    // customer (the synthetic id counter starts at 1), so it must NOT trip the
+    // trial guard — otherwise a giftCardCreate that assigns a freshly created
+    // customer spuriously fails on a non-trial shop.
+    id == "gid://shopify/Customer/trial-customer"
 }
 
 fn gift_card_recipient_assignment_is_trial_guarded(id: &str) -> bool {
-    matches!(
-        id,
-        "gid://shopify/Customer/2" | "gid://shopify/Customer/trial-recipient"
-    )
+    id == "gid://shopify/Customer/trial-recipient"
 }
 
 fn gift_card_recipient_errors(
