@@ -589,6 +589,12 @@ fn customer_merge_and_erasure_roots_do_not_write_upstream_in_live_hybrid() {
         Vec::new(),
         None,
     );
+    // `create_customer` issues a `CustomerDuplicateHydrate` upstream lookup per
+    // create in LiveHybrid mode (the duplicate-contact detection path); those
+    // are legitimate read-throughs and are parity-recorded. Capture the setup
+    // baseline so the assertion isolates the merge/erasure roots, which must
+    // never forward upstream.
+    let setup_forwards = forwarded.lock().unwrap().len();
 
     let merge = proxy.process_request(json_graphql_request(
         r#"
@@ -636,5 +642,5 @@ fn customer_merge_and_erasure_roots_do_not_write_upstream_in_live_hybrid() {
         cancel.body["data"]["customerCancelDataErasure"]["userErrors"],
         json!([])
     );
-    assert_eq!(forwarded.lock().unwrap().len(), 0);
+    assert_eq!(forwarded.lock().unwrap().len(), setup_forwards);
 }

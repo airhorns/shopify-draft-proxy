@@ -2174,6 +2174,22 @@ impl DraftProxy {
             (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "customerRequestDataErasure" | "customerCancelDataErasure"
+                    ) =>
+            {
+                self.customer_data_erasure(
+                    &query,
+                    &variables,
+                    request,
+                    root_field,
+                    root_field == "customerRequestDataErasure",
+                )
+            }
+            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
                     && root_field == "customerSet" =>
             {
                 self.customer_mutation_response(request, &query, &variables)

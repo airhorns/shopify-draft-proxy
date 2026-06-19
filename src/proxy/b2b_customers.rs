@@ -3327,6 +3327,10 @@ impl DraftProxy {
                     &field.selection,
                 )),
                 "customerMergeJobStatus" => Some(self.customer_merge_job_status_field(field)),
+                "job" => Some(self.customer_merge_job_node_field(field)),
+                "node" if self.customer_merge_job_reference(field) => {
+                    Some(self.customer_merge_job_node_field(field))
+                }
                 _ => None,
             };
             if let Some(value) = value {
@@ -3363,6 +3367,30 @@ impl DraftProxy {
             .get(&job_id)
             .map(|request| selected_json(request, &field.selection))
             .unwrap_or(Value::Null)
+    }
+
+    /// Resolve `job(id:)` / `node(id:)` for a synthetic merge job id minted by
+    /// `customer_merge`. Returns a completed `Job` projection from the staged
+    /// merge request, or null for ids the proxy did not mint.
+    pub(in crate::proxy) fn customer_merge_job_node_field(&self, field: &RootFieldSelection) -> Value {
+        let Some(id) = resolved_string_field(&field.arguments, "id") else {
+            return Value::Null;
+        };
+        self.store
+            .staged
+            .customer_merge_requests
+            .get(&id)
+            .map(customer_merge_job_from_request)
+            .map(|job| selected_json(&job, &field.selection))
+            .unwrap_or(Value::Null)
+    }
+
+    /// True iff `node(id:)` targets a `Job` id we minted for a staged merge
+    /// request, so the overlay read may serve it instead of forwarding.
+    pub(in crate::proxy) fn customer_merge_job_reference(&self, field: &RootFieldSelection) -> bool {
+        resolved_string_field(&field.arguments, "id")
+            .as_deref()
+            .is_some_and(|id| self.store.staged.customer_merge_requests.contains_key(id))
     }
 
     pub(in crate::proxy) fn customer_read_field(&self, field: &RootFieldSelection) -> Value {
@@ -7696,6 +7724,98 @@ impl DraftProxy {
         ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
     }
 
+    /// Stage a `customerRequestDataErasure` / `customerCancelDataErasure`
+    /// privacy side effect locally. `request_erasure == true` is the request
+    /// root; `false` is the cancel root. Records the raw mutation in the log
+    /// (status `staged` on success, `failed` on userError) and never forwards
+    /// upstream. Returns `{ <responseKey>: { customerId, userErrors } }`.
+    pub(in crate::proxy) fn customer_data_erasure(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+        root_field: &str,
+        request_erasure: bool,
+    ) -> Response {
+        let response_key =
+            root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
+        let payload_selection = root_field_selection(query).unwrap_or_default();
+        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let customer_id = resolved_string_field(&arguments, "customerId")
+            .or_else(|| resolved_string_field(variables, "customerId"))
+            .unwrap_or_default();
+
+        let (payload, status, staged_ids) =
+            self.customer_data_erasure_payload(&customer_id, request_erasure);
+        self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
+        if status != "staged" {
+            if let Some(entry) = self.log_entries.last_mut() {
+                set_log_status(entry, status);
+            }
+        }
+        ok_json(json!({ "data": { response_key: selected_json(&payload, &payload_selection) } }))
+    }
+
+    fn customer_data_erasure_payload(
+        &mut self,
+        customer_id: &str,
+        request_erasure: bool,
+    ) -> (Value, &'static str, Vec<String>) {
+        if !self.customer_exists(customer_id) {
+            return (
+                customer_data_erasure_payload_json(
+                    None,
+                    vec![customer_data_erasure_user_error(
+                        "Customer does not exist",
+                        "DOES_NOT_EXIST",
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        if request_erasure {
+            self.store.staged.customer_data_erasure_requests.insert(
+                customer_id.to_string(),
+                json!({ "customerId": customer_id, "status": "REQUESTED" }),
+            );
+            return (
+                customer_data_erasure_payload_json(Some(customer_id), Vec::new()),
+                "staged",
+                vec![customer_id.to_string()],
+            );
+        }
+        let is_pending = self
+            .store
+            .staged
+            .customer_data_erasure_requests
+            .get(customer_id)
+            .and_then(|request| request["status"].as_str())
+            == Some("REQUESTED");
+        if !is_pending {
+            return (
+                customer_data_erasure_payload_json(
+                    None,
+                    vec![customer_data_erasure_user_error(
+                        "Customer's data is not scheduled for erasure",
+                        "NOT_BEING_ERASED",
+                    )],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        self.store.staged.customer_data_erasure_requests.insert(
+            customer_id.to_string(),
+            json!({ "customerId": customer_id, "status": "CANCELED" }),
+        );
+        (
+            customer_data_erasure_payload_json(Some(customer_id), Vec::new()),
+            "staged",
+            vec![customer_id.to_string()],
+        )
+    }
+
     fn customer_merge_payload(
         &mut self,
         arguments: &BTreeMap<String, ResolvedValue>,
@@ -7948,6 +8068,15 @@ fn customer_merge_request_json(
     })
 }
 
+fn customer_merge_job_from_request(request: &Value) -> Value {
+    json!({
+        "__typename": "Job",
+        "id": request["jobId"].clone(),
+        "done": true,
+        "query": { "__typename": "QueryRoot" }
+    })
+}
+
 fn customer_merge_user_error(field: Value, message: &str, code: &str) -> Value {
     json!({
         "field": field.clone(),
@@ -7955,6 +8084,21 @@ fn customer_merge_user_error(field: Value, message: &str, code: &str) -> Value {
         "code": code,
         "errorFields": field,
         "block_type": code
+    })
+}
+
+fn customer_data_erasure_payload_json(customer_id: Option<&str>, user_errors: Vec<Value>) -> Value {
+    json!({
+        "customerId": customer_id.map(Value::from).unwrap_or(Value::Null),
+        "userErrors": user_errors
+    })
+}
+
+fn customer_data_erasure_user_error(message: &str, code: &str) -> Value {
+    json!({
+        "field": ["customerId"],
+        "message": message,
+        "code": code
     })
 }
 
