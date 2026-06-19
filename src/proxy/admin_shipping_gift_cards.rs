@@ -2656,7 +2656,10 @@ impl DraftProxy {
         ok_json(json!({ "data": Value::Object(data) }))
     }
 
-    fn publishable_payload_shop_needs_hydration(&self, selection: &[SelectedField]) -> bool {
+    pub(in crate::proxy) fn publishable_payload_shop_needs_hydration(
+        &self,
+        selection: &[SelectedField],
+    ) -> bool {
         self.config.read_mode != ReadMode::Snapshot
             && (self.store.base.publication_count.is_none()
                 || selection.iter().any(|field| {
@@ -2665,7 +2668,11 @@ impl DraftProxy {
                 }))
     }
 
-    fn hydrate_publishable_payload_shop(&mut self, publishable_id: &str, request: &Request) {
+    pub(in crate::proxy) fn hydrate_publishable_payload_shop(
+        &mut self,
+        publishable_id: &str,
+        request: &Request,
+    ) {
         if self.config.read_mode == ReadMode::Snapshot {
             return;
         }

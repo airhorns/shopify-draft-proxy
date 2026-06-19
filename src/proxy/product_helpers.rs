@@ -563,12 +563,39 @@ impl DraftProxy {
                 }
                 "publishedOnCurrentPublication" => json!(false),
                 "resourcePublicationsCount" | "publicationCount"
-                | "availablePublicationsCount" => publication_count_json(pubs.len()),
+                | "availablePublicationsCount" => {
+                    publication_count_json(self.publishable_live_publication_count(resource_id, &pubs))
+                }
                 _ => continue,
             };
             out.insert(sel.response_key.clone(), value);
         }
         Value::Object(out)
+    }
+
+    /// The publication count Shopify reports for a publishable resource's
+    /// `resourcePublicationsCount`/`availablePublicationsCount` fields. These
+    /// default to `onlyPublished: true`, so they count only publications on which
+    /// the resource is actually live. A product that is not `ACTIVE` (e.g. a
+    /// `DRAFT`) is never live on any publication regardless of its membership, so
+    /// its count is 0 even immediately after a `publishablePublish`. Collections
+    /// and other resources have no draft state, so their count is the membership
+    /// size.
+    fn publishable_live_publication_count(
+        &self,
+        resource_id: &str,
+        pubs: &BTreeSet<String>,
+    ) -> usize {
+        if resource_id.starts_with("gid://shopify/Product/") {
+            let active = self
+                .product_record_by_id(resource_id)
+                .map(|product| product.status == "ACTIVE")
+                .unwrap_or(false);
+            if !active {
+                return 0;
+            }
+        }
+        pubs.len()
     }
 
     /// Stage a `publishablePublish`/`publishableUnpublish` against the local
@@ -622,12 +649,24 @@ impl DraftProxy {
                 }
                 self.record_mutation_log_entry(request, query, variables, root_field, vec![]);
             }
+            // When the payload selects `shop { publicationCount }` and the shop
+            // baseline is not present in store state (the publication engine seeds
+            // only `publications`, never the shop), hydrate it from the captured
+            // upstream hydrate call — same as the non-engine publishable path.
+            if selected_child_selection(&field.selection, "shop")
+                .as_deref()
+                .is_some_and(|selection| self.publishable_payload_shop_needs_hydration(selection))
+            {
+                self.hydrate_publishable_payload_shop(&resource_id, request);
+            }
             let publishable_selection =
                 selected_child_selection(&field.selection, "publishable").unwrap_or_default();
             let publishable = self.publishable_resource_value(&resource_id, &publishable_selection);
+            let shop = effective_shop_json(&self.store);
             let payload = selected_payload_json(&field.selection, |selection| {
                 match selection.name.as_str() {
                     "publishable" => Some(publishable.clone()),
+                    "shop" => Some(selected_json(&shop, &selection.selection)),
                     "userErrors" => Some(Value::Array(
                         user_errors
                             .iter()
