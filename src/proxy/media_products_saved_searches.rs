@@ -16,6 +16,14 @@ const BULK_OPERATION_HYDRATE_QUERY: &str = "query BulkOperationHydrate($id: ID!)
 // cassette calls, and against a live backend they are ordinary GraphQL reads.
 const MEDIA_FILE_UPDATE_HYDRATE_QUERY: &str = "query MediaFileUpdateHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on File {\n      alt\n      createdAt\n      fileStatus\n    }\n    ... on MediaImage {\n      image { url width height }\n      preview { image { url width height } }\n    }\n    ... on GenericFile {\n      url\n    }\n  }\n}";
 const MEDIA_PRODUCT_HYDRATE_QUERY: &str = "query MediaProductHydrate($id: ID!) {\n  product(id: $id) {\n    id\n    title\n    handle\n    status\n    media(first: 50) {\n      nodes {\n        id\n        alt\n        mediaContentType\n        status\n        preview { image { url width height } }\n        ... on MediaImage { image { url width height } }\n      }\n    }\n    variants(first: 50) {\n      nodes {\n        id\n        title\n        media(first: 10) { nodes { id } }\n      }\n    }\n  }\n}";
+// fileDelete / fileUpdate cascade clearing needs to know which products (and
+// their variants) a media file is attached to, so a delete or detach can remove
+// the file id from those owners. Shopify exposes no local reverse index, so in
+// LiveHybrid we read the file's `references` from upstream; in replay this
+// matches the recorded cassette call. Both the product `media` nodes and each
+// variant's attached `media` are hydrated so the cascade and downstream variant
+// reads operate on real owner state. (Gleam parity: PR #794 file media cascade.)
+const MEDIA_FILE_REFERENCES_HYDRATE_QUERY: &str = "query MediaFileReferencesHydrate($fileIds: [ID!]!) {\n  nodes(ids: $fileIds) {\n    id\n    __typename\n    ... on MediaImage {\n      alt\n      fileStatus\n      mediaContentType\n      status\n      preview { image { url width height } }\n      image { url width height }\n      references(first: 50) {\n        nodes {\n          ... on Product {\n            id\n            title\n            handle\n            status\n            media(first: 50) {\n              nodes {\n                id\n                __typename\n                alt\n                fileStatus\n                mediaContentType\n                status\n                preview { image { url width height } }\n                ... on MediaImage { image { url width height } }\n              }\n            }\n            variants(first: 50) {\n              nodes {\n                id\n                title\n                media(first: 10) { nodes { id alt mediaContentType } }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}";
 // Canonical mutation forwarded to upstream when a schema-valid bulk query root is
 // accepted by the validator but is not one of the locally synthesized roots
 // (`products`/`productVariants`). LiveHybrid replays the recorded upstream
@@ -618,7 +626,7 @@ impl DraftProxy {
         match root_field {
             "fileCreate" => self.media_file_create(request, query, variables),
             "fileUpdate" => self.media_file_update(request, query, variables),
-            "fileDelete" => self.media_file_delete(query, variables),
+            "fileDelete" => self.media_file_delete(request, query, variables),
             "fileAcknowledgeUpdateFailed" => {
                 self.media_file_acknowledge_update_failed(query, variables)
             }
@@ -949,6 +957,14 @@ impl DraftProxy {
                 .staged
                 .media_files
                 .insert(id.clone(), file.clone());
+            // Cascade: detaching a file from a product (referencesToRemove)
+            // removes that file from the product's media and from every variant
+            // that had it attached (Gleam parity: remove_media_ids_from_variants_for_products).
+            let remove_products = list_string_field(input, "referencesToRemove");
+            if !remove_products.is_empty() {
+                self.store
+                    .clear_media_ids(std::slice::from_ref(&id), Some(&remove_products));
+            }
             updated_files.push(file);
         }
         let staged_ids = updated_files
@@ -964,6 +980,7 @@ impl DraftProxy {
 
     pub(in crate::proxy) fn media_file_delete(
         &mut self,
+        request: &Request,
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> MutationOutcome {
@@ -974,6 +991,10 @@ impl DraftProxy {
             .into_iter()
             .map(|id| self.resolve_media_file_delete_id(&id))
             .collect::<Vec<_>>();
+        // Hydrate the referenced files (and their owning products/variants) so
+        // existence checks run against the real backend and the post-delete
+        // cascade can clear the file from those owners.
+        self.hydrate_media_file_references(request, &ids);
         let missing_ids = dedupe_media_strings(
             ids.iter()
                 .filter(|id| !self.media_file_delete_target_exists(id))
@@ -993,6 +1014,10 @@ impl DraftProxy {
             self.store.staged.deleted_media_file_ids.insert(id.clone());
             self.store.staged.media_files.remove(id);
         }
+        // Cascade: detach the deleted files from every product/variant that
+        // referenced them, so subsequent product.media / variant.media reads no
+        // longer surface the removed file (Gleam parity: delete_staged_files).
+        self.store.clear_media_ids(&ids, None);
         let payload = json!({"deletedFileIds": ids, "userErrors": []});
         MutationOutcome::staged(
             ok_json(json!({"data": {response_key: selected_json(&payload, &payload_selection)}})),
@@ -1191,7 +1216,6 @@ impl DraftProxy {
 
     fn media_file_delete_target_exists(&self, id: &str) -> bool {
         self.store.staged.media_files.contains_key(id)
-            || matches!(id, "gid://shopify/MediaImage/39516006482153")
     }
 
     fn media_file_for_update(&self, id: &str) -> Option<Value> {
@@ -1300,8 +1324,111 @@ impl DraftProxy {
                 continue;
             }
             if response.body["data"]["product"].is_object() {
-                self.store
-                    .stage_observed_product_json(&response.body["data"]["product"]);
+                let product_node = response.body["data"]["product"].clone();
+                self.observe_media_product_node(&product_node);
+            }
+        }
+    }
+
+    // Hydrate the products and variants that reference the given media files,
+    // along with the file records themselves, from upstream. Used by fileDelete
+    // (and the cascade that follows it) so existence checks and downstream
+    // product.media / variant.media reads run against the real owner state.
+    fn hydrate_media_file_references(&mut self, request: &Request, file_ids: &[String]) {
+        if self.config.read_mode != ReadMode::LiveHybrid {
+            return;
+        }
+        let missing = dedupe_media_strings(
+            file_ids
+                .iter()
+                .filter(|id| {
+                    !id.is_empty() && !self.store.staged.media_files.contains_key(id.as_str())
+                })
+                .cloned()
+                .collect(),
+        );
+        if missing.is_empty() {
+            return;
+        }
+        let hydrate_request = Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: serde_json::to_string(&json!({
+                "query": MEDIA_FILE_REFERENCES_HYDRATE_QUERY,
+                "operationName": "MediaFileReferencesHydrate",
+                "variables": { "fileIds": missing },
+            }))
+            .unwrap_or_default(),
+        };
+        let response = (self.upstream_transport)(hydrate_request);
+        if response.status >= 400 {
+            return;
+        }
+        let Some(nodes) = response.body["data"]["nodes"].as_array().cloned() else {
+            return;
+        };
+        for node in nodes {
+            // Stage the file record itself so the existence check passes.
+            if let Some(record) = media_file_record_from_node(&node) {
+                if let Some(id) = record.get("id").and_then(Value::as_str).map(str::to_string) {
+                    if !self.store.staged.deleted_media_file_ids.contains(&id) {
+                        self.store.staged.media_files.entry(id).or_insert(record);
+                    }
+                }
+            }
+            // Stage every product (and its variants/media) that references it.
+            if let Some(references) = node.pointer("/references/nodes").and_then(Value::as_array) {
+                for product_node in references.clone() {
+                    self.observe_media_product_node(&product_node);
+                }
+            }
+        }
+    }
+
+    // Stage a product node observed from a media hydration read: the product
+    // record (raw media + variant nodes), a file record for each product media
+    // node, and a `ProductVariantRecord` (with `media_ids`) for each variant.
+    // Without the latter two, the cascade clear and downstream variant.media
+    // reads would have nothing concrete to operate on.
+    fn observe_media_product_node(&mut self, product_node: &Value) {
+        let Some(product_id) = product_node
+            .get("id")
+            .and_then(Value::as_str)
+            .filter(|id| id.starts_with("gid://shopify/Product/"))
+            .map(str::to_string)
+        else {
+            return;
+        };
+        self.store.stage_observed_product_json(product_node);
+        for media_node in product_node
+            .pointer("/media/nodes")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            if let Some(record) = media_file_record_from_node(media_node) {
+                if let Some(id) = record.get("id").and_then(Value::as_str).map(str::to_string) {
+                    if !self.store.staged.deleted_media_file_ids.contains(&id) {
+                        self.store.staged.media_files.entry(id).or_insert(record);
+                    }
+                }
+            }
+        }
+        for variant_node in product_node
+            .pointer("/variants/nodes")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
+            let mut variant_value = variant_node.clone();
+            if let Some(object) = variant_value.as_object_mut() {
+                object
+                    .entry("productId".to_string())
+                    .or_insert_with(|| json!(product_id));
+            }
+            if let Some(variant) = product_variant_state_from_observed_json(&variant_value) {
+                self.store.stage_product_variant(variant);
             }
         }
     }

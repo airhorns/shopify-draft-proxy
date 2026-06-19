@@ -1355,6 +1355,47 @@ impl Store {
             .stage(variant.id.clone(), variant);
     }
 
+    /// Detach the given media ids from product/variant owner state. Removes the
+    /// ids from each product's `media` nodes and from each variant's `media_ids`.
+    /// When `only_products` is `Some`, the removal is scoped to those product ids
+    /// (fileUpdate `referencesToRemove`); `None` applies to all owners
+    /// (fileDelete cascade). Only owners that actually change are re-staged.
+    fn clear_media_ids(&mut self, media_ids: &[String], only_products: Option<&[String]>) {
+        if media_ids.is_empty() {
+            return;
+        }
+        let removes = |id: &str| media_ids.iter().any(|m| m == id);
+        let in_scope =
+            |product_id: &str| only_products.is_none_or(|filter| filter.iter().any(|p| p == product_id));
+        for mut product in self.products() {
+            if !in_scope(&product.id) {
+                continue;
+            }
+            let before = product.media.len();
+            product.media.retain(|node| {
+                node.get("id")
+                    .and_then(Value::as_str)
+                    .map(|id| !removes(id))
+                    .unwrap_or(true)
+            });
+            if product.media.len() != before {
+                self.stage_product(product);
+            }
+        }
+        for mut variant in
+            effective_records(&self.base.product_variants, &self.staged.product_variants)
+        {
+            if !in_scope(&variant.product_id) {
+                continue;
+            }
+            let before = variant.media_ids.len();
+            variant.media_ids.retain(|id| !removes(id));
+            if variant.media_ids.len() != before {
+                self.stage_product_variant(variant);
+            }
+        }
+    }
+
     fn delete_product_variant(&mut self, id: &str) -> bool {
         let product_id = self
             .product_variant_by_id(id)
