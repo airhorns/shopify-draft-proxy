@@ -1861,6 +1861,20 @@ impl DraftProxy {
                                 "data": self.collection_membership_downstream_read_data(&fields)
                             }))
                         }
+                    } else if root_field == "shop" {
+                        // `shop` reads are served locally only when the proxy is
+                        // holding shop-policy overlay state (snapshot mode, or staged
+                        // / tombstoned policies); otherwise the live shop response is
+                        // replayed verbatim so unrelated shop fields stay authentic.
+                        if self.should_handle_shop_policy_query_locally() {
+                            if let Some(data) = self.shop_query_data(&query, &variables) {
+                                ok_json(json!({ "data": data }))
+                            } else {
+                                (self.upstream_transport)(request.clone())
+                            }
+                        } else {
+                            (self.upstream_transport)(request.clone())
+                        }
                     } else if self.has_location_overlay_state()
                         || !self.location_read_needs_upstream(&fields)
                     {
@@ -1884,6 +1898,13 @@ impl DraftProxy {
                     ) =>
             {
                 self.product_publishable_mutation(root_field, &query, &variables, request)
+            }
+            (CapabilityDomain::StoreProperties, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && root_field == "shopPolicyUpdate" =>
+            {
+                self.shop_policy_update(request, &query, &variables)
             }
             (CapabilityDomain::StoreProperties, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
