@@ -273,7 +273,14 @@ fn validate_resolved_input_object(
         if let Some(problem) = validate_resolved_leaf(field_value, &field_schema.type_ref) {
             let mut nested_path = problem_path.to_vec();
             nested_path.push(field_name.clone());
-            problems.push(variable_problem_with_message(&nested_path, &problem));
+            if problem.include_message {
+                problems.push(variable_problem_with_message(
+                    &nested_path,
+                    &problem.explanation,
+                ));
+            } else {
+                problems.push(variable_problem(&nested_path, &problem.explanation));
+            }
         }
         let Some(nested_input_object) = schema.input_objects.get(&field_schema.type_ref.named_type)
         else {
@@ -294,29 +301,68 @@ fn validate_resolved_input_object(
     problems
 }
 
-fn validate_resolved_leaf(value: &ResolvedValue, type_ref: &SchemaTypeRef) -> Option<String> {
-    if type_ref.named_type == "Decimal" {
-        let ResolvedValue::String(raw) = value else {
-            return None;
-        };
-        return raw
-            .parse::<f64>()
-            .err()
-            .map(|_| format!("invalid decimal '{raw}'"));
-    }
-    let ResolvedValue::String(raw) = value else {
-        return None;
-    };
-    enum_literal_allowed(&type_ref.named_type, raw).and_then(|allowed| {
-        if allowed {
-            None
-        } else {
-            Some(format!(
-                "Expected value to be one of: {}",
-                enum_literal_valid_values(&type_ref.named_type)?.join(", ")
-            ))
+struct ScalarValidationProblem {
+    explanation: String,
+    include_message: bool,
+}
+
+fn validate_resolved_leaf(
+    value: &ResolvedValue,
+    type_ref: &SchemaTypeRef,
+) -> Option<ScalarValidationProblem> {
+    match type_ref.named_type.as_str() {
+        "Decimal" => {
+            let ResolvedValue::String(raw) = value else {
+                return None;
+            };
+            raw.parse::<f64>().err().map(|_| ScalarValidationProblem {
+                explanation: format!("invalid decimal '{raw}'"),
+                include_message: true,
+            })
         }
-    })
+        "FulfillmentEventStatus" => {
+            let ResolvedValue::String(raw) = value else {
+                return None;
+            };
+            (!fulfillment_event_status_is_allowed(raw)).then(|| ScalarValidationProblem {
+                explanation: fulfillment_event_status_expected_message(raw),
+                include_message: false,
+            })
+        }
+        _ => {
+            let ResolvedValue::String(raw) = value else {
+                return None;
+            };
+            let values = enum_literal_valid_values(&type_ref.named_type)?;
+            (!values.contains(&raw.as_str())).then(|| ScalarValidationProblem {
+                explanation: format!("Expected value to be one of: {}", values.join(", ")),
+                include_message: true,
+            })
+        }
+    }
+}
+
+fn fulfillment_event_status_is_allowed(status: &str) -> bool {
+    matches!(
+        status,
+        "LABEL_PURCHASED"
+            | "LABEL_PRINTED"
+            | "READY_FOR_PICKUP"
+            | "CONFIRMED"
+            | "IN_TRANSIT"
+            | "OUT_FOR_DELIVERY"
+            | "ATTEMPTED_DELIVERY"
+            | "DELAYED"
+            | "DELIVERED"
+            | "FAILURE"
+            | "CARRIER_PICKED_UP"
+    )
+}
+
+fn fulfillment_event_status_expected_message(status: &str) -> String {
+    format!(
+        "Expected \"{status}\" to be one of: LABEL_PURCHASED, LABEL_PRINTED, READY_FOR_PICKUP, CONFIRMED, IN_TRANSIT, OUT_FOR_DELIVERY, ATTEMPTED_DELIVERY, DELAYED, DELIVERED, FAILURE, CARRIER_PICKED_UP"
+    )
 }
 
 fn raw_enum_literal_error(
@@ -350,6 +396,19 @@ fn enum_literal_allowed(type_name: &str, raw: &str) -> Option<bool> {
 
 fn enum_literal_valid_values(type_name: &str) -> Option<&'static [&'static str]> {
     match type_name {
+        "FulfillmentEventStatus" => Some(&[
+            "LABEL_PURCHASED",
+            "LABEL_PRINTED",
+            "READY_FOR_PICKUP",
+            "CONFIRMED",
+            "IN_TRANSIT",
+            "OUT_FOR_DELIVERY",
+            "ATTEMPTED_DELIVERY",
+            "DELAYED",
+            "DELIVERED",
+            "FAILURE",
+            "CARRIER_PICKED_UP",
+        ]),
         "MetaobjectCustomerAccountAccess" => Some(&["NONE", "READ"]),
         _ => None,
     }
@@ -677,6 +736,7 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         .unwrap_or_else(|_| json!({}));
         let mut schema = schema_from_fixture(&fixture).unwrap_or_default();
         register_fulfillment_service_fields(&mut schema);
+        extend_fulfillment_event_input_schema(&mut schema);
         extend_discount_basic_input_schema(&mut schema);
         extend_metaobject_definition_input_schema(&mut schema);
         extend_functions_input_schema(&mut schema);
@@ -723,6 +783,10 @@ fn register_fulfillment_service_fields(schema: &mut AdminInputSchema) {
                 .collect(),
         );
     }
+}
+
+fn extend_fulfillment_event_input_schema(schema: &mut AdminInputSchema) {
+    extend_mutation_input_schema(schema, &["fulfillmentEventCreate"]);
 }
 
 fn scalar_type_ref(type_name: &str) -> SchemaTypeRef {
