@@ -956,6 +956,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'productSet ProductSetShapeValidator guardrails, unknown-product validation, and asynchronous ProductSetOperation polling behavior.',
     requiredAuthScopes: ['read_products', 'write_products', 'read_locations'],
     fixtureOutputs: [
+      'config/parity-specs/products/productSet-parity-plan.json',
       `${CAPTURE_ROOT}product-set-shape-validator-parity.json`,
       `${CAPTURE_ROOT}product-set-async-operation-parity.json`,
       `${CAPTURE_ROOT}product-set-id-not-allowed.json`,
@@ -1020,6 +1021,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Local-runtime resource-feedback validation parity for invalid enum literals, message validation, future timestamps, mixed product batches, batch caps, and shop feedback guardrails.',
     requiredAuthScopes: ['local-runtime'],
     fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}product-feedback-lifecycle-local-runtime.json`,
       `${LOCAL_RUNTIME_ROOT}product-feedback-validation-local-runtime.json`,
       'config/parity-specs/products/bulk_product_resource_feedback_create_validation.json',
       'config/parity-requests/products/product-feedback-create-local-runtime.graphql',
@@ -1063,6 +1065,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose: 'Publication aggregate reads plus productPublish/productUnpublish probes.',
     requiredAuthScopes: ['read_products', 'write_products', 'publication/channel access for the app'],
     fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}publication-roots-local-runtime.json`,
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/publications-catalog.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-publish-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-unpublish-parity.json',
@@ -1147,6 +1150,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose: 'fileCreate/fileUpdate/fileDelete and staged upload interactions.',
     requiredAuthScopes: ['read_files', 'write_files'],
     fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}file-update-product-reference-local-runtime.json`,
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/file-acknowledge-update-failed-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/media/file-create-delete-parity.json',
       'fixtures/conformance/very-big-test-store.myshopify.com/2025-01/media/file-delete-product-media-parity.json',
@@ -1585,6 +1589,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose: 'Product variant create/update/delete mutation family.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
+      'config/parity-specs/products/productVariantsBulkCreate-parity-plan.json',
+      'config/parity-specs/products/productVariantsBulkUpdate-parity-plan.json',
       `${CAPTURE_ROOT}product-variants-bulk-update-parity.json`,
       `${CAPTURE_ROOT}product-variants-bulk-create-parity.json`,
       `${CAPTURE_ROOT}product-variants-bulk-delete-parity.json`,
@@ -1669,6 +1675,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'write_locations',
     ],
     fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}inventory-shipment-lifecycle-local-staging.json`,
+      `${LOCAL_RUNTIME_ROOT}inventory-shipment-partial-receive-update-delete-local-staging.json`,
+      `${LOCAL_RUNTIME_ROOT}inventory-shipment-validation-local-runtime.json`,
+      `${LOCAL_RUNTIME_ROOT}inventory-transfer-ready-item-adjustments-local-staging.json`,
       `${CAPTURE_ROOT}inventory-transfer-create-validation.json`,
       `${CAPTURE_ROOT}inventory-transfer-lifecycle-local-staging.json`,
       'config/parity-specs/products/inventory_transfer_create_validation.json',
@@ -2075,6 +2085,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose: 'Asynchronous productDuplicate operation success and missing-product completion behavior.',
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [
+      'config/parity-specs/products/productDuplicate-parity-plan.json',
       `${CAPTURE_ROOT}product-duplicate-async-success.json`,
       `${CAPTURE_ROOT}product-duplicate-async-missing.json`,
       'config/parity-specs/products/productDuplicate-async-missing.json',
@@ -3124,6 +3135,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose: 'Inventory quantity adjustment/move/set mutation behavior.',
     requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
     fixtureOutputs: [
+      'config/parity-specs/products/inventoryAdjustQuantities-parity-plan.json',
       `${CAPTURE_ROOT}inventory-quantity-roots-parity.json`,
       `${CAPTURE_ROOT}inventory-adjust-quantities-parity.json`,
       'config/parity-specs/products/inventory-quantity-roots-parity.json',
@@ -3189,6 +3201,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose: 'Admin GraphQL 2026-04 inventory quantity mutation request contracts.',
     requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
     fixtureOutputs: [
+      'config/parity-requests/products/inventory-quantity-contracts-2026-downstream-read.graphql',
       `${CAPTURE_ROOT}inventory-quantity-contracts-2026-04.json`,
       'config/parity-specs/products/inventory-quantity-contracts-2026-04.json',
       'config/parity-specs/products/inventory-quantity-idempotency-directive-2026-04.json',
@@ -3388,6 +3401,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'write_locales',
     ],
     fixtureOutputs: [
+      'config/parity-requests/localization/localization-translations-known-resource-product-create.graphql',
+      'config/parity-requests/localization/localization-translations-validation-order-read.graphql',
       `${CAPTURE_ROOT}localization-translations-validation-order.json`,
       'config/parity-specs/localization/localization-translations-validation-order.json',
     ],
@@ -3530,6 +3545,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose: 'Markets read baselines and localization-adjacent validation probes.',
     requiredAuthScopes: ['read_markets', 'read_products'],
     fixtureOutputs: [
+      'config/parity-requests/markets/price-list-catalog-validation-markets-read.graphql',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/markets-baseline.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/markets-catalog.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/markets-resolved-values.json',
@@ -4834,6 +4850,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose: 'themeUpdate rejects fields that are not exposed by OnlineStoreThemeInput before resolver execution.',
     requiredAuthScopes: ['authenticated_admin_graphql'],
     fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}theme-update-validation-local-runtime.json`,
       `${CAPTURE_ROOT}theme-update-role-not-an-input.json`,
       'config/parity-specs/online-store/theme_update_role_not_an_input.json',
       'config/parity-requests/online-store/theme-update-role-not-an-input.graphql',
@@ -4853,6 +4870,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'mobilePlatformApplicationCreate model validation for application ID length, Android sha256CertFingerprints presence, and Apple appClipApplicationId presence/length.',
     requiredAuthScopes: ['local-runtime'],
     fixtureOutputs: [
+      'config/parity-requests/online-store/mobile_platform_application_create_duplicate_android.graphql',
       `${LOCAL_RUNTIME_ROOT}mobile_platform_application_create_model_validation.json`,
       'config/parity-specs/online-store/mobile_platform_application_create_model_validation.json',
       'config/parity-requests/online-store/mobile_platform_application_create_model_validation.graphql',
@@ -4991,7 +5009,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Online store integration root dispatch: ensure themeCreate, themeUpdate, themeDelete, and themePublish route through the local dispatcher and return correct staged responses.',
     requiredAuthScopes: ['local-runtime'],
     fixtureOutputs: [
-      `${LOCAL_RUNTIME_ROOT}online-store/online-store-integration-root-dispatch-local-runtime.json`,
+      `${LOCAL_RUNTIME_ROOT}online-store-integration-root-dispatch-local-runtime.json`,
       'config/parity-specs/online-store/online-store-integration-root-dispatch-local-runtime.json',
       'config/parity-requests/online-store/online-store-integration-root-dispatch-local-runtime.graphql',
       'config/parity-requests/online-store/online-store-integration-root-dispatch-delete-local-runtime.graphql',
@@ -5010,7 +5028,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'themePublish demotes the previous main theme and sets the published theme as new main; downstream reads reflect updated role.',
     requiredAuthScopes: ['local-runtime'],
     fixtureOutputs: [
-      `${LOCAL_RUNTIME_ROOT}online-store/theme-publish-demotes-previous-main.json`,
+      `${LOCAL_RUNTIME_ROOT}theme-publish-demotes-previous-main.json`,
       'config/parity-specs/online-store/theme-publish-demotes-previous-main.json',
       'config/parity-requests/online-store/theme-publish-create-main.graphql',
       'config/parity-requests/online-store/theme-publish-create-unpublished.graphql',
@@ -5896,6 +5914,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose: 'Draft order create/update/delete/complete, duplicate lifecycle reset, and downstream read behavior.',
     requiredAuthScopes: ['read_draft_orders', 'write_draft_orders', 'read_products'],
     fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}draft-order-complete-payment-gateway-paths.json`,
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-by-id-not-found.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-create-from-order-parity.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/draft-order-delete-parity.json',
@@ -6451,6 +6470,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'released non-discount Shopify Function in the installed conformance app for wrong-API validation',
     ],
     fixtureOutputs: [
+      'config/parity-specs/discounts/discount-app-bulk-local-runtime.json',
+      `${LOCAL_RUNTIME_ROOT}discount-app-bulk-local-runtime.json`,
       `${CAPTURE_ROOT}discount-app-function-validation.json`,
       'config/parity-specs/discounts/discount-app-function-validation.json',
       'config/parity-requests/discounts/discount-app-function-validation.graphql',
@@ -6971,6 +6992,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'released conformance-validation Function in the installed conformance app',
     ],
     fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}functions-validation-update-shape.json`,
       `${CAPTURE_ROOT}functions-validation-update-defaults.json`,
       'config/parity-specs/functions/functions-validation-update-defaults.json',
     ],
@@ -7165,6 +7187,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'write_orders',
     ],
     fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}customer-payment-method-local-staging.json`,
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-customization-empty-read.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-customization-validation.json',
       'fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-eligibility.json',
@@ -7193,6 +7216,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose: 'paymentTermsCreate/paymentTermsUpdate/paymentTermsDelete lifecycle against a disposable draft order.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
     fixtureOutputs: [
+      'config/parity-specs/payments/payment-terms-create-on-order.json',
+      'config/parity-specs/payments/payment_terms_delete_owner_cascade.json',
+      `${LOCAL_RUNTIME_ROOT}payment-terms-create-on-order.json`,
+      `${LOCAL_RUNTIME_ROOT}payment-terms-delete-owner-cascade.json`,
       `${CAPTURE_ROOT}payment-terms-lifecycle.json`,
       'config/parity-specs/payments/payment-terms-update-missing-local-runtime.json',
       'config/parity-requests/payments/payment-terms-update-missing-local-runtime.graphql',
@@ -7748,6 +7775,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Local-runtime recording for orderCreate-backed orderUpdate happy-path staging, downstream order reads, and raw mutation-log retention.',
     requiredAuthScopes: ['local-runtime'],
     fixtureOutputs: [
+      `${CAPTURE_ROOT}orderUpdate-snapshot-staging.json`,
       `${LOCAL_RUNTIME_ROOT}orderUpdate-snapshot-staging.json`,
       'config/parity-specs/orders/orderUpdate-snapshot-staging.json',
       'config/parity-requests/orders/orderUpdate-snapshot-staging-create.graphql',
@@ -7768,6 +7796,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Local-runtime recording for returnDeclineRequest valid decline, invalid declineReason, and hidden tmp_notify_customer email validation branches.',
     requiredAuthScopes: ['local-runtime'],
     fixtureOutputs: [
+      `${LOCAL_RUNTIME_ROOT}return-quantity-validation.json`,
       `${LOCAL_RUNTIME_ROOT}return-lifecycle-local-staging.json`,
       'config/parity-specs/orders/return-request-decline-local-staging.json',
     ],
@@ -9153,6 +9182,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     purpose: 'customerCreate/customerUpdate/customerDelete mutation family.',
     requiredAuthScopes: ['read_customers', 'write_customers'],
     fixtureOutputs: [
+      'config/parity-specs/customers/customerCreate-parity-plan.json',
       `${CAPTURE_ROOT}customer-create-parity.json`,
       `${CAPTURE_ROOT}customer-update-parity.json`,
       `${CAPTURE_ROOT}customer-delete-parity.json`,
