@@ -1785,6 +1785,15 @@ impl DraftProxy {
                 &field.selection,
             );
         };
+        if let Some(error) = Self::metaobject_definition_delete_protection_error(&definition) {
+            return selected_json(
+                &json!({
+                    "deletedId": null,
+                    "userErrors": [error]
+                }),
+                &field.selection,
+            );
+        }
         let meta_type = definition["type"].as_str().unwrap_or_default().to_string();
         let ids_to_delete = self
             .store
@@ -1811,6 +1820,47 @@ impl DraftProxy {
             &json!({"deletedId": id, "userErrors": []}),
             &field.selection,
         )
+    }
+
+    fn metaobject_definition_delete_protection_error(definition: &Value) -> Option<Value> {
+        if definition
+            .get("appConfigManaged")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
+            return Some(metaobject_user_error(
+                vec!["id"],
+                "App-managed metaobject definitions cannot be deleted by other apps.",
+                "APP_CONFIG_MANAGED",
+                Value::Null,
+                Value::Null,
+            ));
+        }
+        if Self::metaobject_definition_delete_has_dependent_standard_template(definition) {
+            return Some(metaobject_user_error(
+                vec!["id"],
+                "Standard metaobject definition is in use by an installed app.",
+                "STANDARD_METAOBJECT_DEFINITION_DEPENDENT_ON_APP",
+                Value::Null,
+                Value::Null,
+            ));
+        }
+        None
+    }
+
+    fn metaobject_definition_delete_has_dependent_standard_template(definition: &Value) -> bool {
+        let dependent_on_app = definition
+            .get("standardTemplateDependentOnApp")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let has_standard_template_id = definition
+            .get("standardTemplateId")
+            .and_then(Value::as_str)
+            .is_some_and(|id| !id.is_empty());
+        let has_standard_template = definition
+            .get("standardTemplate")
+            .is_some_and(|value| !value.is_null());
+        dependent_on_app && (has_standard_template_id || has_standard_template)
     }
 
     fn metaobject_definition_update_is_immutable(&self, definition: &Value) -> bool {
