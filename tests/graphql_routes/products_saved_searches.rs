@@ -2334,7 +2334,7 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
                 serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
             assert!(
                 body["query"].as_str().is_some_and(
-                    |query| query.contains("StorePropertiesPublishablePayloadShopHydrate")
+                    |query| query.contains("StorePropertiesPublishableInputValidationHydrate")
                 ),
                 "unexpected upstream query: {}",
                 body["query"]

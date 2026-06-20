@@ -770,6 +770,14 @@ impl DraftProxy {
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if has_local_dispatch
+                    && matches!(root_field, "productPublish" | "productUnpublish") =>
+            {
+                let outcome =
+                    self.product_publication_mutation(root_field, &query, &variables, request);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
                 if has_local_dispatch && root_field == "productChangeStatus" =>
             {
                 let outcome = self.product_change_status(request, &query, &variables);
@@ -785,23 +793,64 @@ impl DraftProxy {
                             | "productReorderMedia"
                     ) =>
             {
-                match root_fields(&query, &variables) {
-                    Some(fields) => match self.product_media_mutation_data(request, &fields) {
-                        Some(data) => {
-                            self.record_mutation_log_entry(
-                                request,
-                                &query,
-                                &variables,
-                                root_field,
-                                Vec::new(),
-                            );
-                            ok_json(json!({ "data": data }))
-                        }
-                        // Error scenarios (e.g. unstaged live products) fall
-                        // through to the real upstream rather than a 501.
+                // Media staging is store-backed: in Snapshot mode (unit tests) no
+                // upstream product has been observed, so there is nothing to stage
+                // media onto. Fail closed exactly like an unrouted mutation rather
+                // than fabricate a baked media payload from empty local state.
+                if self.config.read_mode == ReadMode::Snapshot {
+                    self.dispatch_unknown_passthrough_or_legacy_error(
+                        request,
+                        &query,
+                        &variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    )
+                } else {
+                    match root_fields(&query, &variables) {
+                        Some(fields) => match self.product_media_mutation_data(request, &fields) {
+                            Some(data) => {
+                                self.record_mutation_log_entry(
+                                    request,
+                                    &query,
+                                    &variables,
+                                    root_field,
+                                    Vec::new(),
+                                );
+                                ok_json(json!({ "data": data }))
+                            }
+                            // Error scenarios (e.g. unstaged live products) fall
+                            // through to the real upstream rather than a 501.
+                            None => (self.upstream_transport)(request.clone()),
+                        },
                         None => (self.upstream_transport)(request.clone()),
-                    },
-                    None => (self.upstream_transport)(request.clone()),
+                    }
+                }
+            }
+            (CapabilityDomain::Products, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "productVariantAppendMedia" | "productVariantDetachMedia"
+                    ) =>
+            {
+                // Variant media attach/detach is store-backed against the owning
+                // product's staged variants. Snapshot mode has nothing staged, so
+                // fail closed; LiveHybrid stages through the variant mutation path.
+                if self.config.read_mode == ReadMode::Snapshot {
+                    self.dispatch_unknown_passthrough_or_legacy_error(
+                        request,
+                        &query,
+                        &variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    )
+                } else {
+                    let outcome =
+                        self.product_variant_mutation(request, root_field, &query, &variables);
+                    self.finalize_mutation_outcome(request, &query, &variables, outcome)
                 }
             }
             (CapabilityDomain::Products, CapabilityExecution::StageLocally)
@@ -828,8 +877,6 @@ impl DraftProxy {
                         "productVariantCreate"
                             | "productVariantUpdate"
                             | "productVariantDelete"
-                            | "productVariantAppendMedia"
-                            | "productVariantDetachMedia"
                             | "productVariantsBulkCreate"
                             | "productVariantsBulkUpdate"
                             | "productVariantsBulkDelete"

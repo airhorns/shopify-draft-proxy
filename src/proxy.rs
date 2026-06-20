@@ -1040,6 +1040,14 @@ impl Store {
                 .count()
     }
 
+    fn has_known_publication_catalog(&self) -> bool {
+        !self.base.publication_ids.is_empty() || !self.staged.publication_ids.is_empty()
+    }
+
+    fn has_publication_id(&self, id: &str) -> bool {
+        self.base.publication_ids.contains(id) || self.staged.publication_ids.contains(id)
+    }
+
     fn effective_shop(&self) -> Value {
         let mut shop = self.base.shop.clone();
         shop["publicationCount"] = json!(self.effective_publication_count());
@@ -1134,6 +1142,15 @@ impl Store {
 
     fn has_product(&self, id: &str) -> bool {
         self.product_by_id(id).is_some()
+    }
+
+    /// True only when the product id has been locally deleted (tombstoned).
+    /// Distinct from a product that is merely absent from the snapshot seed:
+    /// the proxy never seeds every real product, so absence is not proof the
+    /// product does not exist upstream. Only an id the proxy itself deleted is
+    /// known-missing.
+    fn product_is_tombstoned(&self, id: &str) -> bool {
+        self.staged.products.is_tombstoned(id)
     }
 
     fn has_localization_product(&self, id: &str) -> bool {
@@ -1231,6 +1248,13 @@ impl Store {
             return None;
         }
         self.staged.collections.get(id)
+    }
+
+    /// True when the collection id has been locally deleted (tombstoned). Unlike a
+    /// never-seen collection, a tombstoned one must be served from local state
+    /// (collection: null) for read-after-delete rather than forwarded upstream.
+    fn collection_is_deleted(&self, id: &str) -> bool {
+        self.staged.deleted_collection_ids.contains(id)
     }
 
     fn stage_collection(&mut self, collection: Value) {

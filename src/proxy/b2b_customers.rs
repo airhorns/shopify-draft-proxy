@@ -3383,7 +3383,8 @@ impl DraftProxy {
                         Vec::new(),
                         "failed",
                     );
-                    let missing_product_ids = self.feedback_missing_product_ids(&field);
+                    let missing_product_ids =
+                        self.feedback_missing_product_ids(&field, request);
                     product_tail_resource_feedback_payload(&field, &missing_product_ids)
                 }
                 "shopResourceFeedbackCreate" => {
@@ -3410,6 +3411,11 @@ impl DraftProxy {
     /// Next publication gid: one past the largest staged publication suffix, so
     /// id allocation is derived from store state rather than a fixed literal.
     fn next_publication_id(&self) -> String {
+        // `Publication/1` is Shopify's implicit default (Online Store) channel, so
+        // synthetically-created publications begin at `/2`. Number above the highest
+        // numeric publication id already staged, with that default reserved as the
+        // floor, so the first locally-created publication is `gid://shopify/Publication/2`
+        // regardless of whether the baseline seeded non-numeric publication ids.
         let max = self
             .store
             .staged
@@ -3418,7 +3424,8 @@ impl DraftProxy {
             .filter_map(|id| id.rsplit('/').next())
             .filter_map(|suffix| suffix.parse::<u64>().ok())
             .max()
-            .unwrap_or(0);
+            .unwrap_or(0)
+            .max(1);
         format!("gid://shopify/Publication/{}", max + 1)
     }
 
@@ -3525,7 +3532,9 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        if input.contains_key("catalogId") && input.contains_key("channelId") {
+        let has_catalog = input.contains_key("catalogId");
+        let has_channel = input.contains_key("channelId");
+        if has_catalog && has_channel {
             self.record_products_tail_log(
                 request,
                 query,
@@ -3541,6 +3550,35 @@ impl DraftProxy {
                         "field": ["input"],
                         "message": "Only one of catalog or channel can be provided",
                         "code": "INVALID"
+                    }]
+                }),
+                &field.selection,
+            );
+        }
+        // The proxy holds no real catalogs/channels, so any catalog or channel
+        // target on the update input resolves to NOT_FOUND, mirroring create.
+        if let Some((catalog_field, message)) = if has_catalog {
+            Some(("catalogId", "Catalog not found"))
+        } else if has_channel {
+            Some(("channelId", "Channel not found"))
+        } else {
+            None
+        } {
+            self.record_products_tail_log(
+                request,
+                query,
+                variables,
+                "publicationUpdate",
+                Vec::new(),
+                "failed",
+            );
+            return selected_json(
+                &json!({
+                    "publication": null,
+                    "userErrors": [{
+                        "field": ["input", catalog_field],
+                        "message": message,
+                        "code": "NOT_FOUND"
                     }]
                 }),
                 &field.selection,

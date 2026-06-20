@@ -2443,19 +2443,44 @@ pub(in crate::proxy) fn b2b_strip_html_tags(value: &str) -> String {
 }
 
 impl DraftProxy {
-    // Collect the `feedbackInput[].productId`s that reference no product in the
-    // store, so `bulkProductResourceFeedbackCreate` can emit a per-entry
-    // `Product does not exist` userError for arbitrary backends without
-    // hard-coding which ids exist.
+    // Collect the `feedbackInput[].productId`s that reference a product the
+    // proxy can prove does not exist, so `bulkProductResourceFeedbackCreate` can
+    // emit a per-entry `Product does not exist` userError. A locally tombstoned
+    // id is reported missing immediately. An id merely absent from the local
+    // catalog is NOT assumed missing — the proxy never seeds every real product,
+    // so absence alone is no proof. Instead we confirm against upstream with a
+    // cassette-backed `nodes(...)` hydrate: a null node (or, in Snapshot mode,
+    // no upstream to consult) means the product does not exist; a hydrated node
+    // means it does and feedback stages normally.
     pub(in crate::proxy) fn feedback_missing_product_ids(
         &self,
         field: &RootFieldSelection,
+        request: &Request,
     ) -> BTreeSet<String> {
-        resolved_object_list_field(&field.arguments, "feedbackInput")
-            .iter()
-            .filter_map(|input| resolved_string_field(input, "productId"))
-            .filter(|id| self.product_record_by_id(id).is_none())
-            .collect()
+        let mut missing = BTreeSet::new();
+        for input in resolved_object_list_field(&field.arguments, "feedbackInput").iter() {
+            let Some(id) = resolved_string_field(input, "productId") else {
+                continue;
+            };
+            if self.store.product_is_tombstoned(&id) {
+                missing.insert(id);
+                continue;
+            }
+            if self.store.product_staged_or_base(&id).is_some() {
+                continue;
+            }
+            // Only LiveHybrid can prove a product's absence by hydrating it
+            // upstream (a definitive null node). In Snapshot mode there is no
+            // upstream to consult, so an unseeded product is treated as existing
+            // (fail open) rather than fabricated-missing — absence from the local
+            // seed is not evidence the product does not exist.
+            if self.config.read_mode == ReadMode::LiveHybrid
+                && self.hydrate_product_for_tags(&id, request).is_none()
+            {
+                missing.insert(id);
+            }
+        }
+        missing
     }
 
     pub(in crate::proxy) fn b2b_tax_settings_update_payload(
