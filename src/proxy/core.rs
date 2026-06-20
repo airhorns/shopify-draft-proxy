@@ -1421,7 +1421,14 @@ impl DraftProxy {
         self.store.staged.delivery_profile_order = state["stagedState"]
             .get("deliveryProfileOrder")
             .map(string_array_from_json)
-            .unwrap_or_else(|| self.store.staged.delivery_profiles.keys().cloned().collect());
+            .unwrap_or_else(|| {
+                self.store
+                    .staged
+                    .delivery_profiles
+                    .keys()
+                    .cloned()
+                    .collect()
+            });
         self.store.staged.deleted_delivery_profile_ids = state["stagedState"]
             ["deletedDeliveryProfileIds"]
             .as_array()

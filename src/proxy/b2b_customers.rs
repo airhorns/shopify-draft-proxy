@@ -342,9 +342,7 @@ impl DraftProxy {
                         "companyContactCreate" => self.b2b_company_contact_create_payload(&field),
                         "companyContactUpdate" => self.b2b_company_contact_update_payload(&field),
                         "companyContactDelete" => self.b2b_company_contact_delete_payload(&field),
-                        "companyContactsDelete" => {
-                            self.b2b_company_contacts_delete_payload(&field)
-                        }
+                        "companyContactsDelete" => self.b2b_company_contacts_delete_payload(&field),
                         "companyContactRemoveFromCompany" => {
                             self.b2b_company_contact_remove_from_company_payload(&field)
                         }
@@ -1218,10 +1216,7 @@ impl DraftProxy {
                     Some(email) => json!({ "emailAddress": email }),
                     None => Value::Null,
                 };
-                self.store
-                    .staged
-                    .customers
-                    .insert(customer_id, customer);
+                self.store.staged.customers.insert(customer_id, customer);
             }
         }
         self.store
@@ -1261,7 +1256,11 @@ impl DraftProxy {
         }
         let errors = b2b_contact_create_input_errors(&input, &["input"]);
         if !errors.is_empty() {
-            return (b2b_company_contact_payload(None, errors), "failed", Vec::new());
+            return (
+                b2b_company_contact_payload(None, errors),
+                "failed",
+                Vec::new(),
+            );
         }
 
         let contact_id = self.next_proxy_synthetic_gid("CompanyContact");
@@ -1639,8 +1638,7 @@ impl DraftProxy {
             let role_id = resolved_string_field(input, "companyContactRoleId")
                 .or_else(|| resolved_string_field(input, "companyRoleId"))
                 .unwrap_or_default();
-            let location_id =
-                resolved_string_field(input, "companyLocationId").unwrap_or_default();
+            let location_id = resolved_string_field(input, "companyLocationId").unwrap_or_default();
             if !self.store.staged.b2b_locations.contains_key(&location_id) {
                 user_errors.push(json!({
                     "field": ["rolesToAssign", index.to_string(), "companyLocationId"],
@@ -3159,8 +3157,11 @@ impl DraftProxy {
         parsed_root_fields: &[String],
         root_field: &str,
     ) -> Response {
-        let update = root_fields(query, variables)
-            .and_then(|fields| fields.into_iter().find(|f| f.name == "companyContactUpdate"));
+        let update = root_fields(query, variables).and_then(|fields| {
+            fields
+                .into_iter()
+                .find(|f| f.name == "companyContactUpdate")
+        });
 
         let response = self.dispatch_unknown_passthrough_or_legacy_error(
             request,
@@ -3399,12 +3400,11 @@ impl DraftProxy {
                 fields
                     .iter()
                     .flat_map(|field| match field.name.as_str() {
-                        "companyContactRevokeRole" => resolved_string_arg(
-                            &field.arguments,
-                            "companyContactRoleAssignmentId",
-                        )
-                        .into_iter()
-                        .collect::<Vec<String>>(),
+                        "companyContactRevokeRole" => {
+                            resolved_string_arg(&field.arguments, "companyContactRoleAssignmentId")
+                                .into_iter()
+                                .collect::<Vec<String>>()
+                        }
                         "companyContactRevokeRoles" => resolved_string_list_field_unsorted(
                             &field.arguments,
                             "roleAssignmentIds",
@@ -3598,8 +3598,7 @@ impl DraftProxy {
                         Vec::new(),
                         "failed",
                     );
-                    let missing_product_ids =
-                        self.feedback_missing_product_ids(&field, request);
+                    let missing_product_ids = self.feedback_missing_product_ids(&field, request);
                     product_tail_resource_feedback_payload(&field, &missing_product_ids)
                 }
                 "shopResourceFeedbackCreate" => {
