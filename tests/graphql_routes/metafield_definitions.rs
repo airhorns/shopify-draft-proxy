@@ -483,7 +483,8 @@ fn metafield_definition_create_resource_type_limit_is_scoped_by_owner_and_app_na
     // capture). Authenticate as each app via the api-client-id header so the
     // `$app:` namespace resolves to that app's own reserved namespace, proving the
     // resource-type limit is bucketed per app independently of the merchant bucket.
-    let app_one_created = create_app_definition_for_resource_limit(&mut proxy, "111", "app_one_key");
+    let app_one_created =
+        create_app_definition_for_resource_limit(&mut proxy, "111", "app_one_key");
     assert_eq!(app_one_created["userErrors"], json!([]));
     assert_eq!(
         app_one_created["createdDefinition"]["namespace"],
