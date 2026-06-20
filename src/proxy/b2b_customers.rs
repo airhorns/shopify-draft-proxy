@@ -155,74 +155,6 @@ impl DraftProxy {
         }
     }
 
-    pub(in crate::proxy) fn b2b_location_buyer_experience_update_payload(
-        &mut self,
-        field: &RootFieldSelection,
-    ) -> (Value, &'static str, Vec<String>) {
-        let location_id = resolved_string_arg(&field.arguments, "companyLocationId")
-            .unwrap_or_else(|| {
-                "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic".to_string()
-            });
-        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let buyer_experience =
-            resolved_object_field(&input, "buyerExperienceConfiguration").unwrap_or_default();
-        if !b2b_company_location_exists(&self.store.staged.b2b_locations, &location_id) {
-            return (
-                b2b_company_location_payload(
-                    None,
-                    vec![b2b_company_user_error(
-                        vec!["input"],
-                        "The company location doesn't exist",
-                        "RESOURCE_NOT_FOUND",
-                        None,
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
-        }
-        let errors = b2b_location_buyer_experience_errors(&buyer_experience);
-        if !errors.is_empty() {
-            return (
-                b2b_company_location_payload(None, errors),
-                "failed",
-                Vec::new(),
-            );
-        }
-
-        let payment_terms_template_id =
-            resolved_string_field(&buyer_experience, "paymentTermsTemplateId")
-                .unwrap_or_else(|| "gid://shopify/PaymentTermsTemplate/4".to_string());
-        let checkout_to_draft =
-            resolved_bool_field(&buyer_experience, "checkoutToDraft").unwrap_or(false);
-        let editable_shipping_address =
-            resolved_bool_field(&buyer_experience, "editableShippingAddress").unwrap_or(false);
-        let deposit = if buyer_experience.contains_key("deposit") {
-            json!({ "__typename": "DepositPercentage" })
-        } else {
-            Value::Null
-        };
-        let location = json!({
-            "id": location_id,
-            "taxSettings": { "taxExempt": true },
-            "buyerExperienceConfiguration": {
-                "editableShippingAddress": editable_shipping_address,
-                "checkoutToDraft": checkout_to_draft,
-                "paymentTermsTemplate": { "id": payment_terms_template_id },
-                "deposit": deposit
-            }
-        });
-        self.store
-            .staged
-            .b2b_locations
-            .insert(location_id.clone(), location.clone());
-        (
-            b2b_company_location_payload(Some(&location), Vec::new()),
-            "staged",
-            vec![location_id],
-        )
-    }
-
     /// Resolves a locally-staged B2B entity for a generic `node(id)`/`nodes(ids)` read.
     ///
     /// Locations, companies, contacts, roles, and role assignments are staged under their
@@ -10199,25 +10131,4 @@ fn is_valid_customer_email(email: &str) -> bool {
         return false;
     }
     true
-}
-
-/// Basic phone validation: must start with + followed by digits.
-/// Allows spaces, dashes, parentheses after the + prefix.
-fn is_valid_customer_phone(phone: &str) -> bool {
-    if !phone.starts_with('+') {
-        return false;
-    }
-    let after_plus = &phone[1..];
-    if after_plus.is_empty() {
-        return false;
-    }
-    // Must contain at least one digit
-    let has_digit = after_plus.chars().any(|c| c.is_ascii_digit());
-    if !has_digit {
-        return false;
-    }
-    // Only allow digits, spaces, dashes, parentheses, dots after the +
-    after_plus
-        .chars()
-        .all(|c| c.is_ascii_digit() || c == ' ' || c == '-' || c == '(' || c == ')' || c == '.')
 }

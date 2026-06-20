@@ -1,6 +1,5 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
-use std::collections::BTreeMap;
 
 #[test]
 fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_names() {
@@ -3142,13 +3141,7 @@ fn product_variants_bulk_create_strategy_downstreams_return_no_data_without_stag
 
 #[test]
 fn product_set_fixture_shape_does_not_replay_canned_graphs() {
-    let fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-set-parity.json"
-    ))
-    .unwrap();
     let mut proxy = snapshot_proxy();
-    let mutation_query =
-        include_str!("../../config/parity-requests/products/productSet-parity-plan.graphql");
 
     let create = proxy.process_request(json_graphql_request(
         r#"
@@ -4217,32 +4210,6 @@ fn product_variant_compatibility_mutations_replay_captured_bulk_shapes() {
         delete_read.body["data"]["skuCount"],
         json!({ "count": 0, "precision": "EXACT" })
     );
-}
-
-fn option_lifecycle_base_product(product_id: &str) -> ProductRecord {
-    ProductRecord {
-        id: product_id.to_string(),
-        title: "Ordinary option lifecycle".to_string(),
-        handle: "ordinary-option-lifecycle".to_string(),
-        status: "ACTIVE".to_string(),
-        created_at: "2026-01-01T00:00:00.000Z".to_string(),
-        updated_at: "2026-01-01T00:00:00.000Z".to_string(),
-        extra_fields: BTreeMap::from([(
-            "options".to_string(),
-            json!([{
-                "id": "gid://shopify/ProductOption/default-title",
-                "name": "Title",
-                "position": 1,
-                "values": ["Default Title"],
-                "optionValues": [{
-                    "id": "gid://shopify/ProductOptionValue/default-title",
-                    "name": "Default Title",
-                    "hasVariants": true
-                }]
-            }]),
-        )]),
-        ..ProductRecord::default()
-    }
 }
 
 #[test]

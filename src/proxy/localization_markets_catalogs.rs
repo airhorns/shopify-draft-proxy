@@ -1,10 +1,6 @@
 use super::*;
 use sha2::{Digest, Sha256};
 
-const FALLBACK_PRODUCT_TRANSLATION_TITLE: &str = "The Inventory Not Tracked Snowboard";
-const FALLBACK_PRODUCT_TRANSLATION_HANDLE: &str = "the-inventory-not-tracked-snowboard";
-const FALLBACK_PRODUCT_TRANSLATION_PRODUCT_TYPE: &str = "snowboard";
-
 /// Variant-level fixed-price mutations (`priceListFixedPricesAdd`/`Update`/`Delete`)
 /// hydrate their baseline price-list/product/variant records from a recorded
 /// preflight keyed on this sentinel query plus the mutation's own variables. The
@@ -466,51 +462,12 @@ impl DraftProxy {
         selected_json(&payload, &field.selection)
     }
 
-    pub(in crate::proxy) fn market_query_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
-                "market" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.store
-                        .staged
-                        .markets
-                        .get(&id)
-                        .map(|market| selected_json(market, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                // Market-localizable resource connections list metafield/resource owners
-                // that have registered localizable content; a backend with none staged
-                // returns an empty connection (not null) for both the type-scoped and
-                // by-ids variants.
-                "marketLocalizableResources" | "marketLocalizableResourcesByIds" => selected_json(
-                    &json!({
-                        "edges": [],
-                        "nodes": [],
-                        "pageInfo": {
-                            "hasNextPage": false,
-                            "hasPreviousPage": false,
-                            "startCursor": null,
-                            "endCursor": null
-                        }
-                    }),
-                    &field.selection,
-                ),
-                _ => Value::Null,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
-    }
-
     /// Unified Markets overlay read. A single GraphQL query can select several
     /// markets-domain root fields at once (e.g. the delete-cascade downstream
     /// read selects `webPresences`, `market`, and `catalog` together). Routing
     /// the whole operation to one entity-specific handler would null every field
     /// that handler doesn't own, so each root field is projected independently
-    /// from its staged store here. This is a superset of the per-entity
-    /// `market_query_data`/`catalog_query_data`/`price_list_query_data`/
-    /// `web_presence_helper_query` projections.
+    /// from its staged store here.
     pub(in crate::proxy) fn markets_overlay_query_data(
         &self,
         fields: &[RootFieldSelection],
@@ -1046,36 +1003,6 @@ impl DraftProxy {
         })
     }
 
-    pub(in crate::proxy) fn catalog_query_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
-                "catalog" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.store
-                        .staged
-                        .catalogs
-                        .get(&id)
-                        .map(|catalog| selected_json(catalog, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                "catalogs" => {
-                    let nodes = self
-                        .store
-                        .staged
-                        .catalogs
-                        .values()
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    selected_json(&json!({"nodes": nodes}), &field.selection)
-                }
-                _ => Value::Null,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
-    }
-
     pub(in crate::proxy) fn catalog_mutation_data(
         &mut self,
         fields: &[RootFieldSelection],
@@ -1442,45 +1369,6 @@ impl DraftProxy {
         let numeric_id =
             (self.store.staged.markets.len() * 2) + (self.store.staged.catalogs.len() * 2) + 1;
         format!("gid://shopify/MarketCatalog/{numeric_id}")
-    }
-
-    pub(in crate::proxy) fn price_list_query_data(&self, fields: &[RootFieldSelection]) -> Value {
-        let mut data = serde_json::Map::new();
-        for field in fields {
-            let value = match field.name.as_str() {
-                "catalog" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.store
-                        .staged
-                        .catalogs
-                        .get(&id)
-                        .map(|catalog| selected_json(catalog, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                "priceList" => {
-                    let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-                    self.store
-                        .staged
-                        .price_lists
-                        .get(&id)
-                        .map(|price_list| selected_json(price_list, &field.selection))
-                        .unwrap_or(Value::Null)
-                }
-                "priceLists" => {
-                    let nodes = self
-                        .store
-                        .staged
-                        .price_lists
-                        .values()
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    selected_json(&json!({"nodes": nodes}), &field.selection)
-                }
-                _ => Value::Null,
-            };
-            data.insert(field.response_key.clone(), value);
-        }
-        Value::Object(data)
     }
 
     pub(in crate::proxy) fn price_list_mutation_data(
@@ -3621,17 +3509,6 @@ impl DraftProxy {
             return self.store.has_localization_product(resource_id);
         }
         true
-    }
-
-    fn localization_translatable_content_digest(
-        &self,
-        resource_id: &str,
-        key: &str,
-    ) -> Option<String> {
-        localization_translatable_content(resource_id)
-            .into_iter()
-            .find(|content| content["key"].as_str() == Some(key))
-            .and_then(|content| content["digest"].as_str().map(str::to_string))
     }
 
     /// The current source-content value for a translatable resource field, when the

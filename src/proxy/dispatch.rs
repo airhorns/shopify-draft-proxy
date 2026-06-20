@@ -379,6 +379,16 @@ impl DraftProxy {
         if let Some(operation) = self.product_delete_operation_value_by_id(id, selection) {
             return Some(operation);
         }
+        if is_product_operation_gid(id) {
+            return Some(
+                self.store
+                    .staged
+                    .product_operations
+                    .get(id)
+                    .map(|operation| self.product_operation_json(operation, selection))
+                    .unwrap_or(Value::Null),
+            );
+        }
         if let Some(segment) = self.store.staged.segments.get(id) {
             return Some(selected_json(segment, selection));
         }

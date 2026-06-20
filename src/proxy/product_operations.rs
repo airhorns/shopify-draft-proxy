@@ -23,33 +23,6 @@ impl DraftProxy {
         Value::Object(data)
     }
 
-    pub(in crate::proxy) fn product_operation_node_query_data(
-        &self,
-        fields: &[RootFieldSelection],
-    ) -> Option<Value> {
-        let mut data = serde_json::Map::new();
-        let mut handled = false;
-        for field in fields {
-            if field.name != "node" {
-                continue;
-            }
-            let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
-            if !is_product_operation_gid(&id) {
-                continue;
-            }
-            handled = true;
-            let value = self
-                .store
-                .staged
-                .product_operations
-                .get(&id)
-                .map(|operation| self.product_operation_json(operation, &field.selection))
-                .unwrap_or(Value::Null);
-            data.insert(field.response_key.clone(), value);
-        }
-        handled.then_some(Value::Object(data))
-    }
-
     pub(in crate::proxy) fn product_set(
         &mut self,
         query: &str,
@@ -1068,7 +1041,7 @@ impl DraftProxy {
     }
 }
 
-fn is_product_operation_gid(id: &str) -> bool {
+pub(in crate::proxy) fn is_product_operation_gid(id: &str) -> bool {
     matches!(
         shopify_gid_resource_type(id),
         Some("ProductSetOperation" | "ProductDuplicateOperation" | "ProductBundleOperation")

@@ -2569,33 +2569,6 @@ pub(in crate::proxy) fn order_edit_order_is_not_editable(order: &Value) -> bool 
     )
 }
 
-fn order_edit_payload_user_error(
-    resource_key: &str,
-    field: &[&str],
-    message: &str,
-    selection: &[SelectedField],
-) -> Value {
-    let payload = match resource_key {
-        "calculatedLineItem" => json!({
-            "calculatedOrder": Value::Null,
-            "calculatedLineItem": Value::Null,
-            "orderEditSession": Value::Null,
-            "userErrors": [{ "field": field, "message": message }]
-        }),
-        "order" => json!({
-            "order": Value::Null,
-            "successMessages": [],
-            "userErrors": [{ "field": field, "message": message }]
-        }),
-        _ => json!({
-            "calculatedOrder": Value::Null,
-            "orderEditSession": Value::Null,
-            "userErrors": [{ "field": field, "message": message }]
-        }),
-    };
-    selected_json(&payload, selection)
-}
-
 fn order_money_set(amount: &str, currency_code: &str) -> Value {
     json!({
         "shopMoney": {

@@ -1,6 +1,5 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
-use std::collections::BTreeMap;
 
 fn seed_product(id: &str) -> ProductRecord {
     ProductRecord {
@@ -1314,71 +1313,6 @@ fn product_publication_full_sync_and_feedback_tail_helpers_port_old_gleam_tests(
                     .as_array()
                     .is_some_and(|ids| ids.iter().any(|id| id == "gid://shopify/Job/2"))),
         "successful full sync should stage the ProductFeed and pollable Job IDs: {log}"
-    );
-}
-
-fn create_product_media_for_variant_media_test(
-    proxy: &mut DraftProxy,
-    product_id: &str,
-    alt: &str,
-) -> String {
-    let response = proxy.process_request(json_graphql_request(
-        r#"
-        mutation ProductVariantMediaCreateMedia($productId: ID!, $media: [CreateMediaInput!]!) {
-          productCreateMedia(productId: $productId, media: $media) {
-            media { id alt mediaContentType status }
-            mediaUserErrors { field message }
-          }
-        }
-        "#,
-        json!({
-            "productId": product_id,
-            "media": [{
-                "mediaContentType": "IMAGE",
-                "originalSource": "https://placehold.co/600x400/png",
-                "alt": alt
-            }]
-        }),
-    ));
-    assert_eq!(response.status, 200);
-    assert_eq!(
-        response.body["data"]["productCreateMedia"]["mediaUserErrors"],
-        json!([])
-    );
-    response.body["data"]["productCreateMedia"]["media"][0]["id"]
-        .as_str()
-        .expect("created media id should be returned")
-        .to_string()
-}
-
-fn mark_product_media_ready_for_variant_media_test(
-    proxy: &mut DraftProxy,
-    product_id: &str,
-    media_id: &str,
-    alt: &str,
-) {
-    let response = proxy.process_request(json_graphql_request(
-        r#"
-        mutation ProductVariantMediaReadyMedia($productId: ID!, $media: [UpdateMediaInput!]!) {
-          productUpdateMedia(productId: $productId, media: $media) {
-            media { id alt mediaContentType status }
-            mediaUserErrors { field message }
-          }
-        }
-        "#,
-        json!({
-            "productId": product_id,
-            "media": [{ "id": media_id, "alt": alt }]
-        }),
-    ));
-    assert_eq!(response.status, 200);
-    assert_eq!(
-        response.body["data"]["productUpdateMedia"]["mediaUserErrors"],
-        json!([])
-    );
-    assert_eq!(
-        response.body["data"]["productUpdateMedia"]["media"][0]["status"],
-        json!("READY")
     );
 }
 

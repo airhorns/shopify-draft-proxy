@@ -2289,19 +2289,6 @@ impl DraftProxy {
             .map(str::to_string)
     }
 
-    pub(in crate::proxy) fn metaobject_definition_update_targets_local_definition(
-        &self,
-        field: &RootFieldSelection,
-    ) -> bool {
-        let id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
-        self.store.staged.metaobject_definitions.contains_key(&id)
-            && !self
-                .store
-                .staged
-                .deleted_metaobject_definition_ids
-                .contains(&id)
-    }
-
     fn hydrate_metaobject_by_id(&mut self, request: &Request, id: &str) -> Option<Value> {
         if self.config.read_mode == ReadMode::Snapshot || id.is_empty() {
             return None;
