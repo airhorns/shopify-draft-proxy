@@ -200,6 +200,7 @@ impl DraftProxy {
                 "observedShippingLocationOrder": self.store.staged.observed_shipping_location_order.clone(),
                 "locations": self.store.staged.locations.clone(),
                 "locationOrder": self.store.staged.location_order.clone(),
+                "deletedLocationIds": self.store.staged.deleted_location_ids.iter().cloned().collect::<Vec<_>>(),
                 "deliveryProfiles": self.store.staged.delivery_profiles.clone(),
                 "deliveryProfileOrder": self.store.staged.delivery_profile_order.clone(),
                 "deletedDeliveryProfileIds": self.store.staged.deleted_delivery_profile_ids.iter().cloned().collect::<Vec<_>>(),
@@ -1401,6 +1402,12 @@ impl DraftProxy {
             .get("locationOrder")
             .map(string_array_from_json)
             .unwrap_or_else(|| self.store.staged.locations.keys().cloned().collect());
+        self.store.staged.deleted_location_ids = state["stagedState"]["deletedLocationIds"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|value| value.as_str().map(str::to_string))
+            .collect();
         self.store.staged.delivery_profiles = state["stagedState"]
             .get("deliveryProfiles")
             .and_then(Value::as_object)

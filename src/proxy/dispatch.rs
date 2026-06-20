@@ -156,7 +156,10 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         root_field: &str,
     ) -> Response {
-        if is_shipping_fulfillment_order_local_order_read(query, variables) {
+        if is_shipping_fulfillment_order_local_order_read(query, variables)
+            || (root_field == "order"
+                && self.should_handle_shipping_fulfillment_order_local_order_read(query, variables))
+        {
             return self.shipping_fulfillment_order_local_order_read(query, variables);
         }
         if let Some(data) = self.order_create_local_data(request, root_field, query, variables) {
@@ -1941,32 +1944,17 @@ impl DraftProxy {
             (CapabilityDomain::StoreProperties, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && has_local_dispatch
-                    && matches!(root_field, "locationAdd" | "locationActivate") =>
-            {
-                self.location_mutation(root_field, &query, &variables, request)
-            }
-            (CapabilityDomain::StoreProperties, CapabilityExecution::StageLocally)
-                if operation.operation_type == OperationType::Mutation
-                    && has_local_dispatch
-                    && root_field == "locationEdit" =>
-            {
-                // Edits to a location the proxy created/staged locally are applied
-                // locally (address-code derivation, field merges) so subsequent
-                // local reads reflect the change. Edits targeting a real upstream
-                // location the proxy has not staged forward verbatim, preserving
-                // the existing passthrough/replay behavior for those baselines.
-                if self.location_edit_targets_all_staged(&query, &variables) {
-                    self.location_edit(&query, &variables, request)
-                } else {
-                    self.dispatch_unknown_passthrough_or_legacy_error(
-                        request,
-                        &query,
-                        &variables,
-                        operation.operation_type,
-                        &operation.root_fields,
+                    && matches!(
                         root_field,
-                    )
-                }
+                        "locationAdd" | "locationEdit" | "locationActivate" | "locationDelete"
+                    ) =>
+            {
+                // `locationEdit`/`locationDelete` resolve the target through the
+                // local overlay first and fall back to an upstream hydrate when the
+                // location is not staged (live-hybrid), so unknown ids surface the
+                // real "Location not found." / guardrail user errors rather than
+                // passing through. Staged targets never touch upstream.
+                self.location_mutation(root_field, &query, &variables, request)
             }
             (CapabilityDomain::StoreProperties, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
@@ -2031,15 +2019,18 @@ impl DraftProxy {
                         self.delivery_profile_locations_read_response(request, &fields)
                     } else if let Some(data) = self.fulfillment_service_read_data(&fields) {
                         ok_json(json!({ "data": data }))
-                    } else if root_field == "fulfillmentOrder" {
-                        if is_fulfillment_order_request_lifecycle_direct_read(&query, &variables) {
-                            self.fulfillment_order_request_lifecycle_direct_read(&query, &variables)
-                        } else {
-                            // Direct fulfillment-order reads for real (store-assigned)
-                            // ids are not locally staged: forward to upstream so the
-                            // recorded Shopify response stands in for the live store.
-                            (self.upstream_transport)(request.clone())
-                        }
+                    } else if root_field == "fulfillmentOrder"
+                        && is_fulfillment_order_request_lifecycle_direct_read(&query, &variables)
+                    {
+                        self.fulfillment_order_request_lifecycle_direct_read(&query, &variables)
+                    } else if matches!(
+                        root_field,
+                        "fulfillmentOrder"
+                            | "fulfillmentOrders"
+                            | "assignedFulfillmentOrders"
+                            | "manualHoldsFulfillmentOrders"
+                    ) {
+                        self.shipping_fulfillment_order_read_response(request, &query, &variables)
                     } else {
                         ok_json(json!({ "data": delivery_settings_read_data(&fields) }))
                     }
@@ -2120,9 +2111,10 @@ impl DraftProxy {
                 if fulfillment_order_move_is_sentinel_scenario(&query, &variables) {
                     self.fulfillment_order_move_assignment_status(&query, &variables, request)
                 } else {
-                    // Real-id moves are not locally staged; forward to upstream so the
-                    // recorded Shopify move result (and its user errors) is replayed.
-                    (self.upstream_transport)(request.clone())
+                    // Real-id moves stage against the local fulfillment-order engine.
+                    self.shipping_fulfillment_order_mutation_response(
+                        root_field, request, &query, &variables,
+                    )
                 }
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
@@ -2136,9 +2128,10 @@ impl DraftProxy {
                 if fulfillment_order_status_precondition_is_sentinel_scenario(&query, &variables) {
                     self.fulfillment_order_status_precondition(root_field, &query, &variables)
                 } else {
-                    // Real-id open/report-progress are not locally staged; forward to
-                    // upstream so the recorded Shopify lifecycle result is replayed.
-                    (self.upstream_transport)(request.clone())
+                    // Real-id open/report-progress stage against the local engine.
+                    self.shipping_fulfillment_order_mutation_response(
+                        root_field, request, &query, &variables,
+                    )
                 }
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
@@ -2149,9 +2142,10 @@ impl DraftProxy {
                 if fulfillment_order_set_deadline_is_sentinel_scenario(&query, &variables) {
                     self.fulfillment_order_set_deadline(&query, &variables, request)
                 } else {
-                    // Real-id deadline updates are not locally staged; forward to
-                    // upstream so the recorded Shopify result is replayed.
-                    (self.upstream_transport)(request.clone())
+                    // Real-id deadline updates stage against the local engine.
+                    self.shipping_fulfillment_order_mutation_response(
+                        root_field, request, &query, &variables,
+                    )
                 }
             }
             (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
@@ -2175,6 +2169,31 @@ impl DraftProxy {
                     ) =>
             {
                 self.location_local_pickup_mutation(root_field, &query, &variables, request)
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "fulfillmentOrderHold"
+                            | "fulfillmentOrderReleaseHold"
+                            | "fulfillmentOrderCancel"
+                            | "fulfillmentOrderClose"
+                            | "fulfillmentOrderReschedule"
+                            | "fulfillmentOrdersReroute"
+                            | "fulfillmentOrderSplit"
+                            | "fulfillmentOrderMerge"
+                            | "fulfillmentOrderSubmitFulfillmentRequest"
+                            | "fulfillmentOrderAcceptFulfillmentRequest"
+                            | "fulfillmentOrderRejectFulfillmentRequest"
+                            | "fulfillmentOrderSubmitCancellationRequest"
+                            | "fulfillmentOrderAcceptCancellationRequest"
+                            | "fulfillmentOrderRejectCancellationRequest"
+                    ) =>
+            {
+                self.shipping_fulfillment_order_mutation_response(
+                    root_field, request, &query, &variables,
+                )
             }
             (CapabilityDomain::Customers, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
@@ -2609,39 +2628,15 @@ impl DraftProxy {
                 let outcome = self.media_mutation(root_field, request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
-            (CapabilityDomain::Unknown, CapabilityExecution::Passthrough) => {
-                let response = self.dispatch_unknown_passthrough_or_legacy_error(
+            (CapabilityDomain::Unknown, CapabilityExecution::Passthrough) => self
+                .dispatch_unknown_passthrough_or_legacy_error(
                     request,
                     &query,
                     &variables,
                     operation.operation_type,
                     &operation.root_fields,
                     root_field,
-                );
-                // Fulfillment-order hold/release/cancel run upstream (the real
-                // recorded response carries Shopify's hold IDs and timestamps),
-                // but the proxy must mirror their effect onto the staged order so
-                // later `order { fulfillmentOrders }` reads in the same scenario
-                // see the transition (the discount-bulk overlay pattern). The
-                // passthrough above already logged + forwarded byte-for-byte; here
-                // we only fold the effect onto local state.
-                if operation.operation_type == OperationType::Mutation
-                    && response.status == 200
-                    && matches!(
-                        root_field,
-                        "fulfillmentOrderHold"
-                            | "fulfillmentOrderReleaseHold"
-                            | "fulfillmentOrderCancel"
-                    )
-                {
-                    self.mirror_fulfillment_order_passthrough_effect(
-                        root_field,
-                        &response.body,
-                        request,
-                    );
-                }
-                response
-            }
+                ),
             (_, CapabilityExecution::OverlayRead) => json_error(
                 501,
                 &format!(

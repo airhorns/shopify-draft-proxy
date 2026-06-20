@@ -352,6 +352,7 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("locationEdit", CapabilityDomain::StoreProperties),
     local_mutation("locationActivate", CapabilityDomain::StoreProperties),
     local_mutation("locationDeactivate", CapabilityDomain::StoreProperties),
+    local_mutation("locationDelete", CapabilityDomain::StoreProperties),
     local_mutation("publishablePublish", CapabilityDomain::StoreProperties),
     local_mutation(
         "publishablePublishToCurrentChannel",
@@ -591,6 +592,23 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("cartTransformDelete", CapabilityDomain::Functions),
     local_mutation("taxAppConfigure", CapabilityDomain::Functions),
     local_query("fulfillmentOrder", CapabilityDomain::ShippingFulfillments),
+    local_query("fulfillmentOrders", CapabilityDomain::ShippingFulfillments),
+    local_query(
+        "manualHoldsFulfillmentOrders",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_query(
+        "assignedFulfillmentOrders",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderHold",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderReleaseHold",
+        CapabilityDomain::ShippingFulfillments,
+    ),
     local_mutation(
         "fulfillmentOrderMove",
         CapabilityDomain::ShippingFulfillments,
@@ -600,11 +618,59 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
         CapabilityDomain::ShippingFulfillments,
     ),
     local_mutation(
+        "fulfillmentOrderCancel",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
         "fulfillmentOrderReportProgress",
         CapabilityDomain::ShippingFulfillments,
     ),
     local_mutation(
         "fulfillmentOrdersSetFulfillmentDeadline",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderClose",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderReschedule",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrdersReroute",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderSplit",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderMerge",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderSubmitFulfillmentRequest",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderAcceptFulfillmentRequest",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderRejectFulfillmentRequest",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderSubmitCancellationRequest",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderAcceptCancellationRequest",
+        CapabilityDomain::ShippingFulfillments,
+    ),
+    local_mutation(
+        "fulfillmentOrderRejectCancellationRequest",
         CapabilityDomain::ShippingFulfillments,
     ),
     local_query("fulfillmentService", CapabilityDomain::ShippingFulfillments),

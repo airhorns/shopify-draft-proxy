@@ -1284,6 +1284,37 @@ pub(in crate::proxy) fn fulfillment_order_move_payload_json(
     })
 }
 
+pub(in crate::proxy) fn fulfillment_order_hold_payload_json(
+    fulfillment_hold: Value,
+    fulfillment_order: Value,
+    remaining: Value,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
+            "fulfillmentHold" => Some(nullable_selected_json(
+                &fulfillment_hold,
+                &selection.selection,
+            )),
+            "fulfillmentOrder" => Some(nullable_selected_json(
+                &fulfillment_order,
+                &selection.selection,
+            )),
+            "remainingFulfillmentOrder" => {
+                Some(nullable_selected_json(&remaining, &selection.selection))
+            }
+            "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        }
+    })
+}
+
 pub(in crate::proxy) fn fulfillment_order_simple_payload_json(
     fulfillment_order: Value,
     payload_selection: &[SelectedField],
@@ -1294,6 +1325,56 @@ pub(in crate::proxy) fn fulfillment_order_simple_payload_json(
             "fulfillmentOrder" => Some(nullable_selected_json(
                 &fulfillment_order,
                 &selection.selection,
+            )),
+            "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        }
+    })
+}
+
+pub(in crate::proxy) fn fulfillment_order_cancel_payload_json(
+    fulfillment_order: Value,
+    replacement: Value,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
+            "fulfillmentOrder" => Some(nullable_selected_json(
+                &fulfillment_order,
+                &selection.selection,
+            )),
+            "replacementFulfillmentOrder" => {
+                Some(nullable_selected_json(&replacement, &selection.selection))
+            }
+            "userErrors" => Some(Value::Array(
+                user_errors
+                    .iter()
+                    .map(|error| selected_json(error, &selection.selection))
+                    .collect(),
+            )),
+            _ => None,
+        }
+    })
+}
+
+pub(in crate::proxy) fn fulfillment_orders_reroute_payload_json(
+    moved_orders: Vec<Value>,
+    payload_selection: &[SelectedField],
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_payload_json(payload_selection, |selection| {
+        match selection.name.as_str() {
+            "movedFulfillmentOrders" => Some(Value::Array(
+                moved_orders
+                    .iter()
+                    .map(|order| selected_json(order, &selection.selection))
+                    .collect(),
             )),
             "userErrors" => Some(Value::Array(
                 user_errors
