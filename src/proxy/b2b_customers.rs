@@ -236,13 +236,19 @@ impl DraftProxy {
         selection: &[SelectedField],
     ) -> Option<Value> {
         let staged = &self.store.staged;
+        // A role assignment node read must resolve its nested companyContact / role
+        // / companyLocation from their own staged records — the assignment record
+        // only stores their ids — so it routes through the assignment-aware
+        // serializer rather than the flat selected_json used for the other entities.
+        if let Some(assignment) = staged.b2b_role_assignments.get(id).cloned() {
+            return Some(self.b2b_role_assignment_selected_json(&assignment, selection));
+        }
         if let Some(node) = staged
             .b2b_locations
             .get(id)
             .or_else(|| staged.b2b_companies.get(id))
             .or_else(|| staged.b2b_contacts.get(id))
             .or_else(|| staged.b2b_contact_roles.get(id))
-            .or_else(|| staged.b2b_role_assignments.get(id))
         {
             return Some(selected_json(node, selection));
         }
@@ -1190,9 +1196,15 @@ impl DraftProxy {
             if let Some(mut customer) = self.store.staged.customers.get(&customer_id).cloned() {
                 for key in ["firstName", "lastName", "email", "phone"] {
                     if input.contains_key(key) {
-                        customer[key] = resolved_string_field(&input, key)
-                            .map(Value::String)
-                            .unwrap_or(Value::Null);
+                        let raw = resolved_string_field(&input, key);
+                        // Shopify stores customer phone numbers in E.164, so a
+                        // supplied "(650) 555-0101" reads back as "+16505550101".
+                        let value = if key == "phone" {
+                            raw.as_deref().and_then(b2b_normalize_phone)
+                        } else {
+                            raw
+                        };
+                        customer[key] = value.map(Value::String).unwrap_or(Value::Null);
                     }
                 }
                 let first = customer["firstName"].as_str().unwrap_or_default();
@@ -1260,10 +1272,13 @@ impl DraftProxy {
         let customer_id = resolved_string_field(&input, "email").map(|email| {
             let id = self.b2b_provision_contact_customer(&email, first.clone(), last.clone());
             // Carry the supplied phone onto the freshly-provisioned customer so it
-            // reads back as companyContact.customer.phone.
+            // reads back as companyContact.customer.phone. Shopify stores customer
+            // phone numbers in E.164, so "(650) 555-0101" reads back "+16505550101".
             if let Some(phone) = phone.clone() {
                 if let Some(customer) = self.store.staged.customers.get_mut(&id) {
-                    customer["phone"] = json!(phone);
+                    customer["phone"] = b2b_normalize_phone(&phone)
+                        .map(Value::String)
+                        .unwrap_or(Value::Null);
                 }
             }
             id
@@ -1503,30 +1518,81 @@ impl DraftProxy {
             resolved_string_arg(&field.arguments, "companyContactRoleId").unwrap_or_default();
         let location_id =
             resolved_string_arg(&field.arguments, "companyLocationId").unwrap_or_default();
-        let mut error = |fields: Vec<&str>| {
-            json!({
-                "field": fields,
-                "message": "Resource requested does not exist.",
-                "code": "RESOURCE_NOT_FOUND"
-            })
+        let Some(contact) = self.store.staged.b2b_contacts.get(&contact_id) else {
+            return (
+                json!({
+                    "companyContactRoleAssignment": Value::Null,
+                    "userErrors": [{
+                        "field": ["companyContactId"],
+                        "message": "Resource requested does not exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
         };
-        if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
+        // The contact's owning company scopes which roles and locations are
+        // assignable: Shopify treats a role or location belonging to a *different*
+        // company as nonexistent, using the same wording it returns for an id that
+        // was never provisioned at all. So a foreign-company id and a never-seen id
+        // are indistinguishable in the response — both "doesn't exist".
+        let contact_company_id = contact["companyId"].as_str().map(ToString::to_string);
+        let role_in_company = self
+            .store
+            .staged
+            .b2b_contact_roles
+            .get(&role_id)
+            .is_some_and(|role| role["companyId"].as_str() == contact_company_id.as_deref());
+        if !role_in_company {
             return (
-                json!({ "companyContactRoleAssignment": Value::Null, "userErrors": [error(vec!["companyContactId"])] }),
+                json!({
+                    "companyContactRoleAssignment": Value::Null,
+                    "userErrors": [{
+                        "field": ["companyContactRoleId"],
+                        "message": "The company contact role doesn't exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    }]
+                }),
                 "failed",
                 Vec::new(),
             );
         }
-        if !self.store.staged.b2b_contact_roles.contains_key(&role_id) {
+        let location_in_company = self
+            .store
+            .staged
+            .b2b_locations
+            .get(&location_id)
+            .is_some_and(|location| {
+                location["companyId"].as_str() == contact_company_id.as_deref()
+            });
+        if !location_in_company {
             return (
-                json!({ "companyContactRoleAssignment": Value::Null, "userErrors": [error(vec!["companyContactRoleId"])] }),
+                json!({
+                    "companyContactRoleAssignment": Value::Null,
+                    "userErrors": [{
+                        "field": ["companyLocationId"],
+                        "message": "The company location doesn't exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    }]
+                }),
                 "failed",
                 Vec::new(),
             );
         }
-        if !self.store.staged.b2b_locations.contains_key(&location_id) {
+        // Shopify permits a contact at most one role assignment per location, so a
+        // second assignment at a location where the contact already holds a role is
+        // rejected as LIMIT_REACHED (with a null field) rather than silently deduped.
+        if self.b2b_contact_has_assignment_at_location(&contact_id, &location_id) {
             return (
-                json!({ "companyContactRoleAssignment": Value::Null, "userErrors": [error(vec!["companyLocationId"])] }),
+                json!({
+                    "companyContactRoleAssignment": Value::Null,
+                    "userErrors": [{
+                        "field": Value::Null,
+                        "message": "Company contact has already been assigned a role in that company location.",
+                        "code": "LIMIT_REACHED"
+                    }]
+                }),
                 "failed",
                 Vec::new(),
             );
@@ -2306,13 +2372,13 @@ impl DraftProxy {
             .iter()
             .filter_map(|assignment| assignment["id"].as_str().map(ToString::to_string))
             .collect::<Vec<_>>();
+        // Once the top-level location resolves, Shopify returns an (empty) array
+        // even when every per-entry assignment failed validation — not null. Only
+        // an unresolved top-level companyLocationId yields a null connection (the
+        // early return above), mirroring the companyContactAssignRoles shape.
         (
             json!({
-                "roleAssignments": if assignments.is_empty() && !user_errors.is_empty() {
-                    Value::Null
-                } else {
-                    Value::Array(assignments)
-                },
+                "roleAssignments": Value::Array(assignments),
                 "userErrors": user_errors
             }),
             status,
@@ -3076,6 +3142,71 @@ impl DraftProxy {
         response
     }
 
+    /// Forwards companyContactUpdate upstream for its authoritative payload (which
+    /// carries the real Customer id), then — only when the upstream update
+    /// succeeded — applies the same staging side-effect the snapshot path uses:
+    /// the contact's title/locale/name fields and the linked Customer's
+    /// name/email/phone are updated in place so a later read of the contact (or
+    /// its customer) reflects the change. The contact is keyed by the real id
+    /// Shopify returned at create time, and its linked customer is the synthetic
+    /// one provisioned then, so the in-place update lands on the records reads see.
+    pub(in crate::proxy) fn b2b_company_contact_update_with_cascade(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        parsed_root_fields: &[String],
+        root_field: &str,
+    ) -> Response {
+        let update = root_fields(query, variables)
+            .and_then(|fields| fields.into_iter().find(|f| f.name == "companyContactUpdate"));
+
+        let response = self.dispatch_unknown_passthrough_or_legacy_error(
+            request,
+            query,
+            variables,
+            operation_type,
+            parsed_root_fields,
+            root_field,
+        );
+
+        if let Some(field) = update {
+            if b2b_passthrough_mutation_succeeded(&response) {
+                // Reuse the snapshot payload builder purely for its staging
+                // side-effect; the authoritative response is the upstream one.
+                let _ = self.b2b_company_contact_update_payload(&field);
+                // The contact is staged under the synthetic id minted at company
+                // create time, but a node(id) read after the update threads the
+                // real id Shopify returned. Mirror the now-updated contact under
+                // that real id so the generic Node read resolves it, keeping the
+                // synthetic-keyed record intact for connection reads that still
+                // address it by the create-time id.
+                let synthetic_id =
+                    resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+                let real_id = response
+                    .body
+                    .get("data")
+                    .and_then(|data| data.get("companyContactUpdate"))
+                    .and_then(|payload| payload.get("companyContact"))
+                    .and_then(|contact| contact.get("id"))
+                    .and_then(Value::as_str)
+                    .map(str::to_string);
+                if let Some(real_id) = real_id {
+                    if real_id != synthetic_id {
+                        if let Some(mut contact) =
+                            self.store.staged.b2b_contacts.get(&synthetic_id).cloned()
+                        {
+                            contact["id"] = json!(real_id);
+                            self.store.staged.b2b_contacts.insert(real_id, contact);
+                        }
+                    }
+                }
+            }
+        }
+        response
+    }
+
     /// Forwards companyAssignMainContact upstream, then — only when the upstream
     /// assignment succeeded — points the company's `mainContactId` at the target
     /// contact and syncs `isMainContact` across every contact of the company.
@@ -3248,6 +3379,76 @@ impl DraftProxy {
         response
     }
 
+    /// Forwards companyContactRevokeRole / companyContactRevokeRoles /
+    /// companyLocationRevokeRoles upstream, then removes only the role assignments
+    /// the authoritative response reports as actually revoked — skipping any id it
+    /// rejects via an indexed userError — so subsequent reads of the contact's and
+    /// location's roleAssignments connections drop the revoked assignments while a
+    /// partial revoke leaves the surviving ones in place.
+    pub(in crate::proxy) fn b2b_revoke_roles_with_cascade(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        operation_type: OperationType,
+        parsed_root_fields: &[String],
+        root_field: &str,
+    ) -> Response {
+        let assignment_ids = root_fields(query, variables)
+            .map(|fields| {
+                fields
+                    .iter()
+                    .flat_map(|field| match field.name.as_str() {
+                        "companyContactRevokeRole" => resolved_string_arg(
+                            &field.arguments,
+                            "companyContactRoleAssignmentId",
+                        )
+                        .into_iter()
+                        .collect::<Vec<String>>(),
+                        "companyContactRevokeRoles" => resolved_string_list_field_unsorted(
+                            &field.arguments,
+                            "roleAssignmentIds",
+                        ),
+                        "companyLocationRevokeRoles" => {
+                            resolved_string_list_field_unsorted(&field.arguments, "rolesToRevoke")
+                        }
+                        _ => Vec::new(),
+                    })
+                    .collect::<Vec<String>>()
+            })
+            .unwrap_or_default();
+
+        let response = self.dispatch_unknown_passthrough_or_legacy_error(
+            request,
+            query,
+            variables,
+            operation_type,
+            parsed_root_fields,
+            root_field,
+        );
+
+        for assignment_id in b2b_passthrough_deleted_request_ids(&response, &assignment_ids) {
+            self.b2b_remove_role_assignment(&assignment_id);
+        }
+        response
+    }
+
+    /// Removes a single role assignment from staged state and detaches it from its
+    /// location's `roleAssignmentIds` list. A contact's roleAssignments connection
+    /// is resolved by filtering the assignment map, so dropping the entry here is
+    /// enough to clear it from the contact view too.
+    fn b2b_remove_role_assignment(&mut self, assignment_id: &str) {
+        if let Some(assignment) = self.store.staged.b2b_role_assignments.remove(assignment_id) {
+            if let Some(location_id) = assignment["companyLocationId"].as_str() {
+                self.b2b_remove_location_assignment_id(
+                    location_id,
+                    "roleAssignmentIds",
+                    assignment_id,
+                );
+            }
+        }
+    }
+
     /// Points a company's main contact at `main_contact_id` (or clears it when
     /// None), keeping each contact's `isMainContact` flag in sync.
     fn b2b_set_main_contact(&mut self, company_id: &str, main_contact_id: Option<&str>) {
@@ -3323,6 +3524,20 @@ impl DraftProxy {
                     && assignment["companyContactRoleId"].as_str() == Some(role_id)
             })
             .cloned()
+    }
+
+    /// True when the contact already holds *any* role assignment at the location,
+    /// regardless of which role. Shopify caps a contact at one assignment per
+    /// location, so this gates the LIMIT_REACHED rejection on the singular assign.
+    fn b2b_contact_has_assignment_at_location(&self, contact_id: &str, location_id: &str) -> bool {
+        self.store
+            .staged
+            .b2b_role_assignments
+            .values()
+            .any(|assignment| {
+                assignment["companyContactId"].as_str() == Some(contact_id)
+                    && assignment["companyLocationId"].as_str() == Some(location_id)
+            })
     }
 
     pub(in crate::proxy) fn products_mutation_tail_helper_response(
@@ -8033,8 +8248,10 @@ fn tax_exemption_invalid_variable_response(
         })
         .collect();
     let (first_index, first_value) = &invalid.problems[0];
+    let declared_type = graphql_variable_definition_type(query, &invalid.variable_name)
+        .unwrap_or_else(|| "[TaxExemption!]".to_string());
     let message = format!(
-        "Variable ${} of type [TaxExemption!] was provided invalid value for {first_index} (Expected \"{first_value}\" to be one of: {one_of})",
+        "Variable ${} of type {declared_type} was provided invalid value for {first_index} (Expected \"{first_value}\" to be one of: {one_of})",
         invalid.variable_name
     );
     let mut error = serde_json::Map::new();
@@ -8053,6 +8270,91 @@ fn tax_exemption_invalid_variable_response(
             "code": "INVALID_VARIABLE",
             "value": invalid.provided,
             "problems": problems,
+        }),
+    );
+    ok_json(json!({ "errors": [Value::Object(error)] }))
+}
+
+/// Members of the `CustomerSmsMarketingState` GraphQL enum. Values outside this set
+/// (e.g. `INVALID`) fail variable coercion *before* the resolver checks for
+/// valid-but-disallowed input states (`NOT_SUBSCRIBED`, `REDACTED`). `INVALID` is a
+/// real member of the *email* enum but not the SMS one, hence the channel-specific set.
+const SMS_MARKETING_STATES: &[&str] = &[
+    "NOT_SUBSCRIBED",
+    "PENDING",
+    "SUBSCRIBED",
+    "UNSUBSCRIBED",
+    "REDACTED",
+];
+
+/// Validates the `smsMarketingConsent.marketingState` enum value of
+/// `customerSmsMarketingConsentUpdate` before any staging. Shopify rejects values
+/// outside `CustomerSmsMarketingState` at variable-coercion time with an
+/// `INVALID_VARIABLE` error, returning `None` when the state is a known member.
+pub(in crate::proxy) fn customer_sms_consent_invalid_enum_response(
+    query: &str,
+    fields: &[RootFieldSelection],
+) -> Option<Response> {
+    for field in fields {
+        if field.name != "customerSmsMarketingConsentUpdate" {
+            continue;
+        }
+        let Some(RawArgumentValue::Variable {
+            name,
+            value: Some(resolved),
+        }) = field.raw_arguments.get("input")
+        else {
+            continue;
+        };
+        let ResolvedValue::Object(input) = resolved else {
+            continue;
+        };
+        let Some(ResolvedValue::Object(consent)) = input.get("smsMarketingConsent") else {
+            continue;
+        };
+        let Some(ResolvedValue::String(state)) = consent.get("marketingState") else {
+            continue;
+        };
+        if SMS_MARKETING_STATES.contains(&state.as_str()) {
+            continue;
+        }
+        return Some(sms_consent_invalid_variable_response(
+            query, name, resolved, state,
+        ));
+    }
+    None
+}
+
+fn sms_consent_invalid_variable_response(
+    query: &str,
+    variable_name: &str,
+    input: &ResolvedValue,
+    state: &str,
+) -> Response {
+    let one_of = SMS_MARKETING_STATES.join(", ");
+    let declared_type = graphql_variable_definition_type(query, variable_name)
+        .unwrap_or_else(|| "CustomerSmsMarketingConsentUpdateInput!".to_string());
+    let explanation = format!("Expected \"{state}\" to be one of: {one_of}");
+    let message = format!(
+        "Variable ${variable_name} of type {declared_type} was provided invalid value for smsMarketingConsent.marketingState ({explanation})"
+    );
+    let mut error = serde_json::Map::new();
+    error.insert("message".to_string(), json!(message));
+    if let Some((line, column)) = graphql_variable_definition_location(query, variable_name) {
+        error.insert(
+            "locations".to_string(),
+            json!([{ "line": line, "column": column }]),
+        );
+    }
+    error.insert(
+        "extensions".to_string(),
+        json!({
+            "code": "INVALID_VARIABLE",
+            "value": resolved_value_json(input),
+            "problems": [{
+                "path": ["smsMarketingConsent", "marketingState"],
+                "explanation": explanation,
+            }],
         }),
     );
     ok_json(json!({ "errors": [Value::Object(error)] }))
@@ -8090,6 +8392,44 @@ pub(in crate::proxy) fn graphql_variable_definition_location(
                 }
             }
             return Some((line, column));
+        }
+        search_from = after;
+    }
+    None
+}
+
+/// Resolves the declared GraphQL type of a variable (`$name: <TYPE>`) from the query
+/// document, e.g. `[TaxExemption!]!` or `CustomerSmsMarketingConsentUpdateInput!`.
+/// Shopify echoes the exact declared type in `INVALID_VARIABLE` coercion messages, so
+/// we parse it from the variable definition rather than hardcoding a single shape.
+pub(in crate::proxy) fn graphql_variable_definition_type(
+    query: &str,
+    variable_name: &str,
+) -> Option<String> {
+    let needle = format!("${variable_name}");
+    let bytes = query.as_bytes();
+    let mut search_from = 0;
+    while let Some(relative) = query[search_from..].find(&needle) {
+        let start = search_from + relative;
+        let after = start + needle.len();
+        let is_boundary = match bytes.get(after) {
+            None => true,
+            Some(next) => !(next.is_ascii_alphanumeric() || *next == b'_'),
+        };
+        if is_boundary {
+            // A variable *definition* is `$name: <TYPE>`; a *usage* (`field(arg: $name)`)
+            // has no `:` immediately following. Only the definition yields a type.
+            if let Some(type_part) = query[after..].trim_start().strip_prefix(':') {
+                let declared: String = type_part
+                    .trim_start()
+                    .chars()
+                    .take_while(|c| !matches!(c, ',' | ')' | '=' | '\n' | '\r' | '{'))
+                    .collect();
+                let declared = declared.trim();
+                if !declared.is_empty() {
+                    return Some(declared.to_string());
+                }
+            }
         }
         search_from = after;
     }

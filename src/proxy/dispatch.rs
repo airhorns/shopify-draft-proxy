@@ -2398,6 +2398,16 @@ impl DraftProxy {
                             | "customerSmsMarketingConsentUpdate"
                     ) =>
             {
+                let Some(fields) = root_fields(&query, &variables) else {
+                    return json_error(400, "Could not parse GraphQL operation");
+                };
+                // SMS marketingState values outside `CustomerSmsMarketingState` fail
+                // enum coercion before any staging, matching Shopify's ordering.
+                if let Some(response) =
+                    customer_sms_consent_invalid_enum_response(&query, &fields)
+                {
+                    return response;
+                }
                 self.customer_marketing_consent_update(&query, &variables, request)
             }
             (CapabilityDomain::Privacy, CapabilityExecution::StageLocally)
@@ -2497,7 +2507,10 @@ impl DraftProxy {
                     "companyCreate"
                     | "companyUpdate"
                     | "companyLocationCreate"
-                    | "companyLocationAssignAddress" => self
+                    | "companyLocationAssignAddress"
+                    | "companyContactAssignRole"
+                    | "companyContactAssignRoles"
+                    | "companyLocationAssignRoles" => self
                         .b2b_company_tail_helper_response(
                             request,
                             &query,
@@ -2580,6 +2593,14 @@ impl DraftProxy {
                         &operation.root_fields,
                         root_field,
                     ),
+                    "companyContactUpdate" => self.b2b_company_contact_update_with_cascade(
+                        request,
+                        &query,
+                        &variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
+                    ),
                     "companyAssignMainContact" => self.b2b_assign_main_contact_with_cascade(
                         request,
                         &query,
@@ -2612,7 +2633,19 @@ impl DraftProxy {
                         &operation.root_fields,
                         root_field,
                     ),
-                    "companyLocationsDelete" => self.b2b_company_locations_delete_with_cascade(
+                    "companyLocationDelete" | "companyLocationsDelete" => {
+                        self.b2b_company_locations_delete_with_cascade(
+                            request,
+                            &query,
+                            &variables,
+                            operation.operation_type,
+                            &operation.root_fields,
+                            root_field,
+                        )
+                    }
+                    "companyContactRevokeRole"
+                    | "companyContactRevokeRoles"
+                    | "companyLocationRevokeRoles" => self.b2b_revoke_roles_with_cascade(
                         request,
                         &query,
                         &variables,
@@ -2654,12 +2687,24 @@ impl DraftProxy {
                         )
                     })
                     .unwrap_or_else(|| {
-                        json_error(
-                            501,
-                            &format!(
-                                "No Rust b2b overlay-read dispatcher implemented for root field: {root_field}"
-                            ),
-                        )
+                        // Cold read: the query touches no locally-staged B2B graph
+                        // (e.g. a pure read of a pre-existing company catalog, or a
+                        // multi-root read whose roots the local serializer does not
+                        // cover). Forward verbatim upstream as a read-through so the
+                        // real recorded Shopify response is replayed. Staged
+                        // read-after-write reads short-circuit above by returning
+                        // Some, so this never masks local overlay state. Snapshot
+                        // mode has no upstream, so it keeps the explicit 501.
+                        if self.config.read_mode != ReadMode::Snapshot {
+                            (self.upstream_transport)(request.clone())
+                        } else {
+                            json_error(
+                                501,
+                                &format!(
+                                    "No Rust b2b overlay-read dispatcher implemented for root field: {root_field}"
+                                ),
+                            )
+                        }
                     })
             }
             (CapabilityDomain::Media, CapabilityExecution::OverlayRead)

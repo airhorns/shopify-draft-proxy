@@ -728,7 +728,7 @@ pub(crate) fn default_registry_entries() -> Vec<OperationRegistryEntry> {
             OperationType::Mutation,
             CapabilityDomain::B2b,
             CapabilityExecution::StageLocally,
-            false,
+            true,
             &["companyContactRevokeRole", "CompanyContactRevokeRole"],
             &[],
         ),
