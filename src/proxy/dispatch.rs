@@ -225,6 +225,10 @@ impl DraftProxy {
             return ok_json(data);
         }
 
+        if let Some(data) = self.refund_create_local_data(request, root_field, &query, &variables) {
+            return ok_json(data);
+        }
+
         if let Some(data) = self.money_bag_presentment_local_data(request, &query, &variables) {
             return ok_json(data);
         }

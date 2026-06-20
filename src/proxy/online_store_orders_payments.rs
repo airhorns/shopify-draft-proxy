@@ -612,6 +612,557 @@ fn order_create_payment_fields(
     );
 }
 
+const REFUND_ORDER_HYDRATE_QUERY: &str = r#"
+query OrdersOrderHydrate($id: ID!) {
+  order(id: $id) {
+    id
+    name
+    displayFinancialStatus
+    displayFulfillmentStatus
+    totalPriceSet {
+      shopMoney { amount currencyCode }
+      presentmentMoney { amount currencyCode }
+    }
+    currentTotalPriceSet {
+      shopMoney { amount currencyCode }
+      presentmentMoney { amount currencyCode }
+    }
+    totalReceivedSet {
+      shopMoney { amount currencyCode }
+      presentmentMoney { amount currencyCode }
+    }
+    totalRefundedSet {
+      shopMoney { amount currencyCode }
+      presentmentMoney { amount currencyCode }
+    }
+    shippingLines(first: 10) {
+      nodes {
+        originalPriceSet {
+          shopMoney { amount currencyCode }
+          presentmentMoney { amount currencyCode }
+        }
+      }
+    }
+    lineItems(first: 50) {
+      nodes {
+        id
+        title
+        quantity
+        currentQuantity
+        originalUnitPriceSet {
+          shopMoney { amount currencyCode }
+          presentmentMoney { amount currencyCode }
+        }
+      }
+    }
+    transactions {
+      id
+      kind
+      status
+      gateway
+      amountSet {
+        shopMoney { amount currencyCode }
+        presentmentMoney { amount currencyCode }
+      }
+    }
+    refunds {
+      id
+      note
+      totalRefundedSet {
+        shopMoney { amount currencyCode }
+        presentmentMoney { amount currencyCode }
+      }
+    }
+    returns(first: 5) {
+      nodes { id status }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+  }
+}
+"#;
+
+fn refund_user_error(field: Value, message: impl Into<String>, code: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message.into(),
+        "code": code
+    })
+}
+
+fn order_money_bag_from_amount(
+    amount: f64,
+    shop_currency: &str,
+    presentment_currency: &str,
+) -> Value {
+    let amount = format_order_amount(amount);
+    json!({
+        "shopMoney": {
+            "amount": amount,
+            "currencyCode": shop_currency
+        },
+        "presentmentMoney": {
+            "amount": amount,
+            "currencyCode": presentment_currency
+        }
+    })
+}
+
+fn money_set_amount(value: &Value) -> Option<f64> {
+    value["shopMoney"]["amount"]
+        .as_str()
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .or_else(|| {
+            value["amount"]
+                .as_str()
+                .and_then(|amount| amount.parse::<f64>().ok())
+        })
+}
+
+fn money_set_shop_currency(value: &Value) -> Option<String> {
+    value["shopMoney"]["currencyCode"]
+        .as_str()
+        .or_else(|| value["currencyCode"].as_str())
+        .map(str::to_string)
+}
+
+fn money_set_presentment_currency(value: &Value) -> Option<String> {
+    value["presentmentMoney"]["currencyCode"]
+        .as_str()
+        .or_else(|| value["currencyCode"].as_str())
+        .map(str::to_string)
+}
+
+fn order_currency(order: &Value) -> String {
+    [
+        &order["totalPriceSet"],
+        &order["currentTotalPriceSet"],
+        &order["totalReceivedSet"],
+        &order["totalRefundedSet"],
+    ]
+    .into_iter()
+    .find_map(money_set_shop_currency)
+    .or_else(|| {
+        order["transactions"]
+            .as_array()
+            .and_then(|transactions| transactions.first())
+            .and_then(|transaction| money_set_shop_currency(&transaction["amountSet"]))
+    })
+    .unwrap_or_else(|| "CAD".to_string())
+}
+
+fn order_presentment_currency(order: &Value, fallback: &str) -> String {
+    [
+        &order["totalPriceSet"],
+        &order["currentTotalPriceSet"],
+        &order["totalReceivedSet"],
+        &order["totalRefundedSet"],
+    ]
+    .into_iter()
+    .find_map(money_set_presentment_currency)
+    .unwrap_or_else(|| fallback.to_string())
+}
+
+fn order_transactions(order: &Value) -> Vec<Value> {
+    if let Some(transactions) = order["transactions"].as_array() {
+        return transactions.clone();
+    }
+    order["transactions"]["nodes"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn order_line_items(order: &Value) -> Vec<Value> {
+    if let Some(nodes) = order["lineItems"]["nodes"].as_array() {
+        return nodes.clone();
+    }
+    order["lineItems"].as_array().cloned().unwrap_or_default()
+}
+
+fn order_shipping_lines(order: &Value) -> Vec<Value> {
+    if let Some(nodes) = order["shippingLines"]["nodes"].as_array() {
+        return nodes.clone();
+    }
+    order["shippingLines"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+}
+
+fn order_received_amount(order: &Value) -> f64 {
+    money_set_amount(&order["totalReceivedSet"]).unwrap_or_else(|| {
+        order_transactions(order)
+            .iter()
+            .filter(|transaction| {
+                matches!(transaction["kind"].as_str(), Some("SALE") | Some("CAPTURE"))
+                    && transaction["status"].as_str() == Some("SUCCESS")
+            })
+            .filter_map(|transaction| money_set_amount(&transaction["amountSet"]))
+            .sum::<f64>()
+    })
+}
+
+fn order_refunded_amount(order: &Value) -> f64 {
+    money_set_amount(&order["totalRefundedSet"]).unwrap_or(0.0)
+}
+
+fn order_refunded_shipping_amount(order: &Value) -> f64 {
+    money_set_amount(&order["totalRefundedShippingSet"]).unwrap_or(0.0)
+}
+
+fn order_shipping_refundable_amount(order: &Value) -> f64 {
+    order_shipping_lines(order)
+        .iter()
+        .filter_map(|line| {
+            money_set_amount(&line["originalPriceSet"])
+                .or_else(|| money_set_amount(&line["priceSet"]))
+        })
+        .sum()
+}
+
+fn order_line_item_by_id(order: &Value, line_item_id: &str) -> Option<Value> {
+    order_line_items(order)
+        .into_iter()
+        .find(|line| line["id"].as_str() == Some(line_item_id))
+}
+
+fn order_transaction_by_id(order: &Value, transaction_id: &str) -> Option<Value> {
+    order_transactions(order)
+        .into_iter()
+        .find(|transaction| transaction["id"].as_str() == Some(transaction_id))
+}
+
+fn order_line_unit_amount(line: &Value) -> f64 {
+    money_set_amount(&line["originalUnitPriceSet"])
+        .or_else(|| money_set_amount(&line["priceSet"]))
+        .unwrap_or(0.0)
+}
+
+fn refund_line_item_quantity(input: &BTreeMap<String, ResolvedValue>) -> i64 {
+    resolved_i64_field(input, "quantity").unwrap_or(1).max(0)
+}
+
+fn refund_input_transaction_amount(input: &BTreeMap<String, ResolvedValue>) -> f64 {
+    resolved_object_list_field(input, "transactions")
+        .iter()
+        .filter_map(|transaction| resolved_string_field(transaction, "amount"))
+        .filter_map(|amount| amount.parse::<f64>().ok())
+        .sum()
+}
+
+fn refund_input_shipping_amount(input: &BTreeMap<String, ResolvedValue>, order: &Value) -> f64 {
+    let Some(shipping) = resolved_object_field(input, "shipping") else {
+        return 0.0;
+    };
+    if matches!(shipping.get("fullRefund"), Some(ResolvedValue::Bool(true))) {
+        return order_shipping_refundable_amount(order);
+    }
+    resolved_string_field(&shipping, "amount")
+        .and_then(|amount| amount.parse::<f64>().ok())
+        .or_else(|| resolved_number_field(&shipping, "amount"))
+        .unwrap_or(0.0)
+}
+
+fn refund_input_line_amount(input: &BTreeMap<String, ResolvedValue>, order: &Value) -> f64 {
+    resolved_object_list_field(input, "refundLineItems")
+        .iter()
+        .map(|line_input| {
+            let quantity = refund_line_item_quantity(line_input);
+            resolved_string_field(line_input, "subtotal")
+                .and_then(|amount| amount.parse::<f64>().ok())
+                .unwrap_or_else(|| {
+                    resolved_string_field(line_input, "lineItemId")
+                        .and_then(|id| order_line_item_by_id(order, &id))
+                        .map(|line| order_line_unit_amount(&line) * quantity as f64)
+                        .unwrap_or(0.0)
+                })
+        })
+        .sum()
+}
+
+fn refund_input_total_amount(input: &BTreeMap<String, ResolvedValue>, order: &Value) -> f64 {
+    let transaction_amount = refund_input_transaction_amount(input);
+    if transaction_amount > 0.0 {
+        transaction_amount
+    } else {
+        refund_input_line_amount(input, order) + refund_input_shipping_amount(input, order)
+    }
+}
+
+fn refund_order_with_defaults(mut order: Value) -> Value {
+    let shop_currency = order_currency(&order);
+    let presentment_currency = order_presentment_currency(&order, &shop_currency);
+    if order.get("totalRefundedSet").is_none_or(Value::is_null) {
+        order["totalRefundedSet"] =
+            order_money_bag_from_amount(0.0, &shop_currency, &presentment_currency);
+    }
+    if order
+        .get("totalRefundedShippingSet")
+        .is_none_or(Value::is_null)
+    {
+        order["totalRefundedShippingSet"] =
+            order_money_bag_from_amount(0.0, &shop_currency, &presentment_currency);
+    }
+    if !order.get("refunds").is_some_and(Value::is_array) {
+        order["refunds"] = json!([]);
+    }
+    if order.get("returns").is_none_or(Value::is_null) {
+        order["returns"] = order_connection(Vec::new());
+    }
+    if !order.get("transactions").is_some_and(Value::is_array) {
+        order["transactions"] = json!(order_transactions(&order));
+    }
+    order
+}
+
+fn refund_order_payload(order: Option<Value>) -> Value {
+    order.map(refund_order_with_defaults).unwrap_or(Value::Null)
+}
+
+fn refund_validation_payload(
+    field: &RootFieldSelection,
+    refund: Value,
+    order: Option<Value>,
+    user_errors: Vec<Value>,
+) -> Value {
+    selected_json(
+        &json!({
+            "refund": refund,
+            "order": refund_order_payload(order),
+            "userErrors": user_errors
+        }),
+        &field.selection,
+    )
+}
+
+fn refund_input_error(
+    field: &RootFieldSelection,
+    order: Option<Value>,
+    user_error: Value,
+) -> Value {
+    refund_validation_payload(field, Value::Null, order, vec![user_error])
+}
+
+fn refund_transaction_validation_error(
+    input: &BTreeMap<String, ResolvedValue>,
+    order: &Value,
+) -> Option<Value> {
+    let has_identifiable_parent_transactions = order_transactions(order)
+        .iter()
+        .any(|transaction| transaction["id"].as_str().is_some_and(|id| !id.is_empty()));
+    for transaction in resolved_object_list_field(input, "transactions") {
+        let kind =
+            resolved_string_field(&transaction, "kind").unwrap_or_else(|| "REFUND".to_string());
+        if !kind.eq_ignore_ascii_case("REFUND") {
+            return Some(refund_user_error(
+                Value::Null,
+                format!(
+                    "Kind {} is not a valid transaction",
+                    kind.to_ascii_lowercase()
+                ),
+                "INVALID",
+            ));
+        }
+        let parent_id = resolved_string_field(&transaction, "parentId").unwrap_or_default();
+        if (parent_id.is_empty() && has_identifiable_parent_transactions)
+            || (!parent_id.is_empty() && order_transaction_by_id(order, &parent_id).is_none())
+        {
+            return Some(refund_user_error(
+                json!(["transactions"]),
+                "Transactions require a parent_id associated with the order",
+                "INVALID",
+            ));
+        }
+    }
+    None
+}
+
+fn refund_quantity_validation_error(
+    input: &BTreeMap<String, ResolvedValue>,
+    order: &Value,
+) -> Option<Value> {
+    for (index, line_input) in resolved_object_list_field(input, "refundLineItems")
+        .iter()
+        .enumerate()
+    {
+        let Some(line_item_id) = resolved_string_field(line_input, "lineItemId") else {
+            continue;
+        };
+        let Some(line) = order_line_item_by_id(order, &line_item_id) else {
+            return Some(refund_user_error(
+                json!(["refundLineItems", index.to_string(), "lineItemId"]),
+                "Line item does not exist",
+                "NOT_FOUND",
+            ));
+        };
+        let quantity = refund_line_item_quantity(line_input);
+        let refundable_quantity = line["currentQuantity"]
+            .as_i64()
+            .or_else(|| line["quantity"].as_i64())
+            .unwrap_or(0);
+        if quantity > refundable_quantity {
+            return Some(refund_user_error(
+                json!(["refundLineItems", index.to_string(), "quantity"]),
+                "Quantity cannot refund more items than were purchased",
+                "INVALID",
+            ));
+        }
+    }
+    None
+}
+
+fn refund_amount_validation_error(
+    input: &BTreeMap<String, ResolvedValue>,
+    order: &Value,
+) -> Option<Value> {
+    let refund_amount = refund_input_total_amount(input, order);
+    let refundable = (order_received_amount(order) - order_refunded_amount(order)).max(0.0);
+    if refund_amount > refundable + 0.005 {
+        return Some(refund_user_error(
+            Value::Null,
+            format!(
+                "Refund amount ${:.2} is greater than net payment received ${:.2}",
+                refund_amount, refundable
+            ),
+            "OVER_REFUND",
+        ));
+    }
+    None
+}
+
+fn next_refund_transaction_id(order: &Value, next: u64) -> (String, u64) {
+    let highest = order_transactions(order)
+        .iter()
+        .filter_map(|transaction| transaction["id"].as_str())
+        .filter_map(|id| id.rsplit('/').next())
+        .filter_map(|tail| tail.parse::<u64>().ok())
+        .max()
+        .unwrap_or(0);
+    let number = next.max(highest + 1);
+    (
+        format!("gid://shopify/OrderTransaction/{number}"),
+        number + 1,
+    )
+}
+
+fn build_refund_line_items(
+    input: &BTreeMap<String, ResolvedValue>,
+    order: &Value,
+    shop_currency: &str,
+    presentment_currency: &str,
+    next_refund_line_item_id: &mut u64,
+) -> Vec<Value> {
+    resolved_object_list_field(input, "refundLineItems")
+        .iter()
+        .map(|line_input| {
+            let id = format!(
+                "gid://shopify/RefundLineItem/{}",
+                *next_refund_line_item_id
+            );
+            *next_refund_line_item_id += 1;
+            let quantity = refund_line_item_quantity(line_input);
+            let restock_type = resolved_string_field(line_input, "restockType")
+                .unwrap_or_else(|| "NO_RESTOCK".to_string());
+            let line_item_id = resolved_string_field(line_input, "lineItemId").unwrap_or_default();
+            let line = order_line_item_by_id(order, &line_item_id).unwrap_or(Value::Null);
+            let subtotal = order_line_unit_amount(&line) * quantity as f64;
+            json!({
+                "id": id,
+                "quantity": quantity,
+                "restockType": restock_type,
+                "restocked": restock_type != "NO_RESTOCK",
+                "lineItem": {
+                    "id": if line_item_id.is_empty() { Value::Null } else { json!(line_item_id) },
+                    "title": line["title"].clone()
+                },
+                "subtotalSet": order_money_bag_from_amount(subtotal, shop_currency, presentment_currency)
+            })
+        })
+        .collect()
+}
+
+fn build_refund_transactions(
+    input: &BTreeMap<String, ResolvedValue>,
+    order: &Value,
+    refund_amount: f64,
+    shop_currency: &str,
+    presentment_currency: &str,
+    transaction_id: &str,
+) -> Vec<Value> {
+    let inputs = resolved_object_list_field(input, "transactions");
+    if inputs.is_empty() {
+        return vec![json!({
+            "id": transaction_id,
+            "kind": "REFUND",
+            "status": "SUCCESS",
+            "gateway": "manual",
+            "amountSet": order_money_bag_from_amount(refund_amount, shop_currency, presentment_currency)
+        })];
+    }
+    inputs
+        .iter()
+        .enumerate()
+        .map(|(index, transaction)| {
+            let amount = resolved_string_field(transaction, "amount")
+                .and_then(|amount| amount.parse::<f64>().ok())
+                .unwrap_or(refund_amount);
+            let parent = resolved_string_field(transaction, "parentId")
+                .and_then(|id| order_transaction_by_id(order, &id));
+            let gateway = parent
+                .as_ref()
+                .and_then(|transaction| transaction["gateway"].as_str().map(str::to_string))
+                .or_else(|| resolved_string_field(transaction, "gateway"))
+                .unwrap_or_else(|| "manual".to_string());
+            let id = if index == 0 {
+                transaction_id.to_string()
+            } else {
+                format!("{transaction_id}-{index}")
+            };
+            json!({
+                "id": id,
+                "kind": "REFUND",
+                "status": "SUCCESS",
+                "gateway": gateway,
+                "amountSet": order_money_bag_from_amount(amount, shop_currency, presentment_currency)
+            })
+        })
+        .collect()
+}
+
+fn update_order_after_refund(
+    mut order: Value,
+    refund: &Value,
+    refund_transactions: &[Value],
+    refund_amount: f64,
+    shipping_refund_amount: f64,
+    shop_currency: &str,
+    presentment_currency: &str,
+) -> Value {
+    order = refund_order_with_defaults(order);
+    let total_refunded = order_refunded_amount(&order) + refund_amount;
+    let total_refunded_shipping = order_refunded_shipping_amount(&order) + shipping_refund_amount;
+    let received = order_received_amount(&order);
+    order["totalRefundedSet"] =
+        order_money_bag_from_amount(total_refunded, shop_currency, presentment_currency);
+    order["totalRefundedShippingSet"] =
+        order_money_bag_from_amount(total_refunded_shipping, shop_currency, presentment_currency);
+    order["displayFinancialStatus"] = if total_refunded + 0.005 >= received && received > 0.0 {
+        json!("REFUNDED")
+    } else {
+        json!("PARTIALLY_REFUNDED")
+    };
+    if let Some(refunds) = order["refunds"].as_array_mut() {
+        refunds.push(refund.clone());
+    }
+    if let Some(transactions) = order["transactions"].as_array_mut() {
+        transactions.extend(refund_transactions.iter().cloned());
+    }
+    if order.get("returns").is_none_or(Value::is_null) {
+        order["returns"] = order_connection(Vec::new());
+    }
+    order
+}
+
 fn order_create_validation_error(order: &BTreeMap<String, ResolvedValue>) -> Option<Value> {
     if resolved_string_field(order, "processedAt")
         .as_deref()
@@ -2414,6 +2965,181 @@ impl DraftProxy {
         }
     }
 
+    pub(in crate::proxy) fn refund_create_local_data(
+        &mut self,
+        request: &Request,
+        root_field: &str,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Option<Value> {
+        if root_field != "refundCreate" {
+            return None;
+        }
+        let fields = root_fields(query, variables)?;
+        if !fields.iter().all(|field| field.name == "refundCreate") {
+            return None;
+        }
+
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let (value, staged_ids) = self.stage_refund_create(request, query, variables, &field);
+            if !staged_ids.is_empty() {
+                self.record_orders_local_log_entry(OrdersLocalLogEntry {
+                    request,
+                    query,
+                    variables,
+                    root_field: "refundCreate",
+                    staged_resource_ids: staged_ids,
+                    outcome: OrdersLocalLogOutcome {
+                        status: "staged",
+                        notes: "Locally staged refundCreate in shopify-draft-proxy.",
+                    },
+                });
+            }
+            data.insert(field.response_key, value);
+        }
+        Some(json!({ "data": Value::Object(data) }))
+    }
+
+    fn stage_refund_create(
+        &mut self,
+        request: &Request,
+        _query: &str,
+        _variables: &BTreeMap<String, ResolvedValue>,
+        field: &RootFieldSelection,
+    ) -> (Value, Vec<String>) {
+        let Some(input) = resolved_object_field(&field.arguments, "input") else {
+            return (
+                refund_input_error(
+                    field,
+                    None,
+                    refund_user_error(json!(["input"]), "Input is required", "INVALID"),
+                ),
+                Vec::new(),
+            );
+        };
+        let Some(order_id) = resolved_string_field(&input, "orderId") else {
+            return (
+                refund_input_error(
+                    field,
+                    None,
+                    refund_user_error(json!(["orderId"]), "Order does not exist", "NOT_FOUND"),
+                ),
+                Vec::new(),
+            );
+        };
+
+        self.hydrate_order_for_refund(request, &order_id);
+        let Some(order) = self.store.staged.orders.get(&order_id).cloned() else {
+            return (
+                refund_input_error(
+                    field,
+                    None,
+                    refund_user_error(json!(["orderId"]), "Order does not exist", "NOT_FOUND"),
+                ),
+                Vec::new(),
+            );
+        };
+        let order = refund_order_with_defaults(order);
+
+        if let Some(error) = refund_transaction_validation_error(&input, &order) {
+            return (refund_input_error(field, Some(order), error), Vec::new());
+        }
+        if let Some(error) = refund_quantity_validation_error(&input, &order) {
+            return (refund_input_error(field, Some(order), error), Vec::new());
+        }
+        if let Some(error) = refund_amount_validation_error(&input, &order) {
+            return (refund_input_error(field, Some(order), error), Vec::new());
+        }
+
+        let shop_currency = order_currency(&order);
+        let presentment_currency = order_presentment_currency(&order, &shop_currency);
+        let refund_amount = refund_input_total_amount(&input, &order);
+        let shipping_refund_amount = refund_input_shipping_amount(&input, &order);
+        let refund_id = format!("gid://shopify/Refund/{}", self.store.staged.next_refund_id);
+        self.store.staged.next_refund_id += 1;
+        let mut next_line_item_id = self.store.staged.next_refund_line_item_id;
+        let refund_line_items = build_refund_line_items(
+            &input,
+            &order,
+            &shop_currency,
+            &presentment_currency,
+            &mut next_line_item_id,
+        );
+        self.store.staged.next_refund_line_item_id = next_line_item_id;
+        let (transaction_id, next_transaction_id) =
+            next_refund_transaction_id(&order, self.store.staged.order_payment_next_transaction_id);
+        self.store.staged.order_payment_next_transaction_id = next_transaction_id;
+        let refund_transactions = build_refund_transactions(
+            &input,
+            &order,
+            refund_amount,
+            &shop_currency,
+            &presentment_currency,
+            &transaction_id,
+        );
+        let refund = json!({
+            "id": refund_id,
+            "note": resolved_string_field(&input, "note"),
+            "createdAt": "2024-01-01T00:00:00.000Z",
+            "updatedAt": "2024-01-01T00:00:00.000Z",
+            "totalRefundedSet": order_money_bag_from_amount(refund_amount, &shop_currency, &presentment_currency),
+            "refundLineItems": order_connection(refund_line_items),
+            "transactions": order_connection(refund_transactions.clone())
+        });
+        let updated_order = update_order_after_refund(
+            order,
+            &refund,
+            &refund_transactions,
+            refund_amount,
+            shipping_refund_amount,
+            &shop_currency,
+            &presentment_currency,
+        );
+        self.store
+            .staged
+            .orders
+            .insert(order_id.clone(), updated_order.clone());
+
+        (
+            selected_json(
+                &json!({
+                    "refund": refund,
+                    "order": updated_order,
+                    "userErrors": []
+                }),
+                &field.selection,
+            ),
+            vec![refund_id, order_id],
+        )
+    }
+
+    fn hydrate_order_for_refund(&mut self, request: &Request, order_id: &str) {
+        if self.store.staged.orders.contains_key(order_id)
+            || self.config.read_mode == ReadMode::Snapshot
+        {
+            return;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": REFUND_ORDER_HYDRATE_QUERY,
+                "operationName": "OrdersOrderHydrate",
+                "variables": { "id": order_id }
+            })
+            .to_string(),
+        });
+        let order = response.body["data"]["order"].clone();
+        if order.is_object() {
+            self.store
+                .staged
+                .orders
+                .insert(order_id.to_string(), refund_order_with_defaults(order));
+        }
+    }
+
     pub(in crate::proxy) fn order_create_local_data(
         &mut self,
         request: &Request,
@@ -3174,9 +3900,13 @@ impl DraftProxy {
             "totalDiscountsSet": order_create_money_set(discount_total, &currency_code),
             "currentTotalPriceSet": order_create_money_set(total, &currency_code),
             "totalPriceSet": order_create_money_set(total, &currency_code),
+            "totalRefundedSet": order_create_money_bag(0.0, &currency_code, &presentment_currency_code),
+            "totalRefundedShippingSet": order_create_money_bag(0.0, &currency_code, &presentment_currency_code),
             "discountCodes": discount_codes,
             "shippingLines": order_connection(shipping_lines),
             "lineItems": order_connection(line_items),
+            "refunds": [],
+            "returns": order_connection(Vec::new()),
             "fulfillments": [],
             "fulfillmentOrders": order_connection(fulfillment_orders),
             "transactions": transactions
