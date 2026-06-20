@@ -2834,6 +2834,28 @@ impl DraftProxy {
                     address["country"] = json!(country);
                 }
             }
+            // Shopify derives the full province name from the effective
+            // country + province codes whenever the address is edited. A
+            // province-only edit (no countryCode in the input) still re-derives
+            // the name from the country code already on the record.
+            let effective_country_code = address
+                .get("countryCode")
+                .and_then(Value::as_str)
+                .map(str::to_string);
+            let effective_province_code = address
+                .get("provinceCode")
+                .and_then(Value::as_str)
+                .filter(|code| !code.is_empty())
+                .map(str::to_string);
+            address["province"] = match (
+                effective_country_code.as_deref(),
+                effective_province_code.as_deref(),
+            ) {
+                (Some(country), Some(province)) => province_name_for_code(country, province)
+                    .map(Value::from)
+                    .unwrap_or(Value::Null),
+                _ => Value::Null,
+            };
             location["address"] = address;
         }
         let metafields = self.location_metafields_from_input(&location_id, input);
@@ -2909,7 +2931,9 @@ impl DraftProxy {
             if let Some(metafield_type) = resolved_string_field(&metafield, "type") {
                 if !LOCATION_METAFIELD_VALID_TYPES.contains(&metafield_type.as_str()) {
                     errors.push(json!({
-                        "field": ["input", "metafields", index.to_string(), "type"],
+                        // Shopify reports the metafield position as a 1-based
+                        // index in the error path (input index 0 → field "1").
+                        "field": ["input", "metafields", (index + 1).to_string(), "type"],
                         "message": format!(
                             "Type must be one of the following: {}.",
                             LOCATION_METAFIELD_VALID_TYPES.join(", ")
@@ -2918,6 +2942,17 @@ impl DraftProxy {
                     }));
                 }
             }
+        }
+        // Shopify refuses to disable online-order fulfillment on the last
+        // location that still fulfills online orders.
+        if resolved_bool_field(input, "fulfillsOnlineOrders") == Some(false)
+            && !self.has_other_online_order_fulfillment_location(location_id)
+        {
+            errors.push(json!({
+                "field": ["input"],
+                "message": "Online order fulfillment could not be disabled for this location as it is the only location that fulfills online orders.",
+                "code": "CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT"
+            }));
         }
         errors
     }
