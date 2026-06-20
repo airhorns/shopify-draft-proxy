@@ -315,30 +315,30 @@ fn metafield_definition_pin_unpin_and_limit_reads_stage_local_positions() {
 }
 
 #[test]
-fn metafield_definition_pin_limit_is_fifty_for_pin_create_update_and_standard_enable() {
+fn metafield_definition_pin_limit_is_twenty_for_pin_create_update_and_standard_enable() {
     let namespace = "har1423_pin_limit";
 
     let mut pin_proxy = snapshot_proxy();
-    for index in 1..=51 {
+    for index in 1..=21 {
         let key = format!("pin_{index:02}");
         let created = create_definition(&mut pin_proxy, namespace, &key, false);
         assert_eq!(created["userErrors"], json!([]));
     }
-    for index in 1..=50 {
+    for index in 1..=20 {
         let key = format!("pin_{index:02}");
         let pinned = pin_definition(&mut pin_proxy, namespace, &key);
         assert_eq!(pinned["userErrors"], json!([]));
-        if index == 50 {
-            assert_eq!(pinned["pinnedDefinition"]["pinnedPosition"], json!(50));
+        if index == 20 {
+            assert_eq!(pinned["pinnedDefinition"]["pinnedPosition"], json!(20));
         }
     }
-    let over_cap_pin = pin_definition(&mut pin_proxy, namespace, "pin_51");
+    let over_cap_pin = pin_definition(&mut pin_proxy, namespace, "pin_21");
     assert_eq!(over_cap_pin["pinnedDefinition"], Value::Null);
     assert_eq!(
         over_cap_pin["userErrors"],
         json!([{
             "field": null,
-            "message": "Limit of 50 pinned definitions.",
+            "message": "Limit of 20 pinned definitions.",
             "code": "PINNED_LIMIT_REACHED"
         }])
     );
@@ -357,20 +357,20 @@ fn metafield_definition_pin_limit_is_fifty_for_pin_create_update_and_standard_en
     );
 
     let mut create_proxy = snapshot_proxy();
-    for index in 1..=50 {
+    for index in 1..=20 {
         let key = format!("pin_{index:02}");
         let created = create_definition(&mut create_proxy, "har1423_create_limit", &key, true);
         assert_eq!(created["userErrors"], json!([]));
-        if index == 50 {
-            assert_eq!(created["createdDefinition"]["pinnedPosition"], json!(50));
+        if index == 20 {
+            assert_eq!(created["createdDefinition"]["pinnedPosition"], json!(20));
         }
     }
     let over_cap_create =
-        create_definition(&mut create_proxy, "har1423_create_limit", "pin_51", true);
+        create_definition(&mut create_proxy, "har1423_create_limit", "pin_21", true);
     assert_eq!(over_cap_create["createdDefinition"], Value::Null);
     assert_eq!(
         over_cap_create["userErrors"][0]["message"],
-        json!("Limit of 50 pinned definitions.")
+        json!("Limit of 20 pinned definitions.")
     );
     assert_eq!(
         over_cap_create["userErrors"][0]["code"],
@@ -378,27 +378,27 @@ fn metafield_definition_pin_limit_is_fifty_for_pin_create_update_and_standard_en
     );
 
     let mut update_proxy = snapshot_proxy();
-    for index in 1..=51 {
+    for index in 1..=21 {
         let key = format!("pin_{index:02}");
         assert_eq!(
             create_definition(&mut update_proxy, "har1423_update_limit", &key, false)["userErrors"],
             json!([])
         );
     }
-    for index in 1..=50 {
+    for index in 1..=20 {
         let key = format!("pin_{index:02}");
         let updated = update_definition_pin(&mut update_proxy, "har1423_update_limit", &key);
         assert_eq!(updated["userErrors"], json!([]));
-        if index == 50 {
-            assert_eq!(updated["updatedDefinition"]["pinnedPosition"], json!(50));
+        if index == 20 {
+            assert_eq!(updated["updatedDefinition"]["pinnedPosition"], json!(20));
         }
     }
     let over_cap_update =
-        update_definition_pin(&mut update_proxy, "har1423_update_limit", "pin_51");
+        update_definition_pin(&mut update_proxy, "har1423_update_limit", "pin_21");
     assert_eq!(over_cap_update["updatedDefinition"], Value::Null);
     assert_eq!(
         over_cap_update["userErrors"][0]["message"],
-        json!("Limit of 50 pinned definitions.")
+        json!("Limit of 20 pinned definitions.")
     );
     assert_eq!(
         over_cap_update["userErrors"][0]["code"],
@@ -406,7 +406,7 @@ fn metafield_definition_pin_limit_is_fifty_for_pin_create_update_and_standard_en
     );
 
     let mut standard_proxy = snapshot_proxy();
-    for index in 1..=50 {
+    for index in 1..=20 {
         let key = format!("pin_{index:02}");
         assert_eq!(
             create_definition(&mut standard_proxy, "har1423_standard_limit", &key, true)
@@ -418,7 +418,7 @@ fn metafield_definition_pin_limit_is_fifty_for_pin_create_update_and_standard_en
     assert_eq!(over_cap_standard["createdDefinition"], Value::Null);
     assert_eq!(
         over_cap_standard["userErrors"][0]["message"],
-        json!("Limit of 50 pinned definitions.")
+        json!("Limit of 20 pinned definitions.")
     );
     assert_eq!(
         over_cap_standard["userErrors"][0]["code"],
@@ -477,38 +477,36 @@ fn metafield_definition_create_resource_type_limit_is_scoped_by_owner_and_app_na
     );
     assert_eq!(customer_created["userErrors"], json!([]));
 
-    let app_one_created = create_definition_for_resource_limit(
-        &mut proxy,
-        "PRODUCT",
-        "app--111--resource_limit",
-        "app_one_key",
-    );
+    // App-reserved namespaces (`app--<id>--…`) can only be written by the app
+    // that owns them: Shopify rejects cross-app definition writes with a top-level
+    // ACCESS_DENIED (see `metafield-definition-app-namespace-resolution` parity
+    // capture). Authenticate as each app via the api-client-id header so the
+    // `$app:` namespace resolves to that app's own reserved namespace, proving the
+    // resource-type limit is bucketed per app independently of the merchant bucket.
+    let app_one_created = create_app_definition_for_resource_limit(&mut proxy, "111", "app_one_key");
     assert_eq!(app_one_created["userErrors"], json!([]));
+    assert_eq!(
+        app_one_created["createdDefinition"]["namespace"],
+        json!("app--111--resource_limit")
+    );
 
     for index in 0..256 {
-        let created = create_definition_for_resource_limit(
-            &mut proxy,
-            "PRODUCT",
-            "app--222--resource_limit",
-            &format!("key_{index:03}"),
-        );
+        let created =
+            create_app_definition_for_resource_limit(&mut proxy, "222", &format!("key_{index:03}"));
         assert_eq!(created["userErrors"], json!([]));
     }
-    let over_app_limit = create_definition_for_resource_limit(
-        &mut proxy,
-        "PRODUCT",
-        "app--222--resource_limit",
-        "key_256",
-    );
+    let over_app_limit = create_app_definition_for_resource_limit(&mut proxy, "222", "key_256");
     assert_eq!(over_app_limit["createdDefinition"], Value::Null);
     assert_eq!(
         over_app_limit["userErrors"][0]["code"],
         json!("RESOURCE_TYPE_LIMIT_EXCEEDED")
     );
 
-    let app_one_default_namespace_created =
-        create_definition_for_resource_limit(&mut proxy, "PRODUCT", "app--111", "default_key");
-    assert_eq!(app_one_default_namespace_created["userErrors"], json!([]));
+    // A second namespace under the same app shares that app's bucket and is still
+    // well under the limit, so it succeeds.
+    let app_one_second_namespace_created =
+        create_app_definition_for_resource_limit(&mut proxy, "111", "default_key");
+    assert_eq!(app_one_second_namespace_created["userErrors"], json!([]));
 
     let app_three_created =
         create_app_definition_for_resource_limit(&mut proxy, "333", "app_three_key");

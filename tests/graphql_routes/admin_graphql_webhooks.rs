@@ -939,7 +939,7 @@ fn dedicated_pubsub_missing_required_fields_return_coercion_errors_before_stagin
         json!({
             "errors": [{
                 "message": "Variable $webhookSubscription of type PubSubWebhookSubscriptionInput! was provided invalid value for pubSubTopic (Expected value to not be null)",
-                "locations": [{ "line": 6, "column": 11 }],
+                "locations": [{ "line": 4, "column": 11 }],
                 "extensions": {
                     "code": "INVALID_VARIABLE",
                     "value": { "pubSubProject": "valid-project" },
