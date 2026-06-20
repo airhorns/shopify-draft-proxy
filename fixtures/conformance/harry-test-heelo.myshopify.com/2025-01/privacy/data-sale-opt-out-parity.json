@@ -1,4 +1,14 @@
 {
+  "seedCustomers": [
+    {
+      "id": "gid://shopify/Customer/10582642524466",
+      "email": "hermes-data-sale-1778010066809@example.com",
+      "dataSaleOptOut": false,
+      "defaultEmailAddress": {
+        "emailAddress": "hermes-data-sale-1778010066809@example.com"
+      }
+    }
+  ],
   "precondition": {
     "variables": {
       "input": {
