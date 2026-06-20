@@ -738,7 +738,15 @@ function collectSetupEntitySeeds(capture: unknown): {
       const nodeId = node?.['id'];
       if (typeof nodeId !== 'string') continue;
       const merged = fulfillmentOrders.get(nodeId);
-      if (merged) nodes[i] = { ...node, ...merged };
+      if (!merged) continue;
+      // The merged FO projection carries an `order` back-reference (the
+      // hydrate selects `order { ... }`). Overlaying it onto a node that
+      // lives *inside* that same order's `fulfillmentOrders.nodes` would
+      // close a cycle (order -> nodes[i] -> order -> ...), which breaks
+      // JSON serialization of the seed body. Keep the node's own `order`
+      // (from `...node`) and overlay every other FO field.
+      const { order: _omitOrderBackref, ...mergedFields } = merged;
+      nodes[i] = { ...node, ...mergedFields };
     }
   };
   for (const order of orders.values()) overlayFulfillmentOrders(order);
