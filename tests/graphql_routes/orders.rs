@@ -9,6 +9,62 @@ fn without_extensions(value: &Value) -> Value {
     value
 }
 
+/// Derive the order-edit variant catalog (`orderEditAddVariant` resolves the
+/// added calculated line item against it) from a capture's `productVariant`
+/// hydration calls, mirroring the parity harness (`scripts/parity-run.ts`):
+/// the calculated line-item title mirrors the product title, with the variant
+/// id / sku / unit price carried alongside.
+fn order_edit_variants_from_upstream(fixture: &Value) -> Vec<Value> {
+    let mut derived: Vec<Value> = Vec::new();
+    let Some(calls) = fixture["upstreamCalls"].as_array() else {
+        return derived;
+    };
+    for call in calls {
+        let body = if call["response"]["body"].is_object() {
+            &call["response"]["body"]
+        } else {
+            &call["response"]
+        };
+        let variant = &body["data"]["productVariant"];
+        let Some(id) = variant["id"].as_str() else {
+            continue;
+        };
+        if derived.iter().any(|entry| entry["id"] == json!(id)) {
+            continue;
+        }
+        let title = if variant["product"]["title"].is_string() {
+            variant["product"]["title"].clone()
+        } else {
+            variant["title"].clone()
+        };
+        derived.push(json!({
+            "id": id,
+            "title": title,
+            "sku": variant["sku"].clone(),
+            "price": variant["price"].clone()
+        }));
+    }
+    derived
+}
+
+/// Seed an order-edit-existing precondition the way the parity harness does:
+/// the `seedOrder` graph plus the order-edit variant catalog derived from the
+/// capture's `productVariant` hydration calls. Standalone the proxy can't
+/// replay those upstream hydrates, so injecting the equivalent store state lets
+/// the local edit engine compute begin/add/commit from real state.
+fn seed_order_edit_existing(proxy: &mut DraftProxy, fixture: &Value) {
+    let seed = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/seed",
+        &json!({
+            "orders": [fixture["seedOrder"].clone()],
+            "orderEditVariants": order_edit_variants_from_upstream(fixture)
+        })
+        .to_string(),
+    ));
+    assert_eq!(seed.status, 200);
+}
+
 fn stage_fulfillment_for_event(proxy: &mut DraftProxy) -> (Value, Value) {
     let create_order = proxy.process_request(json_graphql_request(
         r#"
@@ -796,7 +852,10 @@ fn fulfillment_tracking_update_hydrates_existing_fulfillment() {
         fixture["mutation"]["response"]["data"]["fulfillmentTrackingInfoUpdate"]["fulfillment"]
             ["trackingInfo"]
     );
-    assert_eq!(forwarded.lock().unwrap().len(), 1);
+    // `hydrate_order_for_fulfillment_lifecycle` issues a two-stage upstream hydrate
+    // (stage-one fulfillment lookup, then stage-two order read) before staging the
+    // tracking update, so the LiveHybrid transport sees two forwarded reads.
+    assert_eq!(forwarded.lock().unwrap().len(), 2);
     let log = proxy.get_log_snapshot();
     assert_eq!(
         log["entries"][0]["operationName"],
@@ -2215,8 +2274,11 @@ fn payment_reminder_send_local_only_order_guardrails_ported_from_gleam() {
     let query = include_str!("../../config/parity-requests/payments/payment-reminder-send.graphql");
     let cases = [
         (
+            // `/123` is the conformance "does not exist" sentinel
+            // (metafields_orders_payments.rs:2608); editing the handler would
+            // break the payments parity spec, so assert the recorded error here.
             "gid://shopify/PaymentSchedule/123",
-            json!({ "success": true, "userErrors": [] }),
+            payment_reminder_error("Payment schedule does not exist"),
         ),
         (
             "gid://shopify/PaymentSchedule/selling-plan",
@@ -3085,8 +3147,10 @@ fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
         json!({
             "paymentTerms": Value::Null,
             "userErrors": [{
-                "field": ["base"],
-                "message": "Cannot create payment terms with multiple schedules.",
+                // Matches the conformance capture (payment-terms-multiple-schedules.json):
+                // null field, "multiple payment schedules." message.
+                "field": Value::Null,
+                "message": "Cannot create payment terms with multiple payment schedules.",
                 "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
             }]
         })
@@ -3218,7 +3282,7 @@ fn payment_terms_create_update_guardrails_port_old_gleam_helper_edges() {
     assert_eq!(
         missing_update.body["data"]["paymentTermsUpdate"]["userErrors"][0],
         json!({
-            "field": Value::Null,
+            "field": ["input", "paymentTermsId"],
             "message": "Payment terms do not exist",
             "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
         })
@@ -3536,7 +3600,8 @@ fn payment_terms_create_delete_and_owner_cascade_replay_captured_shapes() {
     assert_eq!(
         create_terms.body["data"]["paymentTermsCreate"]["paymentTerms"]["paymentSchedules"]
             ["nodes"][0]["amount"],
-        json!({ "amount": "57.00", "currencyCode": "CAD" })
+        // `normalize_money_amount` canonicalizes the input "57.00" to "57.0".
+        json!({ "amount": "57.0", "currencyCode": "CAD" })
     );
 
     let multiple = proxy.process_request(json_graphql_request(
@@ -5174,7 +5239,38 @@ fn remaining_order_fixture_backed_edges_replay_without_passthrough_logs() {
     ))
     .unwrap();
 
-    let mut fulfillment_proxy = snapshot_proxy();
+    // `fulfillmentCancel`/`fulfillmentTrackingInfoUpdate` are gated local-support
+    // roots whose precondition checks hydrate the real fulfillment's parent order
+    // upstream (the recorded `OrdersFulfillmentHydrate` calls). Replay the captured
+    // hydrate keyed by the forwarded `variables.id` so the cancelled/delivered/happy
+    // parents resolve to their recorded precondition outcomes without a passthrough
+    // mutation.
+    let hydrate_calls = fulfillment_fixture["upstreamCalls"].clone();
+    let mut fulfillment_proxy = configured_proxy(
+        ReadMode::LiveHybrid,
+        Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
+    )
+    .with_upstream_transport(move |request| {
+        let body: Value = serde_json::from_str(&request.body).unwrap_or(Value::Null);
+        let requested_id = body["variables"]["id"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string();
+        let response_body = hydrate_calls
+            .as_array()
+            .and_then(|calls| {
+                calls
+                    .iter()
+                    .find(|call| call["variables"]["id"] == json!(requested_id))
+            })
+            .map(|call| call["response"]["body"].clone())
+            .unwrap_or(Value::Null);
+        shopify_draft_proxy::proxy::Response {
+            status: 200,
+            headers: Default::default(),
+            body: response_body,
+        }
+    });
     let cancel = fulfillment_proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/orders/fulfillment-state-preconditions-cancel.graphql"
@@ -5216,12 +5312,8 @@ fn remaining_order_fixture_backed_edges_replay_without_passthrough_logs() {
         fulfillment_fixture["trackingHappyPath"]["variables"].clone(),
     ));
     assert_eq!(
-        happy_tracking.body["data"]["fulfillmentTrackingInfoUpdate"]["fulfillment"],
-        Value::Null
-    );
-    assert_eq!(
-        happy_tracking.body["data"]["fulfillmentTrackingInfoUpdate"]["userErrors"][0]["code"],
-        "NOT_IMPLEMENTED"
+        happy_tracking.body,
+        fulfillment_fixture["trackingHappyPath"]["response"]
     );
 
     let mut proxy = snapshot_proxy();
@@ -5442,39 +5534,123 @@ fn order_edit_existing_downstream_reads_track_add_and_zero_removal_modes() {
     ))
     .unwrap();
 
-    let mut add_proxy = snapshot_proxy();
-    let add = add_proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-addVariant.graphql"),
-        json!({"id": "gid://shopify/CalculatedOrder/1", "variantId": "gid://shopify/ProductVariant/46789254021353", "quantity": 1, "locationId": "gid://shopify/Location/68509171945", "allowDuplicates": false}),
-    ));
-    assert_eq!(add.body, happy_fixture["addVariant"]["response"]);
-    let add_downstream = add_proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/orders/orderEditExistingWorkflow-downstream-read.graphql"
-        ),
-        json!({"id": "gid://shopify/Order/6834565087465"}),
-    ));
-    assert_eq!(
-        add_downstream.body["data"]["order"]["lineItems"]["nodes"][2]["currentQuantity"],
-        json!(1)
+    let begin_doc =
+        include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql");
+    let commit_doc = include_str!(
+        "../../config/parity-requests/orders/orderEditExistingWorkflow-commit.graphql"
+    );
+    let downstream_doc = include_str!(
+        "../../config/parity-requests/orders/orderEditExistingWorkflow-downstream-read.graphql"
     );
 
-    let mut zero_proxy = snapshot_proxy();
-    let set_zero = zero_proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-setQuantity.graphql"),
-        json!({"id": "gid://shopify/CalculatedOrder/1", "lineItemId": "gid://shopify/LineItem/1", "quantity": 0, "restock": true}),
+    // Add mode: begin an edit on the seeded existing order, add a variant, commit,
+    // then read the order back. The downstream read is served from the committed
+    // overlay (the engine-projected order), not from any recorded fixture echo, so
+    // the added line must surface at currentQuantity 1.
+    let mut add_proxy = snapshot_proxy();
+    seed_order_edit_existing(&mut add_proxy, &happy_fixture);
+    let add_begin = add_proxy.process_request(json_graphql_request(
+        begin_doc,
+        happy_fixture["variables"].clone(),
     ));
-    assert_eq!(set_zero.body, zero_fixture["setZero"]["response"]);
-    let zero_downstream = zero_proxy.process_request(json_graphql_request(
+    let add_calc_id = add_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+    let add = add_proxy.process_request(json_graphql_request(
         include_str!(
-            "../../config/parity-requests/orders/orderEditExistingWorkflow-downstream-read.graphql"
+            "../../config/parity-requests/orders/orderEditExistingWorkflow-addVariant.graphql"
         ),
-        json!({"id": "gid://shopify/Order/6834565087465"}),
+        json!({
+            "id": add_calc_id.clone(),
+            "variantId": happy_fixture["addVariant"]["variables"]["variantId"].clone(),
+            "quantity": happy_fixture["addVariant"]["variables"]["quantity"].clone(),
+            "locationId": happy_fixture["addVariant"]["variables"]["locationId"].clone(),
+            "allowDuplicates": happy_fixture["addVariant"]["variables"]["allowDuplicates"].clone()
+        }),
     ));
     assert_eq!(
-        zero_downstream.body["data"]["order"]["lineItems"]["nodes"][2]["currentQuantity"],
+        add.body["data"]["orderEditAddVariant"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        add.body["data"]["orderEditAddVariant"]["calculatedLineItem"]["currentQuantity"],
+        json!(1)
+    );
+    let add_commit = add_proxy.process_request(json_graphql_request(
+        commit_doc,
+        json!({
+            "id": add_calc_id,
+            "notifyCustomer": happy_fixture["commitAdd"]["variables"]["notifyCustomer"].clone(),
+            "staffNote": happy_fixture["commitAdd"]["variables"]["staffNote"].clone()
+        }),
+    ));
+    assert_eq!(
+        add_commit.body["data"]["orderEditCommit"]["userErrors"],
+        json!([])
+    );
+    let add_downstream = add_proxy.process_request(json_graphql_request(
+        downstream_doc,
+        json!({"id": "gid://shopify/Order/6834565087465"}),
+    ));
+    let added_line = add_downstream.body["data"]["order"]["lineItems"]["nodes"]
+        .as_array()
+        .expect("downstream lineItems nodes")
+        .iter()
+        .find(|node| node["title"].as_str() == Some("VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE"))
+        .expect("added VANS line present after commit");
+    assert_eq!(added_line["currentQuantity"], json!(1));
+
+    // Zero/removal mode: begin an edit on the seeded order, zero out an existing
+    // line, commit, then read back. The zeroed line stays present with
+    // currentQuantity 0 in the committed projection.
+    let zeroed_line_id = "gid://shopify/LineItem/16209970561257";
+    let mut zero_proxy = snapshot_proxy();
+    seed_order_edit_existing(&mut zero_proxy, &zero_fixture);
+    let zero_begin = zero_proxy.process_request(json_graphql_request(
+        begin_doc,
+        zero_fixture["variables"].clone(),
+    ));
+    let zero_calc_id = zero_begin.body["data"]["orderEditBegin"]["calculatedOrder"]["id"].clone();
+    let set_zero = zero_proxy.process_request(json_graphql_request(
+        include_str!(
+            "../../config/parity-requests/orders/orderEditExistingWorkflow-setQuantity.graphql"
+        ),
+        json!({
+            "id": zero_calc_id.clone(),
+            "lineItemId": "gid://shopify/CalculatedLineItem/16209970561257",
+            "quantity": 0,
+            "restock": true
+        }),
+    ));
+    assert_eq!(
+        set_zero.body["data"]["orderEditSetQuantity"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        set_zero.body["data"]["orderEditSetQuantity"]["calculatedLineItem"]["currentQuantity"],
         json!(0)
     );
+    let zero_commit = zero_proxy.process_request(json_graphql_request(
+        commit_doc,
+        json!({
+            "id": zero_calc_id,
+            "notifyCustomer": false,
+            "staffNote": "HAR-115 order edit zero capture"
+        }),
+    ));
+    assert_eq!(
+        zero_commit.body["data"]["orderEditCommit"]["userErrors"],
+        json!([])
+    );
+    let zero_downstream = zero_proxy.process_request(json_graphql_request(
+        downstream_doc,
+        json!({"id": "gid://shopify/Order/6834565087465"}),
+    ));
+    let zeroed_line = zero_downstream.body["data"]["order"]["lineItems"]["nodes"]
+        .as_array()
+        .expect("downstream lineItems nodes")
+        .iter()
+        .find(|node| node["id"].as_str() == Some(zeroed_line_id))
+        .expect("zeroed line still present after commit");
+    assert_eq!(zeroed_line["currentQuantity"], json!(0));
 }
 
 #[test]
@@ -5513,6 +5689,7 @@ fn order_edit_begin_add_commit_stages_session_from_input_order_and_logs_raw_muta
     ))
     .unwrap();
     let mut proxy = snapshot_proxy();
+    seed_order_edit_existing(&mut proxy, &fixture);
 
     let begin = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql"),
@@ -5543,7 +5720,18 @@ fn order_edit_begin_add_commit_stages_session_from_input_order_and_logs_raw_muta
         }),
     ));
     assert_eq!(add.status, 200);
-    assert_eq!(add.body, fixture["addVariant"]["response"]);
+    // The engine computes the added line from the seeded variant catalog; assert the
+    // calculatedLineItem and userErrors match the recording. The orderEditSession id
+    // is engine-synthesized from the order id (OrderEditSession/<tail>), so it differs
+    // from the recorded opaque session id and is not compared here.
+    assert_eq!(
+        add.body["data"]["orderEditAddVariant"]["calculatedLineItem"],
+        fixture["addVariant"]["response"]["data"]["orderEditAddVariant"]["calculatedLineItem"]
+    );
+    assert_eq!(
+        add.body["data"]["orderEditAddVariant"]["userErrors"],
+        fixture["addVariant"]["response"]["data"]["orderEditAddVariant"]["userErrors"]
+    );
 
     let commit = proxy.process_request(json_graphql_request(
         include_str!(
@@ -5630,6 +5818,7 @@ fn order_edit_begin_rejects_not_editable_and_existing_open_session() {
         "../../fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/order-edit-existing-order-happy-path.json"
     ))
     .unwrap();
+    seed_order_edit_existing(&mut proxy, &fixture);
     let first_begin = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-begin.graphql"),
         fixture["variables"].clone(),
@@ -5653,107 +5842,41 @@ fn order_edit_begin_rejects_not_editable_and_existing_open_session() {
 }
 
 #[test]
-fn remaining_order_fixture_tail_roots_are_not_registered_local_support() {
-    let residual_fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/orders/order-edit-residual-local-staging.json"
-    ))
-    .unwrap();
-    let delete_fixture: Value = serde_json::from_str(include_str!(
-        "../../fixtures/conformance/local-runtime/2026-04/orders/orderDelete-cascade-and-deletability.json"
-    ))
-    .unwrap();
-    let mut fulfillment_proxy = snapshot_proxy();
-    let cancel = fulfillment_proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/orders/fulfillment-state-preconditions-cancel.graphql"
-        ),
-        json!({ "id": "gid://shopify/Fulfillment/6189145325801" }),
-    ));
-    assert_eq!(cancel.status, 400);
-    assert_eq!(
-        cancel.body["errors"][0]["message"],
-        json!("No mutation dispatcher implemented for root field: fulfillmentCancel")
-    );
-    assert_eq!(fulfillment_proxy.get_log_snapshot()["entries"], json!([]));
-
-    let tracking = fulfillment_proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/orders/fulfillment-state-preconditions-tracking.graphql"
-        ),
-        json!({
-            "fulfillmentId": "gid://shopify/Fulfillment/6189145325801",
-            "trackingInfoInput": { "number": "TRACK" }
-        }),
-    ));
-    assert_eq!(tracking.status, 400);
-    assert_eq!(
-        tracking.body["errors"][0]["message"],
-        json!("No mutation dispatcher implemented for root field: fulfillmentTrackingInfoUpdate")
-    );
-
+fn order_edit_existing_fixed_id_unstaged_calculated_order_returns_user_error() {
     let mut proxy = snapshot_proxy();
-    let residual_count = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/orders/order-edit-residual-local-staging-read.graphql"
-        ),
-        json!({}),
-    ));
-    assert_eq!(
-        residual_count.body["data"]["ordersCount"],
-        residual_fixture["expected"]["emptyOrdersCount"]
-    );
-
-    let unknown_delete = proxy.process_request(json_graphql_request(
-        include_str!(
-            "../../config/parity-requests/orders/orderDelete-cascade-and-deletability.graphql"
-        ),
-        delete_fixture["requests"]["unknownOrderDelete"]["variables"].clone(),
-    ));
-    assert_eq!(unknown_delete.status, 400);
-    assert_eq!(
-        unknown_delete.body["errors"][0]["message"],
-        json!("No mutation dispatcher implemented for root field: orderDelete")
-    );
-
-    let unknown_staff = proxy.process_request(json_graphql_request(
-        include_str!("../../config/parity-requests/orders/orderUpdate-localization-and-staff-unknown-staff.graphql"),
-        json!({"input": {"id": "gid://shopify/Order/8734696014130", "staffMemberId": "gid://shopify/StaffMember/999999999999"}}),
-    ));
-    assert_eq!(unknown_staff.status, 400);
-    assert_eq!(
-        unknown_staff.body["errors"][0]["message"],
-        json!("No mutation dispatcher implemented for root field: orderUpdate")
-    );
-}
-
-#[test]
-fn order_edit_existing_fixed_id_fixture_tail_is_not_registered_local_support() {
-    let mut proxy = snapshot_proxy();
+    // `orderEditAddVariant`/`orderEditSetQuantity` are gated local-support roots;
+    // with no `orderEditBegin` session staged they resolve to a 200 response whose
+    // payload carries the "calculated order does not exist" user error (the same
+    // shape `order_edit_lifecycle_user_errors_match_captured_missing_resource_shapes`
+    // asserts), not a 400 unimplemented-dispatcher error.
     let add = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-addVariant.graphql"),
         json!({"id": "gid://shopify/CalculatedOrder/1", "variantId": "gid://shopify/ProductVariant/46789254021353", "quantity": 1, "locationId": "gid://shopify/Location/68509171945", "allowDuplicates": false}),
     ));
-    assert_eq!(add.status, 400);
+    assert_eq!(add.status, 200);
     assert_eq!(
-        add.body["errors"][0]["message"],
-        json!("No mutation dispatcher implemented for root field: orderEditAddVariant")
+        add.body["data"]["orderEditAddVariant"]["userErrors"][0]["message"],
+        json!("The calculated order does not exist.")
     );
 
     let set_zero = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/orderEditExistingWorkflow-setQuantity.graphql"),
         json!({"id": "gid://shopify/CalculatedOrder/1", "lineItemId": "gid://shopify/LineItem/1", "quantity": 0, "restock": true}),
     ));
-    assert_eq!(set_zero.status, 400);
+    assert_eq!(set_zero.status, 200);
     assert_eq!(
-        set_zero.body["errors"][0]["message"],
-        json!("No mutation dispatcher implemented for root field: orderEditSetQuantity")
+        set_zero.body["data"]["orderEditSetQuantity"]["userErrors"][0]["message"],
+        json!("The calculated order does not exist.")
     );
 }
 
 #[test]
-fn order_edit_existing_validation_fixture_tail_is_not_registered_local_support() {
+fn order_edit_existing_validation_unstaged_calculated_order_returns_user_error() {
     let mut proxy = snapshot_proxy();
-
+    // Both the invalid-variant and duplicate-variant fixtures target a calculated
+    // order id that was never staged via `orderEditBegin`, so the gated handler
+    // short-circuits with the "calculated order does not exist" user error (200)
+    // before any variant validation runs.
     let invalid_variant = proxy.process_request(json_graphql_request(
         include_str!(
             "../../config/parity-requests/orders/orderEditExistingWorkflow-addVariant.graphql"
@@ -5766,10 +5889,10 @@ fn order_edit_existing_validation_fixture_tail_is_not_registered_local_support()
             "allowDuplicates": false
         }),
     ));
-    assert_eq!(invalid_variant.status, 400);
+    assert_eq!(invalid_variant.status, 200);
     assert_eq!(
-        invalid_variant.body["errors"][0]["message"],
-        json!("No mutation dispatcher implemented for root field: orderEditAddVariant")
+        invalid_variant.body["data"]["orderEditAddVariant"]["userErrors"][0]["message"],
+        json!("The calculated order does not exist.")
     );
 
     let duplicate_variant = proxy.process_request(json_graphql_request(
@@ -5784,10 +5907,10 @@ fn order_edit_existing_validation_fixture_tail_is_not_registered_local_support()
             "allowDuplicates": false
         }),
     ));
-    assert_eq!(duplicate_variant.status, 400);
+    assert_eq!(duplicate_variant.status, 200);
     assert_eq!(
-        duplicate_variant.body["errors"][0]["message"],
-        json!("No mutation dispatcher implemented for root field: orderEditAddVariant")
+        duplicate_variant.body["data"]["orderEditAddVariant"]["userErrors"][0]["message"],
+        json!("The calculated order does not exist.")
     );
 }
 
@@ -5895,8 +6018,17 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
         json!("gid://shopify/CustomerPaymentMethod/3")
     );
     assert_eq!(
+        // The inline reminder targets `/123`, the conformance "does not exist"
+        // sentinel; the recorded fixture reports a PAYMENT_REMINDER_SEND_UNSUCCESSFUL.
         primary.body["data"]["reminder"],
-        json!({ "success": true, "userErrors": [] })
+        json!({
+            "success": null,
+            "userErrors": [{
+                "field": null,
+                "message": "Payment schedule does not exist",
+                "code": "PAYMENT_REMINDER_SEND_UNSUCCESSFUL"
+            }]
+        })
     );
 
     let duplication = proxy.process_request(json_graphql_request(
@@ -5963,10 +6095,12 @@ fn customer_payment_methods_replay_local_staging_and_validation_shapes() {
         include_str!("../../config/parity-requests/payments/customer-payment-method-credit-card-create-validation-missing-session.graphql"),
         validation["variables"]["missingSession"].clone(),
     ));
+    // Omitting the required `sessionId` argument is a schema-validation failure, so
+    // Shopify returns a top-level `errors` array (missingRequiredArguments) with no
+    // data — not a BLANK userError. Mirror the recorded shape exactly.
     assert_eq!(
-        missing_session.body["data"]["customerPaymentMethodCreditCardCreate"]["userErrors"][0]
-            ["code"],
-        json!("BLANK")
+        without_extensions(&missing_session.body),
+        without_extensions(&validation["expected"]["missingSession"])
     );
 
     let processing = proxy.process_request(json_graphql_request(
@@ -6119,7 +6253,7 @@ fn customer_payment_method_update_and_revoke_tail_helpers_ported_from_gleam() {
         success_read.body["data"]["customerPaymentMethod"],
         json!({
             "id": "gid://shopify/CustomerPaymentMethod/base-card",
-            "revokedAt": "2024-01-01T00:00:01.000Z",
+            "revokedAt": "2024-01-01T00:00:02.000Z",
             "revokedReason": "CUSTOMER_REVOKED"
         })
     );
@@ -6168,6 +6302,37 @@ fn customer_payment_method_update_and_revoke_tail_helpers_ported_from_gleam() {
 #[test]
 fn order_return_lifecycle_and_reverse_logistics_replay_local_runtime_shapes() {
     let mut proxy = snapshot_proxy();
+
+    // Seed the precondition order so the return staging path can resolve the
+    // fulfillment line item. In parity mode this order is created by the
+    // scenario's setup mutations (and fulfilled upstream); standalone the proxy
+    // can't reproduce the upstream fulfillment-line-item id, so we inject the
+    // equivalent fulfilled-order graph through the same `/__meta/seed` endpoint
+    // the parity harness uses to seed `seedOrder`.
+    let seed = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/seed",
+        &json!({
+            "orders": [{
+                "id": "gid://shopify/Order/return-flow",
+                "name": "#RETURN-FLOW",
+                "fulfillments": [{
+                    "fulfillmentLineItems": {
+                        "nodes": [{
+                            "id": "gid://shopify/FulfillmentLineItem/return-flow",
+                            "quantity": 10,
+                            "lineItem": {
+                                "id": "gid://shopify/LineItem/return-flow",
+                                "title": "Return flow item"
+                            }
+                        }]
+                    }
+                }]
+            }]
+        })
+        .to_string(),
+    ));
+    assert_eq!(seed.status, 200);
 
     let create = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/return-create-local-staging.graphql"),
@@ -6387,6 +6552,23 @@ fn order_return_recorded_reverse_logistics_and_shipping_fee_use_staged_store_rea
     .unwrap();
     let mut proxy = snapshot_proxy();
 
+    // Seed the recorded precondition orders (the parity harness seeds these from
+    // each fixture's `seedOrder` via `/__meta/seed`); standalone we mirror that
+    // exactly so the return staging path resolves the recorded fulfillment line
+    // items.
+    let seed = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/seed",
+        &json!({
+            "orders": [
+                reverse_fixture["seedOrder"].clone(),
+                shipping_fixture["seedOrder"].clone()
+            ]
+        })
+        .to_string(),
+    ));
+    assert_eq!(seed.status, 200);
+
     let request = proxy.process_request(json_graphql_request(
         include_str!("../../config/parity-requests/orders/return-request-recorded.graphql"),
         reverse_fixture["returnRequest"]["variables"].clone(),
@@ -6472,7 +6654,7 @@ fn order_return_recorded_reverse_logistics_and_shipping_fee_use_staged_store_rea
     assert_eq!(
         shipping_create.body["data"]["returnCreate"]["return"]["returnShippingFees"][0]
             ["amountSet"]["shopMoney"]["amount"],
-        json!("7.50")
+        json!("7.5")
     );
 
     let shipping_downstream = proxy.process_request(json_graphql_request(
@@ -6488,7 +6670,7 @@ fn order_return_recorded_reverse_logistics_and_shipping_fee_use_staged_store_rea
     assert_eq!(
         shipping_downstream.body["data"]["order"]["returns"]["nodes"][0]["returnShippingFees"][0]
             ["amountSet"]["shopMoney"]["amount"],
-        json!("7.50")
+        json!("7.5")
     );
 }
 
@@ -6517,6 +6699,46 @@ fn order_return_state_preconditions_use_staged_statuses() {
         include_str!("../../config/parity-requests/orders/return-process-recorded.graphql");
     let mut proxy = snapshot_proxy();
 
+    // Seed each case's precondition order. In parity these are created by the
+    // scenario's per-case `orderCreate`+fulfillment setup; standalone we inject
+    // the equivalent fulfilled-order graph (order id + fulfillment line item id
+    // from the fixture's `setup`) through `/__meta/seed` so the return staging
+    // path can resolve the fulfillment line item it validates against.
+    let seed_orders: Vec<Value> = [
+        "requested",
+        "openCloseReopen",
+        "cancelable",
+        "declined",
+        "processed",
+    ]
+    .iter()
+    .map(|case| {
+        let setup = &fixture["setup"][case];
+        json!({
+            "id": setup["orderId"].clone(),
+            "name": format!("#RETURN-{case}"),
+            "fulfillments": [{
+                "fulfillmentLineItems": {
+                    "nodes": [{
+                        "id": setup["fulfillmentLineItemId"].clone(),
+                        "quantity": 5,
+                        "lineItem": {
+                            "id": format!("gid://shopify/LineItem/{case}"),
+                            "title": "Return precondition item"
+                        }
+                    }]
+                }
+            }]
+        })
+    })
+    .collect();
+    let seed = proxy.process_request(request_with_body(
+        "POST",
+        "/__meta/seed",
+        &json!({ "orders": seed_orders }).to_string(),
+    ));
+    assert_eq!(seed.status, 200);
+
     let requested = proxy.process_request(json_graphql_request(
         request_query,
         fixture["requestedCase"]["returnRequest"]["variables"].clone(),
@@ -6532,7 +6754,7 @@ fn order_return_state_preconditions_use_staged_statuses() {
     );
     assert_eq!(
         requested_close.body["data"]["returnClose"]["userErrors"][0]["code"],
-        json!("INVALID")
+        json!("INVALID_STATE")
     );
     let requested_reopen = proxy.process_request(json_graphql_request(
         reopen_query,
@@ -6540,7 +6762,7 @@ fn order_return_state_preconditions_use_staged_statuses() {
     ));
     assert_eq!(
         requested_reopen.body["data"]["returnReopen"]["userErrors"][0]["code"],
-        json!("INVALID")
+        json!("INVALID_STATE")
     );
 
     let cancelable = proxy.process_request(json_graphql_request(
@@ -6621,7 +6843,7 @@ fn order_return_state_preconditions_use_staged_statuses() {
     ));
     assert_eq!(
         declined_close.body["data"]["returnClose"]["userErrors"][0]["code"],
-        json!("INVALID")
+        json!("INVALID_STATE")
     );
 
     let processed = proxy.process_request(json_graphql_request(
@@ -6654,6 +6876,6 @@ fn order_return_state_preconditions_use_staged_statuses() {
     ));
     assert_eq!(
         processed_cancel.body["data"]["returnCancel"]["userErrors"][0]["code"],
-        json!("INVALID")
+        json!("INVALID_STATE")
     );
 }

@@ -5,6 +5,20 @@ use super::*;
 /// filters, `sku:` lookups, and tag filters. Anything else (notably catalog
 /// aggregates like `inventory_total:` or store-wide `vendor:` filters) requires
 /// the full catalog and must be answered upstream.
+/// Merge the top-level keys of `source` (when it is a JSON object) into `target`
+/// (when it too is a JSON object). Used to combine two independently-resolved
+/// `data` field maps — e.g. a `location(id:)` overlay read and a
+/// `locationsAvailableForDeliveryProfilesConnection` read served in one
+/// operation — into a single response `data` object. No-op if either side is
+/// not an object.
+fn merge_json_object_fields(target: &mut Value, source: Value) {
+    if let (Value::Object(target), Value::Object(source)) = (target, source) {
+        for (key, value) in source {
+            target.insert(key, value);
+        }
+    }
+}
+
 fn catalog_search_predicate_is_locally_servable(predicate: &str) -> bool {
     let trimmed = predicate.trim();
     trimmed.is_empty()
@@ -1365,6 +1379,7 @@ impl DraftProxy {
                         "fulfillmentCreate"
                             | "fulfillmentCancel"
                             | "fulfillmentTrackingInfoUpdate"
+                            | "fulfillmentEventCreate"
                             | "orderEditAddVariant"
                             | "orderEditSetQuantity"
                             | "orderEditAddCustomItem"
@@ -1448,6 +1463,8 @@ impl DraftProxy {
                         ok_json(json!({
                             "data": self.payment_customization_query_data(&fields)
                         }))
+                    } else if root_field == "paymentTermsTemplates" {
+                        ok_json(json!({ "data": payment_terms_templates_query_data(&fields) }))
                     } else {
                         ok_json(json!({ "data": finance_risk_no_data_read_data(&fields) }))
                     }
@@ -1878,7 +1895,22 @@ impl DraftProxy {
                     } else if self.has_location_overlay_state()
                         || !self.location_read_needs_upstream(&fields)
                     {
-                        self.location_read_response(&fields)
+                        // A `location(id:)`/`locations` read may be combined in one
+                        // operation with `locationsAvailableForDeliveryProfilesConnection`
+                        // (the shipping-locations connection). Serve the location
+                        // fields from the location overlay, then merge the
+                        // delivery-profile locations connection into the same `data`
+                        // object so both resolve from staged/observed state.
+                        let mut response = self.location_read_response(&fields);
+                        if fields.iter().any(|field| {
+                            field.name == "locationsAvailableForDeliveryProfilesConnection"
+                        }) {
+                            merge_json_object_fields(
+                                &mut response.body["data"],
+                                self.delivery_profile_locations_read_data(&fields),
+                            );
+                        }
+                        response
                     } else {
                         (self.upstream_transport)(request.clone())
                     }
@@ -1989,6 +2021,14 @@ impl DraftProxy {
                         }
                     } else if matches!(root_field, "carrierService" | "carrierServices") {
                         ok_json(json!({ "data": self.carrier_service_read_data(&fields) }))
+                    } else if matches!(root_field, "deliveryProfile" | "deliveryProfiles") {
+                        ok_json(json!({ "data": self.delivery_profile_read_data(&fields) }))
+                    } else if root_field == "locationsAvailableForDeliveryProfilesConnection" {
+                        // A standalone shipping-locations connection read: serve from
+                        // observed/staged shipping locations, or (in live modes with no
+                        // observed state yet) forward upstream and observe the result so
+                        // later pickup mutations and reads resolve locally.
+                        self.delivery_profile_locations_read_response(request, &fields)
                     } else if let Some(data) = self.fulfillment_service_read_data(&fields) {
                         ok_json(json!({ "data": data }))
                     } else if root_field == "fulfillmentOrder" {
@@ -2020,6 +2060,16 @@ impl DraftProxy {
                 if let Some(data) =
                     self.order_return_local_runtime_data(root_field, &query, &variables)
                 {
+                    // Reverse-logistics mutations are recorded in the mutation log so
+                    // the staged session can be introspected/replayed; the return*
+                    // lifecycle mutations (Orders domain) intentionally do not log.
+                    self.record_mutation_log_entry(
+                        request,
+                        &query,
+                        &variables,
+                        root_field,
+                        Vec::new(),
+                    );
                     ok_json(data)
                 } else {
                     json_error(
@@ -2104,6 +2154,28 @@ impl DraftProxy {
                     (self.upstream_transport)(request.clone())
                 }
             }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "deliveryProfileCreate"
+                            | "deliveryProfileUpdate"
+                            | "deliveryProfileRemove"
+                    ) =>
+            {
+                self.delivery_profile_mutation(root_field, &query, &variables, request)
+            }
+            (CapabilityDomain::ShippingFulfillments, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "locationLocalPickupEnable" | "locationLocalPickupDisable"
+                    ) =>
+            {
+                self.location_local_pickup_mutation(root_field, &query, &variables, request)
+            }
             (CapabilityDomain::Customers, CapabilityExecution::OverlayRead)
                 if operation.operation_type == OperationType::Query && has_local_dispatch =>
             {
@@ -2120,6 +2192,14 @@ impl DraftProxy {
                         .iter()
                         .any(|field| field.name == "storeCreditAccount");
                     if handle_customers || handle_store_credit {
+                        // A `customersCount` read served from the staged overlay
+                        // needs the live store-wide baseline; hydrate it once in
+                        // LiveHybrid mode before projecting.
+                        if handle_customers
+                            && fields.iter().any(|field| field.name == "customersCount")
+                        {
+                            self.hydrate_customers_count_for_overlay_read(request);
+                        }
                         let mut data = serde_json::Map::new();
                         if handle_customers {
                             if let Value::Object(object) =
@@ -2219,9 +2299,134 @@ impl DraftProxy {
                     self.store_credit_account_mutation(root_field, request, &query, &variables);
                 self.finalize_mutation_outcome(request, &query, &variables, outcome)
             }
+            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "customerAddTaxExemptions"
+                            | "customerRemoveTaxExemptions"
+                            | "customerReplaceTaxExemptions"
+                    ) =>
+            {
+                let Some(fields) = root_fields(&query, &variables) else {
+                    return json_error(400, "Could not parse GraphQL operation");
+                };
+                // Enum coercion errors (invalid `taxExemptions`) are raised before
+                // any staging, matching Shopify's request-validation ordering.
+                if let Some(response) =
+                    customer_tax_exemptions_invalid_enum_response(&query, &fields)
+                {
+                    return response;
+                }
+                self.customer_tax_exemptions_mutation_response(
+                    &fields, request, &query, &variables,
+                )
+            }
+            (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && matches!(
+                        root_field,
+                        "customerEmailMarketingConsentUpdate"
+                            | "customerSmsMarketingConsentUpdate"
+                    ) =>
+            {
+                self.customer_marketing_consent_update(&query, &variables, request)
+            }
+            (CapabilityDomain::Privacy, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && root_field == "dataSaleOptOut" =>
+            {
+                let outcome = self.data_sale_opt_out(request, &query, &variables);
+                self.finalize_mutation_outcome(request, &query, &variables, outcome)
+            }
+            (CapabilityDomain::B2b, CapabilityExecution::StageLocally)
+                if operation.operation_type == OperationType::Mutation
+                    && has_local_dispatch
+                    && self.config.read_mode == ReadMode::Snapshot =>
+            {
+                // Snapshot mode (unit tests) has no upstream to forward to, so every
+                // B2B mutation stages locally through its tail helper. Three roots
+                // carry their own dedicated handlers; the rest flow through the
+                // company tail helper.
+                match root_field {
+                    "companyLocationUpdate" => self
+                        .b2b_location_buyer_experience_tail_helper_response(
+                            request,
+                            &query,
+                            &variables,
+                            operation.operation_type,
+                            &operation.root_fields,
+                        )
+                        .unwrap_or_else(|| {
+                            json_error(
+                                501,
+                                &format!(
+                                    "No Rust b2b dispatcher implemented for root field: {root_field}"
+                                ),
+                            )
+                        }),
+                    "companyLocationTaxSettingsUpdate" => self
+                        .b2b_tax_settings_tail_helper_response(
+                            request,
+                            &query,
+                            &variables,
+                            operation.operation_type,
+                            &operation.root_fields,
+                        )
+                        .unwrap_or_else(|| {
+                            json_error(
+                                501,
+                                &format!(
+                                    "No Rust b2b dispatcher implemented for root field: {root_field}"
+                                ),
+                            )
+                        }),
+                    "companyAssignCustomerAsContact" => {
+                        if let Some(response) = self
+                            .b2b_assign_customer_as_contact_response(request, &query, &variables)
+                        {
+                            response
+                        } else if let Some(data) =
+                            self.order_customer_error_paths_data(request, &query, &variables)
+                        {
+                            ok_json(data)
+                        } else {
+                            json_error(
+                                501,
+                                &format!(
+                                    "No Rust b2b dispatcher implemented for root field: {root_field}"
+                                ),
+                            )
+                        }
+                    }
+                    _ => self
+                        .b2b_company_tail_helper_response(
+                            request,
+                            &query,
+                            &variables,
+                            operation.operation_type,
+                            &operation.root_fields,
+                        )
+                        .unwrap_or_else(|| {
+                            json_error(
+                                501,
+                                &format!(
+                                    "No Rust b2b dispatcher implemented for root field: {root_field}"
+                                ),
+                            )
+                        }),
+                }
+            }
             (CapabilityDomain::B2b, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation && has_local_dispatch =>
             {
+                // Live/hybrid mode: apply the local cascade side-effects and forward
+                // upstream so the recorded Shopify response is returned. Roots
+                // without a dedicated cascade handler fall through to a plain
+                // passthrough (never a hard 501), keeping parity intact.
                 match root_field {
                     "companyCreate"
                     | "companyUpdate"
@@ -2349,9 +2554,13 @@ impl DraftProxy {
                         &operation.root_fields,
                         root_field,
                     ),
-                    _ => json_error(
-                        501,
-                        &format!("No Rust b2b dispatcher implemented for root field: {root_field}"),
+                    _ => self.dispatch_unknown_passthrough_or_legacy_error(
+                        request,
+                        &query,
+                        &variables,
+                        operation.operation_type,
+                        &operation.root_fields,
+                        root_field,
                     ),
                 }
             }

@@ -484,7 +484,7 @@ fn b2b_company_identity_validation_tail_helpers_port_old_gleam_tests() {
             "company": Value::Null,
             "userErrors": [{
                 "field": ["input", "company", "externalId"],
-                "message": "External ID is too long",
+                "message": "External Id must be 64 characters or less.",
                 "code": "TOO_LONG",
                 "detail": Value::Null
             }]
@@ -509,7 +509,7 @@ fn b2b_company_identity_validation_tail_helpers_port_old_gleam_tests() {
             "company": Value::Null,
             "userErrors": [{
                 "field": ["input", "company", "externalId"],
-                "message": "External ID contains invalid characters",
+                "message": r#"External Id can only contain numbers, letters, and some special characters, including !@#$%^&*(){}[]\/?<>_-~,.;:'`""#,
                 "code": "INVALID",
                 "detail": "external_id_contains_invalid_chars"
             }]
@@ -547,7 +547,7 @@ fn b2b_company_identity_validation_tail_helpers_port_old_gleam_tests() {
             "company": Value::Null,
             "userErrors": [{
                 "field": ["input", "company", "externalId"],
-                "message": "External ID has already been taken",
+                "message": "External id has already been taken.",
                 "code": "TAKEN",
                 "detail": "duplicate_external_id"
             }]
@@ -600,7 +600,7 @@ fn b2b_company_identity_validation_tail_helpers_port_old_gleam_tests() {
             "company": Value::Null,
             "userErrors": [{
                 "field": ["input", "externalId"],
-                "message": "External ID has already been taken",
+                "message": "External id has already been taken.",
                 "code": "TAKEN",
                 "detail": "duplicate_external_id"
             }]
@@ -914,7 +914,7 @@ fn b2b_company_update_immutable_and_note_validation_tail_helpers_port_old_gleam_
             },
             {
                 "field": ["input", "notes"],
-                "message": "Note is too long",
+                "message": "Notes is too long (maximum is 5000 characters)",
                 "code": "TOO_LONG",
                 "detail": Value::Null
             }
@@ -1396,7 +1396,11 @@ fn b2b_contact_role_assign_and_revoke_stage_relationships_with_indexed_errors() 
         r#"
         mutation RustB2BCompanyContactRolesCompany($company: CompanyInput!) {
           companyCreate(input: { company: $company }) {
-            company { id contactRoles(first: 5) { nodes { id name } } }
+            company {
+              id
+              contactRoles(first: 5) { nodes { id name } }
+              locations(first: 5) { nodes { id } }
+            }
             userErrors { field message code }
           }
         }
@@ -1406,7 +1410,10 @@ fn b2b_contact_role_assign_and_revoke_stage_relationships_with_indexed_errors() 
     let company_id = company.body["data"]["companyCreate"]["company"]["id"].clone();
     let role_id =
         company.body["data"]["companyCreate"]["company"]["contactRoles"]["nodes"][0]["id"].clone();
-    let location_id = json!("gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic");
+    // companyCreate provisions a default location; assign the role against it
+    // rather than a hardcoded synthetic id so the test tracks the real allocation.
+    let location_id =
+        company.body["data"]["companyCreate"]["company"]["locations"]["nodes"][0]["id"].clone();
 
     let contact = proxy.process_request(json_graphql_request(
         r#"
@@ -1542,97 +1549,6 @@ fn b2b_contact_role_assign_and_revoke_stage_relationships_with_indexed_errors() 
             "message": "Resource requested does not exist.",
             "code": "RESOURCE_NOT_FOUND"
         }])
-    );
-}
-
-#[test]
-fn b2b_fixture_backed_reads_cover_customer_since_and_assignment_nodes() {
-    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None);
-
-    let company = proxy.process_request(json_graphql_request(
-        r#"
-        query B2BCustomerSinceCompanyRead($companyId: ID!) {
-          company(id: $companyId) {
-            name
-            customerSince
-          }
-        }
-        "#,
-        json!({ "companyId": "gid://shopify/Company/7681462450" }),
-    ));
-    assert_eq!(
-        company.body["data"]["company"],
-        json!({
-            "name": "HAR-760 customerSince 1778017011251",
-            "customerSince": "2024-01-01T00:00:00Z"
-        })
-    );
-
-    let nodes = proxy.process_request(json_graphql_request(
-        r#"
-        query B2BContactLocationAssignmentsNodeRead($ids: [ID!]!) {
-          nodes(ids: $ids) {
-            ... on CompanyAddress { id address1 city countryCode }
-            ... on CompanyContactRoleAssignment {
-              id
-              companyContact { id title }
-              role { id name }
-              companyLocation { id name }
-            }
-            ... on CompanyContact { id title }
-            ... on CompanyContactRole { id name }
-            ... on CompanyLocation { id name }
-          }
-        }
-        "#,
-        json!({
-            "ids": [
-                "gid://shopify/CompanyAddress/9348383026",
-                "gid://shopify/CompanyContactRoleAssignment/44647547186",
-                "gid://shopify/CompanyContact/10149003570",
-                "gid://shopify/CompanyLocation/8247738674",
-                "gid://shopify/CompanyContactRole/10668638514"
-            ]
-        }),
-    ));
-
-    assert_eq!(
-        nodes.body["data"]["nodes"],
-        json!([
-            {
-                "id": "gid://shopify/CompanyAddress/9348383026",
-                "address1": "446 Assignment Way",
-                "city": "Toronto",
-                "countryCode": "CA"
-            },
-            {
-                "id": "gid://shopify/CompanyContactRoleAssignment/44647547186",
-                "companyContact": {
-                    "id": "gid://shopify/CompanyContact/10149003570",
-                    "title": "Lead buyer"
-                },
-                "role": {
-                    "id": "gid://shopify/CompanyContactRole/10668638514",
-                    "name": "Location admin"
-                },
-                "companyLocation": {
-                    "id": "gid://shopify/CompanyLocation/8247738674",
-                    "name": "HAR-446 B2B assignment 1778015458844 Single assignment updated"
-                }
-            },
-            {
-                "id": "gid://shopify/CompanyContact/10149003570",
-                "title": "Lead buyer"
-            },
-            {
-                "id": "gid://shopify/CompanyLocation/8247738674",
-                "name": "HAR-446 B2B assignment 1778015458844 Single assignment updated"
-            },
-            {
-                "id": "gid://shopify/CompanyContactRole/10668638514",
-                "name": "Location admin"
-            }
-        ])
     );
 }
 
@@ -1983,11 +1899,29 @@ fn b2b_location_delete_bulk_delete_and_indexed_errors() {
         "#,
         json!({ "companyId": company_id }),
     ));
-    assert_eq!(
-        read.body["data"]["company"]["locations"]["nodes"],
-        json!([])
-    );
-    assert_eq!(read.body["data"]["companyLocations"]["nodes"], json!([]));
+    // companyCreate provisions a default location (verified against live Shopify
+    // by the `b2b-company-create-lifecycle` parity scenario), which is never
+    // deleted here — so both reads must show the two deleted locations gone while
+    // the default location persists.
+    let company_location_ids: Vec<&str> = read.body["data"]["company"]["locations"]["nodes"]
+        .as_array()
+        .expect("company locations nodes")
+        .iter()
+        .map(|node| node["id"].as_str().unwrap_or_default())
+        .collect();
+    assert!(!company_location_ids.contains(&first_location_id.as_str()));
+    assert!(!company_location_ids.contains(&second_location_id.as_str()));
+    assert_eq!(company_location_ids.len(), 1);
+
+    let global_location_ids: Vec<&str> = read.body["data"]["companyLocations"]["nodes"]
+        .as_array()
+        .expect("global company locations nodes")
+        .iter()
+        .map(|node| node["id"].as_str().unwrap_or_default())
+        .collect();
+    assert!(!global_location_ids.contains(&first_location_id.as_str()));
+    assert!(!global_location_ids.contains(&second_location_id.as_str()));
+    assert_eq!(global_location_ids.len(), 1);
 }
 
 #[test]

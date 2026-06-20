@@ -1179,9 +1179,51 @@ fn public_admin_input_schema() -> &'static AdminInputSchema {
         extend_markets_input_schema(&mut schema);
         extend_payments_input_schema(&mut schema);
         extend_shipping_input_schema(&mut schema);
+        extend_fulfillment_event_input_schema(&mut schema);
         extend_store_credit_input_schema(&mut schema);
         schema
     })
+}
+
+fn extend_fulfillment_event_input_schema(schema: &mut AdminInputSchema) {
+    // `fulfillmentEventCreate(fulfillmentEvent: FulfillmentEventInput!)` on the
+    // active public Admin schema (2026-04). `status` is a non-null
+    // `FulfillmentEventStatus` enum, so an out-of-range value must surface a
+    // top-level `INVALID_VARIABLE` coercion error (anchored at the variable
+    // definition) before the local handler runs. Every other accepted field is
+    // registered nullable so the validator only rejects an out-of-range `status`
+    // or an unknown field, and never fabricates a missing-required error for the
+    // happy-path mutation that omits the optional geolocation fields.
+    schema.input_objects.insert(
+        "FulfillmentEventInput".to_string(),
+        BTreeMap::from([
+            ("fulfillmentId".to_string(), input_field(named("ID"))),
+            (
+                "status".to_string(),
+                input_field(non_null("FulfillmentEventStatus")),
+            ),
+            ("message".to_string(), input_field(named("String"))),
+            ("happenedAt".to_string(), input_field(named("DateTime"))),
+            (
+                "estimatedDeliveryAt".to_string(),
+                input_field(named("DateTime")),
+            ),
+            ("city".to_string(), input_field(named("String"))),
+            ("province".to_string(), input_field(named("String"))),
+            ("country".to_string(), input_field(named("String"))),
+            ("zip".to_string(), input_field(named("String"))),
+            ("address1".to_string(), input_field(named("String"))),
+            ("latitude".to_string(), input_field(named("Float"))),
+            ("longitude".to_string(), input_field(named("Float"))),
+        ]),
+    );
+    schema.mutation_fields.insert(
+        "fulfillmentEventCreate".to_string(),
+        BTreeMap::from([(
+            "fulfillmentEvent".to_string(),
+            mutation_arg(non_null("FulfillmentEventInput")),
+        )]),
+    );
 }
 
 fn extend_store_credit_input_schema(schema: &mut AdminInputSchema) {
@@ -1578,6 +1620,15 @@ fn extend_customer_input_schema(schema: &mut AdminInputSchema) {
     schema.mutation_fields.insert(
         "customerCreate".to_string(),
         BTreeMap::from([("input".to_string(), mutation_arg(non_null("CustomerInput")))]),
+    );
+
+    // dataSaleOptOut(email: String!) on Admin API 2026-04. The single `email`
+    // argument is non-null, so a missing or explicitly-null email must surface a
+    // top-level `missingRequiredArguments` / null-coercion envelope before the
+    // local privacy handler runs (rather than the handler's own FAILED userError).
+    schema.mutation_fields.insert(
+        "dataSaleOptOut".to_string(),
+        BTreeMap::from([("email".to_string(), mutation_arg(non_null("String")))]),
     );
 }
 

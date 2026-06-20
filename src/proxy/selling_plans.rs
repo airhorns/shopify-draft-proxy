@@ -29,6 +29,16 @@ impl DraftProxy {
                         |group| group.id.clone(),
                     )
                 }
+                // Membership read-back queries pair `sellingPlanGroup` with sibling
+                // `product`/`productVariant` roots that must surface the staged
+                // selling-plan overlay (`sellingPlanGroups`/`sellingPlanGroupsCount`).
+                // Resolve those roots through the same overlay-aware resolvers the
+                // products arm uses so a mixed query routed here doesn't drop them.
+                "product" => self.product_by_id_field(field),
+                "products" => self.products_connection_field(field),
+                "productsCount" => self.products_count_field(field),
+                "productByIdentifier" => self.product_by_identifier_field(field),
+                "productVariant" => self.product_variant_by_id_field(field),
                 _ => continue,
             };
             data.insert(field.response_key.clone(), value);

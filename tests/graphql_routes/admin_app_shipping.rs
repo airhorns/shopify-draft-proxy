@@ -73,6 +73,19 @@ fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
         json!("1432")
     );
 
+    let cancel_id = "gid://shopify/BulkOperation/7689772990770";
+    let captured_query = "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let operation = bulk_operation_test_record(
+            cancel_id,
+            "CREATED",
+            "QUERY",
+            "2026-04-27T20:35:00Z",
+            captured_query,
+        );
+        move |_request| bulk_operation_hydrate_response(operation.clone())
+    });
+
     let cancel = proxy.process_request(json_graphql_request(
         r#"
         mutation BulkOperationCancelParity($id: ID!) {
@@ -82,7 +95,7 @@ fn bulk_operation_query_status_and_cancel_reads_stage_local_operations() {
           }
         }
         "#,
-        json!({ "id": "gid://shopify/BulkOperation/7689772990770" }),
+        json!({ "id": cancel_id }),
     ));
     assert_eq!(
         cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
@@ -322,7 +335,17 @@ fn bulk_operation_run_query_routes_ordinary_operation_names_locally() {
 
 #[test]
 fn bulk_operation_run_query_throttles_when_query_operation_in_progress() {
-    let mut proxy = snapshot_proxy();
+    let id = "gid://shopify/BulkOperation/7689772990770";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let operation = bulk_operation_test_record(
+            id,
+            "CREATED",
+            "QUERY",
+            "2026-04-27T20:35:00Z",
+            "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        title\n      }\n    }\n  }\n}",
+        );
+        move |_request| bulk_operation_hydrate_response(operation.clone())
+    });
     let cancel = proxy.process_request(json_graphql_request(
         r#"
         mutation BulkOperationCancelParity($id: ID!) {
@@ -332,14 +355,16 @@ fn bulk_operation_run_query_throttles_when_query_operation_in_progress() {
           }
         }
         "#,
-        json!({ "id": "gid://shopify/BulkOperation/7689772990770" }),
+        json!({ "id": id }),
     ));
     assert_eq!(
         cancel.body["data"]["bulkOperationCancel"]["bulkOperation"]["status"],
         json!("CANCELING")
     );
 
-    let response = proxy.process_request(json_graphql_request(
+    // A single non-terminal query operation only throttles at the pre-2026.1 limit of 1,
+    // so run the query against a 2025-01 path where the concurrent limit is 1.
+    let mut run_request = json_graphql_request(
         r#"
         mutation BulkOperationRunQueryUserErrorCodes($query: String!) {
           bulkOperationRunQuery(query: $query) {
@@ -349,7 +374,9 @@ fn bulk_operation_run_query_throttles_when_query_operation_in_progress() {
         }
         "#,
         json!({ "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}" }),
-    ));
+    );
+    run_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let response = proxy.process_request(run_request);
 
     assert_eq!(response.status, 200);
     assert_eq!(
@@ -410,7 +437,24 @@ fn run_bulk_operation_query(proxy: &mut DraftProxy, api_version: &str) -> Value 
 
 #[test]
 fn bulk_operation_run_query_allows_five_query_operations_before_2026_04_throttle() {
-    let mut proxy = snapshot_proxy();
+    // Each cancel hydrates the requested operation id upstream as a CREATED QUERY, then stages
+    // it as CANCELING, so the non-terminal query count climbs without relying on a cheat.
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(
+        |request: Request| {
+            let parsed: Value = serde_json::from_str(&request.body).unwrap_or_default();
+            let id = parsed["variables"]["id"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string();
+            bulk_operation_hydrate_response(bulk_operation_test_record(
+                &id,
+                "CREATED",
+                "QUERY",
+                "2026-04-27T20:35:00Z",
+                "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}",
+            ))
+        },
+    );
     for index in 0..4 {
         let id = format!("gid://shopify/BulkOperation/990000000000{index}");
         let operation = cancel_bulk_operation(&mut proxy, &id, "2026-04");
@@ -760,7 +804,17 @@ fn bulk_operation_run_mutation_validates_client_identifier_and_configured_file_s
 fn bulk_operation_run_mutation_file_size_error_precedes_in_progress_throttle() {
     let max_bytes = 2 * 1024 * 1024;
     let mut proxy =
-        configured_proxy_with_bulk_mutation_max(ReadMode::Snapshot, None, Some(max_bytes));
+        configured_proxy_with_bulk_mutation_max(ReadMode::LiveHybrid, None, Some(max_bytes))
+            .with_upstream_transport({
+                let operation = bulk_operation_test_record(
+                    "gid://shopify/BulkOperation/7749099127090",
+                    "CREATED",
+                    "MUTATION",
+                    "2026-05-05T20:34:00Z",
+                    "#graphql\nmutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+                );
+                move |_request| bulk_operation_hydrate_response(operation.clone())
+            });
     let path = staged_bulk_mutation_upload_path(
         &mut proxy,
         "oversized-import-with-running-mutation.jsonl",
@@ -789,7 +843,9 @@ fn bulk_operation_run_mutation_file_size_error_precedes_in_progress_throttle() {
     );
     let log_before = proxy.get_log_snapshot();
 
-    let response = proxy.process_request(json_graphql_request(
+    // Run on a 2025-01 path (concurrent limit 1) so the staged CANCELING mutation would otherwise
+    // throttle the run; the oversized-file error must take precedence over that throttle.
+    let mut run_request = json_graphql_request(
         r#"
         mutation RunBulkImport($mutation: String!, $path: String!) {
           bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
@@ -802,7 +858,9 @@ fn bulk_operation_run_mutation_file_size_error_precedes_in_progress_throttle() {
             "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
             "path": path
         }),
-    ));
+    );
+    run_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let response = proxy.process_request(run_request);
 
     assert_eq!(response.status, 200);
     assert_eq!(
@@ -826,7 +884,17 @@ fn bulk_operation_run_mutation_file_size_error_precedes_in_progress_throttle() {
 
 #[test]
 fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
-    let mut proxy = snapshot_proxy();
+    let id = "gid://shopify/BulkOperation/7749099127090";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let operation = bulk_operation_test_record(
+            id,
+            "CREATED",
+            "MUTATION",
+            "2026-05-05T20:34:00Z",
+            "#graphql\nmutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
+        );
+        move |_request| bulk_operation_hydrate_response(operation.clone())
+    });
     let mut cancel_request = json_graphql_request(
         r#"
         mutation CancelCapturedMutation($id: ID!) {
@@ -836,7 +904,7 @@ fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
           }
         }
         "#,
-        json!({ "id": "gid://shopify/BulkOperation/7749099127090" }),
+        json!({ "id": id }),
     );
     cancel_request.path = "/admin/api/2025-01/graphql.json".to_string();
     let cancel = proxy.process_request(cancel_request);
@@ -849,7 +917,8 @@ fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
         json!("CANCELING")
     );
 
-    let response = proxy.process_request(json_graphql_request(
+    // A single non-terminal mutation only throttles at the pre-2026.1 limit of 1.
+    let mut run_request = json_graphql_request(
         r#"
         mutation RunBulkImport($mutation: String!, $path: String!) {
           bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {
@@ -862,7 +931,9 @@ fn bulk_operation_run_mutation_throttles_when_mutation_operation_in_progress() {
             "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id } userErrors { field message } } }",
             "path": "valid"
         }),
-    ));
+    );
+    run_request.path = "/admin/api/2025-01/graphql.json".to_string();
+    let response = proxy.process_request(run_request);
 
     assert_eq!(response.status, 200);
     assert_eq!(
@@ -1162,8 +1233,17 @@ fn bulk_operation_cancel_terminal_hydrated_operation_echoes_existing_record() {
 
 #[test]
 fn bulk_operation_list_filters_paginates_and_selects_current_by_type() {
-    let mut proxy = snapshot_proxy();
     let older_id = "gid://shopify/BulkOperation/9999999999999";
+    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport({
+        let operation = bulk_operation_test_record(
+            older_id,
+            "CREATED",
+            "QUERY",
+            "2026-04-27T20:33:59Z",
+            "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}",
+        );
+        move |_request| bulk_operation_hydrate_response(operation.clone())
+    });
     let run = proxy.process_request(json_graphql_request(
         r#"
         mutation BulkOperationRunQueryGroupObjectsTrue($query: String!) {
@@ -2455,7 +2535,7 @@ fn customer_update_delete_and_set_are_root_field_routed() {
 fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycle() {
     let mut proxy = snapshot_proxy();
 
-    let expires_after_parent = proxy.process_request(json_graphql_request(
+    let mut expires_after_parent_request = json_graphql_request(
         r#"
         mutation DelegateAccessTokenCreateExpiresAfterParent {
           delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 99999999 }) {
@@ -2465,7 +2545,12 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
         }
         "#,
         json!({}),
-    ));
+    );
+    expires_after_parent_request.headers.insert(
+        "x-shopify-draft-proxy-access-token-expires-at".to_string(),
+        "2026-04-28T03:10:00.000Z".to_string(),
+    );
+    let expires_after_parent = proxy.process_request(expires_after_parent_request);
     assert_eq!(
         expires_after_parent.body["data"]["delegateAccessTokenCreate"],
         json!({
@@ -2477,6 +2562,60 @@ fn delegate_access_token_create_shop_payload_expires_parent_and_destroy_lifecycl
             }]
         })
     );
+    assert_eq!(
+        proxy.get_state_snapshot()["stagedState"]["delegatedAccessTokens"],
+        json!({})
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"][0]["status"],
+        json!("failed")
+    );
+
+    for query in [
+        r#"
+        mutation ConsumerNamedDelegate {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 99999999 }) {
+            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        r#"
+        mutation {
+          delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 99999999 }) {
+            delegateAccessToken { accessToken accessScopes createdAt expiresIn }
+            userErrors { field message code }
+          }
+        }
+        "#,
+    ] {
+        let mut request = json_graphql_request(query, json!({}));
+        request.headers.insert(
+            "x-shopify-draft-proxy-access-token-expires-at".to_string(),
+            "2026-04-28T03:10:00.000Z".to_string(),
+        );
+        let response = proxy.process_request(request);
+        assert_eq!(
+            response.body["data"]["delegateAccessTokenCreate"],
+            json!({
+                "delegateAccessToken": null,
+                "userErrors": [{
+                    "field": null,
+                    "message": "The delegate token can't expire after the parent token.",
+                    "code": "EXPIRES_AFTER_PARENT"
+                }]
+            })
+        );
+    }
+    assert_eq!(
+        proxy.get_state_snapshot()["stagedState"]["delegatedAccessTokens"],
+        json!({})
+    );
+    assert!(proxy.get_log_snapshot()["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|entry| entry["status"] == json!("failed")));
 
     let missing = proxy.process_request(json_graphql_request(
         r#"
@@ -3816,9 +3955,16 @@ fn data_sale_opt_out_missing_or_null_email_is_schema_coercion_error() {
     ));
     assert_eq!(explicit_null.status, 200);
     assert!(explicit_null.body.get("data").is_none());
+    // A non-null variable (`$email: String!`) supplied an explicit null fails at
+    // variable coercion, not as a missing argument. Real Shopify returns an
+    // `INVALID_VARIABLE` envelope here — identical to the captured
+    // `order-edit-begin-missing-id` parity scenario where `$id: ID!` resolves to
+    // null ("Variable $id of type ID! was provided invalid value" / "Expected
+    // value to not be null"). The omitted-argument case above (no `email`
+    // argument at all) is the `missingRequiredArguments` path.
     assert_eq!(
         explicit_null.body["errors"][0]["extensions"]["code"],
-        json!("missingRequiredArguments")
+        json!("INVALID_VARIABLE")
     );
 }
 
@@ -4212,7 +4358,7 @@ fn app_revoke_access_scopes_validates_atomically_and_updates_current_installatio
         })
     );
 
-    let missing_source_app = proxy.process_request(json_graphql_request(
+    let mut missing_source_app_request = json_graphql_request(
         r#"
         mutation AppRevokeAccessScopesErrorCodes {
           appRevokeAccessScopes(scopes: ["write_products"]) {
@@ -4222,7 +4368,12 @@ fn app_revoke_access_scopes_validates_atomically_and_updates_current_installatio
         }
         "#,
         json!({}),
-    ));
+    );
+    missing_source_app_request.headers.insert(
+        "x-shopify-draft-proxy-source-app-missing".to_string(),
+        "true".to_string(),
+    );
+    let missing_source_app = proxy.process_request(missing_source_app_request);
     assert_eq!(
         missing_source_app.body["data"]["appRevokeAccessScopes"],
         json!({
@@ -4230,6 +4381,39 @@ fn app_revoke_access_scopes_validates_atomically_and_updates_current_installatio
             "userErrors": [{ "field": ["base"], "message": "Source app is missing.", "code": "MISSING_SOURCE_APP" }]
         })
     );
+
+    for query in [
+        r#"
+        mutation ConsumerNamedRevoke {
+          appRevokeAccessScopes(scopes: ["write_products"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        r#"
+        mutation {
+          appRevokeAccessScopes(scopes: ["write_products"]) {
+            revoked { handle description }
+            userErrors { field message code }
+          }
+        }
+        "#,
+    ] {
+        let mut request = json_graphql_request(query, json!({}));
+        request.headers.insert(
+            "x-shopify-draft-proxy-source-app-missing".to_string(),
+            "true".to_string(),
+        );
+        let response = proxy.process_request(request);
+        assert_eq!(
+            response.body["data"]["appRevokeAccessScopes"],
+            json!({
+                "revoked": [],
+                "userErrors": [{ "field": ["base"], "message": "Source app is missing.", "code": "MISSING_SOURCE_APP" }]
+            })
+        );
+    }
 
     let optional = proxy.process_request(json_graphql_request(
         r#"
@@ -6248,7 +6432,9 @@ fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
         "#,
         json!({ "input": {
             "name": "HTTP Carrier",
-            "callbackUrl": "http://example.com/rates"
+            "callbackUrl": "http://example.com/rates",
+            "supportsServiceDiscovery": false,
+            "active": false
         }}),
     ));
     assert_eq!(
@@ -6274,7 +6460,9 @@ fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
         "#,
         json!({ "input": {
             "name": "Banned Carrier",
-            "callbackUrl": "https://localhost/rates"
+            "callbackUrl": "https://localhost/rates",
+            "supportsServiceDiscovery": false,
+            "active": false
         }}),
     ));
     assert_eq!(
@@ -6300,7 +6488,9 @@ fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
         "#,
         json!({ "input": {
             "name": "Unparseable Carrier",
-            "callbackUrl": "not-a-url"
+            "callbackUrl": "not-a-url",
+            "supportsServiceDiscovery": false,
+            "active": false
         }}),
     ));
     assert_eq!(
@@ -6323,7 +6513,9 @@ fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
         "#,
         json!({ "input": {
             "name": "",
-            "callbackUrl": "https://mock.shop/carrier-service-rates"
+            "callbackUrl": "https://mock.shop/carrier-service-rates",
+            "supportsServiceDiscovery": false,
+            "active": false
         }}),
     ));
     assert_eq!(
@@ -6349,7 +6541,9 @@ fn carrier_service_create_validates_callback_url_and_projects_error_codes() {
         "#,
         json!({ "input": {
             "name": "Hermes Carrier Local",
-            "callbackUrl": "https://mock.shop/carrier-service-rates"
+            "callbackUrl": "https://mock.shop/carrier-service-rates",
+            "supportsServiceDiscovery": false,
+            "active": false
         }}),
     ));
     assert_eq!(
@@ -6469,7 +6663,9 @@ fn carrier_service_update_validates_changed_callback_url_and_codes_unknowns() {
         "#,
         json!({ "input": {
             "name": "Hermes Carrier Local",
-            "callbackUrl": "https://mock.shop/carrier-service-rates"
+            "callbackUrl": "https://mock.shop/carrier-service-rates",
+            "supportsServiceDiscovery": false,
+            "active": false
         }}),
     ));
     let id = create.body["data"]["carrierServiceCreate"]["carrierService"]["id"]

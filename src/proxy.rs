@@ -1472,11 +1472,6 @@ impl Store {
             .collect()
     }
 
-    fn has_selling_plan_group_state(&self) -> bool {
-        !self.staged.selling_plan_groups.records.is_empty()
-            || !self.staged.selling_plan_groups.tombstones.is_empty()
-    }
-
     fn stage_selling_plan_group(&mut self, group: SellingPlanGroupRecord) {
         self.staged
             .selling_plan_groups
@@ -1685,6 +1680,7 @@ mod metafield_metaobject_definitions;
 mod metafields_orders_payments;
 mod metaobjects;
 mod online_store_orders_payments;
+mod privacy;
 mod product_helpers;
 mod product_operations;
 mod product_options;

@@ -200,6 +200,9 @@ impl DraftProxy {
                 "observedShippingLocationOrder": self.store.staged.observed_shipping_location_order.clone(),
                 "locations": self.store.staged.locations.clone(),
                 "locationOrder": self.store.staged.location_order.clone(),
+                "deliveryProfiles": self.store.staged.delivery_profiles.clone(),
+                "deliveryProfileOrder": self.store.staged.delivery_profile_order.clone(),
+                "deletedDeliveryProfileIds": self.store.staged.deleted_delivery_profile_ids.iter().cloned().collect::<Vec<_>>(),
                 "publicationIds": self.store.staged.publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "createdPublicationIds": self.store.staged.created_publication_ids.iter().cloned().collect::<Vec<_>>(),
                 "publications": self.store.staged.publications.clone(),
@@ -1398,6 +1401,27 @@ impl DraftProxy {
             .get("locationOrder")
             .map(string_array_from_json)
             .unwrap_or_else(|| self.store.staged.locations.keys().cloned().collect());
+        self.store.staged.delivery_profiles = state["stagedState"]
+            .get("deliveryProfiles")
+            .and_then(Value::as_object)
+            .map(|profiles| {
+                profiles
+                    .iter()
+                    .map(|(id, profile)| (id.clone(), profile.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        self.store.staged.delivery_profile_order = state["stagedState"]
+            .get("deliveryProfileOrder")
+            .map(string_array_from_json)
+            .unwrap_or_else(|| self.store.staged.delivery_profiles.keys().cloned().collect());
+        self.store.staged.deleted_delivery_profile_ids = state["stagedState"]
+            ["deletedDeliveryProfileIds"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|value| value.as_str().map(str::to_string))
+            .collect();
         self.store.staged.inventory_levels =
             inventory_levels_from_json(&state["stagedState"]["inventoryLevels"]);
         self.store.staged.inventory_level_ids =

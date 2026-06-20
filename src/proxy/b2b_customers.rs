@@ -1,5 +1,9 @@
 use super::*;
 
+/// Snapshot of a staged customer's inline-address context:
+/// `(firstName, lastName, addressesV2.nodes, defaultAddress.id)`.
+type CustomerAddressContext = (Option<String>, Option<String>, Vec<Value>, Option<String>);
+
 const CUSTOMER_HYDRATE_QUERY: &str = r#"
 query CustomerHydrate($id: ID!) {
   customer(id: $id) {
@@ -274,7 +278,18 @@ impl DraftProxy {
                     field.name.as_str(),
                     "companyCreate"
                         | "companyUpdate"
+                        | "companyDelete"
+                        | "companiesDelete"
+                        | "companyContactCreate"
                         | "companyContactUpdate"
+                        | "companyContactDelete"
+                        | "companyContactsDelete"
+                        | "companyContactRemoveFromCompany"
+                        | "companyAssignMainContact"
+                        | "companyRevokeMainContact"
+                        | "companyContactAssignRole"
+                        | "companyContactAssignRoles"
+                        | "companyContactRevokeRoles"
                         | "companyLocationCreate"
                         | "companyLocationUpdate"
                         | "companyLocationDelete"
@@ -316,7 +331,32 @@ impl DraftProxy {
                     let (payload, status, staged_ids) = match field.name.as_str() {
                         "companyCreate" => self.b2b_company_create_payload(&field),
                         "companyUpdate" => self.b2b_company_update_payload(&field),
+                        "companyDelete" => self.b2b_company_delete_payload(&field),
+                        "companiesDelete" => self.b2b_companies_delete_payload(&field),
+                        "companyContactCreate" => self.b2b_company_contact_create_payload(&field),
                         "companyContactUpdate" => self.b2b_company_contact_update_payload(&field),
+                        "companyContactDelete" => self.b2b_company_contact_delete_payload(&field),
+                        "companyContactsDelete" => {
+                            self.b2b_company_contacts_delete_payload(&field)
+                        }
+                        "companyContactRemoveFromCompany" => {
+                            self.b2b_company_contact_remove_from_company_payload(&field)
+                        }
+                        "companyAssignMainContact" => {
+                            self.b2b_company_assign_main_contact_payload(&field)
+                        }
+                        "companyRevokeMainContact" => {
+                            self.b2b_company_revoke_main_contact_payload(&field)
+                        }
+                        "companyContactAssignRole" => {
+                            self.b2b_company_contact_assign_role_payload(&field)
+                        }
+                        "companyContactAssignRoles" => {
+                            self.b2b_company_contact_assign_roles_payload(&field)
+                        }
+                        "companyContactRevokeRoles" => {
+                            self.b2b_company_contact_revoke_roles_payload(&field)
+                        }
                         "companyLocationCreate" => self.b2b_company_location_create_payload(&field),
                         "companyLocationUpdate" => self.b2b_company_location_update_payload(&field),
                         "companyLocationDelete" => self.b2b_company_location_delete_payload(&field),
@@ -374,7 +414,6 @@ impl DraftProxy {
                                 .map(|company| {
                                     self.b2b_company_selected_json(company, &field.selection)
                                 })
-                                .or_else(|| b2b_company_customer_since_value(&id, &field.selection))
                                 .unwrap_or(Value::Null)
                         }
                         "companyContact" => {
@@ -933,20 +972,36 @@ impl DraftProxy {
             .or_else(|| resolved_string_arg(&field.arguments, "id"))
             .unwrap_or_default();
         let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
-        let Some(mut location) = self.store.staged.b2b_locations.get(&location_id).cloned() else {
-            return (
-                b2b_company_location_payload(
-                    None,
-                    vec![b2b_company_user_error(
-                        vec!["input"],
-                        "The company location doesn't exist",
-                        "RESOURCE_NOT_FOUND",
+        let mut location = match self.store.staged.b2b_locations.get(&location_id).cloned() {
+            Some(location) => location,
+            // Shopify always provisions a default, tax-exempt company location on
+            // the shop. An update targeting the synthetic seed location resolves
+            // against that default (so input validation runs) rather than failing
+            // not-found, mirroring real Shopify where the location already exists.
+            None if location_id == b2b_synthetic_seed_company_location_id() => json!({
+                "id": location_id,
+                "name": "HQ",
+                "taxSettings": { "taxExempt": true, "taxExemptions": [] },
+                "buyerExperienceConfiguration":
+                    b2b_buyer_experience_configuration_json(&BTreeMap::new()),
+                "roleAssignmentIds": [],
+                "staffAssignmentIds": []
+            }),
+            None => {
+                return (
+                    b2b_company_location_payload(
                         None,
-                    )],
-                ),
-                "failed",
-                Vec::new(),
-            );
+                        vec![b2b_company_user_error(
+                            vec!["input"],
+                            "The company location doesn't exist",
+                            "RESOURCE_NOT_FOUND",
+                            None,
+                        )],
+                    ),
+                    "failed",
+                    Vec::new(),
+                );
+            }
         };
         if input.is_empty() {
             return (
@@ -962,7 +1017,9 @@ impl DraftProxy {
                 Vec::new(),
             );
         }
-        if resolved_string_field(&input, "name").is_some_and(|name| name.trim().is_empty()) {
+        if resolved_string_field(&input, "name")
+            .is_some_and(|name| b2b_strip_html_tags(&name).trim().is_empty())
+        {
             return (
                 b2b_company_location_payload(
                     None,
@@ -1125,6 +1182,36 @@ impl DraftProxy {
                     .unwrap_or(Value::Null);
             }
         }
+        // A company contact's identity (name, email, phone) lives on its underlying
+        // Customer record, which reads back as companyContact.customer — so a contact
+        // update propagates those fields to the linked customer, keeping displayName
+        // and the default email/phone addresses in sync the way Shopify does.
+        if let Some(customer_id) = contact["customerId"].as_str().map(str::to_string) {
+            if let Some(mut customer) = self.store.staged.customers.get(&customer_id).cloned() {
+                for key in ["firstName", "lastName", "email", "phone"] {
+                    if input.contains_key(key) {
+                        customer[key] = resolved_string_field(&input, key)
+                            .map(Value::String)
+                            .unwrap_or(Value::Null);
+                    }
+                }
+                let first = customer["firstName"].as_str().unwrap_or_default();
+                let last = customer["lastName"].as_str().unwrap_or_default();
+                customer["displayName"] = json!([first, last]
+                    .into_iter()
+                    .filter(|part| !part.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(" "));
+                customer["defaultEmailAddress"] = match customer["email"].as_str() {
+                    Some(email) => json!({ "emailAddress": email }),
+                    None => Value::Null,
+                };
+                self.store
+                    .staged
+                    .customers
+                    .insert(customer_id, customer);
+            }
+        }
         self.store
             .staged
             .b2b_contacts
@@ -1134,6 +1221,632 @@ impl DraftProxy {
             "staged",
             vec![contact_id],
         )
+    }
+
+    /// Stages a company contact against locally staged state: validates the input
+    /// (HTML tags / length / email), provisions or links the underlying Customer by
+    /// email, and links the contact to its company so subsequent reads surface it.
+    /// A contact added after creation never becomes the company's main contact.
+    pub(in crate::proxy) fn b2b_company_contact_create_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        if !self.store.staged.b2b_companies.contains_key(&company_id) {
+            return (
+                b2b_company_contact_payload(
+                    None,
+                    vec![json!({
+                        "field": ["companyId"],
+                        "message": "Resource requested does not exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    })],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        let errors = b2b_contact_create_input_errors(&input, &["input"]);
+        if !errors.is_empty() {
+            return (b2b_company_contact_payload(None, errors), "failed", Vec::new());
+        }
+
+        let contact_id = self.next_proxy_synthetic_gid("CompanyContact");
+        let first = resolved_string_field(&input, "firstName");
+        let last = resolved_string_field(&input, "lastName");
+        let title = resolved_string_field(&input, "title");
+        let phone = resolved_string_field(&input, "phone");
+        let customer_id = resolved_string_field(&input, "email").map(|email| {
+            let id = self.b2b_provision_contact_customer(&email, first.clone(), last.clone());
+            // Carry the supplied phone onto the freshly-provisioned customer so it
+            // reads back as companyContact.customer.phone.
+            if let Some(phone) = phone.clone() {
+                if let Some(customer) = self.store.staged.customers.get_mut(&id) {
+                    customer["phone"] = json!(phone);
+                }
+            }
+            id
+        });
+        let contact = json!({
+            "id": contact_id,
+            "companyId": company_id,
+            "customerId": customer_id.map(Value::String).unwrap_or(Value::Null),
+            "firstName": first.map(Value::String).unwrap_or(Value::Null),
+            "lastName": last.map(Value::String).unwrap_or(Value::Null),
+            "title": title.map(Value::String).unwrap_or(Value::Null),
+            // A contact added after creation defaults to the shop's primary locale
+            // ("en") and never becomes the company's main contact.
+            "locale": resolved_string_field(&input, "locale").unwrap_or_else(|| "en".to_string()),
+            "isMainContact": false
+        });
+        self.store
+            .staged
+            .b2b_contacts
+            .insert(contact_id.clone(), contact.clone());
+        if let Some(mut company) = self.store.staged.b2b_companies.get(&company_id).cloned() {
+            b2b_push_json_id(&mut company, "contactIds", &contact_id);
+            self.store.staged.b2b_companies.insert(company_id, company);
+        }
+        (
+            b2b_company_contact_payload(Some(&contact), Vec::new()),
+            "staged",
+            vec![contact_id],
+        )
+    }
+
+    /// Deletes a single company contact from locally staged state, cascading the
+    /// detachment from its company and the removal of its role assignments.
+    pub(in crate::proxy) fn b2b_company_contact_delete_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let contact_id =
+            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+        if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
+            return (
+                json!({
+                    "deletedCompanyContactId": Value::Null,
+                    "userErrors": [{
+                        "field": ["companyContactId"],
+                        "message": "The company contact doesn't exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        self.b2b_delete_company_contact(&contact_id);
+        (
+            json!({
+                "deletedCompanyContactId": contact_id,
+                "userErrors": []
+            }),
+            "staged",
+            vec![contact_id],
+        )
+    }
+
+    /// Bulk-deletes company contacts, reporting a per-index RESOURCE_NOT_FOUND for any
+    /// id that isn't staged while deleting the rest, mirroring Shopify's field paths.
+    pub(in crate::proxy) fn b2b_company_contacts_delete_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let contact_ids =
+            resolved_string_list_field_unsorted(&field.arguments, "companyContactIds");
+        let mut deleted_ids = Vec::new();
+        let mut user_errors = Vec::new();
+        for (index, contact_id) in contact_ids.iter().enumerate() {
+            if self.store.staged.b2b_contacts.contains_key(contact_id) {
+                self.b2b_delete_company_contact(contact_id);
+                deleted_ids.push(contact_id.clone());
+            } else {
+                user_errors.push(b2b_indexed_user_error(
+                    "companyContactIds",
+                    index,
+                    "The company contact doesn't exist.",
+                    "RESOURCE_NOT_FOUND",
+                ));
+            }
+        }
+        let status = if deleted_ids.is_empty() && !user_errors.is_empty() {
+            "failed"
+        } else {
+            "staged"
+        };
+        (
+            json!({
+                "deletedCompanyContactIds": deleted_ids,
+                "userErrors": user_errors
+            }),
+            status,
+            deleted_ids,
+        )
+    }
+
+    /// Removes a company contact from its company. Shopify returns the removed
+    /// contact's id; locally this is the same cascade as a delete.
+    pub(in crate::proxy) fn b2b_company_contact_remove_from_company_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let contact_id =
+            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+        if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
+            return (
+                json!({
+                    "removedCompanyContactId": Value::Null,
+                    "userErrors": [{
+                        "field": ["companyContactId"],
+                        "message": "The company contact doesn't exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        self.b2b_delete_company_contact(&contact_id);
+        (
+            json!({
+                "removedCompanyContactId": contact_id,
+                "userErrors": []
+            }),
+            "staged",
+            vec![contact_id],
+        )
+    }
+
+    /// Points the company's main contact at the target contact (and syncs the
+    /// isMainContact flag across the company's contacts) against staged state.
+    pub(in crate::proxy) fn b2b_company_assign_main_contact_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+        let contact_id =
+            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+        let Some(company) = self.store.staged.b2b_companies.get(&company_id).cloned() else {
+            return (
+                b2b_company_payload(
+                    None,
+                    vec![json!({
+                        "field": ["companyId"],
+                        "message": "Resource requested does not exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    })],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        };
+        if !b2b_json_id_list(&company, "contactIds")
+            .iter()
+            .any(|id| id == &contact_id)
+        {
+            return (
+                b2b_company_payload(
+                    None,
+                    vec![json!({
+                        "field": ["companyContactId"],
+                        "message": "The company contact doesn't exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    })],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        self.b2b_set_main_contact(&company_id, Some(&contact_id));
+        let company = self
+            .store
+            .staged
+            .b2b_companies
+            .get(&company_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        (
+            b2b_company_payload(Some(&company), Vec::new()),
+            "staged",
+            vec![company_id, contact_id],
+        )
+    }
+
+    /// Clears the company's main contact and resets isMainContact across its
+    /// contacts against staged state.
+    pub(in crate::proxy) fn b2b_company_revoke_main_contact_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let company_id = resolved_string_arg(&field.arguments, "companyId").unwrap_or_default();
+        if !self.store.staged.b2b_companies.contains_key(&company_id) {
+            return (
+                b2b_company_payload(
+                    None,
+                    vec![json!({
+                        "field": ["companyId"],
+                        "message": "Resource requested does not exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    })],
+                ),
+                "failed",
+                Vec::new(),
+            );
+        }
+        self.b2b_set_main_contact(&company_id, None);
+        let company = self
+            .store
+            .staged
+            .b2b_companies
+            .get(&company_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        (
+            b2b_company_payload(Some(&company), Vec::new()),
+            "staged",
+            vec![company_id],
+        )
+    }
+
+    /// Assigns a single role to a contact at a location against staged state. The
+    /// new assignment is recorded under the location so it reads back from both the
+    /// contact's and the location's roleAssignments connections.
+    pub(in crate::proxy) fn b2b_company_contact_assign_role_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let contact_id =
+            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+        let role_id =
+            resolved_string_arg(&field.arguments, "companyContactRoleId").unwrap_or_default();
+        let location_id =
+            resolved_string_arg(&field.arguments, "companyLocationId").unwrap_or_default();
+        let mut error = |fields: Vec<&str>| {
+            json!({
+                "field": fields,
+                "message": "Resource requested does not exist.",
+                "code": "RESOURCE_NOT_FOUND"
+            })
+        };
+        if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
+            return (
+                json!({ "companyContactRoleAssignment": Value::Null, "userErrors": [error(vec!["companyContactId"])] }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        if !self.store.staged.b2b_contact_roles.contains_key(&role_id) {
+            return (
+                json!({ "companyContactRoleAssignment": Value::Null, "userErrors": [error(vec!["companyContactRoleId"])] }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        if !self.store.staged.b2b_locations.contains_key(&location_id) {
+            return (
+                json!({ "companyContactRoleAssignment": Value::Null, "userErrors": [error(vec!["companyLocationId"])] }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        let assignment = self.b2b_stage_role_assignment(&location_id, &contact_id, &role_id);
+        let assignment_id = assignment["id"].as_str().unwrap_or_default().to_string();
+        (
+            json!({
+                "companyContactRoleAssignment": assignment,
+                "userErrors": []
+            }),
+            "staged",
+            vec![assignment_id],
+        )
+    }
+
+    /// Bulk-assigns roles to a contact, validating each entry's location and role
+    /// under its indexed field path so per-entry RESOURCE_NOT_FOUND errors mirror
+    /// Shopify's `rolesToAssign.<i>.<field>` shape.
+    pub(in crate::proxy) fn b2b_company_contact_assign_roles_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let contact_id =
+            resolved_string_arg(&field.arguments, "companyContactId").unwrap_or_default();
+        let roles_to_assign = resolved_object_list_field(&field.arguments, "rolesToAssign");
+        if !self.store.staged.b2b_contacts.contains_key(&contact_id) {
+            return (
+                json!({
+                    "roleAssignments": Value::Null,
+                    "userErrors": [{
+                        "field": ["companyContactId"],
+                        "message": "Resource requested does not exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        let mut assignments = Vec::new();
+        let mut user_errors = Vec::new();
+        for (index, input) in roles_to_assign.iter().enumerate() {
+            let role_id = resolved_string_field(input, "companyContactRoleId")
+                .or_else(|| resolved_string_field(input, "companyRoleId"))
+                .unwrap_or_default();
+            let location_id =
+                resolved_string_field(input, "companyLocationId").unwrap_or_default();
+            if !self.store.staged.b2b_locations.contains_key(&location_id) {
+                user_errors.push(json!({
+                    "field": ["rolesToAssign", index.to_string(), "companyLocationId"],
+                    "message": "Resource requested does not exist.",
+                    "code": "RESOURCE_NOT_FOUND"
+                }));
+                continue;
+            }
+            if !self.store.staged.b2b_contact_roles.contains_key(&role_id) {
+                user_errors.push(json!({
+                    "field": ["rolesToAssign", index.to_string(), "companyContactRoleId"],
+                    "message": "Resource requested does not exist.",
+                    "code": "RESOURCE_NOT_FOUND"
+                }));
+                continue;
+            }
+            assignments.push(self.b2b_stage_role_assignment(&location_id, &contact_id, &role_id));
+        }
+        let status = if assignments.is_empty() && !user_errors.is_empty() {
+            "failed"
+        } else {
+            "staged"
+        };
+        let staged_ids = assignments
+            .iter()
+            .filter_map(|assignment| assignment["id"].as_str().map(ToString::to_string))
+            .collect::<Vec<_>>();
+        (
+            json!({
+                "roleAssignments": assignments,
+                "userErrors": user_errors
+            }),
+            status,
+            staged_ids,
+        )
+    }
+
+    /// Revokes contact role assignments by id, reporting a per-index
+    /// RESOURCE_NOT_FOUND for any unknown assignment id.
+    pub(in crate::proxy) fn b2b_company_contact_revoke_roles_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let assignment_ids =
+            resolved_string_list_field_unsorted(&field.arguments, "roleAssignmentIds");
+        let mut revoked_ids = Vec::new();
+        let mut user_errors = Vec::new();
+        for (index, assignment_id) in assignment_ids.iter().enumerate() {
+            if let Some(assignment) = self.store.staged.b2b_role_assignments.remove(assignment_id) {
+                if let Some(location_id) = assignment["companyLocationId"].as_str() {
+                    self.b2b_remove_location_assignment_id(
+                        location_id,
+                        "roleAssignmentIds",
+                        assignment_id,
+                    );
+                }
+                revoked_ids.push(assignment_id.clone());
+            } else {
+                user_errors.push(b2b_indexed_user_error(
+                    "roleAssignmentIds",
+                    index,
+                    "Resource requested does not exist.",
+                    "RESOURCE_NOT_FOUND",
+                ));
+            }
+        }
+        let status = if revoked_ids.is_empty() && !user_errors.is_empty() {
+            "failed"
+        } else {
+            "staged"
+        };
+        (
+            json!({
+                "revokedRoleAssignmentIds": revoked_ids,
+                "userErrors": user_errors
+            }),
+            status,
+            revoked_ids,
+        )
+    }
+
+    /// Creates (or returns the existing) role assignment linking a contact to a role
+    /// at a location, recording the assignment id under the location.
+    fn b2b_stage_role_assignment(
+        &mut self,
+        location_id: &str,
+        contact_id: &str,
+        role_id: &str,
+    ) -> Value {
+        if let Some(existing) = self.b2b_role_assignment_for(location_id, contact_id, role_id) {
+            return existing;
+        }
+        let assignment_id = self.next_proxy_synthetic_gid("CompanyContactRoleAssignment");
+        let assignment = json!({
+            "id": assignment_id,
+            "companyLocationId": location_id,
+            "companyContactId": contact_id,
+            "companyContactRoleId": role_id
+        });
+        self.store
+            .staged
+            .b2b_role_assignments
+            .insert(assignment_id.clone(), assignment.clone());
+        if let Some(mut location) = self.store.staged.b2b_locations.get(location_id).cloned() {
+            b2b_push_json_id(&mut location, "roleAssignmentIds", &assignment_id);
+            self.store
+                .staged
+                .b2b_locations
+                .insert(location_id.to_string(), location);
+        }
+        assignment
+    }
+
+    /// Deletes a company and its locations from staged state, refusing the delete
+    /// when the company is still referenced (e.g. by an order's purchasing company)
+    /// the way Shopify guards an in-use company.
+    pub(in crate::proxy) fn b2b_company_delete_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let company_id = resolved_string_arg(&field.arguments, "id").unwrap_or_default();
+        if !self.store.staged.b2b_companies.contains_key(&company_id) {
+            return (
+                json!({
+                    "deletedCompanyId": Value::Null,
+                    "userErrors": [{
+                        "field": ["id"],
+                        "message": "Resource requested does not exist.",
+                        "code": "RESOURCE_NOT_FOUND"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        if self.b2b_company_has_delete_blocker(&company_id) {
+            return (
+                json!({
+                    "deletedCompanyId": Value::Null,
+                    "userErrors": [{
+                        "field": ["id"],
+                        "message": "Failed to delete the company.",
+                        "code": "FAILED_TO_DELETE"
+                    }]
+                }),
+                "failed",
+                Vec::new(),
+            );
+        }
+        self.b2b_remove_company_graph(&company_id);
+        (
+            json!({
+                "deletedCompanyId": company_id,
+                "userErrors": []
+            }),
+            "staged",
+            vec![company_id],
+        )
+    }
+
+    /// Bulk company delete: a per-index RESOURCE_NOT_FOUND for unknown ids, a
+    /// FAILED_TO_DELETE for ids blocked by an in-use reference, and the rest deleted.
+    pub(in crate::proxy) fn b2b_companies_delete_payload(
+        &mut self,
+        field: &RootFieldSelection,
+    ) -> (Value, &'static str, Vec<String>) {
+        let company_ids = resolved_string_list_field_unsorted(&field.arguments, "companyIds");
+        let mut deleted_ids = Vec::new();
+        let mut user_errors = Vec::new();
+        for (index, company_id) in company_ids.iter().enumerate() {
+            if !self.store.staged.b2b_companies.contains_key(company_id) {
+                user_errors.push(b2b_indexed_user_error(
+                    "companyIds",
+                    index,
+                    "Resource requested does not exist.",
+                    "RESOURCE_NOT_FOUND",
+                ));
+            } else if self.b2b_company_has_delete_blocker(company_id) {
+                user_errors.push(b2b_indexed_user_error(
+                    "companyIds",
+                    index,
+                    "Failed to delete the company.",
+                    "FAILED_TO_DELETE",
+                ));
+            } else {
+                deleted_ids.push(company_id.clone());
+            }
+        }
+        for company_id in &deleted_ids {
+            self.b2b_remove_company_graph(company_id);
+        }
+        let status = if deleted_ids.is_empty() && !user_errors.is_empty() {
+            "failed"
+        } else {
+            "staged"
+        };
+        (
+            json!({
+                "deletedCompanyIds": deleted_ids,
+                "userErrors": user_errors
+            }),
+            status,
+            deleted_ids,
+        )
+    }
+
+    /// True when a company cannot be deleted because it is still referenced by an
+    /// order/draft-order's purchasing company, or one of its locations carries a
+    /// positive store-credit balance.
+    fn b2b_company_has_delete_blocker(&self, company_id: &str) -> bool {
+        self.store
+            .staged
+            .orders
+            .values()
+            .any(|order| b2b_record_references_company(order, company_id))
+            || self
+                .store
+                .staged
+                .draft_orders
+                .values()
+                .any(|draft_order| b2b_record_references_company(draft_order, company_id))
+            || self
+                .store
+                .staged
+                .order_customer_orders
+                .values()
+                .any(|order| b2b_record_references_company(order, company_id))
+            || self
+                .b2b_company_location_ids(company_id)
+                .iter()
+                .any(|location_id| {
+                    self.store
+                        .staged
+                        .b2b_locations
+                        .get(location_id)
+                        .is_some_and(b2b_location_has_store_credit_balance)
+                })
+    }
+
+    /// Every staged location id that belongs to a company, whether tracked via the
+    /// company's `locationIds` or back-referenced from the location's `companyId`.
+    fn b2b_company_location_ids(&self, company_id: &str) -> Vec<String> {
+        let mut ids = self
+            .store
+            .staged
+            .b2b_companies
+            .get(company_id)
+            .map(|company| b2b_json_id_list(company, "locationIds"))
+            .unwrap_or_default();
+        ids.extend(
+            self.store
+                .staged
+                .b2b_locations
+                .iter()
+                .filter(|(_, location)| {
+                    location.get("companyId").and_then(Value::as_str) == Some(company_id)
+                        || location["company"]["id"].as_str() == Some(company_id)
+                })
+                .map(|(id, _)| id.clone()),
+        );
+        ids.sort();
+        ids.dedup();
+        ids
+    }
+
+    /// Removes a company and all of its staged locations from local state.
+    fn b2b_remove_company_graph(&mut self, company_id: &str) {
+        let location_ids = self.b2b_company_location_ids(company_id);
+        self.store.staged.b2b_companies.remove(company_id);
+        for location_id in location_ids {
+            self.store.staged.b2b_locations.remove(&location_id);
+        }
     }
 
     pub(in crate::proxy) fn b2b_company_location_delete_payload(
@@ -1669,6 +2382,9 @@ impl DraftProxy {
                 }
                 "companyLocation" if !value.is_null() => {
                     self.b2b_company_location_selected_json(value, &selection.selection)
+                }
+                "companyContactRoleAssignment" if !value.is_null() => {
+                    self.b2b_role_assignment_selected_json(value, &selection.selection)
                 }
                 "addresses" => {
                     b2b_selected_array(value, &selection.selection, |address, fields| {
@@ -3308,6 +4024,12 @@ impl DraftProxy {
                 _ => false,
             },
             "customerByIdentifier" => !self.store.staged.customers.is_empty(),
+            // A standalone `customers(query:)` / `customersCount` list read is
+            // served from the staged overlay once this scenario has staged at
+            // least one customer (e.g. a customerCreate or a privacy
+            // dataSaleOptOut synthetic). With no staged customers there is
+            // nothing local to serve, so the read forwards upstream unchanged.
+            "customers" | "customersCount" => !self.store.staged.customers.is_empty(),
             _ => false,
         })
     }
@@ -3372,7 +4094,10 @@ impl DraftProxy {
     /// Resolve `job(id:)` / `node(id:)` for a synthetic merge job id minted by
     /// `customer_merge`. Returns a completed `Job` projection from the staged
     /// merge request, or null for ids the proxy did not mint.
-    pub(in crate::proxy) fn customer_merge_job_node_field(&self, field: &RootFieldSelection) -> Value {
+    pub(in crate::proxy) fn customer_merge_job_node_field(
+        &self,
+        field: &RootFieldSelection,
+    ) -> Value {
         let Some(id) = resolved_string_field(&field.arguments, "id") else {
             return Value::Null;
         };
@@ -3387,7 +4112,10 @@ impl DraftProxy {
 
     /// True iff `node(id:)` targets a `Job` id we minted for a staged merge
     /// request, so the overlay read may serve it instead of forwarding.
-    pub(in crate::proxy) fn customer_merge_job_reference(&self, field: &RootFieldSelection) -> bool {
+    pub(in crate::proxy) fn customer_merge_job_reference(
+        &self,
+        field: &RootFieldSelection,
+    ) -> bool {
         resolved_string_field(&field.arguments, "id")
             .as_deref()
             .is_some_and(|id| self.store.staged.customer_merge_requests.contains_key(id))
@@ -4588,10 +5316,7 @@ impl DraftProxy {
     /// `None` when the customer is not staged locally. Extracting clones here
     /// ends the immutable borrow so callers can subsequently mint ids / take a
     /// mutable borrow of the same customer.
-    fn customer_address_context(
-        &self,
-        customer_id: &str,
-    ) -> Option<(Option<String>, Option<String>, Vec<Value>, Option<String>)> {
+    fn customer_address_context(&self, customer_id: &str) -> Option<CustomerAddressContext> {
         let customer = self.store.staged.customers.get(customer_id)?;
         let first = customer
             .get("firstName")
@@ -5312,6 +6037,564 @@ impl DraftProxy {
         }
         None
     }
+}
+
+/// Hydration query for the store-wide `customersCount` baseline used by the
+/// `customer*TaxExemptions` / marketing-consent downstream reads in LiveHybrid
+/// mode. Mirrors the per-resource hydrate queries; the count is cached into
+/// `customers_count_base` so subsequent reads track deletions generically.
+const CUSTOMER_COUNT_HYDRATE_QUERY: &str =
+    "query CustomerCountHydrate { customersCount { count precision } }";
+
+impl DraftProxy {
+    /// `customerAddTaxExemptions` / `customerRemoveTaxExemptions` /
+    /// `customerReplaceTaxExemptions`: stage the resulting tax-exemption set onto
+    /// the staged (or hydrated) customer and project the requested selection.
+    /// Enum validation (`customer_tax_exemptions_invalid_enum_response`) runs in
+    /// the dispatcher before this, so every field here carries valid exemptions.
+    pub(in crate::proxy) fn customer_tax_exemptions_mutation_response(
+        &mut self,
+        fields: &[RootFieldSelection],
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> Response {
+        let mut data = serde_json::Map::new();
+        for field in fields {
+            let (payload, staged_id) = self.customer_tax_exemptions_field_payload(field, request);
+            if let Some(id) = staged_id {
+                self.record_mutation_log_entry(request, query, variables, &field.name, vec![id]);
+            }
+            data.insert(
+                field.response_key.clone(),
+                selected_json(&payload, &field.selection),
+            );
+        }
+        ok_json(json!({ "data": Value::Object(data) }))
+    }
+
+    fn customer_tax_exemptions_field_payload(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+    ) -> (Value, Option<String>) {
+        let customer_id = resolved_string_arg(&field.arguments, "customerId").unwrap_or_default();
+        if customer_id.is_empty()
+            || self
+                .store
+                .staged
+                .deleted_customer_ids
+                .contains(&customer_id)
+        {
+            return (
+                customer_tax_exemptions_payload(
+                    Value::Null,
+                    vec![customer_tax_exemptions_user_error()],
+                ),
+                None,
+            );
+        }
+        if !self.store.staged.customers.contains_key(&customer_id) {
+            self.taggable_resource_staged_or_hydrated("Customer", &customer_id, request);
+        }
+        if !self.store.staged.customers.contains_key(&customer_id) {
+            return (
+                customer_tax_exemptions_payload(
+                    Value::Null,
+                    vec![customer_tax_exemptions_user_error()],
+                ),
+                None,
+            );
+        }
+
+        let tax_exemptions = normalize_customer_tax_exemptions(
+            resolved_string_list_field_unsorted(&field.arguments, "taxExemptions"),
+        );
+        let mut customer = self
+            .store
+            .staged
+            .customers
+            .get(&customer_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        let existing = customer_tax_exemptions(&customer);
+        let next = match field.name.as_str() {
+            "customerAddTaxExemptions" => add_customer_tax_exemptions(existing, tax_exemptions),
+            "customerRemoveTaxExemptions" => {
+                remove_customer_tax_exemptions(existing, tax_exemptions)
+            }
+            "customerReplaceTaxExemptions" => tax_exemptions,
+            _ => existing,
+        };
+        customer["taxExemptions"] = json!(next);
+        customer["updatedAt"] = json!("2026-04-25T01:41:06Z");
+        self.store
+            .staged
+            .customers
+            .insert(customer_id.clone(), customer.clone());
+
+        (
+            customer_tax_exemptions_payload(customer, Vec::new()),
+            Some(customer_id),
+        )
+    }
+
+    /// In LiveHybrid mode, hydrate the store-wide `customersCount` baseline from
+    /// upstream once (cached into `customers_count_base`) so a downstream
+    /// `customersCount` read served from the staged overlay reports the live
+    /// total. No-op in Snapshot mode or when the baseline is already known.
+    pub(in crate::proxy) fn hydrate_customers_count_for_overlay_read(&mut self, request: &Request) {
+        if self.config.read_mode != ReadMode::LiveHybrid
+            || self.store.staged.customers_count_base.is_some()
+        {
+            return;
+        }
+        let response = (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: json!({
+                "query": CUSTOMER_COUNT_HYDRATE_QUERY,
+                "operationName": "CustomerCountHydrate",
+                "variables": {},
+            })
+            .to_string(),
+        });
+        if !(200..300).contains(&response.status) {
+            return;
+        }
+        if let Some(count) = response.body["data"]["customersCount"]["count"].as_u64() {
+            self.store.staged.customers_count_base = Some(count);
+        }
+    }
+
+    /// `customerEmailMarketingConsentUpdate` / `customerSmsMarketingConsentUpdate`:
+    /// apply the resolved consent state onto the staged (or hydrated) customer and
+    /// project the requested selection, mirroring Shopify's resolver-error shapes.
+    pub(in crate::proxy) fn customer_marketing_consent_update(
+        &mut self,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        request: &Request,
+    ) -> Response {
+        let Some(fields) = root_fields(query, variables) else {
+            return json_error(400, "Could not parse GraphQL operation");
+        };
+        let mut data = serde_json::Map::new();
+        let mut errors = Vec::new();
+        for field in fields {
+            let outcome =
+                self.customer_marketing_consent_update_field(&field, request, query, variables);
+            if let Some(error) = outcome.top_level_error {
+                errors.push(error);
+                data.insert(field.response_key.clone(), Value::Null);
+            } else {
+                data.insert(
+                    field.response_key.clone(),
+                    selected_json(&outcome.payload, &field.selection),
+                );
+            }
+        }
+
+        let mut response = serde_json::Map::new();
+        if !errors.is_empty() {
+            response.insert("errors".to_string(), Value::Array(errors));
+        }
+        response.insert("data".to_string(), Value::Object(data));
+        ok_json(Value::Object(response))
+    }
+
+    fn customer_marketing_consent_update_field(
+        &mut self,
+        field: &RootFieldSelection,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+    ) -> CustomerConsentOutcome {
+        let is_email = field.name == "customerEmailMarketingConsentUpdate";
+        let consent_key = if is_email {
+            "emailMarketingConsent"
+        } else {
+            "smsMarketingConsent"
+        };
+        let input = resolved_object_field(&field.arguments, "input").unwrap_or_default();
+        let customer_id = resolved_string_field(&input, "customerId").unwrap_or_default();
+        let consent = resolved_object_field(&input, consent_key).unwrap_or_default();
+        let marketing_state = resolved_string_field(&consent, "marketingState").unwrap_or_default();
+
+        if matches!(marketing_state.as_str(), "NOT_SUBSCRIBED" | "REDACTED")
+            || (is_email && marketing_state == "INVALID")
+        {
+            self.record_customer_consent_log(
+                request,
+                query,
+                variables,
+                &field.name,
+                Vec::new(),
+                "failed",
+            );
+            return CustomerConsentOutcome {
+                payload: Value::Null,
+                top_level_error: Some(customer_consent_invalid_state_error(
+                    field,
+                    &marketing_state,
+                )),
+            };
+        }
+
+        let Some(existing_customer) =
+            self.taggable_resource_staged_or_hydrated("Customer", &customer_id, request)
+        else {
+            let user_error = if is_email {
+                json!({
+                    "field": ["input", "customerId"],
+                    "message": "Customer not found",
+                    "code": "INVALID"
+                })
+            } else {
+                json!({
+                    "field": Value::Null,
+                    "message": "Customer not found",
+                    "code": Value::Null
+                })
+            };
+            self.record_customer_consent_log(
+                request,
+                query,
+                variables,
+                &field.name,
+                Vec::new(),
+                "failed",
+            );
+            return CustomerConsentOutcome {
+                payload: customer_consent_payload(Value::Null, vec![user_error]),
+                top_level_error: None,
+            };
+        };
+
+        let marketing_opt_in_level = resolved_string_field(&consent, "marketingOptInLevel")
+            .unwrap_or_else(|| current_consent_opt_in_level(&existing_customer, is_email));
+        let consent_updated_at = resolved_string_field(&consent, "consentUpdatedAt");
+
+        if let Some(consent_updated_at) = consent_updated_at.as_deref() {
+            if customer_consent_updated_at_is_future(consent_updated_at) {
+                self.record_customer_consent_log(
+                    request,
+                    query,
+                    variables,
+                    &field.name,
+                    Vec::new(),
+                    "failed",
+                );
+                let customer = if is_email {
+                    existing_customer.clone()
+                } else {
+                    Value::Null
+                };
+                return CustomerConsentOutcome {
+                    payload: customer_consent_payload(
+                        customer,
+                        vec![customer_consent_user_error(
+                            vec!["input", consent_key, "consentUpdatedAt"],
+                            "Consent updated at must not be in the future",
+                            "INVALID",
+                        )],
+                    ),
+                    top_level_error: None,
+                };
+            }
+        }
+
+        if marketing_state == "PENDING" && marketing_opt_in_level != "CONFIRMED_OPT_IN" {
+            self.record_customer_consent_log(
+                request,
+                query,
+                variables,
+                &field.name,
+                Vec::new(),
+                "failed",
+            );
+            let customer = if is_email {
+                existing_customer.clone()
+            } else {
+                Value::Null
+            };
+            return CustomerConsentOutcome {
+                payload: customer_consent_payload(
+                    customer,
+                    vec![customer_consent_user_error(
+                        vec!["input", consent_key, "marketingOptInLevel"],
+                        "Marketing opt in level must be confirmed opt-in for pending consent state",
+                        "INVALID",
+                    )],
+                ),
+                top_level_error: None,
+            };
+        }
+
+        if !is_email && !customer_has_default_phone(&existing_customer) {
+            self.record_customer_consent_log(
+                request,
+                query,
+                variables,
+                &field.name,
+                Vec::new(),
+                "failed",
+            );
+            return CustomerConsentOutcome {
+                payload: customer_consent_payload(
+                    Value::Null,
+                    vec![customer_consent_user_error(
+                        vec!["input", "smsMarketingConsent"],
+                        "A phone number is required to set the SMS consent state.",
+                        "INVALID",
+                    )],
+                ),
+                top_level_error: None,
+            };
+        }
+
+        if is_email && !customer_has_default_email(&existing_customer) {
+            self.record_customer_consent_log(
+                request,
+                query,
+                variables,
+                &field.name,
+                vec![customer_id],
+                "staged",
+            );
+            return CustomerConsentOutcome {
+                payload: customer_consent_payload(existing_customer, Vec::new()),
+                top_level_error: None,
+            };
+        }
+
+        let updated_at = consent_updated_at
+            .or_else(|| current_consent_updated_at(&existing_customer, is_email))
+            .unwrap_or_else(|| "2026-04-25T01:41:06Z".to_string());
+        let mut customer = existing_customer;
+        apply_customer_marketing_consent(
+            &mut customer,
+            is_email,
+            &marketing_state,
+            &marketing_opt_in_level,
+            Some(updated_at.as_str()),
+        );
+        self.store
+            .staged
+            .customers
+            .insert(customer_id.clone(), customer.clone());
+        self.record_customer_consent_log(
+            request,
+            query,
+            variables,
+            &field.name,
+            vec![customer_id],
+            "staged",
+        );
+        CustomerConsentOutcome {
+            payload: customer_consent_payload(customer, Vec::new()),
+            top_level_error: None,
+        }
+    }
+
+    fn record_customer_consent_log(
+        &mut self,
+        request: &Request,
+        query: &str,
+        variables: &BTreeMap<String, ResolvedValue>,
+        root_field: &str,
+        staged_ids: Vec<String>,
+        status: &str,
+    ) {
+        self.record_mutation_log_entry(request, query, variables, root_field, staged_ids);
+        if status != "staged" {
+            if let Some(entry) = self.log_entries.last_mut() {
+                set_log_status(entry, status);
+            }
+        }
+    }
+}
+
+/// Validates the `taxExemptions` argument of the `customer*TaxExemptions`
+/// mutations before any staging, mirroring Shopify's enum coercion errors:
+/// invalid literals raise `argumentLiteralsIncompatible`, invalid variable
+/// values raise `INVALID_VARIABLE`. Returns `None` when every value is known.
+pub(in crate::proxy) fn customer_tax_exemptions_invalid_enum_response(
+    query: &str,
+    fields: &[RootFieldSelection],
+) -> Option<Response> {
+    for field in fields {
+        if !matches!(
+            field.name.as_str(),
+            "customerAddTaxExemptions"
+                | "customerRemoveTaxExemptions"
+                | "customerReplaceTaxExemptions"
+        ) {
+            continue;
+        }
+        let Some(raw_value) = field.raw_arguments.get("taxExemptions") else {
+            continue;
+        };
+        if let Some(literal) = raw_tax_exemption_literal(raw_value) {
+            return Some(ok_json(json!({
+                "errors": [{
+                    "message": format!("Argument 'taxExemptions' has an invalid value [{literal}]. Expected type '[TaxExemption!]'. Did you mean CA_STATUS_CARD_EXEMPTION?"),
+                    "extensions": {
+                        "code": "argumentLiteralsIncompatible",
+                        "argumentName": "taxExemptions"
+                    }
+                }]
+            })));
+        }
+        if let Some(invalid) = tax_exemption_invalid_variable(raw_value) {
+            return Some(tax_exemption_invalid_variable_response(query, &invalid));
+        }
+    }
+    None
+}
+
+fn customer_tax_exemptions_payload(customer: Value, user_errors: Vec<Value>) -> Value {
+    json!({
+        "customer": customer,
+        "userErrors": user_errors
+    })
+}
+
+fn customer_tax_exemptions_user_error() -> Value {
+    json!({
+        "field": ["customerId"],
+        "message": "Customer does not exist."
+    })
+}
+
+fn customer_tax_exemptions(customer: &Value) -> Vec<String> {
+    customer
+        .get("taxExemptions")
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn normalize_customer_tax_exemptions(exemptions: Vec<String>) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut normalized = Vec::new();
+    for exemption in exemptions {
+        if seen.insert(exemption.clone()) {
+            normalized.push(exemption);
+        }
+    }
+    normalized
+}
+
+fn add_customer_tax_exemptions(existing: Vec<String>, additions: Vec<String>) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut merged = Vec::new();
+    for exemption in existing.into_iter().chain(additions) {
+        if seen.insert(exemption.clone()) {
+            merged.push(exemption);
+        }
+    }
+    merged
+}
+
+fn remove_customer_tax_exemptions(existing: Vec<String>, removals: Vec<String>) -> Vec<String> {
+    let removals = removals.into_iter().collect::<BTreeSet<_>>();
+    existing
+        .into_iter()
+        .filter(|exemption| !removals.contains(exemption))
+        .collect()
+}
+
+/// Outcome of a single `customer*MarketingConsentUpdate` root field: either a
+/// projected payload (with field-level `userErrors`) or a top-level GraphQL
+/// error (Shopify raises these for disallowed marketing states).
+struct CustomerConsentOutcome {
+    payload: Value,
+    top_level_error: Option<Value>,
+}
+
+fn customer_consent_payload(customer: Value, user_errors: Vec<Value>) -> Value {
+    json!({
+        "customer": customer,
+        "userErrors": user_errors
+    })
+}
+
+fn customer_consent_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
+    json!({
+        "field": field,
+        "message": message,
+        "code": code
+    })
+}
+
+fn customer_consent_invalid_state_error(field: &RootFieldSelection, state: &str) -> Value {
+    json!({
+        "message": format!("Cannot specify {state} as a marketing state input"),
+        "locations": [{ "line": field.location.line, "column": field.location.column }],
+        "extensions": { "code": "INVALID" },
+        "path": [field.response_key.clone()]
+    })
+}
+
+fn customer_has_default_email(customer: &Value) -> bool {
+    customer
+        .get("defaultEmailAddress")
+        .and_then(|contact| contact.get("emailAddress"))
+        .and_then(Value::as_str)
+        .is_some_and(|email| !email.trim().is_empty())
+}
+
+fn customer_has_default_phone(customer: &Value) -> bool {
+    customer
+        .get("defaultPhoneNumber")
+        .and_then(|contact| contact.get("phoneNumber"))
+        .and_then(Value::as_str)
+        .is_some_and(|phone| !phone.trim().is_empty())
+}
+
+fn current_consent_opt_in_level(customer: &Value, is_email: bool) -> String {
+    let contact_key = if is_email {
+        "defaultEmailAddress"
+    } else {
+        "defaultPhoneNumber"
+    };
+    customer
+        .get(contact_key)
+        .and_then(|contact| contact.get("marketingOptInLevel"))
+        .and_then(Value::as_str)
+        .unwrap_or("SINGLE_OPT_IN")
+        .to_string()
+}
+
+fn current_consent_updated_at(customer: &Value, is_email: bool) -> Option<String> {
+    let contact_key = if is_email {
+        "defaultEmailAddress"
+    } else {
+        "defaultPhoneNumber"
+    };
+    customer
+        .get(contact_key)
+        .and_then(|contact| contact.get("marketingUpdatedAt"))
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
+}
+
+fn customer_consent_updated_at_is_future(value: &str) -> bool {
+    let Some(updated_at) = parse_rfc3339_epoch_seconds(value) else {
+        return false;
+    };
+    let Ok(now) = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) else {
+        return false;
+    };
+    updated_at > now.as_secs() as i64
 }
 
 #[derive(Default)]
@@ -6096,6 +7379,7 @@ fn customer_rebuild_addresses(customer: &mut Value, nodes: Vec<Value>, default_i
 ///   * defaults `firstName`/`lastName` to the owning customer's name when absent,
 ///   * merges over an `existing` node for updates (input fields override; absent
 ///     fields keep the stored value).
+///
 /// Returns `(Some(node), [])` on success or `(None, errors)` on validation
 /// failure.
 fn customer_address_input_node(
@@ -7485,6 +8769,115 @@ fn b2b_indexed_user_error(field: &str, index: usize, message: &str, code: &str) 
     })
 }
 
+/// Validates a `companyContactCreate` input: a title carrying HTML, a name that
+/// exceeds Shopify's 255-character limit, or an invalid email each produces a
+/// user error anchored at its own `input.<field>` path.
+fn b2b_contact_create_input_errors(
+    input: &BTreeMap<String, ResolvedValue>,
+    prefix: &[&str],
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    let field_path = |name: &str| -> Vec<String> {
+        prefix
+            .iter()
+            .map(|part| part.to_string())
+            .chain(std::iter::once(name.to_string()))
+            .collect()
+    };
+    if let Some(title) = resolved_string_field(input, "title") {
+        if b2b_contains_html_tags(&title) {
+            errors.push(json!({
+                "field": field_path("title"),
+                "message": "Title contains HTML tags",
+                "code": "CONTAINS_HTML_TAGS"
+            }));
+        }
+    }
+    for (name_field, label) in [("firstName", "First name"), ("lastName", "Last name")] {
+        if let Some(value) = resolved_string_field(input, name_field) {
+            if value.chars().count() > 255 {
+                errors.push(json!({
+                    "field": field_path(name_field),
+                    "message": format!("{label} is too long"),
+                    "code": "TOO_LONG"
+                }));
+            }
+        }
+    }
+    if let Some(email) = resolved_string_field(input, "email") {
+        if !is_valid_customer_email(&email) {
+            errors.push(json!({
+                "field": field_path("email"),
+                "message": "Email is invalid",
+                "code": "INVALID"
+            }));
+        }
+    }
+    errors
+}
+
+/// True when a staged order/draft-order record references the given company via
+/// its purchasing entity (directly, or through a draft order's nested completed
+/// order) — i.e. the company is still in use and cannot be deleted.
+fn b2b_record_references_company(record: &Value, company_id: &str) -> bool {
+    if let Some(entity) = record.get("purchasingEntity") {
+        if b2b_value_contains_company_id(entity, company_id) {
+            return true;
+        }
+    }
+    if let Some(order) = record.get("order") {
+        if order
+            .get("purchasingEntity")
+            .is_some_and(|entity| b2b_value_contains_company_id(entity, company_id))
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// Recursively searches a value for a reference to a company id, matching a
+/// `companyId` field, a nested `company.id`, or the bare id as a string.
+fn b2b_value_contains_company_id(value: &Value, company_id: &str) -> bool {
+    match value {
+        Value::Object(map) => {
+            if map.get("companyId").and_then(Value::as_str) == Some(company_id) {
+                return true;
+            }
+            if map
+                .get("company")
+                .and_then(|company| company.get("id"))
+                .and_then(Value::as_str)
+                == Some(company_id)
+            {
+                return true;
+            }
+            map.values()
+                .any(|value| b2b_value_contains_company_id(value, company_id))
+        }
+        Value::Array(items) => items
+            .iter()
+            .any(|item| b2b_value_contains_company_id(item, company_id)),
+        Value::String(string) => string == company_id,
+        _ => false,
+    }
+}
+
+/// True when a company location carries a positive store-credit balance on any
+/// of its accounts, which blocks deleting the owning company.
+fn b2b_location_has_store_credit_balance(location: &Value) -> bool {
+    location["storeCreditAccounts"]["nodes"]
+        .as_array()
+        .is_some_and(|nodes| {
+            nodes.iter().any(|account| {
+                account["balance"]["amount"]
+                    .as_str()
+                    .and_then(|amount| amount.parse::<f64>().ok())
+                    .is_some_and(|amount| amount > 0.0)
+            })
+        })
+}
+
 fn b2b_unique_strings(values: &[String]) -> bool {
     let mut seen = BTreeSet::new();
     values.iter().all(|value| seen.insert(value))
@@ -7737,8 +9130,7 @@ impl DraftProxy {
         root_field: &str,
         request_erasure: bool,
     ) -> Response {
-        let response_key =
-            root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
+        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
         let payload_selection = root_field_selection(query).unwrap_or_default();
         let arguments = root_field_arguments(query, variables).unwrap_or_default();
         let customer_id = resolved_string_field(&arguments, "customerId")

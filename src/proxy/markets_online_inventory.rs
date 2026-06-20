@@ -2824,18 +2824,3 @@ pub(in crate::proxy) fn bulk_operation_record_with_type(
         "query": query
     })
 }
-
-pub(in crate::proxy) fn b2b_company_customer_since_value(
-    id: &str,
-    selection: &[SelectedField],
-) -> Option<Value> {
-    (id == "gid://shopify/Company/7681462450").then(|| {
-        selected_json(
-            &json!({
-                "name": "HAR-760 customerSince 1778017011251",
-                "customerSince": "2024-01-01T00:00:00Z"
-            }),
-            selection,
-        )
-    })
-}

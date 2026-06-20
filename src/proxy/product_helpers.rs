@@ -1983,7 +1983,7 @@ fn collection_products_by_recency(connection: &Value) -> Value {
     }
     let mut connection = connection.clone();
     if let Some(nodes) = connection.get_mut("nodes").and_then(Value::as_array_mut) {
-        nodes.sort_by(|a, b| recency(b).cmp(&recency(a)));
+        nodes.sort_by_key(|n| std::cmp::Reverse(recency(n)));
     }
     if let Some(edges) = connection.get_mut("edges").and_then(Value::as_array_mut) {
         edges.sort_by(|a, b| {

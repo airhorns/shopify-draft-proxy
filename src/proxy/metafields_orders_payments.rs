@@ -2138,6 +2138,68 @@ pub(in crate::proxy) fn payment_terms_template_projection(
     }
 }
 
+/// Shopify's payment-terms template catalog is a fixed, store-independent global
+/// list (Due on receipt / fulfillment, Net 7/15/30/45/60/90, Fixed). The tuple is
+/// `(id-tail, name, description, dueInDays, paymentTermsType)` projected verbatim
+/// from the live `payment-terms-templates-read` capture so the strict-json parity
+/// read matches; `translatedName` mirrors `name` for the default (English) locale.
+/// Ordering matters: the live catalog returns receipt, fulfillment, the net rung,
+/// then fixed.
+const PAYMENT_TERMS_TEMPLATE_CATALOG: &[(&str, &str, &str, Option<i64>, &str)] = &[
+    ("1", "Due on receipt", "Due on receipt", None, "RECEIPT"),
+    (
+        "9",
+        "Due on fulfillment",
+        "Due on fulfillment",
+        None,
+        "FULFILLMENT",
+    ),
+    ("2", "Net 7", "Within 7 days", Some(7), "NET"),
+    ("3", "Net 15", "Within 15 days", Some(15), "NET"),
+    ("4", "Net 30", "Within 30 days", Some(30), "NET"),
+    ("8", "Net 45", "Within 45 days", Some(45), "NET"),
+    ("5", "Net 60", "Within 60 days", Some(60), "NET"),
+    ("6", "Net 90", "Within 90 days", Some(90), "NET"),
+    ("7", "Fixed", "Fixed date", None, "FIXED"),
+];
+
+/// Projects the fixed payment-terms template catalog for a `paymentTermsTemplates`
+/// query. Each selected root field (the live read aliases `all`/`filtered`) is
+/// resolved independently; an optional `paymentTermsType` argument filters the
+/// catalog to a single terms type.
+pub(in crate::proxy) fn payment_terms_templates_query_data(fields: &[RootFieldSelection]) -> Value {
+    let mut data = serde_json::Map::new();
+    for field in fields {
+        if field.name != "paymentTermsTemplates" {
+            continue;
+        }
+        let type_filter = resolved_string_arg(&field.arguments, "paymentTermsType")
+            .or_else(|| resolved_string_arg(&field.arguments, "type"));
+        let templates: Vec<Value> = PAYMENT_TERMS_TEMPLATE_CATALOG
+            .iter()
+            .filter(|(_, _, _, _, terms_type)| {
+                type_filter.as_deref().is_none_or(|f| *terms_type == f)
+            })
+            .map(|(tail, name, description, due_in_days, terms_type)| {
+                selected_json(
+                    &json!({
+                        "id": format!("gid://shopify/PaymentTermsTemplate/{tail}"),
+                        "name": name,
+                        "description": description,
+                        "dueInDays": due_in_days.map(Value::from).unwrap_or(Value::Null),
+                        "paymentTermsType": terms_type,
+                        "translatedName": name,
+                        "__typename": "PaymentTermsTemplate"
+                    }),
+                    &field.selection,
+                )
+            })
+            .collect();
+        data.insert(field.response_key.clone(), Value::Array(templates));
+    }
+    Value::Object(data)
+}
+
 /// Normalizes a Shopify MoneyV2 amount string to Shopify's minimal-decimal
 /// representation: strip trailing zeros after the decimal point but keep at
 /// least one fractional digit ("57.00" -> "57.0", "18.50" -> "18.5",
@@ -3776,7 +3838,47 @@ impl DraftProxy {
             "gid://shopify/Customer/8801",
             json!({ "__typename": "CustomerShopPayAgreement" }),
         );
-        for record in [base_card, base_paypal, base_shop_pay] {
+        // A revocation sentinel carrying a live subscription contract: revoking it
+        // must surface ACTIVE_CONTRACT rather than NOT_FOUND. The base seed helper
+        // hardcodes an empty contract list, so override it here. These sentinels are
+        // attached to a dedicated local-only customer (never present in any recorded
+        // cassette) so they never leak into the parity `paymentMethods` connection
+        // reads for the real seed customer (8801), which expect exactly the three
+        // base methods plus the runtime-created ones.
+        let mut active_contract = customer_payment_method_seed_record(
+            "gid://shopify/CustomerPaymentMethod/active-contract",
+            "gid://shopify/Customer/revoke-sentinel",
+            json!({
+                "__typename": "CustomerCreditCard",
+                "lastDigits": Value::Null,
+                "maskedNumber": Value::Null
+            }),
+        );
+        active_contract["activeSubscriptionContracts"] = json!({
+            "nodes": [{ "id": "gid://shopify/SubscriptionContract/1" }]
+        });
+        // A method that was already revoked before this session: revoking it again
+        // must echo the normalized id while preserving the pre-existing revoke
+        // metadata (the handler's `revokedAt.is_null()` guard short-circuits), so
+        // seed it with a fixed prior revoke timestamp rather than the synthetic one.
+        let mut already_revoked = customer_payment_method_seed_record(
+            "gid://shopify/CustomerPaymentMethod/already-revoked",
+            "gid://shopify/Customer/revoke-sentinel",
+            json!({
+                "__typename": "CustomerCreditCard",
+                "lastDigits": Value::Null,
+                "maskedNumber": Value::Null
+            }),
+        );
+        already_revoked["revokedAt"] = json!("2026-05-01T00:00:00.000Z");
+        already_revoked["revokedReason"] = json!("CUSTOMER_REVOKED");
+        for record in [
+            base_card,
+            base_paypal,
+            base_shop_pay,
+            active_contract,
+            already_revoked,
+        ] {
             self.stage_customer_payment_method_record(record);
         }
         self.store.staged.next_customer_payment_method_id = 1;

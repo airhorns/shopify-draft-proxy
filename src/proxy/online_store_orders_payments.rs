@@ -6376,6 +6376,11 @@ impl DraftProxy {
             "id": order_id,
             "name": format!("#{}", self.store.staged.orders.len() + 1),
             "email": resolved_string_field(order_input, "email"),
+            // Retain the purchasing entity (B2B purchasing company/contact) the
+            // order was placed under, the way a real Order exposes it — both so it
+            // reads back and so a company delete can detect the order still
+            // references it.
+            "purchasingEntity": draft_order_purchasing_entity(order_input),
             "closed": false,
             "closedAt": Value::Null,
             "cancelledAt": Value::Null,
@@ -6489,7 +6494,14 @@ impl DraftProxy {
         let has_staged_read = fields.iter().any(|field| match field.name.as_str() {
             "draftOrder" => resolved_string_arg(&field.arguments, "id")
                 .is_some_and(|id| self.store.staged.draft_orders.contains_key(&id)),
-            "draftOrders" | "draftOrdersCount" => !self.store.staged.draft_orders.is_empty(),
+            // List/count reads resolve locally once any draft order has existed this
+            // scenario (counter advanced past its base) — a session that created then
+            // bulk-deleted every draft must still report `{count: 0}` rather than
+            // falling through to the upstream catalog.
+            "draftOrders" | "draftOrdersCount" => {
+                !self.store.staged.draft_orders.is_empty()
+                    || self.store.staged.next_draft_order_id > 1
+            }
             _ => false,
         });
         if !has_lifecycle_root && !has_staged_read {
@@ -7871,6 +7883,28 @@ impl DraftProxy {
                     &field.response_key,
                     oe_error_payload(
                         vec![oe_user_error(&["base"], "not_editable", None)],
+                        &field.selection,
+                    ),
+                ));
+            }
+            // Shopify allows only one open order edit per order: beginning a
+            // second edit while a prior session is still uncommitted is rejected.
+            // The slot is cleared on commit, so post-commit re-edits are allowed.
+            if self
+                .store
+                .staged
+                .order_edit_existing_session_order_id
+                .as_deref()
+                == Some(order_id.as_str())
+            {
+                return Some(data_response(
+                    &field.response_key,
+                    oe_error_payload(
+                        vec![oe_user_error(
+                            &["base"],
+                            "This order already has an order edit in progress.",
+                            None,
+                        )],
                         &field.selection,
                     ),
                 ));
@@ -9743,9 +9777,16 @@ impl DraftProxy {
             ResolvedValue::Object(fields) => resolved_string_arg(fields, "customerId"),
             _ => None,
         };
+        // Retain the purchasing entity so a later company delete can detect that an
+        // order still references the company (mirrors a real B2B Order).
+        let purchasing_entity = match order_arg {
+            ResolvedValue::Object(fields) => draft_order_purchasing_entity(fields),
+            _ => Value::Null,
+        };
         let order = json!({
             "id": id,
-            "customer": customer_id.map(|id| json!({ "id": id })).unwrap_or(Value::Null)
+            "customer": customer_id.map(|id| json!({ "id": id })).unwrap_or(Value::Null),
+            "purchasingEntity": purchasing_entity
         });
         self.store.staged.order_customer_orders.insert(
             order["id"].as_str().unwrap_or_default().to_string(),

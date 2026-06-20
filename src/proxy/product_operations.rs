@@ -282,9 +282,11 @@ impl DraftProxy {
         );
         product.extra_fields.insert(
             "templateSuffix".to_string(),
-            (!product.template_suffix.is_empty())
-                .then(|| json!(product.template_suffix))
-                .unwrap_or(Value::Null),
+            if product.template_suffix.is_empty() {
+                Value::Null
+            } else {
+                json!(product.template_suffix)
+            },
         );
 
         self.store.stage_product(product.clone());
