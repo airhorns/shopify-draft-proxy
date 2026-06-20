@@ -623,6 +623,7 @@ function collectSetupEntitySeeds(capture: unknown): {
 } {
   const draftOrders = new Map<string, Record<string, unknown>>();
   const orders = new Map<string, Record<string, unknown>>();
+  const fulfillmentOrders = new Map<string, Record<string, unknown>>();
   const deletedIds = new Set<string>();
   // Setup blocks describe an entity across several steps, in chronological
   // (document) order — e.g. an order is created (`displayFinancialStatus: PAID`,
@@ -654,6 +655,8 @@ function collectSetupEntitySeeds(capture: unknown): {
         mergeProjection(draftOrders, id, obj);
       } else if (id.startsWith('gid://shopify/Order/')) {
         mergeProjection(orders, id, obj);
+      } else if (id.startsWith('gid://shopify/FulfillmentOrder/')) {
+        mergeProjection(fulfillmentOrders, id, obj);
       }
     }
     const deletedId = obj['deletedId'];
@@ -716,6 +719,29 @@ function collectSetupEntitySeeds(capture: unknown): {
   findSetups(capture);
   for (const block of setupBlocks) visit(block);
   for (const block of setupBlocks) overlayInputs(block);
+  // A fulfillment order can be relocated, held, or otherwise mutated across
+  // setup steps — e.g. orderCreate places it at location A, then a later
+  // fulfillmentOrderMove relocates it to location B (the move's response nests
+  // the moved FulfillmentOrder *outside* the order's `fulfillmentOrders`
+  // connection, so the order projection alone keeps the stale create-time
+  // location). Overlay the merged FulfillmentOrder projection (final pre-test
+  // state — move/hold applied, since later steps win per field) back onto each
+  // matching node the seeded order already declares. Only nodes the order
+  // already carries are enriched, never added, so this strictly reflects the
+  // entity's latest pre-test state without inventing connection members.
+  const overlayFulfillmentOrders = (order: Record<string, unknown>): void => {
+    const connection = order['fulfillmentOrders'] as Record<string, unknown> | undefined;
+    const nodes = connection?.['nodes'];
+    if (!Array.isArray(nodes)) return;
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i] as Record<string, unknown> | null;
+      const nodeId = node?.['id'];
+      if (typeof nodeId !== 'string') continue;
+      const merged = fulfillmentOrders.get(nodeId);
+      if (merged) nodes[i] = { ...node, ...merged };
+    }
+  };
+  for (const order of orders.values()) overlayFulfillmentOrders(order);
   for (const id of deletedIds) {
     draftOrders.delete(id);
     orders.delete(id);

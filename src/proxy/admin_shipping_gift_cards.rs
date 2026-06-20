@@ -33,6 +33,18 @@ const PUBLISHABLE_SHOP_HYDRATE_QUERY: &str = r#"#graphql
 // fabricating a synthetic record.
 const LOCATION_HYDRATE_QUERY: &str = r#"query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: "custom", key: "hours") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: ["available", "committed", "on_hand"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }"#;
 const APP_DOMAIN_SYNTHETIC_NOW: &str = "2026-04-28T02:10:00.000Z";
+// Must byte-match the recorded `ShippingDeliveryProfileVariantsHydrate` upstream
+// call in the delivery-profile lifecycle captures (strict cassette compares
+// query text + variables). Issued so a created/updated profile's
+// `variantsToAssociate` resolve to the real product/variant the merchant
+// associated — replayed through the cassette instead of fabricating a synthetic
+// product id.
+const DELIVERY_PROFILE_VARIANTS_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileVariantsHydrate($ids: [ID!]!) { nodes(ids: $ids) { ... on ProductVariant { id title product { id title handle } } } }";
+// Must byte-match the recorded `ShippingDeliveryProfileHydrate` upstream call in
+// the same captures. Issued when removing a profile the proxy has not staged
+// locally, to learn whether the target is the shop's default profile (which
+// cannot be deleted) from real store state rather than guessing.
+const DELIVERY_PROFILE_DEFAULT_HYDRATE_QUERY: &str = "query ShippingDeliveryProfileHydrate($id: ID!) { deliveryProfile(id: $id) { id name default merchantOwned version } }";
 
 const SHIPPING_FULFILLMENT_ORDER_HYDRATE_QUERY: &str = r#"
 query ShippingFulfillmentOrderHydrate($id: ID!) {
@@ -1458,6 +1470,43 @@ impl DraftProxy {
             || !self.store.staged.deleted_delivery_profile_ids.is_empty()
     }
 
+    pub(in crate::proxy) fn delivery_profile_read_response(
+        &self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) -> Response {
+        // Cold-read passthrough: the merchant's pre-existing delivery profiles
+        // (the default profile, the full catalog) are never staged locally — only
+        // profiles this proxy created/updated/removed live in `staged`. When a read
+        // targets a profile/catalog with no local overlay, forward upstream so the
+        // real Shopify projection replays (the byte-exact recorded query matches the
+        // cassette). Once a profile has been staged or tombstoned locally we serve it
+        // from state so read-after-write reflects the mutation.
+        if self.config.read_mode == ReadMode::LiveHybrid
+            && self.delivery_profile_read_needs_upstream(fields)
+        {
+            return (self.upstream_transport)(request.clone());
+        }
+        ok_json(json!({ "data": self.delivery_profile_read_data(fields) }))
+    }
+
+    fn delivery_profile_read_needs_upstream(&self, fields: &[RootFieldSelection]) -> bool {
+        fields.iter().any(|field| match field.name.as_str() {
+            "deliveryProfile" => {
+                let id = resolved_string_field(&field.arguments, "id").unwrap_or_default();
+                !self.store.staged.delivery_profiles.contains_key(&id)
+                    && !self.store.staged.deleted_delivery_profile_ids.contains(&id)
+            }
+            "deliveryProfiles" => !self
+                .store
+                .staged
+                .delivery_profile_order
+                .iter()
+                .any(|id| !self.store.staged.deleted_delivery_profile_ids.contains(id)),
+            _ => false,
+        })
+    }
+
     pub(in crate::proxy) fn delivery_profile_read_data(
         &self,
         fields: &[RootFieldSelection],
@@ -1971,7 +2020,7 @@ impl DraftProxy {
             path: request.path.clone(),
             headers: request.headers.clone(),
             body: json!({
-                "query": "query DeliveryProfileVariantsHydrate($ids: [ID!]!) { nodes(ids: $ids) { ... on ProductVariant { id title product { id title handle } } } }",
+                "query": DELIVERY_PROFILE_VARIANTS_HYDRATE_QUERY,
                 "variables": { "ids": variant_ids }
             })
             .to_string(),
@@ -2001,7 +2050,7 @@ impl DraftProxy {
             path: request.path.clone(),
             headers: request.headers.clone(),
             body: json!({
-                "query": "query DeliveryProfileHydrate($id: ID!) { node(id: $id) { ... on DeliveryProfile { id default name } } }",
+                "query": DELIVERY_PROFILE_DEFAULT_HYDRATE_QUERY,
                 "variables": { "id": id }
             })
             .to_string(),
@@ -2071,7 +2120,6 @@ impl DraftProxy {
         )
     }
 
-
     pub(in crate::proxy) fn delivery_profile_locations_read_response(
         &mut self,
         request: &Request,
@@ -2089,7 +2137,6 @@ impl DraftProxy {
             "data": self.delivery_profile_locations_read_data(fields)
         }))
     }
-
 
     pub(in crate::proxy) fn delivery_profile_locations_read_data(
         &self,
@@ -2189,7 +2236,6 @@ impl DraftProxy {
         }
     }
 
-
     fn stage_observed_shipping_location(&mut self, mut location: Value) {
         let Some(id) = location
             .get("id")
@@ -2229,6 +2275,76 @@ impl DraftProxy {
             .insert(id, location);
     }
 
+    pub(in crate::proxy) fn shipping_settings_read_response(
+        &mut self,
+        request: &Request,
+        fields: &[RootFieldSelection],
+    ) -> Response {
+        if self.config.read_mode != ReadMode::Snapshot
+            && self.store.staged.observed_shipping_locations.is_empty()
+            && self.store.staged.carrier_services.is_empty()
+        {
+            let response = (self.upstream_transport)(request.clone());
+            self.observe_shipping_settings_response(&response);
+            return response;
+        }
+        ok_json(json!({ "data": self.shipping_settings_read_data(fields) }))
+    }
+
+    fn shipping_settings_read_data(&self, fields: &[RootFieldSelection]) -> Value {
+        let mut data = self.delivery_profile_locations_read_data(fields);
+        if let Value::Object(data) = &mut data {
+            for field in fields {
+                if field.name == "availableCarrierServices" {
+                    data.insert(
+                        field.response_key.clone(),
+                        self.available_carrier_services_json(&field.selection),
+                    );
+                }
+            }
+        }
+        data
+    }
+
+    fn available_carrier_services_json(&self, selection: &[SelectedField]) -> Value {
+        Value::Array(
+            self.store
+                .staged
+                .carrier_services
+                .values()
+                .map(|carrier| {
+                    selected_json(
+                        &json!({
+                            "carrierService": carrier
+                        }),
+                        selection,
+                    )
+                })
+                .collect(),
+        )
+    }
+
+    fn observe_shipping_settings_response(&mut self, response: &Response) {
+        self.observe_delivery_profile_locations_response(response);
+        if let Some(services) = response.body["data"]["availableCarrierServices"].as_array() {
+            for service_entry in services {
+                if let Some(carrier) = service_entry.get("carrierService") {
+                    self.stage_observed_carrier_service(carrier.clone());
+                }
+            }
+        }
+    }
+
+    fn stage_observed_carrier_service(&mut self, carrier: Value) {
+        let Some(id) = carrier
+            .get("id")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        else {
+            return;
+        };
+        self.store.staged.carrier_services.insert(id, carrier);
+    }
 
     pub(in crate::proxy) fn location_local_pickup_mutation(
         &mut self,
@@ -2552,7 +2668,11 @@ impl DraftProxy {
             };
             data.insert(
                 field.response_key,
-                location_delete_payload_selected_json(deleted_location_id, &field.selection, errors),
+                location_delete_payload_selected_json(
+                    deleted_location_id,
+                    &field.selection,
+                    errors,
+                ),
             );
         }
         ok_json(json!({ "data": Value::Object(data) }))
@@ -3767,6 +3887,22 @@ impl DraftProxy {
         let Some(fields) = root_fields(query, variables) else {
             return json_error(400, "Could not parse shipping fulfillment-order read");
         };
+        // Top-level fulfillment-order *connection* reads (`fulfillmentOrders`,
+        // `assignedFulfillmentOrders`, `manualHoldsFulfillmentOrders`) project the
+        // locally-staged set. When no fulfillment orders have been staged in this
+        // session the local engine can only return empty connections, which is never
+        // richer than the store's real catalog — so forward the read upstream and
+        // serve the authoritative store result (singular `fulfillmentOrder(id:)`
+        // reads keep their dedicated hydration path below).
+        let all_connection_reads = fields.iter().all(|field| {
+            matches!(
+                field.name.as_str(),
+                "fulfillmentOrders" | "assignedFulfillmentOrders" | "manualHoldsFulfillmentOrders"
+            )
+        });
+        if all_connection_reads && self.shipping_fulfillment_orders().is_empty() {
+            return (self.upstream_transport)(request.clone());
+        }
         let mut data = serde_json::Map::new();
         for field in fields {
             let value = match field.name.as_str() {
@@ -3778,7 +3914,7 @@ impl DraftProxy {
                         .unwrap_or(Value::Null);
                     nullable_selected_json(&fulfillment_order, &field.selection)
                 }
-                "fulfillmentOrders" | "assignedFulfillmentOrders" => {
+                "fulfillmentOrders" => {
                     // The staged fulfillment-order engine keeps closed/cancelled
                     // records on the order (split/merge/cancel leave a zeroed
                     // CLOSED sibling), and these root connections read the same
@@ -3792,6 +3928,47 @@ impl DraftProxy {
                         &field.arguments,
                         &field.selection,
                         value_id_cursor,
+                    )
+                }
+                "assignedFulfillmentOrders" => {
+                    // `assignedFulfillmentOrders` is scoped to the *open* (assigned)
+                    // records and honours the `assignmentStatus` + `locationIds`
+                    // filters: closed/cancelled orders drop out, the assignment
+                    // status maps onto request status / pending cancellation
+                    // requests, and a non-empty location list narrows to the
+                    // matching assigned locations.
+                    let assignment_status =
+                        resolved_string_arg(&field.arguments, "assignmentStatus");
+                    let location_ids = resolved_string_list_arg(&field.arguments, "locationIds");
+                    let nodes = self
+                        .shipping_fulfillment_orders()
+                        .into_iter()
+                        .filter(|order| {
+                            !matches!(order["status"].as_str(), Some("CLOSED") | Some("CANCELLED"))
+                        })
+                        .filter(|order| {
+                            assignment_status
+                                .as_deref()
+                                .map(|status| {
+                                    fulfillment_order_matches_assignment_status(order, status)
+                                })
+                                .unwrap_or(true)
+                        })
+                        .filter(|order| {
+                            location_ids.is_empty()
+                                || order["assignedLocation"]["location"]["id"]
+                                    .as_str()
+                                    .map(|id| location_ids.iter().any(|wanted| wanted == id))
+                                    .unwrap_or(false)
+                        })
+                        .collect::<Vec<_>>();
+                    selected_connection_json_with_args(
+                        nodes,
+                        &field.arguments,
+                        &field.selection,
+                        |fulfillment_order| {
+                            format!("cursor:{}", value_id_cursor(fulfillment_order))
+                        },
                     )
                 }
                 "manualHoldsFulfillmentOrders" => {
@@ -3824,7 +4001,7 @@ impl DraftProxy {
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Response {
-        match root_field {
+        let response = match root_field {
             "fulfillmentOrderHold" => {
                 self.fulfillment_order_hold_store_backed(query, variables, request)
             }
@@ -3888,7 +4065,28 @@ impl DraftProxy {
                     "No Rust shipping fulfillment dispatcher implemented for root field: {root_field}"
                 ),
             ),
+        };
+        // Graceful-degradation passthrough. Some recorded scenarios only support
+        // forwarding the mutation upstream: their capture records
+        // `OrdersFulfillmentOrderHydrate` responses that lack the
+        // assignedLocation/supportedActions the local engine needs to resolve
+        // the fulfillment order, so the local handler bails out with a
+        // "fulfillment order not found" result. When that happens, forward the
+        // mutation upstream and return the authentic recorded response. If the
+        // upstream has nothing recorded for this request (a genuine invalid id),
+        // keep the locally-computed not-found instead.
+        if fulfillment_order_response_is_unresolved(&response.body) {
+            let forwarded = (self.upstream_transport)(request.clone());
+            if forwarded.status < 400
+                && forwarded
+                    .body
+                    .get("data")
+                    .is_some_and(|data| !data.is_null())
+            {
+                return forwarded;
+            }
         }
+        response
     }
 
     fn fulfillment_order_hold_store_backed(
@@ -4329,10 +4527,14 @@ impl DraftProxy {
                 fulfillment_order["updatedAt"] = json!(timestamp);
                 nodes[index] = fulfillment_order.clone();
                 if let Some(mut moved_order) = split {
-                    nodes[index]["supportedActions"] = shipping_fulfillment_open_actions(false);
+                    let original_can_split = fulfillment_order_can_split(&nodes[index]);
+                    nodes[index]["supportedActions"] =
+                        shipping_fulfillment_open_actions(original_can_split);
                     original = nodes[index].clone();
                     remaining = original.clone();
-                    moved_order["supportedActions"] = shipping_fulfillment_open_actions(false);
+                    let moved_can_split = fulfillment_order_can_split(&moved_order);
+                    moved_order["supportedActions"] =
+                        shipping_fulfillment_open_actions(moved_can_split);
                     moved_order["assignedLocation"] = assigned_location;
                     moved_order["_draftProxySplitSource"] = json!(id);
                     moved_order["_draftProxySplitKind"] = json!("move");
@@ -4340,7 +4542,9 @@ impl DraftProxy {
                     moved = moved_order;
                 } else {
                     let mut moved_order = fulfillment_order;
-                    moved_order["supportedActions"] = shipping_fulfillment_open_actions(false);
+                    let moved_can_split = fulfillment_order_can_split(&moved_order);
+                    moved_order["supportedActions"] =
+                        shipping_fulfillment_open_actions(moved_can_split);
                     moved_order["assignedLocation"] = assigned_location;
                     nodes[index] = moved_order.clone();
                     moved = moved_order.clone();
@@ -4976,8 +5180,10 @@ impl DraftProxy {
     ) -> Value {
         let reason = resolved_string_field(input, "reason").unwrap_or_else(|| "OTHER".to_string());
         let reason_notes = resolved_string_field(input, "reasonNotes");
+        let external_id = resolved_string_field(input, "externalId");
+        let notify_merchant = resolved_bool_field(input, "notifyMerchant").unwrap_or(false);
         let handle = resolved_string_field(input, "handle")
-            .or_else(|| resolved_string_field(input, "externalId"))
+            .or_else(|| external_id.clone())
             .unwrap_or_else(|| {
                 format!(
                     "fulfillment-hold-{}",
@@ -4987,11 +5193,13 @@ impl DraftProxy {
         json!({
             "id": self.next_proxy_synthetic_gid("FulfillmentHold"),
             "handle": handle,
+            "externalId": external_id.map(Value::String).unwrap_or(Value::Null),
             "reason": reason,
             "reasonNotes": reason_notes.map(Value::String).unwrap_or(Value::Null),
             "displayReason": fulfillment_hold_display_reason(&reason),
             "heldByApp": Value::Null,
-            "heldByRequestingApp": true
+            "heldByRequestingApp": true,
+            "__draftProxyNotifyMerchant": notify_merchant
         })
     }
 
@@ -8876,7 +9084,6 @@ fn local_pickup_time_is_standard(pickup_time: &str) -> bool {
     )
 }
 
-
 fn location_activate_payload_selected_json(
     location: Value,
     payload_selection: &[SelectedField],
@@ -10079,6 +10286,44 @@ fn fulfillment_order_line_item_quantities(
         .collect()
 }
 
+/// True when a fulfillment-order mutation response indicates the local engine
+/// could not resolve the target fulfillment order. Two shapes are recognized:
+/// the shipping engine's top-level `RESOURCE_NOT_FOUND` GraphQL error
+/// (`{ errors: [{ extensions: { code: "RESOURCE_NOT_FOUND" } }] }`) and the
+/// orders engine's `FULFILLMENT_ORDER_NOT_FOUND` userError nested under the
+/// mutation payload. Either signals that the scenario must be served by
+/// forwarding the mutation upstream rather than computed locally.
+fn fulfillment_order_response_is_unresolved(body: &Value) -> bool {
+    if let Some(errors) = body.get("errors").and_then(Value::as_array) {
+        if errors.iter().any(|error| {
+            error
+                .get("extensions")
+                .and_then(|extensions| extensions.get("code"))
+                .and_then(Value::as_str)
+                == Some("RESOURCE_NOT_FOUND")
+        }) {
+            return true;
+        }
+    }
+    if let Some(data) = body.get("data").and_then(Value::as_object) {
+        for payload in data.values() {
+            if let Some(user_errors) = payload.get("userErrors").and_then(Value::as_array) {
+                if user_errors.iter().any(|error| {
+                    matches!(
+                        error.get("code").and_then(Value::as_str),
+                        // Singular for split/merge/request transitions, plural for
+                        // the multi-id `fulfillmentOrdersSetFulfillmentDeadline`.
+                        Some("FULFILLMENT_ORDER_NOT_FOUND") | Some("FULFILLMENT_ORDERS_NOT_FOUND")
+                    )
+                }) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
 fn fulfillment_order_can_split(order: &Value) -> bool {
     fulfillment_order_line_item_nodes(order).iter().any(|line| {
         line["remainingQuantity"]
@@ -10087,6 +10332,40 @@ fn fulfillment_order_can_split(order: &Value) -> bool {
             .unwrap_or(0)
             > 1
     })
+}
+
+/// A fulfillment order carries a still-open cancellation request when it holds a
+/// `CANCELLATION_REQUEST` merchant request that has not yet been answered
+/// (`responseData` is null). Such an order surfaces under the
+/// `CANCELLATION_REQUESTED` assignment-status filter rather than
+/// `FULFILLMENT_ACCEPTED`, even though its request status is still `ACCEPTED`.
+fn fulfillment_order_has_open_cancellation_request(order: &Value) -> bool {
+    order["merchantRequests"]["nodes"]
+        .as_array()
+        .map(|nodes| {
+            nodes.iter().any(|request| {
+                request["kind"].as_str() == Some("CANCELLATION_REQUEST")
+                    && request["responseData"].is_null()
+            })
+        })
+        .unwrap_or(false)
+}
+
+/// Maps Shopify's `FulfillmentOrderAssignmentStatus` (the `assignmentStatus`
+/// argument on `assignedFulfillmentOrders`) onto the staged fulfillment order's
+/// request status and pending merchant requests.
+fn fulfillment_order_matches_assignment_status(order: &Value, status: &str) -> bool {
+    let request_status = order["requestStatus"].as_str().unwrap_or("");
+    match status {
+        "FULFILLMENT_REQUESTED" => request_status == "SUBMITTED",
+        "FULFILLMENT_ACCEPTED" => {
+            request_status == "ACCEPTED" && !fulfillment_order_has_open_cancellation_request(order)
+        }
+        "CANCELLATION_REQUESTED" => fulfillment_order_has_open_cancellation_request(order),
+        "FULFILLMENT_UNSUBMITTED" => request_status == "UNSUBMITTED",
+        "FULFILLMENT_REQUEST_DECLINED" => request_status == "REJECTED",
+        other => request_status == other,
+    }
 }
 
 fn set_fulfillment_order_line_item_fulfillable_quantity(order: &mut Value, quantity: i64) {

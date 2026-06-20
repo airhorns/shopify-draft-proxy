@@ -1585,7 +1585,7 @@
       "variables": {
         "id": "gid://shopify/FulfillmentOrder/9652945912114"
       },
-      "query": "sha:hand-synthesized-from-har-555-capture",
+      "query": "\nquery ShippingFulfillmentOrderHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on FulfillmentOrder {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      lineItems(first: 250) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1615,7 +1615,7 @@
       "variables": {
         "id": "gid://shopify/FulfillmentOrder/9652945944882"
       },
-      "query": "sha:hand-synthesized-from-har-555-capture",
+      "query": "\nquery ShippingFulfillmentOrderHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on FulfillmentOrder {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      lineItems(first: 250) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1657,7 +1657,7 @@
       "variables": {
         "id": "gid://shopify/FulfillmentOrder/9652945977650"
       },
-      "query": "sha:hand-synthesized-from-har-555-capture",
+      "query": "\nquery ShippingFulfillmentOrderHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on FulfillmentOrder {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      lineItems(first: 250) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1699,7 +1699,7 @@
       "variables": {
         "id": "gid://shopify/FulfillmentOrder/9652946010418"
       },
-      "query": "sha:hand-synthesized-from-har-555-capture",
+      "query": "\nquery ShippingFulfillmentOrderHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on FulfillmentOrder {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      lineItems(first: 250) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1741,7 +1741,7 @@
       "variables": {
         "id": "gid://shopify/FulfillmentOrder/9652946043186"
       },
-      "query": "sha:hand-synthesized-from-har-555-capture",
+      "query": "\nquery ShippingFulfillmentOrderHydrate($id: ID!) {\n  node(id: $id) {\n    __typename\n    ... on FulfillmentOrder {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      lineItems(first: 250) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1767,6 +1767,48 @@
                     "lineItem": {
                       "id": "gid://shopify/LineItem/19301874368818",
                       "title": "HAR-555 fulfillment item unknown-location 20260505024532",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652945977650"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions {\n        action\n      }\n      assignedLocation {\n        name\n        location {\n          id\n          name\n        }\n      }\n      fulfillmentHolds {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByApp {\n          id\n          title\n        }\n        heldByRequestingApp\n      }\n      merchantRequests(first: 10) {\n        nodes {\n          kind\n          message\n          requestOptions\n        }\n      }\n      lineItems(first: 20) {\n        nodes {\n          id\n          totalQuantity\n          remainingQuantity\n          lineItem {\n            id\n            title\n            quantity\n            fulfillableQuantity\n          }\n        }\n      }\n      order {\n        id\n        name\n        displayFulfillmentStatus\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9652945977650",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "updatedAt": "2026-05-05T02:45:34Z",
+              "assignedLocation": {
+                "name": "HAR555 Move Validation 1777949133638",
+                "location": {
+                  "id": "gid://shopify/Location/112831922482",
+                  "name": "HAR555 Move Validation 1777949133638"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19451020509490",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19301874303282",
+                      "title": "HAR-555 fulfillment item request-status 20260505024531",
                       "quantity": 1,
                       "fulfillableQuantity": 1
                     }

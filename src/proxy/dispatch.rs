@@ -1085,7 +1085,9 @@ impl DraftProxy {
                     "appUninstall" => self.app_uninstall(&query, &variables, request),
                     _ => json_error(
                         501,
-                        &format!("No Rust apps dispatcher implemented for root field: {root_field}"),
+                        &format!(
+                            "No Rust apps dispatcher implemented for root field: {root_field}"
+                        ),
                     ),
                 }
             }
@@ -1203,10 +1205,7 @@ impl DraftProxy {
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && has_local_dispatch
-                    && matches!(
-                        root_field,
-                        "abandonmentUpdateActivitiesDeliveryStatuses"
-                    ) =>
+                    && matches!(root_field, "abandonmentUpdateActivitiesDeliveryStatuses") =>
             {
                 if let Some(data) =
                     self.abandonment_delivery_status_local_data(request, &query, &variables)
@@ -1226,7 +1225,9 @@ impl DraftProxy {
                     && has_local_dispatch
                     && root_field == "orderCancel" =>
             {
-                if let Some(data) = self.order_customer_error_paths_data(request, &query, &variables) {
+                if let Some(data) =
+                    self.order_customer_error_paths_data(request, &query, &variables)
+                {
                     ok_json(data)
                 } else {
                     json_error(
@@ -1271,11 +1272,12 @@ impl DraftProxy {
                     self.refund_create_local_data(request, root_field, &query, &variables)
                 {
                     ok_json(data)
-                } else if let Some(data) =
-                    self.order_payment_transaction_local_data(request, root_field, &query, &variables)
+                } else if let Some(data) = self
+                    .order_payment_transaction_local_data(request, root_field, &query, &variables)
                 {
                     ok_json(data)
-                } else if let Some(data) = self.remaining_order_local_data(request, root_field, &query, &variables)
+                } else if let Some(data) =
+                    self.remaining_order_local_data(request, root_field, &query, &variables)
                 {
                     ok_json(data)
                 } else {
@@ -1289,16 +1291,14 @@ impl DraftProxy {
                     && has_local_dispatch
                     && root_field == "orderCreate" =>
             {
-                if let Some(data) =
-                    self.payment_terms_local_data(request, &query, &variables)
-                {
+                if let Some(data) = self.payment_terms_local_data(request, &query, &variables) {
                     ok_json(data)
                 } else if let Some(data) =
                     self.money_bag_presentment_local_data(request, &query, &variables)
                 {
                     ok_json(data)
-                } else if let Some(data) =
-                    self.order_payment_transaction_local_data(request, root_field, &query, &variables)
+                } else if let Some(data) = self
+                    .order_payment_transaction_local_data(request, root_field, &query, &variables)
                 {
                     ok_json(data)
                 } else if let Some(data) =
@@ -1309,7 +1309,8 @@ impl DraftProxy {
                     self.remaining_order_local_data(request, root_field, &query, &variables)
                 {
                     ok_json(data)
-                } else if let Some(data) = self.order_create_local_data(request, root_field, &query, &variables)
+                } else if let Some(data) =
+                    self.order_create_local_data(request, root_field, &query, &variables)
                 {
                     ok_json(data)
                 } else {
@@ -1408,7 +1409,10 @@ impl DraftProxy {
             (CapabilityDomain::Orders, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && has_local_dispatch
-                    && matches!(root_field, "draftOrderBulkAddTags" | "draftOrderBulkRemoveTags") =>
+                    && matches!(
+                        root_field,
+                        "draftOrderBulkAddTags" | "draftOrderBulkRemoveTags"
+                    ) =>
             {
                 if let Some(data) = self.draft_order_bulk_tag_local_data(&query, &variables) {
                     ok_json(data)
@@ -1440,7 +1444,8 @@ impl DraftProxy {
                             | "orderEditRemoveShippingLine"
                     ) =>
             {
-                if let Some(data) = self.remaining_order_local_data(request, root_field, &query, &variables)
+                if let Some(data) =
+                    self.remaining_order_local_data(request, root_field, &query, &variables)
                 {
                     ok_json(data)
                 } else {
@@ -1486,7 +1491,9 @@ impl DraftProxy {
                     && has_local_dispatch
                     && matches!(root_field, "orderCustomerSet" | "orderCustomerRemove") =>
             {
-                if let Some(data) = self.order_customer_error_paths_data(request, &query, &variables) {
+                if let Some(data) =
+                    self.order_customer_error_paths_data(request, &query, &variables)
+                {
                     ok_json(data)
                 } else {
                     json_error(400, "Could not parse GraphQL operation")
@@ -1580,9 +1587,9 @@ impl DraftProxy {
                         root_field,
                         "orderCapture" | "transactionVoid" | "orderCreateMandatePayment"
                     ) {
-                        if let Some(data) =
-                            self.order_payment_transaction_local_data(request, root_field, &query, &variables)
-                        {
+                        if let Some(data) = self.order_payment_transaction_local_data(
+                            request, root_field, &query, &variables,
+                        ) {
                             return ok_json(data);
                         }
                         return json_error(
@@ -1648,8 +1655,8 @@ impl DraftProxy {
                     let staged_ids: Vec<String> = fields
                         .iter()
                         .filter_map(|field| {
-                            response.body["data"][field.response_key.as_str()]
-                                ["marketingActivity"]["id"]
+                            response.body["data"][field.response_key.as_str()]["marketingActivity"]
+                                ["id"]
                                 .as_str()
                                 .map(ToString::to_string)
                         })
@@ -1719,7 +1726,10 @@ impl DraftProxy {
                         &query,
                         &variables,
                         root_field,
-                        fields.iter().map(|field| field.response_key.clone()).collect(),
+                        fields
+                            .iter()
+                            .map(|field| field.response_key.clone())
+                            .collect(),
                     );
                     ok_json(json!({ "data": data }))
                 } else {
@@ -1791,12 +1801,8 @@ impl DraftProxy {
                         )
                     }) {
                         self.web_presence_mutation_preflight(&variables, request);
-                        return self.web_presence_helper_mutation(
-                            root_field,
-                            &query,
-                            &variables,
-                            request,
-                        );
+                        return self
+                            .web_presence_helper_mutation(root_field, &query, &variables, request);
                     } else if operation
                         .root_fields
                         .iter()
@@ -1823,7 +1829,10 @@ impl DraftProxy {
                     } else if operation.root_fields.iter().any(|field| {
                         matches!(
                             field.as_str(),
-                            "catalogCreate" | "catalogUpdate" | "catalogDelete" | "catalogContextUpdate"
+                            "catalogCreate"
+                                | "catalogUpdate"
+                                | "catalogDelete"
+                                | "catalogContextUpdate"
                         )
                     }) {
                         self.catalog_mutation_data(&fields, request, &query, &variables)
@@ -1841,7 +1850,10 @@ impl DraftProxy {
                             &query,
                             &variables,
                             root_field,
-                            fields.iter().map(|field| field.response_key.clone()).collect(),
+                            fields
+                                .iter()
+                                .map(|field| field.response_key.clone())
+                                .collect(),
                         );
                     }
                     ok_json(json!({ "data": data }))
@@ -2057,7 +2069,15 @@ impl DraftProxy {
                     } else if matches!(root_field, "carrierService" | "carrierServices") {
                         ok_json(json!({ "data": self.carrier_service_read_data(&fields) }))
                     } else if matches!(root_field, "deliveryProfile" | "deliveryProfiles") {
-                        ok_json(json!({ "data": self.delivery_profile_read_data(&fields) }))
+                        self.delivery_profile_read_response(request, &fields)
+                    } else if root_field == "availableCarrierServices" {
+                        // The shipping-settings availability read combines
+                        // `availableCarrierServices` with the shipping-locations
+                        // connection. Serve from observed/staged state, or (in live
+                        // modes with no observed state yet) forward upstream and
+                        // observe both carrier services and locations so later
+                        // local-pickup mutations and reads resolve them locally.
+                        self.shipping_settings_read_response(request, &fields)
                     } else if root_field == "locationsAvailableForDeliveryProfilesConnection" {
                         // A standalone shipping-locations connection read: serve from
                         // observed/staged shipping locations, or (in live modes with no
@@ -2123,7 +2143,9 @@ impl DraftProxy {
                     && has_local_dispatch
                     && matches!(
                         root_field,
-                        "shippingPackageUpdate" | "shippingPackageMakeDefault" | "shippingPackageDelete"
+                        "shippingPackageUpdate"
+                            | "shippingPackageMakeDefault"
+                            | "shippingPackageDelete"
                     ) =>
             {
                 self.shipping_package_mutation(root_field, &query, &variables, request)
@@ -2200,9 +2222,7 @@ impl DraftProxy {
                     && has_local_dispatch
                     && matches!(
                         root_field,
-                        "deliveryProfileCreate"
-                            | "deliveryProfileUpdate"
-                            | "deliveryProfileRemove"
+                        "deliveryProfileCreate" | "deliveryProfileUpdate" | "deliveryProfileRemove"
                     ) =>
             {
                 self.delivery_profile_mutation(root_field, &query, &variables, request)
@@ -2385,17 +2405,14 @@ impl DraftProxy {
                 {
                     return response;
                 }
-                self.customer_tax_exemptions_mutation_response(
-                    &fields, request, &query, &variables,
-                )
+                self.customer_tax_exemptions_mutation_response(&fields, request, &query, &variables)
             }
             (CapabilityDomain::Customers, CapabilityExecution::StageLocally)
                 if operation.operation_type == OperationType::Mutation
                     && has_local_dispatch
                     && matches!(
                         root_field,
-                        "customerEmailMarketingConsentUpdate"
-                            | "customerSmsMarketingConsentUpdate"
+                        "customerEmailMarketingConsentUpdate" | "customerSmsMarketingConsentUpdate"
                     ) =>
             {
                 let Some(fields) = root_fields(&query, &variables) else {
@@ -2403,8 +2420,7 @@ impl DraftProxy {
                 };
                 // SMS marketingState values outside `CustomerSmsMarketingState` fail
                 // enum coercion before any staging, matching Shopify's ordering.
-                if let Some(response) =
-                    customer_sms_consent_invalid_enum_response(&query, &fields)
+                if let Some(response) = customer_sms_consent_invalid_enum_response(&query, &fields)
                 {
                     return response;
                 }

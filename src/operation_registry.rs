@@ -304,8 +304,14 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     local_mutation("customerAddTaxExemptions", CapabilityDomain::Customers),
     local_mutation("customerRemoveTaxExemptions", CapabilityDomain::Customers),
     local_mutation("customerReplaceTaxExemptions", CapabilityDomain::Customers),
-    local_mutation("customerEmailMarketingConsentUpdate", CapabilityDomain::Customers),
-    local_mutation("customerSmsMarketingConsentUpdate", CapabilityDomain::Customers),
+    local_mutation(
+        "customerEmailMarketingConsentUpdate",
+        CapabilityDomain::Customers,
+    ),
+    local_mutation(
+        "customerSmsMarketingConsentUpdate",
+        CapabilityDomain::Customers,
+    ),
     local_mutation("dataSaleOptOut", CapabilityDomain::Privacy),
     local_mutation("companyCreate", CapabilityDomain::B2b),
     local_mutation("companyUpdate", CapabilityDomain::B2b),
@@ -705,6 +711,10 @@ const LOCAL_DISPATCH_ROOTS: &[LocalDispatchRoot] = &[
     ),
     local_query("deliveryProfile", CapabilityDomain::ShippingFulfillments),
     local_query("deliveryProfiles", CapabilityDomain::ShippingFulfillments),
+    local_query(
+        "availableCarrierServices",
+        CapabilityDomain::ShippingFulfillments,
+    ),
     local_query(
         "locationsAvailableForDeliveryProfilesConnection",
         CapabilityDomain::ShippingFulfillments,
