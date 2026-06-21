@@ -9452,6 +9452,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    captureId: 'customer-merge-selection',
+    scriptPath: 'scripts/capture-customer-merge-selection-conformance.mts',
+    purpose:
+      'customerMerge resulting-customer selection rules across override, email-presence, account-state, and no-email branches.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'read_customer_merge', 'write_customer_merge'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-merge-selection-rules.json`,
+      'config/parity-specs/customers/customerMerge-selection-rules.json',
+      'config/parity-requests/customers/customer-merge-selection-merge.graphql',
+      'config/parity-requests/customers/customer-merge-selection-read-with-email.graphql',
+      'config/parity-requests/customers/customer-merge-selection-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable customer pairs, sends one account invite for the account-state branch, merge consumes source records, and cleanup removes survivors.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     captureId: 'customer-merge-blockers',
     scriptPath: 'scripts/capture-customer-merge-blockers-conformance.mts',
     purpose: 'Synchronous customerMerge blockers for combined tags, combined notes, and gift-card assignments.',

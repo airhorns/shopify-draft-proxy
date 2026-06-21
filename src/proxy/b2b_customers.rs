@@ -9573,25 +9573,30 @@ impl DraftProxy {
             );
         }
 
-        // Success: customerTwo is the resulting customer; customerOne is merged away.
-        let result_id = two_id.to_string();
-        let source_id = one_id.to_string();
-        let mut result = self
-            .store
-            .staged
-            .customers
-            .get(&result_id)
-            .cloned()
-            .unwrap_or(Value::Null);
-        let source = self
-            .store
-            .staged
-            .customers
-            .get(&source_id)
-            .cloned()
-            .unwrap_or(Value::Null);
         let override_fields =
             resolved_object_field(arguments, "overrideFields").unwrap_or_default();
+        let one = self
+            .store
+            .staged
+            .customers
+            .get(one_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        let two = self
+            .store
+            .staged
+            .customers
+            .get(two_id)
+            .cloned()
+            .unwrap_or(Value::Null);
+        let (result_id, source_id) =
+            customer_merge_result_source_ids(one_id, &one, two_id, &two, &override_fields);
+        let mut result = if result_id == one_id {
+            one.clone()
+        } else {
+            two.clone()
+        };
+        let source = if source_id == one_id { one } else { two };
         apply_customer_merge_overrides(&mut result, &source, &override_fields);
         merge_customer_attached_resources(&mut result, &source);
         normalize_merged_customer_defaults(&mut result);
@@ -9811,6 +9816,96 @@ fn customer_tags(customer: &Value) -> Vec<String> {
         .flatten()
         .filter_map(|tag| tag.as_str().map(str::to_string))
         .collect()
+}
+
+fn customer_merge_result_source_ids(
+    one_id: &str,
+    one: &Value,
+    two_id: &str,
+    two: &Value,
+    override_fields: &BTreeMap<String, ResolvedValue>,
+) -> (String, String) {
+    if let Some(email_customer_id) =
+        resolved_string_field(override_fields, "customerIdOfEmailToKeep")
+    {
+        if email_customer_id == one_id {
+            return (one_id.to_string(), two_id.to_string());
+        }
+        if email_customer_id == two_id {
+            return (two_id.to_string(), one_id.to_string());
+        }
+    }
+
+    let one_has_email = customer_merge_has_email(one);
+    let two_has_email = customer_merge_has_email(two);
+    match (one_has_email, two_has_email) {
+        (true, false) => return (one_id.to_string(), two_id.to_string()),
+        (false, true) => return (two_id.to_string(), one_id.to_string()),
+        (false, false) => return (two_id.to_string(), one_id.to_string()),
+        (true, true) => {}
+    }
+
+    let one_consent = customer_merge_email_consent_priority(one);
+    let two_consent = customer_merge_email_consent_priority(two);
+    match one_consent.cmp(&two_consent) {
+        std::cmp::Ordering::Greater => return (one_id.to_string(), two_id.to_string()),
+        std::cmp::Ordering::Less => return (two_id.to_string(), one_id.to_string()),
+        std::cmp::Ordering::Equal => {}
+    }
+
+    let one_state = customer_merge_account_state_priority(one);
+    let two_state = customer_merge_account_state_priority(two);
+    match one_state.cmp(&two_state) {
+        std::cmp::Ordering::Greater => (one_id.to_string(), two_id.to_string()),
+        std::cmp::Ordering::Less | std::cmp::Ordering::Equal => {
+            (two_id.to_string(), one_id.to_string())
+        }
+    }
+}
+
+fn customer_merge_has_email(customer: &Value) -> bool {
+    customer
+        .get("email")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            customer
+                .pointer("/defaultEmailAddress/emailAddress")
+                .and_then(Value::as_str)
+        })
+        .is_some_and(|email| !email.trim().is_empty())
+}
+
+fn customer_merge_email_consent_priority(customer: &Value) -> u8 {
+    let state = customer
+        .pointer("/defaultEmailAddress/marketingState")
+        .and_then(Value::as_str)
+        .or_else(|| {
+            customer
+                .pointer("/emailMarketingConsent/marketingState")
+                .and_then(Value::as_str)
+        })
+        .unwrap_or_default();
+    if state.eq_ignore_ascii_case("SUBSCRIBED") {
+        2
+    } else if state.eq_ignore_ascii_case("PENDING") {
+        1
+    } else {
+        0
+    }
+}
+
+fn customer_merge_account_state_priority(customer: &Value) -> u8 {
+    let state = customer
+        .get("state")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if state.eq_ignore_ascii_case("ENABLED") {
+        2
+    } else if state.eq_ignore_ascii_case("INVITED") {
+        1
+    } else {
+        0
+    }
 }
 
 /// Apply `customerMerge` override selections onto the resulting customer record.
