@@ -4702,17 +4702,14 @@ impl DraftProxy {
                 "PaymentTermsOwnerHydrate",
             )
         };
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": query,
                 "operationName": operation_name,
                 "variables": { "id": owner_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if response.status >= 400 {
             return None;
         }
@@ -4761,17 +4758,14 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": PAYMENT_TERMS_NODE_HYDRATE_QUERY,
                 "operationName": "PaymentTermsHydrate",
                 "variables": { "id": terms_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if response.status >= 400 {
             return None;
         }

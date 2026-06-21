@@ -1935,16 +1935,13 @@ impl DraftProxy {
         if variant_ids.is_empty() {
             return BTreeMap::new();
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": DELIVERY_PROFILE_VARIANTS_HYDRATE_QUERY,
                 "variables": { "ids": variant_ids }
-            })
-            .to_string(),
-        });
+            }),
+        );
         response
             .body
             .pointer("/data/nodes")
@@ -1965,16 +1962,13 @@ impl DraftProxy {
         if id.is_empty() {
             return false;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": DELIVERY_PROFILE_DEFAULT_HYDRATE_QUERY,
                 "variables": { "id": id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         response
             .body
             .pointer("/data/node")
@@ -2718,17 +2712,14 @@ impl DraftProxy {
         {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": LOCATION_HYDRATE_QUERY,
                 "operationName": "StorePropertiesLocationHydrate",
                 "variables": { "id": location_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -3247,16 +3238,13 @@ impl DraftProxy {
         {
             return;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": LOCATION_HYDRATE_QUERY,
                 "variables": { "id": location_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return;
         }
@@ -4854,17 +4842,13 @@ impl DraftProxy {
         {
             return true;
         }
-        let hydrate_request = Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": SHIPPING_FULFILLMENT_ORDER_HYDRATE_QUERY,
                 "variables": { "id": id }
-            })
-            .to_string(),
-        };
-        let response = (self.upstream_transport)(hydrate_request);
+            }),
+        );
         if response.status < 400 {
             self.stage_shipping_fulfillment_order_hydrate_response(id, &response.body);
         }
@@ -4879,17 +4863,13 @@ impl DraftProxy {
             SHIPPING_FULFILLMENT_ORDER_DIRECT_MULTILINE_HYDRATE_QUERY,
             SHIPPING_FULFILLMENT_ORDER_RELEASE_HOLD_HYDRATE_QUERY,
         ] {
-            let direct_hydrate_request = Request {
-                method: "POST".to_string(),
-                path: request.path.clone(),
-                headers: request.headers.clone(),
-                body: json!({
+            let direct_response = self.upstream_post(
+                request,
+                json!({
                     "query": query,
                     "variables": { "id": id }
-                })
-                .to_string(),
-            };
-            let direct_response = (self.upstream_transport)(direct_hydrate_request);
+                }),
+            );
             if direct_response.status < 400 {
                 self.stage_shipping_fulfillment_order_hydrate_response(id, &direct_response.body);
             }
@@ -5458,16 +5438,13 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": PUBLISHABLE_SHOP_HYDRATE_QUERY,
                 "variables": { "id": publishable_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return;
         }

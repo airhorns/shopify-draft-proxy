@@ -958,19 +958,12 @@ impl DraftProxy {
               }
             }
         "#;
-        let Ok(body) = serde_json::to_string(&json!({
+        let body = json!({
             "query": query,
             "operationName": "MetafieldDefinitionsHydrateByNamespace",
             "variables": {"ownerType": owner_type, "namespace": namespace}
-        })) else {
-            return;
-        };
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body,
         });
+        let response = self.upstream_post(request, body);
         if response.status < 200 || response.status >= 300 {
             return;
         }
@@ -1035,19 +1028,12 @@ impl DraftProxy {
               }
             }
         "#;
-        let Ok(body) = serde_json::to_string(&json!({
+        let body = json!({
             "query": query,
             "operationName": "MetafieldDefinitionHydrateById",
             "variables": {"id": id}
-        })) else {
-            return;
-        };
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body,
         });
+        let response = self.upstream_post(request, body);
         if response.status < 200 || response.status >= 300 {
             return;
         }
