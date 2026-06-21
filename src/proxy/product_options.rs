@@ -652,19 +652,14 @@ impl DraftProxy {
         user_errors: Vec<ProductOptionUserError>,
     ) -> Response {
         let payload_selection = root_field_selection(query).unwrap_or_default();
-        let product_selection =
-            selected_child_selection(&payload_selection, "product").unwrap_or_default();
-        let error_selection =
-            selected_child_selection(&payload_selection, "userErrors").unwrap_or_default();
         let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
         let payload = product_option_payload_json(
             &payload_selection,
             product,
             graph,
             variants,
-            &product_selection,
+            &self.store.shop_currency_code(),
             &user_errors,
-            &error_selection,
         );
         ok_json(json!({ "data": { response_key: payload } }))
     }
@@ -693,6 +688,7 @@ impl DraftProxy {
                     graph,
                     variants.clone(),
                     &product_selection,
+                    &self.store.shop_currency_code(),
                 )),
                 "userErrors" => Some(Value::Array(
                     user_errors
@@ -1323,9 +1319,8 @@ fn product_option_payload_json(
     product: Option<&ProductRecord>,
     graph: Option<&ProductOptionGraph>,
     variants: Vec<ProductVariantRecord>,
-    product_selection: &[SelectedField],
+    currency_code: &str,
     user_errors: &[ProductOptionUserError],
-    error_selection: &[SelectedField],
 ) -> Value {
     selected_payload_json(payload_selection, |selection| {
         match selection.name.as_str() {
@@ -1333,12 +1328,13 @@ fn product_option_payload_json(
                 product,
                 graph,
                 variants.clone(),
-                product_selection,
+                &selection.selection,
+                currency_code,
             )),
             "userErrors" => Some(Value::Array(
                 user_errors
                     .iter()
-                    .map(|error| selected_json(&error.to_json(), error_selection))
+                    .map(|error| selected_json(&error.to_json(), &selection.selection))
                     .collect(),
             )),
             _ => None,
@@ -1351,6 +1347,7 @@ fn product_option_product_json(
     graph: Option<&ProductOptionGraph>,
     variants: Vec<ProductVariantRecord>,
     selections: &[SelectedField],
+    currency_code: &str,
 ) -> Value {
     let Some(product) = product else {
         return Value::Null;
@@ -1362,7 +1359,7 @@ fn product_option_product_json(
             Value::Array(graph.options.iter().map(product_option_json).collect()),
         );
     }
-    product_json_with_variants(&record, &variants, selections)
+    product_json_with_variants_and_currency(&record, &variants, selections, currency_code)
 }
 
 fn product_option_json(option: &ProductOptionNode) -> Value {

@@ -39,6 +39,12 @@ type ProductSetData = {
   } | null;
 };
 
+type ShopCurrencyData = {
+  shop?: {
+    currencyCode?: string | null;
+  } | null;
+};
+
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
@@ -65,6 +71,14 @@ const productCreateMutation = `#graphql
     productCreate(product: $product) {
       product {
         id
+        priceRangeV2 {
+          minVariantPrice { amount currencyCode }
+          maxVariantPrice { amount currencyCode }
+        }
+        priceRange {
+          minVariantPrice { amount currencyCode }
+          maxVariantPrice { amount currencyCode }
+        }
         variants(first: 10) {
           nodes {
             id
@@ -81,6 +95,14 @@ const productCreateMutation = `#graphql
         field
         message
       }
+    }
+  }
+`;
+
+const shopCurrencyQuery = `#graphql
+  query ProductDerivedFieldsShopCurrency {
+    shop {
+      currencyCode
     }
   }
 `;
@@ -295,9 +317,12 @@ const runId = `${Date.now()}`;
 const productIdsToDelete = new Set<string>();
 
 try {
+  const shop = await runGraphql<ShopCurrencyData>(shopCurrencyQuery, {});
+  requireString(shop.data?.shop?.currencyCode, 'shop currency code');
+
   const createVariables = {
     product: {
-      title: `HAR592 Price Range Hat ${runId}`,
+      title: `Draft Proxy Price Range Hat ${runId}`,
       status: 'DRAFT',
       productOptions: [{ name: 'Color', values: [{ name: 'Red' }] }],
     },
@@ -341,6 +366,7 @@ try {
     path.join(outputDir, 'product-create-then-bulk-create-price-range-parity.json'),
     `${JSON.stringify(
       {
+        shop: { variables: {}, query: shopCurrencyQuery, response: shop },
         create: { variables: createVariables, response: create },
         priceUpdate: { variables: priceUpdateVariables, response: priceUpdate },
         bulkCreate: { variables: bulkCreateVariables, response: bulkCreate },
@@ -358,7 +384,7 @@ try {
   const inventorySetupVariables = {
     synchronous: true,
     input: {
-      title: `HAR592 Inventory Aggregate ${runId}`,
+      title: `Draft Proxy Inventory Aggregate ${runId}`,
       status: 'DRAFT',
       productOptions: [{ name: 'Title', position: 1, values: [{ name: 'Default Title' }] }],
       variants: [
@@ -385,7 +411,7 @@ try {
     input: {
       name: 'available',
       reason: 'correction',
-      referenceDocumentUri: `logistics://har-592/inventory-adjust/${runId}`,
+      referenceDocumentUri: `logistics://draft-proxy-conformance/inventory-adjust/${runId}`,
       changes: [{ inventoryItemId, locationId: adjustmentLocationId, delta: -1 }],
     },
   };

@@ -1981,7 +1981,11 @@ impl DraftProxy {
                                 (self.upstream_transport)(request.clone())
                             }
                         } else {
-                            (self.upstream_transport)(request.clone())
+                            let response = (self.upstream_transport)(request.clone());
+                            if (200..300).contains(&response.status) {
+                                self.hydrate_shop_state_from_response_data(&response.body["data"]);
+                            }
+                            response
                         }
                     } else if self.has_location_overlay_state()
                         || !self.location_read_needs_upstream(&fields)

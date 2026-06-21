@@ -833,7 +833,12 @@ impl DraftProxy {
         variants: &[ProductVariantRecord],
         selections: &[SelectedField],
     ) -> Value {
-        let base = product_json_with_variants(product, variants, selections);
+        let base = product_json_with_variants_and_currency(
+            product,
+            variants,
+            selections,
+            &self.store.shop_currency_code(),
+        );
         self.apply_product_selling_plan_overlay(product, selections, base)
     }
 
