@@ -1688,6 +1688,7 @@ mod core;
 mod discounts;
 mod dispatch;
 mod localization_markets_catalogs;
+mod market_unsupported_country_regions;
 mod marketing_webhooks_inventory;
 mod markets_online_inventory;
 mod media_products_saved_searches;

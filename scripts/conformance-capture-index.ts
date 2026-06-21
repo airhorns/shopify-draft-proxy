@@ -3641,7 +3641,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_markets', 'write_markets'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}market-create-unsupported-country-region.json`,
-      'src/shopify_draft_proxy/proxy/markets/unsupported_country_regions.gleam',
+      'src/proxy/market_unsupported_country_regions.rs',
       'config/parity-specs/markets/market-create-unsupported-country-region.json',
       'config/parity-requests/markets/market-create-unsupported-country-region.graphql',
     ],

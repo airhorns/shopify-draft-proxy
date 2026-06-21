@@ -1,6 +1,18 @@
 use super::common::*;
 use pretty_assertions::assert_eq;
 
+fn assert_no_staged_markets(proxy: &shopify_draft_proxy::proxy::DraftProxy) {
+    let state = proxy.get_state_snapshot();
+    let staged_markets = &state["stagedState"]["markets"];
+    assert!(
+        staged_markets.is_null()
+            || staged_markets
+                .as_object()
+                .is_some_and(serde_json::Map::is_empty),
+        "expected no staged markets, got {staged_markets:?}"
+    );
+}
+
 #[test]
 fn generic_product_domain_metafields_set_delete_stage_for_natural_operation_names() {
     let mut proxy = configured_proxy(
@@ -1372,6 +1384,105 @@ fn market_create_ported_gleam_validation_and_staging_helpers_match_old_proxy_tes
     assert_eq!(
         duplicate_handle.body["data"]["marketCreate"]["userErrors"][0],
         json!({"__typename": "MarketUserError", "field": ["input", "handle"], "message": "Generated handle has already been taken", "code": "GENERATED_DUPLICATED_HANDLE"})
+    );
+}
+
+#[test]
+fn market_create_rejects_shopify_unsupported_country_regions_without_staging() {
+    let create_query = r#"
+        mutation RustMarketCreateUnsupportedCountryRegion($input: MarketCreateInput!) {
+          marketCreate(input: $input) {
+            market { id name handle status enabled }
+            userErrors { __typename field message code }
+          }
+        }
+    "#;
+    let read_query = r#"
+        query RustMarketCreateUnsupportedCountryRegionRead {
+          markets(first: 10) { nodes { id name handle status enabled } }
+        }
+    "#;
+
+    let mut kp_proxy = snapshot_proxy();
+    let kp = kp_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "KP Unsupported", "regions": [{"countryCode": "KP"}]}}),
+    ));
+    assert_eq!(
+        kp.body["data"]["marketCreate"],
+        json!({
+            "market": null,
+            "userErrors": [{"__typename": "MarketUserError", "field": ["input", "regions", "0", "countryCode"], "message": "KP is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"}]
+        })
+    );
+    assert_eq!(kp_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_no_staged_markets(&kp_proxy);
+    let kp_read = kp_proxy.process_request(json_graphql_request(read_query, json!({})));
+    assert_eq!(kp_read.body["data"]["markets"]["nodes"], json!([]));
+
+    let mut mixed_proxy = snapshot_proxy();
+    let mixed = mixed_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Mixed Unsupported", "regions": [{"countryCode": "US"}, {"countryCode": "KP"}]}}),
+    ));
+    assert_eq!(
+        mixed.body["data"]["marketCreate"],
+        json!({
+            "market": null,
+            "userErrors": [{"__typename": "MarketUserError", "field": ["input", "regions", "1", "countryCode"], "message": "KP is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"}]
+        })
+    );
+    assert_eq!(mixed_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_no_staged_markets(&mixed_proxy);
+
+    let mut conditions_proxy = snapshot_proxy();
+    let conditions = conditions_proxy.process_request(json_graphql_request(
+        create_query,
+        json!({"input": {"name": "Conditions Unsupported", "conditions": {"regionsCondition": {"regions": [{"countryCode": "KP"}]}}}}),
+    ));
+    assert_eq!(
+        conditions.body["data"]["marketCreate"],
+        json!({
+            "market": null,
+            "userErrors": [{"__typename": "MarketUserError", "field": ["input", "regions", "0", "countryCode"], "message": "KP is not a supported country or region code.", "code": "UNSUPPORTED_COUNTRY_REGION"}]
+        })
+    );
+    assert_eq!(conditions_proxy.get_log_snapshot()["entries"], json!([]));
+    assert_no_staged_markets(&conditions_proxy);
+
+    let mut supported_proxy = snapshot_proxy();
+    for (name, country_code, expected_id) in [
+        ("United States Supported", "US", "gid://shopify/Market/1"),
+        ("Brazil Supported", "BR", "gid://shopify/Market/2"),
+    ] {
+        let response = supported_proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"input": {"name": name, "regions": [{"countryCode": country_code}]}}),
+        ));
+        assert_eq!(
+            response.body["data"]["marketCreate"]["market"]["id"],
+            json!(expected_id)
+        );
+        assert_eq!(
+            response.body["data"]["marketCreate"]["userErrors"],
+            json!([])
+        );
+    }
+    let supported_read =
+        supported_proxy.process_request(json_graphql_request(read_query, json!({})));
+    assert_eq!(
+        supported_read.body["data"]["markets"]["nodes"]
+            .as_array()
+            .expect("supported markets nodes")
+            .len(),
+        2
+    );
+    assert_eq!(
+        supported_proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .expect("supported mutation log entries")
+            .len(),
+        2
     );
 }
 

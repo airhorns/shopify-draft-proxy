@@ -2,7 +2,7 @@
   "scenarioId": "market-create-unsupported-country-region",
   "operationNames": ["marketCreate"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-create-unsupported-country-region.json"
   ],
@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.cases[0].variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Safe live Shopify Markets validation capture for Admin GraphQL 2026-04. The same capture records the Shopify-derived unsupported CountryCode set by probing every live CountryCode enum value through a validation-only marketCreate branch.",
+  "notes": "Safe live Shopify Markets validation capture for Admin GraphQL 2026-04. The capture records CU plus non-CU KP UNSUPPORTED_COUNTRY_REGION payloads, a markets read after the KP rejection to prove no rejected market materialized, and the Shopify-derived unsupported CountryCode set from probing every live CountryCode enum value through a validation-only marketCreate branch.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -19,6 +19,24 @@
       {
         "name": "unsupported-country-region-market-create-data",
         "capturePath": "$.cases[0].response.payload.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "non-cu-unsupported-country-region-market-create-data",
+        "capturePath": "$.cases[1].response.payload.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/market-create-unsupported-country-region.graphql",
+          "variablesCapturePath": "$.cases[1].variables"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "non-cu-unsupported-country-region-read-after-rejection-markets-data",
+        "capturePath": "$.cases[2].response.payload.data",
+        "proxyRequest": {
+          "documentCapturePath": "$.cases[2].query",
+          "variablesCapturePath": "$.cases[2].variables"
+        },
         "proxyPath": "$.data"
       }
     ]
