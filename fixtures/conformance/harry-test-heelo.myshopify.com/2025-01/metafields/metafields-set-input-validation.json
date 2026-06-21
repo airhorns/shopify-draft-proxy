@@ -2,9 +2,9 @@
   "scenarioId": "metafields-set-input-validation",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "capturedAt": "2026-05-05T10:16:43.606Z",
+  "capturedAt": "2026-06-21T17:47:07.259Z",
   "setup": {
-    "productId": "gid://shopify/Product/10177121091890"
+    "productId": "gid://shopify/Product/10218209837362"
   },
   "cases": {
     "shortNamespace": {
@@ -12,7 +12,7 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10177121091890",
+              "ownerId": "gid://shopify/Product/10218209837362",
               "namespace": "ab",
               "key": "valid_key",
               "type": "single_line_text_field",
@@ -53,7 +53,7 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10177121091890",
+              "ownerId": "gid://shopify/Product/10218209837362",
               "namespace": "valid",
               "key": "x",
               "type": "single_line_text_field",
@@ -94,7 +94,7 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10177121091890",
+              "ownerId": "gid://shopify/Product/10218209837362",
               "namespace": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
               "key": "valid_key",
               "type": "single_line_text_field",
@@ -135,7 +135,7 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10177121091890",
+              "ownerId": "gid://shopify/Product/10218209837362",
               "namespace": "loyalty",
               "key": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk",
               "type": "single_line_text_field",
@@ -176,7 +176,7 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10177121091890",
+              "ownerId": "gid://shopify/Product/10218209837362",
               "namespace": "bad$namespace",
               "key": "valid_key",
               "type": "single_line_text_field",
@@ -190,7 +190,7 @@
           "metafieldsSet": {
             "metafields": [
               {
-                "id": "gid://shopify/Metafield/43095514054962"
+                "id": "gid://shopify/Metafield/44341165949234"
               }
             ],
             "userErrors": []
@@ -214,7 +214,7 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10177121091890",
+              "ownerId": "gid://shopify/Product/10218209837362",
               "namespace": "loyalty",
               "key": "bad$key",
               "type": "single_line_text_field",
@@ -228,7 +228,7 @@
           "metafieldsSet": {
             "metafields": [
               {
-                "id": "gid://shopify/Metafield/43095514087730"
+                "id": "gid://shopify/Metafield/44341166178610"
               }
             ],
             "userErrors": []
@@ -252,7 +252,7 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10177121091890",
+              "ownerId": "gid://shopify/Product/10218209837362",
               "namespace": "shopify_standard",
               "key": "title",
               "type": "single_line_text_field",
@@ -293,7 +293,7 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10177121091890",
+              "ownerId": "gid://shopify/Product/10218209837362",
               "namespace": "protected",
               "key": "title",
               "type": "single_line_text_field",
@@ -334,7 +334,7 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10177121091890",
+              "ownerId": "gid://shopify/Product/10218209837362",
               "namespace": "shopify-l10n-fields",
               "key": "title",
               "type": "single_line_text_field",
@@ -375,7 +375,7 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10177121091890",
+              "ownerId": "gid://shopify/Product/10218209837362",
               "namespace": "loyalty",
               "key": "tier",
               "type": "number_integer",
@@ -416,7 +416,7 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10177121091890",
+              "ownerId": "gid://shopify/Product/10218209837362",
               "namespace": "loyalty",
               "key": "flag",
               "type": "boolean",
@@ -457,7 +457,7 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10177121091890",
+              "ownerId": "gid://shopify/Product/10218209837362",
               "namespace": "loyalty",
               "key": "color",
               "type": "color",
@@ -498,7 +498,7 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10177121091890",
+              "ownerId": "gid://shopify/Product/10218209837362",
               "namespace": "loyalty",
               "key": "published_at",
               "type": "date_time",
@@ -539,7 +539,7 @@
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10177121091890",
+              "ownerId": "gid://shopify/Product/10218209837362",
               "namespace": "loyalty",
               "key": "payload",
               "type": "json",
@@ -575,12 +575,586 @@
         }
       }
     },
+    "invalidValueNumberDecimal": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10218209837362",
+              "namespace": "loyalty",
+              "key": "decimal",
+              "type": "number_decimal",
+              "value": "10000000000000.1"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value can't exceed 9999999999999.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidValueMoney": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10218209837362",
+              "namespace": "loyalty",
+              "key": "money",
+              "type": "money",
+              "value": "{\"amount\":\"12.00\"}"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value must be a stringified JSON object with amount (numeric) and currency_code (string matching the shop's currency) fields.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidValueUrl": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10218209837362",
+              "namespace": "loyalty",
+              "key": "url",
+              "type": "url",
+              "value": "example.com"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value cannot have an empty scheme (protocol), must include one of the following URL schemes: [\"http\", \"https\", \"mailto\", \"sms\", \"tel\"].'",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidValueDimensionNegative": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10218209837362",
+              "namespace": "loyalty",
+              "key": "dimension",
+              "type": "dimension",
+              "value": "{\"value\":-1,\"unit\":\"cm\"}"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value must be a non-negative number.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidValueWeightUnit": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10218209837362",
+              "namespace": "loyalty",
+              "key": "weight",
+              "type": "weight",
+              "value": "{\"value\":1,\"unit\":\"bogus\"}"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value must be a supported unit.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidValueVolumeNumeric": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10218209837362",
+              "namespace": "loyalty",
+              "key": "volume",
+              "type": "volume",
+              "value": "{\"value\":\"not-a-number\",\"unit\":\"ml\"}"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value must be a non-negative number.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidValueRatingBounds": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10218209837362",
+              "namespace": "loyalty",
+              "key": "rating",
+              "type": "rating",
+              "value": "{\"value\":\"6.0\",\"scale_min\":\"1.0\",\"scale_max\":\"5.0\"}"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value has a maximum of 5.0.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidValueDate": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10218209837362",
+              "namespace": "loyalty",
+              "key": "date",
+              "type": "date",
+              "value": "2026/06/21"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value must be in YYYY-MM-DD format.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidValueLinkScheme": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10218209837362",
+              "namespace": "loyalty",
+              "key": "link",
+              "type": "link",
+              "value": "{\"label\":\"Docs\",\"url\":\"ftp://example.com\"}"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value must be a valid link.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidValueSingleLineBlank": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10218209837362",
+              "namespace": "loyalty",
+              "key": "blank_single",
+              "type": "single_line_text_field",
+              "value": ""
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value can't be blank.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidValueSingleLineNewline": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10218209837362",
+              "namespace": "loyalty",
+              "key": "newline_single",
+              "type": "single_line_text_field",
+              "value": "Line\nBreak"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value must be a single line text string.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidValueMultiLineBlank": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10218209837362",
+              "namespace": "loyalty",
+              "key": "blank_multi",
+              "type": "multi_line_text_field",
+              "value": "   "
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value can't be blank.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidValueListNumberIntegerElement": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10218209837362",
+              "namespace": "loyalty",
+              "key": "list_integer",
+              "type": "list.number_integer",
+              "value": "[1,\"x\"]"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value must be an integer.",
+                "code": "INVALID_VALUE",
+                "elementIndex": 1
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidValueListTextLength": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10218209837362",
+              "namespace": "loyalty",
+              "key": "list_text",
+              "type": "list.single_line_text_field",
+              "value": "[\"item-0\",\"item-1\",\"item-2\",\"item-3\",\"item-4\",\"item-5\",\"item-6\",\"item-7\",\"item-8\",\"item-9\",\"item-10\",\"item-11\",\"item-12\",\"item-13\",\"item-14\",\"item-15\",\"item-16\",\"item-17\",\"item-18\",\"item-19\",\"item-20\",\"item-21\",\"item-22\",\"item-23\",\"item-24\",\"item-25\",\"item-26\",\"item-27\",\"item-28\",\"item-29\",\"item-30\",\"item-31\",\"item-32\",\"item-33\",\"item-34\",\"item-35\",\"item-36\",\"item-37\",\"item-38\",\"item-39\",\"item-40\",\"item-41\",\"item-42\",\"item-43\",\"item-44\",\"item-45\",\"item-46\",\"item-47\",\"item-48\",\"item-49\",\"item-50\",\"item-51\",\"item-52\",\"item-53\",\"item-54\",\"item-55\",\"item-56\",\"item-57\",\"item-58\",\"item-59\",\"item-60\",\"item-61\",\"item-62\",\"item-63\",\"item-64\",\"item-65\",\"item-66\",\"item-67\",\"item-68\",\"item-69\",\"item-70\",\"item-71\",\"item-72\",\"item-73\",\"item-74\",\"item-75\",\"item-76\",\"item-77\",\"item-78\",\"item-79\",\"item-80\",\"item-81\",\"item-82\",\"item-83\",\"item-84\",\"item-85\",\"item-86\",\"item-87\",\"item-88\",\"item-89\",\"item-90\",\"item-91\",\"item-92\",\"item-93\",\"item-94\",\"item-95\",\"item-96\",\"item-97\",\"item-98\",\"item-99\",\"item-100\",\"item-101\",\"item-102\",\"item-103\",\"item-104\",\"item-105\",\"item-106\",\"item-107\",\"item-108\",\"item-109\",\"item-110\",\"item-111\",\"item-112\",\"item-113\",\"item-114\",\"item-115\",\"item-116\",\"item-117\",\"item-118\",\"item-119\",\"item-120\",\"item-121\",\"item-122\",\"item-123\",\"item-124\",\"item-125\",\"item-126\",\"item-127\",\"item-128\"]"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value has more than 128 elements.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
     "invalidReference": {
       "request": {
         "variables": {
           "metafields": [
             {
-              "ownerId": "gid://shopify/Product/10177121091890",
+              "ownerId": "gid://shopify/Product/10218209837362",
               "namespace": "loyalty",
               "key": "related",
               "type": "product_reference",
@@ -615,12 +1189,94 @@
           }
         }
       }
+    },
+    "invalidReferenceMissingProduct": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10218209837362",
+              "namespace": "loyalty",
+              "key": "missing_related",
+              "type": "product_reference",
+              "value": "gid://shopify/Product/999999998"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value references non-existent resource gid://shopify/Product/999999998.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidValueListProductReference": {
+      "request": {
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10218209837362",
+              "namespace": "loyalty",
+              "key": "list_related",
+              "type": "list.product_reference",
+              "value": "[\"gid://shopify/Product/999999997\"]"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [],
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "value"],
+                "message": "Value references non-existent resource gid://shopify/Product/999999997.",
+                "code": "INVALID_VALUE",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
     }
   },
   "cleanup": {
     "data": {
       "productDelete": {
-        "deletedProductId": "gid://shopify/Product/10177121091890",
+        "deletedProductId": "gid://shopify/Product/10218209837362",
         "userErrors": []
       }
     },
@@ -630,7 +1286,7 @@
         "actualQueryCost": 10,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1990,
+          "currentlyAvailable": 1989,
           "restoreRate": 100
         }
       }
