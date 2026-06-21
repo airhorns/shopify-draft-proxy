@@ -539,6 +539,7 @@ mutation {
       format: JSON
       includeFields: ["id", "name"]
       metafieldNamespaces: ["custom"]
+      metafields: [{ namespace: "custom", key: "color" }]
       filter: "customer_id:123"
     }
   ) {
@@ -548,6 +549,7 @@ mutation {
       format
       includeFields
       metafieldNamespaces
+      metafields { namespace key }
       filter
       createdAt
       updatedAt
@@ -579,6 +581,7 @@ mutation {
             "format": "JSON",
             "includeFields": ["id", "name"],
             "metafieldNamespaces": ["custom"],
+            "metafields": [{ "namespace": "custom", "key": "color" }],
             "filter": "customer_id:123",
             "createdAt": created_at,
             "updatedAt": created_at
@@ -592,6 +595,7 @@ query($id: ID!) {
     id
     includeFields
     metafieldNamespaces
+    metafields { namespace key }
     filter
     createdAt
     updatedAt
@@ -601,6 +605,7 @@ query($id: ID!) {
       id
       includeFields
       metafieldNamespaces
+      metafields { namespace key }
       filter
       createdAt
       updatedAt
@@ -615,6 +620,7 @@ query($id: ID!) {
             "id": webhook_id,
             "includeFields": ["id", "name"],
             "metafieldNamespaces": ["custom"],
+            "metafields": [{ "namespace": "custom", "key": "color" }],
             "filter": "customer_id:123",
             "createdAt": created_at,
             "updatedAt": created_at
@@ -626,6 +632,7 @@ query($id: ID!) {
             "id": webhook_id,
             "includeFields": ["id", "name"],
             "metafieldNamespaces": ["custom"],
+            "metafields": [{ "namespace": "custom", "key": "color" }],
             "filter": "customer_id:123",
             "createdAt": created_at,
             "updatedAt": created_at
@@ -643,6 +650,7 @@ mutation($id: ID!) {
       id
       includeFields
       metafieldNamespaces
+      metafields { namespace key }
       filter
       createdAt
       updatedAt
@@ -667,6 +675,7 @@ mutation($id: ID!) {
             "id": webhook_id,
             "includeFields": ["id", "name"],
             "metafieldNamespaces": ["custom"],
+            "metafields": [{ "namespace": "custom", "key": "color" }],
             "filter": "customer_id:123",
             "createdAt": created_at,
             "updatedAt": omitted_update_updated_at
@@ -682,6 +691,7 @@ mutation($id: ID!) {
       id
       includeFields
       metafieldNamespaces
+      metafields { namespace key }
       filter
       createdAt
       updatedAt
@@ -702,6 +712,7 @@ mutation($id: ID!) {
             "id": webhook_id,
             "includeFields": ["id", "name"],
             "metafieldNamespaces": ["custom"],
+            "metafields": [{ "namespace": "custom", "key": "color" }],
             "filter": "",
             "createdAt": created_at,
             "updatedAt": empty_filter_updated_at
@@ -720,6 +731,7 @@ mutation {
       id
       includeFields
       metafieldNamespaces
+      metafields { namespace key }
       filter
       createdAt
       updatedAt
@@ -731,13 +743,175 @@ mutation {
     ));
     let default_subscription =
         &create_defaults.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"];
+    let default_webhook_id = default_subscription["id"].as_str().unwrap().to_string();
     assert_eq!(default_subscription["includeFields"], json!([]));
     assert_eq!(default_subscription["metafieldNamespaces"], json!([]));
+    assert_eq!(default_subscription["metafields"], json!([]));
     assert_eq!(default_subscription["filter"], Value::Null);
     assert!(default_subscription["createdAt"].as_str().is_some());
     assert_eq!(
         default_subscription["updatedAt"],
         default_subscription["createdAt"]
+    );
+
+    let read_defaults = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+query($id: ID!) {
+  webhookSubscription(id: $id) {
+    id
+    metafields { namespace key }
+  }
+  webhookSubscriptions(first: 10, uri: "https://hooks.example.com/payload-field-defaults") {
+    nodes {
+      id
+      metafields { namespace key }
+    }
+  }
+}"#,
+        json!({ "id": default_webhook_id }),
+    ));
+    assert_eq!(
+        read_defaults.body["data"]["webhookSubscription"],
+        json!({ "id": default_webhook_id, "metafields": [] })
+    );
+    assert_eq!(
+        read_defaults.body["data"]["webhookSubscriptions"]["nodes"],
+        json!([{ "id": default_webhook_id, "metafields": [] }])
+    );
+}
+
+#[test]
+fn dedicated_cloud_webhook_subscription_metafields_round_trip() {
+    let mut proxy = snapshot_proxy();
+
+    let pubsub_create = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+mutation {
+  pubSubWebhookSubscriptionCreate(
+    topic: SHOP_UPDATE
+    webhookSubscription: {
+      pubSubProject: "valid-project"
+      pubSubTopic: "topic-1"
+      metafields: [{ namespace: "custom", key: "tier" }]
+    }
+  ) {
+    webhookSubscription {
+      id
+      metafields { namespace key }
+    }
+    userErrors { field message }
+  }
+}"#,
+        json!({}),
+    ));
+    assert_eq!(
+        pubsub_create.body["data"]["pubSubWebhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    let pubsub_id = pubsub_create.body["data"]["pubSubWebhookSubscriptionCreate"]
+        ["webhookSubscription"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        pubsub_create.body["data"]["pubSubWebhookSubscriptionCreate"]["webhookSubscription"],
+        json!({
+            "id": pubsub_id,
+            "metafields": [{ "namespace": "custom", "key": "tier" }]
+        })
+    );
+
+    let pubsub_update = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+mutation($id: ID!) {
+  pubSubWebhookSubscriptionUpdate(
+    id: $id
+    webhookSubscription: {
+      pubSubProject: "valid-project"
+      pubSubTopic: "topic-2"
+      metafields: [{ namespace: "custom", key: "color" }]
+    }
+  ) {
+    webhookSubscription {
+      id
+      metafields { namespace key }
+    }
+    userErrors { field message }
+  }
+}"#,
+        json!({ "id": pubsub_id }),
+    ));
+    assert_eq!(
+        pubsub_update.body["data"]["pubSubWebhookSubscriptionUpdate"]["webhookSubscription"],
+        json!({
+            "id": pubsub_id,
+            "metafields": [{ "namespace": "custom", "key": "color" }]
+        })
+    );
+
+    let eventbridge_create = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+mutation {
+  eventBridgeWebhookSubscriptionCreate(
+    topic: SHOP_UPDATE
+    webhookSubscription: {
+      arn: "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/metafields-source"
+      metafields: [{ namespace: "custom", key: "delivery" }]
+    }
+  ) {
+    webhookSubscription {
+      id
+      metafields { namespace key }
+    }
+    userErrors { field message }
+  }
+}"#,
+        json!({}),
+    ));
+    assert_eq!(
+        eventbridge_create.body["data"]["eventBridgeWebhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+    let eventbridge_id = eventbridge_create.body["data"]["eventBridgeWebhookSubscriptionCreate"]
+        ["webhookSubscription"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        eventbridge_create.body["data"]["eventBridgeWebhookSubscriptionCreate"]
+            ["webhookSubscription"],
+        json!({
+            "id": eventbridge_id,
+            "metafields": [{ "namespace": "custom", "key": "delivery" }]
+        })
+    );
+
+    let eventbridge_update = proxy.process_request(json_graphql_request(
+        r#"# RustWebhookLocalRuntime
+mutation($id: ID!) {
+  eventBridgeWebhookSubscriptionUpdate(
+    id: $id
+    webhookSubscription: {
+      arn: "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/metafields-source-updated"
+      metafields: [{ namespace: "custom", key: "delivery_updated" }]
+    }
+  ) {
+    webhookSubscription {
+      id
+      metafields { namespace key }
+    }
+    userErrors { field message }
+  }
+}"#,
+        json!({ "id": eventbridge_id }),
+    ));
+    assert_eq!(
+        eventbridge_update.body["data"]["eventBridgeWebhookSubscriptionUpdate"]
+            ["webhookSubscription"],
+        json!({
+            "id": eventbridge_id,
+            "metafields": [{ "namespace": "custom", "key": "delivery_updated" }]
+        })
     );
 }
 
