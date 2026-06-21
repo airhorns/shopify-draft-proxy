@@ -5221,7 +5221,6 @@ fn draft_order_invoice_send_invoice_errors_local_runtime_parity() {
 }
 
 #[test]
-#[ignore = "legacy captured fixture branch; final canned-response removal routes through store-backed dispatch without canned replay"]
 fn remaining_order_fixture_backed_edges_replay_without_passthrough_logs() {
     let fulfillment_fixture: Value = serde_json::from_str(include_str!(
         "../../fixtures/conformance/local-runtime/2025-01/orders/fulfillment-state-preconditions.json"
