@@ -1372,6 +1372,20 @@ impl DraftProxy {
             .iter()
             .any(|id| id == &contact_id)
         {
+            if self.store.staged.b2b_contacts.contains_key(&contact_id) {
+                return (
+                    b2b_company_payload(
+                        None,
+                        vec![json!({
+                            "field": ["companyContactId"],
+                            "message": "The company contact does not belong to the company.",
+                            "code": "INVALID_INPUT"
+                        })],
+                    ),
+                    "failed",
+                    Vec::new(),
+                );
+            }
             return (
                 b2b_company_payload(
                     None,

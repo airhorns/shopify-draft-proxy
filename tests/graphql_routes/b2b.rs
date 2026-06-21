@@ -1270,6 +1270,80 @@ fn b2b_company_contact_lifecycle_and_main_contact_stage_locally() {
 }
 
 #[test]
+fn b2b_assign_main_contact_distinguishes_cross_company_from_unknown_contact() {
+    let mut proxy = snapshot_proxy();
+    let source_company_id = create_b2b_company(&mut proxy, "Source Contact Co");
+    let target_company_id = create_b2b_company(&mut proxy, "Target Main Co");
+    let source_contact_id =
+        create_b2b_company_contact(&mut proxy, &source_company_id, "Source Buyer");
+
+    let wrong_company = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAssignWrongCompanyMainContact($companyId: ID!, $companyContactId: ID!) {
+          companyAssignMainContact(companyId: $companyId, companyContactId: $companyContactId) {
+            company { id mainContact { id } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": target_company_id, "companyContactId": source_contact_id }),
+    ));
+    assert_eq!(wrong_company.status, 200);
+    assert_eq!(
+        wrong_company.body["data"]["companyAssignMainContact"],
+        json!({
+            "company": Value::Null,
+            "userErrors": [{
+                "field": ["companyContactId"],
+                "message": "The company contact does not belong to the company.",
+                "code": "INVALID_INPUT"
+            }]
+        })
+    );
+
+    let unknown_contact_id = "gid://shopify/CompanyContact/404?shopify-draft-proxy=synthetic";
+    let unknown_contact = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BAssignUnknownMainContact($companyId: ID!, $companyContactId: ID!) {
+          companyAssignMainContact(companyId: $companyId, companyContactId: $companyContactId) {
+            company { id mainContact { id } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": target_company_id, "companyContactId": unknown_contact_id }),
+    ));
+    assert_eq!(unknown_contact.status, 200);
+    assert_eq!(
+        unknown_contact.body["data"]["companyAssignMainContact"],
+        json!({
+            "company": Value::Null,
+            "userErrors": [{
+                "field": ["companyContactId"],
+                "message": "The company contact doesn't exist.",
+                "code": "RESOURCE_NOT_FOUND"
+            }]
+        })
+    );
+
+    let target_read = proxy.process_request(json_graphql_request(
+        r#"
+        query B2BAssignWrongCompanyTargetRead($companyId: ID!) {
+          company(id: $companyId) {
+            id
+            mainContact { id }
+          }
+        }
+        "#,
+        json!({ "companyId": target_company_id }),
+    ));
+    assert_eq!(
+        target_read.body["data"]["company"]["mainContact"],
+        Value::Null
+    );
+}
+
+#[test]
 fn b2b_contact_validation_and_bulk_delete_use_shopify_field_paths() {
     let mut proxy = snapshot_proxy();
     let company = proxy.process_request(json_graphql_request(
@@ -2151,6 +2225,29 @@ fn create_b2b_company(proxy: &mut DraftProxy, name: &str) -> String {
     response.body["data"]["companyCreate"]["company"]["id"]
         .as_str()
         .expect("company id")
+        .to_string()
+}
+
+fn create_b2b_company_contact(proxy: &mut DraftProxy, company_id: &str, title: &str) -> String {
+    let response = proxy.process_request(json_graphql_request(
+        r#"
+        mutation B2BCreateCompanyContact($companyId: ID!, $title: String!) {
+          companyContactCreate(companyId: $companyId, input: { title: $title }) {
+            companyContact { id }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "companyId": company_id, "title": title }),
+    ));
+    assert_eq!(response.status, 200);
+    assert_eq!(
+        response.body["data"]["companyContactCreate"]["userErrors"],
+        json!([])
+    );
+    response.body["data"]["companyContactCreate"]["companyContact"]["id"]
+        .as_str()
+        .expect("company contact id")
         .to_string()
 }
 
