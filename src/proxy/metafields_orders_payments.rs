@@ -1506,20 +1506,24 @@ pub(in crate::proxy) fn market_web_presence_helper_record(
     draft: &WebPresenceDraft,
     shop_domain: &str,
 ) -> Value {
-    let origin = format!("https://{shop_domain}");
-    let domain = draft
+    let shop_origin = format!("https://{shop_domain}");
+    // A linked custom domain routes through its own host, not the shop's myshopify
+    // domain. The local runtime seeds the same Domain/1000 -> acme.myshopify.com
+    // mapping the top-level `domain(id:)` query exposes (see dispatch.rs); unknown
+    // domain ids are rejected before this record is built.
+    let linked_domain_host = draft
         .domain_id
         .as_deref()
-        .filter(|domain_id| *domain_id == "gid://shopify/Domain/1000")
-        .map(|domain_id| {
-            json!({
-                "id": domain_id,
-                "host": shop_domain,
-                "url": origin,
-                "sslEnabled": true
-            })
-        })
-        .unwrap_or(Value::Null);
+        .and_then(web_presence_linked_domain_host);
+    let domain = match (&draft.domain_id, &linked_domain_host) {
+        (Some(domain_id), Some(host)) => json!({
+            "id": domain_id,
+            "host": host,
+            "url": format!("https://{host}"),
+            "sslEnabled": true
+        }),
+        _ => Value::Null,
+    };
     // Shopify lists root URLs as the default locale first, then the alternate
     // locales sorted alphabetically by locale code (the `alternateLocales` field
     // itself preserves the caller's input order; only `rootUrls` is sorted).
@@ -1529,17 +1533,22 @@ pub(in crate::proxy) fn market_web_presence_helper_record(
         .chain(sorted_alternates)
         .collect::<Vec<_>>();
     // Shopify roots a subfolder web presence at `/{language}-{suffix}/` for every
-    // locale (the language subtag of e.g. `en-us`/`fr-CA` collapses to `en`/`fr`).
-    // Domain-backed presences root each locale at `/{language}/` on the domain host.
+    // locale, including the default (the language subtag of e.g. `en-us`/`fr-CA`
+    // collapses to `en`/`fr`). Domain-backed presences serve the default locale at
+    // the domain root (`/`) and each alternate at `/{language}/` on the domain host.
     let root_urls = locales
         .iter()
         .map(|locale| {
             let language = locale.split('-').next().unwrap_or(locale.as_str());
-            let url = if draft.domain_id.is_some() {
-                format!("{origin}/{language}/")
+            let url = if let Some(host) = &linked_domain_host {
+                if locale == &draft.default_locale {
+                    format!("https://{host}/")
+                } else {
+                    format!("https://{host}/{language}/")
+                }
             } else {
                 let suffix = draft.subfolder_suffix.as_deref().unwrap_or_default();
-                format!("{origin}/{language}-{suffix}/")
+                format!("{shop_origin}/{language}-{suffix}/")
             };
             json!({"locale": locale, "url": url})
         })
@@ -1553,6 +1562,16 @@ pub(in crate::proxy) fn market_web_presence_helper_record(
         "alternateLocales": draft.alternate_locales.iter().map(|locale| locale_record(locale, false)).collect::<Vec<_>>(),
         "markets": {"nodes": []}
     })
+}
+
+/// Resolves a linked custom-domain id to its host. Only Domain/1000 is seeded in
+/// the local runtime (mirroring the top-level `domain(id:)` query in dispatch.rs);
+/// any other id returns None and is rejected upstream as DOMAIN_NOT_FOUND.
+pub(in crate::proxy) fn web_presence_linked_domain_host(domain_id: &str) -> Option<&'static str> {
+    match domain_id {
+        "gid://shopify/Domain/1000" => Some("acme.myshopify.com"),
+        _ => None,
+    }
 }
 
 pub(in crate::proxy) fn locale_record(locale: &str, primary: bool) -> Value {

@@ -7910,7 +7910,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-fulfillment-order-lifecycle-conformance.ts',
     purpose: 'Fulfillment order hold/request/cancel/close lifecycle behavior.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
-    fixtureOutputs: [`${CAPTURE_ROOT}fulfillment-order-lifecycle.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-order-lifecycle.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-lifecycle-local-staging.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-order-read.graphql',
+    ],
     cleanupBehavior: 'Cancels disposable order and records cleanup captures.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },

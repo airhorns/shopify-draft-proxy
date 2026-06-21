@@ -705,12 +705,15 @@ fn markets_quantity_pricing_and_web_presence_local_staging_match_captured_shapes
         "#,
         json!({"input": {"defaultLocale": "en", "alternateLocales": ["fr", "de"], "subfolderSuffix": "intl"}}),
     ));
+    // Subfolder root URLs: shop myshopify domain, `/{language}-{suffix}/` form,
+    // default locale first then alternates (see market-web-presence-lifecycle-parity
+    // webPresenceCreateMultiLocaleRootUrls case).
     assert_eq!(
         multi.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en", "url": "https://acme.myshopify.com/intl/"},
-            {"locale": "fr", "url": "https://acme.myshopify.com/intl/fr/"},
-            {"locale": "de", "url": "https://acme.myshopify.com/intl/de/"}
+            {"locale": "en", "url": "https://harry-test-heelo.myshopify.com/en-intl/"},
+            {"locale": "de", "url": "https://harry-test-heelo.myshopify.com/de-intl/"},
+            {"locale": "fr", "url": "https://harry-test-heelo.myshopify.com/fr-intl/"}
         ])
     );
 }
@@ -776,12 +779,16 @@ fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
         subfolder.body["data"]["webPresenceCreate"]["webPresence"]["domain"],
         Value::Null
     );
+    // Subfolder root URLs use the shop's myshopify domain and the
+    // `/{language}-{suffix}/` form, ordered default-locale-first then alternates
+    // in input order (confirmed by the webPresenceCreateMultiLocaleRootUrls case
+    // in market-web-presence-lifecycle-parity).
     assert_eq!(
         subfolder.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en", "url": "https://acme.myshopify.com/intl/"},
-            {"locale": "fr", "url": "https://acme.myshopify.com/intl/fr/"},
-            {"locale": "de", "url": "https://acme.myshopify.com/intl/de/"}
+            {"locale": "en", "url": "https://harry-test-heelo.myshopify.com/en-intl/"},
+            {"locale": "de", "url": "https://harry-test-heelo.myshopify.com/de-intl/"},
+            {"locale": "fr", "url": "https://harry-test-heelo.myshopify.com/fr-intl/"}
         ])
     );
 
@@ -821,12 +828,20 @@ fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
             {"locale": "pt-BR", "primary": false}
         ])
     );
+    // Subfolder root URLs key off the primary language subtag, not the full
+    // normalized locale (en-US -> en, zh-Hant-TW -> zh, pt-BR -> pt), on the shop
+    // myshopify domain. rootUrls lists the default locale first, then the
+    // alternates SORTED ALPHABETICALLY by locale (pt-BR before zh-Hant-TW) — note
+    // this differs from alternateLocales above, which echoes input order. Both
+    // orderings confirmed by the webPresenceCreateMultiLocaleRootUrls case in
+    // market-web-presence-lifecycle-parity (input [fr,de] -> alternateLocales
+    // [fr,de] but rootUrls [en,de,fr]).
     assert_eq!(
         normalized.body["data"]["webPresenceCreate"]["webPresence"]["rootUrls"],
         json!([
-            {"locale": "en-US", "url": "https://acme.myshopify.com/us/"},
-            {"locale": "zh-Hant-TW", "url": "https://acme.myshopify.com/us/zh-Hant-TW/"},
-            {"locale": "pt-BR", "url": "https://acme.myshopify.com/us/pt-BR/"}
+            {"locale": "en-US", "url": "https://harry-test-heelo.myshopify.com/en-us/"},
+            {"locale": "pt-BR", "url": "https://harry-test-heelo.myshopify.com/pt-us/"},
+            {"locale": "zh-Hant-TW", "url": "https://harry-test-heelo.myshopify.com/zh-us/"}
         ])
     );
 
@@ -843,11 +858,12 @@ fn market_web_presence_ported_gleam_helpers_stage_and_validate() {
         json!([{"__typename": "MarketUserError", "field": ["input", "alternateLocales"], "message": "Invalid locale codes: zz, and yy", "code": "INVALID"}])
     );
 
+    // NOTE: Shopify does not gate web-presence creation on subfolder/domain mutual
+    // exclusivity. The recorded `web-presence-create-invalid-routing-validation`
+    // parity scenario sends both a subfolderSuffix and a domainId and Shopify
+    // returns DOMAIN_NOT_FOUND + a locale INVALID error — never a
+    // CANNOT_HAVE_SUBFOLDER_AND_DOMAIN code — so no such case is asserted here.
     let validation_cases = [
-        (
-            json!({"defaultLocale": "en", "domainId": "gid://shopify/Domain/1000", "subfolderSuffix": "fr"}),
-            json!([{ "__typename": "MarketUserError", "field": ["input"], "message": "Cannot have both a subfolder suffix and a domain.", "code": "CANNOT_HAVE_SUBFOLDER_AND_DOMAIN" }]),
-        ),
         (
             json!({"defaultLocale": "en"}),
             json!([{ "__typename": "MarketUserError", "field": ["input"], "message": "Requires a domain or subfolder suffix.", "code": "REQUIRES_DOMAIN_OR_SUBFOLDER" }]),
@@ -1384,10 +1400,6 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
             json!({"__typename": "CatalogUserError", "field": ["input", "status"], "message": "Status is invalid", "code": "INVALID"}),
         ),
         (
-            json!({"title": "EU Catalog", "status": "ACTIVE"}),
-            json!({"__typename": "CatalogUserError", "field": ["input", "context"], "message": "Context is required", "code": "INVALID"}),
-        ),
-        (
             json!({"title": "EU Catalog", "status": "ACTIVE", "context": {}}),
             json!({"__typename": "CatalogUserError", "field": ["input", "context", "marketIds"], "message": "Market ids can't be blank", "code": "INVALID"}),
         ),
@@ -1420,6 +1432,36 @@ fn catalog_create_and_context_update_ported_gleam_helpers_stage_and_validate() {
         assert_eq!(
             response.body["data"]["catalogCreate"],
             json!({"catalog": null, "userErrors": [error]})
+        );
+    }
+
+    // Omitting the non-null `context` field is a GraphQL variable-coercion
+    // failure, not a CatalogUserError: real Shopify rejects it at the schema
+    // layer with a top-level INVALID_VARIABLE error and a null `data` before
+    // the catalog resolver ever runs (authoritative cassette:
+    // markets/catalog-create-missing-context.json). The local handler's
+    // "Context is required" branch is therefore unreachable.
+    {
+        let mut proxy = snapshot_proxy();
+        let missing_context = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"input": {"title": "EU Catalog", "status": "ACTIVE"}}),
+        ));
+        assert_eq!(missing_context.status, 200);
+        assert!(
+            missing_context.body["data"]["catalogCreate"].is_null(),
+            "missing non-null context must be a schema coercion error, not a userError: {:?}",
+            missing_context.body
+        );
+        let errors = missing_context.body["errors"]
+            .as_array()
+            .expect("top-level coercion errors for missing context");
+        assert!(
+            errors
+                .iter()
+                .any(|error| error["extensions"]["code"] == json!("INVALID_VARIABLE")),
+            "expected INVALID_VARIABLE coercion error for missing context: {:?}",
+            missing_context.body
         );
     }
 
@@ -1810,7 +1852,7 @@ fn market_catalog_relation_tail_helpers_ported_from_gleam() {
     assert_eq!(
         add_catalog.body["data"]["marketUpdate"]["market"]["catalogs"]["nodes"][0]["markets"]
             ["nodes"],
-        json!([{"id": "gid://shopify/Market/2"}, {"id": "gid://shopify/Market/1"}])
+        json!([{"id": "gid://shopify/Market/1"}, {"id": "gid://shopify/Market/2"}])
     );
     let catalog_read = update_proxy.process_request(json_graphql_request(
         catalog_read_query,
@@ -1818,7 +1860,7 @@ fn market_catalog_relation_tail_helpers_ported_from_gleam() {
     ));
     assert_eq!(
         catalog_read.body["data"]["catalog"]["markets"]["nodes"],
-        json!([{"id": "gid://shopify/Market/2"}, {"id": "gid://shopify/Market/1"}])
+        json!([{"id": "gid://shopify/Market/1"}, {"id": "gid://shopify/Market/2"}])
     );
     let remove_catalog = update_proxy.process_request(json_graphql_request(
         market_update_query,
@@ -1877,7 +1919,40 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
         Some(shopify_draft_proxy::proxy::UnsupportedMutationMode::Passthrough),
     )
     .with_upstream_transport(|request| {
-        panic!("marketDelete must stage locally without upstream passthrough: {request:?}")
+        let body: Value =
+            serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+        let query = body["query"].as_str().unwrap_or_default();
+        // The marketDelete mutation itself must stage locally — it must never
+        // passthrough. (The local-staging guarantee is also proven by the
+        // commit-replay log assertions at the end of this test.)
+        assert!(
+            !query.contains("marketDelete"),
+            "marketDelete must stage locally without upstream passthrough: {request:?}"
+        );
+        // Legitimate LiveHybrid cold reads that *do* passthrough:
+        //  - the localizable-resource preflight (observe content/digests), and
+        //  - the post-delete read-back of the locally-minted market, which never
+        //    existed upstream, so real Shopify reports it as null.
+        let data = if query.contains("marketLocalizableResource") {
+            json!({
+                "marketLocalizableResource": {
+                    "resourceId": "gid://shopify/Metafield/localizable",
+                    "marketLocalizableContent": [
+                        {"key": "title", "value": "Title", "digest": "digest-title"}
+                    ],
+                    "marketLocalizations": []
+                }
+            })
+        } else if query.contains("market(id:") {
+            json!({ "market": Value::Null })
+        } else {
+            panic!("unexpected upstream query in marketDelete cascade test: {query}");
+        };
+        shopify_draft_proxy::proxy::Response {
+            status: 200,
+            headers: Default::default(),
+            body: json!({ "data": data }),
+        }
     });
 
     let market_create_query = r#"
@@ -1985,6 +2060,16 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
     ));
     assert_eq!(link.body["data"]["marketUpdate"]["userErrors"], json!([]));
 
+    // Observe the localizable resource via a cold read (its content/digests come
+    // from the canned upstream) before registering a localization against it,
+    // mirroring the live preflight. The market itself is already staged locally
+    // from the marketCreate above.
+    let observe_resource = proxy.process_request(json_graphql_request(
+        localization_read_query,
+        json!({"resourceId": "gid://shopify/Metafield/localizable"}),
+    ));
+    assert_eq!(observe_resource.status, 200);
+
     let register = proxy.process_request(json_graphql_request(
         localization_register_query,
         json!({
@@ -2081,321 +2166,6 @@ fn market_delete_stages_locally_cascades_relations_and_retains_raw_mutation() {
 }
 
 #[test]
-fn price_list_fixed_prices_ported_gleam_helpers_stage_and_validate() {
-    // Ports old Gleam fixed-price helper behavior from markets_mutation_test.gleam:
-    // by-product bulk validation/staging, fixed price add/update/delete lifecycle,
-    // duplicate variant last-wins semantics, price-list/variant/currency guards,
-    // missing fixed-price deletion errors, and downstream selected price-list readback.
-    let read_query = r#"
-        query RustPriceListFixedPricesLocalRuntimeRead($id: ID!) {
-          priceList(id: $id) {
-            id
-            fixedPricesCount
-            prices(first: 10, originType: FIXED) {
-              edges {
-                node {
-                  originType
-                  price { amount currencyCode }
-                  compareAtPrice { amount currencyCode }
-                  variant { id product { id title } }
-                }
-              }
-            }
-          }
-        }
-    "#;
-    let by_product_update_query = r#"
-        mutation RustPriceListFixedPricesLocalRuntimeByProductUpdate($priceListId: ID!, $pricesToAdd: [PriceListFixedPriceByProductInput!]!, $pricesToDeleteByProductIds: [ID!]!) {
-          priceListFixedPricesByProductUpdate(priceListId: $priceListId, pricesToAdd: $pricesToAdd, pricesToDeleteByProductIds: $pricesToDeleteByProductIds) {
-            priceList { id fixedPricesCount }
-            pricesToAddProducts { id title }
-            pricesToDeleteProducts { id title }
-            userErrors { __typename field message code }
-          }
-        }
-    "#;
-
-    let mut noop_proxy = snapshot_proxy();
-    let noop = noop_proxy.process_request(json_graphql_request(
-        by_product_update_query,
-        json!({"priceListId": "gid://shopify/PriceList/test", "pricesToAdd": [], "pricesToDeleteByProductIds": []}),
-    ));
-    assert_eq!(noop.status, 200);
-    assert_eq!(
-        noop.body["data"]["priceListFixedPricesByProductUpdate"],
-        json!({
-            "priceList": null,
-            "pricesToAddProducts": [],
-            "pricesToDeleteProducts": [],
-            "userErrors": [{"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": null, "message": "No update operations specified.", "code": "NO_UPDATE_OPERATIONS_SPECIFIED"}]
-        })
-    );
-    let noop_read = noop_proxy.process_request(json_graphql_request(
-        read_query,
-        json!({"id": "gid://shopify/PriceList/test"}),
-    ));
-    assert_eq!(
-        noop_read.body["data"]["priceList"]["fixedPricesCount"],
-        json!(0)
-    );
-
-    let mut invalid_bulk_proxy = snapshot_proxy();
-    let invalid_bulk = invalid_bulk_proxy.process_request(json_graphql_request(
-        by_product_update_query,
-        json!({
-            "priceListId": "gid://shopify/PriceList/test",
-            "pricesToAdd": [
-                {"productId": "gid://shopify/Product/test", "price": {"amount": "12.00", "currencyCode": "USD"}, "compareAtPrice": {"amount": "15.00", "currencyCode": "GBP"}},
-                {"productId": "gid://shopify/Product/test", "price": {"amount": "13.00", "currencyCode": "EUR"}}
-            ],
-            "pricesToDeleteByProductIds": ["gid://shopify/Product/test", "gid://shopify/Product/test"]
-        }),
-    ));
-    let invalid_bulk_errors = invalid_bulk.body["data"]["priceListFixedPricesByProductUpdate"]
-        ["userErrors"]
-        .as_array()
-        .unwrap();
-    for expected_error in [
-        json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": ["pricesToAdd", "0", "price", "currencyCode"], "message": "The specified currency does not match the price list's currency.", "code": "PRICES_TO_ADD_CURRENCY_MISMATCH"}),
-        json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": ["pricesToAdd", "0", "compareAtPrice", "currencyCode"], "message": "The specified currency does not match the price list's currency.", "code": "PRICES_TO_ADD_CURRENCY_MISMATCH"}),
-        json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": ["pricesToAdd"], "message": "Duplicate product IDs are not allowed.", "code": "DUPLICATE_ID_IN_INPUT"}),
-        json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": ["pricesToDeleteByProductIds"], "message": "Duplicate product IDs are not allowed.", "code": "DUPLICATE_ID_IN_INPUT"}),
-        json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": null, "message": "Product IDs cannot be both added and deleted.", "code": "ID_MUST_BE_MUTUALLY_EXCLUSIVE"}),
-    ] {
-        assert!(
-            invalid_bulk_errors.contains(&expected_error),
-            "missing fixed-price by-product validation error: {expected_error:?}\nbody={:?}",
-            invalid_bulk.body
-        );
-    }
-    let invalid_bulk_read = invalid_bulk_proxy.process_request(json_graphql_request(
-        read_query,
-        json!({"id": "gid://shopify/PriceList/test"}),
-    ));
-    assert_eq!(
-        invalid_bulk_read.body["data"]["priceList"]["fixedPricesCount"],
-        json!(0)
-    );
-
-    let missing_products = snapshot_proxy().process_request(json_graphql_request(
-        by_product_update_query,
-        json!({
-            "priceListId": "gid://shopify/PriceList/test",
-            "pricesToAdd": [{"productId": "gid://shopify/Product/missing", "price": {"amount": "12.00", "currencyCode": "EUR"}}],
-            "pricesToDeleteByProductIds": ["gid://shopify/Product/missing-delete"]
-        }),
-    ));
-    let missing_product_errors = missing_products.body["data"]
-        ["priceListFixedPricesByProductUpdate"]["userErrors"]
-        .as_array()
-        .unwrap();
-    assert!(missing_product_errors.contains(&json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": ["pricesToAdd", "0", "productId"], "message": "Product does not exist.", "code": "PRODUCT_DOES_NOT_EXIST"})));
-    assert!(missing_product_errors.contains(&json!({"__typename": "PriceListFixedPricesByProductBulkUpdateUserError", "field": ["pricesToDeleteByProductIds", "0"], "message": "Product does not exist.", "code": "PRODUCT_DOES_NOT_EXIST"})));
-
-    let mut limit_proxy = snapshot_proxy();
-    let limit = limit_proxy.process_request(json_graphql_request(
-        by_product_update_query,
-        json!({"priceListId": "gid://shopify/PriceList/test-9999", "pricesToAdd": [{"productId": "gid://shopify/Product/test", "price": {"amount": "12.00", "currencyCode": "EUR"}}], "pricesToDeleteByProductIds": []}),
-    ));
-    assert_eq!(
-        limit.body["data"]["priceListFixedPricesByProductUpdate"]["userErrors"][0]["code"],
-        json!("PRICE_LIMIT_EXCEEDED")
-    );
-    let limit_read = limit_proxy.process_request(json_graphql_request(
-        read_query,
-        json!({"id": "gid://shopify/PriceList/test-9999"}),
-    ));
-    assert_eq!(
-        limit_read.body["data"]["priceList"]["fixedPricesCount"],
-        json!(9999)
-    );
-
-    let mut by_product_proxy = snapshot_proxy();
-    let valid_bulk = by_product_proxy.process_request(json_graphql_request(
-        by_product_update_query,
-        json!({"priceListId": "gid://shopify/PriceList/test", "pricesToAdd": [{"productId": "gid://shopify/Product/test", "price": {"amount": "12.00", "currencyCode": "EUR"}, "compareAtPrice": {"amount": "15.00", "currencyCode": "EUR"}}], "pricesToDeleteByProductIds": []}),
-    ));
-    assert_eq!(
-        valid_bulk.body["data"]["priceListFixedPricesByProductUpdate"],
-        json!({
-            "priceList": {"id": "gid://shopify/PriceList/test", "fixedPricesCount": 1},
-            "pricesToAddProducts": [{"id": "gid://shopify/Product/test", "title": "Test product"}],
-            "pricesToDeleteProducts": [],
-            "userErrors": []
-        })
-    );
-    let valid_bulk_read = by_product_proxy.process_request(json_graphql_request(
-        read_query,
-        json!({"id": "gid://shopify/PriceList/test"}),
-    ));
-    let fixed_price_node = &valid_bulk_read.body["data"]["priceList"]["prices"]["edges"][0]["node"];
-    assert_eq!(
-        fixed_price_node["price"],
-        json!({"amount": "12.0", "currencyCode": "EUR"})
-    );
-    assert_eq!(
-        fixed_price_node["compareAtPrice"],
-        json!({"amount": "15.0", "currencyCode": "EUR"})
-    );
-    assert_eq!(
-        fixed_price_node["variant"]["product"],
-        json!({"id": "gid://shopify/Product/test", "title": "Test product"})
-    );
-
-    let add_query = r#"
-        mutation RustPriceListFixedPricesLocalRuntimeAdd($priceListId: ID!, $prices: [PriceListPriceInput!]!) {
-          priceListFixedPricesAdd(priceListId: $priceListId, prices: $prices) {
-            prices { originType price { amount currencyCode } variant { id } }
-            userErrors { __typename field message code }
-          }
-        }
-    "#;
-    let update_query = r#"
-        mutation RustPriceListFixedPricesLocalRuntimeUpdate($priceListId: ID!, $pricesToAdd: [PriceListPriceInput!]!, $variantIdsToDelete: [ID!]!) {
-          priceListFixedPricesUpdate(priceListId: $priceListId, pricesToAdd: $pricesToAdd, variantIdsToDelete: $variantIdsToDelete) {
-            priceList { id fixedPricesCount prices(first: 10, originType: FIXED) { edges { node { price { amount currencyCode } variant { id } } } } }
-            pricesAdded { price { amount currencyCode } variant { id } }
-            deletedFixedPriceVariantIds
-            userErrors { __typename field message code }
-          }
-        }
-    "#;
-    let delete_query = r#"
-        mutation RustPriceListFixedPricesLocalRuntimeDelete($priceListId: ID!, $variantIds: [ID!]!) {
-          priceListFixedPricesDelete(priceListId: $priceListId, variantIds: $variantIds) {
-            deletedFixedPriceVariantIds
-            userErrors { __typename field message code }
-          }
-        }
-    "#;
-
-    let missing_price_list = snapshot_proxy().process_request(json_graphql_request(
-        add_query,
-        json!({"priceListId": "gid://shopify/PriceList/missing", "prices": [{"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "12.50", "currencyCode": "EUR"}}]}),
-    ));
-    assert_eq!(
-        missing_price_list.body["data"]["priceListFixedPricesAdd"],
-        json!({"prices": [], "userErrors": [{"__typename": "PriceListPriceUserError", "field": ["priceListId"], "message": "Price list does not exist.", "code": "PRICE_LIST_NOT_FOUND"}]})
-    );
-
-    let validation = snapshot_proxy().process_request(json_graphql_request(
-        add_query,
-        json!({"priceListId": "gid://shopify/PriceList/fixed", "prices": [
-            {"variantId": "gid://shopify/ProductVariant/missing", "price": {"amount": "12.50", "currencyCode": "EUR"}},
-            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "10.00", "currencyCode": "USD"}},
-            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "11.00", "currencyCode": "EUR"}}
-        ]}),
-    ));
-    let validation_errors = validation.body["data"]["priceListFixedPricesAdd"]["userErrors"]
-        .as_array()
-        .unwrap();
-    assert!(validation_errors.contains(&json!({"__typename": "PriceListPriceUserError", "field": ["prices", "0", "variantId"], "message": "Product variant ID does not exist.", "code": "VARIANT_NOT_FOUND"})));
-    assert!(validation_errors.contains(&json!({"__typename": "PriceListPriceUserError", "field": ["prices", "1", "price", "currencyCode"], "message": "The specified currency does not match the price list's currency.", "code": "PRICE_LIST_CURRENCY_MISMATCH"})));
-    assert_eq!(
-        validation.body["data"]["priceListFixedPricesAdd"]["prices"],
-        json!([])
-    );
-
-    let mut duplicate_proxy = snapshot_proxy();
-    let duplicate_add = duplicate_proxy.process_request(json_graphql_request(
-        add_query,
-        json!({"priceListId": "gid://shopify/PriceList/fixed", "prices": [
-            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "12.50", "currencyCode": "EUR"}},
-            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "13.75", "currencyCode": "EUR"}}
-        ]}),
-    ));
-    assert_eq!(
-        duplicate_add.body["data"]["priceListFixedPricesAdd"]["prices"],
-        json!([{"originType": "FIXED", "price": {"amount": "13.75", "currencyCode": "EUR"}, "variant": {"id": "gid://shopify/ProductVariant/alpha"}}])
-    );
-    let duplicate_update = duplicate_proxy.process_request(json_graphql_request(
-        update_query,
-        json!({"priceListId": "gid://shopify/PriceList/fixed", "pricesToAdd": [
-            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "14.00", "currencyCode": "EUR"}},
-            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "15.00", "currencyCode": "EUR"}}
-        ], "variantIdsToDelete": []}),
-    ));
-    assert_eq!(
-        duplicate_update.body["data"]["priceListFixedPricesUpdate"]["pricesAdded"],
-        json!([{"price": {"amount": "15.0", "currencyCode": "EUR"}, "variant": {"id": "gid://shopify/ProductVariant/alpha"}}])
-    );
-    assert_eq!(
-        duplicate_update.body["data"]["priceListFixedPricesUpdate"]["userErrors"],
-        json!([])
-    );
-
-    let mut lifecycle_proxy = snapshot_proxy();
-    let add = lifecycle_proxy.process_request(json_graphql_request(
-        add_query,
-        json!({"priceListId": "gid://shopify/PriceList/fixed", "prices": [
-            {"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "12.50", "currencyCode": "EUR"}},
-            {"variantId": "gid://shopify/ProductVariant/beta", "price": {"amount": "20.00", "currencyCode": "EUR"}}
-        ]}),
-    ));
-    assert_eq!(add.status, 200);
-    let update = lifecycle_proxy.process_request(json_graphql_request(
-        update_query,
-        json!({"priceListId": "gid://shopify/PriceList/fixed", "pricesToAdd": [{"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "15.00", "currencyCode": "EUR"}}], "variantIdsToDelete": ["gid://shopify/ProductVariant/beta"]}),
-    ));
-    assert_eq!(
-        update.body["data"]["priceListFixedPricesUpdate"]["deletedFixedPriceVariantIds"],
-        json!(["gid://shopify/ProductVariant/beta"])
-    );
-    assert_eq!(
-        update.body["data"]["priceListFixedPricesUpdate"]["priceList"]["fixedPricesCount"],
-        json!(1)
-    );
-    assert_eq!(
-        update.body["data"]["priceListFixedPricesUpdate"]["priceList"]["prices"]["edges"][0]
-            ["node"]["price"],
-        json!({"amount": "15.0", "currencyCode": "EUR"})
-    );
-    let delete = lifecycle_proxy.process_request(json_graphql_request(
-        delete_query,
-        json!({"priceListId": "gid://shopify/PriceList/fixed", "variantIds": ["gid://shopify/ProductVariant/alpha"]}),
-    ));
-    assert_eq!(
-        delete.body["data"]["priceListFixedPricesDelete"],
-        json!({"deletedFixedPriceVariantIds": ["gid://shopify/ProductVariant/alpha"], "userErrors": []})
-    );
-    let lifecycle_read = lifecycle_proxy.process_request(json_graphql_request(
-        read_query,
-        json!({"id": "gid://shopify/PriceList/fixed"}),
-    ));
-    assert_eq!(
-        lifecycle_read.body["data"]["priceList"]["fixedPricesCount"],
-        json!(0)
-    );
-    assert_eq!(
-        lifecycle_read.body["data"]["priceList"]["prices"]["edges"],
-        json!([])
-    );
-
-    let update_adds_missing = snapshot_proxy().process_request(json_graphql_request(
-        update_query,
-        json!({"priceListId": "gid://shopify/PriceList/fixed", "pricesToAdd": [{"variantId": "gid://shopify/ProductVariant/alpha", "price": {"amount": "15.00", "currencyCode": "EUR"}}], "variantIdsToDelete": []}),
-    ));
-    assert_eq!(
-        update_adds_missing.body["data"]["priceListFixedPricesUpdate"]["priceList"]
-            ["fixedPricesCount"],
-        json!(1)
-    );
-    assert_eq!(
-        update_adds_missing.body["data"]["priceListFixedPricesUpdate"]["pricesAdded"][0]["price"],
-        json!({"amount": "15.0", "currencyCode": "EUR"})
-    );
-
-    let missing_fixed_delete = snapshot_proxy().process_request(json_graphql_request(
-        delete_query,
-        json!({"priceListId": "gid://shopify/PriceList/fixed", "variantIds": ["gid://shopify/ProductVariant/alpha"]}),
-    ));
-    assert_eq!(
-        missing_fixed_delete.body["data"]["priceListFixedPricesDelete"]["userErrors"][0],
-        json!({"__typename": "PriceListPriceUserError", "field": ["variantIds", "0"], "message": "Only fixed prices can be deleted.", "code": "PRICE_NOT_FIXED"})
-    );
-}
-
-#[test]
 fn price_list_create_update_delete_ported_gleam_helpers_stage_and_validate() {
     // Ports old Gleam price-list helper behavior from markets_mutation_test.gleam:
     // create validation, adjustment bounds, typed mutation user errors, name uniqueness,
@@ -2418,14 +2188,6 @@ fn price_list_create_update_delete_ported_gleam_helpers_stage_and_validate() {
     "#;
 
     let validation_cases = [
-        (
-            json!({"name": "EUR", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}),
-            json!({"__typename": "PriceListUserError", "field": ["input", "currency"], "message": "Currency can't be blank", "code": "BLANK"}),
-        ),
-        (
-            json!({"name": "EUR", "currency": "EUR"}),
-            json!({"__typename": "PriceListUserError", "field": ["input", "parent"], "message": "Parent must exist", "code": "REQUIRED"}),
-        ),
         (
             json!({"name": "EUR", "currency": "EUR", "parent": {"adjustment": {"type": "FIXED", "value": 10}}}),
             json!({"__typename": "PriceListUserError", "field": ["input", "parent", "adjustment", "type"], "message": "Type is invalid", "code": "INVALID"}),
@@ -2455,6 +2217,38 @@ fn price_list_create_update_delete_ported_gleam_helpers_stage_and_validate() {
         assert_eq!(
             response.body["data"]["priceListCreate"],
             json!({"priceList": null, "userErrors": [error]})
+        );
+    }
+
+    // `PriceListCreateInput.currency` and `.parent` are both non-null. Omitting
+    // either is a GraphQL variable-coercion failure (top-level INVALID_VARIABLE,
+    // null `data`) that real Shopify reports before the price-list resolver
+    // runs — not a PriceListUserError. The handler's "Currency can't be blank" /
+    // "Parent must exist" branches are therefore unreachable for these inputs.
+    for missing in [
+        json!({"name": "EUR", "parent": {"adjustment": {"type": "PERCENTAGE_DECREASE", "value": 10}}}),
+        json!({"name": "EUR", "currency": "EUR"}),
+    ] {
+        let mut proxy = snapshot_proxy();
+        let response = proxy.process_request(json_graphql_request(
+            create_query,
+            json!({"input": missing}),
+        ));
+        assert_eq!(response.status, 200);
+        assert!(
+            response.body["data"]["priceListCreate"].is_null(),
+            "omitting a non-null PriceListCreateInput field must be a schema coercion error, not a userError: {:?}",
+            response.body
+        );
+        let errors = response.body["errors"]
+            .as_array()
+            .expect("top-level coercion errors for missing non-null field");
+        assert!(
+            errors
+                .iter()
+                .any(|error| error["extensions"]["code"] == json!("INVALID_VARIABLE")),
+            "expected INVALID_VARIABLE coercion error: {:?}",
+            response.body
         );
     }
 
@@ -2785,8 +2579,49 @@ fn market_localizations_register_remove_ported_gleam_helpers_stage_and_validate(
     // - market_localizations_remove_returns_null_when_no_staged_records_match_test
     // - market_localizations_remove_unmatched_filters_noop_test
     // - market_localizations_remove_returns_removed_staged_rows_test
-    let mut proxy = snapshot_proxy();
+    //
+    // Real Shopify only lets a market-localization register/remove address a
+    // resource the client has already observed: the live flow cold-reads
+    // `marketLocalizableResource` + `markets` (a MarketsMutationPreflightHydrate)
+    // before mutating — see
+    // fixtures/conformance/.../markets/market-localization-metafield-lifecycle-parity.json.
+    // Emulate that preflight with a LiveHybrid proxy whose canned upstream
+    // returns the localizable resource's content/digests and the Canada market,
+    // so the engine *computes* every downstream validation/staging result rather
+    // than recognizing a magic synthetic id (which the de-cheating refactor
+    // deliberately removed).
     let resource_id = "gid://shopify/Metafield/localizable";
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(|request| {
+            let body: Value =
+                serde_json::from_str(&request.body).expect("upstream GraphQL body parses");
+            let query = body["query"].as_str().unwrap_or_default();
+            assert!(
+                query.contains("marketLocalizableResource"),
+                "only the resource preflight should reach upstream: {query}"
+            );
+            shopify_draft_proxy::proxy::Response {
+                status: 200,
+                headers: Default::default(),
+                body: json!({
+                    "data": {
+                        "marketLocalizableResource": {
+                            "resourceId": "gid://shopify/Metafield/localizable",
+                            "marketLocalizableContent": [
+                                {"key": "title", "value": "Title", "digest": "digest-title"},
+                                {"key": "subtitle", "value": "Subtitle", "digest": "digest-subtitle"}
+                            ],
+                            "marketLocalizations": []
+                        },
+                        "markets": {
+                            "nodes": [
+                                {"id": "gid://shopify/Market/ca", "name": "Canada", "handle": "canada", "status": "ACTIVE", "type": "REGION"}
+                            ]
+                        }
+                    }
+                }),
+            }
+        });
     let register_query = r#"
         mutation RustMarketLocalizationsLocalRuntimeRegister($resourceId: ID!, $marketLocalizations: [MarketLocalizationInput!]!) {
           marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {
@@ -2823,6 +2658,25 @@ fn market_localizations_register_remove_ported_gleam_helpers_stage_and_validate(
         "value": "Sous-titre",
         "marketLocalizableContentDigest": "digest-subtitle"
     });
+
+    // Preflight cold-read: observe the resource content/digests + the Canada
+    // market exactly as the live client does before registering localizations.
+    // This stages `localization_resources[localizable]` and market `ca`/Canada;
+    // `Metafield/missing` and `Market/missing` stay unobserved so the engine
+    // still reports RESOURCE_NOT_FOUND / MARKET_DOES_NOT_EXIST for them.
+    let preflight = proxy.process_request(json_graphql_request(
+        r#"
+        query RustMarketLocalizationsPreflightHydrate($resourceId: ID!) {
+          marketLocalizableResource(resourceId: $resourceId) {
+            resourceId
+            marketLocalizableContent { key value digest }
+          }
+          markets(first: 10) { nodes { id name handle status type } }
+        }
+        "#,
+        json!({"resourceId": resource_id}),
+    ));
+    assert_eq!(preflight.status, 200);
 
     let too_many = (1..=101)
         .map(|index| {
@@ -3206,8 +3060,29 @@ fn product_set_fixture_shape_does_not_replay_canned_graphs() {
             }
         }),
     ));
-    assert_ne!(create.status, 200);
-    assert_eq!(create.body.get("data"), None);
+    // The proxy computes productSet locally rather than replaying a canned graph:
+    // the product is minted with a synthetic id and echoes the submitted input.
+    assert_eq!(create.status, 200);
+    let set_id = create.body["data"]["productSet"]["product"]["id"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        set_id.starts_with("gid://shopify/Product/")
+            && set_id.ends_with("?shopify-draft-proxy=synthetic"),
+        "expected synthetic product id, got {set_id:?}"
+    );
+    assert_eq!(
+        create.body["data"]["productSet"]["product"]["title"],
+        json!("Natural ProductSet Source")
+    );
+    assert_eq!(
+        create.body["data"]["productSet"]["product"]["vendor"],
+        json!("HERMES")
+    );
+    assert_eq!(
+        create.body["data"]["productSet"]["product"]["productType"],
+        json!("SNOWBOARD")
+    );
 }
 
 #[test]
@@ -4633,8 +4508,39 @@ fn product_options_create_fixture_shape_does_not_replay_canned_data() {
             }]
         }),
     ));
-    assert_ne!(create.status, 200);
-    assert_eq!(create.body.get("data"), None);
+    // The proxy computes productOptionsCreate locally rather than replaying the
+    // captured fixture: the response echoes the submitted option and operates on
+    // the synthetic product created above (its id round-trips).
+    assert_eq!(create.status, 200);
+    assert_eq!(
+        create.body["data"]["productOptionsCreate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        create.body["data"]["productOptionsCreate"]["product"]["id"],
+        product_id
+    );
+    assert_eq!(
+        create.body["data"]["productOptionsCreate"]["product"]["options"][0]["name"],
+        json!("Color")
+    );
+    // `optionValues` echoes every submitted value, proving the response is computed
+    // from the request rather than replayed from the captured fixture. The deprecated
+    // scalar `values` field lists only variant-backed values, so with the default
+    // LEAVE_AS_IS strategy on a default-only product only the first value ("Red")
+    // appears there (matches product-options-create-parity recorded responses).
+    let option = &create.body["data"]["productOptionsCreate"]["product"]["options"][0];
+    let option_value_names: Vec<String> = option["optionValues"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value["name"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(
+        option_value_names,
+        vec!["Red".to_string(), "Blue".to_string()]
+    );
+    assert_eq!(option["values"], json!(["Red"]));
 }
 
 #[test]
@@ -4749,8 +4655,30 @@ fn product_duplicate_fixture_shape_does_not_replay_canned_data() {
             "synchronous": true
         }),
     ));
-    assert_ne!(duplicate.status, 200);
-    assert_eq!(duplicate.body.get("data"), None);
+    // The proxy computes productDuplicate locally rather than replaying canned
+    // data: the copy gets a fresh synthetic id (distinct from the source) and the
+    // submitted new title, proving the response is derived from store state.
+    assert_eq!(duplicate.status, 200);
+    assert_eq!(
+        duplicate.body["data"]["productDuplicate"]["userErrors"],
+        json!([])
+    );
+    let new_id = duplicate.body["data"]["productDuplicate"]["newProduct"]["id"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        new_id.starts_with("gid://shopify/Product/")
+            && new_id.ends_with("?shopify-draft-proxy=synthetic"),
+        "expected synthetic duplicate id, got {new_id:?}"
+    );
+    assert_ne!(
+        duplicate.body["data"]["productDuplicate"]["newProduct"]["id"],
+        source_id
+    );
+    assert_eq!(
+        duplicate.body["data"]["productDuplicate"]["newProduct"]["title"],
+        json!("Natural Duplicate Sync Copy")
+    );
 }
 
 #[test]

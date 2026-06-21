@@ -1319,6 +1319,26 @@ impl DraftProxy {
                 "discountNodes" => Some(json!({
                     "nodes": self.filtered_discount_records(field).into_iter().map(discount_admin_node_for_record).collect::<Vec<_>>()
                 })),
+                "automaticDiscountNodes" | "codeDiscountNodes" => {
+                    let want_kind = if field.name == "automaticDiscountNodes" {
+                        "automatic"
+                    } else {
+                        "code"
+                    };
+                    let nodes = self
+                        .filtered_discount_records(field)
+                        .into_iter()
+                        .filter(|record| discount_kind(record) == want_kind)
+                        .map(discount_node_for_record)
+                        .collect::<Vec<_>>();
+                    let (windowed, page_info) =
+                        connection_window(&nodes, &field.arguments, value_id_cursor);
+                    Some(connection_json_with_cursor(
+                        windowed,
+                        |_, node| value_id_cursor(node),
+                        page_info,
+                    ))
+                }
                 "discountNodesCount" => Some(json!({
                     "count": self.filtered_discount_records(field).len(),
                     "precision": "EXACT"

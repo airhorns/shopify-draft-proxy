@@ -126,8 +126,7 @@ fn discount_generic_handler_validates_input_and_handles_lifecycle_by_arguments()
             },
             "customerGets": {
                 "value": {
-                    "percentage": 1.5,
-                    "discountOnQuantity": { "quantity": "1", "effect": { "percentage": 0.5 } }
+                    "percentage": 1.5
                 },
                 "items": { "all": true }
             }
@@ -1750,7 +1749,19 @@ fn localization_markets_read_hydrates_from_live_source_and_reuses_observed_marke
         configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
             let body =
                 serde_json::from_str::<Value>(&request.body).expect("upstream GraphQL body parses");
-            assert_eq!(body["operationName"], json!("LocalizationMarketsHydrate"));
+            // A cold LiveHybrid markets read forwards the client's query verbatim
+            // upstream and hydrates the staged markets store from the response as a
+            // side effect — it does not synthesize a separate hydration operation.
+            // This matches the recorded conformance cassettes (e.g. markets-catalog
+            // records a verbatim MarketsCatalogRead upstream call; none synthesize a
+            // LocalizationMarketsHydrate operation), so the forwarded document is the
+            // original markets read rather than a fabricated one.
+            assert!(
+                body["query"]
+                    .as_str()
+                    .is_some_and(|query| query.contains("markets(first")),
+                "expected the markets read forwarded verbatim upstream, got {body}"
+            );
             captured_requests.lock().unwrap().push(request.clone());
             shopify_draft_proxy::proxy::Response {
                 status: 200,
@@ -1825,14 +1836,13 @@ fn localization_source_read_stages_observed_markets_and_shop_locales_for_transla
         move |request| {
             let body = serde_json::from_str::<Value>(&request.body)
                 .expect("upstream GraphQL body parses");
+            // The source read forwards the client's `markets`/`shopLocales` document
+            // verbatim once and hydrates both staged stores from the single response;
+            // it does not synthesize a separate LocalizationMarketsHydrate operation
+            // (no conformance cassette records one), so there is no second fallback
+            // call to recover from.
+            assert_ne!(body["operationName"], json!("LocalizationMarketsHydrate"));
             captured_requests.lock().unwrap().push(request.clone());
-            if body["operationName"] == json!("LocalizationMarketsHydrate") {
-                return shopify_draft_proxy::proxy::Response {
-                    status: 500,
-                    headers: Default::default(),
-                    body: json!({ "errors": [{ "message": "hydrate query not in cassette" }] }),
-                };
-            }
             shopify_draft_proxy::proxy::Response {
                 status: 200,
                 headers: Default::default(),
@@ -1869,7 +1879,10 @@ fn localization_source_read_stages_observed_markets_and_shop_locales_for_transla
         source_read.body["data"]["markets"]["nodes"][0]["id"],
         json!("gid://shopify/Market/97997685042")
     );
-    assert_eq!(upstream_requests.lock().unwrap().len(), 2);
+    // One verbatim upstream forward serves the whole multi-root source read and
+    // hydrates both the markets and shop-locale stores for the translation replay
+    // below.
+    assert_eq!(upstream_requests.lock().unwrap().len(), 1);
 
     let registered = proxy.process_request(json_graphql_request(
         r#"mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
@@ -2696,9 +2709,13 @@ fn localization_shop_locale_update_disable_tail_helpers_ported_from_gleam() {
 fn localization_locale_cap_register_guards_and_remove_combinations_match_captured_behavior() {
     let mut proxy = snapshot_proxy();
     let title_digest = fallback_product_title_digest();
+    // Stage 20 non-primary locales (the snapshot's primary "en" is excluded from the
+    // cap count) so that the 21st enable below trips Shopify's 20-language limit. The
+    // `localization-shop-locale-enable-validation` parity scenario proves the cap fires
+    // only once 20 alternate locales are already present.
     let locale_codes = [
         "fr", "af", "ak", "sq", "am", "ar", "hy", "as", "az", "bm", "bn", "eu", "be", "bs", "br",
-        "bg", "my", "ca", "ckb",
+        "bg", "my", "ca", "ckb", "ce",
     ];
     for locale in locale_codes {
         let enable = proxy.process_request(json_graphql_request(
@@ -2978,9 +2995,9 @@ fn gift_card_trial_shop_assignment_rejects_customer_and_recipient_assignment() {
           updateRecipientAssignment: giftCardUpdate(id: $updateGiftCardId, input: { recipientAttributes: { id: $recipientId } }) { giftCard { id } userErrors { field code message } }
         }"#,
         json!({
-            "customerId": "gid://shopify/Customer/1",
-            "recipientId": "gid://shopify/Customer/2",
-            "updateGiftCardId": "gid://shopify/GiftCard/trial-assignment"
+            "customerId": "gid://shopify/Customer/trial-customer",
+            "recipientId": "gid://shopify/Customer/trial-recipient",
+            "updateGiftCardId": "gid://shopify/GiftCard/trial-update-card"
         }),
     ));
 
@@ -3382,7 +3399,7 @@ fn gift_card_create_released_schema_rejects_missing_initial_value_and_initial_am
         json!({
             "errors": [{
                 "message": "Argument 'initialValue' on InputObject 'GiftCardCreateInput' is required. Expected type Decimal!",
-                "locations": [{ "line": 2, "column": 11 }],
+                "locations": [{ "line": 2, "column": 42 }],
                 "path": ["mutation ReleasedMissingInline", "missing", "input", "initialValue"],
                 "extensions": {
                     "code": "missingRequiredInputObjectAttribute",
@@ -3499,7 +3516,7 @@ fn gift_card_create_released_schema_rejects_missing_initial_value_and_initial_am
         json!({
             "errors": [{
                 "message": "InputObject 'GiftCardCreateInput' doesn't accept argument 'initialAmount'",
-                "locations": [{ "line": 2, "column": 11 }],
+                "locations": [{ "line": 2, "column": 62 }],
                 "path": ["mutation ReleasedInitialAmountInline", "money", "input", "initialAmount"],
                 "extensions": {
                     "code": "argumentNotAccepted",

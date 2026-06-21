@@ -1,10 +1,5 @@
 use super::*;
 
-/// Predicates the local product-overlay search (`products_connection_value`)
-/// can evaluate against partial staged state: an empty query, `status:`
-/// filters, `sku:` lookups, and tag filters. Anything else (notably catalog
-/// aggregates like `inventory_total:` or store-wide `vendor:` filters) requires
-/// the full catalog and must be answered upstream.
 /// Merge the top-level keys of `source` (when it is a JSON object) into `target`
 /// (when it too is a JSON object). Used to combine two independently-resolved
 /// `data` field maps — e.g. a `location(id:)` overlay read and a
@@ -19,12 +14,26 @@ fn merge_json_object_fields(target: &mut Value, source: Value) {
     }
 }
 
+/// Catalog-aggregate search predicates that the local product overlay cannot
+/// faithfully evaluate from its partial staged state, because they depend on
+/// store-wide aggregates computed across every location (e.g. `inventory_total:`
+/// sums inventory across all locations). A `products`/`productsCount` search
+/// carrying one of these must be answered upstream against the full catalog —
+/// serving it from the overlay would fabricate wrong matches.
+///
+/// Everything else is locally servable. The overlay applies the filters it does
+/// understand (`status:`, `sku:`, tag filters) and otherwise surfaces the staged
+/// products unfiltered. That "forgiving" behavior is intentional: it is the
+/// read-after-write contract an importer relies on (see examples/catalog-importer,
+/// where `products(query: "vendor:Northwind")` returns the staged products), and
+/// it matches HAR-549 live evidence that Shopify treats malformed search syntax
+/// (a bare leading `(`, a dangling `OR`) as forgiving rather than erroring.
+fn catalog_search_predicate_requires_full_catalog(predicate: &str) -> bool {
+    predicate.contains("inventory_total:")
+}
+
 fn catalog_search_predicate_is_locally_servable(predicate: &str) -> bool {
-    let trimmed = predicate.trim();
-    trimmed.is_empty()
-        || trimmed.contains("status:")
-        || trimmed.starts_with("sku:")
-        || product_tag_query_value(trimmed).is_some()
+    !catalog_search_predicate_requires_full_catalog(predicate)
 }
 
 impl DraftProxy {
@@ -50,12 +59,13 @@ impl DraftProxy {
     }
 
     /// A `products`/`productsCount`/`productVariants` root carrying a `query:`
-    /// search predicate the local overlay cannot faithfully evaluate (anything
-    /// beyond `status:`/`sku:`/tag filters — e.g. `inventory_total:` or
-    /// `vendor:`) needs the full store catalog. Answering it from partial
-    /// overlay state would fabricate wrong matches, so such a query is forwarded
-    /// upstream where the real backend (or a recorded cassette) resolves it
-    /// authoritatively, even when unrelated overlay state has been staged.
+    /// search predicate the local overlay cannot faithfully evaluate — a
+    /// store-wide catalog aggregate such as `inventory_total:` (see
+    /// [`catalog_search_predicate_requires_full_catalog`]) — needs the full
+    /// store catalog. Answering it from partial overlay state would fabricate
+    /// wrong matches, so such a query is forwarded upstream where the real
+    /// backend (or a recorded cassette) resolves it authoritatively, even when
+    /// unrelated overlay state has been staged.
     fn product_query_needs_upstream_catalog_search(
         query: &str,
         variables: &BTreeMap<String, ResolvedValue>,
@@ -1758,6 +1768,15 @@ impl DraftProxy {
                     let response = (self.upstream_transport)(request.clone());
                     if response.status < 400 {
                         self.hydrate_markets_from_upstream(&response.body);
+                        // A single verbatim forward returns whatever the client
+                        // selected, which can span domains (e.g. a localization
+                        // source read selects `markets` alongside `shopLocales`
+                        // in one document). Hydrate the localization stores from
+                        // the same response so a later market-scoped
+                        // translationsRegister sees the observed shop locales.
+                        // No-ops on pure markets responses (their connections are
+                        // objects, not locale arrays).
+                        self.hydrate_localization_from_upstream(&response.body);
                     }
                     return response;
                 }

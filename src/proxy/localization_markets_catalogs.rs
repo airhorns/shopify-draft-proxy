@@ -207,7 +207,7 @@ impl DraftProxy {
                 "translatableResource" => {
                     let resource_id = resolved_string_arg(&field.arguments, "resourceId")
                         .unwrap_or_else(|| "gid://shopify/Product/9801098789170".to_string());
-                    if resource_id.contains("999999999999999") {
+                    if !self.localization_translatable_resource_exists(&resource_id) {
                         Value::Null
                     } else {
                         self.localization_translatable_resource_selected(
@@ -539,6 +539,27 @@ impl DraftProxy {
                     &json!({"edges": [], "nodes": [], "pageInfo": empty_page_info()}),
                     &field.selection,
                 ),
+                // The `markets` plural connection projects the staged markets store.
+                // Hydration from upstream happens in the LiveHybrid fetch path before
+                // this handler is reached, so here we only serve what is already
+                // staged — an empty connection (not a fabricated node) when a backend
+                // has no markets.
+                "markets" => {
+                    let records = self
+                        .store
+                        .staged
+                        .markets
+                        .values()
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    selected_typed_connection_with_args(
+                        &records,
+                        &field.arguments,
+                        &field.selection,
+                        selected_json,
+                        value_id_cursor,
+                    )
+                }
                 _ => Value::Null,
             };
             data.insert(field.response_key.clone(), value);

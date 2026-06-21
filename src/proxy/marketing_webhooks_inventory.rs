@@ -2574,7 +2574,13 @@ impl DraftProxy {
             let location_name = self.inventory_location_display_name(&location_id);
             let new_quantity = resolved_int_field(&quantity, "quantity").unwrap_or(0);
             let key = (item_id.clone(), location_id.clone());
-            let level = self.store.staged.inventory_levels.entry(key).or_default();
+            let existed_before = self.store.staged.inventory_levels.contains_key(&key);
+            let level = self
+                .store
+                .staged
+                .inventory_levels
+                .entry(key.clone())
+                .or_default();
             let old = level.get(&name).copied().unwrap_or(0);
             let delta = new_quantity - old;
             level.insert(name.clone(), new_quantity);
@@ -2593,6 +2599,9 @@ impl DraftProxy {
                     &location_id,
                     &location_name,
                 ));
+            }
+            if !existed_before {
+                self.store.staged.inventory_level_order.push(key);
             }
             self.stamp_inventory_quantity(&item_id, &location_id, &name, &updated_at);
             self.sync_variant_available_quantity(&item_id, &name);

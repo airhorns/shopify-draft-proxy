@@ -826,7 +826,9 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "customersCountBase": null,
                     "delegatedAccessTokens": {},
                     "deletedCustomerIds": [],
+                    "deletedDeliveryProfileIds": [],
                     "deletedDiscountIds": [],
+                    "deletedLocationIds": [],
                     "deletedOrderIds": [],
                     "deletedOwnerMetafields": [],
                     "deletedProductIds": [
@@ -836,6 +838,8 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
                     "deletedSavedSearchIds": [],
                     "deletedShippingPackageIds": {},
                     "deletedShopPolicyIds": [],
+                    "deliveryProfileOrder": [],
+                    "deliveryProfiles": {},
                     "discountCodeIndex": {},
                     "discountRedeemCodeBulkCreations": {},
                     "discounts": {},

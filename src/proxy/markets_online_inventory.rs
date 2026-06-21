@@ -2824,3 +2824,49 @@ pub(in crate::proxy) fn bulk_operation_record_with_type(
         "query": query
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The `priceListFixedPricesByProductUpdate` validation suite is covered
+    // end-to-end against recorded Shopify responses by the markets parity specs
+    // (config/parity-specs/markets/price-list-fixed-prices-*): no-op,
+    // currency-mismatch, duplicate-id, mutual-exclusion, product-not-exist, and
+    // the variant-level add/update/delete guards. The one branch with no parity
+    // coverage is the fixed-price cap, exercised here directly against
+    // engine-computed state — the limit is derived from the FIXED edges actually
+    // present on the price list, never from a synthetic magic id.
+    #[test]
+    fn product_level_fixed_price_errors_flags_no_op_and_price_limit() {
+        let store = Store::default();
+
+        // Empty `pricesToAdd` and `pricesToDeleteByProductIds` with no price list
+        // yields only the no-op error.
+        let none: Option<Value> = None;
+        let no_op = product_level_fixed_price_errors(&store, &none, &[], &[]);
+        assert_eq!(no_op.len(), 1);
+        assert_eq!(no_op[0]["code"], json!("NO_UPDATE_OPERATIONS_SPECIFIED"));
+
+        // A price list already holding 10,000 FIXED prices sits at the cap, so any
+        // resulting set that stays at or above 10,000 trips PRICE_LIMIT_EXCEEDED.
+        let edges: Vec<Value> = (0..10_000)
+            .map(|index| {
+                json!({
+                    "node": {
+                        "originType": "FIXED",
+                        "variant": { "id": format!("gid://shopify/ProductVariant/{index}") }
+                    }
+                })
+            })
+            .collect();
+        let price_list = json!({ "currency": "EUR", "prices": { "edges": edges } });
+        let at_limit = product_level_fixed_price_errors(&store, &Some(price_list), &[], &[]);
+        assert!(
+            at_limit
+                .iter()
+                .any(|error| error["code"] == json!("PRICE_LIMIT_EXCEEDED")),
+            "expected PRICE_LIMIT_EXCEEDED, got {at_limit:?}"
+        );
+    }
+}

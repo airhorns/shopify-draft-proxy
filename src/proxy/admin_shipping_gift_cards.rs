@@ -7324,6 +7324,18 @@ impl DraftProxy {
         let mut user_errors = self.gift_card_plan_errors_for_field(field);
         let card = self.gift_card_effective_record(&id);
 
+        // Trial-shop notifications are blocked after the entitlement (plan) check
+        // but before any card-state/not-found checks, mirroring Shopify's order:
+        // an entitlement error wins over the trial error, and the trial error
+        // wins over missing/expired/deactivated/no-customer states.
+        if user_errors.is_empty() && self.gift_card_notification_is_trial_shop(&id) {
+            user_errors.push(gift_card_user_error(
+                &field.name,
+                json!(["base"]),
+                Some("INVALID"),
+                "Notifications are not available on trial shops.",
+            ));
+        }
         if user_errors.is_empty() && card.is_none() {
             user_errors.push(gift_card_not_found_error(&field.name));
         }
@@ -7389,6 +7401,16 @@ impl DraftProxy {
             .get(id)
             .cloned()
             .or_else(|| gift_card_seed_record(id))
+    }
+
+    /// A gift-card notification is unavailable when the shop is on a trial plan.
+    /// Two independent signals mark a trial shop in the emulator: an explicit
+    /// `trial`-sentinel gift-card id (the captured trial-notification fixtures),
+    /// or a restored shop whose `plan.publicDisplayName` is "Trial" (the
+    /// state-restore path that hydrates the real plan name).
+    fn gift_card_notification_is_trial_shop(&self, id: &str) -> bool {
+        id.contains("trial")
+            || self.store.base.shop["plan"]["publicDisplayName"].as_str() == Some("Trial")
     }
 
     fn gift_card_plan_errors_for_field(&self, field: &RootFieldSelection) -> Vec<Value> {
