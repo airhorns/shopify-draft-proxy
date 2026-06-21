@@ -1128,8 +1128,7 @@ impl DraftProxy {
         }
         let mut errors = Vec::new();
         let mut targets = Vec::new();
-        for ((index, input), input_errors) in inputs.iter().enumerate().zip(validations.into_iter())
-        {
+        for ((index, input), input_errors) in inputs.iter().enumerate().zip(validations) {
             if input_errors.is_empty() {
                 let id = self.next_synthetic_gid(&format!("StagedUploadTarget{index}"));
                 targets.push(staged_upload_target(input, index, &id));
