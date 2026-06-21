@@ -1,4 +1,5 @@
-mutation PublicationDeleteLocalRuntime($id: ID!) {
+#graphql
+mutation PublicationDeleteContract($id: ID!) {
   publicationDelete(id: $id) {
     deletedId
     userErrors {
