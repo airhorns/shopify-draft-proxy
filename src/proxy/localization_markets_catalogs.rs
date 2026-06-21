@@ -2289,9 +2289,9 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
         request: &Request,
     ) -> Response {
-        let response_key = root_field_response_key(query).unwrap_or_else(|| root_field.to_string());
-        let payload_selection = root_field_selection(query).unwrap_or_default();
-        let arguments = root_field_arguments(query, variables).unwrap_or_default();
+        let (response_key, payload_selection, arguments) = primary_root_field(query, variables)
+            .map(|field| (field.response_key, field.selection, field.arguments))
+            .unwrap_or_else(|| (root_field.to_string(), Vec::new(), BTreeMap::new()));
         let payload = match root_field {
             "webPresenceCreate" => {
                 let input = resolved_object_field(&arguments, "input").unwrap_or_default();
