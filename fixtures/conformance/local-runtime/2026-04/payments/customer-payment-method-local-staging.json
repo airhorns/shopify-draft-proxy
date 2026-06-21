@@ -155,7 +155,7 @@
       "data": {
         "customerPaymentMethodCreateFromDuplicationData": {
           "customerPaymentMethod": {
-            "id": "gid://shopify/CustomerPaymentMethod/6",
+            "id": "gid://shopify/CustomerPaymentMethod/4",
             "customer": {
               "id": "gid://shopify/Customer/8802"
             },
@@ -209,7 +209,7 @@
           "paymentMethods": {
             "nodes": [
               {
-                "id": "gid://shopify/CustomerPaymentMethod/6",
+                "id": "gid://shopify/CustomerPaymentMethod/4",
                 "instrument": {
                   "__typename": "CustomerShopPayAgreement"
                 }

@@ -47,7 +47,7 @@
         "missingOrderId": "gid://shopify/Order/0",
         "first": 1
       },
-      "query": "hand-synthesized from checked-in capture response for HAR-538 orders Pattern 1 passthrough",
+      "query": "query OrderEmptyStateRead($missingOrderId: ID!, $first: Int!) {\n  order(id: $missingOrderId) {\n    id\n    name\n    createdAt\n    updatedAt\n    displayFinancialStatus\n    displayFulfillmentStatus\n    note\n    tags\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    lineItems(first: 5) {\n      edges {\n        cursor\n        node {\n          id\n          title\n          quantity\n          sku\n          variantTitle\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n  orders(first: $first, sortKey: CREATED_AT, reverse: true) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        createdAt\n        updatedAt\n        displayFinancialStatus\n        displayFulfillmentStatus\n        note\n        tags\n        currentTotalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  ordersCount {\n    count\n    precision\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

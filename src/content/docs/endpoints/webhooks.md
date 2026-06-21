@@ -82,12 +82,14 @@ Supported create/update/delete operations do not deliver webhook payloads and do
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-address-byte-size-validation.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-metafield-namespaces-resolution.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-topic-format-name-validation.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/eventbridge-cloud-format-json-only.json`
 - `config/parity-specs/webhooks/webhook-subscription-catalog-read.json`
 - `config/parity-specs/webhooks/webhook-subscription-conformance.json`
 - `config/parity-specs/webhooks/webhook-subscription-required-argument-validation.json`
 - `config/parity-specs/webhooks/webhook-subscription-topic-enum-validation.json`
 - `config/parity-specs/webhooks/webhook-subscription-cloud-uri-validation.json`
 - `config/parity-specs/webhooks/webhook-subscription-dedicated-cloud-destinations.json`
+- `config/parity-specs/webhooks/eventbridge-cloud-format-json-only.json`
 - `config/parity-specs/webhooks/gcp-project-topic-char-rules.json`
 - `config/parity-specs/webhooks/webhook-subscription-update-validation.json`
 - `config/parity-specs/webhooks/webhook-subscription-uri-validation.json`
@@ -99,6 +101,7 @@ Supported create/update/delete operations do not deliver webhook payloads and do
 - `scripts/capture-webhook-subscription-topic-enum-validation.ts`
 - `scripts/capture-webhook-cloud-uri-validation-conformance.ts`
 - `scripts/capture-webhook-dedicated-cloud-destinations-conformance.ts`
+- `scripts/capture-webhook-eventbridge-cloud-format-json-only-conformance.ts`
 - `scripts/capture-webhook-gcp-project-topic-char-rules-conformance.ts`
 - `scripts/capture-webhook-subscription-uri-whitespace.ts`
 - `scripts/capture-webhook-subscription-address-byte-size-validation.ts`
@@ -109,5 +112,6 @@ Supported create/update/delete operations do not deliver webhook payloads and do
 - `corepack pnpm parity -- webhook-subscription-conformance`
 - `corepack pnpm parity -- webhook-subscription-cloud-uri-validation`
 - `corepack pnpm parity -- webhook-subscription-dedicated-cloud-destinations`
+- `corepack pnpm parity -- eventbridge-cloud-format-json-only`
 - `corepack pnpm parity -- gcp-project-topic-char-rules`
 - `corepack pnpm conformance:check`

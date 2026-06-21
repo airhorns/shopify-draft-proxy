@@ -218,7 +218,7 @@
       "variables": {
         "id": "gid://shopify/Order/deadline-validation"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query FulfillmentOrdersSetDeadlineValidationOrderRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    displayFulfillmentStatus\n    fulfillmentOrders(first: 10) {\n      nodes {\n        id\n        status\n        fulfillBy\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

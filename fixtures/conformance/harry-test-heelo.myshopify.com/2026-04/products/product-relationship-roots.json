@@ -28,6 +28,145 @@
       "imageUrl": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_865fd24d-10ac-4a54-aaa1-8e8673932073.png?v=1777324908"
     }
   ],
+  "seedCollections": [
+    {
+      "id": "gid://shopify/Collection/512193167666",
+      "title": "Product relationship collection mohpcrbe",
+      "handle": "product-relationship-collection-mohpcrbe",
+      "sortOrder": "BEST_SELLING",
+      "products": {
+        "nodes": []
+      }
+    }
+  ],
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/10172011905330",
+      "title": "Product relationship collection two mohpcrbe",
+      "handle": "product-relationship-collection-two-mohpcrbe",
+      "status": "ACTIVE",
+      "collections": {
+        "nodes": []
+      }
+    },
+    {
+      "id": "gid://shopify/Product/10172011872562",
+      "title": "Product relationship collection one mohpcrbe",
+      "handle": "product-relationship-collection-one-mohpcrbe",
+      "status": "ACTIVE",
+      "collections": {
+        "nodes": []
+      }
+    },
+    {
+      "id": "gid://shopify/Product/10172011938098",
+      "title": "Product relationship option reorder mohpcrbe",
+      "handle": "product-relationship-option-reorder-mohpcrbe",
+      "status": "DRAFT",
+      "options": [
+        {
+          "id": "gid://shopify/ProductOption/12718177845554",
+          "name": "Color",
+          "position": 1,
+          "values": ["Red"],
+          "optionValues": [
+            {
+              "id": "gid://shopify/ProductOptionValue/7979025891634",
+              "name": "Red",
+              "hasVariants": true
+            },
+            {
+              "id": "gid://shopify/ProductOptionValue/7979025924402",
+              "name": "Blue",
+              "hasVariants": false
+            }
+          ]
+        },
+        {
+          "id": "gid://shopify/ProductOption/12718177878322",
+          "name": "Size",
+          "position": 2,
+          "values": ["Small"],
+          "optionValues": [
+            {
+              "id": "gid://shopify/ProductOptionValue/7979025957170",
+              "name": "Small",
+              "hasVariants": true
+            }
+          ]
+        }
+      ],
+      "variants": {
+        "nodes": [
+          {
+            "id": "gid://shopify/ProductVariant/51104997900594",
+            "title": "Red / Small",
+            "selectedOptions": [
+              {
+                "name": "Color",
+                "value": "Red"
+              },
+              {
+                "name": "Size",
+                "value": "Small"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "gid://shopify/Product/10172011970866",
+      "title": "Product relationship variant media mohpcrbe",
+      "handle": "product-relationship-variant-media-mohpcrbe",
+      "status": "ACTIVE",
+      "media": {
+        "nodes": [
+          {
+            "id": "gid://shopify/MediaImage/43623803650354",
+            "alt": "Product relationship front",
+            "mediaContentType": "IMAGE",
+            "status": "READY",
+            "image": {
+              "id": "gid://shopify/ImageSource/43705876611378",
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png.png?v=1777324908"
+            }
+          },
+          {
+            "id": "gid://shopify/MediaImage/43623803683122",
+            "alt": "Product relationship side",
+            "mediaContentType": "IMAGE",
+            "status": "READY",
+            "image": {
+              "id": "gid://shopify/ImageSource/43705876644146",
+              "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/png_865fd24d-10ac-4a54-aaa1-8e8673932073.png?v=1777324908"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "seedProductVariants": [
+    {
+      "id": "gid://shopify/ProductVariant/51104997900594",
+      "productId": "gid://shopify/Product/10172011938098",
+      "title": "Red / Small",
+      "selectedOptions": [
+        {
+          "name": "Color",
+          "value": "Red"
+        },
+        {
+          "name": "Size",
+          "value": "Small"
+        }
+      ]
+    },
+    {
+      "id": "gid://shopify/ProductVariant/51104997933362",
+      "productId": "gid://shopify/Product/10172011970866"
+    }
+  ],
   "seedSellingPlanGroups": [
     {
       "id": "gid://shopify/SellingPlanGroup/2877227314",
@@ -1152,7 +1291,7 @@
       "variables": {
         "ids": ["gid://shopify/ProductOption/12718177878322", "gid://shopify/ProductOption/12718177845554"]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformProductOptionNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on ProductOption {\n      name\n      position\n      values\n      optionValues {\n        id\n        name\n        hasVariants\n      }\n    }\n    ... on ProductOptionValue {\n      name\n      hasVariants\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1199,7 +1338,7 @@
       "variables": {
         "ids": ["gid://shopify/ProductOptionValue/7979025957170"]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformProductOptionNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on ProductOption {\n      name\n      position\n      values\n      optionValues {\n        id\n        name\n        hasVariants\n      }\n    }\n    ... on ProductOptionValue {\n      name\n      hasVariants\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1220,7 +1359,7 @@
       "variables": {
         "ids": ["gid://shopify/ProductOptionValue/7979025891634"]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformProductOptionNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on ProductOption {\n      name\n      position\n      values\n      optionValues {\n        id\n        name\n        hasVariants\n      }\n    }\n    ... on ProductOptionValue {\n      name\n      hasVariants\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1241,7 +1380,7 @@
       "variables": {
         "ids": ["gid://shopify/ProductOptionValue/7979025924402"]
       },
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformProductOptionNodeReads($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    id\n    ... on ProductOption {\n      name\n      position\n      values\n      optionValues {\n        id\n        name\n        hasVariants\n      }\n    }\n    ... on ProductOptionValue {\n      name\n      hasVariants\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1260,7 +1399,7 @@
     {
       "operationName": "AdminPlatformSellingPlanNodeReads",
       "variables": {},
-      "query": "sha:har-525-hand-synthesized-admin-platform",
+      "query": "query AdminPlatformSellingPlanNodeReads {\n  sellingPlanNode: node(id: \"gid://shopify/SellingPlan/7026999602\") {\n    ... on SellingPlan {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n    }\n  }\n  nodes(ids: [\"gid://shopify/SellingPlan/7026999602\", \"gid://shopify/SellingPlan/999999999999\"]) {\n    ... on SellingPlan {\n      id\n      name\n      description\n      options\n      position\n      category\n      createdAt\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1438,7 +1577,7 @@
       "variables": {
         "productId": "gid://shopify/Product/10172011938098"
       },
-      "query": "hand-synthesized from checked-in optionDownstreamRead capture for HAR-545 Pattern 1 product relationship read passthrough",
+      "query": "query ProductRelationshipProductOptionsRead($productId: ID!) {\n  product(id: $productId) {\n    id\n    title\n    handle\n    status\n    options {\n      id\n      name\n      position\n      values\n      optionValues {\n        id\n        name\n        hasVariants\n      }\n    }\n    variants(first: 10) {\n      nodes {\n        id\n        title\n        selectedOptions {\n          name\n          value\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

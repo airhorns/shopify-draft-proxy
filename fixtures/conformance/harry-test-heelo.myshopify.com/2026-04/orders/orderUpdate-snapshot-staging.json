@@ -1,0 +1,343 @@
+{
+  "capturedAt": "2026-06-17T00:11:06.992Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "operations": {
+    "create": {
+      "query": "mutation OrderUpdateSnapshotStagingCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        updatedAt\n        email\n        phone\n        poNumber\n        note\n        tags\n        customer {\n          id\n          email\n          displayName\n        }\n        customAttributes {\n          key\n          value\n        }\n        shippingAddress {\n          firstName\n          lastName\n          address1\n          address2\n          company\n          city\n          province\n          provinceCode\n          country\n          countryCodeV2\n          zip\n          phone\n        }\n        lineItems(first: 5) {\n          nodes {\n            id\n            title\n            quantity\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "order-update-snapshot-before-1781655061311@example.com",
+          "note": "order update snapshot baseline",
+          "tags": ["snapshot-baseline"],
+          "test": true,
+          "currency": "USD",
+          "lineItems": [
+            {
+              "title": "Order update snapshot item 1781655061311",
+              "quantity": 2,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "12.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "order-update-snapshot-1781655061311"
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "24.00",
+                  "currencyCode": "USD"
+                }
+              }
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8826877870386",
+                "name": "#1464",
+                "updatedAt": "2026-06-17T00:11:01Z",
+                "email": "order-update-snapshot-before-1781655061311@example.com",
+                "phone": null,
+                "poNumber": null,
+                "note": "order update snapshot baseline",
+                "tags": ["snapshot-baseline"],
+                "customer": {
+                  "id": "gid://shopify/Customer/10809954992434",
+                  "email": "order-update-snapshot-before-1781655061311@example.com",
+                  "displayName": "order-update-snapshot-before-1781655061311@example.com"
+                },
+                "customAttributes": [],
+                "shippingAddress": null,
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/LineItem/19474925748530",
+                      "title": "Order update snapshot item 1781655061311",
+                      "quantity": 2
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 18,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "query": "mutation OrderUpdateSnapshotStaging($input: OrderInput!) {\n    orderUpdate(input: $input) {\n      order {\n        id\n        name\n        updatedAt\n        email\n        phone\n        poNumber\n        note\n        tags\n        customer {\n          id\n          email\n          displayName\n        }\n        customAttributes {\n          key\n          value\n        }\n        shippingAddress {\n          firstName\n          lastName\n          address1\n          address2\n          company\n          city\n          province\n          provinceCode\n          country\n          countryCodeV2\n          zip\n          phone\n        }\n        gift: metafield(namespace: \"custom\", key: \"gift\") {\n          id\n          namespace\n          key\n          type\n          value\n        }\n        metafields(first: 10) {\n          nodes {\n            id\n            namespace\n            key\n            type\n            value\n          }\n        }\n        lineItems(first: 5) {\n          nodes {\n            id\n            title\n            quantity\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Order/8826877870386",
+          "email": "order-update-snapshot-after-1781655061311@example.com",
+          "phone": "+16135551111",
+          "poNumber": "PO-SNAPSHOT-1781655061311",
+          "note": "order update snapshot after",
+          "tags": ["snapshot-after", "vip"],
+          "customAttributes": [
+            {
+              "key": "source",
+              "value": "snapshot-staging"
+            }
+          ],
+          "shippingAddress": {
+            "firstName": "Ada",
+            "lastName": "Lovelace",
+            "address1": "190 MacLaren",
+            "address2": "Suite 200",
+            "company": "Analytical Engines Ltd",
+            "city": "Sudbury",
+            "province": "Ontario",
+            "provinceCode": "ON",
+            "country": "Canada",
+            "countryCode": "CA",
+            "zip": "K2P0V6",
+            "phone": "+16135552222"
+          },
+          "metafields": [
+            {
+              "namespace": "custom",
+              "key": "gift",
+              "type": "single_line_text_field",
+              "value": "wrapped"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderUpdate": {
+              "order": {
+                "id": "gid://shopify/Order/8826877870386",
+                "name": "#1464",
+                "updatedAt": "2026-06-17T00:11:02Z",
+                "email": "order-update-snapshot-after-1781655061311@example.com",
+                "phone": "+16135551111",
+                "poNumber": "PO-SNAPSHOT-1781655061311",
+                "note": "order update snapshot after",
+                "tags": ["snapshot-after", "vip"],
+                "customer": {
+                  "id": "gid://shopify/Customer/10809954992434",
+                  "email": "order-update-snapshot-before-1781655061311@example.com",
+                  "displayName": "order-update-snapshot-before-1781655061311@example.com"
+                },
+                "customAttributes": [
+                  {
+                    "key": "source",
+                    "value": "snapshot-staging"
+                  }
+                ],
+                "shippingAddress": {
+                  "firstName": "Ada",
+                  "lastName": "Lovelace",
+                  "address1": "190 MacLaren",
+                  "address2": "Suite 200",
+                  "company": "Analytical Engines Ltd",
+                  "city": "Sudbury",
+                  "province": "Ontario",
+                  "provinceCode": "ON",
+                  "country": "Canada",
+                  "countryCodeV2": "CA",
+                  "zip": "K2P0V6",
+                  "phone": "+16135552222"
+                },
+                "gift": {
+                  "id": "gid://shopify/Metafield/44278967992626",
+                  "namespace": "custom",
+                  "key": "gift",
+                  "type": "single_line_text_field",
+                  "value": "wrapped"
+                },
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/44278967992626",
+                      "namespace": "custom",
+                      "key": "gift",
+                      "type": "single_line_text_field",
+                      "value": "wrapped"
+                    }
+                  ]
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/LineItem/19474925748530",
+                      "title": "Order update snapshot item 1781655061311",
+                      "quantity": 2
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "downstreamRead": {
+      "query": "query OrderUpdateSnapshotStagingRead($id: ID!, $query: String!) {\n    byId: order(id: $id) {\n      id\n      name\n      updatedAt\n      email\n      phone\n      poNumber\n      note\n      tags\n      customer {\n        email\n      }\n      customAttributes {\n        key\n        value\n      }\n      shippingAddress {\n        provinceCode\n        countryCodeV2\n        phone\n      }\n      gift: metafield(namespace: \"custom\", key: \"gift\") {\n        id\n        namespace\n        key\n        type\n        value\n      }\n      metafields(first: 10) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          title\n          quantity\n        }\n      }\n    }\n    orders(first: 5, query: $query) {\n      nodes {\n        id\n        email\n        note\n        tags\n      }\n    }\n    ordersCount(query: $query) {\n      count\n      precision\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Order/8826877870386",
+        "query": "email:order-update-snapshot-after-1781655061311@example.com"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "byId": {
+              "id": "gid://shopify/Order/8826877870386",
+              "name": "#1464",
+              "updatedAt": "2026-06-17T00:11:02Z",
+              "email": "order-update-snapshot-after-1781655061311@example.com",
+              "phone": "+16135551111",
+              "poNumber": "PO-SNAPSHOT-1781655061311",
+              "note": "order update snapshot after",
+              "tags": ["snapshot-after", "vip"],
+              "customer": {
+                "email": "order-update-snapshot-before-1781655061311@example.com"
+              },
+              "customAttributes": [
+                {
+                  "key": "source",
+                  "value": "snapshot-staging"
+                }
+              ],
+              "shippingAddress": {
+                "provinceCode": "ON",
+                "countryCodeV2": "CA",
+                "phone": "+16135552222"
+              },
+              "gift": {
+                "id": "gid://shopify/Metafield/44278967992626",
+                "namespace": "custom",
+                "key": "gift",
+                "type": "single_line_text_field",
+                "value": "wrapped"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/44278967992626",
+                    "namespace": "custom",
+                    "key": "gift",
+                    "type": "single_line_text_field",
+                    "value": "wrapped"
+                  }
+                ]
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19474925748530",
+                    "title": "Order update snapshot item 1781655061311",
+                    "quantity": 2
+                  }
+                ]
+              }
+            },
+            "orders": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Order/8826877870386",
+                  "email": "order-update-snapshot-after-1781655061311@example.com",
+                  "note": "order update snapshot after",
+                  "tags": ["snapshot-after", "vip"]
+                }
+              ]
+            },
+            "ordersCount": {
+              "count": 1,
+              "precision": "EXACT"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 31,
+              "actualQueryCost": 24,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1976,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "query": "mutation OrderUpdateSnapshotStagingCleanupDelete($orderId: ID!) {\n    orderDelete(orderId: $orderId) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+    "variables": {
+      "orderId": "gid://shopify/Order/8826877870386"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "orderDelete": {
+            "deletedId": "gid://shopify/Order/8826877870386",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

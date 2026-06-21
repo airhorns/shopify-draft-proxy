@@ -8,6 +8,11 @@
   ],
   "runtimeTestFiles": ["tests/graphql_routes/discounts_gift_cards_functions_localization.rs"],
   "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/localization/localization-translations-validation-order-read.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.setupRead.variables"
+  },
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

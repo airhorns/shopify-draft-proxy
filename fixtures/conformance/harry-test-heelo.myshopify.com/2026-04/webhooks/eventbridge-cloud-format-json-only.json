@@ -1,0 +1,352 @@
+{
+  "capturedAt": "2026-06-16T06:40:30.960Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "requestingApiClientId": "347082227713",
+  "notes": [
+    "Captures Shopify Admin GraphQL EventBridge ARN cloud-delivery format validation for dedicated and unified webhook subscription create/update roots.",
+    "All ARN + XML branches return webhookSubscription: null and one format userError on [\"webhookSubscription\", \"format\"].",
+    "The script creates two temporary JSON EventBridge webhook subscriptions only to provide update targets, deletes both during cleanup, and does not trigger webhook delivery."
+  ],
+  "setup": {
+    "apiClientProbe": {
+      "documentPath": "config/parity-requests/webhooks/eventBridgeWebhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/1/format-probe-mqg9w61y",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "eventBridgeWebhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "arn"],
+                  "message": "Address is invalid"
+                },
+                {
+                  "field": ["webhookSubscription", "arn"],
+                  "message": "Address is an AWS ARN and includes api_client_id '1' instead of '347082227713'"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "dedicatedUpdateSetup": {
+      "documentPath": "config/parity-requests/webhooks/eventBridgeWebhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/json-dedicated-update-setup-mqg9w61y",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "eventBridgeWebhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1955613835570",
+                "topic": "SHOP_UPDATE",
+                "uri": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/json-dedicated-update-setup-mqg9w61y",
+                "format": "JSON",
+                "includeFields": [],
+                "metafieldNamespaces": [],
+                "filter": null,
+                "createdAt": "2026-06-16T06:40:29Z",
+                "updatedAt": "2026-06-16T06:40:29Z",
+                "endpoint": {
+                  "__typename": "WebhookEventBridgeEndpoint",
+                  "arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/json-dedicated-update-setup-mqg9w61y"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unifiedUpdateSetup": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/json-unified-update-setup-mqg9w61y",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1955613868338",
+                "topic": "SHOP_UPDATE",
+                "format": "JSON",
+                "includeFields": [],
+                "metafieldNamespaces": [],
+                "filter": null,
+                "createdAt": "2026-06-16T06:40:30Z",
+                "updatedAt": "2026-06-16T06:40:30Z",
+                "endpoint": {
+                  "__typename": "WebhookEventBridgeEndpoint",
+                  "arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/json-unified-update-setup-mqg9w61y"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cleanupDedicatedUpdateSetup": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1955613835570"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1955613835570",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cleanupUnifiedUpdateSetup": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1955613868338"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1955613868338",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "dedicatedCreateXmlRejected": {
+      "documentPath": "config/parity-requests/webhooks/eventBridgeWebhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "arn": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/xml-dedicated-create-mqg9w61y",
+          "format": "XML"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "eventBridgeWebhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "format"],
+                  "message": "Format can only be used with format: 'json'"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "dedicatedUpdateXmlRejected": {
+      "documentPath": "config/parity-requests/webhooks/eventBridgeWebhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1955613835570",
+        "webhookSubscription": {
+          "arn": "arn:aws:events:us-west-2::event-source/aws.partner/shopify.com/347082227713/xml-dedicated-update-mqg9w61y",
+          "format": "XML"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "eventBridgeWebhookSubscriptionUpdate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "format"],
+                  "message": "Format can only be used with format: 'json'"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unifiedCreateXmlRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/347082227713/xml-unified-create-mqg9w61y",
+          "format": "XML"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "format"],
+                  "message": "Format can only be used with format: 'json'"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unifiedUpdateXmlRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1955613868338",
+        "webhookSubscription": {
+          "uri": "arn:aws:events:us-west-2::event-source/aws.partner/shopify.com/347082227713/xml-unified-update-mqg9w61y",
+          "format": "XML"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionUpdate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "format"],
+                  "message": "Format can only be used with format: 'json'"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

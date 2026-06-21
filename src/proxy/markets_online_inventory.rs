@@ -1,22 +1,5 @@
 use super::*;
 
-pub(in crate::proxy) fn is_ported_market_create_document(query: &str) -> bool {
-    query.contains("RustMarketCreateLocalRuntime")
-}
-
-pub(in crate::proxy) fn is_ported_market_relations_document(query: &str) -> bool {
-    query.contains("RustMarketRelationsLocalRuntime")
-}
-
-pub(in crate::proxy) fn is_ported_catalog_document(query: &str) -> bool {
-    query.contains("RustCatalogLocalRuntime")
-}
-
-pub(in crate::proxy) fn is_ported_price_list_document(query: &str) -> bool {
-    query.contains("RustPriceListLocalRuntime")
-        || query.contains("RustPriceListFixedPricesLocalRuntime")
-}
-
 pub(in crate::proxy) fn catalog_user_error(field: Vec<&str>, message: &str, code: &str) -> Value {
     json!({
         "__typename": "CatalogUserError",
@@ -46,11 +29,22 @@ pub(in crate::proxy) fn catalog_payload_error_with_root(
     })
 }
 
-pub(in crate::proxy) fn catalog_markets_connection(market_ids: &[String]) -> Value {
+pub(in crate::proxy) fn catalog_markets_connection(
+    market_ids: &[String],
+    market_names: &BTreeMap<String, String>,
+) -> Value {
+    // Shopify's MarketCatalog.markets connection lists markets in reverse
+    // attachment order (most recently associated first), which is the join
+    // table's default id-descending ordering. `market_ids` is stored in
+    // attachment order, so iterate it in reverse to match.
     json!({
         "nodes": market_ids
             .iter()
-            .map(|id| json!({"id": id}))
+            .rev()
+            .map(|id| match market_names.get(id) {
+                Some(name) => json!({"id": id, "name": name}),
+                None => json!({"id": id}),
+            })
             .collect::<Vec<_>>()
     })
 }
@@ -60,6 +54,7 @@ pub(in crate::proxy) fn catalog_record(
     title: &str,
     status: &str,
     market_ids: &[String],
+    market_names: &BTreeMap<String, String>,
 ) -> Value {
     json!({
         "__typename": "MarketCatalog",
@@ -67,7 +62,7 @@ pub(in crate::proxy) fn catalog_record(
         "title": title,
         "status": status,
         "marketIds": market_ids,
-        "markets": catalog_markets_connection(market_ids),
+        "markets": catalog_markets_connection(market_ids, market_names),
         "operations": [],
         "priceList": null,
         "publication": null
@@ -85,12 +80,16 @@ pub(in crate::proxy) fn catalog_market_ids(catalog: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-pub(in crate::proxy) fn set_catalog_market_ids(catalog: &mut Value, market_ids: &[String]) {
+pub(in crate::proxy) fn set_catalog_market_ids(
+    catalog: &mut Value,
+    market_ids: &[String],
+    market_names: &BTreeMap<String, String>,
+) {
     if let Some(object) = catalog.as_object_mut() {
         object.insert("marketIds".to_string(), json!(market_ids));
         object.insert(
             "markets".to_string(),
-            catalog_markets_connection(market_ids),
+            catalog_markets_connection(market_ids, market_names),
         );
     }
 }
@@ -281,92 +280,586 @@ pub(in crate::proxy) fn price_list_price_error(field: Value, message: &str, code
     })
 }
 
-pub(in crate::proxy) fn seeded_fixed_price_list_record(
-    id: &str,
-    fixed_prices_count: usize,
-) -> Value {
-    let (name, currency) = if id.ends_with("/fixed") {
-        ("EU Fixed", "EUR")
-    } else {
-        ("EUR test", "EUR")
-    };
-    json!({
-        "__typename": "PriceList",
-        "id": id,
-        "name": name,
-        "currency": currency,
-        "parent": null,
-        "catalogId": null,
-        "catalog": null,
-        "fixedPricesCount": fixed_prices_count,
-        "fixedPriceRows": [],
-        "quantityRules": {"nodes": [], "edges": [], "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}},
-        "prices": fixed_price_connection(Vec::new())
-    })
-}
+// ----------------------------------------------------------------------------
+// Fixed-price edge model (ported from Gleam markets/serializers.gleam). Price
+// lists carry their fixed prices under `prices.edges[].node`; the helpers below
+// read, build, and rewrite that connection so the handlers are store-backed
+// rather than fabricating seeded records.
+// ----------------------------------------------------------------------------
 
-pub(in crate::proxy) fn ensure_fixed_price_list_fields(price_list: &mut Value) {
-    let rows = fixed_price_rows_from_price_list(price_list);
-    if price_list.get("fixedPriceRows").is_none() {
-        if let Some(object) = price_list.as_object_mut() {
-            object.insert("fixedPriceRows".to_string(), Value::Array(rows.clone()));
-        }
-    }
-    if price_list.get("prices").is_none() {
-        if let Some(object) = price_list.as_object_mut() {
-            object.insert("prices".to_string(), fixed_price_connection(rows));
-        }
-    }
-    if price_list.get("fixedPricesCount").is_none() {
-        if let Some(object) = price_list.as_object_mut() {
-            let count = object
-                .get("fixedPriceRows")
-                .and_then(Value::as_array)
-                .map_or(0, Vec::len);
-            object.insert("fixedPricesCount".to_string(), json!(count));
-        }
-    }
-}
-
-pub(in crate::proxy) fn fixed_price_rows_from_price_list(price_list: &Value) -> Vec<Value> {
-    price_list["fixedPriceRows"]
+pub(in crate::proxy) fn price_edges(price_list: &Value) -> Vec<Value> {
+    price_list["prices"]["edges"]
         .as_array()
         .cloned()
-        .or_else(|| price_list["prices"]["nodes"].as_array().cloned())
         .unwrap_or_default()
 }
 
-pub(in crate::proxy) fn fixed_price_count(price_list: &Value) -> usize {
-    price_list["fixedPricesCount"]
-        .as_u64()
-        .map(|count| count as usize)
-        .unwrap_or_else(|| fixed_price_rows_from_price_list(price_list).len())
+pub(in crate::proxy) fn fixed_price_edge_variant_id(edge: &Value) -> Option<String> {
+    edge["node"]["variant"]["id"].as_str().map(str::to_string)
 }
 
-pub(in crate::proxy) fn set_fixed_price_rows(price_list: &mut Value, rows: Vec<Value>) {
-    if let Some(object) = price_list.as_object_mut() {
-        object.insert("fixedPricesCount".to_string(), json!(rows.len()));
-        object.insert("prices".to_string(), fixed_price_connection(rows.clone()));
-        object.insert("fixedPriceRows".to_string(), Value::Array(rows));
+pub(in crate::proxy) fn fixed_price_variant_ids(price_list: &Value) -> Vec<String> {
+    price_edges(price_list)
+        .iter()
+        .filter_map(fixed_price_edge_variant_id)
+        .collect()
+}
+
+pub(in crate::proxy) fn fixed_price_variant_ids_in_request_order(
+    price_list: &Value,
+    variant_ids: &[String],
+) -> Vec<String> {
+    let fixed = fixed_price_variant_ids(price_list);
+    variant_ids
+        .iter()
+        .filter(|id| fixed.contains(id))
+        .cloned()
+        .collect()
+}
+
+pub(in crate::proxy) fn fixed_price_nodes_for_variant_ids(
+    price_list: &Value,
+    variant_ids: &[String],
+) -> Vec<Value> {
+    price_edges(price_list)
+        .iter()
+        .filter_map(|edge| {
+            let variant_id = fixed_price_edge_variant_id(edge)?;
+            variant_ids
+                .contains(&variant_id)
+                .then(|| edge.get("node").cloned())
+                .flatten()
+        })
+        .collect()
+}
+
+pub(in crate::proxy) fn price_list_currency(price_list: &Value) -> String {
+    price_list["currency"].as_str().unwrap_or("USD").to_string()
+}
+
+pub(in crate::proxy) fn mutation_variant_ids(inputs: &[ResolvedValue]) -> Vec<String> {
+    inputs
+        .iter()
+        .filter_map(|input| resolved_nonempty_string(input, "variantId"))
+        .collect()
+}
+
+pub(in crate::proxy) fn append_unique_strings(base: &mut Vec<String>, extra: &[String]) {
+    for item in extra {
+        if !base.contains(item) {
+            base.push(item.clone());
+        }
     }
 }
 
-pub(in crate::proxy) fn fixed_price_connection(rows: Vec<Value>) -> Value {
-    let edges = rows
+/// `read_arg_string_nonempty` — an object field that is a non-empty string.
+pub(in crate::proxy) fn resolved_nonempty_string(
+    value: &ResolvedValue,
+    name: &str,
+) -> Option<String> {
+    resolved_object_string(value, name).filter(|value| !value.is_empty())
+}
+
+/// The object-valued items of a list argument (mirrors `read_arg_object_array`).
+pub(in crate::proxy) fn resolved_object_list(
+    arguments: &BTreeMap<String, ResolvedValue>,
+    name: &str,
+) -> Vec<ResolvedValue> {
+    resolved_list_arg(arguments, name)
+        .into_iter()
+        .filter(|value| matches!(value, ResolvedValue::Object(_)))
+        .collect()
+}
+
+fn fixed_price_money_object_present(input: &ResolvedValue, field: &str) -> bool {
+    matches!(
+        input,
+        ResolvedValue::Object(fields)
+            if matches!(fields.get(field), Some(ResolvedValue::Object(_)))
+    )
+}
+
+/// `money_payload` / `optional_money_payload`: a present money object becomes
+/// `{amount, currencyCode}` (amount normalized, currency defaulting to the price
+/// list currency); an absent object becomes null.
+pub(in crate::proxy) fn fixed_price_money_payload(
+    input: &ResolvedValue,
+    field: &str,
+    currency: &str,
+) -> Value {
+    if !fixed_price_money_object_present(input, field) {
+        return Value::Null;
+    }
+    let amount = fixed_price_input_amount(input, field).unwrap_or_else(|| "0".to_string());
+    let currency_code = fixed_price_input_currency(input, field)
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| currency.to_string());
+    json!({"amount": amount, "currencyCode": currency_code})
+}
+
+pub(in crate::proxy) fn fixed_price_product_payload(product: &ProductRecord) -> Value {
+    json!({
+        "__typename": "Product",
+        "id": product.id,
+        "title": product.title,
+        "handle": product.handle,
+        "status": product.status
+    })
+}
+
+pub(in crate::proxy) fn fixed_price_product_payloads(store: &Store, ids: &[String]) -> Vec<Value> {
+    ids.iter()
+        .filter_map(|id| store.product_by_id(id).map(fixed_price_product_payload))
+        .collect()
+}
+
+fn fixed_price_variant_payload(variant: &Value, product: &ProductRecord) -> Value {
+    let sku = variant
+        .get("sku")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty());
+    json!({
+        "__typename": "ProductVariant",
+        "id": variant.get("id").and_then(Value::as_str).unwrap_or_default(),
+        "title": variant.get("title").and_then(Value::as_str).unwrap_or_default(),
+        "sku": sku,
+        "product": fixed_price_product_payload(product)
+    })
+}
+
+fn fixed_price_edge_for_variant(
+    variant: &Value,
+    product: &ProductRecord,
+    input: &ResolvedValue,
+    currency: &str,
+) -> Value {
+    json!({
+        "cursor": variant.get("id").and_then(Value::as_str).unwrap_or_default(),
+        "node": {
+            "__typename": "PriceListPrice",
+            "price": fixed_price_money_payload(input, "price", currency),
+            "compareAtPrice": fixed_price_money_payload(input, "compareAtPrice", currency),
+            "originType": "FIXED",
+            "variant": fixed_price_variant_payload(variant, product),
+            "quantityPriceBreaks": price_connection_from_edges(&[])
+        }
+    })
+}
+
+pub(in crate::proxy) fn price_connection_from_edges(edges: &[Value]) -> Value {
+    let cursors = edges
         .iter()
-        .map(|node| {
-            let cursor = node["variant"]["id"]
-                .as_str()
-                .unwrap_or_default()
-                .to_string();
-            json!({"cursor": cursor, "node": node})
-        })
+        .filter_map(|edge| edge["cursor"].as_str())
+        .collect::<Vec<_>>();
+    let nodes = edges
+        .iter()
+        .filter_map(|edge| edge.get("node").cloned())
         .collect::<Vec<_>>();
     json!({
-        "nodes": rows,
         "edges": edges,
-        "pageInfo": {"hasNextPage": false, "hasPreviousPage": false, "startCursor": null, "endCursor": null}
+        "nodes": nodes,
+        "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": cursors.first().copied(),
+            "endCursor": cursors.last().copied()
+        }
     })
+}
+
+fn rebuild_price_list_prices(price_list: &mut Value, edges: Vec<Value>) {
+    let fixed_count = edges
+        .iter()
+        .filter(|edge| edge["node"]["originType"].as_str() == Some("FIXED"))
+        .count();
+    if let Some(object) = price_list.as_object_mut() {
+        object.insert("fixedPricesCount".to_string(), json!(fixed_count));
+        object.insert("prices".to_string(), price_connection_from_edges(&edges));
+    }
+}
+
+/// Dedupe inputs by `variantId`, keeping the last occurrence (mirrors Gleam
+/// `last_fixed_price_inputs_by_variant`).
+fn last_fixed_price_inputs_by_variant(inputs: &[ResolvedValue]) -> Vec<ResolvedValue> {
+    let mut accumulator: Vec<ResolvedValue> = Vec::new();
+    for input in inputs {
+        match resolved_nonempty_string(input, "variantId") {
+            Some(variant_id) => {
+                accumulator.retain(|existing| {
+                    resolved_nonempty_string(existing, "variantId").as_deref()
+                        != Some(variant_id.as_str())
+                });
+                accumulator.push(input.clone());
+            }
+            None => accumulator.push(input.clone()),
+        }
+    }
+    accumulator
+}
+
+pub(in crate::proxy) fn upsert_fixed_price_nodes(
+    price_list: &mut Value,
+    store: &Store,
+    inputs: &[ResolvedValue],
+) {
+    let inputs = last_fixed_price_inputs_by_variant(inputs);
+    let input_variant_ids = mutation_variant_ids(&inputs);
+    let mut retained = price_edges(price_list)
+        .into_iter()
+        .filter(|edge| match fixed_price_edge_variant_id(edge) {
+            Some(id) => !input_variant_ids.contains(&id),
+            None => true,
+        })
+        .collect::<Vec<_>>();
+    let currency = price_list_currency(price_list);
+    let mut new_edges = Vec::new();
+    for input in &inputs {
+        let Some(variant_id) = resolved_nonempty_string(input, "variantId") else {
+            continue;
+        };
+        let Some((variant, product)) = store.fixed_price_variant_lookup(&variant_id) else {
+            continue;
+        };
+        new_edges.push(fixed_price_edge_for_variant(
+            &variant, &product, input, &currency,
+        ));
+    }
+    new_edges.append(&mut retained);
+    rebuild_price_list_prices(price_list, new_edges);
+}
+
+pub(in crate::proxy) fn delete_fixed_price_nodes(price_list: &mut Value, variant_ids: &[String]) {
+    let retained = price_edges(price_list)
+        .into_iter()
+        .filter(|edge| match fixed_price_edge_variant_id(edge) {
+            Some(id) => !variant_ids.contains(&id),
+            None => true,
+        })
+        .collect::<Vec<_>>();
+    rebuild_price_list_prices(price_list, retained);
+}
+
+// ----------------------------------------------------------------------------
+// Fixed-price validation (variant-level), ported from Gleam.
+// ----------------------------------------------------------------------------
+
+pub(in crate::proxy) fn price_list_fixed_price_target_errors(
+    price_list_id: &Option<String>,
+    price_list: &Option<Value>,
+) -> Vec<Value> {
+    match (price_list_id, price_list) {
+        (Some(_), Some(_)) => Vec::new(),
+        _ => vec![price_list_price_error(
+            json!(["priceListId"]),
+            "Price list does not exist.",
+            "PRICE_LIST_NOT_FOUND",
+        )],
+    }
+}
+
+pub(in crate::proxy) fn fixed_price_variant_errors(
+    store: &Store,
+    inputs: &[ResolvedValue],
+    field_name: &str,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    for (index, input) in inputs.iter().enumerate() {
+        let variant_id = resolved_nonempty_string(input, "variantId").unwrap_or_default();
+        if store.fixed_price_variant_lookup(&variant_id).is_none() {
+            errors.push(price_list_price_error(
+                json!([field_name, index.to_string(), "variantId"]),
+                "Product variant ID does not exist.",
+                "VARIANT_NOT_FOUND",
+            ));
+        }
+    }
+    errors
+}
+
+pub(in crate::proxy) fn fixed_price_currency_errors(
+    price_list: &Value,
+    inputs: &[ResolvedValue],
+    field_name: &str,
+) -> Vec<Value> {
+    let expected = price_list_currency(price_list);
+    let mut errors = Vec::new();
+    for (index, input) in inputs.iter().enumerate() {
+        if let Some(actual) =
+            fixed_price_input_currency(input, "price").filter(|value| !value.is_empty())
+        {
+            if actual != expected {
+                errors.push(price_list_price_error(
+                    json!([field_name, index.to_string(), "price", "currencyCode"]),
+                    "The specified currency does not match the price list's currency.",
+                    "PRICE_LIST_CURRENCY_MISMATCH",
+                ));
+            }
+        }
+    }
+    errors
+}
+
+pub(in crate::proxy) fn fixed_price_input_errors(
+    store: &Store,
+    price_list: &Value,
+    inputs: &[ResolvedValue],
+    field_name: &str,
+) -> Vec<Value> {
+    let mut errors = fixed_price_variant_errors(store, inputs, field_name);
+    errors.extend(fixed_price_currency_errors(price_list, inputs, field_name));
+    errors
+}
+
+pub(in crate::proxy) fn fixed_price_delete_variant_errors(
+    store: &Store,
+    variant_ids: &[String],
+    field_name: &str,
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    for (index, variant_id) in variant_ids.iter().enumerate() {
+        if store.fixed_price_variant_lookup(variant_id).is_none() {
+            errors.push(price_list_price_error(
+                json!([field_name, index.to_string()]),
+                "Product variant ID does not exist.",
+                "VARIANT_NOT_FOUND",
+            ));
+        }
+    }
+    errors
+}
+
+pub(in crate::proxy) fn fixed_price_delete_not_fixed_errors(
+    store: &Store,
+    price_list: &Value,
+    variant_ids: &[String],
+    field_name: &str,
+) -> Vec<Value> {
+    let fixed = fixed_price_variant_ids(price_list);
+    let mut errors = Vec::new();
+    for (index, variant_id) in variant_ids.iter().enumerate() {
+        if store.fixed_price_variant_lookup(variant_id).is_some() && !fixed.contains(variant_id) {
+            errors.push(price_list_price_error(
+                json!([field_name, index.to_string()]),
+                "Only fixed prices can be deleted.",
+                "PRICE_NOT_FIXED",
+            ));
+        }
+    }
+    errors
+}
+
+/// `read_price_list_id` (serializers.gleam): the mutation's price list id comes
+/// from the `priceListId` argument, falling back to `id`, then `input.priceListId`.
+pub(in crate::proxy) fn read_price_list_id(
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> Option<String> {
+    if let Some(id) =
+        resolved_string_arg(arguments, "priceListId").filter(|value| !value.is_empty())
+    {
+        return Some(id);
+    }
+    if let Some(id) = resolved_string_arg(arguments, "id").filter(|value| !value.is_empty()) {
+        return Some(id);
+    }
+    resolved_object_field(arguments, "input")
+        .and_then(|input| resolved_string_field(&input, "priceListId"))
+        .filter(|value| !value.is_empty())
+}
+
+/// `read_fixed_price_update_inputs` (mutations.gleam): the update mutation reads
+/// `prices` if present, otherwise `pricesToAdd`, returning the chosen field name
+/// so error paths point at the argument the caller supplied.
+pub(in crate::proxy) fn read_fixed_price_update_inputs(
+    arguments: &BTreeMap<String, ResolvedValue>,
+) -> (Vec<ResolvedValue>, &'static str) {
+    let prices = resolved_object_list(arguments, "prices");
+    if prices.is_empty() {
+        (
+            resolved_object_list(arguments, "pricesToAdd"),
+            "pricesToAdd",
+        )
+    } else {
+        (prices, "prices")
+    }
+}
+
+/// The by-product preflight hydrate variables (queries.gleam
+/// `product_fixed_prices_preflight_variables`): a `priceListId`/`priceQuery`
+/// pulled verbatim from the operation variables plus the de-duplicated product
+/// ids referenced by `pricesToAdd` and `pricesToDeleteByProductIds`.
+pub(in crate::proxy) fn product_fixed_prices_preflight_variables(
+    variables: &BTreeMap<String, ResolvedValue>,
+) -> Value {
+    let string_variable = |name: &str| match variables.get(name) {
+        Some(ResolvedValue::String(value)) => json!(value),
+        _ => Value::Null,
+    };
+    let mut product_ids: Vec<String> = Vec::new();
+    if let Some(ResolvedValue::List(items)) = variables.get("pricesToAdd") {
+        for item in items {
+            if let Some(id) = resolved_object_string(item, "productId") {
+                if !product_ids.contains(&id) {
+                    product_ids.push(id);
+                }
+            }
+        }
+    }
+    if let Some(ResolvedValue::List(items)) = variables.get("pricesToDeleteByProductIds") {
+        for item in items {
+            if let ResolvedValue::String(id) = item {
+                if !product_ids.contains(id) {
+                    product_ids.push(id.clone());
+                }
+            }
+        }
+    }
+    json!({
+        "priceListId": string_variable("priceListId"),
+        "priceQuery": string_variable("priceQuery"),
+        "productIds": product_ids,
+    })
+}
+
+/// `product_level_fixed_price_errors` (serializers.gleam): the ordered validation
+/// suite for `priceListFixedPricesByProductUpdate`. Mirrors the Gleam
+/// `combine_error_lists` ordering exactly: no-op, missing add products, missing
+/// delete products, currency mismatches, duplicate add ids, duplicate delete
+/// ids, mutual-exclusion conflicts, then the fixed-price limit.
+pub(in crate::proxy) fn product_level_fixed_price_errors(
+    store: &Store,
+    price_list: &Option<Value>,
+    price_inputs: &[ResolvedValue],
+    delete_product_ids: &[String],
+) -> Vec<Value> {
+    let mut errors = Vec::new();
+    if price_inputs.is_empty() && delete_product_ids.is_empty() {
+        errors.push(fixed_price_by_product_error(
+            Value::Null,
+            "No update operations are specified. `pricesToAdd` and `pricesToDeleteByProductIds` are empty.",
+            "NO_UPDATE_OPERATIONS_SPECIFIED",
+        ));
+    }
+    for (index, input) in price_inputs.iter().enumerate() {
+        let product_id = resolved_nonempty_string(input, "productId").unwrap_or_default();
+        if store.product_by_id(&product_id).is_none() {
+            errors.push(fixed_price_by_product_error(
+                json!(["pricesToAdd", index.to_string(), "productId"]),
+                &format!("Product {product_id} in `pricesToAdd` does not exist."),
+                "PRODUCT_DOES_NOT_EXIST",
+            ));
+        }
+    }
+    for (index, product_id) in delete_product_ids.iter().enumerate() {
+        if store.product_by_id(product_id).is_none() {
+            errors.push(fixed_price_by_product_error(
+                json!(["pricesToDeleteByProductIds", index.to_string()]),
+                &format!("Product {product_id} in `pricesToDeleteByProductIds` does not exist."),
+                "PRODUCT_DOES_NOT_EXIST",
+            ));
+        }
+    }
+    if let Some(existing) = price_list {
+        let currency = price_list_currency(existing);
+        for (index, input) in price_inputs.iter().enumerate() {
+            for money_field in ["price", "compareAtPrice"] {
+                if let Some(actual) =
+                    fixed_price_input_currency(input, money_field).filter(|value| !value.is_empty())
+                {
+                    if actual != currency {
+                        let product_id =
+                            resolved_nonempty_string(input, "productId").unwrap_or_default();
+                        errors.push(fixed_price_by_product_error(
+                            json!(["pricesToAdd", index.to_string(), money_field, "currencyCode"]),
+                            &format!(
+                                "The currency specified in `pricesToAdd` for product ID {product_id} does not match the price list's currency of {currency}."
+                            ),
+                            "PRICES_TO_ADD_CURRENCY_MISMATCH",
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    let mut seen_add: Vec<String> = Vec::new();
+    for input in price_inputs {
+        if let Some(product_id) = resolved_nonempty_string(input, "productId") {
+            if seen_add.contains(&product_id) {
+                errors.push(fixed_price_by_product_error(
+                    json!(["pricesToAdd"]),
+                    "Duplicate ID exists in `pricesToAdd`.",
+                    "DUPLICATE_ID_IN_INPUT",
+                ));
+            } else {
+                seen_add.push(product_id);
+            }
+        }
+    }
+    let mut seen_delete: Vec<String> = Vec::new();
+    for product_id in delete_product_ids {
+        if seen_delete.contains(product_id) {
+            errors.push(fixed_price_by_product_error(
+                json!(["pricesToDeleteByProductIds"]),
+                "Duplicate ID exists in `pricesToDeleteByProductIds`.",
+                "DUPLICATE_ID_IN_INPUT",
+            ));
+        } else {
+            seen_delete.push(product_id.clone());
+        }
+    }
+    for input in price_inputs {
+        if let Some(product_id) = resolved_nonempty_string(input, "productId") {
+            if delete_product_ids.contains(&product_id) {
+                errors.push(fixed_price_by_product_error(
+                    Value::Null,
+                    "IDs specified in `pricesToAdd` and `pricesToDeleteByProductIds` must be mutually exclusive.",
+                    "ID_MUST_BE_MUTUALLY_EXCLUSIVE",
+                ));
+            }
+        }
+    }
+    if let Some(existing) = price_list {
+        if resulting_fixed_price_variant_ids(store, existing, price_inputs, delete_product_ids)
+            .len()
+            >= 10_000
+        {
+            errors.push(fixed_price_by_product_error(
+                json!(["pricesToAdd"]),
+                "The maximum number of fixed prices allowed for the price list has been exceeded.",
+                "PRICE_LIMIT_EXCEEDED",
+            ));
+        }
+    }
+    errors
+}
+
+/// `resulting_fixed_price_variant_ids` (serializers.gleam): the variant ids that
+/// would remain fixed after applying a by-product update — existing FIXED edges
+/// minus the deleted products' variants, plus the added products' variants.
+fn resulting_fixed_price_variant_ids(
+    store: &Store,
+    price_list: &Value,
+    price_inputs: &[ResolvedValue],
+    delete_product_ids: &[String],
+) -> Vec<String> {
+    let delete_variant_ids: Vec<String> = delete_product_ids
+        .iter()
+        .flat_map(|product_id| store.fixed_price_variants_for_product(product_id))
+        .filter_map(|variant| variant["id"].as_str().map(str::to_string))
+        .collect();
+    let mut retained: Vec<String> = price_edges(price_list)
+        .iter()
+        .filter(|edge| edge["node"]["originType"].as_str() == Some("FIXED"))
+        .filter_map(fixed_price_edge_variant_id)
+        .filter(|variant_id| !delete_variant_ids.contains(variant_id))
+        .collect();
+    let add_variant_ids: Vec<String> = price_inputs
+        .iter()
+        .filter_map(|input| resolved_nonempty_string(input, "productId"))
+        .flat_map(|product_id| store.fixed_price_variants_for_product(&product_id))
+        .filter_map(|variant| variant["id"].as_str().map(str::to_string))
+        .collect();
+    append_unique_strings(&mut retained, &add_variant_ids);
+    retained
 }
 
 pub(in crate::proxy) fn fixed_price_input_currency(
@@ -407,138 +900,6 @@ pub(in crate::proxy) fn normalized_money_amount(amount: &str) -> String {
         normalized.push('0');
     }
     normalized
-}
-
-pub(in crate::proxy) fn product_for_fixed_price_product_id(
-    product_id: &str,
-) -> Option<(Value, String)> {
-    match product_id {
-        "gid://shopify/Product/test" => Some((
-            json!({"id": "gid://shopify/Product/test", "title": "Test product"}),
-            "gid://shopify/ProductVariant/test".to_string(),
-        )),
-        "gid://shopify/Product/fixed" => Some((
-            json!({"id": "gid://shopify/Product/fixed", "title": "Fixed Price Product"}),
-            "gid://shopify/ProductVariant/alpha".to_string(),
-        )),
-        _ => None,
-    }
-}
-
-pub(in crate::proxy) fn product_for_fixed_price_variant_id(variant_id: &str) -> Option<Value> {
-    match variant_id {
-        "gid://shopify/ProductVariant/test" => {
-            Some(json!({"id": "gid://shopify/Product/test", "title": "Test product"}))
-        }
-        "gid://shopify/ProductVariant/alpha" | "gid://shopify/ProductVariant/beta" => Some(json!({
-            "id": "gid://shopify/Product/fixed",
-            "title": "Fixed Price Product"
-        })),
-        _ => None,
-    }
-}
-
-pub(in crate::proxy) fn variant_exists_for_fixed_price(variant_id: &str) -> bool {
-    matches!(
-        variant_id,
-        "gid://shopify/ProductVariant/test"
-            | "gid://shopify/ProductVariant/alpha"
-            | "gid://shopify/ProductVariant/beta"
-    )
-}
-
-pub(in crate::proxy) fn has_duplicate_strings(values: &[String]) -> bool {
-    let mut seen = BTreeSet::new();
-    values.iter().any(|value| !seen.insert(value))
-}
-
-pub(in crate::proxy) fn fixed_price_row_from_input(
-    input: &ResolvedValue,
-    variant_id: &str,
-    product: Option<Value>,
-    price_field: &str,
-    compare_at_field: &str,
-) -> Value {
-    let amount = fixed_price_input_amount(input, price_field).unwrap_or_else(|| "0.0".to_string());
-    let currency =
-        fixed_price_input_currency(input, price_field).unwrap_or_else(|| "EUR".to_string());
-    let compare_at_price = match (
-        fixed_price_input_amount(input, compare_at_field),
-        fixed_price_input_currency(input, compare_at_field),
-    ) {
-        (Some(amount), Some(currency)) => json!({"amount": amount, "currencyCode": currency}),
-        _ => Value::Null,
-    };
-    let mut variant = serde_json::Map::from_iter([("id".to_string(), json!(variant_id))]);
-    if let Some(product) = product {
-        variant.insert("product".to_string(), product);
-    } else if let Some(product) = product_for_fixed_price_variant_id(variant_id) {
-        variant.insert("product".to_string(), product);
-    }
-    json!({
-        "__typename": "PriceListPrice",
-        "originType": "FIXED",
-        "price": {"amount": amount, "currencyCode": currency},
-        "compareAtPrice": compare_at_price,
-        "variant": Value::Object(variant)
-    })
-}
-
-pub(in crate::proxy) fn upsert_fixed_price_row(rows: &mut Vec<Value>, row: Value) {
-    let variant_id = row["variant"]["id"]
-        .as_str()
-        .unwrap_or_default()
-        .to_string();
-    if let Some(existing) = rows
-        .iter_mut()
-        .find(|existing| existing["variant"]["id"].as_str() == Some(variant_id.as_str()))
-    {
-        *existing = row;
-    } else {
-        rows.push(row);
-    }
-}
-
-pub(in crate::proxy) fn fixed_price_variant_input_errors(
-    price_list: &Value,
-    prices: &[ResolvedValue],
-    field_name: &str,
-) -> Vec<Value> {
-    let currency = price_list["currency"].as_str().unwrap_or("EUR");
-    let mut errors = Vec::new();
-    for (index, price_input) in prices.iter().enumerate() {
-        let field_index = index.to_string();
-        let variant_id = resolved_object_string(price_input, "variantId").unwrap_or_default();
-        if !variant_exists_for_fixed_price(&variant_id) {
-            errors.push(price_list_price_error(
-                json!([field_name, field_index, "variantId"]),
-                "Product variant ID does not exist.",
-                "VARIANT_NOT_FOUND",
-            ));
-            continue;
-        }
-        if fixed_price_input_currency(price_input, "price").as_deref() != Some(currency) {
-            errors.push(price_list_price_error(
-                json!([field_name, field_index, "price", "currencyCode"]),
-                "The specified currency does not match the price list's currency.",
-                "PRICE_LIST_CURRENCY_MISMATCH",
-            ));
-        }
-    }
-    errors
-}
-
-pub(in crate::proxy) fn fixed_price_rows_from_variant_inputs(
-    prices: &[ResolvedValue],
-) -> Vec<Value> {
-    let mut rows = Vec::new();
-    for price_input in prices {
-        let variant_id = resolved_object_string(price_input, "variantId").unwrap_or_default();
-        let row =
-            fixed_price_row_from_input(price_input, &variant_id, None, "price", "compareAtPrice");
-        upsert_fixed_price_row(&mut rows, row);
-    }
-    rows
 }
 
 pub(in crate::proxy) fn market_status_enabled_mismatch(
@@ -613,8 +974,23 @@ pub(in crate::proxy) fn market_record_from_input(
     handle: &str,
     region_codes: &[String],
 ) -> Value {
-    let status = resolved_string_field(input, "status").unwrap_or_else(|| "ACTIVE".to_string());
+    // Defaults match Gleam market_data (serializers.gleam:226): status falls
+    // back to ACTIVE only when enabled is explicitly true, otherwise DRAFT;
+    // enabled falls back to status==ACTIVE; type is REGION when any region
+    // input is present, else NONE.
+    let status = resolved_string_field(input, "status").unwrap_or_else(|| {
+        if resolved_bool_field(input, "enabled") == Some(true) {
+            "ACTIVE".to_string()
+        } else {
+            "DRAFT".to_string()
+        }
+    });
     let enabled = resolved_bool_field(input, "enabled").unwrap_or(status == "ACTIVE");
+    let market_type = if region_codes.is_empty() {
+        "NONE"
+    } else {
+        "REGION"
+    };
     let region_nodes = region_codes
         .iter()
         .map(|code| json!({"code": code}))
@@ -625,6 +1001,7 @@ pub(in crate::proxy) fn market_record_from_input(
         "handle": handle,
         "status": status,
         "enabled": enabled,
+        "type": market_type,
         "priceInclusions": market_price_inclusions(input),
         "currencySettings": market_currency_settings_json(input),
         "regionCodes": region_codes,
@@ -833,10 +1210,6 @@ pub(in crate::proxy) fn market_user_error(field: Vec<&str>, message: &str, code:
         "message": message,
         "code": code
     })
-}
-
-pub(in crate::proxy) fn is_ported_market_localization_document(query: &str) -> bool {
-    query.contains("RustMarketLocalizationsLocalRuntime")
 }
 
 pub(in crate::proxy) fn default_available_locales() -> BTreeMap<String, String> {
@@ -1087,51 +1460,17 @@ pub(in crate::proxy) fn translation_from_input(input: &ResolvedValue) -> Value {
     })
 }
 
-pub(in crate::proxy) fn market_localization_record(
-    resource_id: &str,
-    input: &ResolvedValue,
+pub(in crate::proxy) fn market_localization_error(
+    field: Vec<&str>,
+    code: &str,
+    message: &str,
 ) -> Value {
-    let key = resolved_object_string(input, "key").unwrap_or_else(|| "title".to_string());
-    let value = resolved_object_string(input, "value").unwrap_or_default();
-    let market_id = resolved_object_string(input, "marketId")
-        .unwrap_or_else(|| "gid://shopify/Market/ca".to_string());
-    json!({
-        "resourceId": resource_id,
-        "key": key,
-        "value": value,
-        "outdated": false,
-        "market": {
-            "id": market_id,
-            "name": "Canada"
-        }
-    })
-}
-
-pub(in crate::proxy) fn market_localization_error(field: Vec<&str>, code: &str) -> Value {
     json!({
         "__typename": "TranslationUserError",
         "field": field,
+        "message": message,
         "code": code
     })
-}
-
-pub(in crate::proxy) fn is_ported_online_store_document(query: &str) -> bool {
-    query.contains("MobilePlatformApplicationUpdate")
-        || query.contains("MobilePlatformApplicationCreateBlankApplicationId")
-        || query.contains("MobilePlatformApplicationCreateModelValidation")
-        || query.contains("MobilePlatformApplicationCreateRequiresOnePlatform")
-        || query.contains("OnlineStoreIntegrationsLocalStaging")
-        || query.contains("ScriptTagCreateValidatesSrc")
-        || query.contains("ScriptTagUpdateValidation")
-        || query.contains("ScriptTagUpdateEventForceOnload")
-        || query.contains("ScriptTagUpdateReadback")
-        || query.contains("ThemeFilesChecksumsAndValidation")
-        || query.contains("RustOnlineStoreStorefrontAccessTokenLocalRuntime")
-        || query.contains("RustOnlineStorePixelLocalRuntime")
-        || query.contains("RustOnlineStoreServerPixel")
-        || query.contains("RustOnlineStoreThemeLocalRuntime")
-        || query.contains("RustOnlineStoreThemeFileLocalRuntime")
-        || query.contains("WebPixelUpdateValidationLocalRuntime")
 }
 
 pub(in crate::proxy) fn is_online_store_theme_record(record: &Value) -> bool {
@@ -1140,6 +1479,13 @@ pub(in crate::proxy) fn is_online_store_theme_record(record: &Value) -> bool {
             .get("id")
             .and_then(Value::as_str)
             .is_some_and(|id| id.starts_with("gid://shopify/OnlineStoreTheme/"))
+}
+
+pub(in crate::proxy) fn is_online_store_script_tag_record(record: &Value) -> bool {
+    record
+        .get("id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| id.starts_with("gid://shopify/ScriptTag/"))
 }
 
 pub(in crate::proxy) fn is_web_pixel_record(record: &Value) -> bool {
@@ -1269,6 +1615,26 @@ pub(in crate::proxy) fn theme_file_record(filename: &str, content: &str) -> Valu
         "checksumMd5": theme_file_checksum_md5(content),
         "size": content.len(),
         "body": {"content": content}
+    })
+}
+
+pub(in crate::proxy) fn theme_file_operation_result(record: &Value) -> Value {
+    json!({
+        "filename": record["filename"],
+        "createdAt": record
+            .get("createdAt")
+            .cloned()
+            .unwrap_or_else(|| json!("2024-01-01T00:00:00.000Z")),
+        "updatedAt": record
+            .get("updatedAt")
+            .cloned()
+            .unwrap_or_else(|| json!("2024-01-01T00:00:00.000Z")),
+        "checksumMd5": record["checksumMd5"],
+        "size": record["size"],
+        "body": record
+            .get("body")
+            .cloned()
+            .unwrap_or(Value::Null)
     })
 }
 
@@ -1615,22 +1981,41 @@ pub(in crate::proxy) fn inventory_empty_connection(selection: &[SelectedField]) 
     )
 }
 
+pub(in crate::proxy) struct InventoryLevelViewState<'a> {
+    pub inventory_level_ids: &'a BTreeMap<(String, String), String>,
+    pub inactive_levels: &'a BTreeSet<(String, String)>,
+    pub quantity_updated_at: &'a BTreeMap<(String, String, String), String>,
+    pub locations: Option<&'a BTreeMap<String, Value>>,
+}
+
 pub(in crate::proxy) fn inventory_levels_connection_selected_json(
     inventory_item_id: &str,
     levels: &[(String, BTreeMap<String, i64>)],
-    quantity_updated_at: &BTreeMap<(String, String, String), String>,
+    view_state: &InventoryLevelViewState<'_>,
     arguments: &BTreeMap<String, ResolvedValue>,
     selections: &[SelectedField],
-    locations: Option<&BTreeMap<String, Value>>,
 ) -> Value {
+    let include_inactive = matches!(
+        arguments.get("includeInactive"),
+        Some(ResolvedValue::Bool(true))
+    );
+    let visible_levels = levels
+        .iter()
+        .filter(|(location_id, _)| {
+            include_inactive
+                || !view_state
+                    .inactive_levels
+                    .contains(&(inventory_item_id.to_string(), location_id.clone()))
+        })
+        .collect::<Vec<_>>();
     let first = resolved_int_field(arguments, "first")
         .and_then(|value| usize::try_from(value).ok())
-        .unwrap_or(levels.len());
+        .unwrap_or(visible_levels.len());
     let mut fields = serde_json::Map::new();
     for selection in selections {
         let value = match selection.name.as_str() {
             "nodes" => Some(Value::Array(
-                levels
+                visible_levels
                     .iter()
                     .take(first)
                     .map(|(location_id, quantities)| {
@@ -1638,9 +2023,8 @@ pub(in crate::proxy) fn inventory_levels_connection_selected_json(
                             inventory_item_id,
                             location_id,
                             quantities,
-                            quantity_updated_at,
+                            view_state,
                             &selection.selection,
-                            locations,
                         )
                     })
                     .collect(),
@@ -1667,21 +2051,31 @@ pub(in crate::proxy) fn inventory_level_selected_json(
     inventory_item_id: &str,
     location_id: &str,
     quantities: &BTreeMap<String, i64>,
-    quantity_updated_at: &BTreeMap<(String, String, String), String>,
+    view_state: &InventoryLevelViewState<'_>,
     selections: &[SelectedField],
-    locations: Option<&BTreeMap<String, Value>>,
 ) -> Value {
+    let is_active = !view_state
+        .inactive_levels
+        .contains(&(inventory_item_id.to_string(), location_id.to_string()));
     let mut fields = serde_json::Map::new();
     for selection in selections {
         let value = match selection.name.as_str() {
-            "id" => Some(json!(inventory_level_id(inventory_item_id, location_id))),
-            "isActive" => Some(json!(true)),
+            "id" => Some(json!(view_state
+                .inventory_level_ids
+                .get(&(inventory_item_id.to_string(), location_id.to_string()))
+                .cloned()
+                .unwrap_or_else(|| inventory_level_id(
+                    inventory_item_id,
+                    location_id
+                )))),
+            "isActive" => Some(json!(is_active)),
             "item" => Some(selected_json(
                 &json!({ "id": inventory_item_id }),
                 &selection.selection,
             )),
             "location" => Some(
-                locations
+                view_state
+                    .locations
                     .and_then(|locations| locations.get(location_id))
                     .map(|location| selected_json(location, &selection.selection))
                     .unwrap_or_else(|| {
@@ -1698,7 +2092,8 @@ pub(in crate::proxy) fn inventory_level_selected_json(
                 inventory_quantity_names(&selection.arguments)
                     .into_iter()
                     .map(|name| {
-                        let updated_at = quantity_updated_at
+                        let updated_at = view_state
+                            .quantity_updated_at
                             .get(&(
                                 inventory_item_id.to_string(),
                                 location_id.to_string(),
@@ -1742,7 +2137,7 @@ fn inventory_quantity_names(arguments: &BTreeMap<String, ResolvedValue>) -> Vec<
     }
 }
 
-fn inventory_level_id(inventory_item_id: &str, location_id: &str) -> String {
+pub(in crate::proxy) fn inventory_level_id(inventory_item_id: &str, location_id: &str) -> String {
     format!(
         "gid://shopify/InventoryLevel/{}-{}?inventory_item_id={}",
         resource_id_tail(inventory_item_id),
@@ -1791,21 +2186,26 @@ pub(in crate::proxy) fn inventory_change_json(
     item_id: &str,
     name: &str,
     delta: i64,
-    quantity_after_change: i64,
+    _quantity_after_change: i64,
     ledger: Option<&str>,
     location_id: &str,
+    location_name: &str,
 ) -> Value {
+    // Real Shopify returns `quantityAfterChange: null` for changes read back
+    // from inventoryAdjust/Set/MoveQuantities mutation responses (the field is
+    // only populated in certain ledger contexts). Match that to stay faithful to
+    // the recorded live captures rather than the staging engine's running total.
     json!({
         "name": name,
         "delta": delta,
-        "quantityAfterChange": quantity_after_change,
+        "quantityAfterChange": Value::Null,
         "ledgerDocumentUri": ledger,
         "item": {
             "id": item_id
         },
         "location": {
             "id": location_id,
-            "name": inventory_location_name(location_id)
+            "name": location_name
         }
     })
 }
@@ -1830,47 +2230,6 @@ pub(in crate::proxy) fn marketing_connection(
         empty_page_info(),
     );
     selected_json(&full, selection)
-}
-
-pub(in crate::proxy) fn marketing_record_matches_query(record: &Value, query: &str) -> bool {
-    marketing_query_terms(query)
-        .iter()
-        .all(|(field, expected)| {
-            marketing_record_query_value(record, field).is_some_and(|value| {
-                value
-                    .to_ascii_lowercase()
-                    .contains(&expected.to_ascii_lowercase())
-            })
-        })
-}
-
-pub(in crate::proxy) fn marketing_query_terms(query: &str) -> Vec<(String, String)> {
-    query
-        .split_whitespace()
-        .filter_map(|term| {
-            let (field, value) = term.split_once(':')?;
-            let value = value.trim_matches(|ch| ch == '"' || ch == '\'');
-            (!field.is_empty() && !value.is_empty()).then(|| (field.to_string(), value.to_string()))
-        })
-        .collect()
-}
-
-pub(in crate::proxy) fn marketing_record_query_value(
-    record: &Value,
-    field: &str,
-) -> Option<String> {
-    match field {
-        "id" => record["id"].as_str(),
-        "remote_id" | "remoteId" => record["remoteId"]
-            .as_str()
-            .or_else(|| record["marketingEvent"]["remoteId"].as_str()),
-        "title" => record["title"].as_str(),
-        "description" => record["marketingEvent"]["description"].as_str(),
-        "status" => record["status"].as_str(),
-        "channel_handle" | "channelHandle" => record["marketingEvent"]["channelHandle"].as_str(),
-        _ => None,
-    }
-    .map(ToString::to_string)
 }
 
 pub(in crate::proxy) fn marketing_activity_payload(
@@ -1947,7 +2306,7 @@ pub(in crate::proxy) fn marketing_activity_from_input(
             .to_string()
     });
     let status = resolved_string_field(&input, "status")
-        .unwrap_or_else(|| old["status"].as_str().unwrap_or("ACTIVE").to_string());
+        .unwrap_or_else(|| old["status"].as_str().unwrap_or("UNDEFINED").to_string());
     let tactic = resolved_string_field(&input, "tactic")
         .unwrap_or_else(|| old["tactic"].as_str().unwrap_or("NEWSLETTER").to_string());
     let channel_type = resolved_string_field(&input, "marketingChannelType").unwrap_or_else(|| {
@@ -1996,6 +2355,11 @@ pub(in crate::proxy) fn marketing_activity_from_input(
         .as_ref()
         .and_then(|u| resolved_string_field(u, "medium"))
         .unwrap_or_else(|| old_utm["medium"].as_str().unwrap_or("email").to_string());
+    let source_medium = marketing_source_and_medium(
+        &channel_type,
+        &tactic,
+        resolved_string_field(&input, "referringDomain").as_deref(),
+    );
     let numeric = resource_id_path_tail(id);
     let event_id = old["marketingEvent"]["id"]
         .as_str()
@@ -2011,43 +2375,19 @@ pub(in crate::proxy) fn marketing_activity_from_input(
         .map(marketing_budget_json)
         .unwrap_or_else(|| old.get("budget").cloned().unwrap_or(Value::Null));
     let ad_spend = resolved_object_field(&input, "adSpend")
-        .map(marketing_money_json_from_object)
+        .map(|obj| {
+            json!({
+                "amount": resolved_string_field(&obj, "amount")
+                    .map(|a| normalized_money_amount(&a))
+                    .unwrap_or_default(),
+                "currencyCode": resolved_string_field(&obj, "currencyCode")
+                    .unwrap_or_else(|| "USD".to_string())
+            })
+        })
         .unwrap_or_else(|| old.get("adSpend").cloned().unwrap_or(Value::Null));
-    let scheduled_to_start_at = resolved_string_field(&input, "scheduledToStartAt")
-        .or_else(|| resolved_string_field(&input, "scheduledStart"))
+    let scheduled_to_end_at = resolved_string_field(&input, "scheduledEnd")
         .map(Value::String)
-        .unwrap_or_else(|| {
-            old.get("scheduledToStartAt")
-                .cloned()
-                .unwrap_or(Value::Null)
-        });
-    let scheduled_to_end_at = resolved_string_field(&input, "scheduledToEndAt")
-        .or_else(|| resolved_string_field(&input, "scheduledEnd"))
-        .map(Value::String)
-        .unwrap_or_else(|| old.get("scheduledToEndAt").cloned().unwrap_or(Value::Null));
-    let referring_domain = resolved_string_field(&input, "referringDomain")
-        .map(Value::String)
-        .unwrap_or_else(|| old.get("referringDomain").cloned().unwrap_or(Value::Null));
-    let source_medium =
-        marketing_source_and_medium(&channel_type, &tactic, referring_domain.as_str());
-    let marketing_event = json!({
-        "__typename": "MarketingEvent",
-        "id": event_id,
-        "type": tactic,
-        "remoteId": remote_id,
-        "channelHandle": channel_handle,
-        "startedAt": "2026-05-05T00:00:00Z",
-        "endedAt": if matches!(status.as_str(), "INACTIVE" | "DELETED_EXTERNALLY") { json!("2026-05-05T00:00:00Z") } else { Value::Null },
-        "scheduledToEndAt": scheduled_to_end_at.clone(),
-        "manageUrl": remote_url,
-        "previewUrl": preview_url,
-        "utmCampaign": campaign,
-        "utmMedium": medium,
-        "utmSource": source,
-        "description": title,
-        "marketingChannelType": channel_type,
-        "sourceAndMedium": source_medium
-    });
+        .unwrap_or_else(|| old["marketingEvent"]["scheduledToEndAt"].clone());
     json!({
         "__typename": "MarketingActivity",
         "id": id,
@@ -2058,50 +2398,42 @@ pub(in crate::proxy) fn marketing_activity_from_input(
         "updatedAt": "2026-05-05T00:00:00Z",
         "status": status,
         "statusLabel": status_label,
-        "targetStatus": status,
+        "targetStatus": null,
         "tactic": tactic,
         "marketingChannelType": channel_type,
         "sourceAndMedium": source_medium,
         "isExternal": true,
         "inMainWorkflowVersion": false,
         "urlParameterValue": url_parameter_value,
-        "parentRemoteId": resolved_string_field(&input, "parentRemoteId").unwrap_or_else(|| old["parentRemoteId"].as_str().unwrap_or("").to_string()),
-        "hierarchyLevel": resolved_string_field(&input, "hierarchyLevel").unwrap_or_else(|| old["hierarchyLevel"].as_str().unwrap_or("ROOT").to_string()),
+        "parentRemoteId": resolved_string_field(&input, "parentRemoteId")
+            .map(Value::String)
+            .unwrap_or_else(|| old.get("parentRemoteId").cloned().unwrap_or(Value::Null)),
+        "hierarchyLevel": resolved_string_field(&input, "hierarchyLevel")
+            .map(Value::String)
+            .unwrap_or_else(|| old.get("hierarchyLevel").cloned().unwrap_or(Value::Null)),
         "utmParameters": { "campaign": campaign, "source": source, "medium": medium },
         "budget": budget,
         "adSpend": ad_spend,
-        "scheduledToStartAt": scheduled_to_start_at,
-        "scheduledToEndAt": scheduled_to_end_at,
-        "referringDomain": referring_domain,
         "app": { "id": "gid://shopify/App/1", "title": "Draft proxy app" },
-        "marketingEvent": marketing_event
+        "marketingEvent": {
+            "__typename": "MarketingEvent",
+            "id": event_id,
+            "type": tactic,
+            "remoteId": remote_id,
+            "channelHandle": channel_handle,
+            "startedAt": "2026-05-05T00:00:00Z",
+            "endedAt": if matches!(status.as_str(), "INACTIVE" | "DELETED_EXTERNALLY") { json!("2026-05-05T00:00:00Z") } else { Value::Null },
+            "scheduledToEndAt": scheduled_to_end_at,
+            "manageUrl": remote_url,
+            "previewUrl": preview_url,
+            "utmCampaign": campaign,
+            "utmMedium": medium,
+            "utmSource": source,
+            "description": title,
+            "marketingChannelType": channel_type,
+            "sourceAndMedium": source_medium
+        }
     })
-}
-
-pub(in crate::proxy) fn marketing_money_json_from_object(
-    input: BTreeMap<String, ResolvedValue>,
-) -> Value {
-    json!({
-        "amount": resolved_string_field(&input, "amount")
-            .map(marketing_money_amount_json_string)
-            .unwrap_or_default(),
-        "currencyCode": resolved_string_field(&input, "currencyCode").unwrap_or_else(|| "USD".to_string())
-    })
-}
-
-fn marketing_money_amount_json_string(amount: String) -> String {
-    let Some((whole, fractional)) = amount.split_once('.') else {
-        return amount;
-    };
-    if fractional.is_empty() {
-        return amount;
-    }
-    let trimmed = fractional.trim_end_matches('0');
-    if trimmed.is_empty() {
-        format!("{whole}.0")
-    } else {
-        format!("{whole}.{trimmed}")
-    }
 }
 
 pub(in crate::proxy) fn marketing_budget_json(input: BTreeMap<String, ResolvedValue>) -> Value {
@@ -2122,9 +2454,9 @@ pub(in crate::proxy) fn marketing_engagement_from_input(
     let money = |key: &str| marketing_money_json(input, key);
     json!({
         "__typename": "MarketingEngagement",
-        "occurredOn": resolved_string_field(input, "occurredOn").unwrap_or_else(|| "2026-04-26".to_string()),
-        "utcOffset": resolved_string_field(input, "utcOffset").unwrap_or_else(|| "+00:00".to_string()),
-        "isCumulative": resolved_bool_field(input, "isCumulative").unwrap_or(false),
+        "occurredOn": resolved_string_field(input, "occurredOn"),
+        "utcOffset": resolved_string_field(input, "utcOffset"),
+        "isCumulative": resolved_bool_field(input, "isCumulative"),
         "impressionsCount": resolved_int_field(input, "impressionsCount"),
         "viewsCount": resolved_int_field(input, "viewsCount"),
         "clicksCount": resolved_int_field(input, "clicksCount"),
@@ -2147,7 +2479,10 @@ pub(in crate::proxy) fn marketing_money_json(
     let Some(obj) = resolved_object_field(input, key) else {
         return Value::Null;
     };
-    marketing_money_json_from_object(obj)
+    json!({
+        "amount": resolved_string_field(&obj, "amount").unwrap_or_default(),
+        "currencyCode": resolved_string_field(&obj, "currencyCode").unwrap_or_else(|| "USD".to_string())
+    })
 }
 
 pub(in crate::proxy) fn marketing_money_currency(
@@ -2206,6 +2541,75 @@ pub(in crate::proxy) fn invalid_marketing_url_error(
     None
 }
 
+/// How Shopify's URL scalar treats a marketing URL value.
+pub(in crate::proxy) enum MarketingUrlError {
+    /// The value parsed as a URL but its scheme is not http/https. Shopify rejects this
+    /// at field-argument validation: a top-level INVALID_FIELD_ARGUMENTS error with the
+    /// root field nulled out in `data`.
+    WrongScheme,
+    /// The value could not be coerced to the URL scalar at all (opaque scheme, no host,
+    /// e.g. `data:`/`javascript:`). Shopify rejects this during variable coercion: a
+    /// top-level INVALID_VARIABLE error and no execution of the operation.
+    MissingHost {
+        field: String,
+        url: String,
+        value: Value,
+    },
+}
+
+enum UrlScheme {
+    Valid,
+    WrongScheme,
+    MissingHost,
+}
+
+fn classify_url_scheme(url: &str) -> UrlScheme {
+    let scheme = url.split(':').next().unwrap_or("").to_ascii_lowercase();
+    if scheme == "http" || scheme == "https" {
+        return UrlScheme::Valid;
+    }
+    let rest = &url[scheme.len()..];
+    // A URI with an authority component (`scheme://host...`) coerces to the URL scalar
+    // successfully (so does `mailto:`, a recognized hierarchical scheme); only then does
+    // the http/https field validator reject it. Opaque schemes with no host fail coercion.
+    if rest.starts_with("://") || scheme == "mailto" {
+        UrlScheme::WrongScheme
+    } else {
+        UrlScheme::MissingHost
+    }
+}
+
+/// Returns the marketing URL scheme error (if any) for the URL-typed fields of an external
+/// marketing activity input, modelling Shopify's URL scalar coercion + scheme validation.
+pub(in crate::proxy) fn marketing_url_scheme_error(
+    input: &BTreeMap<String, ResolvedValue>,
+) -> Option<MarketingUrlError> {
+    for field in ["remoteUrl", "remotePreviewImageUrl"] {
+        if let Some(url) = resolved_string_field(input, field) {
+            match classify_url_scheme(&url) {
+                UrlScheme::Valid => {}
+                UrlScheme::WrongScheme => return Some(MarketingUrlError::WrongScheme),
+                UrlScheme::MissingHost => {
+                    return Some(MarketingUrlError::MissingHost {
+                        field: field.to_string(),
+                        url,
+                        value: resolved_variables_json(input),
+                    });
+                }
+            }
+        }
+    }
+    None
+}
+
+pub(in crate::proxy) fn marketing_external_input_type_name(root_field: &str) -> &'static str {
+    match root_field {
+        "marketingActivityUpdateExternal" => "MarketingActivityUpdateExternalInput",
+        "marketingActivityUpsertExternal" => "MarketingActivityUpsertExternalInput",
+        _ => "MarketingActivityCreateExternalInput",
+    }
+}
+
 pub(in crate::proxy) fn marketing_input_has_tactic(
     input: &BTreeMap<String, ResolvedValue>,
 ) -> bool {
@@ -2244,6 +2648,7 @@ pub(in crate::proxy) fn marketing_status_label(
         ("INACTIVE", "NEWSLETTER") => "Sent",
         ("INACTIVE", _) => "Ended",
         ("DELETED_EXTERNALLY", _) => "Deleted",
+        ("UNDEFINED", _) => "Undefined",
         _ => status,
     }
     .to_string()
@@ -2378,10 +2783,6 @@ pub(in crate::proxy) fn draft_order_invoice_line_item() -> Value {
     })
 }
 
-pub(in crate::proxy) fn is_rust_webhook_local_runtime_document(query: &str) -> bool {
-    query.contains("RustWebhookLocalRuntime")
-}
-
 pub(in crate::proxy) fn bulk_operation_record_with(
     id: &str,
     status: &str,
@@ -2424,21 +2825,48 @@ pub(in crate::proxy) fn bulk_operation_record_with_type(
     })
 }
 
-pub(in crate::proxy) fn b2b_company_customer_since_read_data(
-    fields: &[RootFieldSelection],
-) -> Value {
-    let mut data = serde_json::Map::new();
-    let company = json!({
-        "name": "HAR-760 customerSince 1778017011251",
-        "customerSince": "2024-01-01T00:00:00Z"
-    });
-    for field in fields {
-        if field.name == "company" {
-            data.insert(
-                field.response_key.clone(),
-                selected_json(&company, &field.selection),
-            );
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The `priceListFixedPricesByProductUpdate` validation suite is covered
+    // end-to-end against recorded Shopify responses by the markets parity specs
+    // (config/parity-specs/markets/price-list-fixed-prices-*): no-op,
+    // currency-mismatch, duplicate-id, mutual-exclusion, product-not-exist, and
+    // the variant-level add/update/delete guards. The one branch with no parity
+    // coverage is the fixed-price cap, exercised here directly against
+    // engine-computed state — the limit is derived from the FIXED edges actually
+    // present on the price list, never from a synthetic magic id.
+    #[test]
+    fn product_level_fixed_price_errors_flags_no_op_and_price_limit() {
+        let store = Store::default();
+
+        // Empty `pricesToAdd` and `pricesToDeleteByProductIds` with no price list
+        // yields only the no-op error.
+        let none: Option<Value> = None;
+        let no_op = product_level_fixed_price_errors(&store, &none, &[], &[]);
+        assert_eq!(no_op.len(), 1);
+        assert_eq!(no_op[0]["code"], json!("NO_UPDATE_OPERATIONS_SPECIFIED"));
+
+        // A price list already holding 10,000 FIXED prices sits at the cap, so any
+        // resulting set that stays at or above 10,000 trips PRICE_LIMIT_EXCEEDED.
+        let edges: Vec<Value> = (0..10_000)
+            .map(|index| {
+                json!({
+                    "node": {
+                        "originType": "FIXED",
+                        "variant": { "id": format!("gid://shopify/ProductVariant/{index}") }
+                    }
+                })
+            })
+            .collect();
+        let price_list = json!({ "currency": "EUR", "prices": { "edges": edges } });
+        let at_limit = product_level_fixed_price_errors(&store, &Some(price_list), &[], &[]);
+        assert!(
+            at_limit
+                .iter()
+                .any(|error| error["code"] == json!("PRICE_LIMIT_EXCEEDED")),
+            "expected PRICE_LIMIT_EXCEEDED, got {at_limit:?}"
+        );
     }
-    Value::Object(data)
 }

@@ -840,7 +840,7 @@
       "variables": {
         "id": "gid://shopify/DraftOrder/1307827241193"
       },
-      "query": "hand-synthesized from checked-in setup draftOrderCreate response for HAR-538 draft order Pattern 2 hydration",
+      "query": "query OrdersDraftOrderHydrate($id: ID!) {\n  draftOrder(id: $id) { id name tags }\n}",
       "response": {
         "status": 200,
         "body": {

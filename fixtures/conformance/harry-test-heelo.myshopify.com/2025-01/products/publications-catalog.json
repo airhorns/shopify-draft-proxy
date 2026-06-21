@@ -1,0 +1,63 @@
+{
+  "status": 200,
+  "payload": {
+    "data": {
+      "publications": {
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjoyNjgwMzkzODk0OTAsImxhc3RfdmFsdWUiOjI2ODAzOTM4OTQ5MH0=",
+            "node": {
+              "id": "gid://shopify/Publication/268039389490",
+              "name": "Online Store"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjoyNjgwMzk0NTUwMjYsImxhc3RfdmFsdWUiOjI2ODAzOTQ1NTAyNn0=",
+            "node": {
+              "id": "gid://shopify/Publication/268039455026",
+              "name": "Point of Sale"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjoyNjgwMzk0ODc3OTQsImxhc3RfdmFsdWUiOjI2ODAzOTQ4Nzc5NH0=",
+            "node": {
+              "id": "gid://shopify/Publication/268039487794",
+              "name": "Shop"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjoyNzM4OTc4ODE5MDYsImxhc3RfdmFsdWUiOjI3Mzg5Nzg4MTkwNn0=",
+            "node": {
+              "id": "gid://shopify/Publication/273897881906",
+              "name": "Shopify GraphiQL App"
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjoyOTIwNzQyNTg3MzgsImxhc3RfdmFsdWUiOjI5MjA3NDI1ODczOH0=",
+            "node": {
+              "id": "gid://shopify/Publication/292074258738",
+              "name": "example.com"
+            }
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "hasPreviousPage": false,
+          "startCursor": "eyJsYXN0X2lkIjoyNjgwMzkzODk0OTAsImxhc3RfdmFsdWUiOjI2ODAzOTM4OTQ5MH0=",
+          "endCursor": "eyJsYXN0X2lkIjoyOTIwNzQyNTg3MzgsImxhc3RfdmFsdWUiOjI5MjA3NDI1ODczOH0="
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 6,
+        "actualQueryCost": 4,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1996,
+          "restoreRate": 100
+        }
+      }
+    }
+  }
+}

@@ -42,7 +42,7 @@
       "variables": {
         "first": 10
       },
-      "query": "hand-synthesized from checked-in capture payload for HAR-545 Pattern 1 product read passthrough",
+      "query": "query LocationsCatalogRead($first: Int!) {\n  locations(first: $first) {\n    edges {\n      cursor\n      node {\n        id\n        name\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

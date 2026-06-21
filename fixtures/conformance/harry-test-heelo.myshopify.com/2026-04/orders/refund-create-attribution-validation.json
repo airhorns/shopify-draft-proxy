@@ -410,7 +410,7 @@
       "variables": {
         "id": "gid://shopify/Order/8734031216946"
       },
-      "query": "captured downstream order read after refundCreate attribution validation rejection",
+      "query": "query OrderRefundReadParity($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    displayFinancialStatus\n    displayFulfillmentStatus\n    refunds {\n      id\n      note\n      totalRefundedSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    returns(first: 5) {\n      nodes {\n        id\n        status\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n    transactions {\n      id\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    totalRefundedSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

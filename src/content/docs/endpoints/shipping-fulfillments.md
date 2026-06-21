@@ -26,6 +26,7 @@ The implemented mutation roots are:
 - `carrierServiceCreate`
 - `carrierServiceDelete`
 - `carrierServiceUpdate`
+- `fulfillmentEventCreate`
 - `fulfillmentServiceCreate`
 - `fulfillmentServiceDelete`
 - `fulfillmentServiceUpdate`
@@ -61,28 +62,19 @@ The registry-only read roots are:
 The registry-only mutation roots are:
 
 - `fulfillmentCreate`
-- `fulfillmentEventCreate`
 - `fulfillmentTrackingInfoUpdate`
 - `fulfillmentCancel`
-- `fulfillmentOrderAcceptCancellationRequest`
-- `fulfillmentOrderAcceptFulfillmentRequest`
 - `fulfillmentOrderCancel`
 - `fulfillmentOrderClose`
 - `fulfillmentOrderHold`
 - `fulfillmentOrderLineItemsPreparedForPickup`
-- `fulfillmentOrderMerge`
 - `fulfillmentOrderMove`
 - `fulfillmentOrderOpen`
-- `fulfillmentOrderRejectCancellationRequest`
-- `fulfillmentOrderRejectFulfillmentRequest`
 - `fulfillmentOrderReleaseHold`
 - `fulfillmentOrderReportProgress`
 - `fulfillmentOrderReschedule`
 - `fulfillmentOrdersReroute`
 - `fulfillmentOrdersSetFulfillmentDeadline`
-- `fulfillmentOrderSplit`
-- `fulfillmentOrderSubmitCancellationRequest`
-- `fulfillmentOrderSubmitFulfillmentRequest`
 - `fulfillmentConstraintRuleCreate`
 - `fulfillmentConstraintRuleDelete`
 - `fulfillmentConstraintRuleUpdate`
@@ -126,19 +118,33 @@ or log a service mutation.
 Carrier-service slices cover create, update, delete, downstream
 `carrierService(id:)`, `carrierServices(...)`, active filters, unknown-id
 validation, blank create and update names, duplicate active app carriers,
-callback URL validation, selected typed `userErrors.code` branches, and
-after-delete absence. Rejected blank-name updates do not stage a replacement
-name or append a mutation-log entry; omitted update names preserve the existing
-local name while applying other staged fields. The local model stores service
-name, formatted name, callback URL, active flag, service-discovery flag, and
-stable synthetic IDs for parity replay.
+callback URL validation, required-field GraphQL coercion for create-time
+`active` and `supportsServiceDiscovery`, selected typed `userErrors.code`
+branches, and after-delete absence. Rejected create validation and coercion
+branches do not stage a carrier service or append a mutation-log entry.
+Rejected blank-name updates do not stage a replacement name or append a
+mutation-log entry; omitted update names preserve the existing local name while
+applying other staged fields. The local model stores service name, formatted
+name, callback URL, active flag, service-discovery flag, and stable synthetic
+IDs for parity replay.
 
 Fulfillment and fulfillment-order slices cover fixture-backed top-level reads,
 detail/event reads, hold/release, move, open/report-progress, close,
-reschedule guardrails, request/cancellation request transitions, split, merge,
-deadline setting, assigned-order filtering, and selected validation branches.
-These slices operate on local order-backed fulfillment records and are not a
-general fulfillment-service execution engine.
+reschedule guardrails, deadline setting, assigned-order filtering, and selected
+validation branches. Store-backed local staging now covers
+`fulfillmentOrderSubmitFulfillmentRequest`,
+`fulfillmentOrderAcceptFulfillmentRequest`,
+`fulfillmentOrderRejectFulfillmentRequest`,
+`fulfillmentOrderSubmitCancellationRequest`,
+`fulfillmentOrderAcceptCancellationRequest`,
+`fulfillmentOrderRejectCancellationRequest`, `fulfillmentOrderSplit`, and
+`fulfillmentOrderMerge` against fulfillment orders present on staged or
+hydrated local orders. Request-status transitions, merchant request records,
+split-off remaining fulfillment orders, and merged line-item quantities are
+written into the local order graph and are visible through `fulfillmentOrder`,
+`fulfillmentOrders`, `assignedFulfillmentOrders`, and nested
+`Order.fulfillmentOrders` reads. These slices operate on local order-backed
+fulfillment records and are not a general fulfillment-service execution engine.
 
 Delivery settings and delivery promise settings are read-only in the captured
 empty/no-feature branch. Delivery profiles have fixture-backed read and bounded

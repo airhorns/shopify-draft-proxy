@@ -18,7 +18,7 @@
     "targets": [
       {
         "name": "web-presence-root-urls-multi-locale-create",
-        "capturePath": "$.har613Expected.webPresenceCreateMultiLocaleRootUrls.data.webPresenceCreate",
+        "capturePath": "$.cases[5].response.payload.data.webPresenceCreate",
         "proxyPath": "$.data.webPresenceCreate",
         "expectedDifferences": [
           {
@@ -30,5 +30,5 @@
       }
     ]
   },
-  "notes": "HAR-613 coverage for a staged subfolder web presence with defaultLocale en, alternateLocales fr/de, and subfolderSuffix intl. The live capture script enables and restores fr/de locales so Shopify accepts the scenario; this spec asserts the documented HAR-613 rootUrls contract while the raw live response remains in cases[5] for audit evidence."
+  "notes": "HAR-613 coverage for a staged subfolder web presence with defaultLocale en, alternateLocales fr/de, and subfolderSuffix intl. The live capture script enables and restores fr/de locales so Shopify accepts the scenario. Asserts the real live response in cases[5]: Shopify roots each locale at /{language}-{suffix}/ (en-intl, de-intl, fr-intl) and orders rootUrls default-first then alternates sorted alphabetically. (The earlier har613Expected node encoded a /{suffix}/{locale}/ contract that contradicted both the live capture in this same file and the structurally identical single-alternate case in cases[7]; the implementation emulates the real Shopify response rather than that hand-authored contract.)"
 }

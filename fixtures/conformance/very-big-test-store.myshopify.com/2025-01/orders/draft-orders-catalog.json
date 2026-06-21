@@ -123,7 +123,7 @@
       "variables": {
         "first": 5
       },
-      "query": "hand-synthesized from checked-in capture response for HAR-538 orders Pattern 1 passthrough",
+      "query": "query DraftOrdersReadParityPlan($first: Int!) {\n  draftOrders(first: $first, reverse: true) {\n    edges {\n      cursor\n      node {\n        id\n        name\n        status\n        email\n        tags\n        createdAt\n        updatedAt\n        totalPriceSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

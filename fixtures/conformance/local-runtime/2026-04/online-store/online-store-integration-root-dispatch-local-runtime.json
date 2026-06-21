@@ -1,0 +1,90 @@
+{
+  "fixtureKind": "local-runtime-online-store-integration-root-dispatch",
+  "scenarioId": "online-store-integration-root-dispatch-local-runtime",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-06-15T20:00:00.000Z",
+  "notes": [
+    "Executable local-runtime parity guard for Online Store integration dispatch using a neutral operation name and response aliases.",
+    "The request stages themeCreate and scriptTagCreate locally, deletes the staged script tag through a separate neutral mutation, and verifies downstream reads no longer expose it.",
+    "No upstream calls are expected. A runtime that gates Online Store integrations on captured operation-name markers or proxies supported mutations upstream will fail the payload or mutation-log targets."
+  ],
+  "primary": {
+    "variables": {},
+    "response": {
+      "data": {
+        "createdScript": {
+          "scriptTag": {
+            "cache": false,
+            "event": "onload",
+            "id": "gid://shopify/ScriptTag/2?shopify-draft-proxy=synthetic",
+            "src": "https://cdn.example.test/neutral.js"
+          },
+          "userErrors": []
+        },
+        "createdTheme": {
+          "theme": {
+            "id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic",
+            "name": "Neutral theme",
+            "role": "UNPUBLISHED"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "delete": {
+    "variables": {
+      "scriptId": "gid://shopify/ScriptTag/2?shopify-draft-proxy=synthetic"
+    },
+    "response": {
+      "data": {
+        "removedScript": {
+          "deletedScriptTagId": "gid://shopify/ScriptTag/2?shopify-draft-proxy=synthetic",
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "readAfterDelete": {
+    "variables": {
+      "scriptId": "gid://shopify/ScriptTag/2?shopify-draft-proxy=synthetic"
+    },
+    "response": {
+      "data": {
+        "scriptTag": null,
+        "scriptTags": {
+          "nodes": []
+        }
+      }
+    },
+    "log": {
+      "entries": [
+        {
+          "interpreted": {
+            "operationType": "mutation",
+            "primaryRootField": "themeCreate",
+            "rootFields": ["themeCreate", "scriptTagCreate"]
+          },
+          "operationName": null,
+          "stagedResourceIds": [
+            "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic",
+            "gid://shopify/ScriptTag/2?shopify-draft-proxy=synthetic"
+          ],
+          "status": "staged"
+        },
+        {
+          "interpreted": {
+            "operationType": "mutation",
+            "primaryRootField": "scriptTagDelete",
+            "rootFields": ["scriptTagDelete"]
+          },
+          "operationName": null,
+          "stagedResourceIds": ["gid://shopify/ScriptTag/2?shopify-draft-proxy=synthetic"],
+          "status": "staged"
+        }
+      ]
+    }
+  },
+  "upstreamCalls": []
+}

@@ -130,7 +130,7 @@
       "variables": {
         "first": 10
       },
-      "query": "sha:hand-synthesized",
+      "query": "query FulfillmentOrderMoveAssignmentStatusHydrate($first: Int!) {\n  locationsAvailableForDeliveryProfilesConnection(first: $first) {\n    nodes {\n      id\n      name\n      localPickupSettingsV2 {\n        pickupTime\n        instructions\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

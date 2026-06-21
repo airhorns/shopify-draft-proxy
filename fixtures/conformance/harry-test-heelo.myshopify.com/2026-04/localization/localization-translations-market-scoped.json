@@ -788,7 +788,7 @@
         "resourceIds": ["gid://shopify/Product/10212147626290", "gid://shopify/PackingSlipTemplate/4834722098"],
         "marketsFirst": 10
       },
-      "query": "sha:hand-synthesized-from-readBeforeRegister-response",
+      "query": "query LocalizationTranslationsMarketScopedRead(\n  $resourceId: ID!\n  $marketId: ID!\n  $resourceIds: [ID!]!\n  $marketsFirst: Int!\n) {\n  translatableResource(resourceId: $resourceId) {\n    resourceId\n    translatableContent {\n      key\n      value\n      digest\n      locale\n      type\n    }\n    translations(locale: \"es\", marketId: $marketId) {\n      key\n      value\n      locale\n      outdated\n      updatedAt\n      market {\n        id\n      }\n    }\n  }\n  byIds: translatableResourcesByIds(first: 10, resourceIds: $resourceIds) {\n    nodes {\n      resourceId\n      translatableContent {\n        key\n        value\n        digest\n        locale\n        type\n      }\n    }\n  }\n  markets(first: $marketsFirst) {\n    nodes {\n      id\n      name\n      handle\n      status\n      type\n    }\n  }\n  allShopLocales: shopLocales {\n    locale\n    name\n    primary\n    published\n    marketWebPresences {\n      id\n      subfolderSuffix\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

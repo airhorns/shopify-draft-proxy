@@ -63,7 +63,7 @@
         "catalogId": "gid://shopify/MarketCatalog/128893452594",
         "catalogCountLimit": null
       },
-      "query": "hand-synthesized from checked-in capture",
+      "query": "fragment MarketCatalogDetailFields on Catalog {\n  __typename\n  id\n  title\n  status\n  priceList {\n    id\n    name\n    currency\n  }\n  publication {\n    id\n    autoPublish\n  }\n  operations {\n    __typename\n  }\n  ... on MarketCatalog {\n    marketsCount {\n      count\n      precision\n    }\n    markets(first: 5) {\n      edges {\n        cursor\n        node {\n          id\n          name\n          handle\n          status\n          type\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }\n}\n\nquery MarketCatalogDetailRead($catalogId: ID!, $catalogCountLimit: Int) {\n  catalog(id: $catalogId) {\n    ...MarketCatalogDetailFields\n  }\n  catalogsCount(type: MARKET, limit: $catalogCountLimit) {\n    count\n    precision\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

@@ -8,12 +8,12 @@
       "codeInput": {
         "title": "Activation failure code app",
         "code": "ACTIVATEFAILBASE",
-        "startsAt": "2024-02-01T00:00:00.000Z",
+        "startsAt": "2027-02-01T00:00:00.000Z",
         "functionHandle": "discount-local"
       },
       "automaticInput": {
         "title": "Activation failure automatic app",
-        "startsAt": "2024-02-01T00:00:00.000Z",
+        "startsAt": "2027-02-01T00:00:00.000Z",
         "functionHandle": "discount-local"
       }
     },
@@ -84,7 +84,7 @@
           "userErrors": [
             {
               "field": ["id"],
-              "message": "Discount does not exist",
+              "message": "Code discount does not exist.",
               "code": "INVALID"
             }
           ]
@@ -94,7 +94,7 @@
           "userErrors": [
             {
               "field": ["id"],
-              "message": "Discount does not exist",
+              "message": "Code discount does not exist.",
               "code": "INVALID"
             }
           ]
@@ -104,7 +104,7 @@
           "userErrors": [
             {
               "field": ["id"],
-              "message": "Discount does not exist",
+              "message": "Automatic discount does not exist.",
               "code": "INVALID"
             }
           ]
@@ -114,7 +114,7 @@
           "userErrors": [
             {
               "field": ["id"],
-              "message": "Discount does not exist",
+              "message": "Automatic discount does not exist.",
               "code": "INVALID"
             }
           ]
@@ -128,7 +128,7 @@
       "variables": {
         "handle": "discount-local"
       },
-      "query": "query ShopifyFunctionByHandle($handle: String!) { shopifyFunctions(first: 1, handle: $handle) { nodes { id title handle apiType description appKey app { id title handle apiKey } } } }",
+      "query": "query ShopifyFunctionByHandle($handle: String!) {\n  shopifyFunctions(first: 1, handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -145,6 +145,23 @@
                   "app": null
                 }
               ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShopifyFunctionAvailabilityForDiscountActivation",
+      "variables": {
+        "handle": "discount-local"
+      },
+      "query": "query ShopifyFunctionAvailabilityForDiscountActivation($handle: String!) { shopifyFunctions(first: 1, handle: $handle) { nodes { id title handle apiType description appKey app { id title handle apiKey } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": []
             }
           }
         }

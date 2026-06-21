@@ -548,7 +548,7 @@
       "variables": {
         "id": "gid://shopify/Fulfillment/6189151518953"
       },
-      "query": "hand-synthesized from checked-in downstreamRead order response for HAR-538 orders Pattern 2 fulfillment mutation hydration",
+      "query": "query OrdersFulfillmentHydrate($id: ID!) { fulfillment(id: $id) { id order { id name email phone createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus note tags fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -709,7 +709,7 @@
       "variables": {
         "id": "gid://shopify/Order/6834528944361"
       },
-      "query": "hand-synthesized from checked-in downstreamRead response for HAR-538 orders Pattern 1 passthrough",
+      "query": "query OrderReadAfterFulfillmentLifecycle($id: ID!) {\n    order(id: $id) {\n      id\n      name\n      updatedAt\n      displayFulfillmentStatus\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo {\n          number\n          url\n          company\n        }\n        fulfillmentLineItems(first: 5) {\n          nodes {\n            id\n            quantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n      fulfillmentOrders(first: 5) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 5) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n              }\n            }\n          }\n        }\n      }\n    }\n  }",
       "response": {
         "status": 200,
         "body": {

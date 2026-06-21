@@ -154,14 +154,15 @@ fn admin_graphql_routes_by_root_field_not_alias_or_fragment_definition() {
 fn live_hybrid_forwards_unknown_queries_to_upstream_transport() {
     let forwarded = Arc::new(Mutex::new(Vec::<Request>::new()));
     let captured = Arc::clone(&forwarded);
-    let mut proxy = configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
-        captured.lock().unwrap().push(request);
-        shopify_draft_proxy::proxy::Response {
-            status: 202,
-            headers: [("x-test-upstream".to_string(), "domain-read".to_string())].into(),
-            body: json!({ "data": { "currentAppInstallation": { "id": "gid://shopify/AppInstallation/42" } } }),
-        }
-    });
+    let mut proxy =
+        configured_proxy(ReadMode::LiveHybrid, None).with_upstream_transport(move |request| {
+            captured.lock().unwrap().push(request);
+            shopify_draft_proxy::proxy::Response {
+                status: 202,
+                headers: [("x-test-upstream".to_string(), "domain-read".to_string())].into(),
+                body: json!({ "data": { "shop": { "id": "gid://shopify/Shop/42" } } }),
+            }
+        });
 
     let response = proxy.process_request(Request {
         method: "POST".to_string(),
@@ -171,13 +172,13 @@ fn live_hybrid_forwards_unknown_queries_to_upstream_transport() {
             "Bearer passthrough-token".to_string(),
         )]
         .into(),
-        body: json!({ "query": "{ currentAppInstallation { id } }" }).to_string(),
+        body: json!({ "query": "{ shop { id } }" }).to_string(),
     });
 
     assert_eq!(response.status, 202);
     assert_eq!(
         response.body,
-        json!({ "data": { "currentAppInstallation": { "id": "gid://shopify/AppInstallation/42" } } })
+        json!({ "data": { "shop": { "id": "gid://shopify/Shop/42" } } })
     );
     assert_eq!(
         response.headers.get("x-test-upstream"),
@@ -191,7 +192,7 @@ fn live_hybrid_forwards_unknown_queries_to_upstream_transport() {
     );
     assert_eq!(
         forwarded[0].body,
-        json!({ "query": "{ currentAppInstallation { id } }" }).to_string()
+        json!({ "query": "{ shop { id } }" }).to_string()
     );
 }
 
@@ -938,7 +939,7 @@ fn dedicated_pubsub_missing_required_fields_return_coercion_errors_before_stagin
         json!({
             "errors": [{
                 "message": "Variable $webhookSubscription of type PubSubWebhookSubscriptionInput! was provided invalid value for pubSubTopic (Expected value to not be null)",
-                "locations": [{ "line": 6, "column": 11 }],
+                "locations": [{ "line": 4, "column": 11 }],
                 "extensions": {
                     "code": "INVALID_VARIABLE",
                     "value": { "pubSubProject": "valid-project" },
@@ -1134,6 +1135,155 @@ fn webhook_subscription_uri_and_format_validation_ports_old_gleam_edges() {
         "JSON",
         "SHOP_UPDATE",
         vec!["Address is too big (maximum is 64 KB)"],
+    );
+}
+
+#[test]
+fn webhook_eventbridge_cloud_delivery_rejects_non_json_format_without_staging() {
+    let mut proxy = snapshot_proxy();
+
+    fn partner_arn(region: &str, source: &str) -> String {
+        format!(
+            "arn:aws:events:{region}::event-source/aws.partner/shopify.com/347082227713/{source}"
+        )
+    }
+
+    fn request_with_api_client(query: &str, variables: Value) -> Request {
+        let mut request = json_graphql_request(query, variables);
+        request.headers.insert(
+            "x-shopify-draft-proxy-api-client-id".to_string(),
+            "347082227713".to_string(),
+        );
+        request
+    }
+
+    let dedicated_create_mutation = r#"
+        mutation RustWebhookLocalRuntimeEventBridgeXmlCreate($webhookSubscription: EventBridgeWebhookSubscriptionInput!) {
+          eventBridgeWebhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id format }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let dedicated_update_mutation = r#"
+        mutation RustWebhookLocalRuntimeEventBridgeXmlUpdate($id: ID!, $webhookSubscription: EventBridgeWebhookSubscriptionInput!) {
+          eventBridgeWebhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id format }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let unified_create_mutation = r#"
+        mutation RustWebhookLocalRuntimeUnifiedArnXmlCreate($webhookSubscription: WebhookSubscriptionInput!) {
+          webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id format }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let unified_update_mutation = r#"
+        mutation RustWebhookLocalRuntimeUnifiedArnXmlUpdate($id: ID!, $webhookSubscription: WebhookSubscriptionInput!) {
+          webhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) {
+            webhookSubscription { id format }
+            userErrors { field message }
+          }
+        }
+    "#;
+    let expected_rejection = json!({
+        "webhookSubscription": null,
+        "userErrors": [{
+            "field": ["webhookSubscription", "format"],
+            "message": "Format can only be used with format: 'json'"
+        }]
+    });
+
+    let dedicated_create_xml = proxy.process_request(request_with_api_client(
+        dedicated_create_mutation,
+        json!({"webhookSubscription": {"arn": partner_arn("us-east-1", "xml-dedicated-create"), "format": "XML"}}),
+    ));
+    assert_eq!(
+        dedicated_create_xml.body["data"]["eventBridgeWebhookSubscriptionCreate"],
+        expected_rejection
+    );
+
+    let unified_create_xml = proxy.process_request(request_with_api_client(
+        unified_create_mutation,
+        json!({"webhookSubscription": {"uri": partner_arn("us-east-1", "xml-unified-create"), "format": "XML"}}),
+    ));
+    assert_eq!(
+        unified_create_xml.body["data"]["webhookSubscriptionCreate"],
+        expected_rejection
+    );
+
+    let dedicated_setup = proxy.process_request(request_with_api_client(
+        dedicated_create_mutation,
+        json!({"webhookSubscription": {"arn": partner_arn("us-east-1", "json-dedicated-setup"), "format": "JSON"}}),
+    ));
+    let dedicated_id = dedicated_setup.body["data"]["eventBridgeWebhookSubscriptionCreate"]
+        ["webhookSubscription"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        dedicated_setup.body["data"]["eventBridgeWebhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let dedicated_update_xml = proxy.process_request(request_with_api_client(
+        dedicated_update_mutation,
+        json!({
+            "id": dedicated_id,
+            "webhookSubscription": {"arn": partner_arn("us-west-2", "xml-dedicated-update"), "format": "XML"}
+        }),
+    ));
+    assert_eq!(
+        dedicated_update_xml.body["data"]["eventBridgeWebhookSubscriptionUpdate"],
+        expected_rejection
+    );
+
+    let unified_setup = proxy.process_request(request_with_api_client(
+        unified_create_mutation,
+        json!({"webhookSubscription": {"uri": partner_arn("us-east-1", "json-unified-setup"), "format": "JSON"}}),
+    ));
+    let unified_id = unified_setup.body["data"]["webhookSubscriptionCreate"]["webhookSubscription"]
+        ["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        unified_setup.body["data"]["webhookSubscriptionCreate"]["userErrors"],
+        json!([])
+    );
+
+    let unified_update_xml = proxy.process_request(request_with_api_client(
+        unified_update_mutation,
+        json!({
+            "id": unified_id,
+            "webhookSubscription": {"uri": partner_arn("us-west-2", "xml-unified-update"), "format": "XML"}
+        }),
+    ));
+    assert_eq!(
+        unified_update_xml.body["data"]["webhookSubscriptionUpdate"],
+        expected_rejection
+    );
+
+    assert_eq!(
+        proxy
+            .process_request(json_graphql_request(
+                "# RustWebhookLocalRuntime\nquery { webhookSubscriptionsCount { count } }",
+                json!({}),
+            ))
+            .body["data"]["webhookSubscriptionsCount"],
+        json!({ "count": 2 }),
+        "only the valid JSON setup creates should stage records"
+    );
+    assert_eq!(
+        proxy.get_log_snapshot()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2,
+        "rejected cloud-format create/update attempts should not append mutation log entries"
     );
 }
 

@@ -590,7 +590,7 @@
     {
       "operationName": "ShippingSettingsAvailability",
       "variables": {},
-      "query": "sha:hand-synthesized",
+      "query": "query ShippingSettingsAvailability {\n  availableCarrierServices {\n    carrierService {\n      id\n      name\n      formattedName\n      active\n      supportsServiceDiscovery\n    }\n  }\n  locationsAvailableForDeliveryProfilesConnection(first: 3) {\n    nodes {\n      id\n      name\n      localPickupSettingsV2 {\n        pickupTime\n        instructions\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

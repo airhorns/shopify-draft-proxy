@@ -34,7 +34,7 @@
         "data": {
           "themeCreate": {
             "theme": {
-              "id": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic",
+              "id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic",
               "name": "Blank fixture",
               "role": "UNPUBLISHED"
             },
@@ -54,7 +54,7 @@
         "data": {
           "themeCreate": {
             "theme": {
-              "id": "gid://shopify/OnlineStoreTheme/5?shopify-draft-proxy=synthetic",
+              "id": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic",
               "name": "Locked fixture",
               "role": "LOCKED"
             },
@@ -85,7 +85,7 @@
   },
   "blank": {
     "variables": {
-      "id": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic"
+      "id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic"
     },
     "response": {
       "payload": {
@@ -106,7 +106,7 @@
   },
   "locked": {
     "variables": {
-      "id": "gid://shopify/OnlineStoreTheme/5?shopify-draft-proxy=synthetic"
+      "id": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic"
     },
     "response": {
       "payload": {
@@ -128,8 +128,8 @@
   "readback": {
     "variables": {
       "renamedId": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic",
-      "blankId": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic",
-      "lockedId": "gid://shopify/OnlineStoreTheme/5?shopify-draft-proxy=synthetic"
+      "blankId": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic",
+      "lockedId": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic"
     },
     "response": {
       "payload": {
@@ -140,12 +140,12 @@
             "role": "UNPUBLISHED"
           },
           "blank": {
-            "id": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic",
+            "id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic",
             "name": "Blank fixture",
             "role": "UNPUBLISHED"
           },
           "locked": {
-            "id": "gid://shopify/OnlineStoreTheme/5?shopify-draft-proxy=synthetic",
+            "id": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic",
             "name": "Locked fixture",
             "role": "LOCKED"
           }
@@ -158,7 +158,8 @@
     "notes": [
       "Live 2025-01 schema introspection confirms OnlineStoreThemeInput exposes only name.",
       "The active conformance credential is blocked from themeUpdate writes by Shopify ACCESS_DENIED requiring write_themes plus exemption, so resolver branches that would mutate themes are represented as executable local-runtime parity.",
-      "The locked branch mirrors the Core resolver's cannot_update_locked_theme guardrail and must not mutate local theme state."
+      "The locked branch mirrors the Core resolver's cannot_update_locked_theme guardrail and must not mutate local theme state.",
+      "themeCreate mints sequential synthetic ids (+1 per create), so the three staged themes resolve to OnlineStoreTheme/1, /2, /3 in creation order; downstream updates and readbacks target those ids."
     ]
   },
   "upstreamCalls": []

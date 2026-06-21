@@ -120,6 +120,42 @@ const downstreamReadQuery = `#graphql
   }
 `;
 
+const customerHydrateQuery = `
+query CustomerHydrate($id: ID!) {
+  customer(id: $id) {
+    id
+    firstName
+    lastName
+    displayName
+    email
+    phone
+    locale
+    note
+    canDelete
+    verifiedEmail
+    dataSaleOptOut
+    taxExempt
+    taxExemptions
+    state
+    tags
+    createdAt
+    updatedAt
+    defaultEmailAddress { emailAddress }
+    defaultPhoneNumber { phoneNumber }
+    defaultAddress { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea }
+    addressesV2(first: 250) { nodes { id firstName lastName address1 address2 city company province provinceCode country countryCodeV2 zip phone name formattedArea } }
+  }
+}
+`;
+
+const customerDuplicateHydrateQuery = `
+query CustomerDuplicateHydrate($query: String!) {
+  customers(first: 1, query: $query) {
+    nodes { id }
+  }
+}
+`;
+
 const createdCustomerIds = new Set<string>();
 const deletedCustomerIds = new Set<string>();
 
@@ -145,10 +181,8 @@ function emailFor(stamp, label) {
 }
 
 function phoneFor(stamp, offset) {
-  const tail = String(stamp + offset)
-    .slice(-7)
-    .padStart(7, '0');
-  return `+1415${tail}`;
+  const tail = String((offset % 9000) + 1000).padStart(4, '0');
+  return `+1415555${tail}`;
 }
 
 async function runCase(document, variables) {
@@ -206,6 +240,124 @@ async function readDownstream(customerId, email) {
 
 function customerFromCase(rootName, result) {
   return result.response?.data?.[rootName]?.customer ?? null;
+}
+
+function capturedCustomerFromCreate(record) {
+  return record?.response?.data?.customerCreate?.customer ?? null;
+}
+
+function customerHydrateCall(customer) {
+  return {
+    operationName: 'CustomerHydrate',
+    variables: { id: customer.id },
+    query: customerHydrateQuery,
+    response: {
+      status: 200,
+      body: { data: { customer } },
+    },
+  };
+}
+
+function missingCustomerHydrateCall(id) {
+  return {
+    operationName: 'CustomerHydrate',
+    variables: { id },
+    query: customerHydrateQuery,
+    response: {
+      status: 200,
+      body: { data: { customer: null } },
+    },
+  };
+}
+
+function duplicateHydrateCall(field, value, id) {
+  return {
+    operationName: 'CustomerDuplicateHydrate',
+    variables: { query: `${field}:${value}` },
+    query: customerDuplicateHydrateQuery,
+    response: {
+      status: 200,
+      body: { data: { customers: { nodes: [{ id }] } } },
+    },
+  };
+}
+
+function emptyDuplicateHydrateCall(field, value) {
+  return {
+    operationName: 'CustomerDuplicateHydrate',
+    variables: { query: `${field}:${value}` },
+    query: customerDuplicateHydrateQuery,
+    response: {
+      status: 200,
+      body: { data: { customers: { nodes: [] } } },
+    },
+  };
+}
+
+function inputEmail(record) {
+  return record?.variables?.input?.email ?? null;
+}
+
+function inputPhone(record) {
+  return record?.variables?.input?.phone ?? null;
+}
+
+function buildUpstreamCalls(capture) {
+  const calls = [];
+  const primaryCustomer = capturedCustomerFromCreate(capture.preconditions.primary);
+  const duplicateTargetCustomer = capturedCustomerFromCreate(capture.preconditions.duplicateTarget);
+  if (primaryCustomer) {
+    calls.push(duplicateHydrateCall('email', capture.preconditions.primary.email, primaryCustomer.id));
+    calls.push(duplicateHydrateCall('phone', capture.preconditions.primary.phone, primaryCustomer.id));
+  }
+  for (const scenario of Object.values(capture.createScenarios)) {
+    const email = inputEmail(scenario);
+    if (typeof email === 'string' && email.includes('@') && email !== capture.preconditions.primary.email) {
+      calls.push(emptyDuplicateHydrateCall('email', email));
+    }
+    const phone = inputPhone(scenario);
+    if (typeof phone === 'string' && phone.startsWith('+') && phone !== capture.preconditions.primary.phone) {
+      calls.push(emptyDuplicateHydrateCall('phone', phone));
+    }
+  }
+  for (const scenario of Object.values(capture.updateScenarios)) {
+    const baseCustomer = capturedCustomerFromCreate({
+      response: { data: { customerCreate: { customer: scenario.baseCustomer } } },
+    });
+    if (baseCustomer) {
+      calls.push(customerHydrateCall(baseCustomer));
+    }
+    const email = inputEmail(scenario);
+    if (typeof email === 'string' && email.includes('@')) {
+      const duplicateId =
+        duplicateTargetCustomer && email === capture.preconditions.duplicateTarget.email
+          ? duplicateTargetCustomer.id
+          : null;
+      calls.push(
+        duplicateId ? duplicateHydrateCall('email', email, duplicateId) : emptyDuplicateHydrateCall('email', email),
+      );
+    }
+    const phone = inputPhone(scenario);
+    if (typeof phone === 'string' && phone.startsWith('+')) {
+      const duplicateId =
+        duplicateTargetCustomer && phone === capture.preconditions.duplicateTarget.phone
+          ? duplicateTargetCustomer.id
+          : null;
+      calls.push(
+        duplicateId ? duplicateHydrateCall('phone', phone, duplicateId) : emptyDuplicateHydrateCall('phone', phone),
+      );
+    }
+  }
+  const deletedCustomer = capturedCustomerFromCreate(capture.deletedCustomerUpdate.precondition);
+  if (deletedCustomer) {
+    calls.push(customerHydrateCall(deletedCustomer));
+    calls.push(missingCustomerHydrateCall(deletedCustomer.id));
+  }
+  const mergeSource = capturedCustomerFromCreate(capture.mergedCustomerUpdate.mergeSource);
+  if (mergeSource) {
+    calls.push(missingCustomerHydrateCall(mergeSource.id));
+  }
+  return calls;
 }
 
 async function runCreateScenario(input, options = {}) {
@@ -407,6 +559,7 @@ async function main() {
     },
     cleanup,
   };
+  capture.upstreamCalls = buildUpstreamCalls(capture);
 
   const outputFile = path.join(outputDir, 'customer-input-validation-parity.json');
   await writeFile(outputFile, `${JSON.stringify(capture, null, 2)}\n`, 'utf8');

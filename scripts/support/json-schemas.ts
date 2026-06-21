@@ -132,6 +132,7 @@ export const comparisonTargetSchema = z.strictObject({
   selectedPaths: z.array(z.string()).optional(),
   excludedPaths: z.array(z.string()).optional(),
   expectedDifferences: z.array(expectedDifferenceSchema).optional(),
+  preserveProxyState: z.boolean().optional(),
 });
 export type ComparisonTarget = z.infer<typeof comparisonTargetSchema>;
 

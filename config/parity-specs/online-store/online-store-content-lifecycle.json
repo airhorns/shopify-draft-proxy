@@ -131,7 +131,10 @@
             "blog": { "fromCapturePath": "$.interactions[3].request.variables.blog" },
             "pageId": { "fromPrimaryProxyPath": "$.data.pageCreate.page.id" },
             "page": { "fromCapturePath": "$.interactions[3].request.variables.page" },
-            "articleId": { "fromPreviousProxyPath": "$.data.articleCreate.article.id" },
+            "articleId": {
+              "fromProxyResponse": "articleCreate payload matches captured stable fields",
+              "path": "$.data.articleCreate.article.id"
+            },
             "article": { "fromCapturePath": "$.interactions[3].request.variables.article" }
           }
         }
@@ -167,7 +170,10 @@
           "variables": {
             "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
             "pageId": { "fromPrimaryProxyPath": "$.data.pageCreate.page.id" },
-            "articleId": { "fromPreviousProxyPath": "$.data.articleUpdate.article.id" },
+            "articleId": {
+              "fromProxyResponse": "articleUpdate payload matches captured stable fields after local blog/page/article updates",
+              "path": "$.data.articleUpdate.article.id"
+            },
             "articleQuery": { "fromCapturePath": "$.interactions[4].request.variables.articleQuery" }
           }
         }

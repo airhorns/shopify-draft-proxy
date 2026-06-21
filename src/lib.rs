@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 pub mod graphql;
 pub mod operation_registry;
 mod operation_registry_data;

@@ -162,6 +162,36 @@
         "expectedDifferences": []
       },
       {
+        "name": "trial-extend-ordinary-operation-name",
+        "capturePath": "$.evidence.parity.expected.trialExtend.data.appSubscriptionTrialExtend",
+        "proxyPath": "$.data.appSubscriptionTrialExtend",
+        "selectedPaths": ["$.appSubscription", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appSubscriptionTrialExtend-ordinary-operation-name.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.id"
+            }
+          }
+        },
+        "expectedDifferences": []
+      },
+      {
+        "name": "trial-extend-anonymous-mutation",
+        "capturePath": "$.evidence.parity.expected.trialExtend.data.appSubscriptionTrialExtend",
+        "proxyPath": "$.data.appSubscriptionTrialExtend",
+        "selectedPaths": ["$.appSubscription", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appSubscriptionTrialExtend-anonymous.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.id"
+            }
+          }
+        },
+        "expectedDifferences": []
+      },
+      {
         "name": "subscription-cancel-payload",
         "capturePath": "$.evidence.parity.expected.cancel.data.appSubscriptionCancel",
         "proxyPath": "$.data.appSubscriptionCancel",
