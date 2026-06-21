@@ -128,6 +128,8 @@ Fulfillment and fulfillment-order slices cover fixture-backed top-level reads,
 detail/event reads, hold/release, move, open/report-progress, close,
 reschedule guardrails, deadline setting, assigned-order filtering, and selected
 validation branches. Store-backed local staging now covers
+`fulfillmentCreate` payload `Fulfillment.name` reference numbers as
+`<orderName>-F<n>` for order-backed fulfillment sequences, plus
 `fulfillmentOrderSubmitFulfillmentRequest`,
 `fulfillmentOrderAcceptFulfillmentRequest`,
 `fulfillmentOrderRejectFulfillmentRequest`,

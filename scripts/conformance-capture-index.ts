@@ -5974,6 +5974,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-create-name',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-fulfillment-create-name-conformance.ts',
+    purpose:
+      'fulfillmentCreate Fulfillment.name reference-number payloads for two fulfillments on the same disposable order.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-create-name.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-create-name.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-create-name.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable paid test order with quantity two, records two fulfillmentCreate payloads against the same fulfillment order, then cancels/deletes the order where Shopify permits cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'draft-orders',
     captureId: 'draft-order-family',
     scriptPath: 'scripts/capture-draft-order-family-conformance.mts',

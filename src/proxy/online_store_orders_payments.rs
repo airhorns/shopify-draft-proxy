@@ -6868,8 +6868,13 @@ impl DraftProxy {
             .iter()
             .flat_map(|group| fulfillment_group_line_items(&order_before, group))
             .collect::<Vec<_>>();
+        let fulfillment_sequence = order_before["fulfillments"]
+            .as_array()
+            .map_or(1, |fulfillments| fulfillments.len() + 1);
+        let order_name = order_before["name"].as_str().unwrap_or_default();
         let fulfillment = json!({
             "id": fulfillment_id,
+            "name": format!("{order_name}-F{fulfillment_sequence}"),
             "status": "SUCCESS",
             "displayStatus": "FULFILLED",
             "createdAt": "2024-01-01T00:00:00.000Z",

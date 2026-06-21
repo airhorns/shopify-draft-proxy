@@ -1,0 +1,315 @@
+{
+  "capturedAt": "2026-06-21T21:14:22.136Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "adminOrigin": "https://harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "setup": {
+    "orderCreate": {
+      "query": "mutation FulfillmentCreateNameOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      email\n      createdAt\n      updatedAt\n      displayFinancialStatus\n      displayFulfillmentStatus\n      fulfillments(first: 5) {\n        id\n        name\n        status\n        displayStatus\n      }\n      fulfillmentOrders(first: 5) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 5) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n                quantity\n                fulfillableQuantity\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors { field message }\n  }\n}",
+      "variables": {
+        "order": {
+          "email": "fulfillment-create-name-1782076459175@example.com",
+          "note": "fulfillmentCreate name 1782076459175",
+          "tags": ["parity-probe", "fulfillment-create-name"],
+          "test": true,
+          "lineItems": [
+            {
+              "title": "fulfillmentCreate name sequence line",
+              "quantity": 2,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": false,
+              "sku": "FULFILLMENT-CREATE-NAME-1782076459175"
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        },
+        "options": null
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8836212982066",
+              "name": "#1468",
+              "email": "fulfillment-create-name-1782076459175@example.com",
+              "createdAt": "2026-06-21T21:14:19Z",
+              "updatedAt": "2026-06-21T21:14:19Z",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillments": [],
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9772252528946",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19659766956338",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19491766534450",
+                            "title": "fulfillmentCreate name sequence line",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 40,
+            "actualQueryCost": 17,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "orderId": "gid://shopify/Order/8836212982066",
+  "orderName": "#1468",
+  "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9772252528946",
+  "fulfillmentOrderLineItemId": "gid://shopify/FulfillmentOrderLineItem/19659766956338",
+  "firstFulfillmentCreate": {
+    "query": "mutation FulfillmentCreateName($fulfillment: FulfillmentInput!, $message: String) {\n  fulfillmentCreate(fulfillment: $fulfillment, message: $message) {\n    fulfillment {\n      id\n      name\n      status\n      displayStatus\n      trackingInfo(first: 5) {\n        number\n        url\n        company\n      }\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "fulfillment": {
+        "notifyCustomer": false,
+        "trackingInfo": {
+          "number": "FCN-FIRST-1782076459175",
+          "url": "https://example.com/track/FCN-FIRST-1782076459175",
+          "company": "Hermes"
+        },
+        "lineItemsByFulfillmentOrder": [
+          {
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9772252528946",
+            "fulfillmentOrderLineItems": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/19659766956338",
+                "quantity": 1
+              }
+            ]
+          }
+        ]
+      },
+      "message": "fulfillmentCreate name first"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "fulfillmentCreate": {
+          "fulfillment": {
+            "id": "gid://shopify/Fulfillment/7984280568114",
+            "name": "#1468-F1",
+            "status": "SUCCESS",
+            "displayStatus": "FULFILLED",
+            "trackingInfo": [
+              {
+                "number": "FCN-FIRST-1782076459175",
+                "url": "https://example.com/track/FCN-FIRST-1782076459175",
+                "company": "Hermes"
+              }
+            ],
+            "fulfillmentLineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentLineItem/17269162574130",
+                  "quantity": 1,
+                  "lineItem": {
+                    "id": "gid://shopify/LineItem/19491766534450",
+                    "title": "fulfillmentCreate name sequence line"
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 19,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "secondFulfillmentCreate": {
+    "query": "mutation FulfillmentCreateName($fulfillment: FulfillmentInput!, $message: String) {\n  fulfillmentCreate(fulfillment: $fulfillment, message: $message) {\n    fulfillment {\n      id\n      name\n      status\n      displayStatus\n      trackingInfo(first: 5) {\n        number\n        url\n        company\n      }\n      fulfillmentLineItems(first: 5) {\n        nodes {\n          id\n          quantity\n          lineItem {\n            id\n            title\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+    "variables": {
+      "fulfillment": {
+        "notifyCustomer": false,
+        "trackingInfo": {
+          "number": "FCN-SECOND-1782076459175",
+          "url": "https://example.com/track/FCN-SECOND-1782076459175",
+          "company": "Hermes"
+        },
+        "lineItemsByFulfillmentOrder": [
+          {
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9772252528946",
+            "fulfillmentOrderLineItems": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/19659766956338",
+                "quantity": 1
+              }
+            ]
+          }
+        ]
+      },
+      "message": "fulfillmentCreate name second"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "fulfillmentCreate": {
+          "fulfillment": {
+            "id": "gid://shopify/Fulfillment/7984280600882",
+            "name": "#1468-F2",
+            "status": "SUCCESS",
+            "displayStatus": "FULFILLED",
+            "trackingInfo": [
+              {
+                "number": "FCN-SECOND-1782076459175",
+                "url": "https://example.com/track/FCN-SECOND-1782076459175",
+                "company": "Hermes"
+              }
+            ],
+            "fulfillmentLineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentLineItem/17269162606898",
+                  "quantity": 1,
+                  "lineItem": {
+                    "id": "gid://shopify/LineItem/19491766534450",
+                    "title": "fulfillmentCreate name sequence line"
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 19,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "gid://shopify/Order/8836212982066": {
+      "cancel": {
+        "query": "mutation FulfillmentCreateNameOrderCancel(\n  $orderId: ID!\n  $reason: OrderCancelReason!\n  $notifyCustomer: Boolean!\n  $restock: Boolean!\n) {\n  orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n    job { id done }\n    orderCancelUserErrors { field message code }\n    userErrors { field message }\n  }\n}",
+        "variables": {
+          "orderId": "gid://shopify/Order/8836212982066",
+          "reason": "OTHER",
+          "notifyCustomer": false,
+          "restock": true
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderCancel": {
+              "job": null,
+              "orderCancelUserErrors": [
+                {
+                  "field": ["orderId"],
+                  "message": "Cannot cancel an order that has outstanding fulfillments",
+                  "code": "INVALID"
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": ["orderId"],
+                  "message": "Cannot cancel an order that has outstanding fulfillments"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "query": "mutation FulfillmentCreateNameOrderDelete($orderId: ID!) {\n  orderDelete(orderId: $orderId) {\n    deletedId\n    userErrors { field message code }\n  }\n}",
+        "variables": {
+          "orderId": "gid://shopify/Order/8836212982066"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "orderDelete": {
+              "deletedId": "gid://shopify/Order/8836212982066",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
