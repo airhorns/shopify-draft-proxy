@@ -1,0 +1,51 @@
+{
+  "scenarioId": "carrier-service-create-required-fields",
+  "operationNames": ["carrierServiceCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["input-coercion-parity", "validation-state-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/carrier-service-create-required-fields.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-create-required-fields.graphql",
+    "variablesCapturePath": "$.captures.missingActive.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 DeliveryCarrierServiceCreateInput required-field validation. Omitted active and supportsServiceDiscovery inputs return top-level INVALID_VARIABLE coercion errors before carrierServiceCreate stages a service.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-active-invalid-variable",
+        "capturePath": "$.captures.missingActive.response.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "missing-supports-service-discovery-invalid-variable",
+        "capturePath": "$.captures.missingSupportsServiceDiscovery.response.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-create-required-fields.graphql",
+          "variablesCapturePath": "$.captures.missingSupportsServiceDiscovery.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "missing-both-invalid-variable",
+        "capturePath": "$.captures.missingBoth.response.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-create-required-fields.graphql",
+          "variablesCapturePath": "$.captures.missingBoth.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

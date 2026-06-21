@@ -790,5 +790,100 @@
       }
     }
   ],
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "StandardMetaobjectDefinitionEnable",
+      "query": "fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  hasThumbnailField\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n}\n\nmutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n  standardMetaobjectDefinitionEnable(type: $type) {\n    metaobjectDefinition {\n      ...StandardMetaobjectDefinitionEnableFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "type": "shopify--qa-pair"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "standardMetaobjectDefinitionEnable": {
+              "metaobjectDefinition": {
+                "id": "gid://shopify/MetaobjectDefinition/17917575474",
+                "type": "shopify--qa-pair",
+                "name": "Question and Answer Pairs",
+                "description": "Question and answer pairs that describe a merchant's shop.",
+                "displayNameKey": "question",
+                "access": {
+                  "admin": "PUBLIC_READ_WRITE",
+                  "storefront": "NONE"
+                },
+                "capabilities": {
+                  "publishable": {
+                    "enabled": false
+                  },
+                  "translatable": {
+                    "enabled": true
+                  },
+                  "renderable": {
+                    "enabled": false
+                  },
+                  "onlineStore": {
+                    "enabled": false
+                  }
+                },
+                "fieldDefinitions": [
+                  {
+                    "key": "question",
+                    "name": "Question",
+                    "description": null,
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "validations": []
+                  },
+                  {
+                    "key": "answer",
+                    "name": "Answer",
+                    "description": null,
+                    "required": true,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    },
+                    "validations": []
+                  },
+                  {
+                    "key": "sources",
+                    "name": "Sources",
+                    "description": null,
+                    "required": false,
+                    "type": {
+                      "name": "list.link",
+                      "category": "LINK"
+                    },
+                    "validations": []
+                  }
+                ],
+                "hasThumbnailField": false,
+                "metaobjectsCount": 0,
+                "standardTemplate": {
+                  "type": "shopify--qa-pair",
+                  "name": "Question and Answer Pairs"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

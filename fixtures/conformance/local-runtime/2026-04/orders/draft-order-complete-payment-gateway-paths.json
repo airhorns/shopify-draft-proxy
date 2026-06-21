@@ -45,7 +45,7 @@
         "data": {
           "draftOrderCreate": {
             "draftOrder": {
-              "id": "gid://shopify/DraftOrder/7",
+              "id": "gid://shopify/DraftOrder/2",
               "name": "#D2",
               "status": "OPEN",
               "totalPriceSet": {

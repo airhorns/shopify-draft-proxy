@@ -1,0 +1,15 @@
+mutation CarrierServiceCreateRequiredFields($input: DeliveryCarrierServiceCreateInput!) {
+  carrierServiceCreate(input: $input) {
+    carrierService {
+      id
+      name
+      active
+      supportsServiceDiscovery
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

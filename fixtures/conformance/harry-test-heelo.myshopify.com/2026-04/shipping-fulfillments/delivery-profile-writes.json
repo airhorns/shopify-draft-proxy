@@ -385,7 +385,7 @@
       "variables": {
         "ids": ["gid://shopify/ProductVariant/51098706739506"]
       },
-      "query": "sha:hand-synthesized",
+      "query": "query ShippingDeliveryProfileVariantsHydrate($ids: [ID!]!) { nodes(ids: $ids) { ... on ProductVariant { id title product { id title handle } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -410,7 +410,7 @@
       "variables": {
         "id": "gid://shopify/DeliveryProfile/125254992178"
       },
-      "query": "sha:hand-synthesized",
+      "query": "query ShippingDeliveryProfileHydrate($id: ID!) { deliveryProfile(id: $id) { id name default merchantOwned version } }",
       "response": {
         "status": 200,
         "body": {

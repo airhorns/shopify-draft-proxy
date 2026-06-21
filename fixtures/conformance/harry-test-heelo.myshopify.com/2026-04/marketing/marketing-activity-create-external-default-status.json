@@ -1,0 +1,259 @@
+{
+  "scenarioId": "marketing-activity-create-external-default-status",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-06-15T02:56:46.252Z",
+  "setup": {
+    "disposableRemoteIds": {
+      "createNoStatus": "default-status-create-1781492205426-l11fwr",
+      "createActive": "default-status-active-1781492205426-l11fwr",
+      "upsertNoStatusProbe": "default-status-upsert-probe-1781492205426-l11fwr"
+    },
+    "cleanup": "Each disposable external marketing activity is deleted by remoteId in the finally block."
+  },
+  "operations": {
+    "upsertNoStatusProbe": {
+      "request": {
+        "query": "#graphql\n  mutation MarketingActivityCreateExternalDefaultStatusUpsertProbe($input: MarketingActivityUpsertExternalInput!) {\n    upsertNoStatus: marketingActivityUpsertExternal(input: $input) {\n      marketingActivity {\n        id\n        title\n        status\n        statusLabel\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "title": "Default status upsert probe 1781492205426-l11fwr",
+            "remoteId": "default-status-upsert-probe-1781492205426-l11fwr",
+            "remoteUrl": "https://example.com/default-status-upsert-probe-1781492205426-l11fwr",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "urlParameterValue": "utm_campaign=default-status-upsert-probe-1781492205426-l11fwr",
+            "utm": {
+              "campaign": "default-status-upsert-probe-1781492205426-l11fwr",
+              "source": "email",
+              "medium": "newsletter"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type MarketingActivityUpsertExternalInput! was provided invalid value for status (Expected value to not be null)",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 68
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "title": "Default status upsert probe 1781492205426-l11fwr",
+                  "remoteId": "default-status-upsert-probe-1781492205426-l11fwr",
+                  "remoteUrl": "https://example.com/default-status-upsert-probe-1781492205426-l11fwr",
+                  "tactic": "NEWSLETTER",
+                  "marketingChannelType": "EMAIL",
+                  "urlParameterValue": "utm_campaign=default-status-upsert-probe-1781492205426-l11fwr",
+                  "utm": {
+                    "campaign": "default-status-upsert-probe-1781492205426-l11fwr",
+                    "source": "email",
+                    "medium": "newsletter"
+                  }
+                },
+                "problems": [
+                  {
+                    "path": ["status"],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "primary": {
+      "request": {
+        "query": "mutation MarketingActivityLifecycle(\n  $createNoStatusInput: MarketingActivityCreateExternalInput!\n  $createActiveInput: MarketingActivityCreateExternalInput!\n) {\n  createNoStatus: marketingActivityCreateExternal(input: $createNoStatusInput) {\n    marketingActivity {\n      id\n      title\n      status\n      statusLabel\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n  createActive: marketingActivityCreateExternal(input: $createActiveInput) {\n    marketingActivity {\n      id\n      title\n      status\n      statusLabel\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "createNoStatusInput": {
+            "title": "Default status create 1781492205426-l11fwr",
+            "remoteId": "default-status-create-1781492205426-l11fwr",
+            "remoteUrl": "https://example.com/default-status-create-1781492205426-l11fwr",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "urlParameterValue": "utm_campaign=default-status-create-1781492205426-l11fwr",
+            "utm": {
+              "campaign": "default-status-create-1781492205426-l11fwr",
+              "source": "email",
+              "medium": "newsletter"
+            }
+          },
+          "createActiveInput": {
+            "title": "Default status active control 1781492205426-l11fwr",
+            "remoteId": "default-status-active-1781492205426-l11fwr",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/default-status-active-1781492205426-l11fwr",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "urlParameterValue": "utm_campaign=default-status-active-1781492205426-l11fwr",
+            "utm": {
+              "campaign": "default-status-active-1781492205426-l11fwr",
+              "source": "email",
+              "medium": "newsletter"
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "createNoStatus": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197870747954",
+                "title": "Default status create 1781492205426-l11fwr",
+                "status": "UNDEFINED",
+                "statusLabel": "Undefined"
+              },
+              "userErrors": []
+            },
+            "createActive": {
+              "marketingActivity": {
+                "id": "gid://shopify/MarketingActivity/197870780722",
+                "title": "Default status active control 1781492205426-l11fwr",
+                "status": "ACTIVE",
+                "statusLabel": "Sending"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "read": {
+      "request": {
+        "query": "query MarketingActivityLifecycleRead($createNoStatusId: ID!, $createActiveId: ID!) {\n  createNoStatus: marketingActivity(id: $createNoStatusId) {\n    id\n    title\n    status\n    statusLabel\n  }\n  createActive: marketingActivity(id: $createActiveId) {\n    id\n    title\n    status\n    statusLabel\n  }\n}\n",
+        "variables": {
+          "createNoStatusId": "gid://shopify/MarketingActivity/197870747954",
+          "createActiveId": "gid://shopify/MarketingActivity/197870780722"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "createNoStatus": {
+              "id": "gid://shopify/MarketingActivity/197870747954",
+              "title": "Default status create 1781492205426-l11fwr",
+              "status": "UNDEFINED",
+              "statusLabel": "Undefined"
+            },
+            "createActive": {
+              "id": "gid://shopify/MarketingActivity/197870780722",
+              "title": "Default status active control 1781492205426-l11fwr",
+              "status": "ACTIVE",
+              "statusLabel": "Sending"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cleanup": {
+      "default-status-create-1781492205426-l11fwr": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197870747954",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "default-status-active-1781492205426-l11fwr": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197870780722",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "default-status-upsert-probe-1781492205426-l11fwr": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Marketing activity does not exist.",
+                "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "expectedStatuses": {
+    "createNoStatus": {
+      "status": "UNDEFINED",
+      "statusLabel": "Undefined"
+    },
+    "createActive": {
+      "status": "ACTIVE",
+      "statusLabel": "Sending"
+    }
+  },
+  "upstreamCalls": []
+}

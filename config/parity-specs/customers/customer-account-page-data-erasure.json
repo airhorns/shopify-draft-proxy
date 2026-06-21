@@ -18,8 +18,8 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-account-page-data-erasure.json"
   ],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/customers/customer-request-data-erasure.graphql",
-    "variablesCapturePath": "$.mutations.customerRequestDataErasure.variables"
+    "documentPath": "config/parity-requests/customers/customerCreate-parity-plan.graphql",
+    "variablesCapturePath": "$.precondition.customerCreate.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "runtimeTestFiles": [
@@ -30,6 +30,19 @@
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
+      {
+        "name": "setup-customer-create",
+        "capturePath": "$.precondition.customerCreate.response.data.customerCreate",
+        "proxyPath": "$.data.customerCreate",
+        "selectedPaths": [
+          "$.customer.email",
+          "$.customer.firstName",
+          "$.customer.lastName",
+          "$.customer.tags",
+          "$.customer.defaultEmailAddress",
+          "$.userErrors"
+        ]
+      },
       {
         "name": "captured-account-pages-read",
         "capturePath": "$.reads.customerAccountPages.response.data",
@@ -53,7 +66,22 @@
       {
         "name": "request-data-erasure-success",
         "capturePath": "$.mutations.customerRequestDataErasure.response.data",
-        "proxyPath": "$.data"
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-request-data-erasure.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customerRequestDataErasure.customerId",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The parity runner stages a synthetic setup customer through public customerCreate, so customerRequestDataErasure echoes that proxy-created customer ID."
+          }
+        ]
       },
       {
         "name": "request-data-erasure-downstream-read",
@@ -61,8 +89,19 @@
         "proxyPath": "$.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-data-erasure-downstream-read.graphql",
-          "variablesCapturePath": "$.mutations.customerRequestDataErasure.downstreamRead.variables"
-        }
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.customer.email",
+          "$.customer.firstName",
+          "$.customer.lastName",
+          "$.customer.tags",
+          "$.customer.defaultEmailAddress"
+        ]
       },
       {
         "name": "cancel-data-erasure-success",
@@ -70,8 +109,19 @@
         "proxyPath": "$.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-cancel-data-erasure.graphql",
-          "variablesCapturePath": "$.mutations.customerCancelDataErasure.variables"
-        }
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customerCancelDataErasure.customerId",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The parity runner stages a synthetic setup customer through public customerCreate, so customerCancelDataErasure echoes that proxy-created customer ID."
+          }
+        ]
       },
       {
         "name": "cancel-data-erasure-downstream-read",
@@ -79,8 +129,19 @@
         "proxyPath": "$.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-data-erasure-downstream-read.graphql",
-          "variablesCapturePath": "$.mutations.customerCancelDataErasure.downstreamRead.variables"
-        }
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.customer.email",
+          "$.customer.firstName",
+          "$.customer.lastName",
+          "$.customer.tags",
+          "$.customer.defaultEmailAddress"
+        ]
       },
       {
         "name": "request-data-erasure-unknown-customer",
@@ -106,7 +167,11 @@
         "proxyPath": "$.data",
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-cancel-data-erasure.graphql",
-          "variablesCapturePath": "$.mutations.customerCancelDataErasure.variables"
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            }
+          }
         }
       }
     ]

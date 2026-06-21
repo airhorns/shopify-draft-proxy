@@ -1,5 +1,3 @@
-#![recursion_limit = "256"]
-
 use std::sync::{Arc, Mutex};
 
 use pretty_assertions::assert_eq;
@@ -363,7 +361,10 @@ fn records_supported_product_mutations_in_meta_log_with_raw_replay_inputs() {
                     json!({}),
                     "productCreate",
                     "products",
-                    json!(["gid://shopify/Product/1?shopify-draft-proxy=synthetic"])
+                    json!([
+                        "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                        "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic"
+                    ])
                 ),
                 expected_local_staged_log(
                     "log-2",
@@ -396,7 +397,10 @@ fn product_mutation_outcomes_finalize_exactly_one_log_draft() {
         json!({}),
         "productCreate",
         "products",
-        json!(["gid://shopify/Product/1?shopify-draft-proxy=synthetic"]),
+        json!([
+            "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+            "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic"
+        ]),
     );
 
     let update_query = "mutation { productUpdate(product: { id: \"gid://shopify/Product/base\", title: \"Updated product\" }) { product { id title } userErrors { field message code } } }";
@@ -500,16 +504,32 @@ fn product_mutation_outcomes_finalize_exactly_one_log_draft() {
     });
     let mut product_set_proxy = snapshot_proxy();
     let product_set = product_set_proxy.process_request(graphql_request(
-        &json!({ "query": product_set_query, "variables": product_set_variables }).to_string(),
+        &json!({ "query": product_set_query, "variables": product_set_variables.clone() })
+            .to_string(),
     ));
-    assert_eq!(product_set.status, 400);
+    assert_eq!(product_set.status, 200);
     assert_eq!(
         product_set.body,
-        json!({ "errors": [{ "message": "No mutation dispatcher implemented for root field: productSet" }] })
+        json!({
+            "data": {
+                "productSet": {
+                    "product": {
+                        "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                        "status": "DRAFT",
+                        "title": "Async delete source"
+                    },
+                    "userErrors": []
+                }
+            }
+        })
     );
-    assert_eq!(
-        product_set_proxy.get_log_snapshot(),
-        json!({ "entries": [] })
+    assert_single_local_staged_log(
+        &product_set_proxy,
+        product_set_query,
+        product_set_variables,
+        "productSet",
+        "products",
+        json!(["gid://shopify/Product/1?shopify-draft-proxy=synthetic"]),
     );
 }
 
@@ -702,176 +722,314 @@ fn meta_state_exposes_staged_products_saved_searches_and_deleted_ids() {
 
     let state = proxy.process_request(request("GET", "/__meta/state"));
     assert_eq!(state.status, 200);
-    let mut expected = json!({
-        "baseState": {
-            "products": {
-                "gid://shopify/Product/base": {
-                    "id": "gid://shopify/Product/base",
-                    "createdAt": "2024-01-01T00:00:00.000Z",
-                    "updatedAt": "2024-01-01T00:00:00.000Z",
-                    "title": "Base product",
-                    "handle": "base-product",
-                    "status": "ACTIVE",
-                    "descriptionHtml": "<p>Base</p>",
-                    "vendor": "Base vendor",
-                    "productType": "Base type",
-                    "tags": ["base"],
-                    "templateSuffix": "",
-                    "seo": { "title": "", "description": "" },
-                    "totalInventory": 0,
-                    "tracksInventory": false,
-                    "media": {
-                        "edges": [],
-                        "nodes": [],
-                        "pageInfo": {
-                            "hasNextPage": false,
-                            "hasPreviousPage": false,
-                            "startCursor": null,
-                            "endCursor": null
-                        }
-                    },
-                    "variants": {
-                        "edges": [],
-                        "nodes": [],
-                        "pageInfo": {
-                            "hasNextPage": false,
-                            "hasPreviousPage": false,
-                            "startCursor": null,
-                            "endCursor": null
-                        }
-                    },
-                    "collections": {
-                        "edges": [],
-                        "nodes": [],
-                        "pageInfo": {
-                            "hasNextPage": false,
-                            "hasPreviousPage": false,
-                            "startCursor": null,
-                            "endCursor": null
-                        }
-                    },
-                    "extraFields": {}
-                }
-            },
-            "productOrder": ["gid://shopify/Product/base"],
-            "productVariants": {},
-            "productVariantOrder": [],
-            "savedSearches": {},
-            "savedSearchOrder": [],
-            "shop": state.body["baseState"]["shop"].clone(),
-            "publicationIds": [],
-            "publicationCount": null,
-            "availableLocales": state.body["baseState"]["availableLocales"].clone(),
-            "shopLocales": state.body["baseState"]["shopLocales"].clone()
-        },
-        "stagedState": {
-            "products": {
-                "gid://shopify/Product/1?shopify-draft-proxy=synthetic": {
-                    "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
-                    "createdAt": "2024-01-01T00:00:01.000Z",
-                    "updatedAt": "2024-01-01T00:00:01.000Z",
-                    "title": "Created product",
-                    "handle": "created-product",
-                    "status": "ACTIVE",
-                    "descriptionHtml": "",
-                    "vendor": "",
-                    "productType": "",
-                    "tags": ["new"],
-                    "templateSuffix": "",
-                    "seo": { "title": "", "description": "" },
-                    "totalInventory": 0,
-                    "tracksInventory": false,
-                    "media": {
-                        "edges": [],
-                        "nodes": [],
-                        "pageInfo": {
-                            "hasNextPage": false,
-                            "hasPreviousPage": false,
-                            "startCursor": null,
-                            "endCursor": null
-                        }
-                    },
-                    "variants": {
-                        "edges": [],
-                        "nodes": [],
-                        "pageInfo": {
-                            "hasNextPage": false,
-                            "hasPreviousPage": false,
-                            "startCursor": null,
-                            "endCursor": null
-                        }
-                    },
-                    "collections": {
-                        "edges": [],
-                        "nodes": [],
-                        "pageInfo": {
-                            "hasNextPage": false,
-                            "hasPreviousPage": false,
-                            "startCursor": null,
-                            "endCursor": null
-                        }
-                    },
-                    "extraFields": {}
-                }
-            },
-            "productOrder": ["gid://shopify/Product/1?shopify-draft-proxy=synthetic"],
-            "deletedProductIds": ["gid://shopify/Product/base"],
-            "productVariants": {},
-            "productVariantOrder": [],
-            "deletedProductVariantIds": [],
-            "shippingPackages": {},
-            "deletedShippingPackageIds": {},
-            "delegatedAccessTokens": {},
-            "customers": {},
-            "deletedCustomerIds": [],
-            "discounts": {},
-            "discountCodeIndex": {},
-            "deletedDiscountIds": [],
-            "discountBulkOperations": {},
-            "discountRedeemCodeBulkCreations": {},
-            "ownerMetafields": {},
-            "deletedOwnerMetafields": [],
-            "customerOrders": {},
-            "taggableResources": {},
-            "orders": {},
-            "deletedOrderIds": [],
-            "returns": {},
-            "returnsByOrder": {},
-            "reverseDeliveries": {},
-            "reverseFulfillmentOrders": {},
-            "observedShippingLocations": {},
-            "observedShippingLocationOrder": [],
-            "locations": {},
-            "locationOrder": [],
-            "locationLimitReached": false,
-            "publicationIds": [],
-            "createdPublicationIds": [],
-            "savedSearches": {
-                "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic": {
-                    "id": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic",
-                    "name": "Promo products",
-                    "query": "tag:promo",
-                    "resourceType": "PRODUCT"
-                }
-            },
-            "savedSearchOrder": ["gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic"],
-            "deletedSavedSearchIds": []
-        }
-    });
-    let staged_state = expected["stagedState"]
+    assert_eq!(state.body["stagedState"]["collections"], json!({}));
+    assert_eq!(state.body["stagedState"]["deletedCollectionIds"], json!([]));
+    assert_eq!(state.body["stagedState"]["collectionJobs"], json!({}));
+    let mut state_body = state.body.clone();
+    state_body["stagedState"]
         .as_object_mut()
-        .expect("expected stagedState object");
-    staged_state.insert("b2bCompanies".to_string(), json!({}));
-    staged_state.insert("b2bLocations".to_string(), json!({}));
-    staged_state.insert("b2bContacts".to_string(), json!({}));
-    staged_state.insert("deletedB2bContactIds".to_string(), json!([]));
-    staged_state.insert("b2bContactRoles".to_string(), json!({}));
-    staged_state.insert("b2bContactRoleAssignments".to_string(), json!({}));
-    staged_state.insert("deletedB2bContactRoleAssignmentIds".to_string(), json!([]));
-    staged_state.insert("nextB2bCompanyId".to_string(), json!(1));
-    staged_state.insert("nextB2bContactId".to_string(), json!(1));
-    staged_state.insert("nextB2bContactRoleAssignmentId".to_string(), json!(1));
-    assert_eq!(state.body, expected);
+        .expect("stagedState is object")
+        .remove("collections");
+    state_body["stagedState"]
+        .as_object_mut()
+        .expect("stagedState is object")
+        .remove("deletedCollectionIds");
+    state_body["stagedState"]
+        .as_object_mut()
+        .expect("stagedState is object")
+        .remove("collectionJobs");
+    let mut expected: Value = serde_json::from_str(
+        r##"
+            {
+                "baseState": {
+                    "availableLocales": null,
+                    "localizationProductIds": [
+                        "gid://shopify/Product/9801098789170"
+                    ],
+                    "productOrder": [
+                        "gid://shopify/Product/base"
+                    ],
+                    "productVariantOrder": [],
+                    "productVariants": {},
+                    "products": {
+                        "gid://shopify/Product/base": {
+                            "collections": {
+                                "edges": [],
+                                "nodes": [],
+                                "pageInfo": {
+                                    "endCursor": null,
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": null
+                                }
+                            },
+                            "createdAt": "2024-01-01T00:00:00.000Z",
+                            "descriptionHtml": "<p>Base</p>",
+                            "extraFields": {},
+                            "handle": "base-product",
+                            "id": "gid://shopify/Product/base",
+                            "media": {
+                                "edges": [],
+                                "nodes": [],
+                                "pageInfo": {
+                                    "endCursor": null,
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": null
+                                }
+                            },
+                            "productType": "Base type",
+                            "seo": {
+                                "description": "",
+                                "title": ""
+                            },
+                            "status": "ACTIVE",
+                            "tags": [
+                                "base"
+                            ],
+                            "templateSuffix": "",
+                            "title": "Base product",
+                            "totalInventory": 0,
+                            "tracksInventory": false,
+                            "updatedAt": "2024-01-01T00:00:00.000Z",
+                            "variants": {
+                                "edges": [],
+                                "nodes": [],
+                                "pageInfo": {
+                                    "endCursor": null,
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": null
+                                }
+                            },
+                            "vendor": "Base vendor"
+                        }
+                    },
+                    "publicationCount": null,
+                    "publicationIds": [],
+                    "savedSearchOrder": [],
+                    "savedSearches": {},
+                    "shop": null,
+                    "shopLocales": null,
+                    "shopPolicies": {},
+                    "shopPolicyOrder": []
+                },
+                "stagedState": {
+                    "createdPublicationIds": [],
+                    "customerAddressOrder": {},
+                    "customerAddressOwners": {},
+                    "customerAddresses": {},
+                    "customerDataErasureRequests": {},
+                    "customerMergeRequests": {},
+                    "customerOrders": {},
+                    "customers": {},
+                    "customersCountBase": null,
+                    "delegatedAccessTokens": {},
+                    "deletedCustomerIds": [],
+                    "deletedDeliveryProfileIds": [],
+                    "deletedDiscountIds": [],
+                    "deletedLocationIds": [],
+                    "deletedOrderIds": [],
+                    "deletedOwnerMetafields": [],
+                    "deletedProductIds": [
+                        "gid://shopify/Product/base"
+                    ],
+                    "deletedProductVariantIds": [],
+                    "deletedSavedSearchIds": [],
+                    "deletedShippingPackageIds": {},
+                    "deletedShopPolicyIds": [],
+                    "deliveryProfileOrder": [],
+                    "deliveryProfiles": {},
+                    "discountCodeIndex": {},
+                    "discountRedeemCodeBulkCreations": {},
+                    "discounts": {},
+                    "draftOrderTags": {},
+                    "giftCards": {},
+                    "locationLimitReached": false,
+                    "locationOrder": [],
+                    "locations": {},
+                    "mergedCustomerIds": {},
+                    "nextDraftOrderId": 1,
+                    "nextStoreCreditAccountId": 1,
+                    "nextStoreCreditTransactionId": 1,
+                    "observedShippingLocationOrder": [],
+                    "observedShippingLocations": {},
+                    "orders": {},
+                    "ownerMetafields": {},
+                    "productOrder": [
+                        "gid://shopify/Product/1?shopify-draft-proxy=synthetic"
+                    ],
+                    "productVariantOrder": [
+                        "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic"
+                    ],
+                    "productVariants": {
+                        "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic": {
+                            "barcode": null,
+                            "compareAtPrice": null,
+                            "id": "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic",
+                            "inventoryItem": {
+                                "id": "gid://shopify/InventoryItem/3?shopify-draft-proxy=synthetic",
+                                "requiresShipping": true,
+                                "tracked": false
+                            },
+                            "inventoryPolicy": "DENY",
+                            "inventoryQuantity": 0,
+                            "position": 1,
+                            "price": "0.00",
+                            "productId": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                            "selectedOptions": [
+                                {
+                                    "name": "Title",
+                                    "value": "Default Title"
+                                }
+                            ],
+                            "sku": null,
+                            "taxable": true,
+                            "title": "Default Title"
+                        }
+                    },
+                    "products": {
+                        "gid://shopify/Product/1?shopify-draft-proxy=synthetic": {
+                            "collections": {
+                                "edges": [],
+                                "nodes": [],
+                                "pageInfo": {
+                                    "endCursor": null,
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": null
+                                }
+                            },
+                            "createdAt": "2024-01-01T00:00:01.000Z",
+                            "descriptionHtml": "",
+                            "extraFields": {},
+                            "handle": "created-product",
+                            "id": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                            "media": {
+                                "edges": [],
+                                "nodes": [],
+                                "pageInfo": {
+                                    "endCursor": null,
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": null
+                                }
+                            },
+                            "productType": "",
+                            "seo": {
+                                "description": "",
+                                "title": ""
+                            },
+                            "status": "ACTIVE",
+                            "tags": [
+                                "new"
+                            ],
+                            "templateSuffix": "",
+                            "title": "Created product",
+                            "totalInventory": 0,
+                            "tracksInventory": false,
+                            "updatedAt": "2024-01-01T00:00:01.000Z",
+                            "variants": {
+                                "edges": [
+                                    {
+                                        "cursor": "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic",
+                                        "node": {
+                                            "barcode": null,
+                                            "compareAtPrice": null,
+                                            "id": "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic",
+                                            "inventoryItem": {
+                                                "id": "gid://shopify/InventoryItem/3?shopify-draft-proxy=synthetic",
+                                                "requiresShipping": true,
+                                                "tracked": false
+                                            },
+                                            "inventoryPolicy": "DENY",
+                                            "inventoryQuantity": 0,
+                                            "position": 1,
+                                            "price": "0.00",
+                                            "productId": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                                            "selectedOptions": [
+                                                {
+                                                    "name": "Title",
+                                                    "value": "Default Title"
+                                                }
+                                            ],
+                                            "sku": null,
+                                            "taxable": true,
+                                            "title": "Default Title"
+                                        }
+                                    }
+                                ],
+                                "nodes": [
+                                    {
+                                        "barcode": null,
+                                        "compareAtPrice": null,
+                                        "id": "gid://shopify/ProductVariant/2?shopify-draft-proxy=synthetic",
+                                        "inventoryItem": {
+                                            "id": "gid://shopify/InventoryItem/3?shopify-draft-proxy=synthetic",
+                                            "requiresShipping": true,
+                                            "tracked": false
+                                        },
+                                        "inventoryPolicy": "DENY",
+                                        "inventoryQuantity": 0,
+                                        "position": 1,
+                                        "price": "0.00",
+                                        "productId": "gid://shopify/Product/1?shopify-draft-proxy=synthetic",
+                                        "selectedOptions": [
+                                            {
+                                                "name": "Title",
+                                                "value": "Default Title"
+                                            }
+                                        ],
+                                        "sku": null,
+                                        "taxable": true,
+                                        "title": "Default Title"
+                                    }
+                                ],
+                                "pageInfo": {
+                                    "endCursor": null,
+                                    "hasNextPage": false,
+                                    "hasPreviousPage": false,
+                                    "startCursor": null
+                                }
+                            },
+                            "vendor": ""
+                        }
+                    },
+                    "publicationIds": [],
+                    "publications": {},
+                    "resourcePublications": {},
+                    "returns": {},
+                    "returnsByOrder": {},
+                    "reverseDeliveries": {},
+                    "reverseFulfillmentOrders": {},
+                    "savedSearchOrder": [
+                        "gid://shopify/SavedSearch/4?shopify-draft-proxy=synthetic"
+                    ],
+                    "savedSearches": {
+                        "gid://shopify/SavedSearch/4?shopify-draft-proxy=synthetic": {
+                            "id": "gid://shopify/SavedSearch/4?shopify-draft-proxy=synthetic",
+                            "name": "Promo products",
+                            "query": "tag:promo",
+                            "resourceType": "PRODUCT"
+                        }
+                    },
+                    "shippingPackages": {},
+                    "shopPolicies": {},
+                    "shopPolicyOrder": [],
+                    "storeCreditAccountOrder": [],
+                    "storeCreditAccounts": {},
+                    "storeCreditTransactionOrder": [],
+                    "storeCreditTransactions": {},
+                    "taggableResources": {}
+                }
+            }
+        "##,
+    )
+    .expect("expected meta state JSON parses");
+    expected["baseState"]["availableLocales"] = state.body["baseState"]["availableLocales"].clone();
+    expected["baseState"]["shop"] = state.body["baseState"]["shop"].clone();
+    expected["baseState"]["shopLocales"] = state.body["baseState"]["shopLocales"].clone();
+    assert_eq!(state_body, expected);
 }
 
 #[test]
@@ -964,7 +1122,7 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
             "data": {
                 "productSavedSearches": {
                     "nodes": [{
-                        "id": "gid://shopify/SavedSearch/2?shopify-draft-proxy=synthetic",
+                        "id": "gid://shopify/SavedSearch/4?shopify-draft-proxy=synthetic",
                         "name": "Promo products",
                         "query": "tag:promo",
                         "resourceType": "PRODUCT"
@@ -982,7 +1140,7 @@ fn meta_dump_and_restore_round_trip_staged_rust_state() {
     ));
     assert_eq!(
         next_create.body["data"]["productCreate"]["product"]["id"],
-        json!("gid://shopify/Product/3?shopify-draft-proxy=synthetic")
+        json!("gid://shopify/Product/5?shopify-draft-proxy=synthetic")
     );
 }
 

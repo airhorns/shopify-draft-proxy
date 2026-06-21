@@ -17,9 +17,9 @@
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "create-with-pin-reaches-position-50",
-        "capturePath": "$.primary.response.data.create50",
-        "proxyPath": "$.data.create50",
+        "name": "create-with-pin-reaches-position-20",
+        "capturePath": "$.primary.response.data.create20",
+        "proxyPath": "$.data.create20",
         "expectedDifferences": [
           {
             "path": "$.createdDefinition.id",
@@ -55,5 +55,5 @@
       }
     ]
   },
-  "notes": "Captured 2026-04 Shopify behavior for create-with-pin guard branches after Core promoted the product-owner pin cap to 50. The scenario temporarily unpins existing PRODUCT definitions, creates 50 disposable pinned PRODUCT definitions through `metafieldDefinitionCreate(pin: true)`, observes `PINNED_LIMIT_REACHED` with `Limit of 50 pinned definitions.` on the next pinned create, observes `UNSUPPORTED_PINNING` for a constrained pinned create and a constrained standard template enable, verifies the failed definitions are absent on follow-up reads, deletes disposable definitions, and restores the baseline pins."
+  "notes": "Captured 2026-04 Shopify behavior for create-with-pin guard branches against the real product-owner pin cap of 20. The scenario temporarily unpins existing PRODUCT definitions, creates 20 disposable pinned PRODUCT definitions through `metafieldDefinitionCreate(pin: true)` reaching pinned position 20, observes `PINNED_LIMIT_REACHED` with `Limit of 20 pinned definitions.` on the next pinned create, observes `UNSUPPORTED_PINNING` for a constrained pinned create and a constrained standard template enable, verifies the failed definitions are absent on follow-up reads, deletes disposable definitions, and restores the baseline pins."
 }

@@ -188,7 +188,7 @@
       "variables": {
         "id": "gid://shopify/Order/6830627356905"
       },
-      "query": "hand-synthesized from checked-in downstreamRead order response for HAR-538 orders Pattern 2 order mutation hydration",
+      "query": "\n    query OrdersOrderHydrate($id: ID!) {\n      order(id: $id) {\n        id\n        name\n        email\n        note\n        tags\n        customAttributes { key value }\n        customer { id email displayName }\n        billingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        shippingAddress { firstName lastName address1 city provinceCode countryCodeV2 zip }\n        currencyCode\n        presentmentCurrencyCode\n        displayFinancialStatus\n        displayFulfillmentStatus\n        currentTotalPriceSet { shopMoney { amount currencyCode } }\n        totalPriceSet { shopMoney { amount currencyCode } }\n        totalTaxSet { shopMoney { amount currencyCode } }\n        totalDiscountsSet { shopMoney { amount currencyCode } }\n        discountCodes\n        lineItems(first: 10) {\n          nodes {\n            id\n            title\n            name\n            quantity\n            currentQuantity\n            sku\n            variantTitle\n            requiresShipping\n            taxable\n            customAttributes { key value }\n            originalUnitPriceSet { shopMoney { amount currencyCode } }\n            originalTotalSet { shopMoney { amount currencyCode } }\n            variant { id title sku }\n            taxLines { title rate priceSet { shopMoney { amount currencyCode } } }\n          }\n        }\n      }\n    }\n",
       "response": {
         "status": 200,
         "body": {

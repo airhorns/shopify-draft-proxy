@@ -195,7 +195,7 @@
           "gid://shopify/ProductVariant/51098748059954"
         ]
       },
-      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } collections(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on Collection { id title handle products(first: 10) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } defaultProducts: products(first: 10, sortKey: COLLECTION_DEFAULT) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } manualProducts: products(first: 10, sortKey: MANUAL) { nodes { id title handle } pageInfo { hasNextPage hasPreviousPage } } } ... on ProductVariant { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } product { id title handle status totalInventory tracksInventory variants(first: 10) { nodes { id title sku barcode price compareAtPrice taxable inventoryPolicy inventoryQuantity selectedOptions { name value } inventoryItem { id tracked requiresShipping } } } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -272,6 +272,71 @@
                 "position": 2
               }
             ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductVariantsBulkReorderDownstreamRead",
+      "variables": {
+        "productId": "gid://shopify/Product/10170568114482"
+      },
+      "query": "query ProductVariantsBulkReorderDownstreamRead($productId: ID!) {\n  product(id: $productId) {\n    id\n    variants(first: 10) {\n      nodes {\n        id\n        title\n        selectedOptions {\n          name\n          value\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10170568114482",
+              "variants": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/ProductVariant/51098748059954",
+                    "title": "Blue",
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Blue"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "gid://shopify/ProductVariant/51098748027186",
+                    "title": "Red",
+                    "selectedOptions": [
+                      {
+                        "name": "Color",
+                        "value": "Red"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ProductVariantNodeRead",
+      "variables": {
+        "id": "gid://shopify/ProductVariant/51098748059954"
+      },
+      "query": "query ProductVariantNodeRead($id: ID!) {\n  node(id: $id) {\n    ... on ProductVariant {\n      id\n      title\n      selectedOptions {\n        name\n        value\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "node": {
+              "id": "gid://shopify/ProductVariant/51098748059954",
+              "title": "Blue",
+              "selectedOptions": [
+                {
+                  "name": "Color",
+                  "value": "Blue"
+                }
+              ]
+            }
           }
         }
       }

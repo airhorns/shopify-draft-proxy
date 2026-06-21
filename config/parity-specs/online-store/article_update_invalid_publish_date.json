@@ -58,7 +58,10 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/online-store/online-store-invalid-publish-date-article-update.graphql",
           "variables": {
-            "id": { "fromPreviousProxyPath": "$.data.articleCreate.article.id" },
+            "id": {
+              "fromProxyResponse": "articleCreate accepts scheduled future publishDate while unpublished",
+              "path": "$.data.articleCreate.article.id"
+            },
             "article": {
               "isPublished": true,
               "publishDate": {

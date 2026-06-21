@@ -9,23 +9,20 @@ operations, and related store-property utility reads.
 
 ## Current support and limitations
 
-### Supported roots
+### Implemented roots
 
-The Rust operation registry marks selected store-properties roots as locally
-handled when the proxy has a Rust dispatcher for them. Registry presence and
-`implemented: true` remain local-model commitments only; they are not a
-supported-runtime claim for the whole store-properties domain.
-
-The registry-only read roots are:
+The following read roots have local model or fixture-backed behavior:
 
 - `shop`
 - `location`
 - `locationByIdentifier`
+- `locations`
 - `businessEntities`
 - `businessEntity`
 - `cashManagementLocationSummary`
 
-The registry-only mutation roots are:
+The following mutation roots are handled locally rather than sent to Shopify at
+runtime:
 
 - `locationAdd`
 - `locationEdit`
@@ -38,18 +35,29 @@ The registry-only mutation roots are:
 - `publishableUnpublishToCurrentChannel`
 - `shopPolicyUpdate`
 
+Registry presence means the proxy has a local dispatcher for the root. Support
+for each root is limited to the local lifecycle behavior and downstream
+read-after-write effects described below and backed by executable evidence.
+
 ### Local behavior
 
 The Rust runtime has scenario-backed store-properties slices for ported parity
 requests and runtime tests. These slices are not general registry support for
 every store-property document.
 
-Shop reads have a baseline fixture-backed slice for selected shop metadata,
-including shop policies, publication aggregates, primary domain, and safe empty
-or null shapes. `shopPolicyUpdate` has local staging evidence for policy body,
-title, URL, migrated-HTML behavior, user-error codes, blank subscription-policy
-validation, downstream `shop.shopPolicies` reads, and generic `node(id:)` /
-`nodes(ids:)` policy dispatch.
+Shop reads have a local store-backed slice for selected shop metadata,
+including staged shop policies, publication aggregates, primary domain, and safe
+empty or null shapes. `shopPolicyUpdate` is dispatched by root field, stages
+policy body/title/URL/timestamps in the Rust store, preserves the original raw
+mutation for commit replay, and exposes read-after-write behavior through
+`shop.shopPolicies` plus generic `node(id:)` / `nodes(ids:)` policy dispatch.
+The local model uses Shopify's deprecated policy title map (`Privacy Policy`,
+`Refund Policy`, `Terms of Service`, `Shipping Policy`, `Subscription Policy`,
+`Contact Information`, `Legal Notice`, and `Terms of Sale`), derives URLs from
+the effective shop domain fallback, accepts bodies up to 524,287 bytes, returns
+`TOO_BIG` above that cap, rejects blank subscription-policy bodies with
+`field: ["shopPolicy", "body"]`, and returns top-level `INVALID_VARIABLE`
+errors for invalid policy enum values or missing/null required bodies.
 
 `locationAdd` now has a generic Rust staging path for public Admin GraphQL
 documents, not only fixture-named parity documents. It stages a synthetic
@@ -97,36 +105,49 @@ for every publishable object.
 
 Business entity reads have safe fixture-backed catalog and fallback behavior,
 including ordered `businessEntities`, primary `businessEntity` fallback,
-known/unknown ID lookup, empty structures, and safe Shopify Payments account
-fields only where captured.
+known/unknown ID lookup, empty structures, and Shopify Payments account fields
+where captured.
 
 ### Boundaries
 
-- Store-properties roots that are only registry/catalog entries still remain
-  unsupported unless they have a Rust dispatcher and executable local coverage.
-  Scenario-backed Rust helpers should not be described as broad root support.
+- Store-properties roots outside the implemented list follow the configured
+  unsupported path and remain visible in logs/observability.
 - Location lifecycle support is bounded to the captured local state-machine and
   validation branches. Open purchase order, transfer, temporary block, retail
-  subscription, external document, and fulfillment-service branches remain
-  fixture or runtime-slice evidence unless separately captured for a public
-  setup path.
+  subscription, external document, and additional fulfillment-service branches
+  require separate captured evidence before they should be relied on.
+- `locationByIdentifier` is modeled for ID-based lookup. Additional identifier
+  forms remain unsupported unless a scenario explicitly covers them.
 - Validation-only store-properties specs prove guardrail payloads and no-stage
-  behavior for those inputs only. They do not make the corresponding mutation
-  roots generally supported.
+  behavior for those inputs only.
 - Shipping package and local pickup behavior are documented under
-  `/endpoints/shipping-fulfillments/` because their caller-visible effects
-  live in shipping and delivery settings.
-- Unsupported mutation documents outside the ported local slices follow the
-  configured unsupported path and must remain visible in logs/observability.
+  `/endpoints/shipping-fulfillments/` because their caller-visible effects live
+  in shipping and delivery settings.
 
 ### Evidence
 
-- Registry status: `src/operation_registry.rs`
 - Runtime coverage: `tests/graphql_routes.rs`
-- Store-properties parity specs: `config/parity-specs/store-properties/*.json`
-- Store-properties fixtures: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/*.json` and `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/store-properties/*.json`
+- Registry status: `src/operation_registry.rs` and
+  `src/operation_registry_data.rs`
+- Location parity specs:
+  `config/parity-specs/store-properties/location-add-edit-uniqueness-and-required-fields.json`,
+  `config/parity-specs/store-properties/location-edit-fields-and-state-machine.json`,
+  `config/parity-specs/store-properties/location-edit-unknown-id-validation.json`,
+  `config/parity-specs/store-properties/location-delete-active-location-validation.json`,
+  `config/parity-specs/store-properties/location-delete-inventory-level-cascade.json`,
+  `config/parity-specs/store-properties/location-delete-primary-location.json`,
+  and
+  `config/parity-specs/store-properties/location-delete-state-and-scope.json`
+- Store-properties fixtures:
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/*.json`
+  and
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/store-properties/*.json`
 
 ### Validation
 
-- `corepack pnpm lint`
+- `corepack pnpm conformance:fixture-invariants`
+- `corepack pnpm rust:fmt`
+- `corepack pnpm rust:clippy`
 - `corepack pnpm rust:test`
+- `corepack pnpm conformance:check`
+- `corepack pnpm lint`

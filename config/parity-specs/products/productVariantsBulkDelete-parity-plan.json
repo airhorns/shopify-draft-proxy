@@ -15,7 +15,44 @@
   "notes": "Executed by the conformance parity runner against the local staged-mutation path with live fixture variables. Live capture covers immediate downstream `product.variants` removal parity while sku-filtered `products` / `productsCount` remain empty on the just-written product surface.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [],
+    "expectedDifferences": [
+      {
+        "path": "$.productVariantsBulkDelete.product.variants.nodes[0].barcode",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "Shopify's productVariantsBulkDelete mutation response returns the surviving variant with pricing/inventory fields transiently unresolved (null, dropped on capture); the immediately-consistent store overlay returns them populated. The downstream-read target verifies the settled value."
+      },
+      {
+        "path": "$.productVariantsBulkDelete.product.variants.nodes[0].price",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "Shopify's productVariantsBulkDelete mutation response returns the surviving variant with pricing/inventory fields transiently unresolved (null, dropped on capture); the immediately-consistent store overlay returns them populated. The downstream-read target verifies the settled value."
+      },
+      {
+        "path": "$.productVariantsBulkDelete.product.variants.nodes[0].compareAtPrice",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "Shopify's productVariantsBulkDelete mutation response returns the surviving variant with pricing/inventory fields transiently unresolved (null, dropped on capture); the immediately-consistent store overlay returns them populated. The downstream-read target verifies the settled value."
+      },
+      {
+        "path": "$.productVariantsBulkDelete.product.variants.nodes[0].taxable",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "Shopify's productVariantsBulkDelete mutation response returns the surviving variant with pricing/inventory fields transiently unresolved (null, dropped on capture); the immediately-consistent store overlay returns them populated. The downstream-read target verifies the settled value."
+      },
+      {
+        "path": "$.productVariantsBulkDelete.product.variants.nodes[0].inventoryPolicy",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "Shopify's productVariantsBulkDelete mutation response returns the surviving variant with pricing/inventory fields transiently unresolved (null, dropped on capture); the immediately-consistent store overlay returns them populated. The downstream-read target verifies the settled value."
+      },
+      {
+        "path": "$.productVariantsBulkDelete.product.variants.nodes[0].inventoryItem",
+        "ignore": true,
+        "regrettable": true,
+        "reason": "Shopify's productVariantsBulkDelete mutation response returns the surviving variant with pricing/inventory fields transiently unresolved (null, dropped on capture); the immediately-consistent store overlay returns them populated. The downstream-read target verifies the settled value."
+      }
+    ],
     "targets": [
       {
         "name": "mutation-data",

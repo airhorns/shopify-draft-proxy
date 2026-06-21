@@ -6,7 +6,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/online-store/theme-publish-demotes-previous-main.json"
   ],
-  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/marketing_inventory_online_store.rs"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/online-store/theme-publish-create-main.graphql",
     "variablesCapturePath": "$.main.variables",
@@ -38,7 +38,12 @@
         "proxyPath": "$.data.themePublish",
         "proxyRequest": {
           "documentPath": "config/parity-requests/online-store/theme-publish-publish.graphql",
-          "variablesCapturePath": "$.publish.variables",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-next-unpublished",
+              "path": "$.data.themeCreate.theme.id"
+            }
+          },
           "apiVersion": "2026-04"
         }
       },
@@ -54,5 +59,5 @@
       }
     ]
   },
-  "notes": "HAR-553 proves the local themePublish lifecycle demotes the previous MAIN theme and keeps downstream theme/theme connection reads consistent without runtime Shopify writes."
+  "notes": "Proves the local themePublish lifecycle demotes the previous MAIN theme and keeps downstream theme/theme connection reads consistent without runtime Shopify writes."
 }

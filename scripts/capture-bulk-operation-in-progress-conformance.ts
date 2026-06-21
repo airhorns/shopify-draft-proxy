@@ -37,11 +37,17 @@ type StagedTarget = {
   parameters: Array<{ name: string; value: string }>;
 };
 
-const queryScenarioId = 'bulk-operation-run-query-operation-in-progress';
-const mutationScenarioId = 'bulk-operation-run-mutation-operation-in-progress';
+const legacyThrottle = (process.env['SHOPIFY_CONFORMANCE_BULK_NEW_LIMIT_BOUNDARY'] ?? '') !== '1';
+const queryScenarioId = legacyThrottle
+  ? 'bulk-operation-run-query-operation-in-progress'
+  : 'bulk-operation-run-query-concurrency-limit';
+const mutationScenarioId = legacyThrottle
+  ? 'bulk-operation-run-mutation-operation-in-progress'
+  : 'bulk-operation-run-mutation-concurrency-limit';
 const configEnv = {
   ...process.env,
-  SHOPIFY_CONFORMANCE_API_VERSION: process.env['SHOPIFY_CONFORMANCE_BULK_API_VERSION'] ?? '2025-01',
+  SHOPIFY_CONFORMANCE_API_VERSION:
+    process.env['SHOPIFY_CONFORMANCE_BULK_API_VERSION'] ?? (legacyThrottle ? '2025-01' : '2026-04'),
 };
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
@@ -80,6 +86,8 @@ const currentBulkOperationQuery = `#graphql
     }
   }
 `;
+const bulkOperationHydrateQuery =
+  'query BulkOperationHydrate($id: ID!) { bulkOperation(id: $id) { id status type errorCode createdAt completedAt objectCount rootObjectCount fileSize url partialDataUrl query } }';
 
 const bulkOperationCancelMutation = `#graphql
   mutation BulkOperationCancelParity($id: ID!) {
@@ -273,6 +281,19 @@ function assertOperationInProgress(result: ConformanceGraphqlResult, fieldName: 
   }
 }
 
+function assertNoOperationInProgress(result: ConformanceGraphqlResult, fieldName: string): void {
+  const code = readUserErrorCode(result, fieldName);
+  if (code === 'OPERATION_IN_PROGRESS') {
+    throw new Error(`${fieldName} unexpectedly returned OPERATION_IN_PROGRESS: ${JSON.stringify(result.payload)}`);
+  }
+}
+
+function assertNewLimitCaptureMode(): void {
+  if (apiVersion < '2026-01') {
+    throw new Error(`New bulk-operation concurrency limit capture requires API version >= 2026-01, got ${apiVersion}`);
+  }
+}
+
 async function runRaw(query: string, variables: Record<string, unknown>): Promise<ConformanceGraphqlResult> {
   return await runGraphqlRequest(query, variables);
 }
@@ -306,7 +327,7 @@ function hydrateCallFromOperation(operation: BulkOperation): Record<string, unkn
   return {
     operationName: 'BulkOperationHydrate',
     variables: { id: operation.id },
-    query: 'hand-synthesized from captured first run operation',
+    query: bulkOperationHydrateQuery,
     response: {
       status: 200,
       body: {
@@ -360,6 +381,60 @@ async function captureQueryScenario(): Promise<Record<string, unknown>> {
     upstreamCalls: [hydrateCallFromOperation(firstOperation)],
     notes:
       'Captured on an API version that still enforces one in-progress query bulk operation per app/shop. The parity spec records the two consecutive runQuery behavior, then uses cassette-backed cancel hydration to create the local non-terminal operation without pre-seeding.',
+  };
+}
+
+async function captureQueryConcurrencyLimitScenario(): Promise<Record<string, unknown>> {
+  assertNewLimitCaptureMode();
+  await cancelIfNonTerminal('QUERY');
+
+  const variables = { query: exportQuery };
+  const successfulRuns: CapturedInteraction[] = [];
+  const operations: BulkOperation[] = [];
+  for (let index = 0; index < 5; index += 1) {
+    const result = await runRaw(bulkOperationRunQueryMutation, variables);
+    assertNoOperationInProgress(result, 'bulkOperationRunQuery');
+    const operation = readBulkOperationFromPayload(result, 'bulkOperationRunQuery');
+    operations.push(operation);
+    successfulRuns.push(
+      captureResult(
+        `BulkOperationRunQueryConcurrencyLimit${index + 1}`,
+        bulkOperationRunQueryMutation,
+        variables,
+        result,
+      ),
+    );
+  }
+
+  const sixthRunResult = await runRaw(bulkOperationRunQueryMutation, variables);
+  assertOperationInProgress(sixthRunResult, 'bulkOperationRunQuery');
+  const sixthRun = captureResult(
+    'BulkOperationRunQueryConcurrencyLimitRejected',
+    bulkOperationRunQueryMutation,
+    variables,
+    sixthRunResult,
+  );
+
+  const cancelAttempts: CapturedInteraction[] = [];
+  for (const operation of operations) {
+    const cancelVariables = { id: operation.id };
+    const cancelResult = await runRaw(bulkOperationCancelMutation, cancelVariables);
+    cancelAttempts.push(
+      captureResult('BulkOperationCancelParity', bulkOperationCancelMutation, cancelVariables, cancelResult),
+    );
+  }
+
+  return {
+    scenarioId: queryScenarioId,
+    capturedAt: new Date().toISOString(),
+    storeDomain,
+    apiVersion,
+    successfulRuns,
+    sixthRun,
+    cancelAttempts,
+    upstreamCalls: operations.map(hydrateCallFromOperation),
+    notes:
+      'Captured on an API version with bulk_operations_new_queries enabled. Shopify accepts five non-terminal query bulk operations for the app/shop and returns OPERATION_IN_PROGRESS on the sixth same-type run.',
   };
 }
 
@@ -513,8 +588,80 @@ async function captureMutationScenario(): Promise<Record<string, unknown>> {
   };
 }
 
-const queryFixture = await captureQueryScenario();
-const mutationFixture = await captureMutationScenario();
+async function captureMutationConcurrencyLimitScenario(): Promise<Record<string, unknown>> {
+  assertNewLimitCaptureMode();
+  await cancelIfNonTerminal('MUTATION');
+
+  const operations: BulkOperation[] = [];
+  const successfulRuns: CapturedInteraction[] = [];
+  const uploads: Array<{ stagedUploadPath: string }> = [];
+  for (let index = 0; index < 6; index += 1) {
+    const jsonl = `${JSON.stringify({ product: { title: `${productTitle} ${index + 1}` } })}\n`;
+    uploads.push(await createAndUploadBulkMutationVariables(`${runId}-concurrent-${index + 1}.jsonl`, jsonl));
+  }
+
+  for (let index = 0; index < 5; index += 1) {
+    const variables = {
+      mutation: innerBulkMutation,
+      path: uploads[index]?.stagedUploadPath,
+    };
+    const result = await runRaw(bulkOperationRunMutationMutation, variables);
+    assertNoOperationInProgress(result, 'bulkOperationRunMutation');
+    const operation = readBulkOperationFromPayload(result, 'bulkOperationRunMutation');
+    operations.push(operation);
+    successfulRuns.push(
+      captureResult(
+        `BulkOperationRunMutationConcurrencyLimit${index + 1}`,
+        bulkOperationRunMutationMutation,
+        variables,
+        result,
+      ),
+    );
+  }
+
+  const sixthVariables = {
+    mutation: innerBulkMutation,
+    path: uploads[5]?.stagedUploadPath,
+  };
+  const sixthRunResult = await runRaw(bulkOperationRunMutationMutation, sixthVariables);
+  assertOperationInProgress(sixthRunResult, 'bulkOperationRunMutation');
+  const sixthRun = captureResult(
+    'BulkOperationRunMutationConcurrencyLimitRejected',
+    bulkOperationRunMutationMutation,
+    sixthVariables,
+    sixthRunResult,
+  );
+
+  const cancelAttempts: CapturedInteraction[] = [];
+  for (const operation of operations) {
+    const cancelVariables = { id: operation.id };
+    const cancelResult = await runRaw(bulkOperationCancelMutation, cancelVariables);
+    cancelAttempts.push(
+      captureResult('BulkOperationCancelParity', bulkOperationCancelMutation, cancelVariables, cancelResult),
+    );
+  }
+  const cleanup = await cleanupCreatedProducts();
+
+  return {
+    scenarioId: mutationScenarioId,
+    capturedAt: new Date().toISOString(),
+    storeDomain,
+    apiVersion,
+    productTitle,
+    successfulRuns,
+    sixthRun,
+    cancelAttempts,
+    cleanup,
+    upstreamCalls: operations.map(hydrateCallFromOperation),
+    notes:
+      'Captured on an API version with bulk_operations_new_queries enabled. Shopify accepts five non-terminal mutation bulk operations for the app/shop and returns OPERATION_IN_PROGRESS on the sixth same-type run.',
+  };
+}
+
+const queryFixture = legacyThrottle ? await captureQueryScenario() : await captureQueryConcurrencyLimitScenario();
+const mutationFixture = legacyThrottle
+  ? await captureMutationScenario()
+  : await captureMutationConcurrencyLimitScenario();
 
 await mkdir(outputDir, { recursive: true });
 await writeFile(path.join(outputDir, `${queryScenarioId}.json`), `${JSON.stringify(queryFixture, null, 2)}\n`, 'utf8');

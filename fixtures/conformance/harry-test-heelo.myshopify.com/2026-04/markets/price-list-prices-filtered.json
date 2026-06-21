@@ -67,7 +67,7 @@
         "priceQuery": "variant_id:49875425296690",
         "originType": null
       },
-      "query": "hand-synthesized from checked-in capture",
+      "query": "fragment PriceListFilteredPriceFields on PriceList {\n  __typename\n  id\n  name\n  currency\n  fixedPricesCount\n  parent {\n    adjustment {\n      type\n      value\n    }\n  }\n  catalog {\n    id\n    title\n    status\n  }\n  prices(first: 5, query: $priceQuery, originType: $originType) {\n    edges {\n      cursor\n      node {\n        price {\n          amount\n          currencyCode\n        }\n        compareAtPrice {\n          amount\n          currencyCode\n        }\n        originType\n        variant {\n          id\n          sku\n          product {\n            id\n            title\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n\nquery PriceListPricesFilteredRead($priceListId: ID!, $priceQuery: String, $originType: PriceListPriceOriginType) {\n  priceList(id: $priceListId) {\n    ...PriceListFilteredPriceFields\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

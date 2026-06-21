@@ -1,0 +1,432 @@
+{
+  "scenarioId": "orderMarkAsPaid-snapshot-staging",
+  "capturedAt": "2026-06-16T08:01:11.222Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "operations": {
+    "markableCreate": {
+      "query": "mutation OrderMarkAsPaidSnapshotStagingCreate(\n    $order: OrderCreateOrderInput!\n    $options: OrderCreateOptionsInput\n  ) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        email\n        displayFinancialStatus\n        presentmentCurrencyCode\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "hermes-mark-paid-snapshot-markable-1781596866976@example.com",
+          "note": "orderMarkAsPaid snapshot staging markable",
+          "tags": ["parity-probe", "order-mark-as-paid-snapshot", "markable"],
+          "test": true,
+          "currency": "CAD",
+          "presentmentCurrency": "CAD",
+          "financialStatus": "PENDING",
+          "lineItems": [
+            {
+              "title": "Hermes mark-as-paid snapshot markable",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "12.50",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.50",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "hermes-mark-paid-snapshot-markable-1781596866976"
+            }
+          ]
+        },
+        "options": null
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8824656396594",
+                "email": "hermes-mark-paid-snapshot-markable-1781596866976@example.com",
+                "displayFinancialStatus": "PENDING",
+                "presentmentCurrencyCode": "CAD"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "markNoMoney": {
+      "query": "mutation OrderMarkAsPaidSnapshotStagingMark($input: OrderMarkAsPaidInput!) {\n    orderMarkAsPaid(input: $input) {\n      order {\n        id\n        displayFinancialStatus\n        paymentGatewayNames\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Order/8824656396594"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderMarkAsPaid": {
+              "order": {
+                "id": "gid://shopify/Order/8824656396594",
+                "displayFinancialStatus": "PAID",
+                "paymentGatewayNames": ["manual"]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readAfterMark": {
+      "query": "query OrderMarkAsPaidSnapshotStagingRead($id: ID!) {\n    order(id: $id) {\n      id\n      displayFinancialStatus\n      paymentGatewayNames\n      totalOutstandingSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      totalReceivedSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      netPaymentSet {\n        shopMoney { amount currencyCode }\n        presentmentMoney { amount currencyCode }\n      }\n      transactions {\n        id\n        kind\n        status\n        gateway\n        amountSet {\n          shopMoney { amount currencyCode }\n          presentmentMoney { amount currencyCode }\n        }\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Order/8824656396594"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8824656396594",
+              "displayFinancialStatus": "PAID",
+              "paymentGatewayNames": ["manual"],
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                }
+              },
+              "netPaymentSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                }
+              },
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/10552545149234",
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "repeatMark": {
+      "query": "mutation OrderMarkAsPaidStateAndMoney($input: OrderMarkAsPaidInput!) {\n    orderMarkAsPaid(input: $input) {\n      order {\n        id\n        presentmentCurrencyCode\n        displayFinancialStatus\n        paymentGatewayNames\n        totalOutstandingSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n        transactions {\n          id\n          kind\n          status\n          gateway\n          amountSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n            presentmentMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Order/8824656396594"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderMarkAsPaid": {
+              "order": {
+                "id": "gid://shopify/Order/8824656396594",
+                "presentmentCurrencyCode": "CAD",
+                "displayFinancialStatus": "PAID",
+                "paymentGatewayNames": ["manual"],
+                "totalOutstandingSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "transactions": [
+                  {
+                    "id": "gid://shopify/OrderTransaction/10552545149234",
+                    "kind": "SALE",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": {
+                      "shopMoney": {
+                        "amount": "12.5",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "12.5",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Order cannot be marked as paid."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "alreadyPaidCreate": {
+      "query": "mutation OrderMarkAsPaidSnapshotStagingCreate(\n    $order: OrderCreateOrderInput!\n    $options: OrderCreateOptionsInput\n  ) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        email\n        displayFinancialStatus\n        presentmentCurrencyCode\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "hermes-mark-paid-snapshot-already-paid-1781596866976@example.com",
+          "note": "orderMarkAsPaid snapshot staging already-paid",
+          "tags": ["parity-probe", "order-mark-as-paid-snapshot", "already-paid"],
+          "test": true,
+          "currency": "CAD",
+          "presentmentCurrency": "CAD",
+          "financialStatus": "PAID",
+          "lineItems": [
+            {
+              "title": "Hermes mark-as-paid snapshot already-paid",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "12.50",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.50",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "hermes-mark-paid-snapshot-already-paid-1781596866976"
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "12.50",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.50",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        },
+        "options": null
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8824656429362",
+                "email": "hermes-mark-paid-snapshot-already-paid-1781596866976@example.com",
+                "displayFinancialStatus": "PAID",
+                "presentmentCurrencyCode": "CAD"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "alreadyPaidInitial": {
+      "query": "mutation OrderMarkAsPaidStateAndMoney($input: OrderMarkAsPaidInput!) {\n    orderMarkAsPaid(input: $input) {\n      order {\n        id\n        presentmentCurrencyCode\n        displayFinancialStatus\n        paymentGatewayNames\n        totalOutstandingSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n        transactions {\n          id\n          kind\n          status\n          gateway\n          amountSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n            presentmentMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Order/8824656429362"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderMarkAsPaid": {
+              "order": {
+                "id": "gid://shopify/Order/8824656429362",
+                "presentmentCurrencyCode": "CAD",
+                "displayFinancialStatus": "PAID",
+                "paymentGatewayNames": ["manual"],
+                "totalOutstandingSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "transactions": [
+                  {
+                    "id": "gid://shopify/OrderTransaction/10552545214770",
+                    "kind": "SALE",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": {
+                      "shopMoney": {
+                        "amount": "12.5",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "12.5",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Order cannot be marked as paid."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unknownMark": {
+      "query": "mutation OrderMarkAsPaidStateAndMoney($input: OrderMarkAsPaidInput!) {\n    orderMarkAsPaid(input: $input) {\n      order {\n        id\n        presentmentCurrencyCode\n        displayFinancialStatus\n        paymentGatewayNames\n        totalOutstandingSet {\n          shopMoney {\n            amount\n            currencyCode\n          }\n          presentmentMoney {\n            amount\n            currencyCode\n          }\n        }\n        transactions {\n          id\n          kind\n          status\n          gateway\n          amountSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n            presentmentMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Order/999999999999999"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderMarkAsPaid": {
+              "order": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Order does not exist"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [],
+  "upstreamCalls": []
+}

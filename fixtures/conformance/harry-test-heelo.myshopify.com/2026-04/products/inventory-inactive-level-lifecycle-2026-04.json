@@ -822,7 +822,7 @@
       "variables": {
         "ids": ["gid://shopify/InventoryLevel/143273034034?inventory_item_id=53214089609522"]
       },
-      "query": "hand-synthesized from checked-in createdProduct for HAR-591 inventoryDeactivate hydration",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -928,7 +928,7 @@
         "inventoryLevelId": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53214089609522",
         "inactiveLocationId": "gid://shopify/Location/106318463282"
       },
-      "query": "hand-synthesized from checked-in inventoryInactiveLifecycleReadAfterDeactivate capture for HAR-545 Pattern 1 inventory inactive read passthrough",
+      "query": "query InventoryInactiveLifecycleRead($inventoryItemId: ID!, $inventoryLevelId: ID!, $inactiveLocationId: ID!) {\n  inventoryItem(id: $inventoryItemId) {\n    id\n    tracked\n    variant {\n      id\n      inventoryQuantity\n      product {\n        id\n        totalInventory\n        tracksInventory\n      }\n    }\n    inventoryLevels(first: 5, includeInactive: true) {\n      nodes {\n        id\n        isActive\n        location {\n          id\n          name\n        }\n        quantities(names: [\"available\", \"on_hand\", \"incoming\"]) {\n          name\n          quantity\n        }\n      }\n    }\n    inactiveLevel: inventoryLevel(locationId: $inactiveLocationId, includeInactive: true) {\n      id\n      isActive\n      location {\n        id\n        name\n      }\n      quantities(names: [\"available\", \"on_hand\", \"incoming\"]) {\n        name\n        quantity\n      }\n    }\n  }\n  inventoryLevel(id: $inventoryLevelId) {\n    id\n    isActive\n    location {\n      id\n      name\n    }\n    quantities(names: [\"available\", \"on_hand\", \"incoming\"]) {\n      name\n      quantity\n    }\n    item {\n      id\n      tracked\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -1062,7 +1062,7 @@
       "variables": {
         "ids": ["gid://shopify/InventoryItem/53214089609522"]
       },
-      "query": "hand-synthesized from checked-in inventoryInactiveLifecycleReadAfterDeactivate capture for HAR-545 Pattern 2 inventory reactivation hydration",
+      "query": "query ProductsHydrateNodes($ids: [ID!]!) { nodes(ids: $ids) { ... on InventoryItem { id tracked requiresShipping countryCodeOfOrigin provinceCodeOfOrigin harmonizedSystemCode measurement { weight { value unit } } variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } ... on InventoryLevel { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } item { id tracked requiresShipping variant { id title inventoryQuantity selectedOptions { name value } product { id title handle status totalInventory tracksInventory } } inventoryLevels(first: 10, includeInactive: true) { nodes { id isActive location { id name } quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\"]) { name quantity updatedAt } } } } } } }",
       "response": {
         "status": 200,
         "body": {

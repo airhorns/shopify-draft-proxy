@@ -39,7 +39,7 @@
         "missingId": "gid://shopify/Product/999999999999999",
         "emptyQuery": "title:__hermes_empty_catalog_probe__"
       },
-      "query": "hand-synthesized from checked-in capture response",
+      "query": "query ProductEmptyStateConformance($missingId: ID!, $emptyQuery: String!) {\n  missingProduct: product(id: $missingId) {\n    id\n    title\n  }\n  emptyCount: productsCount(query: $emptyQuery) {\n    count\n    precision\n  }\n  emptyProducts: products(first: 3, query: $emptyQuery, sortKey: UPDATED_AT, reverse: true) {\n    edges {\n      cursor\n      node {\n        id\n        title\n        handle\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

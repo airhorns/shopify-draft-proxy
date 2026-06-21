@@ -8,7 +8,8 @@
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/products/inventoryAdjustQuantities-parity-plan.graphql",
-    "variablesCapturePath": "$.mutation.variables"
+    "variablesCapturePath": "$.mutation.variables",
+    "apiVersion": "2025-01"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "Live capture now covers `inventoryAdjustQuantities`. Shopify mirrored each `available` delta into an additional `on_hand` change, returned a real `InventoryAdjustmentGroup.id`, exposed `inventoryAdjustmentGroup.app` and `changes.location.name` on the successful payload, left `quantityAfterChange` null in the mutation payload, echoed per-change `ledgerDocumentUri` values separately from the group-level `referenceDocumentUri`, updated `productVariant` / `inventoryItem.variant` quantities before product-level `totalInventory` and `inventory_total:` catalog search caught up, accepted non-available names like `incoming` only when each change carried a ledger document URI, exposed the incoming quantity in immediate downstream `InventoryItem.inventoryLevels` reads without changing available/on_hand totals, rejected invalid names like `on_hand` with an explicit valid-values error plus the same ledger document URI requirement, and surfaced `inventoryAdjustmentGroup.staffMember` as a top-level `ACCESS_DENIED` companion error requiring `read_users` while the rest of the mutation payload still succeeded. Missing required nested change fields (`inventoryItemId`, `locationId`, `delta`) still surfaced as top-level `INVALID_VARIABLE` GraphQL errors before the mutation resolver ran.",
@@ -43,7 +44,8 @@
         "upstreamCapturePath": "$.downstreamRead",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/inventoryAdjustQuantities-downstream-read.graphql",
-          "variablesPath": "config/parity-requests/products/inventoryAdjustQuantities-downstream-read.variables.json"
+          "variablesPath": "config/parity-requests/products/inventoryAdjustQuantities-downstream-read.variables.json",
+          "apiVersion": "2025-01"
         }
       },
       {
@@ -52,7 +54,8 @@
         "proxyPath": "$.data.inventoryAdjustQuantities",
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/inventoryAdjustQuantities-non-available.graphql",
-          "variablesCapturePath": "$.nonAvailableMutation.variables"
+          "variablesCapturePath": "$.nonAvailableMutation.variables",
+          "apiVersion": "2025-01"
         },
         "expectedDifferences": [
           {
@@ -83,7 +86,8 @@
             "firstInventoryItemId": {
               "fromCapturePath": "$.setup.products[0].inventoryItemId"
             }
-          }
+          },
+          "apiVersion": "2025-01"
         },
         "excludedPaths": [
           "$.firstProduct.variants.nodes[*].inventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt",

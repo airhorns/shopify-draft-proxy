@@ -1,0 +1,105 @@
+{
+  "scenarioId": "product-publish-unpublish",
+  "operationNames": ["productPublish", "productUnpublish"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "read-after-write", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-publish-unpublish.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/product-publish-unpublish-publish.graphql",
+    "variables": {
+      "input": {
+        "fromCapturePath": "$.publish.variables.input"
+      },
+      "publicationId": {
+        "fromCapturePath": "$.publish.variables.input.productPublications[0].publicationId"
+      }
+    },
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live productPublish/productUnpublish parity for the product-publication association and immediate read-after-write behavior. The conformance store's ACTIVE product has unrelated baseline publication topology, so strict targets compare the stable mutation association fields and userErrors rather than aggregate publication counts.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "publish association payload",
+        "capturePath": "$.publish.mutation.response.payload.data.productPublish",
+        "proxyPath": "$.data.productPublish",
+        "selectedPaths": [
+          "$.product.id",
+          "$.product.publishedOnPublication",
+          "$.product.resourcePublicationsV2.nodes[0].publication.id",
+          "$.product.resourcePublicationsV2.nodes[0].publishable.id",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "publish downstream read",
+        "capturePath": "$.publish.downstreamRead.response.payload.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-publish-unpublish-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.productPublish.product.id"
+            },
+            "publicationId": {
+              "fromCapturePath": "$.publish.variables.input.productPublications[0].publicationId"
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.id",
+          "$.publishedOnPublication",
+          "$.resourcePublicationsV2.nodes[0].publication.id",
+          "$.resourcePublicationsV2.nodes[0].publishable.id"
+        ]
+      },
+      {
+        "name": "unpublish association payload",
+        "capturePath": "$.unpublish.mutation.response.payload.data.productUnpublish",
+        "proxyPath": "$.data.productUnpublish",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-publish-unpublish-unpublish.graphql",
+          "variables": {
+            "input": {
+              "fromCapturePath": "$.unpublish.variables.input"
+            },
+            "publicationId": {
+              "fromCapturePath": "$.unpublish.variables.input.productPublications[0].publicationId"
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": [
+          "$.product.id",
+          "$.product.publishedOnPublication",
+          "$.product.resourcePublicationsV2.nodes",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "unpublish downstream read",
+        "capturePath": "$.unpublish.downstreamRead.response.payload.data.product",
+        "proxyPath": "$.data.product",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/product-publish-unpublish-downstream-read.graphql",
+          "variables": {
+            "id": {
+              "fromCapturePath": "$.seedProduct.id"
+            },
+            "publicationId": {
+              "fromCapturePath": "$.unpublish.variables.input.productPublications[0].publicationId"
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "selectedPaths": ["$.id", "$.publishedOnPublication", "$.resourcePublicationsV2.nodes"]
+      }
+    ]
+  }
+}

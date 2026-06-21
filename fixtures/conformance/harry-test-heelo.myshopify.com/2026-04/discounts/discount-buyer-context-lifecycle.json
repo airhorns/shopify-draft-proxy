@@ -664,6 +664,26 @@
       }
     }
   },
+  "seedCustomers": [
+    {
+      "__typename": "Customer",
+      "id": "gid://shopify/Customer/10548596015410",
+      "firstName": "HAR390",
+      "lastName": "Buyer Context",
+      "displayName": "HAR390 Buyer Context",
+      "email": "har390-buyer-context-1777346878525@example.com"
+    }
+  ],
+  "seedSegments": [
+    {
+      "__typename": "Segment",
+      "id": "gid://shopify/Segment/647746715954",
+      "name": "HAR-390 buyer context 1777346878525",
+      "query": "customer_tags CONTAINS 'har390-buyer-1777346878525'",
+      "creationDate": "2026-04-28T03:27:58Z",
+      "lastEditDate": "2026-04-28T03:27:58Z"
+    }
+  ],
   "notes": [
     "Live Shopify 2026-04 capture for code-basic and automatic-basic discount buyer context transitions from explicit customer selection to customer-segment selection.",
     "The disposable discount, customer, and segment records are deleted in cleanup after capture."

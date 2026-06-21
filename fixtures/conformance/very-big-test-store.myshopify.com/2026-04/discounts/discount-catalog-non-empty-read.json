@@ -194,7 +194,8 @@
             }
           }
         }
-      }
+      },
+      "query": "query DiscountCatalogEmptyRead(\n  $query: String\n  $first: Int!\n  $sortKey: DiscountSortKeys\n  $reverse: Boolean\n  $countLimit: Int\n) {\n  discountNodes(first: $first, query: $query, sortKey: $sortKey, reverse: $reverse) {\n    nodes {\n      id\n      discount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          status\n          summary\n          startsAt\n          endsAt\n          createdAt\n          updatedAt\n          asyncUsageCount\n          discountClasses\n          combinesWith {\n            productDiscounts\n            orderDiscounts\n            shippingDiscounts\n          }\n          codes(first: 2) {\n            nodes {\n              code\n            }\n          }\n        }\n      }\n    }\n    edges {\n      cursor\n      node {\n        id\n        discount {\n          __typename\n          ... on DiscountCodeBasic {\n            title\n            status\n            summary\n            startsAt\n            endsAt\n            createdAt\n            updatedAt\n            asyncUsageCount\n            discountClasses\n            combinesWith {\n              productDiscounts\n              orderDiscounts\n              shippingDiscounts\n            }\n            codes(first: 2) {\n              nodes {\n                code\n              }\n            }\n          }\n        }\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n  discountNodesCount(query: $query, limit: $countLimit) {\n    count\n    precision\n  }\n}\n"
     }
   ]
 }

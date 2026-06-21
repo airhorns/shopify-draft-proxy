@@ -169,11 +169,11 @@
   },
   "upstreamCalls": [
     {
-      "operationName": "OrdersOrderHydrate",
+      "operationName": "OrderManagementDownstreamRead",
       "variables": {
         "id": "gid://shopify/Order/8735479398706"
       },
-      "query": "query OrderCancelRestockRefundMethodDownstreamRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    cancellation {\n      staffNote\n    }\n    displayFinancialStatus\n    displayFulfillmentStatus\n    paymentGatewayNames\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    netPaymentSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalReceivedSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    totalRefundedSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    refunds {\n      id\n      totalRefundedSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      transactions(first: 5) {\n        nodes {\n          kind\n          status\n          gateway\n          amountSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n        }\n      }\n    }\n    transactions {\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n    fulfillmentOrders(first: 5) {\n      nodes {\n        id\n        status\n        requestStatus\n        lineItems(first: 5) {\n          nodes {\n            id\n            totalQuantity\n            remainingQuantity\n            lineItem {\n              id\n              title\n              quantity\n              fulfillableQuantity\n            }\n          }\n        }\n      }\n    }\n  }\n}",
+      "query": "query OrderManagementDownstreamRead($id: ID!) {\n  order(id: $id) {\n    id\n    name\n    closed\n    closedAt\n    cancelledAt\n    cancelReason\n    displayFinancialStatus\n    paymentGatewayNames\n    totalOutstandingSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    currentTotalPriceSet {\n      shopMoney {\n        amount\n        currencyCode\n      }\n    }\n    customer {\n      id\n      email\n      displayName\n    }\n    transactions {\n      kind\n      status\n      gateway\n      amountSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {

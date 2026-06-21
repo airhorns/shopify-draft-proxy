@@ -1,48 +1,50 @@
-fragment MarketWebPresenceLifecycleFields on MarketWebPresence {
-  id
-  subfolderSuffix
-  domain {
+#graphql
+  #graphql
+  fragment MarketWebPresenceLifecycleFields on MarketWebPresence {
     id
-    host
-    url
-    sslEnabled
-  }
-  rootUrls {
-    locale
-    url
-  }
-  defaultLocale {
-    locale
-    name
-    primary
-    published
-  }
-  alternateLocales {
-    locale
-    name
-    primary
-    published
-  }
-  markets(first: 5) {
-    nodes {
+    subfolderSuffix
+    domain {
       id
+      host
+      url
+      sslEnabled
+    }
+    rootUrls {
+      locale
+      url
+    }
+    defaultLocale {
+      locale
       name
-      handle
-      status
-      type
+      primary
+      published
+    }
+    alternateLocales {
+      locale
+      name
+      primary
+      published
+    }
+    markets(first: 5) {
+      nodes {
+        id
+        name
+        handle
+        status
+        type
+      }
     }
   }
-}
 
-mutation MarketWebPresenceLifecycleCreate($input: WebPresenceCreateInput!) {
-  webPresenceCreate(input: $input) {
-    webPresence {
-      ...MarketWebPresenceLifecycleFields
-    }
-    userErrors {
-      field
-      message
-      code
+  mutation MarketWebPresenceLifecycleCreate($input: WebPresenceCreateInput!) {
+    webPresenceCreate(input: $input) {
+      webPresence {
+        ...MarketWebPresenceLifecycleFields
+      }
+      userErrors {
+        field
+        message
+        code
+      }
     }
   }
-}

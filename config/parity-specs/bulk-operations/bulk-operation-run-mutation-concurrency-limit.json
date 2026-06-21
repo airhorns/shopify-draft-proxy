@@ -1,0 +1,118 @@
+{
+  "scenarioId": "bulk-operation-run-mutation-concurrency-limit",
+  "operationNames": ["bulkOperationCancel", "bulkOperationRunMutation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "runtime-staging", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-concurrency-limit.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/admin_app_shipping.rs"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-cancel-parity.graphql",
+    "variablesCapturePath": "$.cancelAttempts[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cancel-first-mutation-operation-as-non-terminal",
+        "capturePath": "$.cancelAttempts[0].response.data.bulkOperationCancel",
+        "proxyPath": "$.data.bulkOperationCancel",
+        "selectedPaths": [
+          "$.bulkOperation.id",
+          "$.bulkOperation.status",
+          "$.bulkOperation.type",
+          "$.bulkOperation.completedAt",
+          "$.bulkOperation.errorCode",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "cancel-second-mutation-operation-as-non-terminal",
+        "capturePath": "$.cancelAttempts[1].response.data.bulkOperationCancel",
+        "proxyPath": "$.data.bulkOperationCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-cancel-parity.graphql",
+          "variablesCapturePath": "$.cancelAttempts[1].variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.bulkOperation.id",
+          "$.bulkOperation.status",
+          "$.bulkOperation.type",
+          "$.bulkOperation.completedAt",
+          "$.bulkOperation.errorCode",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "cancel-third-mutation-operation-as-non-terminal",
+        "capturePath": "$.cancelAttempts[2].response.data.bulkOperationCancel",
+        "proxyPath": "$.data.bulkOperationCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-cancel-parity.graphql",
+          "variablesCapturePath": "$.cancelAttempts[2].variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.bulkOperation.id",
+          "$.bulkOperation.status",
+          "$.bulkOperation.type",
+          "$.bulkOperation.completedAt",
+          "$.bulkOperation.errorCode",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "cancel-fourth-mutation-operation-as-non-terminal",
+        "capturePath": "$.cancelAttempts[3].response.data.bulkOperationCancel",
+        "proxyPath": "$.data.bulkOperationCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-cancel-parity.graphql",
+          "variablesCapturePath": "$.cancelAttempts[3].variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.bulkOperation.id",
+          "$.bulkOperation.status",
+          "$.bulkOperation.type",
+          "$.bulkOperation.completedAt",
+          "$.bulkOperation.errorCode",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "cancel-fifth-mutation-operation-as-non-terminal",
+        "capturePath": "$.cancelAttempts[4].response.data.bulkOperationCancel",
+        "proxyPath": "$.data.bulkOperationCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-cancel-parity.graphql",
+          "variablesCapturePath": "$.cancelAttempts[4].variables",
+          "apiVersion": "2026-04"
+        },
+        "selectedPaths": [
+          "$.bulkOperation.id",
+          "$.bulkOperation.status",
+          "$.bulkOperation.type",
+          "$.bulkOperation.completedAt",
+          "$.bulkOperation.errorCode",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "sixth-mutation-run-operation-in-progress",
+        "capturePath": "$.sixthRun.response.data.bulkOperationRunMutation",
+        "proxyPath": "$.data.bulkOperationRunMutation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-operation-in-progress.graphql",
+          "variablesCapturePath": "$.sixthRun.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Captures Shopify Admin GraphQL 2026-04 accepting five concurrent non-terminal mutation bulk operations for the app/shop and returning OPERATION_IN_PROGRESS on the sixth same-type run. The executable comparison hydrates the five captured non-terminal operations through public bulkOperationCancel requests using the captured upstream cassette, then proves the sixth-run throttle payload."
+}

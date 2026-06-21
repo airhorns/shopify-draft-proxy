@@ -1,11 +1,11 @@
 {
-  "capturedAt": "2026-05-06T21:23:46.948Z",
+  "capturedAt": "2026-06-15T22:04:09.412Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "setupCustomer": {
     "variables": {
       "input": {
-        "email": "address-validation-1778102625085@example.com",
+        "email": "address-validation-1781561047512@example.com",
         "firstName": "Address",
         "lastName": "Validation"
       }
@@ -15,11 +15,11 @@
       "data": {
         "customerCreate": {
           "customer": {
-            "id": "gid://shopify/Customer/10586121699634",
+            "id": "gid://shopify/Customer/10806758211890",
             "firstName": "Address",
             "lastName": "Validation",
             "displayName": "Address Validation",
-            "email": "address-validation-1778102625085@example.com",
+            "email": "address-validation-1781561047512@example.com",
             "locale": "en",
             "note": null,
             "verifiedEmail": true,
@@ -28,11 +28,11 @@
             "state": "DISABLED",
             "canDelete": true,
             "defaultEmailAddress": {
-              "emailAddress": "address-validation-1778102625085@example.com"
+              "emailAddress": "address-validation-1781561047512@example.com"
             },
             "defaultPhoneNumber": null,
-            "createdAt": "2026-05-06T21:23:45Z",
-            "updatedAt": "2026-05-06T21:23:45Z"
+            "createdAt": "2026-06-15T22:04:07Z",
+            "updatedAt": "2026-06-15T22:04:07Z"
           },
           "userErrors": []
         }
@@ -72,7 +72,7 @@
       "data": {
         "customerAddressCreate": {
           "address": {
-            "id": "gid://shopify/MailingAddress/12058083033394?model_name=CustomerAddress",
+            "id": "gid://shopify/MailingAddress/12221701521714?model_name=CustomerAddress",
             "firstName": "Trim",
             "lastName": "Create",
             "address1": "100 Main",
@@ -123,7 +123,7 @@
       "data": {
         "customerAddressUpdate": {
           "address": {
-            "id": "gid://shopify/MailingAddress/12058083033394?model_name=CustomerAddress",
+            "id": "gid://shopify/MailingAddress/12221701521714?model_name=CustomerAddress",
             "firstName": "Trim",
             "lastName": "Create",
             "address1": "200 Side",
@@ -292,7 +292,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1989,
             "restoreRate": 100
           }
         }
@@ -389,7 +389,7 @@
       "data": {
         "customerAddressCreate": {
           "address": {
-            "id": "gid://shopify/MailingAddress/12058083131698?model_name=CustomerAddress",
+            "id": "gid://shopify/MailingAddress/12221701554482?model_name=CustomerAddress",
             "firstName": "Address",
             "lastName": "Validation",
             "address1": null,
@@ -414,7 +414,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1989,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }
@@ -424,7 +424,7 @@
   "customerCreateNestedTooLong": {
     "variables": {
       "input": {
-        "email": "address-validation-too-long-1778102625085@example.com",
+        "email": "address-validation-too-long-1781561047512@example.com",
         "addresses": [
           {
             "address1": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
@@ -463,7 +463,7 @@
   "customerCreateNestedBlank": {
     "variables": {
       "input": {
-        "email": "address-validation-blank-1778102625085@example.com",
+        "email": "address-validation-blank-1781561047512@example.com",
         "addresses": [
           {
             "address1": " ",
@@ -508,7 +508,7 @@
         "id": "<setup-customer-id>"
       },
       "input": {
-        "email": "address-validation-1778102625085@example.com",
+        "email": "address-validation-1781561047512@example.com",
         "addresses": [
           {
             "address1": " ",
@@ -526,11 +526,11 @@
       "data": {
         "customerSet": {
           "customer": {
-            "id": "gid://shopify/Customer/10586121699634",
+            "id": "gid://shopify/Customer/10806758211890",
             "firstName": "Address",
             "lastName": "Validation",
             "displayName": "Address Validation",
-            "email": "address-validation-1778102625085@example.com",
+            "email": "address-validation-1781561047512@example.com",
             "locale": "en",
             "note": null,
             "verifiedEmail": true,
@@ -540,7 +540,7 @@
             "state": "DISABLED",
             "canDelete": true,
             "defaultEmailAddress": {
-              "emailAddress": "address-validation-1778102625085@example.com"
+              "emailAddress": "address-validation-1781561047512@example.com"
             },
             "defaultPhoneNumber": null,
             "defaultAddress": {
@@ -554,7 +554,7 @@
             "addressesV2": {
               "nodes": [
                 {
-                  "id": "gid://shopify/MailingAddress/12058083197234?model_name=CustomerAddress",
+                  "id": "gid://shopify/MailingAddress/12221701587250?model_name=CustomerAddress",
                   "address1": null,
                   "city": null,
                   "province": null,
@@ -566,12 +566,12 @@
               "pageInfo": {
                 "hasNextPage": false,
                 "hasPreviousPage": false,
-                "startCursor": "eyJsYXN0X2lkIjoxMjA1ODA4MzE5NzIzNCwibGFzdF92YWx1ZSI6IjEyMDU4MDgzMTk3MjM0In0=",
-                "endCursor": "eyJsYXN0X2lkIjoxMjA1ODA4MzE5NzIzNCwibGFzdF92YWx1ZSI6IjEyMDU4MDgzMTk3MjM0In0="
+                "startCursor": "eyJsYXN0X2lkIjoxMjIyMTcwMTU4NzI1MCwibGFzdF92YWx1ZSI6IjEyMjIxNzAxNTg3MjUwIn0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMjIyMTcwMTU4NzI1MCwibGFzdF92YWx1ZSI6IjEyMjIxNzAxNTg3MjUwIn0="
               }
             },
-            "createdAt": "2026-05-06T21:23:45Z",
-            "updatedAt": "2026-05-06T21:23:46Z"
+            "createdAt": "2026-06-15T22:04:07Z",
+            "updatedAt": "2026-06-15T22:04:09Z"
           },
           "userErrors": []
         }
@@ -591,13 +591,13 @@
   },
   "cleanup": [
     {
-      "id": "gid://shopify/Customer/10586121699634",
+      "id": "gid://shopify/Customer/10806758211890",
       "result": {
         "status": 200,
         "payload": {
           "data": {
             "customerDelete": {
-              "deletedCustomerId": "gid://shopify/Customer/10586121699634",
+              "deletedCustomerId": "gid://shopify/Customer/10806758211890",
               "userErrors": []
             }
           },

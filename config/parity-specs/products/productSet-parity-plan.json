@@ -35,27 +35,27 @@
         "reason": "Product option value IDs are allocated independently by Shopify and the local staging identity registry."
       },
       {
-        "path": "$.productSet.product.variants[\"nodes\"][0].id",
+        "path": "$.productSet.product.variants.nodes[0].id",
         "matcher": "shopify-gid:ProductVariant",
         "reason": "Product variant IDs are allocated independently by Shopify and the local staging identity registry."
       },
       {
-        "path": "$.productSet.product.variants[\"nodes\"][1].id",
+        "path": "$.productSet.product.variants.nodes[1].id",
         "matcher": "shopify-gid:ProductVariant",
         "reason": "Product variant IDs are allocated independently by Shopify and the local staging identity registry."
       },
       {
-        "path": "$.productSet.product.variants[\"nodes\"][*].inventoryItem.id",
+        "path": "$.productSet.product.variants.nodes[*].inventoryItem.id",
         "matcher": "shopify-gid:InventoryItem",
         "reason": "Inventory item IDs are allocated independently by Shopify and the local staging identity registry."
       },
       {
-        "path": "$.productSet.product.variants[\"nodes\"][*].inventoryItem.inventoryLevels.nodes[*].id",
+        "path": "$.productSet.product.variants.nodes[*].inventoryItem.inventoryLevels.nodes[*].id",
         "matcher": "shopify-gid:InventoryLevel",
         "reason": "Inventory level IDs include independently allocated inventory item identifiers."
       },
       {
-        "path": "$.productSet.product.variants[\"nodes\"][*].inventoryItem.inventoryLevels.nodes[*].quantities[0].updatedAt",
+        "path": "$.productSet.product.variants.nodes[*].inventoryItem.inventoryLevels.nodes[*].quantities[0].updatedAt",
         "matcher": "iso-timestamp",
         "reason": "Inventory quantity update timestamps are generated independently by Shopify and the local staging clock."
       },
@@ -90,32 +90,32 @@
         "reason": "The downstream proxy read returns the locally generated product option value ID."
       },
       {
-        "path": "$.product.variants[\"nodes\"][0].id",
+        "path": "$.product.variants.nodes[0].id",
         "matcher": "shopify-gid:ProductVariant",
         "reason": "The downstream proxy read returns the locally generated product variant ID."
       },
       {
-        "path": "$.product.variants[\"nodes\"][0].inventoryItem.id",
+        "path": "$.product.variants.nodes[0].inventoryItem.id",
         "matcher": "shopify-gid:InventoryItem",
         "reason": "The downstream proxy read returns the locally generated inventory item ID."
       },
       {
-        "path": "$.product.variants[\"nodes\"][1].id",
+        "path": "$.product.variants.nodes[1].id",
         "matcher": "shopify-gid:ProductVariant",
         "reason": "The downstream proxy read returns the locally generated product variant ID."
       },
       {
-        "path": "$.product.variants[\"nodes\"][1].inventoryItem.id",
+        "path": "$.product.variants.nodes[1].inventoryItem.id",
         "matcher": "shopify-gid:InventoryItem",
         "reason": "The downstream proxy read returns the locally generated inventory item ID."
       },
       {
-        "path": "$.product.variants[\"nodes\"][*].inventoryItem.inventoryLevels.nodes[*].id",
+        "path": "$.product.variants.nodes[*].inventoryItem.inventoryLevels.nodes[*].id",
         "matcher": "shopify-gid:InventoryLevel",
         "reason": "The downstream proxy read returns locally generated inventory level IDs for staged inventory item rows."
       },
       {
-        "path": "$.product.variants[\"nodes\"][*].inventoryItem.inventoryLevels.nodes[*].quantities[0].updatedAt",
+        "path": "$.product.variants.nodes[*].inventoryItem.inventoryLevels.nodes[*].quantities[0].updatedAt",
         "matcher": "iso-timestamp",
         "reason": "The downstream proxy read returns local staged inventory quantity timestamps."
       },
@@ -283,7 +283,14 @@
                   },
                   "name": "Color",
                   "position": 1,
-                  "values": [{ "name": "Blue" }, { "name": "Black" }]
+                  "values": [
+                    {
+                      "name": "Blue"
+                    },
+                    {
+                      "name": "Black"
+                    }
+                  ]
                 }
               ],
               "variants": [
@@ -291,7 +298,12 @@
                   "id": {
                     "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[0].id"
                   },
-                  "optionValues": [{ "optionName": "Color", "name": "Blue" }],
+                  "optionValues": [
+                    {
+                      "optionName": "Color",
+                      "name": "Blue"
+                    }
+                  ],
                   "sku": "GRAPH-BLUE-UPDATED-1777158209644",
                   "price": "89.99",
                   "inventoryQuantities": [
@@ -315,7 +327,12 @@
                   "id": {
                     "fromPrimaryProxyPath": "$.data.productSet.product.variants.nodes[1].id"
                   },
-                  "optionValues": [{ "optionName": "Color", "name": "Black" }],
+                  "optionValues": [
+                    {
+                      "optionName": "Color",
+                      "name": "Black"
+                    }
+                  ],
                   "sku": "GRAPH-BLACK-UPDATED-1777158209644",
                   "price": "59.99",
                   "inventoryQuantities": [

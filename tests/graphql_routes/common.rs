@@ -45,6 +45,15 @@ pub(super) fn graphql_request(method: &str, body: &str) -> Request {
     }
 }
 
+pub(super) fn request_with_body(method: &str, path: &str, body: &str) -> Request {
+    Request {
+        method: method.to_string(),
+        path: path.to_string(),
+        headers: Default::default(),
+        body: body.to_string(),
+    }
+}
+
 pub(super) fn json_graphql_request(query: &str, variables: serde_json::Value) -> Request {
     graphql_request(
         "POST",

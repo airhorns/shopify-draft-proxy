@@ -2694,7 +2694,7 @@
       "variables": {
         "first": 20
       },
-      "query": "#graphql\n  #graphql\n  fragment MarketWebPresenceLifecycleFields on MarketWebPresence {\n    id\n    subfolderSuffix\n    domain {\n      id\n      host\n      url\n      sslEnabled\n    }\n    rootUrls {\n      locale\n      url\n    }\n    defaultLocale {\n      locale\n      name\n      primary\n      published\n    }\n    alternateLocales {\n      locale\n      name\n      primary\n      published\n    }\n    markets(first: 5) {\n      nodes {\n        id\n        name\n        handle\n        status\n        type\n      }\n    }\n  }\n\n  query WebPresenceDeletePrimarySetupRead($first: Int!) {\n    webPresences(first: $first) {\n      nodes {\n        ...MarketWebPresenceLifecycleFields\n      }\n    }\n    shop {\n      id\n      myshopifyDomain\n      primaryDomain {\n        host\n        url\n      }\n    }\n  }\n",
+      "query": "fragment MarketWebPresenceDeletePrimarySetupFields on MarketWebPresence {\n  id\n  subfolderSuffix\n  domain {\n    id\n    host\n    url\n    sslEnabled\n  }\n  rootUrls {\n    locale\n    url\n  }\n  defaultLocale {\n    locale\n    name\n    primary\n    published\n  }\n  alternateLocales {\n    locale\n    name\n    primary\n    published\n  }\n  markets(first: 5) {\n    nodes {\n      id\n      name\n      handle\n      status\n      type\n    }\n  }\n}\n\nquery WebPresenceDeletePrimarySetupRead($first: Int!) {\n  webPresences(first: $first) {\n    nodes {\n      ...MarketWebPresenceDeletePrimarySetupFields\n    }\n  }\n  shop {\n    id\n    myshopifyDomain\n    primaryDomain {\n      host\n      url\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

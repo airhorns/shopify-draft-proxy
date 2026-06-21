@@ -1,0 +1,14 @@
+query MarketingActivityLifecycleRead($createNoStatusId: ID!, $createActiveId: ID!) {
+  createNoStatus: marketingActivity(id: $createNoStatusId) {
+    id
+    title
+    status
+    statusLabel
+  }
+  createActive: marketingActivity(id: $createActiveId) {
+    id
+    title
+    status
+    statusLabel
+  }
+}

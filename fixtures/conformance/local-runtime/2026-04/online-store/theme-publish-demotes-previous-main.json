@@ -29,7 +29,7 @@
         "data": {
           "themeCreate": {
             "theme": {
-              "id": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic",
+              "id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic",
               "name": "Next main",
               "role": "UNPUBLISHED"
             },
@@ -41,14 +41,14 @@
   },
   "publish": {
     "variables": {
-      "id": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic"
+      "id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic"
     },
     "response": {
       "payload": {
         "data": {
           "themePublish": {
             "theme": {
-              "id": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic",
+              "id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic",
               "role": "MAIN"
             },
             "userErrors": []
@@ -64,19 +64,19 @@
     "response": {
       "payload": {
         "data": {
-          "previous": {
-            "id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic",
-            "role": "UNPUBLISHED",
-            "name": "Current main"
-          },
           "mains": {
             "nodes": [
               {
-                "id": "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic",
-                "role": "MAIN",
-                "name": "Next main"
+                "id": "gid://shopify/OnlineStoreTheme/2?shopify-draft-proxy=synthetic",
+                "name": "Next main",
+                "role": "MAIN"
               }
             ]
+          },
+          "previous": {
+            "id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic",
+            "name": "Current main",
+            "role": "UNPUBLISHED"
           }
         }
       }
@@ -86,7 +86,7 @@
     "apiVersion": "2026-04",
     "source": "local-runtime",
     "notes": [
-      "HAR-553 exercises the local runtime behavior for Shopify's one-MAIN-theme invariant after themePublish.",
+      "Exercises the local runtime behavior for Shopify's one-MAIN-theme invariant after themePublish.",
       "The issue cites Shopify core Theme.ensure_one_theme_per_published_role and theme_publish mutation behavior as the live source of truth.",
       "The scenario is intentionally local-runtime backed because themePublish changes storefront presentation on a live shop; commit replay remains the only path for real Shopify writes during normal proxy use."
     ]

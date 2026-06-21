@@ -61,6 +61,32 @@ where
     (nodes, page_info)
 }
 
+/// Project a seeded, already-shaped connection value (`{ edges, [nodes,] pageInfo }`)
+/// through a requested selection, defensively truncating `edges`/`nodes` to the
+/// `first` argument when the seed carries more than was asked for. The seed already
+/// reflects the recorded page (cursors + pageInfo), so its `pageInfo` is preserved
+/// verbatim — this is for catalog roots whose cursors cannot be re-derived locally.
+pub(in crate::proxy) fn project_seeded_connection(
+    connection: &Value,
+    arguments: &BTreeMap<String, ResolvedValue>,
+    selections: &[SelectedField],
+) -> Value {
+    let mut connection = connection.clone();
+    if let Some(ResolvedValue::Int(first)) = arguments.get("first") {
+        if *first >= 0 {
+            let first = *first as usize;
+            for key in ["edges", "nodes"] {
+                if let Some(items) = connection.get_mut(key).and_then(Value::as_array_mut) {
+                    if items.len() > first {
+                        items.truncate(first);
+                    }
+                }
+            }
+        }
+    }
+    selected_json(&connection, selections)
+}
+
 pub(in crate::proxy) fn value_id_cursor(record: &Value) -> String {
     record
         .get("id")

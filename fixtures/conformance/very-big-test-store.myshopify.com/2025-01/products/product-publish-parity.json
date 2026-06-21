@@ -113,7 +113,7 @@
       "variables": {
         "id": "gid://shopify/Product/9264105488617"
       },
-      "query": "sha:hand-synthesized-StorePropertiesPublishablePublishHydrate",
+      "query": "#graphql\n  query StorePropertiesPublishableInputValidationHydrate($id: ID!) {\n    publishable: node(id: $id) {\n      ... on Product {\n        id\n        publishedOnCurrentPublication\n        resourcePublicationsCount {\n          count\n          precision\n        }\n      }\n    }\n    shop {\n      publicationCount\n    }\n    publications(first: 20) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
@@ -139,7 +139,7 @@
       "variables": {
         "id": "gid://shopify/Product/9264105488617"
       },
-      "query": "sha:hand-synthesized-StorePropertiesPublishablePublishToCurrentChannelHydrate",
+      "query": "#graphql\n  query StorePropertiesPublishableInputValidationHydrate($id: ID!) {\n    publishable: node(id: $id) {\n      ... on Product {\n        id\n        publishedOnCurrentPublication\n        resourcePublicationsCount {\n          count\n          precision\n        }\n      }\n    }\n    shop {\n      publicationCount\n    }\n    publications(first: 20) {\n      nodes {\n        id\n        name\n      }\n    }\n  }\n",
       "response": {
         "status": 200,
         "body": {
@@ -165,7 +165,7 @@
       "variables": {
         "ids": ["gid://shopify/Product/9264105488617"]
       },
-      "query": "hand-synthesized from checked-in product capture evidence for HAR-545 Pattern 2 mutation hydration",
+      "query": "\nquery ProductsHydrateNodes($ids: [ID!]!) {\n  nodes(ids: $ids) {\n    __typename\n    id\n    ... on Product {\n      legacyResourceId\n      title\n      handle\n      status\n      vendor\n      productType\n      tags\n      totalInventory\n      tracksInventory\n      createdAt\n      updatedAt\n      publishedAt\n      descriptionHtml\n      onlineStorePreviewUrl\n      templateSuffix\n      seo { title description }\n      resourcePublicationsV2(first: 10) { nodes { publication { id } publishDate isPublished } }\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {
