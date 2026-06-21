@@ -4880,7 +4880,7 @@ impl DraftProxy {
         }
 
         if resolved_bool_field(variables, "synchronous") == Some(false) {
-            let operation_id = "gid://shopify/ProductDeleteOperation/80067887410".to_string();
+            let operation_id = self.next_synthetic_gid("ProductDeleteOperation");
             if self
                 .store
                 .staged

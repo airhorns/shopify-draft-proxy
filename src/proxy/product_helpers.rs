@@ -514,6 +514,7 @@ pub(in crate::proxy) fn collection_json(collection: &Value, selections: &[Select
 pub(in crate::proxy) fn collection_passthrough_hydration_ids(
     root_field: &str,
     response: &Response,
+    variables: &BTreeMap<String, ResolvedValue>,
 ) -> Vec<String> {
     match root_field {
         "collectionAddProducts" => {
@@ -535,10 +536,23 @@ pub(in crate::proxy) fn collection_passthrough_hydration_ids(
         "collectionCreate" => {
             collection_product_ids_from_response(response, "/data/collectionCreate/collection")
         }
-        "collectionReorderProducts" => vec![
-            "gid://shopify/Collection/468787822825".to_string(),
-            "gid://shopify/Product/8397257572585".to_string(),
-        ],
+        "collectionReorderProducts" => {
+            // The async reorder response carries no collection/product nodes, so the
+            // hydration set is derived from the mutation input: the target collection
+            // plus every moved product. (Previously this returned the live-capture
+            // store's ids verbatim, which only hydrated the right nodes for that one
+            // recording.)
+            let mut ids = Vec::new();
+            if let Some(collection_id) = resolved_string_field(variables, "id") {
+                ids.push(collection_id);
+            }
+            for move_input in resolved_object_list_field(variables, "moves") {
+                if let Some(product_id) = resolved_string_field(&move_input, "id") {
+                    ids.push(product_id);
+                }
+            }
+            ids
+        }
         _ => Vec::new(),
     }
 }

@@ -2861,6 +2861,10 @@ impl DraftProxy {
         // `_with_options` nulls the publishable capability when the definition has it
         // disabled (e.g. after a schema change turned it off), matching how Shopify
         // reads back entries whose definition no longer exposes the capability.
+        let updated_at = existing
+            .get("updatedAt")
+            .and_then(Value::as_str)
+            .unwrap_or("2026-01-01T00:00:00Z");
         let record = metaobject_record_from_definition_with_options(
             &id,
             &next_handle,
@@ -2868,7 +2872,7 @@ impl DraftProxy {
             &input_values,
             &display_name,
             &publishable_status,
-            "2026-01-01T00:00:00Z",
+            updated_at,
         );
         self.store
             .staged

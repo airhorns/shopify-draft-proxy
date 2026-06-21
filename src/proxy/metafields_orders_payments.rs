@@ -1799,8 +1799,8 @@ pub(in crate::proxy) fn payment_customization_metafields(
                 "key": resolved_string_field(&metafield, "key").unwrap_or_default(),
                 "type": resolved_string_field(&metafield, "type").unwrap_or_default(),
                 "value": resolved_string_field(&metafield, "value").unwrap_or_default(),
-                "createdAt": "2026-05-05T00:00:00Z",
-                "updatedAt": "2026-05-05T00:00:00Z"
+                "createdAt": format!("2024-01-01T00:00:{:02}.000Z", (index as u64 + 1) % 60),
+                "updatedAt": format!("2024-01-01T00:00:{:02}.000Z", (index as u64 + 1) % 60)
             })
         })
         .collect()
@@ -2124,6 +2124,18 @@ const PAYMENT_TERMS_TEMPLATE_CATALOG: &[(&str, &str, &str, Option<i64>, &str)] =
     ("7", "Fixed", "Fixed date", None, "FIXED"),
 ];
 
+/// True when `template_id` (a `gid://shopify/PaymentTermsTemplate/<tail>`) names a
+/// template in the fixed global catalog above. Shopify rejects unknown templates
+/// with a "Could not find payment terms template." user error; this membership
+/// check derives that rejection from the catalog rather than matching a single
+/// sentinel id.
+fn payment_terms_template_exists(template_id: &str) -> bool {
+    let tail = resource_id_tail(template_id);
+    PAYMENT_TERMS_TEMPLATE_CATALOG
+        .iter()
+        .any(|(catalog_tail, ..)| *catalog_tail == tail)
+}
+
 /// Projects the fixed payment-terms template catalog for a `paymentTermsTemplates`
 /// query. Each selected root field (the live read aliases `all`/`filtered`) is
 /// resolved independently; an optional `paymentTermsType` argument filters the
@@ -2319,7 +2331,7 @@ pub(in crate::proxy) fn payment_terms_validation_error(
     }
 
     match template_id.as_deref() {
-        Some("gid://shopify/PaymentTermsTemplate/9999") => Some(payment_terms_user_error(
+        Some(id) if !payment_terms_template_exists(id) => Some(payment_terms_user_error(
             Value::Null,
             "Could not find payment terms template.",
             unsuccessful_code,
