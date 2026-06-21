@@ -3789,10 +3789,7 @@ fn markets_variables_have_local_id(
     records: &BTreeMap<String, Value>,
 ) -> bool {
     variables.values().any(|value| match value {
-        ResolvedValue::String(id) => {
-            (id.starts_with("gid://shopify/") && id.contains("shopify-draft-proxy=synthetic"))
-                || records.contains_key(id)
-        }
+        ResolvedValue::String(id) => is_synthetic_gid(id) || records.contains_key(id),
         _ => false,
     })
 }
@@ -3854,7 +3851,7 @@ fn record_gid(record: &Value, prefix: &str) -> Option<String> {
 fn next_web_presence_numeric_id(web_presences: &BTreeMap<String, Value>) -> u64 {
     web_presences
         .keys()
-        .filter_map(|key| key.rsplit('/').next())
+        .map(|key| resource_id_path_tail(key.as_str()))
         .filter_map(|numeric| numeric.parse::<u64>().ok())
         .max()
         .unwrap_or(0)

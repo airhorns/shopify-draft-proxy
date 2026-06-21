@@ -1125,7 +1125,7 @@ pub(in crate::proxy) fn delivery_profile_location_record(id: &str) -> Value {
 }
 
 fn delivery_profile_location_name(id: &str) -> String {
-    match id.rsplit('/').next().filter(|tail| !tail.is_empty()) {
+    match Some(resource_id_path_tail(id)).filter(|tail| !tail.is_empty()) {
         Some(tail) => format!("Location {tail}"),
         None => "Delivery profile location".to_string(),
     }
@@ -1162,9 +1162,7 @@ pub(in crate::proxy) fn delivery_profile_item_for_variant(
 }
 
 fn delivery_profile_fallback_product_id(variant_id: &str) -> String {
-    let tail = variant_id
-        .rsplit('/')
-        .next()
+    let tail = Some(resource_id_path_tail(variant_id))
         .filter(|tail| !tail.is_empty())
         .unwrap_or("local");
     format!("gid://shopify/Product/delivery-profile-{tail}")

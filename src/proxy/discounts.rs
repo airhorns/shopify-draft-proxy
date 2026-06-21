@@ -466,7 +466,7 @@ impl DraftProxy {
                             vec![input_arg, selection, "items", "collections", "add"],
                             &format!(
                                 "Collection with id: {} is invalid",
-                                discount_reference_numeric_id(collection_id)
+                                resource_id_tail(collection_id)
                             ),
                             "INVALID",
                         ));
@@ -480,7 +480,7 @@ impl DraftProxy {
                     vec![input_arg, selection, "items", "products", "productsToAdd"],
                     &format!(
                         "Product with id: {} is invalid",
-                        discount_reference_numeric_id(product_id)
+                        resource_id_tail(product_id)
                     ),
                     "INVALID",
                 ));
@@ -498,7 +498,7 @@ impl DraftProxy {
                     ],
                     &format!(
                         "Product variant with id: {} is invalid",
-                        discount_reference_numeric_id(variant_id)
+                        resource_id_tail(variant_id)
                     ),
                     "INVALID",
                 ));
@@ -508,7 +508,7 @@ impl DraftProxy {
     }
 
     fn discount_reference_product_exists(&self, gid: &str) -> bool {
-        if discount_reference_numeric_id(gid) == "0" {
+        if resource_id_tail(gid) == "0" {
             return false;
         }
         if self.store.has_product_state() {
@@ -519,7 +519,7 @@ impl DraftProxy {
     }
 
     fn discount_reference_product_variant_exists(&self, gid: &str) -> bool {
-        if discount_reference_numeric_id(gid) == "0" {
+        if resource_id_tail(gid) == "0" {
             return false;
         }
         let authoritative = !self.store.staged.product_variants.records.is_empty()
@@ -532,7 +532,7 @@ impl DraftProxy {
     }
 
     fn discount_reference_collection_exists(&self, gid: &str) -> bool {
-        if discount_reference_numeric_id(gid) == "0" {
+        if resource_id_tail(gid) == "0" {
             return false;
         }
         if self.store.has_collection_state() {
@@ -1158,7 +1158,7 @@ impl DraftProxy {
                 // Only codes that pass validation are actually assigned.
                 if redeem_code_accepted(code, &codes, index, &existing_codes) {
                     next.push(json!({
-                        "id": format!("gid://shopify/DiscountRedeemCode/{}?shopify-draft-proxy=synthetic", stable_redeem_code_suffix(code)),
+                        "id": synthetic_shopify_gid("DiscountRedeemCode", stable_redeem_code_suffix(code)),
                         "code": code,
                         "asyncUsageCount": 0
                     }));
@@ -2580,7 +2580,7 @@ fn discount_record_from_input(
         .as_ref()
         .map(|code| {
             json!([{
-                "id": format!("gid://shopify/DiscountRedeemCode/{}?shopify-draft-proxy=synthetic", stable_redeem_code_suffix(code)),
+                "id": synthetic_shopify_gid("DiscountRedeemCode", stable_redeem_code_suffix(code)),
                 "code": code,
                 "asyncUsageCount": 0
             }])
@@ -2783,14 +2783,6 @@ fn discount_unknown_id_user_error(root: &str) -> Value {
 
 fn discount_id(record: &Value) -> &str {
     record["id"].as_str().unwrap_or_default()
-}
-
-/// The trailing numeric segment of a Shopify gid (`gid://shopify/Product/123` → `123`),
-/// stripping any `?shopify-draft-proxy=...` synthetic-id query. Used to render the
-/// `… with id: N is invalid` item-reference messages exactly as Shopify does.
-fn discount_reference_numeric_id(gid: &str) -> &str {
-    let tail = gid.rsplit('/').next().unwrap_or(gid);
-    tail.split('?').next().unwrap_or(tail)
 }
 
 fn discount_kind(record: &Value) -> &str {
@@ -3221,7 +3213,7 @@ fn discount_metafields_from_input(input: &BTreeMap<String, ResolvedValue>) -> Op
                 .enumerate()
                 .filter_map(|(index, value)| match value {
                     ResolvedValue::Object(metafield) => Some(json!({
-                        "id": format!("gid://shopify/Metafield/discount-app-{index}?shopify-draft-proxy=synthetic"),
+                        "id": synthetic_shopify_gid("Metafield", format!("discount-app-{index}")),
                         "namespace": resolved_string_field(metafield, "namespace").unwrap_or_default(),
                         "key": resolved_string_field(metafield, "key").unwrap_or_default(),
                         "type": resolved_string_field(metafield, "type").unwrap_or_default(),
@@ -5344,7 +5336,7 @@ pub(in crate::proxy) fn discount_redeem_code_bulk_creation_node(
         "code": code,
         "errors": errors,
         "discountRedeemCode": if pending || !accepted { Value::Null } else { json!({
-            "id": format!("gid://shopify/DiscountRedeemCode/{}?shopify-draft-proxy=synthetic", stable_redeem_code_suffix(code)),
+            "id": synthetic_shopify_gid("DiscountRedeemCode", stable_redeem_code_suffix(code)),
             "code": code
         }) }
     })

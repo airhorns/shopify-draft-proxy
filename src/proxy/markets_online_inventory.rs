@@ -2158,15 +2158,6 @@ pub(in crate::proxy) fn inventory_level_parts_from_id(id: &str) -> Option<(Strin
     Some((item_id, format!("gid://shopify/Location/{location_tail}")))
 }
 
-fn resource_id_tail(id: &str) -> &str {
-    id.rsplit('/')
-        .next()
-        .unwrap_or(id)
-        .split('?')
-        .next()
-        .unwrap_or(id)
-}
-
 pub(in crate::proxy) fn inventory_properties_json() -> Value {
     json!({
         "quantityNames": [
