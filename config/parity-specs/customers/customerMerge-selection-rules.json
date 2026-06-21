@@ -1,0 +1,158 @@
+{
+  "scenarioId": "customer-merge-selection-rules",
+  "operationNames": [
+    "customerCreate",
+    "customerSendAccountInviteEmail",
+    "customerMerge",
+    "customer",
+    "customerByIdentifier",
+    "customerMergeJobStatus"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-merge-selection-rules.json"
+  ],
+  "runtimeTestFiles": ["tests/graphql_routes/customers.rs"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison covers customerMerge resulting-customer selection for override customerOne, exactly one customer with an email, both customers with email plus account-state tiebreak (customerOne INVITED vs customerTwo DISABLED), and neither customer with email defaulting to customerTwo. The live capture script creates disposable setup customers through Admin GraphQL mutations, invites the account-state customer through customerSendAccountInviteEmail, records those setup records as seedCustomers, then verifies downstream customer/customerByIdentifier/job-status readback after each merge.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "override-customer-one-merge",
+        "capturePath": "$.cases.overrideCustomerOne.merge.response.data.customerMerge",
+        "proxyPath": "$.data.customerMerge",
+        "selectedPaths": ["$.resultingCustomerId", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-merge-selection-merge.graphql",
+          "variablesCapturePath": "$.cases.overrideCustomerOne.merge.variables"
+        }
+      },
+      {
+        "name": "override-customer-one-read",
+        "capturePath": "$.cases.overrideCustomerOne.read.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-merge-selection-read-with-email.graphql",
+          "variables": {
+            "result": {
+              "fromProxyResponse": "override-customer-one-merge",
+              "path": "$.data.customerMerge.resultingCustomerId"
+            },
+            "source": {
+              "fromCapturePath": "$.cases.overrideCustomerOne.sourceCustomerId"
+            },
+            "email": {
+              "fromCapturePath": "$.cases.overrideCustomerOne.resultEmail"
+            },
+            "jobId": {
+              "fromProxyResponse": "override-customer-one-merge",
+              "path": "$.data.customerMerge.job.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "only-customer-one-has-email-merge",
+        "capturePath": "$.cases.onlyCustomerOneHasEmail.merge.response.data.customerMerge",
+        "proxyPath": "$.data.customerMerge",
+        "selectedPaths": ["$.resultingCustomerId", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-merge-selection-merge.graphql",
+          "variablesCapturePath": "$.cases.onlyCustomerOneHasEmail.merge.variables"
+        }
+      },
+      {
+        "name": "only-customer-one-has-email-read",
+        "capturePath": "$.cases.onlyCustomerOneHasEmail.read.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-merge-selection-read-with-email.graphql",
+          "variables": {
+            "result": {
+              "fromProxyResponse": "only-customer-one-has-email-merge",
+              "path": "$.data.customerMerge.resultingCustomerId"
+            },
+            "source": {
+              "fromCapturePath": "$.cases.onlyCustomerOneHasEmail.sourceCustomerId"
+            },
+            "email": {
+              "fromCapturePath": "$.cases.onlyCustomerOneHasEmail.resultEmail"
+            },
+            "jobId": {
+              "fromProxyResponse": "only-customer-one-has-email-merge",
+              "path": "$.data.customerMerge.job.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "account-state-customer-one-merge",
+        "capturePath": "$.cases.accountStateCustomerOne.merge.response.data.customerMerge",
+        "proxyPath": "$.data.customerMerge",
+        "selectedPaths": ["$.resultingCustomerId", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-merge-selection-merge.graphql",
+          "variablesCapturePath": "$.cases.accountStateCustomerOne.merge.variables"
+        }
+      },
+      {
+        "name": "account-state-customer-one-read",
+        "capturePath": "$.cases.accountStateCustomerOne.read.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-merge-selection-read-with-email.graphql",
+          "variables": {
+            "result": {
+              "fromProxyResponse": "account-state-customer-one-merge",
+              "path": "$.data.customerMerge.resultingCustomerId"
+            },
+            "source": {
+              "fromCapturePath": "$.cases.accountStateCustomerOne.sourceCustomerId"
+            },
+            "email": {
+              "fromCapturePath": "$.cases.accountStateCustomerOne.resultEmail"
+            },
+            "jobId": {
+              "fromProxyResponse": "account-state-customer-one-merge",
+              "path": "$.data.customerMerge.job.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "neither-has-email-merge",
+        "capturePath": "$.cases.neitherHasEmail.merge.response.data.customerMerge",
+        "proxyPath": "$.data.customerMerge",
+        "selectedPaths": ["$.resultingCustomerId", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-merge-selection-merge.graphql",
+          "variablesCapturePath": "$.cases.neitherHasEmail.merge.variables"
+        }
+      },
+      {
+        "name": "neither-has-email-read",
+        "capturePath": "$.cases.neitherHasEmail.read.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-merge-selection-read.graphql",
+          "variables": {
+            "result": {
+              "fromProxyResponse": "neither-has-email-merge",
+              "path": "$.data.customerMerge.resultingCustomerId"
+            },
+            "source": {
+              "fromCapturePath": "$.cases.neitherHasEmail.sourceCustomerId"
+            },
+            "jobId": {
+              "fromProxyResponse": "neither-has-email-merge",
+              "path": "$.data.customerMerge.job.id"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

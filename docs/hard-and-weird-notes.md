@@ -2756,6 +2756,7 @@ Captured safe happy path for two synthetic customers:
 - when the two customers had addresses, customer-owned metafields, and a source order, Shopify retained the result customer's default address, appended the source address to `addressesV2`, retained result-side metafield conflicts, copied source-only metafields with a new metafield id, and moved the source order to the result customer with the result customer's email
 - the captured result customer kept `numberOfOrders: "0"` and `lastOrder: null` even after the source order became visible in `Customer.orders`
 - the captured result customer's `createdAt` matched the source customer timestamp when the source and result creation seconds differed
+- HAR-1534 captured deterministic resulting-customer selection branches: a valid `overrideFields.customerIdOfEmailToKeep` selecting `customerOneId` makes customer one survive; exactly one customer having an email makes that customer survive; a disposable `customerSendAccountInviteEmail` setup made customer one `INVITED`, and `INVITED` customer one beat `DISABLED` customer two when both had email and equal consent; when neither customer had an email, Shopify defaulted to `customerTwoId`.
 
 Practical rule:
 
