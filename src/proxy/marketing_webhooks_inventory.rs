@@ -385,11 +385,15 @@ impl DraftProxy {
         variables: &BTreeMap<String, ResolvedValue>,
     ) -> Value {
         let id = self.next_proxy_synthetic_gid("WebhookSubscription");
-        let api_client_id = request
-            .headers
-            .get("x-shopify-draft-proxy-api-client-id")
-            .map(String::as_str);
-        let record = self.webhook_subscription_record(&id, &field.arguments, None, api_client_id);
+        let api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id");
+        let api_version = webhook_subscription_effective_api_version(request);
+        let record = self.webhook_subscription_record(
+            &id,
+            &field.arguments,
+            None,
+            api_client_id.as_deref(),
+            api_version.as_deref(),
+        );
         let errors =
             self.webhook_subscription_validation_errors(&field.name, &id, &record, request);
         if !errors.is_empty() {
@@ -418,12 +422,15 @@ impl DraftProxy {
                 vec![json!({ "field": ["id"], "message": "Webhook subscription does not exist" })],
             );
         };
-        let api_client_id = request
-            .headers
-            .get("x-shopify-draft-proxy-api-client-id")
-            .map(String::as_str);
-        let record =
-            self.webhook_subscription_record(&id, &field.arguments, Some(existing), api_client_id);
+        let api_client_id = request_header(request, "x-shopify-draft-proxy-api-client-id");
+        let api_version = webhook_subscription_effective_api_version(request);
+        let record = self.webhook_subscription_record(
+            &id,
+            &field.arguments,
+            Some(existing),
+            api_client_id.as_deref(),
+            api_version.as_deref(),
+        );
         let errors =
             self.webhook_subscription_validation_errors(&field.name, &id, &record, request);
         if !errors.is_empty() {
@@ -709,6 +716,7 @@ impl DraftProxy {
         arguments: &BTreeMap<String, ResolvedValue>,
         existing: Option<Value>,
         api_client_id: Option<&str>,
+        api_version_handle: Option<&str>,
     ) -> Value {
         let webhook_input =
             resolved_object_field(arguments, "webhookSubscription").unwrap_or_default();
@@ -817,9 +825,16 @@ impl DraftProxy {
         } else {
             created_at.to_string()
         };
+        let api_version = existing
+            .as_ref()
+            .and_then(|record| record.get("apiVersion"))
+            .filter(|value| value.is_object())
+            .cloned()
+            .unwrap_or_else(|| webhook_subscription_api_version_record(api_version_handle));
         json!({
             "id": id,
             "legacyResourceId": webhook_subscription_legacy_id(id),
+            "apiVersion": api_version,
             "topic": topic,
             "format": format,
             "uri": uri,
@@ -5848,6 +5863,30 @@ fn webhook_subscription_address_error_field(root_field: &str) -> Value {
 
 fn webhook_subscription_optional_string_key(record: &Value, key: &str) -> Option<String> {
     record[key].as_str().map(ToString::to_string)
+}
+
+fn webhook_subscription_effective_api_version(request: &Request) -> Option<String> {
+    request_header(request, "x-shopify-draft-proxy-api-version")
+        .or_else(|| admin_graphql_version(&request.path).map(|version| version.trim().to_string()))
+}
+
+fn webhook_subscription_api_version_record(handle: Option<&str>) -> Value {
+    let handle = handle
+        .map(str::trim)
+        .filter(|handle| !handle.is_empty())
+        .unwrap_or("2026-04")
+        .to_string();
+    let (display_name, supported) = match handle.as_str() {
+        "2026-04" => ("2026-04 (Latest)".to_string(), true),
+        "2026-07" => ("2026-07 (Release candidate)".to_string(), false),
+        "unstable" => ("unstable".to_string(), false),
+        _ => (handle.clone(), true),
+    };
+    json!({
+        "handle": handle,
+        "displayName": display_name,
+        "supported": supported
+    })
 }
 
 /// Resolve an app-reserved metafield namespace shorthand. Shopify expands

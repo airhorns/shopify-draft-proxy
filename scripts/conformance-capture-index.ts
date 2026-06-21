@@ -8796,6 +8796,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'webhooks',
+    captureId: 'webhook-subscription-api-version-projection',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-api-version-projection.ts',
+    purpose:
+      'WebhookSubscription.apiVersion projection for create/update payloads plus downstream detail and connection-node reads.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-api-version-projection.json`,
+      'config/parity-specs/webhooks/webhook-subscription-api-version-projection.json',
+      'config/parity-requests/webhooks/webhook-subscription-api-version-create.graphql',
+      'config/parity-requests/webhooks/webhook-subscription-api-version-update.graphql',
+      'config/parity-requests/webhooks/webhook-subscription-api-version-detail-read.graphql',
+      'config/parity-requests/webhooks/webhook-subscription-api-version-list.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one temporary SHOP_UPDATE webhook subscription, updates it, captures downstream reads, and deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'webhooks',
     captureId: 'webhook-subscription-address-byte-size-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-subscription-address-byte-size-validation.ts',
