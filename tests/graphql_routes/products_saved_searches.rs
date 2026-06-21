@@ -2292,8 +2292,20 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
                             "id": "gid://shopify/Shop/upstream",
                             "name": "Upstream Shop",
                             "myshopifyDomain": "upstream-shop.myshopify.com",
+                            "primaryDomain": { "host": "policies.upstream.example" },
                             "currencyCode": "CAD",
-                            "publicationCount": 5
+                            "publicationCount": 5,
+                            "shopPolicies": [
+                                {
+                                    "id": "gid://shopify/ShopPolicy/2002",
+                                    "title": "Privacy Policy",
+                                    "body": "<p>Old upstream privacy</p>",
+                                    "type": "PRIVACY_POLICY",
+                                    "url": "https://upstream-shop.myshopify.com/policies/2002.html?locale=en",
+                                    "createdAt": "2026-02-03T04:05:06Z",
+                                    "updatedAt": "2026-02-03T04:05:06Z"
+                                }
+                            ]
                         },
                         "publications": {
                             "nodes": [
@@ -2360,6 +2372,58 @@ fn publishable_payload_shop_hydrates_from_upstream_when_selected() {
             "gid://shopify/Publication/one",
             "gid://shopify/Publication/three",
             "gid://shopify/Publication/two"
+        ])
+    );
+    assert_eq!(
+        state.body["baseState"]["shopPolicyOrder"],
+        json!(["gid://shopify/ShopPolicy/2002"])
+    );
+
+    let policy_update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation PublishableHydratedPolicyUpdate($shopPolicy: ShopPolicyInput!) {
+          shopPolicyUpdate(shopPolicy: $shopPolicy) {
+            shopPolicy { id title body url createdAt }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "shopPolicy": { "type": "PRIVACY_POLICY", "body": "<p>Updated privacy</p>" } }),
+    ));
+    assert_eq!(policy_update.status, 200);
+    assert_eq!(
+        policy_update.body["data"]["shopPolicyUpdate"]["shopPolicy"],
+        json!({
+            "id": "gid://shopify/ShopPolicy/2002",
+            "title": "Privacy Policy",
+            "body": "<p>Updated privacy</p>",
+            "url": "https://policies.upstream.example/policies/2002.html?locale=en",
+            "createdAt": "2026-02-03T04:05:06Z"
+        })
+    );
+    assert_eq!(
+        policy_update.body["data"]["shopPolicyUpdate"]["userErrors"],
+        json!([])
+    );
+
+    let policy_read = proxy.process_request(json_graphql_request(
+        r#"
+        query PublishableHydratedPolicyRead {
+          shop { shopPolicies { id type title body url } }
+        }
+        "#,
+        json!({}),
+    ));
+    assert_eq!(
+        policy_read.body["data"]["shop"]["shopPolicies"],
+        json!([
+            {
+                "id": "gid://shopify/ShopPolicy/2002",
+                "type": "PRIVACY_POLICY",
+                "title": "Privacy Policy",
+                "body": "<p>Updated privacy</p>",
+                "url": "https://policies.upstream.example/policies/2002.html?locale=en"
+            }
         ])
     );
 
