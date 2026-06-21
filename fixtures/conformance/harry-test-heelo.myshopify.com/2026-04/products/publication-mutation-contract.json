@@ -1,0 +1,565 @@
+{
+  "scenarioId": "publication-mutation-contract",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-06-21T16:38:21.492Z",
+  "setup": {
+    "product": {
+      "id": "gid://shopify/Product/10218121724210",
+      "title": "Publication mutation contract mqo0gaq7",
+      "handle": "publication-mutation-contract-mqo0gaq7",
+      "status": "DRAFT",
+      "createdAt": "2026-06-21T16:38:19Z",
+      "updatedAt": "2026-06-21T16:38:19Z",
+      "variants": {
+        "nodes": [
+          {
+            "id": "gid://shopify/ProductVariant/51345493655858",
+            "title": "Default Title"
+          }
+        ]
+      }
+    }
+  },
+  "seedProducts": [
+    {
+      "id": "gid://shopify/Product/10218121724210",
+      "title": "Publication mutation contract mqo0gaq7",
+      "handle": "publication-mutation-contract-mqo0gaq7",
+      "status": "DRAFT",
+      "createdAt": "2026-06-21T16:38:19Z",
+      "updatedAt": "2026-06-21T16:38:19Z",
+      "variants": {
+        "nodes": [
+          {
+            "id": "gid://shopify/ProductVariant/51345493655858",
+            "title": "Default Title"
+          }
+        ]
+      }
+    }
+  ],
+  "cases": {
+    "productCreate": {
+      "query": "#graphql\n  mutation PublicationContractProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        handle\n        status\n        createdAt\n        updatedAt\n        variants(first: 1) {\n          nodes {\n            id\n            title\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "product": {
+          "title": "Publication mutation contract mqo0gaq7",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10218121724210",
+                "title": "Publication mutation contract mqo0gaq7",
+                "handle": "publication-mutation-contract-mqo0gaq7",
+                "status": "DRAFT",
+                "createdAt": "2026-06-21T16:38:19Z",
+                "updatedAt": "2026-06-21T16:38:19Z",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51345493655858",
+                      "title": "Default Title"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createOmittedCatalog": {
+      "query": "#graphql\nmutation PublicationCreateValidation($input: PublicationCreateInput!) {\n  publicationCreate(input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {}
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publicationCreate": {
+              "publication": {
+                "id": "gid://shopify/Publication/300611633458",
+                "autoPublish": false,
+                "supportsFuturePublishing": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createUnknownCatalog": {
+      "query": "#graphql\nmutation PublicationCreateValidation($input: PublicationCreateInput!) {\n  publicationCreate(input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "catalogId": "gid://shopify/Catalog/999999999999"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publicationCreate": {
+              "publication": null,
+              "userErrors": [
+                {
+                  "field": ["input", "catalogId"],
+                  "message": "A catalog was not found for id= gid://shopify/Catalog/999999999999.",
+                  "code": "CATALOG_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createInvalidDefaultState": {
+      "query": "#graphql\nmutation PublicationCreateValidation($input: PublicationCreateInput!) {\n  publicationCreate(input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "defaultState": "NOT_A_PUBLICATION_STATE"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type PublicationCreateInput! was provided invalid value for defaultState (Expected \"NOT_A_PUBLICATION_STATE\" to be one of: EMPTY, ALL_PRODUCTS)",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 38
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "defaultState": "NOT_A_PUBLICATION_STATE"
+                },
+                "problems": [
+                  {
+                    "path": ["defaultState"],
+                    "explanation": "Expected \"NOT_A_PUBLICATION_STATE\" to be one of: EMPTY, ALL_PRODUCTS"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "createUnknownInputFields": {
+      "query": "#graphql\nmutation PublicationCreateValidation($input: PublicationCreateInput!) {\n  publicationCreate(input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Not a PublicationCreateInput field",
+          "channelId": "gid://shopify/Channel/999999999999"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type PublicationCreateInput! was provided invalid value for name (Field is not defined on PublicationCreateInput), channelId (Field is not defined on PublicationCreateInput)",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 38
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "name": "Not a PublicationCreateInput field",
+                  "channelId": "gid://shopify/Channel/999999999999"
+                },
+                "problems": [
+                  {
+                    "path": ["name"],
+                    "explanation": "Field is not defined on PublicationCreateInput"
+                  },
+                  {
+                    "path": ["channelId"],
+                    "explanation": "Field is not defined on PublicationCreateInput"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "updateAddProduct": {
+      "query": "#graphql\nmutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {\n  publicationUpdate(id: $id, input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Publication/300611633458",
+        "input": {
+          "publishablesToAdd": ["gid://shopify/Product/10218121724210"],
+          "autoPublish": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publicationUpdate": {
+              "publication": {
+                "id": "gid://shopify/Publication/300611633458",
+                "autoPublish": true,
+                "supportsFuturePublishing": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateRemoveProduct": {
+      "query": "#graphql\nmutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {\n  publicationUpdate(id: $id, input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Publication/300611633458",
+        "input": {
+          "publishablesToRemove": ["gid://shopify/Product/10218121724210"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publicationUpdate": {
+              "publication": {
+                "id": "gid://shopify/Publication/300611633458",
+                "autoPublish": true,
+                "supportsFuturePublishing": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateInvalidProduct": {
+      "query": "#graphql\nmutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {\n  publicationUpdate(id: $id, input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Publication/300611633458",
+        "input": {
+          "publishablesToAdd": ["gid://shopify/Product/999999999999"]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publicationUpdate": {
+              "publication": null,
+              "userErrors": [
+                {
+                  "field": ["input", "publishablesToAdd", "0"],
+                  "message": "Publishable ID not found.",
+                  "code": "INVALID_PUBLISHABLE_ID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateTooManyProducts": {
+      "query": "#graphql\nmutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {\n  publicationUpdate(id: $id, input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Publication/300611633458",
+        "input": {
+          "publishablesToAdd": [
+            "gid://shopify/Product/900000000000",
+            "gid://shopify/Product/900000000001",
+            "gid://shopify/Product/900000000002",
+            "gid://shopify/Product/900000000003",
+            "gid://shopify/Product/900000000004",
+            "gid://shopify/Product/900000000005",
+            "gid://shopify/Product/900000000006",
+            "gid://shopify/Product/900000000007",
+            "gid://shopify/Product/900000000008",
+            "gid://shopify/Product/900000000009",
+            "gid://shopify/Product/900000000010",
+            "gid://shopify/Product/900000000011",
+            "gid://shopify/Product/900000000012",
+            "gid://shopify/Product/900000000013",
+            "gid://shopify/Product/900000000014",
+            "gid://shopify/Product/900000000015",
+            "gid://shopify/Product/900000000016",
+            "gid://shopify/Product/900000000017",
+            "gid://shopify/Product/900000000018",
+            "gid://shopify/Product/900000000019",
+            "gid://shopify/Product/900000000020",
+            "gid://shopify/Product/900000000021",
+            "gid://shopify/Product/900000000022",
+            "gid://shopify/Product/900000000023",
+            "gid://shopify/Product/900000000024",
+            "gid://shopify/Product/900000000025",
+            "gid://shopify/Product/900000000026",
+            "gid://shopify/Product/900000000027",
+            "gid://shopify/Product/900000000028",
+            "gid://shopify/Product/900000000029",
+            "gid://shopify/Product/900000000030",
+            "gid://shopify/Product/900000000031",
+            "gid://shopify/Product/900000000032",
+            "gid://shopify/Product/900000000033",
+            "gid://shopify/Product/900000000034",
+            "gid://shopify/Product/900000000035",
+            "gid://shopify/Product/900000000036",
+            "gid://shopify/Product/900000000037",
+            "gid://shopify/Product/900000000038",
+            "gid://shopify/Product/900000000039",
+            "gid://shopify/Product/900000000040",
+            "gid://shopify/Product/900000000041",
+            "gid://shopify/Product/900000000042",
+            "gid://shopify/Product/900000000043",
+            "gid://shopify/Product/900000000044",
+            "gid://shopify/Product/900000000045",
+            "gid://shopify/Product/900000000046",
+            "gid://shopify/Product/900000000047",
+            "gid://shopify/Product/900000000048",
+            "gid://shopify/Product/900000000049",
+            "gid://shopify/Product/900000000050"
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publicationUpdate": {
+              "publication": null,
+              "userErrors": [
+                {
+                  "field": ["input", "publishablesToAdd", "51"],
+                  "message": "The limit for simultaneous publication updates has been exceeded.",
+                  "code": "PUBLICATION_UPDATE_LIMIT_EXCEEDED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateMissingPublication": {
+      "query": "#graphql\nmutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {\n  publicationUpdate(id: $id, input: $input) {\n    publication {\n      id\n      autoPublish\n      supportsFuturePublishing\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Publication/999999999999",
+        "input": {
+          "autoPublish": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publicationUpdate": {
+              "publication": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Publication was not found",
+                  "code": "PUBLICATION_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "deleteMissingPublication": {
+      "query": "#graphql\nmutation PublicationDeleteContract($id: ID!) {\n  publicationDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Publication/999999999999"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publicationDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Publication was not found",
+                  "code": "PUBLICATION_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "deleteCreatedPublication": {
+      "query": "#graphql\nmutation PublicationDeleteContract($id: ID!) {\n  publicationDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/Publication/300611633458"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "publicationDelete": {
+              "deletedId": "gid://shopify/Publication/300611633458",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "publicationDelete": null,
+    "productDelete": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10218121724210",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "Live Admin GraphQL 2026-04 publicationCreate accepts omitted catalogId and creates a publication.",
+    "Live unknown catalogId returns CATALOG_NOT_FOUND with an id-specific message.",
+    "Live publicationUpdate accepts Product publishables and returns payload userErrors for missing Product IDs and update batches over 50.",
+    "Live ProductVariant IDs resolved through node(id:) but publicationUpdate returned top-level RESOURCE_NOT_FOUND for variants on this store, so this fixture does not assert the local ProductVariant guardrail.",
+    "publicationDelete payload exposes deletedId and userErrors only."
+  ],
+  "upstreamCalls": []
+}

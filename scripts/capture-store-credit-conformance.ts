@@ -267,6 +267,21 @@ try {
   );
   assertNoGraphqlFailure(accountCurrencyMismatch, 'storeCreditAccountCredit account-id currency mismatch');
 
+  const unsupportedDebitCurrencyVariables = {
+    id: accountId,
+    debitInput: {
+      debitAmount: {
+        amount: '1.00',
+        currencyCode: 'CHF',
+      },
+    },
+  };
+  const unsupportedDebitCurrency = await runGraphqlRequest(
+    STORE_CREDIT_ACCOUNT_DEBIT_MUTATION,
+    unsupportedDebitCurrencyVariables,
+  );
+  assertNoGraphqlFailure(unsupportedDebitCurrency, 'storeCreditAccountDebit unsupported currency validation');
+
   const pastExpiryVariables = {
     id: customerId,
     creditInput: {
@@ -465,7 +480,7 @@ try {
     storeDomain,
     apiVersion,
     notes: [
-      'HAR-317 store-credit success-path capture creates a disposable customer, uses storeCreditAccountCredit with the customer id to create the store credit account, then replays account-id credit/debit mutations and downstream reads.',
+      'Store-credit success-path capture creates a disposable customer, uses storeCreditAccountCredit with the customer id to create the store credit account, then replays account-id credit/debit mutations and downstream reads.',
       'Cleanup debits the remaining captured balance back to zero and deletes the disposable customer. Store credit account identifiers may remain visible in Shopify audit/history even after balance neutralization.',
     ],
     setup: {
@@ -477,6 +492,11 @@ try {
         STORE_CREDIT_ACCOUNT_CREDIT_MUTATION,
         accountCurrencyMismatchVariables,
         accountCurrencyMismatch,
+      ),
+      unsupportedDebitCurrency: record(
+        STORE_CREDIT_ACCOUNT_DEBIT_MUTATION,
+        unsupportedDebitCurrencyVariables,
+        unsupportedDebitCurrency,
       ),
       pastExpiry: record(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, pastExpiryVariables, pastExpiry),
       zeroCredit: record(STORE_CREDIT_ACCOUNT_CREDIT_MUTATION, zeroCreditVariables, zeroCredit),

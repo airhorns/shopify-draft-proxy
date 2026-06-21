@@ -40,6 +40,15 @@ impl DraftProxy {
         self
     }
 
+    pub(in crate::proxy) fn upstream_post(&self, request: &Request, body: Value) -> Response {
+        (self.upstream_transport)(Request {
+            method: "POST".to_string(),
+            path: request.path.clone(),
+            headers: request.headers.clone(),
+            body: body.to_string(),
+        })
+    }
+
     pub fn process_request(&mut self, request: Request) -> Response {
         match route(&request) {
             Route::Health => ok_json(json!({

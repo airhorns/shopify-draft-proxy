@@ -5555,16 +5555,13 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": ORDER_LIFECYCLE_HYDRATE_QUERY,
                 "variables": { "id": id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -5615,16 +5612,13 @@ impl DraftProxy {
         if self.config.read_mode != ReadMode::LiveHybrid {
             return;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": ORDER_CUSTOMER_SUMMARY_HYDRATE_QUERY,
                 "variables": { "id": id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return;
         }
@@ -6477,16 +6471,13 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": hydrate_query,
                 "variables": { "id": fulfillment_order_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -6509,16 +6500,13 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": ORDER_MARK_AS_PAID_HYDRATE_QUERY,
                 "variables": { "id": order_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -6537,16 +6525,13 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": ORDERS_FULFILLMENT_HYDRATE_QUERY,
                 "variables": { "id": fulfillment_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -6584,16 +6569,13 @@ impl DraftProxy {
         }
         // Stage one: resolve the fulfillment's owning order and the sibling
         // fulfillment states needed for the cancel/tracking preconditions.
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": ORDERS_FULFILLMENT_LIFECYCLE_HYDRATE_QUERY,
                 "variables": { "id": fulfillment_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -6605,16 +6587,13 @@ impl DraftProxy {
         let order_id = order.get("id").and_then(Value::as_str)?.to_string();
         // Stage two (best-effort): enrich with the full fulfillment line-item view so a
         // downstream order read observes line items. A cassette miss here is non-fatal.
-        let enriched = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let enriched = self.upstream_post(
+            request,
+            json!({
                 "query": ORDER_FULFILLMENT_LIFECYCLE_READ_QUERY,
                 "variables": { "id": order_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if (200..300).contains(&enriched.status) {
             let enriched_order = enriched.body["data"]["order"].clone();
             if enriched_order.is_object() {
@@ -6797,17 +6776,14 @@ impl DraftProxy {
         {
             return;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": REFUND_ORDER_HYDRATE_QUERY,
                 "operationName": "OrdersOrderHydrate",
                 "variables": { "id": order_id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         let order = response.body["data"]["order"].clone();
         if order.is_object() {
             self.store
@@ -7941,17 +7917,14 @@ impl DraftProxy {
         {
             return;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": DRAFT_ORDER_HYDRATE_QUERY,
                 "operationName": "OrdersDraftOrderHydrate",
                 "variables": { "id": id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return;
         }
@@ -7977,17 +7950,14 @@ impl DraftProxy {
         // tax/shipping), so the recorded hydrate is authoritative when present.
         // On a cassette miss / non-2xx response we keep whatever record is
         // already staged rather than dropping it.
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": ORDER_HYDRATE_QUERY,
                 "operationName": "OrdersOrderHydrate",
                 "variables": { "id": id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return;
         }
@@ -8008,17 +7978,14 @@ impl DraftProxy {
         if self.config.read_mode == ReadMode::Snapshot {
             return None;
         }
-        let response = (self.upstream_transport)(Request {
-            method: "POST".to_string(),
-            path: request.path.clone(),
-            headers: request.headers.clone(),
-            body: json!({
+        let response = self.upstream_post(
+            request,
+            json!({
                 "query": DRAFT_ORDER_CUSTOMER_HYDRATE_QUERY,
                 "operationName": "OrdersDraftOrderCustomerHydrate",
                 "variables": { "id": id }
-            })
-            .to_string(),
-        });
+            }),
+        );
         if !(200..300).contains(&response.status) {
             return None;
         }
@@ -8043,17 +8010,14 @@ impl DraftProxy {
         }
         ids.into_iter()
             .filter_map(|id| {
-                let response = (self.upstream_transport)(Request {
-                    method: "POST".to_string(),
-                    path: request.path.clone(),
-                    headers: request.headers.clone(),
-                    body: json!({
+                let response = self.upstream_post(
+                    request,
+                    json!({
                         "query": DRAFT_ORDER_VARIANT_HYDRATE_QUERY,
                         "operationName": "OrdersDraftOrderVariantHydrate",
                         "variables": { "id": id }
-                    })
-                    .to_string(),
-                });
+                    }),
+                );
                 if !(200..300).contains(&response.status) {
                     return None;
                 }

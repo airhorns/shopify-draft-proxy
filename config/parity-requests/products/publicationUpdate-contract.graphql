@@ -1,0 +1,15 @@
+#graphql
+mutation PublicationUpdateContract($id: ID!, $input: PublicationUpdateInput!) {
+  publicationUpdate(id: $id, input: $input) {
+    publication {
+      id
+      autoPublish
+      supportsFuturePublishing
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

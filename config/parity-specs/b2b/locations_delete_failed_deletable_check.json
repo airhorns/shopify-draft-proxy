@@ -18,7 +18,7 @@
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "runtimeTestFiles": ["tests/graphql_routes/b2b.rs"],
   "notes": "Live Shopify 2026-04 evidence for companyLocationsDelete partial success: a location with non-zero store credit fails the deletable check with an indexed INTERNAL_ERROR userError, a normal location is deleted, and an unknown ID returns indexed RESOURCE_NOT_FOUND. A live probe during this work found the public bulk only-location branch returns the same INTERNAL_ERROR family, so only-location delete FAILED_TO_DELETE parity is covered by the single-location delete scenario while bulk partial success models the public bulk error surface.",
   "comparison": {
     "mode": "strict-json",

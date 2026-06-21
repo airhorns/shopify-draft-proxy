@@ -27,7 +27,6 @@
   "create": {
     "variables": {
       "input": {
-        "name": "Codex Sales Channel",
         "autoPublish": true
       }
     },
@@ -36,15 +35,15 @@
         "publicationCreate": {
           "publication": {
             "id": "gid://shopify/Publication/2",
-            "name": "Codex Sales Channel",
+            "name": "Publication 2",
             "autoPublish": true,
             "supportsFuturePublishing": false,
             "channel": {
               "id": "gid://shopify/Channel/2",
-              "name": "Codex Sales Channel",
+              "name": "Publication 2",
               "publication": {
                 "id": "gid://shopify/Publication/2",
-                "name": "Codex Sales Channel"
+                "name": "Publication 2"
               }
             }
           },
@@ -59,11 +58,11 @@
         "publicationUpdate": {
           "publication": {
             "id": "gid://shopify/Publication/2",
-            "name": "Codex Updated Channel",
+            "name": "Publication 2",
             "autoPublish": false,
             "channel": {
               "id": "gid://shopify/Channel/2",
-              "name": "Codex Updated Channel"
+              "name": "Publication 2"
             }
           },
           "userErrors": []
@@ -76,20 +75,20 @@
       "data": {
         "publication": {
           "id": "gid://shopify/Publication/2",
-          "name": "Codex Updated Channel",
+          "name": "Publication 2",
           "autoPublish": false,
           "supportsFuturePublishing": false,
           "channel": {
             "id": "gid://shopify/Channel/2",
-            "name": "Codex Updated Channel"
+            "name": "Publication 2"
           }
         },
         "channel": {
           "id": "gid://shopify/Channel/2",
-          "name": "Codex Updated Channel",
+          "name": "Publication 2",
           "publication": {
             "id": "gid://shopify/Publication/2",
-            "name": "Codex Updated Channel"
+            "name": "Publication 2"
           },
           "productsCount": {
             "count": 0,
@@ -108,10 +107,10 @@
             },
             {
               "id": "gid://shopify/Channel/2",
-              "name": "Codex Updated Channel",
+              "name": "Publication 2",
               "publication": {
                 "id": "gid://shopify/Publication/2",
-                "name": "Codex Updated Channel"
+                "name": "Publication 2"
               }
             }
           ],
@@ -172,7 +171,7 @@
       "data": {
         "publication": {
           "id": "gid://shopify/Publication/2",
-          "name": "Codex Updated Channel",
+          "name": "Publication 2",
           "products": {
             "nodes": [
               {
@@ -191,7 +190,7 @@
           },
           "channel": {
             "id": "gid://shopify/Channel/2",
-            "name": "Codex Updated Channel",
+            "name": "Publication 2",
             "productsCount": {
               "count": 1,
               "precision": "EXACT"
@@ -228,10 +227,6 @@
       "data": {
         "publicationDelete": {
           "deletedId": "gid://shopify/Publication/2",
-          "publication": {
-            "id": "gid://shopify/Publication/2",
-            "name": "Codex Updated Channel"
-          },
           "userErrors": []
         }
       }
@@ -279,7 +274,7 @@
       "variables": {
         "ids": ["gid://shopify/Product/1"]
       },
-      "query": "hand-synthesized from local-runtime seedProducts for HAR-545 publication publish hydration",
+      "query": "hand-synthesized from local-runtime seedProducts for publication publish hydration",
       "response": {
         "status": 200,
         "body": {
@@ -302,7 +297,7 @@
       "variables": {
         "ids": ["gid://shopify/Collection/1"]
       },
-      "query": "hand-synthesized from local-runtime seedCollections for HAR-545 publication publish hydration",
+      "query": "hand-synthesized from local-runtime seedCollections for publication publish hydration",
       "response": {
         "status": 200,
         "body": {

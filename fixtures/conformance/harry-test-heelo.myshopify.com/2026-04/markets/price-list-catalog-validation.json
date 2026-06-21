@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-06-15T01:39:27.504Z",
+  "capturedAt": "2026-06-21T14:33:09.209Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "scope": "price-list catalogId existence and taken validation",
@@ -9,7 +9,8 @@
       "currency": "USD"
     },
     "missingCatalogId": "gid://shopify/MarketCatalog/99999999",
-    "note": "Records public Admin GraphQL 2026-04 PriceListUserError semantics for priceListCreate/priceListUpdate catalogId relation validation. Validation failures do not create or update price lists."
+    "wrongTypeCatalogId": "gid://shopify/CatalogMarket/99999999",
+    "note": "Records public Admin GraphQL 2026-04 catalogId validation for priceListCreate/priceListUpdate. Correctly typed never-created MarketCatalog ids return PriceListUserError CATALOG_DOES_NOT_EXIST, taken MarketCatalog ids return CATALOG_TAKEN, and wrong-resource Shopify catalog ids return top-level RESOURCE_NOT_FOUND invalid-id errors. Validation failures do not create or update price lists."
   },
   "cases": [
     {
@@ -100,7 +101,7 @@
       "query": "#graphql\nmutation PriceListCreateCatalogValidation($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      currency\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "name": "Price list missing catalog mqejp74u",
+          "name": "Price list missing catalog mqnvza68",
           "currency": "USD",
           "parent": {
             "adjustment": {
@@ -145,7 +146,7 @@
       "query": "#graphql\nmutation PriceListCreateCatalogValidation($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      currency\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "name": "Price list catalog taken setup mqejp74u",
+          "name": "Price list catalog taken setup mqnvza68",
           "currency": "USD",
           "parent": {
             "adjustment": {
@@ -161,7 +162,7 @@
           "data": {
             "priceListCreate": {
               "priceList": {
-                "id": "gid://shopify/PriceList/32290341170",
+                "id": "gid://shopify/PriceList/32294338866",
                 "currency": "USD",
                 "parent": {
                   "adjustment": {
@@ -192,12 +193,12 @@
       "query": "#graphql\nmutation CatalogCreateRelationValidation($input: CatalogCreateInput!) {\n  catalogCreate(input: $input) {\n    catalog {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "title": "Catalog taken setup mqejp74u",
+          "title": "Catalog taken setup mqnvza68",
           "status": "ACTIVE",
           "context": {
             "marketIds": ["gid://shopify/Market/97997685042"]
           },
-          "priceListId": "gid://shopify/PriceList/32290341170"
+          "priceListId": "gid://shopify/PriceList/32294338866"
         }
       },
       "response": {
@@ -206,7 +207,7 @@
           "data": {
             "catalogCreate": {
               "catalog": {
-                "id": "gid://shopify/MarketCatalog/151756603698"
+                "id": "gid://shopify/MarketCatalog/152492179762"
               },
               "userErrors": []
             }
@@ -230,7 +231,7 @@
       "query": "#graphql\nmutation PriceListCreateCatalogValidation($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      currency\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "name": "Price list catalog taken mqejp74u",
+          "name": "Price list catalog taken mqnvza68",
           "currency": "USD",
           "parent": {
             "adjustment": {
@@ -238,7 +239,7 @@
               "value": 10
             }
           },
-          "catalogId": "gid://shopify/MarketCatalog/151756603698"
+          "catalogId": "gid://shopify/MarketCatalog/152492179762"
         }
       },
       "response": {
@@ -275,7 +276,7 @@
       "query": "#graphql\nmutation PriceListCreateCatalogValidation($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      currency\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
-          "name": "Price list update missing catalog setup mqejp74u",
+          "name": "Price list update missing catalog setup mqnvza68",
           "currency": "USD",
           "parent": {
             "adjustment": {
@@ -291,7 +292,7 @@
           "data": {
             "priceListCreate": {
               "priceList": {
-                "id": "gid://shopify/PriceList/32290373938",
+                "id": "gid://shopify/PriceList/32294371634",
                 "currency": "USD",
                 "parent": {
                   "adjustment": {
@@ -309,7 +310,7 @@
               "actualQueryCost": 12,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1988,
+                "currentlyAvailable": 1987,
                 "restoreRate": 100
               }
             }
@@ -321,7 +322,7 @@
       "name": "priceListUpdate nonexistent catalogId validation",
       "query": "#graphql\nmutation PriceListUpdateCatalogValidation($id: ID!, $input: PriceListUpdateInput!) {\n  priceListUpdate(id: $id, input: $input) {\n    priceList {\n      id\n      currency\n      catalog {\n        id\n      }\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/PriceList/32290373938",
+        "id": "gid://shopify/PriceList/32294371634",
         "input": {
           "catalogId": "gid://shopify/MarketCatalog/99999999"
         }
@@ -359,9 +360,9 @@
       "name": "priceListUpdate catalog already has price list validation",
       "query": "#graphql\nmutation PriceListUpdateCatalogValidation($id: ID!, $input: PriceListUpdateInput!) {\n  priceListUpdate(id: $id, input: $input) {\n    priceList {\n      id\n      currency\n      catalog {\n        id\n      }\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/PriceList/32290373938",
+        "id": "gid://shopify/PriceList/32294371634",
         "input": {
-          "catalogId": "gid://shopify/MarketCatalog/151756603698"
+          "catalogId": "gid://shopify/MarketCatalog/152492179762"
         }
       },
       "response": {
@@ -392,24 +393,47 @@
           }
         }
       }
-    }
-  ],
-  "cleanup": [
+    },
     {
-      "type": "priceList",
-      "id": "gid://shopify/PriceList/32290373938",
+      "name": "priceListCreate wrong-type catalogId validation",
+      "query": "#graphql\nmutation PriceListCreateCatalogValidation($input: PriceListCreateInput!) {\n  priceListCreate(input: $input) {\n    priceList {\n      id\n      currency\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "name": "Price list wrong type catalog mqnvza68",
+          "currency": "USD",
+          "parent": {
+            "adjustment": {
+              "type": "PERCENTAGE_DECREASE",
+              "value": 10
+            }
+          },
+          "catalogId": "gid://shopify/CatalogMarket/99999999"
+        }
+      },
       "response": {
         "status": 200,
         "payload": {
-          "data": {
-            "priceListDelete": {
-              "deletedId": "gid://shopify/PriceList/32290373938",
-              "userErrors": []
+          "errors": [
+            {
+              "message": "Invalid id: gid://shopify/CatalogMarket/99999999",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["priceListCreate"]
             }
+          ],
+          "data": {
+            "priceListCreate": null
           },
           "extensions": {
             "cost": {
-              "requestedQueryCost": 10,
+              "requestedQueryCost": 12,
               "actualQueryCost": 10,
               "throttleStatus": {
                 "maximumAvailable": 2000,
@@ -422,14 +446,86 @@
       }
     },
     {
+      "name": "priceListUpdate wrong-type catalogId validation",
+      "query": "#graphql\nmutation PriceListUpdateCatalogValidation($id: ID!, $input: PriceListUpdateInput!) {\n  priceListUpdate(id: $id, input: $input) {\n    priceList {\n      id\n      currency\n      catalog {\n        id\n      }\n      parent {\n        adjustment {\n          type\n          value\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/PriceList/32294371634",
+        "input": {
+          "catalogId": "gid://shopify/CatalogMarket/99999999"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Invalid id: gid://shopify/CatalogMarket/99999999",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "RESOURCE_NOT_FOUND"
+              },
+              "path": ["priceListUpdate"]
+            }
+          ],
+          "data": {
+            "priceListUpdate": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 13,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
       "type": "priceList",
-      "id": "gid://shopify/PriceList/32290341170",
+      "id": "gid://shopify/PriceList/32294371634",
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "priceListDelete": {
-              "deletedId": "gid://shopify/PriceList/32290341170",
+              "deletedId": "gid://shopify/PriceList/32294371634",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "priceList",
+      "id": "gid://shopify/PriceList/32294338866",
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "priceListDelete": {
+              "deletedId": "gid://shopify/PriceList/32294338866",
               "userErrors": []
             }
           },
@@ -449,13 +545,13 @@
     },
     {
       "type": "catalog",
-      "id": "gid://shopify/MarketCatalog/151756603698",
+      "id": "gid://shopify/MarketCatalog/152492179762",
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "catalogDelete": {
-              "deletedId": "gid://shopify/MarketCatalog/151756603698",
+              "deletedId": "gid://shopify/MarketCatalog/152492179762",
               "userErrors": []
             }
           },

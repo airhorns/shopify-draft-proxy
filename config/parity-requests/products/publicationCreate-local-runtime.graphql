@@ -1,4 +1,4 @@
-mutation PublicationCreateLocalRuntime($input: PublicationInput!) {
+mutation PublicationCreateLocalRuntime($input: PublicationCreateInput!) {
   publicationCreate(input: $input) {
     publication {
       id
