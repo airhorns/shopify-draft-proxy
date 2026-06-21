@@ -21,6 +21,55 @@ fn seeded_product(id: &str, title: &str) -> ProductRecord {
     }
 }
 
+fn valid_selling_plan_input(name: &str) -> Value {
+    json!({
+        "name": name,
+        "options": [name],
+        "category": "SUBSCRIPTION",
+        "billingPolicy": { "recurring": { "interval": "MONTH", "intervalCount": 1 } },
+        "deliveryPolicy": { "recurring": { "interval": "MONTH", "intervalCount": 1 } }
+    })
+}
+
+fn valid_selling_plan_group_input(name: &str) -> Value {
+    json!({
+        "name": name,
+        "options": ["Delivery frequency"],
+        "sellingPlansToCreate": [valid_selling_plan_input("Monthly")]
+    })
+}
+
+fn create_selling_plan_group(proxy: &mut DraftProxy, input: Value) -> Response {
+    proxy.process_request(json_graphql_request(
+        r#"
+        mutation CreateSellingPlanGroupForValidation($input: SellingPlanGroupInput!) {
+          sellingPlanGroupCreate(input: $input) {
+            sellingPlanGroup {
+              id
+              sellingPlans(first: 5) { nodes { id } }
+            }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({ "input": input }),
+    ))
+}
+
+fn selling_plan_group_nodes(proxy: &mut DraftProxy) -> Value {
+    proxy
+        .process_request(json_graphql_request(
+            r#"
+            query SellingPlanGroupNodesAfterValidation {
+              sellingPlanGroups(first: 5) { nodes { id } }
+            }
+            "#,
+            json!({}),
+        ))
+        .body["data"]["sellingPlanGroups"]["nodes"]
+        .clone()
+}
+
 #[test]
 fn selling_plan_group_create_validates_locally_without_upstream_passthrough() {
     let upstream_called = Arc::new(Mutex::new(false));
@@ -83,6 +132,208 @@ fn selling_plan_group_create_validates_locally_without_upstream_passthrough() {
     });
     assert_eq!(log.body["entries"][0]["status"], json!("failed"));
     assert_eq!(log.body["entries"][0]["rawBody"], json!(raw_body));
+}
+
+#[test]
+fn selling_plan_group_create_rejects_active_model_validation_without_staging() {
+    let mut absent_name_input = valid_selling_plan_group_input("Absent name");
+    absent_name_input.as_object_mut().unwrap().remove("name");
+
+    let mut absent_plans_input = valid_selling_plan_group_input("Absent plans");
+    absent_plans_input
+        .as_object_mut()
+        .unwrap()
+        .remove("sellingPlansToCreate");
+
+    let too_many_plans = (1..=32)
+        .map(|index| valid_selling_plan_input(&format!("Monthly {index}")))
+        .collect::<Vec<_>>();
+
+    let cases = vec![
+        (
+            "blank name",
+            valid_selling_plan_group_input("   "),
+            json!([{
+                "field": ["input", "name"],
+                "message": "Name can't be blank",
+                "code": "BLANK"
+            }]),
+        ),
+        (
+            "absent name",
+            absent_name_input,
+            json!([{
+                "field": ["input", "name"],
+                "message": "Name can't be blank",
+                "code": "BLANK"
+            }]),
+        ),
+        (
+            "zero plans",
+            json!({
+                "name": "Zero plans",
+                "options": ["Delivery frequency"],
+                "sellingPlansToCreate": []
+            }),
+            json!([{
+                "field": ["input"],
+                "message": "Selling plan groups must have at least 1 selling plan.",
+                "code": "SELLING_PLAN_COUNT_LOWER_BOUND"
+            }]),
+        ),
+        (
+            "absent plans",
+            absent_plans_input,
+            json!([{
+                "field": ["input"],
+                "message": "Selling plan groups must have at least 1 selling plan.",
+                "code": "SELLING_PLAN_COUNT_LOWER_BOUND"
+            }]),
+        ),
+        (
+            "too many plans",
+            json!({
+                "name": "Too many plans",
+                "options": ["Delivery frequency"],
+                "sellingPlansToCreate": too_many_plans
+            }),
+            json!([{
+                "field": ["input"],
+                "message": "Selling plan groups can't have more than 31 selling plans.",
+                "code": "SELLING_PLAN_COUNT_UPPER_BOUND"
+            }]),
+        ),
+        (
+            "missing billing policy",
+            json!({
+                "name": "Missing billing",
+                "options": ["Delivery frequency"],
+                "sellingPlansToCreate": [{
+                    "name": "Monthly",
+                    "options": ["Monthly"],
+                    "category": "SUBSCRIPTION",
+                    "deliveryPolicy": { "recurring": { "interval": "MONTH", "intervalCount": 1 } }
+                }]
+            }),
+            json!([{
+                "field": ["input", "sellingPlansToCreate", "0", "billingPolicy"],
+                "message": "Selling plans to create billing policy must be present.",
+                "code": "SELLING_PLAN_BILLING_POLICY_MISSING"
+            }]),
+        ),
+        (
+            "missing delivery policy",
+            json!({
+                "name": "Missing delivery",
+                "options": ["Delivery frequency"],
+                "sellingPlansToCreate": [{
+                    "name": "Monthly",
+                    "options": ["Monthly"],
+                    "category": "SUBSCRIPTION",
+                    "billingPolicy": { "recurring": { "interval": "MONTH", "intervalCount": 1 } }
+                }]
+            }),
+            json!([{
+                "field": ["input", "sellingPlansToCreate", "0", "deliveryPolicy"],
+                "message": "Selling plans to create delivery policy must be present.",
+                "code": "SELLING_PLAN_DELIVERY_POLICY_MISSING"
+            }]),
+        ),
+        (
+            "missing both policies",
+            json!({
+                "name": "Missing both",
+                "options": ["Delivery frequency"],
+                "sellingPlansToCreate": [{
+                    "name": "Monthly",
+                    "options": ["Monthly"],
+                    "category": "SUBSCRIPTION"
+                }]
+            }),
+            json!([
+                {
+                    "field": ["input", "sellingPlansToCreate", "0", "billingPolicy"],
+                    "message": "Selling plans to create billing policy must be present.",
+                    "code": "SELLING_PLAN_BILLING_POLICY_MISSING"
+                },
+                {
+                    "field": ["input", "sellingPlansToCreate", "0", "deliveryPolicy"],
+                    "message": "Selling plans to create delivery policy must be present.",
+                    "code": "SELLING_PLAN_DELIVERY_POLICY_MISSING"
+                }
+            ]),
+        ),
+    ];
+
+    for (label, input, expected_user_errors) in cases {
+        let mut proxy = snapshot_proxy();
+        let response = create_selling_plan_group(&mut proxy, input);
+        assert_eq!(response.status, 200, "{label}");
+        assert_eq!(
+            response.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"],
+            Value::Null,
+            "{label}"
+        );
+        assert_eq!(
+            response.body["data"]["sellingPlanGroupCreate"]["userErrors"], expected_user_errors,
+            "{label}"
+        );
+        assert_eq!(selling_plan_group_nodes(&mut proxy), json!([]), "{label}");
+
+        let log = proxy.get_log_snapshot();
+        assert_eq!(log["entries"][0]["status"], json!("failed"), "{label}");
+        assert_eq!(log["entries"][0]["stagedResourceIds"], json!([]), "{label}");
+    }
+}
+
+#[test]
+fn selling_plan_group_update_accepts_empty_create_list_without_lower_bound_rejection() {
+    let mut proxy = snapshot_proxy();
+
+    let create = create_selling_plan_group(
+        &mut proxy,
+        valid_selling_plan_group_input("Create only lower-bound seed"),
+    );
+    assert_eq!(
+        create.body["data"]["sellingPlanGroupCreate"]["userErrors"],
+        json!([])
+    );
+    let group_id = create.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let update = proxy.process_request(json_graphql_request(
+        r#"
+        mutation EmptyCreateListOnUpdate($id: ID!, $input: SellingPlanGroupInput!) {
+          sellingPlanGroupUpdate(id: $id, input: $input) {
+            deletedSellingPlanIds
+            sellingPlanGroup { id sellingPlans(first: 5) { nodes { id } } }
+            userErrors { field message code }
+          }
+        }
+        "#,
+        json!({
+            "id": group_id,
+            "input": { "sellingPlansToCreate": [] }
+        }),
+    ));
+
+    assert_eq!(update.status, 200);
+    assert_eq!(
+        update.body["data"]["sellingPlanGroupUpdate"]["userErrors"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["sellingPlanGroupUpdate"]["deletedSellingPlanIds"],
+        json!([])
+    );
+    assert_eq!(
+        update.body["data"]["sellingPlanGroupUpdate"]["sellingPlanGroup"]["sellingPlans"]["nodes"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
 }
 
 #[test]
@@ -211,17 +462,10 @@ fn product_and_variant_join_leave_validate_membership_inputs() {
     let variant = create_legacy_variant(&mut proxy, product_id, "DEFAULT", "1.00");
     let variant_id = variant["id"].as_str().unwrap().to_string();
 
-    let setup_group = proxy.process_request(json_graphql_request(
-        r#"
-        mutation SetupSellingPlanGroup($input: SellingPlanGroupInput!) {
-          sellingPlanGroupCreate(input: $input) {
-            sellingPlanGroup { id }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({ "input": { "name": "Join validation group" } }),
-    ));
+    let setup_group = create_selling_plan_group(
+        &mut proxy,
+        valid_selling_plan_group_input("Join validation group"),
+    );
     assert_eq!(
         setup_group.body["data"]["sellingPlanGroupCreate"]["userErrors"],
         json!([])
@@ -297,22 +541,12 @@ fn named_downstream_membership_reads_are_store_backed() {
     let variant = create_legacy_variant(&mut proxy, product_id, "DEFAULT", "1.00");
     let variant_id = variant["id"].as_str().unwrap().to_string();
 
-    let setup_group = proxy.process_request(json_graphql_request(
-        r#"
-        mutation SetupSellingPlanGroup($input: SellingPlanGroupInput!) {
-          sellingPlanGroupCreate(input: $input) {
-            sellingPlanGroup { id }
-            userErrors { field message code }
-          }
-        }
-        "#,
-        json!({
-            "input": {
-                "name": "Named downstream group",
-                "merchantCode": "named-downstream-group"
-            }
-        }),
-    ));
+    let mut group_input = valid_selling_plan_group_input("Named downstream group");
+    group_input
+        .as_object_mut()
+        .unwrap()
+        .insert("merchantCode".to_string(), json!("named-downstream-group"));
+    let setup_group = create_selling_plan_group(&mut proxy, group_input);
     let group_id = setup_group.body["data"]["sellingPlanGroupCreate"]["sellingPlanGroup"]["id"]
         .as_str()
         .unwrap()

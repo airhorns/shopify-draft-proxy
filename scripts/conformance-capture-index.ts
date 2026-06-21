@@ -32,6 +32,7 @@ const domainSchema = z.enum([
   'saved-searches',
   'segments',
   'shipping-fulfillments',
+  'selling-plans',
   'store-properties',
   'webhooks',
 ]);
@@ -2517,6 +2518,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/products/sellingPlanGroupUpdate-input-validation.graphql',
     ],
     cleanupBehavior: 'Creates one disposable selling-plan group, then deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'selling-plans',
+    captureId: 'selling-plan-group-create-active-model-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-selling-plan-group-create-active-model-validation-conformance.ts',
+    purpose:
+      'Selling-plan group create model-backed validation for blank names, create-only plan count bounds, missing plan policies, and update empty-create-list carve-out.',
+    requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}selling-plan-group-create-active-model-validation.json`,
+      'config/parity-specs/selling-plans/sellingPlanGroupCreate-active-model-validation.json',
+      'config/parity-requests/selling-plans/sellingPlanGroupCreate-active-model-validation.graphql',
+      'config/parity-requests/selling-plans/sellingPlanGroupUpdate-empty-create-list.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable selling-plan group, verifies empty create-list update, then deletes the group.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
